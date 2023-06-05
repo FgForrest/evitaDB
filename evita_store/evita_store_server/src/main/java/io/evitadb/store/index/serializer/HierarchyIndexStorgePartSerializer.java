@@ -58,7 +58,6 @@ public class HierarchyIndexStorgePartSerializer extends Serializer<HierarchyInde
 			if (parentReferencePresent) {
 				output.writeInt(node.parentEntityPrimaryKey());
 			}
-			output.writeInt(node.order());
 		}
 
 		final Map<Integer, int[]> levelIndex = hierarchyIndex.getLevelIndex();
@@ -92,8 +91,7 @@ public class HierarchyIndexStorgePartSerializer extends Serializer<HierarchyInde
 			if (parentReferencePresent) {
 				parentEntityPrimaryKey = input.readInt();
 			}
-			final int order = input.readInt();
-			itemIndex.put(entityPrimaryKey, new HierarchyNode(entityPrimaryKey, parentEntityPrimaryKey, order));
+			itemIndex.put(entityPrimaryKey, new HierarchyNode(entityPrimaryKey, parentEntityPrimaryKey));
 		}
 
 		final int levelIndexSize = input.readVarInt(true);

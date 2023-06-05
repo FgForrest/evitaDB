@@ -28,10 +28,11 @@ import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.lang.reflect.Array;
 import java.util.Arrays;
-import java.util.function.ToIntBiFunction;
+import java.util.Comparator;
 
 /**
  * Support class that handles isolated transactional changes upon an Comparable array.
@@ -62,7 +63,7 @@ public class ObjArrayChanges<T extends Comparable<T>> {
 	 */
 	private int[] removals = new int[0];
 	/**
-	 * Temporary Termediate result of the last {@link #getMergedArray()} operation. Nullified immediately with next
+	 * Temporary intermediate result of the last {@link #getMergedArray()} operation. Nullified immediately with next
 	 * change.
 	 */
 	private T[] memoizedMergedArray;
@@ -73,7 +74,7 @@ public class ObjArrayChanges<T extends Comparable<T>> {
 	 * @param nextInsertionPosition index of the next non-processed insertion command
 	 * @param nextRemovalPosition   index of the next non-processed removal command
 	 */
-	private static void getNextOperations(int nextInsertionPosition, int nextRemovalPosition, ChangePlan plan) {
+	private static void getNextOperations(int nextInsertionPosition, int nextRemovalPosition, @Nonnull ChangePlan plan) {
 		if (nextInsertionPosition >= 0) {
 			if (nextRemovalPosition == -1 || nextRemovalPosition > nextInsertionPosition) {
 				plan.planInsertOperation(nextInsertionPosition);
@@ -89,7 +90,7 @@ public class ObjArrayChanges<T extends Comparable<T>> {
 		}
 	}
 
-	ObjArrayChanges(T[] delegate) {
+	ObjArrayChanges(@Nonnull T[] delegate) {
 		this.delegate = delegate;
 	}
 
@@ -98,7 +99,7 @@ public class ObjArrayChanges<T extends Comparable<T>> {
 	 *
 	 * @return negative value when record is not found, positive if found
 	 */
-	public int indexOf(T recordId) {
+	public int indexOf(@Nonnull T recordId, @Nonnull Comparator<T> comparator) {
 		int index = -1;
 		int removalIndex = 0;
 		int insertIndex = 0;
@@ -106,7 +107,7 @@ public class ObjArrayChanges<T extends Comparable<T>> {
 			// add inserted values
 			if (this.insertions.length > 0 && this.insertions[insertIndex] == i) {
 				final InsertionBucket<T> insertedRecordIds = this.insertedValues[insertIndex];
-				final int insertedIndex = Arrays.binarySearch(insertedRecordIds.getInsertedValues(), recordId, Comparable::compareTo);
+				final int insertedIndex = Arrays.binarySearch(insertedRecordIds.getInsertedValues(), recordId, comparator);
 				if (insertedIndex >= 0) {
 					return index + insertedIndex + 1;
 				} else {
@@ -145,6 +146,7 @@ public class ObjArrayChanges<T extends Comparable<T>> {
 	/**
 	 * Returns set of inserted record ids on specified position of the array.
 	 */
+	@Nullable
 	public T[] getInsertionOnPosition(int position) {
 		int index = Arrays.binarySearch(this.insertions, position);
 		return index >= 0 ? this.insertedValues[index].getInsertedValues() : null;
@@ -159,34 +161,15 @@ public class ObjArrayChanges<T extends Comparable<T>> {
 
 	/**
 	 * Returns true if passed recordId is part of the modified delegate array. I.e. whether it was newly inserted or
-	 * contained in original array and not removed so far. The record is recognized by single property only using
-	 * `idExtractor` function.
-	 */
-	public <U> boolean contains(U recordId, ToIntBiFunction<T, U> idExtractor) {
-		final int delegateIndex = ArrayUtils.binarySearch(delegate, recordId, idExtractor);
-		if (delegateIndex >= 0) {
-			return Arrays.binarySearch(removals, delegateIndex) < 0;
-		} else {
-			for (InsertionBucket<T> insertedValue : insertedValues) {
-				if (ArrayUtils.binarySearch(insertedValue.getInsertedValues(), recordId, idExtractor) >= 0) {
-					return true;
-				}
-			}
-			return false;
-		}
-	}
-
-	/**
-	 * Returns true if passed recordId is part of the modified delegate array. I.e. whether it was newly inserted or
 	 * contained in original array and not removed so far.
 	 */
-	boolean contains(T recordId) {
-		final int delegateIndex = Arrays.binarySearch(delegate, recordId, Comparable::compareTo);
+	boolean contains(@Nonnull T recordId, @Nonnull Comparator<T> comparator) {
+		final int delegateIndex = Arrays.binarySearch(delegate, recordId, comparator);
 		if (delegateIndex >= 0) {
 			return Arrays.binarySearch(removals, delegateIndex) < 0;
 		} else {
 			for (InsertionBucket<T> insertedValue : insertedValues) {
-				if (Arrays.binarySearch(insertedValue.getInsertedValues(), recordId, Comparable::compareTo) >= 0) {
+				if (Arrays.binarySearch(insertedValue.getInsertedValues(), recordId, comparator) >= 0) {
 					return true;
 				}
 			}
@@ -198,8 +181,8 @@ public class ObjArrayChanges<T extends Comparable<T>> {
 	 * Adds new recordId to the array (only when not already present).
 	 * This operation also nullifies previous record id removal (if any).
 	 */
-	void addRecordId(T recordId) {
-		final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, this.delegate);
+	void addRecordId(@Nonnull T recordId, @Nonnull Comparator<T> comparator) {
+		final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, this.delegate, comparator);
 		// record id was already part of the array, but may have been removed
 		if (position.alreadyPresent()) {
 			int removalIndex = Arrays.binarySearch(removals, position.position());
@@ -212,7 +195,7 @@ public class ObjArrayChanges<T extends Comparable<T>> {
 			final int index = Arrays.binarySearch(insertions, position.position());
 			if (index >= 0) {
 				// if there is already waiting array of appended record append also this record id there
-				insertedValues[index].addRecord(recordId);
+				insertedValues[index].addRecord(recordId, comparator);
 			} else {
 				// if not - create new list of additions on expected position
 				final int startIndex = -1 * (index) - 1;
@@ -229,19 +212,19 @@ public class ObjArrayChanges<T extends Comparable<T>> {
 	 * Removes recordId from the array (only when present).
 	 * This operation also nullifies previous record id insertion (if any).
 	 */
-	void removeRecordId(T recordId) {
-		final int position = Arrays.binarySearch(this.delegate, recordId, Comparable::compareTo);
+	void removeRecordId(@Nonnull T recordId, @Nonnull Comparator<T> comparator) {
+		final int position = Arrays.binarySearch(this.delegate, recordId, comparator);
 		// check whether the record is part of the original array
 		if (position >= 0) {
 			// if so, mark this position for removal (this operation is idempotent)
 			this.removals = ArrayUtils.insertIntIntoOrderedArray(position, this.removals);
 		} else {
 			// record is not part of the original array but might be present on change layer
-			final int changePosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, this.delegate).position();
+			final int changePosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, this.delegate, comparator).position();
 			int insertionIndex = Arrays.binarySearch(this.insertions, changePosition);
 			if (insertionIndex >= 0) {
 				// yes the record was added recently and we need to rollback this insertion
-				this.insertedValues[insertionIndex].removeRecord(recordId);
+				this.insertedValues[insertionIndex].removeRecord(recordId, comparator);
 				if (this.insertedValues[insertionIndex].isEmpty()) {
 					// inserted values are now empty, we need to shrink insertion arrays
 					this.insertions = ArrayUtils.removeIntFromArrayOnIndex(this.insertions, insertionIndex);
@@ -257,6 +240,7 @@ public class ObjArrayChanges<T extends Comparable<T>> {
 	 * This method computes new array from the immutable original array and the set of insertions / removals made upon
 	 * it.
 	 */
+	@Nonnull
 	T[] getMergedArray() {
 		if (insertions.length == 0 && removals.length == 0) {
 			// if there are no insertions / removals - return the original
@@ -373,12 +357,12 @@ public class ObjArrayChanges<T extends Comparable<T>> {
 			this.insertedValues[0] = insertedValue;
 		}
 
-		public void addRecord(T recordId) {
-			this.insertedValues = ArrayUtils.insertRecordIntoOrderedArray(recordId, this.insertedValues);
+		public void addRecord(@Nonnull T recordId, @Nonnull Comparator<T> comparator) {
+			this.insertedValues = ArrayUtils.insertRecordIntoOrderedArray(recordId, this.insertedValues, comparator);
 		}
 
-		public void removeRecord(T recordId) {
-			this.insertedValues = ArrayUtils.removeRecordFromOrderedArray(recordId, this.insertedValues);
+		public void removeRecord(@Nonnull T recordId, @Nonnull Comparator<T> comparator) {
+			this.insertedValues = ArrayUtils.removeRecordFromOrderedArray(recordId, this.insertedValues, comparator);
 		}
 
 		public boolean isEmpty() {

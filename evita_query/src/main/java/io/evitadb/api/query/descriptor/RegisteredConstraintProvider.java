@@ -27,12 +27,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.head.Collection;
-import io.evitadb.api.query.order.AttributeNatural;
-import io.evitadb.api.query.order.EntityProperty;
-import io.evitadb.api.query.order.OrderBy;
-import io.evitadb.api.query.order.PriceNatural;
-import io.evitadb.api.query.order.Random;
-import io.evitadb.api.query.order.ReferenceProperty;
+import io.evitadb.api.query.order.*;
 import io.evitadb.api.query.require.*;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -67,6 +62,7 @@ class RegisteredConstraintProvider {
 		// --- filter constraints ---
 		// generic
 		FilterBy.class,
+		FilterGroupBy.class,
 		And.class,
 		Not.class,
 		Or.class,
@@ -99,19 +95,25 @@ class RegisteredConstraintProvider {
 		HierarchyDirectRelation.class,
 		HierarchyExcluding.class,
 		HierarchyExcludingRoot.class,
+		HierarchyHaving.class,
 		HierarchyWithin.class,
 		HierarchyWithinRoot.class,
 		// facet
-		FacetInSet.class,
+		FacetHaving.class,
 
 		// --- order constraints ---
 		// generic
 		OrderBy.class,
+		OrderGroupBy.class,
 		Random.class,
 		// entity
+		EntityPrimaryKeyExact.class,
+		EntityPrimaryKeyInFilter.class,
 		EntityProperty.class,
 		// attribute
 		AttributeNatural.class,
+		AttributeSetExact.class,
+		AttributeSetInFilter.class,
 		// price
 		PriceNatural.class,
 		// reference
@@ -139,10 +141,19 @@ class RegisteredConstraintProvider {
 		// references
 		ReferenceContent.class,
 		// hierarchy
-		HierarchyStatisticsOfSelf.class,
-		HierarchyStatisticsOfReference.class,
-		HierarchyParentsOfSelf.class,
-		HierarchyParentsOfReference.class,
+		HierarchyContent.class,
+		HierarchyChildren.class,
+		HierarchyDistance.class,
+		HierarchyFromNode.class,
+		HierarchyFromRoot.class,
+		HierarchyLevel.class,
+		HierarchyNode.class,
+		HierarchyOfReference.class,
+		HierarchyOfSelf.class,
+		HierarchyParents.class,
+		HierarchySiblings.class,
+		HierarchyStatistics.class,
+		HierarchyStopAt.class,
 		// facet
 		FacetGroupsConjunction.class,
 		FacetGroupsDisjunction.class,

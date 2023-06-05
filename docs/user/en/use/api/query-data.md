@@ -29,8 +29,8 @@ a [Lisp flavored language](https://en.wikipedia.org/wiki/Lisp_(programming_langu
 the name of the function, followed by a set of arguments in parentheses. You can even use other functions 
 in those arguments. An example of such a query might look like this:
 
-<SourceCodeTabs>
-[EvitaQL example](docs/user/en/use/api/example/evita-query-example.java)
+<SourceCodeTabs requires="/docs/user/en/get-started/example/connect-demo-server.java">
+[EvitaQL example](/docs/user/en/use/api/example/evita-query-example.java)
 </SourceCodeTabs>
 
 > *The query will return the first page of 20 products in the category "local food" and its subcategories that have* 
@@ -74,16 +74,16 @@ This is an example of how the query is composed and how evitaDB is called. The e
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> and
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/QueryConstraints.java</SourceClass>.
 
-<SourceCodeTabs>
-[Java query example](docs/user/en/use/api/example/java-query-example.java)
+<SourceCodeTabs requires="/docs/user/en/get-started/example/connect-demo-server.java">
+[Java query example](/docs/user/en/use/api/example/java-query-example.java)
 </SourceCodeTabs>
 
 ### Automatic query cleaning
 
 The query may also contain "dirty" parts - that is, null constraints and unnecessary parts:
 
-<SourceCodeTabs>
-[Java dirty query example](docs/user/en/use/api/example/java-dirty-query-example.java)
+<SourceCodeTabs requires="/docs/user/en/get-started/example/connect-demo-server.java">
+[Java dirty query example](/docs/user/en/use/api/example/java-dirty-query-example.java)
 </SourceCodeTabs>
 
 The query is automatically cleaned and unnecessary constraints are removed before it is processed by the evitaDB engine.
@@ -127,8 +127,8 @@ represented by the
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityReferenceContract.java</SourceClass> 
 interface.
 
-<SourceCodeTabs>
-[Default query example](docs/user/en/use/api/example/default-query-example.java)
+<SourceCodeTabs requires="/docs/user/en/get-started/example/connect-demo-server.java">
+[Default query example](/docs/user/en/use/api/example/default-query-example.java)
 </SourceCodeTabs>
 
 The client application can request returning entity bodies instead, but this must be explicitly requested using 
@@ -144,9 +144,30 @@ When such a require constraint is used, data will be fetched *greedily* during t
 will then contain entities in the form of 
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass>.
 
-<SourceCodeTabs>
-[Fetching example](docs/user/en/use/api/example/fetching-example.java)
+<SourceCodeTabs requires="/docs/user/en/get-started/example/connect-demo-server.java">
+[Fetching example](/docs/user/en/use/api/example/fetching-example.java)
 </SourceCodeTabs>
+
+Although there are simpler variants for querying entities, the typical method is `query` that returns a complex object
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/EvitaResponse.java</SourceClass> containing:
+
+- **<SourceClass>evita_common/src/main/java/io/evitadb/dataType/DataChunk.java</SourceClass>** with result entities in
+  the form of <SourceClass>evita_common/src/main/java/io/evitadb/dataType/PaginatedList.java</SourceClass> or
+  <SourceClass>evita_common/src/main/java/io/evitadb/dataType/StripList.java</SourceClass>
+- [Map](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Map.html) of extra results indexed by their
+  class (`<T extends EvitaResponseExtraResult> Map<Class<T>, T>`)
+
+The next example documents fetching the second page of products in a category with calculated facet statistics:
+
+<SourceCodeTabs requires="/docs/user/en/get-started/example/connect-demo-server.java">
+[Fetching example](/docs/user/en/use/api/example/query-example.java)
+</SourceCodeTabs>
+
+There are shortcuts for calling query with the expected entity form so that you don't need to declare the expected
+entity form in the second argument of the `query` method:
+
+- `queryEntityReference` producing <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure/EntityReference.java</SourceClass>
+- `querySealedEntity` producing <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass>
 
 #### Lazy fetching (enrichment)
 
@@ -158,8 +179,8 @@ To enrich, a.k.a. lazy fetch missing data to an existing entity, you must pass t
 method and specify a set of additional require constraints that should be satisfied. Due to immutability properties 
 enforced by database design, enriching an entity object returns a new instance of the entity.
 
-<SourceCodeTabs>
-[Lazy loading example](docs/user/en/use/api/example/lazy-fetch-example.java)
+<SourceCodeTabs requires="/docs/user/en/get-started/example/connect-demo-server.java">
+[Lazy loading example](/docs/user/en/use/api/example/lazy-fetch-example.java)
 </SourceCodeTabs>
 
 Lazy fetching may not be necessary for a frontend designed using an MVC architecture, where all requirements for the 

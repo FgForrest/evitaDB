@@ -24,8 +24,10 @@
 package io.evitadb.core.query.filter.translator.attribute;
 
 import io.evitadb.api.query.filter.AttributeBetween;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
@@ -73,7 +75,7 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 		final Serializable to = filterConstraint.getTo();
 
 		if (filterByVisitor.isEntityTypeKnown()) {
-			final AttributeSchemaContract attributeDefinition = filterByVisitor.getAttributeSchema(attributeName);
+			final AttributeSchemaContract attributeDefinition = filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE);
 			final Class<? extends Serializable> attributeType = attributeDefinition.getPlainType();
 			final AttributeFormula filteringFormula;
 			if (Range.class.isAssignableFrom(attributeType)) {
@@ -94,7 +96,8 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 					throw new EvitaInternalError("Unexpected Range type!");
 				}
 				filteringFormula = new AttributeFormula(
-					attributeName,
+					attributeDefinition.isLocalized() ?
+						new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 					filterByVisitor.applyOnFilterIndexes(
 						attributeDefinition, index -> index.getRecordsOverlappingFormula(comparableFrom, comparableTo)
 					)
@@ -103,7 +106,8 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 				final Comparable comparableFrom = (Comparable) EvitaDataTypes.toTargetType(from, attributeType);
 				final Comparable comparableTo = (Comparable) EvitaDataTypes.toTargetType(to, attributeType);
 				filteringFormula = new AttributeFormula(
-					attributeName,
+					attributeDefinition.isLocalized() ?
+						new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 					filterByVisitor.applyOnFilterIndexes(
 						attributeDefinition,
 						index -> {
@@ -164,7 +168,8 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 				} else {
 					return getComparablePredicate(comparableFrom, comparableTo);
 				}
-			}
+			},
+			AttributeTrait.FILTERABLE
 		);
 	}
 

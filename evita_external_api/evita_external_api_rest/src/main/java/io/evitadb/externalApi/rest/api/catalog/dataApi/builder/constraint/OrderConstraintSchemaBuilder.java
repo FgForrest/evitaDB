@@ -28,6 +28,7 @@ import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
@@ -54,7 +55,7 @@ public class OrderConstraintSchemaBuilder extends OpenApiConstraintSchemaBuilder
 			constraintSchemaBuildingCtx,
 			createHashMap(0), // currently, we don't support any filter constraint with additional children
 			Set.of(),
-			Set.of(OrderBy.class)
+			Set.of(OrderBy.class, OrderGroupBy.class)
 		);
 	}
 
@@ -72,18 +73,7 @@ public class OrderConstraintSchemaBuilder extends OpenApiConstraintSchemaBuilder
 	@Nonnull
 	@Override
 	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
-		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(OrderBy.class);
-		Assert.isPremiseValid(
-			!descriptors.isEmpty(),
-			() -> new OpenApiBuildingError("Could not find `orderBy` order query.")
-		);
-		Assert.isPremiseValid(
-			descriptors.size() == 1,
-			() -> new OpenApiBuildingError(
-				"There multiple variants of `orderBy` order query, cannot decide which to choose."
-			)
-		);
-		return descriptors.iterator().next();
+		return ConstraintDescriptorProvider.getConstraint(OrderBy.class);
 	}
 
 	@Nonnull

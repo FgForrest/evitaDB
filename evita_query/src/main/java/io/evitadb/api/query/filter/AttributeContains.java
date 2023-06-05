@@ -27,8 +27,8 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
-import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
@@ -65,7 +65,7 @@ import java.io.Serializable;
 	supportedIn = {ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE},
 	supportedValues = @ConstraintSupportedValues(supportedTypes = String.class, arraysSupported = true)
 )
-public class AttributeContains extends AbstractAttributeFilterConstraintLeaf implements IndexUsingConstraint {
+public class AttributeContains extends AbstractAttributeFilterConstraintLeaf {
 	@Serial private static final long serialVersionUID = 5307621598413172503L;
 
 	private AttributeContains(Serializable... arguments) {

@@ -26,13 +26,17 @@ package io.evitadb.externalApi.grpc.requestResponse;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.api.query.require.StatisticsBase;
+import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.grpc.generated.*;
@@ -132,6 +136,60 @@ public class EvitaEnumConverter {
 	}
 
 	@Nonnull
+	public static EmptyHierarchicalEntityBehaviour toEmptyHierarchicalEntityBehaviour(@Nonnull GrpcEmptyHierarchicalEntityBehaviour grpcEmptyHierarchicalEntityBehaviour) {
+		return switch (grpcEmptyHierarchicalEntityBehaviour.getNumber()) {
+			case 0 -> EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY;
+			case 1 -> EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY;
+			default ->
+				throw new EvitaInternalError("Unrecognized remote empty hierarchical entity behaviour: " + grpcEmptyHierarchicalEntityBehaviour);
+		};
+	}
+
+	@Nonnull
+	public static GrpcEmptyHierarchicalEntityBehaviour toGrpcEmptyHierarchicalEntityBehaviour(@Nonnull EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour) {
+		return switch (emptyHierarchicalEntityBehaviour) {
+			case LEAVE_EMPTY -> GrpcEmptyHierarchicalEntityBehaviour.LEAVE_EMPTY;
+			case REMOVE_EMPTY -> GrpcEmptyHierarchicalEntityBehaviour.REMOVE_EMPTY;
+		};
+	}
+
+	@Nonnull
+	public static StatisticsBase toStatisticsBase(@Nonnull GrpcStatisticsBase grpcStatisticsBase) {
+		return switch (grpcStatisticsBase.getNumber()) {
+			case 0 -> StatisticsBase.COMPLETE_FILTER;
+			case 1 -> StatisticsBase.WITHOUT_USER_FILTER;
+			default ->
+				throw new EvitaInternalError("Unrecognized remote statistics base: " + grpcStatisticsBase);
+		};
+	}
+
+	@Nonnull
+	public static GrpcStatisticsBase toGrpcStatisticsBase(@Nonnull StatisticsBase statisticsBase) {
+		return switch (statisticsBase) {
+			case COMPLETE_FILTER -> GrpcStatisticsBase.COMPLETE_FILTER;
+			case WITHOUT_USER_FILTER -> GrpcStatisticsBase.WITHOUT_USER_FILTER;
+		};
+	}
+
+	@Nonnull
+	public static StatisticsType toStatisticsType(@Nonnull GrpcStatisticsType grpcStatisticsType) {
+		return switch (grpcStatisticsType.getNumber()) {
+			case 0 -> StatisticsType.CHILDREN_COUNT;
+			case 1 -> StatisticsType.QUERIED_ENTITY_COUNT;
+			default ->
+				throw new EvitaInternalError("Unrecognized remote statistics type: " + grpcStatisticsType);
+		};
+	}
+
+	@Nonnull
+	public static GrpcStatisticsType toGrpcStatisticsType(@Nonnull StatisticsType statisticsType) {
+		return switch (statisticsType) {
+			case CHILDREN_COUNT -> GrpcStatisticsType.CHILDREN_COUNT;
+			case QUERIED_ENTITY_COUNT -> GrpcStatisticsType.QUERIED_ENTITY_COUNT;
+		};
+	}
+
+	@Nonnull
 	public static AttributeSpecialValue toAttributeSpecialValue(@Nonnull GrpcAttributeSpecialValue grpcAttributeSpecialValue) {
 		return switch (grpcAttributeSpecialValue.getNumber()) {
 			case 0 -> AttributeSpecialValue.NULL;
@@ -216,6 +274,22 @@ public class EvitaEnumConverter {
 	}
 
 	@Nonnull
+	public static CatalogEvolutionMode toCatalogEvolutionMode(@Nonnull GrpcCatalogEvolutionMode grpcEvolutionMode) {
+		return switch (grpcEvolutionMode.getNumber()) {
+			case 0 -> CatalogEvolutionMode.ADDING_ENTITY_TYPES;
+			default ->
+				throw new EvitaInternalError("Unrecognized remote evolution mode: " + grpcEvolutionMode);
+		};
+	}
+
+	@Nonnull
+	public static GrpcCatalogEvolutionMode toGrpcCatalogEvolutionMode(@Nonnull CatalogEvolutionMode evolutionMode) {
+		return switch (evolutionMode) {
+			case ADDING_ENTITY_TYPES -> GrpcCatalogEvolutionMode.ADDING_ENTITY_TYPES;
+		};
+	}
+
+	@Nonnull
 	public static EvolutionMode toEvolutionMode(@Nonnull GrpcEvolutionMode grpcEvolutionMode) {
 		return switch (grpcEvolutionMode.getNumber()) {
 			case 0 -> EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION;
@@ -262,11 +336,13 @@ public class EvitaEnumConverter {
 			case 11 -> QueryPhase.EXECUTION;
 			case 12 -> QueryPhase.EXECUTION_PREFETCH;
 			case 13 -> QueryPhase.EXECUTION_FILTER;
-			case 14 -> QueryPhase.EXECUTION_SORT_AND_SLICE;
-			case 15 -> QueryPhase.EXTRA_RESULTS_FABRICATION;
-			case 16 -> QueryPhase.EXTRA_RESULT_ITEM_FABRICATION;
-			case 17 -> QueryPhase.FETCHING;
-			case 18 -> QueryPhase.FETCHING_REFERENCES;
+			case 14 -> QueryPhase.EXECUTION_FILTER_NESTED_QUERY;
+			case 15 -> QueryPhase.EXECUTION_SORT_AND_SLICE;
+			case 16 -> QueryPhase.EXTRA_RESULTS_FABRICATION;
+			case 17 -> QueryPhase.EXTRA_RESULT_ITEM_FABRICATION;
+			case 18 -> QueryPhase.FETCHING;
+			case 19 -> QueryPhase.FETCHING_REFERENCES;
+			case 20 -> QueryPhase.FETCHING_PARENTS;
 			default ->
 				throw new EvitaInternalError("Unrecognized remote query phase: " + grpcQueryPhase);
 		};
@@ -289,11 +365,13 @@ public class EvitaEnumConverter {
 			case EXECUTION -> GrpcQueryPhase.EXECUTION;
 			case EXECUTION_PREFETCH -> GrpcQueryPhase.EXECUTION_PREFETCH;
 			case EXECUTION_FILTER -> GrpcQueryPhase.EXECUTION_FILTER;
+			case EXECUTION_FILTER_NESTED_QUERY -> GrpcQueryPhase.EXECUTION_FILTER_NESTED_QUERY;
 			case EXECUTION_SORT_AND_SLICE -> GrpcQueryPhase.EXECUTION_SORT_AND_SLICE;
 			case EXTRA_RESULTS_FABRICATION -> GrpcQueryPhase.EXTRA_RESULTS_FABRICATION;
 			case EXTRA_RESULT_ITEM_FABRICATION -> GrpcQueryPhase.EXTRA_RESULT_ITEM_FABRICATION;
 			case FETCHING -> GrpcQueryPhase.FETCHING;
 			case FETCHING_REFERENCES -> GrpcQueryPhase.FETCHING_REFERENCES;
+			case FETCHING_PARENTS -> GrpcQueryPhase.FETCHING_PARENTS;
 		};
 	}
 

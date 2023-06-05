@@ -24,23 +24,19 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
-import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
-import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import java.util.Set;
-
-import static io.evitadb.utils.CollectionUtils.createHashMap;
+import javax.annotation.Nullable;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Implementation of {@link ConstraintResolver} for resolving {@link RequireConstraint} usually with {@link io.evitadb.api.query.require.Require}
@@ -53,15 +49,22 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  */
 public class RequireConstraintResolver extends GraphQLConstraintResolver<RequireConstraint> {
 
-	public RequireConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull String rootEntityType) {
-		this(catalogSchema, new GenericDataLocator(rootEntityType));
-	}
-
-	public RequireConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull DataLocator rootDataLocator) {
+	public RequireConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema,
+	                                 @Nonnull AtomicReference<FilterConstraintResolver> filterConstraintResolver) {
 		super(
 			catalogSchema,
-			createHashMap(0), // currently, in GraphQL API we don't support any require constraint with additional children
-			rootDataLocator
+			Map.of(
+				ConstraintType.FILTER, filterConstraintResolver
+			)
+		);
+	}
+
+	@Nullable
+	public RequireConstraint resolve(@Nonnull String rootEntityType, @Nonnull String key, @Nullable Object value) {
+		return resolve(
+			new GenericDataLocator(rootEntityType),
+			key,
+			value
 		);
 	}
 
@@ -76,35 +79,15 @@ public class RequireConstraintResolver extends GraphQLConstraintResolver<Require
 		return ConstraintType.REQUIRE;
 	}
 
-	@Override
 	@Nonnull
-	protected ConstraintDescriptor getWrapperContainer() {
-		throw new GraphQLInternalError("Wrapper container is not supported for `require` constraints.");
+	@Override
+	protected Optional<ConstraintDescriptor> getWrapperContainer() {
+		return Optional.empty();
 	}
 
 	@Nonnull
 	@Override
-	protected ConstraintDescriptor getRootConstraintContainerDescriptor() {
-		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(Require.class);
-		Assert.isPremiseValid(
-			!descriptors.isEmpty(),
-			() -> new GraphQLSchemaBuildingError("Could not find `require` require query.")
-		);
-		Assert.isPremiseValid(
-			descriptors.size() == 1,
-			() -> new GraphQLSchemaBuildingError(
-				"There multiple variants of `require` require query, cannot decide which to choose."
-			)
-		);
-		return descriptors.iterator().next();
-	}
-
-	@Override
-	protected boolean isChildrenUnique(@Nonnull ChildParameterDescriptor childParameter) {
-		// We don't want list of wrapper container because in "require" constraints there are no generic conjunction
-		// containers (and also there is currently no need to support that). Essentially, we want require constraints
-		// with children to act as if they were `ChildParameterDescriptor#uniqueChildren` as, although they are
-		// originally not, in case of GraphQL where classifiers are in keys those fields are in fact unique children.
-		return true;
+	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
+		return ConstraintDescriptorProvider.getConstraint(Require.class);
 	}
 }

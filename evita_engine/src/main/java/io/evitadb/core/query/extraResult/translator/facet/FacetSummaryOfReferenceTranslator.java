@@ -25,11 +25,15 @@ package io.evitadb.core.query.extraResult.translator.facet;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
+import io.evitadb.api.exception.ReferenceNotFoundException;
+import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.FilterGroupBy;
+import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.api.query.require.FacetSummaryOfReference;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.exception.ReferenceNotFacetedException;
-import io.evitadb.core.exception.ReferenceNotFoundException;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
@@ -39,10 +43,17 @@ import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.facet.producer.FacetSummaryProducer;
+import io.evitadb.core.query.extraResult.translator.facet.producer.FilteringFormulaPredicate;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.collection.BitmapIntoBitmapCollector;
 import io.evitadb.index.facet.FacetReferenceIndex;
+import io.evitadb.utils.Assert;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +61,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BinaryOperator;
 import java.util.function.Function;
+import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
@@ -78,7 +90,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 			Set.of(extraResultPlanner.getFilteringFormula()) :
 			extraResultPlanner.getUserFilteringFormula();
 		// find all requested facets
-		final Map<String, IntSet> requestedFacets = formulaScope
+		final Map<String, Bitmap> requestedFacets = formulaScope
 			.stream()
 			.flatMap(it -> FormulaFinder.find(it, FacetGroupFormula.class, LookUp.SHALLOW).stream())
 			.collect(
@@ -86,7 +98,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 					FacetGroupFormula::getReferenceName,
 					Collectors.mapping(
 						FacetGroupFormula::getFacetIds,
-						new IntArrayToIntSetCollector()
+						BitmapIntoBitmapCollector.INSTANCE
 					)
 				)
 			);
@@ -106,18 +118,87 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 			facetSummaryProducer = new FacetSummaryProducer(
 				extraResultPlanner.getQueryContext(),
 				extraResultPlanner.getFilteringFormula(),
+				extraResultPlanner.getFilteringFormulaWithoutUserFilter(),
 				facetIndexes,
 				requestedFacets
 			);
 		}
 
 		facetSummaryProducer.requireReferenceFacetSummary(
-			referenceName,
+			referenceSchema,
 			facetSummaryOfReference.getFacetStatisticsDepth(),
-			facetSummaryOfReference.getFacetEntityRequirement(),
-			facetSummaryOfReference.getGroupEntityRequirement()
+			facetSummaryOfReference.getFilterBy().map(it -> createFacetPredicate(it, extraResultPlanner, referenceSchema)).orElse(null),
+			facetSummaryOfReference.getFilterGroupBy().map(it -> createFacetGroupPredicate(it, extraResultPlanner, referenceSchema)).orElse(null),
+			facetSummaryOfReference.getOrderBy().map(it -> createFacetSorter(it, extraResultPlanner, referenceSchema)).orElse(null),
+			facetSummaryOfReference.getOrderGroupBy().map(it -> createFacetGroupSorter(it, extraResultPlanner, referenceSchema)).orElse(null),
+			facetSummaryOfReference.getFacetEntityRequirement().orElse(null),
+			facetSummaryOfReference.getGroupEntityRequirement().orElse(null)
 		);
 		return facetSummaryProducer;
+	}
+
+	@Nullable
+	static IntPredicate createFacetGroupPredicate(
+		@Nullable FilterGroupBy filterGroupBy,
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		return new FilteringFormulaPredicate(
+			extraResultPlanner.getQueryContext(),
+			new FilterBy(filterGroupBy.getChildren()),
+			referenceSchema.getReferencedGroupType(),
+			() -> "Facet summary of `" + referenceSchema.getName() + "` group filter: " + filterGroupBy
+		);
+	}
+
+	@Nullable
+	static IntPredicate createFacetPredicate(
+		@Nonnull FilterBy filterBy,
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		return new FilteringFormulaPredicate(
+			extraResultPlanner.getQueryContext(),
+			filterBy,
+			referenceSchema.getReferencedEntityType(),
+			() -> "Facet summary of `" + referenceSchema.getName() + "` facet filter: " + filterBy
+		);
+	}
+
+	@Nullable
+	static Sorter createFacetSorter(
+		@Nonnull OrderBy orderBy,
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		Assert.isTrue(
+			referenceSchema.isReferencedEntityTypeManaged(),
+			() -> "Facets of reference `" + referenceSchema.getName() + "` cannot be sorted because they relate to " +
+				"non-managed entity type `" + referenceSchema.getReferencedEntityType() + "`."
+		);
+		return extraResultPlanner.createSorter(
+			orderBy,
+			extraResultPlanner.getGlobalEntityIndex(referenceSchema.getReferencedEntityType()),
+			() -> "Facet summary `" + referenceSchema.getName() + "` facet ordering: " + orderBy
+		);
+	}
+
+	@Nullable
+	static Sorter createFacetGroupSorter(
+		@Nullable OrderGroupBy orderBy,
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		Assert.isTrue(
+			referenceSchema.isReferencedGroupTypeManaged(),
+			() -> "Facet groups of reference `" + referenceSchema.getName() + "` cannot be sorted because they relate to " +
+				"non-managed entity type `" + referenceSchema.getReferencedGroupType() + "`."
+		);
+		return extraResultPlanner.createSorter(
+			orderBy,
+			extraResultPlanner.getGlobalEntityIndex(referenceSchema.getReferencedGroupType()),
+			() -> "Facet summary `" + referenceSchema.getName() + "` group ordering: " + orderBy
+		);
 	}
 
 	/**

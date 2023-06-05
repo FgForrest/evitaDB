@@ -10,11 +10,14 @@ on:
 jobs:
   report:
     runs-on: ubuntu-latest
+    permissions:
+      checks: write
     steps:
       - name: Download a test results # download `evita-server.jar` artifact if the workflow we react to was successful
         uses: dawidd6/action-download-artifact@v2
         with:
           workflow: ${{ github.event.workflow_run.workflow_id }}
+          run_id: ${{ github.event.workflow_run.id }}
           name: test-results          # artifact name
 
       - name: Publish Test Report
@@ -24,6 +27,7 @@ jobs:
           report_paths: '**/TEST-*.xml'
           commit: ${{github.event.workflow_run.head_sha}}
           require_tests: true
+          fail_on_failure: true
           summary: true
-          detailed_summary: true
+          job_summary: true
           annotate_notice: true

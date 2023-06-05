@@ -27,10 +27,9 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.HierarchyExcluding;
 import lombok.RequiredArgsConstructor;
-
-import java.util.Arrays;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link HierarchyExcluding} from/to binary format.
@@ -42,16 +41,21 @@ public class HierarchyExcludingSerializer extends Serializer<HierarchyExcluding>
 
 	@Override
 	public void write(Kryo kryo, Output output, HierarchyExcluding object) {
-		final int[] primaryKeys = object.getPrimaryKeys();
-		output.writeVarInt(primaryKeys.length, true);
-		output.writeInts(primaryKeys, 0, primaryKeys.length);
+		final FilterConstraint[] children = object.getChildren();
+		output.writeVarInt(children.length, true);
+		for (FilterConstraint child : children) {
+			kryo.writeClassAndObject(output, child);
+		}
 	}
 
 	@Override
 	public HierarchyExcluding read(Kryo kryo, Input input, Class<? extends HierarchyExcluding> type) {
-		final int excludingCount = input.readVarInt(true);
-		final Integer[] primaryKeys = Arrays.stream(input.readInts(excludingCount)).boxed().toArray(Integer[]::new);
-		return new HierarchyExcluding(primaryKeys);
+		final int childrenCount = input.readVarInt(true);
+		final FilterConstraint[] children = new FilterConstraint[childrenCount];
+		for (int i = 0; i < childrenCount; i++) {
+			children[i] = (FilterConstraint) kryo.readClassAndObject(input);
+		}
+		return new HierarchyExcluding(children);
 	}
 
 }

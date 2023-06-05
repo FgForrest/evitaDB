@@ -74,6 +74,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub;
 import io.evitadb.externalApi.grpc.query.QueryConverter;
+import io.evitadb.externalApi.grpc.requestResponse.ResponseConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingEntityMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.EntityMutationConverter;
@@ -113,10 +114,11 @@ import static java.util.Optional.ofNullable;
 
 /**
  * The EvitaClientSession implements {@link EvitaSessionContract} interface and aims to behave identically as if the
- * evitaDB is used as an embedded engine.
+ * evitaDB is used as an embedded engine. The EvitaClientSession is not thread-safe. It keeps a gRPC session opened,
+ * but it doesn't mean that the session on the server side is still alive. Server can close the session due to
+ * the timeout and the client will realize this on the next server call attempt.
  *
- * TODO JNO - extend the documentation once the client is fully completed
- *
+ * @see EvitaSessionContract
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @NotThreadSafe
@@ -132,9 +134,16 @@ public class EvitaClientSession implements EvitaSessionContract {
 	private static final EntityMutationConverter<EntityMutation, GrpcEntityMutation> ENTITY_MUTATION_CONVERTER =
 		new DelegatingEntityMutationConverter();
 
+	/**
+	 * Reflection lookup is used to speed up reflection operation by memoizing the results for examined classes.
+	 */
 	private final ReflectionLookup reflectionLookup;
+	/**
+	 * Reference to the {@link EvitaEntitySchemaCache} that keeps the deserialized schemas on the client side so that
+	 * we avoid frequent re-fetching from the server side. See {@link EvitaEntitySchemaCache} for more details.
+	 */
 	private final EvitaEntitySchemaCache schemaCache;
-	/*
+	/**
 	 * Contains reference to the channel pool that is used for retrieving a channel and applying wanted login onto it.
 	 */
 	private final ChannelPool channelPool;
@@ -185,7 +194,6 @@ public class EvitaClientSession implements EvitaSessionContract {
 		final ManagedChannel managedChannel = this.channelPool.getChannel();
 		try {
 			return evitaSessionServiceBlockingStub.apply(EvitaSessionServiceGrpc.newBlockingStub(managedChannel));
-
 		} finally {
 			this.channelPool.releaseChannel(managedChannel);
 		}
@@ -332,6 +340,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 			)
 		);
 		if (EntityReferenceContract.class.isAssignableFrom(expectedType)) {
+			if (!grpcResponse.hasEntityReference()) {
+				return empty();
+			}
 			final GrpcEntityReference entityReference = grpcResponse.getEntityReference();
 			//noinspection unchecked
 			return (Optional<S>) of(new EntityReference(
@@ -344,6 +355,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 				//noinspection unchecked
 				return (Optional<S>) of(EntityConverter.parseBinaryEntity(grpcResponse.getBinaryEntity()));
 			} else {
+				if (!grpcResponse.hasSealedEntity()) {
+					return empty();
+				}
 				// convert to Sealed entity
 				final GrpcSealedEntity sealedEntity = grpcResponse.getSealedEntity();
 				//noinspection unchecked
@@ -389,7 +403,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 				// convert to Sealed entities
 				//noinspection unchecked
 				return (List<S>) EntityConverter.toSealedEntities(
-					grpcResponse.getSealedEntitiesList(), query,
+					grpcResponse.getSealedEntitiesList(),
+					query,
 					(entityType, schemaVersion) -> schemaCache.getEntitySchemaOrThrow(
 						entityType, schemaVersion, this::fetchEntitySchema, this::getCatalogSchema
 					)
@@ -428,21 +443,20 @@ public class EvitaClientSession implements EvitaSessionContract {
 			)
 		);
 		if (EntityReferenceContract.class.isAssignableFrom(expectedType)) {
-			final DataChunk<EntityReference> recordPage = QueryConverter.convertToDataChunk(
+			final DataChunk<EntityReference> recordPage = ResponseConverter.convertToDataChunk(
 				grpcResponse,
 				grpcRecordPage -> EntityConverter.toEntityReferences(grpcRecordPage.getEntityReferencesList())
 			);
-			final EvitaResponseExtraResult[] extraResults = grpcResponse.hasExtraResults() ?
-				QueryConverter.toExtraResults(grpcResponse.getExtraResults()) : new EvitaResponseExtraResult[0];
 			//noinspection unchecked
 			return (T) new EvitaEntityReferenceResponse(
-				query, recordPage, extraResults
+				query, recordPage,
+				getEvitaResponseExtraResults(query, grpcResponse)
 			);
 		} else if (EntityContract.class.isAssignableFrom(expectedType)) {
 			final DataChunk<SealedEntity> recordPage;
 			if (grpcResponse.getRecordPage().getBinaryEntitiesList().isEmpty()) {
 				// convert to Sealed entities
-				recordPage = QueryConverter.convertToDataChunk(
+				recordPage = ResponseConverter.convertToDataChunk(
 					grpcResponse,
 					grpcRecordPage -> EntityConverter.toSealedEntities(
 						grpcRecordPage.getSealedEntitiesList(), query,
@@ -453,7 +467,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 				);
 			} else {
 				// parse the entities
-				recordPage = QueryConverter.convertToDataChunk(
+				recordPage = ResponseConverter.convertToDataChunk(
 					grpcResponse,
 					grpcRecordPage -> grpcRecordPage.getBinaryEntitiesList()
 						.stream()
@@ -462,16 +476,27 @@ public class EvitaClientSession implements EvitaSessionContract {
 				);
 			}
 
-			final EvitaResponseExtraResult[] extraResults = grpcResponse.hasExtraResults() ?
-				QueryConverter.toExtraResults(grpcResponse.getExtraResults()) : new EvitaResponseExtraResult[0];
-
 			//noinspection unchecked
 			return (T) new EvitaEntityResponse(
-				query, recordPage, extraResults
+				query, recordPage,
+				getEvitaResponseExtraResults(query, grpcResponse)
 			);
 		} else {
 			throw new EvitaInvalidUsageException("Unsupported return type `" + expectedType + "`!");
 		}
+	}
+
+	@Nonnull
+	private EvitaResponseExtraResult[] getEvitaResponseExtraResults(@Nonnull Query query, @Nonnull GrpcQueryResponse grpcResponse) {
+		return grpcResponse.hasExtraResults() ?
+			ResponseConverter.toExtraResults(
+				(sealedEntity) -> schemaCache.getEntitySchemaOrThrow(
+					sealedEntity.getEntityType(), sealedEntity.getSchemaVersion(),
+					this::fetchEntitySchema, this::getCatalogSchema
+				),
+				new EvitaRequest(query, OffsetDateTime.now()),
+				grpcResponse.getExtraResults()
+			) : new EvitaResponseExtraResult[0];
 	}
 
 	@Nullable

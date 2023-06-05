@@ -30,8 +30,8 @@ import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssocia
 import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
-import io.evitadb.api.requestResponse.data.mutation.entity.RemoveHierarchicalPlacementMutation;
-import io.evitadb.api.requestResponse.data.mutation.entity.SetHierarchicalPlacementMutation;
+import io.evitadb.api.requestResponse.data.mutation.entity.RemoveParentMutation;
+import io.evitadb.api.requestResponse.data.mutation.entity.SetParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.RemovePriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
@@ -47,8 +47,8 @@ import io.evitadb.externalApi.grpc.requestResponse.data.mutation.associatedData.
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.attribute.RemoveAttributeMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.attribute.UpsertAttributeMutationConverter;
-import io.evitadb.externalApi.grpc.requestResponse.data.mutation.entity.RemoveHierarchicalPlacementMutationConverter;
-import io.evitadb.externalApi.grpc.requestResponse.data.mutation.entity.SetHierarchicalPlacementMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.data.mutation.entity.RemoveParentMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.data.mutation.entity.SetParentMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.price.RemovePriceMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.price.UpsertPriceMutationConverter;
@@ -89,8 +89,8 @@ public class DelegatingLocalMutationConverter implements LocalMutationConverter<
 		TO_GRPC_CONVERTERS.put(UpsertPriceMutation.class, new ToGrpc((b, m) -> b.setUpsertPriceMutation((GrpcUpsertPriceMutation) m), new UpsertPriceMutationConverter()));
 		TO_GRPC_CONVERTERS.put(RemovePriceMutation.class, new ToGrpc((b, m) -> b.setRemovePriceMutation((GrpcRemovePriceMutation) m), new RemovePriceMutationConverter()));
 		TO_GRPC_CONVERTERS.put(SetPriceInnerRecordHandlingMutation.class, new ToGrpc((b, m) -> b.setSetPriceInnerRecordHandlingMutation((GrpcSetPriceInnerRecordHandlingMutation) m), new SetPriceInnerRecordHandlingMutationConverter()));
-		TO_GRPC_CONVERTERS.put(SetHierarchicalPlacementMutation.class, new ToGrpc((b, m) -> b.setSetHierarchicalPlacementMutation((GrpcSetHierarchicalPlacementMutation) m), new SetHierarchicalPlacementMutationConverter()));
-		TO_GRPC_CONVERTERS.put(RemoveHierarchicalPlacementMutation.class, new ToGrpc((b, m) -> b.setRemoveHierarchicalPlacementMutation((GrpcRemoveHierarchicalPlacementMutation) m), new RemoveHierarchicalPlacementMutationConverter()));
+		TO_GRPC_CONVERTERS.put(SetParentMutation.class, new ToGrpc((b, m) -> b.setSetParentMutation((GrpcSetParentMutation) m), new SetParentMutationConverter()));
+		TO_GRPC_CONVERTERS.put(RemoveParentMutation.class, new ToGrpc((b, m) -> b.setRemoveParentMutation((GrpcRemoveParentMutation) m), new RemoveParentMutationConverter()));
 		TO_GRPC_CONVERTERS.put(InsertReferenceMutation.class, new ToGrpc((b, m) -> b.setInsertReferenceMutation((GrpcInsertReferenceMutation) m), new InsertReferenceMutationConverter()));
 		TO_GRPC_CONVERTERS.put(RemoveReferenceMutation.class, new ToGrpc((b, m) -> b.setRemoveReferenceMutation((GrpcRemoveReferenceMutation) m), new RemoveReferenceMutationConverter()));
 		TO_GRPC_CONVERTERS.put(SetReferenceGroupMutation.class, new ToGrpc((b, m) -> b.setSetReferenceGroupMutation((GrpcSetReferenceGroupMutation) m), new SetReferenceGroupMutationConverter()));
@@ -106,8 +106,8 @@ public class DelegatingLocalMutationConverter implements LocalMutationConverter<
 		TO_JAVA_CONVERTERS.put(MutationCase.UPSERTPRICEMUTATION, new ToJava(GrpcLocalMutation::getUpsertPriceMutation, new UpsertPriceMutationConverter()));
 		TO_JAVA_CONVERTERS.put(MutationCase.REMOVEPRICEMUTATION, new ToJava(GrpcLocalMutation::getRemovePriceMutation, new RemovePriceMutationConverter()));
 		TO_JAVA_CONVERTERS.put(MutationCase.SETPRICEINNERRECORDHANDLINGMUTATION, new ToJava(GrpcLocalMutation::getSetPriceInnerRecordHandlingMutation, new SetPriceInnerRecordHandlingMutationConverter()));
-		TO_JAVA_CONVERTERS.put(MutationCase.SETHIERARCHICALPLACEMENTMUTATION, new ToJava(GrpcLocalMutation::getSetHierarchicalPlacementMutation, new SetHierarchicalPlacementMutationConverter()));
-		TO_JAVA_CONVERTERS.put(MutationCase.REMOVEHIERARCHICALPLACEMENTMUTATION, new ToJava(GrpcLocalMutation::getRemoveHierarchicalPlacementMutation, new RemoveHierarchicalPlacementMutationConverter()));
+		TO_JAVA_CONVERTERS.put(MutationCase.SETPARENTMUTATION, new ToJava(GrpcLocalMutation::getSetParentMutation, new SetParentMutationConverter()));
+		TO_JAVA_CONVERTERS.put(MutationCase.REMOVEPARENTMUTATION, new ToJava(GrpcLocalMutation::getRemoveParentMutation, new RemoveParentMutationConverter()));
 		TO_JAVA_CONVERTERS.put(MutationCase.INSERTREFERENCEMUTATION, new ToJava(GrpcLocalMutation::getInsertReferenceMutation, new InsertReferenceMutationConverter()));
 		TO_JAVA_CONVERTERS.put(MutationCase.REMOVEREFERENCEMUTATION, new ToJava(GrpcLocalMutation::getRemoveReferenceMutation, new RemoveReferenceMutationConverter()));
 		TO_JAVA_CONVERTERS.put(MutationCase.SETREFERENCEGROUPMUTATION, new ToJava(GrpcLocalMutation::getSetReferenceGroupMutation, new SetReferenceGroupMutationConverter()));

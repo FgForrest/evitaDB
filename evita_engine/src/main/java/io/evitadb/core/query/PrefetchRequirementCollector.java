@@ -23,7 +23,7 @@
 
 package io.evitadb.core.query;
 
-import io.evitadb.api.query.require.CombinableEntityContentRequire;
+import io.evitadb.api.query.require.EntityContentRequire;
 
 import javax.annotation.Nonnull;
 
@@ -40,6 +40,6 @@ public interface PrefetchRequirementCollector {
 	 * Registers new requirement that should be taken into an account when/if the prefetch of the entities occur.
 	 * The method call might be completely ignored if the visitor is not present.
 	 */
-	void addRequirementToPrefetch(@Nonnull CombinableEntityContentRequire require);
+	void addRequirementToPrefetch(@Nonnull EntityContentRequire... require);
 
 }

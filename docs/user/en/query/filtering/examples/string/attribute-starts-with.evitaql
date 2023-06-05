@@ -1,0 +1,11 @@
+query(
+    collection('Product'),
+    filterBy(
+        attributeStartsWith('code', 'garmin')
+    ),
+    require(
+       entityFetch(
+           attributeContent('code')
+       )
+    )
+)

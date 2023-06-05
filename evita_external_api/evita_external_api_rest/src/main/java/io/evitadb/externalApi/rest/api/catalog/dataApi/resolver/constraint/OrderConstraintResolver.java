@@ -29,16 +29,14 @@ import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.order.OrderBy;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
-import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import java.util.Set;
+import javax.annotation.Nullable;
+import java.util.Optional;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
@@ -61,6 +59,15 @@ public class OrderConstraintResolver extends RestConstraintResolver<OrderConstra
 		);
 	}
 
+	@Nullable
+	public OrderConstraint resolve(@Nonnull String key, @Nullable Object value) {
+		return resolve(
+			new EntityDataLocator(restHandlingContext.getEntityType()),
+			key,
+			value
+		);
+	}
+
 	@Override
 	protected Class<OrderConstraint> getConstraintClass() {
 		return OrderConstraint.class;
@@ -74,31 +81,14 @@ public class OrderConstraintResolver extends RestConstraintResolver<OrderConstra
 
 	@Override
 	@Nonnull
-	protected ConstraintDescriptor getWrapperContainer() {
+	protected Optional<ConstraintDescriptor> getWrapperContainer() {
 		throw new RestInternalError("Wrapper container is not supported for `order` constraints.");
 	}
 
 	@Nonnull
 	@Override
-	protected DataLocator getRootDataLocator() {
-		return new EntityDataLocator(restHandlingContext.getEntityType());
-	}
-
-	@Nonnull
-	@Override
-	protected ConstraintDescriptor getRootConstraintContainerDescriptor() {
-		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(OrderBy.class);
-		Assert.isPremiseValid(
-			!descriptors.isEmpty(),
-			() -> new OpenApiBuildingError("Could not find `orderBy` order query.")
-		);
-		Assert.isPremiseValid(
-			descriptors.size() == 1,
-			() -> new OpenApiBuildingError(
-				"There multiple variants of `orderBy` order query, cannot decide which to choose."
-			)
-		);
-		return descriptors.iterator().next();
+	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
+		return ConstraintDescriptorProvider.getConstraint(OrderBy.class);
 	}
 
 	@Override

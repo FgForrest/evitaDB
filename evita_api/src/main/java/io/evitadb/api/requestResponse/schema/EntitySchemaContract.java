@@ -29,7 +29,8 @@ import io.evitadb.api.query.filter.PriceBetween;
 import io.evitadb.api.query.filter.PriceInCurrency;
 import io.evitadb.api.query.filter.PriceInPriceLists;
 import io.evitadb.api.query.filter.PriceValidIn;
-import io.evitadb.api.query.require.HierarchyStatisticsOfSelf;
+import io.evitadb.api.query.require.HierarchyOfSelf;
+import io.evitadb.api.query.require.HierarchyParents;
 import io.evitadb.api.query.require.PriceHistogram;
 import io.evitadb.api.query.require.PriceType;
 import io.evitadb.api.requestResponse.data.ContentComparator;
@@ -38,7 +39,6 @@ import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.api.requestResponse.data.structure.Prices;
-import io.evitadb.api.requestResponse.extraResult.HierarchyParents;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
@@ -102,7 +102,7 @@ public interface EntitySchemaContract
 	 *
 	 * Hierarchy can limit returned entities by using filtering constraints {@link HierarchyWithin}. It's also used for
 	 * computation of extra data - such as {@link HierarchyParents}. It can also invert type of returned entities in case requirement
-	 * {@link HierarchyStatisticsOfSelf} is used.
+	 * {@link HierarchyOfSelf} is used.
 	 */
 	boolean isWithHierarchy();
 

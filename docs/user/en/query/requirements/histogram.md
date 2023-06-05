@@ -13,3 +13,6 @@ This article will contain copy of:
 - [price histogram](https://evitadb.io/research/assignment/querying/query_language#price-histogram)
 
 once it's proof-read.
+
+## Attribute histogram
+## Price histogram

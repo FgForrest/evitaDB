@@ -66,7 +66,7 @@ in the set. To access the dataset on your hardware, you need to:
 
 When this procedure is completed you should see the similar output in the console:
 
-```
+```plain
 
             _ _        ____  ____  
   _____   _(_) |_ __ _|  _ \| __ ) 
@@ -74,7 +74,7 @@ When this procedure is completed you should see the similar output in the consol
 |  __/\ V /| | || (_| | |_| | |_) |
  \___| \_/ |_|\__\__,_|____/|____/ 
 
-alpha build 0.5-SNAPSHOT
+alpha build 0.6-SNAPSHOT
 Visit us at: https://evitadb.io
 
 19:45:37.088 INFO  i.e.s.c.DefaultCatalogPersistenceService - Catalog `evita` is being loaded and  it contains:
@@ -123,14 +123,14 @@ Open your Java IDE and create an <SourceClass>evita_external_api/evita_external_
 instance:
 
 <SourceCodeTabs>
-[Connect the demo server](docs/user/en/get-started/example/connect-demo-server.java)
+[Connect the demo server](/docs/user/en/get-started/example/connect-demo-server.java)
 </SourceCodeTabs>
 
 After that you can create a new session and try any of the evitaQL queries described in 
 [the reference documentation](../query/basics.md):
 
-<SourceCodeTabs requires="docs/user/en/get-started/example/connect-demo-server.java">
-[Query the demo server](docs/user/en/get-started/example/query-demo-server.java)
+<SourceCodeTabs requires="/docs/user/en/get-started/example/connect-demo-server.java">
+[Query the demo server](/docs/user/en/get-started/example/query-demo-server.java)
 </SourceCodeTabs>
 
 <Note type="info">

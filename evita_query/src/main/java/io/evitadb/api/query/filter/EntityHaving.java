@@ -28,8 +28,8 @@ import io.evitadb.api.query.EntityConstraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
-import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -50,7 +50,7 @@ import java.io.Serializable;
 		"contains the filtering condition on particular join.",
 	supportedIn = ConstraintDomain.REFERENCE
 )
-public class EntityHaving extends AbstractFilterConstraintContainer implements EntityConstraint<FilterConstraint> {
+public class EntityHaving extends AbstractFilterConstraintContainer implements EntityConstraint<FilterConstraint>, SeparateEntityScopeContainer {
 	@Serial private static final long serialVersionUID = 7151549459608672988L;
 
 	private EntityHaving() {}
@@ -73,8 +73,8 @@ public class EntityHaving extends AbstractFilterConstraintContainer implements E
 
 	@Nonnull
 	@Override
-	public FilterConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		return children.length == 0 ? new EntityHaving() : new EntityHaving((FilterConstraint) children[0]);
+	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return children.length == 0 ? new EntityHaving() : new EntityHaving(children[0]);
 	}
 
 	@Nonnull

@@ -27,6 +27,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.ConstraintLeaf;
 import io.evitadb.api.query.ConstraintVisitor;
+import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.Query;
 import io.evitadb.dataType.EvitaDataTypes;
 
@@ -216,7 +217,7 @@ public class PrettyPrintingVisitor implements ConstraintVisitor {
 	public void traverse(@Nonnull Query query) {
 		this.result.append("query" + ARG_OPENING).append(newLine());
 		this.level = 1;
-		ofNullable(query.getEntities()).ifPresent(it -> {
+		ofNullable(query.getCollection()).ifPresent(it -> {
 			it.accept(this);
 			this.result.append(",");
 		});
@@ -304,6 +305,11 @@ public class PrettyPrintingVisitor implements ConstraintVisitor {
 			// print arguments
 			for (int i = 0; i < argumentsLength; i++) {
 				final Serializable argument = arguments[i];
+
+				if (constraint instanceof ConstraintWithSuffix cws && cws.isArgumentImplicitForSuffix(argument)) {
+					continue;
+				}
+
 				result.append(newLine());
 				indent(indent, level);
 				if (extractParameters) {
@@ -355,6 +361,11 @@ public class PrettyPrintingVisitor implements ConstraintVisitor {
 		final Serializable[] arguments = constraint.getArguments();
 		for (int i = 0; i < arguments.length; i++) {
 			final Serializable argument = arguments[i];
+
+			if (constraint instanceof ConstraintWithSuffix cws && cws.isArgumentImplicitForSuffix(argument)) {
+				continue;
+			}
+
 			if (extractParameters) {
 				result.append('?');
 				ofNullable(parameters).ifPresent(it -> it.add(argument));

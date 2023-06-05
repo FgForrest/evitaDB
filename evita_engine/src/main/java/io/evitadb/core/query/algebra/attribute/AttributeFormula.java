@@ -24,7 +24,8 @@
 package io.evitadb.core.query.algebra.attribute;
 
 import io.evitadb.api.query.require.AttributeHistogram;
-import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -42,12 +43,9 @@ import java.util.function.Consumer;
 /**
  * Attribute formula envelopes {@link Formula} that compute {@link io.evitadb.api.query.FilterConstraint} targeted
  * at attribute values. The formula simply delegates its {@link #compute()} method to the single delegating formula.
- * Purpose of the formula is to serve as marker container that allows to retrieve target {@link #attributeName} when
+ * Purpose of the formula is to serve as marker container that allows to retrieve target {@link #attributeKey} when
  * working with formula tree and reconstructing it to different form. This is namely used in {@link AttributeHistogram}
  * computation that needs to exclude query targeting the attribute histogram is computed for.
- *
- * TOBEDONE JNO - this needs a special form of flattened formula and special interface because it gets used in attribute histogram computer
- * TOBEDONE JNO - this needs a special handling in conjunction with SelectionFormula!
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -55,25 +53,40 @@ public class AttributeFormula extends AbstractCacheableFormula {
 	private static final long CLASS_ID = 4944486926494447594L;
 	public static final String ERROR_SINGLE_FORMULA_EXPECTED = "Exactly one inner formula is expected!";
 	/**
-	 * Contains {@link AttributeSchema#getName()} of the attribute that is targeted by inner query.
+	 * Contains {@link AttributeValue#getKey()} of the attribute that is targeted by inner query.
 	 */
-	@Getter private final String attributeName;
+	@Getter private final AttributeKey attributeKey;
 
-	AttributeFormula(@Nullable Consumer<CacheableFormula> computationCallback, @Nonnull String attributeName, @Nonnull Formula innerFormula) {
+	AttributeFormula(@Nullable Consumer<CacheableFormula> computationCallback, @Nonnull AttributeKey attributeKey, @Nonnull Formula innerFormula) {
 		super(computationCallback, innerFormula);
-		this.attributeName = attributeName;
+		this.attributeKey = attributeKey;
 	}
 
-	public AttributeFormula(@Nonnull String attributeName, @Nonnull Formula innerFormula) {
+	public AttributeFormula(@Nonnull AttributeKey attributeKey, @Nonnull Formula innerFormula) {
 		super(null, innerFormula);
-		this.attributeName = attributeName;
+		this.attributeKey = attributeKey;
 	}
 
 	@Nonnull
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isTrue(innerFormulas.length == 1, ERROR_SINGLE_FORMULA_EXPECTED);
-		return new AttributeFormula(attributeName, innerFormulas[0]);
+		return new AttributeFormula(attributeKey, innerFormulas[0]);
+	}
+
+	/**
+	 * Returns attribute name this formula is targeting.
+	 */
+	@Nonnull
+	public String getAttributeName() {
+		return attributeKey.getAttributeName();
+	}
+
+	/**
+	 * Returns true if the attribute formula relates to localized attribute.
+	 */
+	public boolean isLocalized() {
+		return attributeKey.isLocalized();
 	}
 
 	@Override
@@ -90,12 +103,12 @@ public class AttributeFormula extends AbstractCacheableFormula {
 	@Override
 	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
 		Assert.isTrue(innerFormulas.length == 1, ERROR_SINGLE_FORMULA_EXPECTED);
-		return new AttributeFormula(selfOperator, attributeName, innerFormulas[0]);
+		return new AttributeFormula(selfOperator, attributeKey, innerFormulas[0]);
 	}
 
 	@Override
 	public String toString() {
-		return "ATTRIBUTE FILTER `" + attributeName + "`";
+		return "ATTRIBUTE FILTER `" + attributeKey + "`";
 	}
 
 	@Nonnull
@@ -112,7 +125,16 @@ public class AttributeFormula extends AbstractCacheableFormula {
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashChars(attributeName);
+		if (attributeKey.getLocale() == null) {
+			return hashFunction.hashChars(attributeKey.getAttributeName());
+		} else {
+			return hashFunction.hashLongs(
+				new long[] {
+					hashFunction.hashChars(attributeKey.getAttributeName()),
+					hashFunction.hashChars(attributeKey.getLocale().toLanguageTag())
+				}
+			);
+		}
 	}
 
 	@Override

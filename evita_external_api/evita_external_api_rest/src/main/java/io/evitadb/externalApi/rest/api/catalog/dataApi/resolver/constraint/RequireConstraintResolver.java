@@ -24,22 +24,18 @@
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint;
 
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.require.Require;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
-import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
-import io.evitadb.externalApi.rest.exception.RestInternalError;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Map;
-import java.util.Set;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -65,6 +61,15 @@ public class RequireConstraintResolver extends RestConstraintResolver<RequireCon
 		);
 	}
 
+	@Nullable
+	public RequireConstraint resolve(@Nonnull String key, @Nullable Object value) {
+		return resolve(
+			new GenericDataLocator(restHandlingContext.getEntityType()),
+			key,
+			value
+		);
+	}
+
 	@Override
 	protected Class<RequireConstraint> getConstraintClass() {
 		return RequireConstraint.class;
@@ -78,35 +83,14 @@ public class RequireConstraintResolver extends RestConstraintResolver<RequireCon
 
 	@Override
 	@Nonnull
-	protected ConstraintDescriptor getWrapperContainer() {
-		throw new RestInternalError("Wrapper container is not supported for `require` constraints.");
+	protected Optional<ConstraintDescriptor> getWrapperContainer() {
+		// Wrapper container is not supported for `require` constraints.
+		return Optional.empty();
 	}
 
 	@Nonnull
 	@Override
-	protected DataLocator getRootDataLocator() {
-		return new GenericDataLocator(restHandlingContext.getEntityType());
-	}
-
-	@Nonnull
-	@Override
-	protected ConstraintDescriptor getRootConstraintContainerDescriptor() {
-		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(Require.class);
-		Assert.isPremiseValid(
-			!descriptors.isEmpty(),
-			() -> new OpenApiBuildingError("Could not find `require` require query.")
-		);
-		Assert.isPremiseValid(
-			descriptors.size() == 1,
-			() -> new OpenApiBuildingError(
-				"There multiple variants of `require` require query, cannot decide which to choose."
-			)
-		);
-		return descriptors.iterator().next();
-	}
-
-	@Override
-	protected boolean isChildrenUnique(@Nonnull ChildParameterDescriptor childParameter) {
-		return true;
+	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
+		return ConstraintDescriptorProvider.getConstraint(Require.class);
 	}
 }

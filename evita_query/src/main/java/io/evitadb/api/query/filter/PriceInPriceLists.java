@@ -117,11 +117,6 @@ public class PriceInPriceLists extends AbstractFilterConstraintLeaf implements P
 		return Arrays.stream(getArguments()).map(String.class::cast).toArray(String[]::new);
 	}
 
-	@Override
-	public boolean isApplicable() {
-		return isArgumentsNonNull() && getArguments().length > 0;
-	}
-
 	@Nonnull
 	@Override
 	public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {

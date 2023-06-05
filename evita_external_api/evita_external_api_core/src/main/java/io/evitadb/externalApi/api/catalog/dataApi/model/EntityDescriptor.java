@@ -74,15 +74,6 @@ public interface EntityDescriptor {
             """)
         .type(nonNull(String.class))
         .build();
-    PropertyDescriptor HIERARCHICAL_PLACEMENT = PropertyDescriptor.builder()
-        .name("hierarchicalPlacement")
-        .description("""
-            Entities may be organized in hierarchical fashion. That means that entity may refer to single parent entity and may be
-            referred by multiple child entities. Hierarchy is always composed of entities of same type.
-            Each entity must be part of at most single hierarchy (tree).
-            """)
-        .type(nullableRef(HierarchicalPlacementDescriptor.THIS))
-        .build();
     PropertyDescriptor LOCALES = PropertyDescriptor.builder()
         .name("locales")
         .description("""
@@ -157,15 +148,13 @@ public interface EntityDescriptor {
             """)
         .staticFields(List.of(PRIMARY_KEY, TYPE))
         .build();
-    ObjectDescriptor THIS_ENTITY_REFERENCE = ObjectDescriptor.builder()
+    ObjectDescriptor THIS_ENTITY_REFERENCE = ObjectDescriptor.extend(THIS_INTERFACE)
         .name("EntityReference")
         .description("""
             Object holding reference to an entity.
             """)
-        .staticFields(List.of(PRIMARY_KEY, TYPE))
         .build();
-    ObjectDescriptor THIS = ObjectDescriptor.builder()
+    ObjectDescriptor THIS = ObjectDescriptor.extend(THIS_INTERFACE)
         .name("*")
-        .staticFields(List.of(PRIMARY_KEY, TYPE))
         .build();
 }

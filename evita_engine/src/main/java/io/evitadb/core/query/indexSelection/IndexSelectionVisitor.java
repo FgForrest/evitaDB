@@ -39,6 +39,8 @@ import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
@@ -48,6 +50,7 @@ import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -132,39 +135,31 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 	 * are part of the requested tree. This significantly limits the scope that needs to be examined.
 	 */
 	private void addHierarchyIndexOption(@Nonnull HierarchyFilterConstraint constraint) {
-		final String filteredHierarchyReferenceName = constraint.getReferenceName();
-		if (filteredHierarchyReferenceName != null) {
-			final ReferenceSchemaContract referencedSchema = queryContext.getSchema().getReferenceOrThrowException(filteredHierarchyReferenceName);
-			if (referencedSchema.isReferencedEntityTypeManaged()) {
-				final EntityIndex targetHierarchyIndex = queryContext.getIndex(
-					referencedSchema.getReferencedEntityType(), new EntityIndexKey(EntityIndexType.GLOBAL)
-				);
-				if (targetHierarchyIndex == null) {
-					// if target entity has no global index present, it means that the query cannot be fulfilled
-					// we may quickly return empty result
-					targetIndexes.add(TargetIndexes.EMPTY);
-				} else {
-					final int[] requestedHierarchyNodes;
+		constraint.getReferenceName().ifPresent(
+			filteredHierarchyReferenceName -> {
+				final ReferenceSchemaContract referencedSchema = queryContext.getSchema().getReferenceOrThrowException(filteredHierarchyReferenceName);
+				if (referencedSchema.isReferencedEntityTypeManaged()) {
+					final Formula requestedHierarchyNodesFormula;
 					if (constraint instanceof final HierarchyWithinRoot hierarchyWithinRoot) {
-						requestedHierarchyNodes = HierarchyWithinRootTranslator.createFormulaFromHierarchyIndexForDifferentEntity(
-							hierarchyWithinRoot.getExcludedChildrenIds(),
-							hierarchyWithinRoot.isDirectRelation(),
-							targetHierarchyIndex
+						requestedHierarchyNodesFormula = HierarchyWithinRootTranslator.createFormulaFromHierarchyIndex(
+							hierarchyWithinRoot, getFilterByVisitor()
 						);
 					} else if (constraint instanceof final HierarchyWithin hierarchyWithin) {
-						requestedHierarchyNodes = HierarchyWithinTranslator.createFormulaFromHierarchyIndexForDifferentEntity(
-							hierarchyWithin.getParentId(),
-							hierarchyWithin.getExcludedChildrenIds(),
-							hierarchyWithin.isDirectRelation(),
-							hierarchyWithin.isExcludingRoot(),
-							targetHierarchyIndex
+						requestedHierarchyNodesFormula = HierarchyWithinTranslator.createFormulaFromHierarchyIndex(
+							hierarchyWithin, getFilterByVisitor()
 						);
 					} else {
 						//sanity check only
 						throw new EvitaInternalError("Should never happen");
 					}
+					if (requestedHierarchyNodesFormula instanceof EmptyFormula) {
+						// if target entity has no global index present, it means that the query cannot be fulfilled
+						// we may quickly return empty result
+						targetIndexes.add(TargetIndexes.EMPTY);
+					}
 					// locate all hierarchy indexes
-					final List<EntityIndex> theTargetIndexes = new ArrayList<>(requestedHierarchyNodes.length);
+					final Bitmap requestedHierarchyNodes = requestedHierarchyNodesFormula.compute();
+					final List<EntityIndex> theTargetIndexes = new ArrayList<>(requestedHierarchyNodes.size());
 					for (Integer hierarchyEntityId : requestedHierarchyNodes) {
 						ofNullable(
 							(EntityIndex) queryContext.getIndex(
@@ -179,14 +174,14 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					this.targetIndexes.add(
 						new TargetIndexes(
 							EntityIndexType.REFERENCED_HIERARCHY_NODE.name() +
-								" composed of " + requestedHierarchyNodes.length + " indexes",
+								" composed of " + requestedHierarchyNodes.size() + " indexes",
 							constraint,
 							theTargetIndexes
 						)
 					);
 				}
 			}
-		}
+		);
 	}
 
 	/**

@@ -99,8 +99,8 @@ public interface ExtraResultsDescriptor {
 			""")
 		// type is expected to be a map with reference names as keys and list of `ParentsOfEntity` objects as values
 		.build();
-	PropertyDescriptor HIERARCHY_STATISTICS = PropertyDescriptor.builder()
-		.name("hierarchyStatistics")
+	PropertyDescriptor HIERARCHY = PropertyDescriptor.builder()
+		.name("hierarchy")
 		.description("""
 			Returns object containing hierarchical structure of entities referenced by the entities required by the query. It copies
 			hierarchical structure of those entities and contains their identification or full body as well as information on

@@ -25,11 +25,20 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.RequireConstraint;
 
+import javax.annotation.Nonnull;
+
 /**
  * This interface marks all requirements that can be used for loading additional data to existing entity.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface EntityContentRequire extends RequireConstraint {
+
+	/**
+	 * Method allows to combine two requirements of same type (that needs to be compatible with "this" type) into one
+	 * combining the arguments of both of them.
+	 */
+	@Nonnull
+	<T extends EntityContentRequire> T combineWith(@Nonnull T anotherRequirement);
 
 }

@@ -29,6 +29,7 @@ import io.evitadb.core.Transaction;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.IndexDataStructure;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.facet.FacetGroupIndex.FacetGroupIndexChanges;
 import io.evitadb.index.facet.FacetReferenceIndex.FacetEntityTypeIndexChanges;
@@ -57,6 +58,7 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
@@ -299,9 +301,9 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	 * of `facetId` as its faceted reference.
 	 */
 	@Nonnull
-	public List<FacetGroupFormula> getFacetReferencingEntityIdsFormula(@Nonnull TriFunction<Integer, int[], Bitmap[], FacetGroupFormula> formulaFactory, @Nonnull int... facetId) {
-		final Map<FacetGroupIndex, List<Integer>> facetsByGroup = Arrays.stream(facetId)
-			.mapToObj(fId -> ofNullable(facetToGroupIndex.get(fId))
+	public List<FacetGroupFormula> getFacetReferencingEntityIdsFormula(@Nonnull TriFunction<Integer, Bitmap, Bitmap[], FacetGroupFormula> formulaFactory, @Nonnull Bitmap facetId) {
+		final Map<FacetGroupIndex, List<Integer>> facetsByGroup = StreamSupport.stream(facetId.spliterator(), false)
+			.map(fId -> ofNullable(facetToGroupIndex.get(fId))
 				.map(groupIds -> Arrays.stream(groupIds).mapToObj(groupId -> new GroupFacetIdDTO(groupedFacets.get(groupId), fId)))
 				.orElseGet(() -> Stream.of(new GroupFacetIdDTO(notGroupedFacets.get(), fId)))
 			)
@@ -321,7 +323,7 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 				if (groupIndex == null) {
 					return null;
 				} else {
-					final int[] groupFacets = entry.getValue().stream().mapToInt(it -> it).toArray();
+					final BaseBitmap groupFacets = new BaseBitmap(entry.getValue().stream().mapToInt(it -> it).toArray());
 					return formulaFactory.apply(
 						groupIndex.getGroupId(), groupFacets, groupIndex.getFacetIdIndexesAsArray(groupFacets)
 					);

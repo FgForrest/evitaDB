@@ -23,10 +23,9 @@
 
 package io.evitadb.core.query.algebra.prefetch;
 
-import io.evitadb.api.query.require.CombinableEntityContentRequire;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.api.query.require.EntityFetchRequirements;
+import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.EntityRequire;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.core.query.QueryContext;
@@ -34,13 +33,12 @@ import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
 import io.evitadb.core.query.algebra.FormulaVisitor;
-import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.function.ToLongDoubleIntBiFunction;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -52,13 +50,12 @@ import org.roaringbitmap.RoaringBitmap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * Selection formula is an optimization opportunity that can compute its results in two different ways, and it chooses
@@ -87,6 +84,25 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 	 * Contains the alternative computation based on entity contents filtering.
 	 */
 	private final EntityToBitmapFilter alternative;
+	/**
+	 * Default formula for computing the prefetch costs. Can be overridden in tests so that we can make sure multiple
+	 * paths of the calculation are tested (i.e. with or without prefetch).
+	 */
+	private static ToLongDoubleIntBiFunction PREFETCH_COST_ESTIMATOR =
+		(prefetchedEntityCount, requirementCount) -> prefetchedEntityCount * requirementCount * 148L;
+
+	/**
+	 * Method allows to run given {@link Runnable} with custom prefetch cost estimator.
+	 */
+	public static <T> T doWithCustomPrefetchCostEstimator(@Nonnull Supplier<T> supplier, @Nonnull ToLongDoubleIntBiFunction costEstimator) {
+		final ToLongDoubleIntBiFunction old = PREFETCH_COST_ESTIMATOR;
+		try {
+			PREFETCH_COST_ESTIMATOR = costEstimator;
+			return supplier.get();
+		} finally {
+			PREFETCH_COST_ESTIMATOR = old;
+		}
+	}
 
 	/**
 	 * We've performed benchmark of reading data from disk - using Linux file cache the reading performance was:
@@ -100,8 +116,8 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 	 *
 	 * Recomputed on 1. mil operations ({@link io.evitadb.spike.FormulaCostMeasurement}) it's cost of 148.
 	 */
-	private static long estimatePrefetchCost(int prefetchedEntityCount, EntityFetchRequirements requirements) {
-		return prefetchedEntityCount * requirements.getRequirements().length * 148L;
+	private static long estimatePrefetchCost(int prefetchedEntityCount, @Nonnull EntityFetchRequire requirements) {
+		return PREFETCH_COST_ESTIMATOR.apply(prefetchedEntityCount, requirements.getRequirements().length);
 	}
 
 	public SelectionFormula(@Nonnull FilterByVisitor filterByVisitor, @Nonnull Formula delegate, @Nonnull EntityToBitmapFilter alternative) {
@@ -230,10 +246,6 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 	 */
 	public static class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProcessor {
 		/**
-		 * Contains set of formulas that are considered conjunctive for purpose of this visitor.
-		 */
-		private static final Set<Class<? extends Formula>> CONJUNCTIVE_FORMULAS;
-		/**
 		 * Threshold where we avoid prefetching entities whatsoever.
 		 */
 		private static final int BITMAP_SIZE_THRESHOLD = 1000;
@@ -256,16 +268,10 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 		 */
 		private long expectedComputationalCosts = 0L;
 
-		static {
-			CONJUNCTIVE_FORMULAS = new HashSet<>();
-			CONJUNCTIVE_FORMULAS.add(AndFormula.class);
-			CONJUNCTIVE_FORMULAS.add(UserFilterFormula.class);
-		}
-
 		/**
 		 * Contains set of requirements collected from all {@link SelectionFormula} in the tree.
 		 */
-		protected final Map<Class<? extends CombinableEntityContentRequire>, CombinableEntityContentRequire> requirements = new HashMap<>();
+		protected final Map<Class<? extends EntityContentRequire>, EntityContentRequire> requirements = new HashMap<>();
 		/**
 		 * Flag that signalizes {@link #visit(Formula)} happens in conjunctive scope.
 		 */
@@ -288,15 +294,17 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 		}
 
 		/**
-		 * Method allows to add a requirement that will be used by {@link QueryContext#prefetchEntities(Bitmap, EntityFetchRequirements)}
+		 * Method allows to add a requirement that will be used by {@link QueryContext#prefetchEntities(Bitmap, EntityFetchRequire)}
 		 * to fetch wide enough scope of the entity so that all filtering/sorting logic would have all data present
 		 * for its evaluation.
 		 */
-		public void addRequirement(@Nonnull CombinableEntityContentRequire requirement) {
-			requirements.merge(
-				requirement.getClass(), requirement,
-				CombinableEntityContentRequire::combineWith
-			);
+		public void addRequirement(@Nonnull EntityContentRequire... requirement) {
+			for (EntityContentRequire theRequirement : requirement) {
+				requirements.merge(
+					theRequirement.getClass(), theRequirement,
+					EntityContentRequire::combineWith
+				);
+			}
 		}
 
 		/**
@@ -306,7 +314,7 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 		 */
 		@Nullable
 		public Runnable createPrefetchLambdaIfNeededOrWorthwhile(@Nonnull QueryContext queryContext) {
-			EntityFetchRequirements requirements = null;
+			EntityFetchRequire requirements = null;
 			Bitmap entitiesToPrefetch = null;
 			// are we forced to prefetch entities from catalog index?
 			if (!entityReferences.isEmpty()) {
@@ -333,7 +341,7 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 
 			if (entitiesToPrefetch != null && requirements != null) {
 				final Bitmap finalEntitiesToPrefetch = entitiesToPrefetch;
-				final EntityFetchRequirements finalRequirements = requirements;
+				final EntityFetchRequire finalRequirements = requirements;
 				return () -> queryContext.prefetchEntities(
 					finalEntitiesToPrefetch,
 					finalRequirements
@@ -355,11 +363,7 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 				final EntityRequire entityRequire = requirementsDefiner.getEntityRequire();
 				final EntityContentRequire[] requirements = entityRequire == null ? new EntityContentRequire[0] : entityRequire.getRequirements();
 				for (EntityContentRequire requirement : requirements) {
-					Assert.isPremiseValid(
-						requirement instanceof CombinableEntityContentRequire,
-						"Non-combinable content requirements are currently not supported."
-					);
-					addRequirement((CombinableEntityContentRequire) requirement);
+					addRequirement(requirement);
 				}
 			}
 
@@ -379,9 +383,9 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 		/**
 		 * Returns set of requirements to fetch entities with.
 		 */
-		protected EntityFetchRequirements getRequirements() {
+		protected EntityFetchRequire getRequirements() {
 			return new EntityFetch(
-				requirements.values().toArray(new CombinableEntityContentRequire[0])
+				requirements.values().toArray(new EntityContentRequire[0])
 			);
 		}
 
@@ -424,7 +428,7 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 		protected void traverse(@Nonnull Formula formula) {
 			final boolean formerConjunctiveScope = this.conjunctiveScope;
 			try {
-				if (!CONJUNCTIVE_FORMULAS.contains(formula.getClass())) {
+				if (!FilterByVisitor.isConjunctiveFormula(formula.getClass())) {
 					this.conjunctiveScope = false;
 				}
 				for (Formula innerFormula : formula.getInnerFormulas()) {

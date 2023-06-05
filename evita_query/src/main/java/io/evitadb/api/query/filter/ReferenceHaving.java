@@ -29,8 +29,8 @@ import io.evitadb.api.query.ReferenceConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
-import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -71,7 +71,7 @@ import java.io.Serializable;
 		"match any of the passed entity primary keys. This container resembles the SQL inner join clauses.",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class ReferenceHaving extends AbstractFilterConstraintContainer implements ReferenceConstraint<FilterConstraint> {
+public class ReferenceHaving extends AbstractFilterConstraintContainer implements ReferenceConstraint<FilterConstraint>, SeparateEntityScopeContainer {
 	@Serial private static final long serialVersionUID = -2727265686254207631L;
 
 	private ReferenceHaving(@Nonnull Serializable[] arguments, @Nonnull FilterConstraint... children) {
@@ -87,24 +87,16 @@ public class ReferenceHaving extends AbstractFilterConstraintContainer implement
 
 	@Creator
 	public ReferenceHaving(@Nonnull @Classifier String referenceName,
-	                       @Nonnull @Child FilterConstraint children) {
-		super(referenceName, children);
+	                       @Nonnull @Child FilterConstraint... filter) {
+		super(new Serializable[]{referenceName}, filter);
 	}
 
 	/**
-	 * Returns reference name of the facet that should be used for applying for filtering according to children constraints.
+	 * Returns reference name of the relation that should be used for applying for filtering according to children constraints.
 	 */
 	@Nonnull
 	public String getReferenceName() {
 		return (String) getArguments()[0];
-	}
-
-	/**
-	 * Returns query connected with this reference query (it must be exactly one).
-	 */
-	@Nonnull
-	public FilterConstraint getConstraint() {
-		return getChildren()[0];
 	}
 
 	@Override
@@ -114,8 +106,8 @@ public class ReferenceHaving extends AbstractFilterConstraintContainer implement
 
 	@Nonnull
 	@Override
-	public FilterConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		return children.length == 0 ? new ReferenceHaving(getReferenceName()) : new ReferenceHaving(getReferenceName(), (FilterConstraint) children[0]);
+	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return children.length == 0 ? new ReferenceHaving(getReferenceName()) : new ReferenceHaving(getReferenceName(), children);
 	}
 
 	@Nonnull

@@ -48,7 +48,7 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Multiple;
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
-import io.evitadb.test.extension.DbInstanceParameterResolver;
+import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -115,7 +115,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @SuppressWarnings({"StatementWithEmptyBody", "Convert2MethodRef"})
 @DisplayName("Evita base API")
 @Tag(FUNCTIONAL_TEST)
-@ExtendWith(DbInstanceParameterResolver.class)
+@ExtendWith(EvitaParameterResolver.class)
 class EvitaApiFunctionalTest {
 	public static final String BRAND = "brand";
 	public static final String PRODUCT = "product";
@@ -363,7 +363,7 @@ class EvitaApiFunctionalTest {
 				final EntityBuilder updatedProduct = product.openForWrite()
 					.setPrice(2, "basic", EUR, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, createDateRange(2055, 2072), true);
 				// store entity back to the database
-				final SealedEntity updatedEntity = session.upsertAndFetchEntity(updatedProduct, priceContent());
+				final SealedEntity updatedEntity = session.upsertAndFetchEntity(updatedProduct, priceContentRespectingFilter());
 				assertNotNull(updatedEntity);
 
 				assertFalse(updatedEntity.getPrices().isEmpty());
@@ -1402,7 +1402,6 @@ class EvitaApiFunctionalTest {
 		newCategory.setAttribute("active", createDateRange(2020, 2021));
 		newCategory.setAttribute("priority", 456L);
 		newCategory.setAttribute("visible", true);
-		newCategory.setHierarchicalPlacement(1);
 		return newCategory;
 	}
 
@@ -1414,7 +1413,7 @@ class EvitaApiFunctionalTest {
 		newCategory.setAttribute("active", createDateRange(2020, 2021));
 		newCategory.setAttribute("priority", 456L);
 		newCategory.setAttribute("visible", true);
-		newCategory.setHierarchicalPlacement(parentPrimaryKey, 1);
+		newCategory.setParent(parentPrimaryKey);
 		return newCategory;
 	}
 

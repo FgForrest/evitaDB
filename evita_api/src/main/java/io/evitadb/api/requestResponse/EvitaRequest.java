@@ -31,6 +31,7 @@ import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.PriceInCurrency;
 import io.evitadb.api.query.filter.PriceInPriceLists;
@@ -41,7 +42,6 @@ import io.evitadb.api.query.require.*;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
-import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -83,6 +83,8 @@ public class EvitaRequest {
 	private Boolean priceValidInTimeSet;
 	private OffsetDateTime priceValidInTime;
 	private Boolean requiresEntity;
+	private Boolean requiresParent;
+	private HierarchyContent parentContent;
 	private EntityFetch entityRequirement;
 	private Boolean entityAttributes;
 	private Set<String> entityAttributeSet;
@@ -97,21 +99,21 @@ public class EvitaRequest {
 	private String[] priceLists;
 	private String[] additionalPriceLists;
 	private Integer firstRecordOffset;
-	private Map<String, HierarchyWithin> hierarchyWithin;
+	private Map<String, HierarchyFilterConstraint> hierarchyWithin;
 	private Boolean requiredWithinHierarchy;
 	private Boolean requiresHierarchyStatistics;
 	private Boolean requiresHierarchyParents;
 	private Integer limit;
 	private EvitaRequest.ResultForm resultForm;
-	private Map<String, Set<Integer>> facetGroupConjunction;
-	private Map<String, Set<Integer>> facetGroupDisjunction;
-	private Map<String, Set<Integer>> facetGroupNegation;
+	private Map<String, FilterBy> facetGroupConjunction;
+	private Map<String, FilterBy> facetGroupDisjunction;
+	private Map<String, FilterBy> facetGroupNegation;
 	private Boolean queryTelemetryRequested;
 	private EnumSet<DebugMode> debugModes;
 	private Map<String, RequirementContext> entityFetchRequirements;
 
 	public EvitaRequest(@Nonnull Query query, @Nonnull OffsetDateTime alignedNow) {
-		final Collection header = query.getEntities();
+		final Collection header = query.getCollection();
 		this.entityType = ofNullable(header).map(Collection::getEntityType).orElse(null);
 		this.query = query;
 		this.alignedNow = alignedNow;
@@ -154,13 +156,15 @@ public class EvitaRequest {
 		this.facetGroupDisjunction = evitaRequest.facetGroupDisjunction;
 		this.facetGroupNegation = evitaRequest.facetGroupNegation;
 		this.requiresEntity = evitaRequest.requiresEntity;
+		this.requiresParent = evitaRequest.requiresParent;
+		this.parentContent = evitaRequest.parentContent;
 		this.entityRequirement = evitaRequest.entityRequirement;
 	}
 
 	public EvitaRequest(
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull String entityType,
-		@Nonnull EntityFetchRequirements requirements) {
+		@Nonnull EntityFetchRequire requirements) {
 
 		this.requiresEntity = true;
 		this.entityRequirement = new EntityFetch(requirements.getRequirements());
@@ -181,6 +185,8 @@ public class EvitaRequest {
 		this.queryPriceMode = evitaRequest.queryPriceMode;
 		this.priceValidInTimeSet = evitaRequest.priceValidInTimeSet;
 		this.priceValidInTime = evitaRequest.priceValidInTime;
+		this.requiresParent = null;
+		this.parentContent = null;
 		this.entityAttributes = null;
 		this.entityAttributeSet = null;
 		this.entityAssociatedData = null;
@@ -236,6 +242,8 @@ public class EvitaRequest {
 		this.locale = evitaRequest.getLocale();
 		this.requiredLocales = null;
 		this.requiredLocaleSet = null;
+		this.requiresParent = null;
+		this.parentContent = null;
 		this.entityAttributes = null;
 		this.entityAttributeSet = null;
 		this.entityAssociatedData = null;
@@ -275,7 +283,7 @@ public class EvitaRequest {
 	 */
 	@Nonnull
 	public String getEntityTypeOrThrowException(@Nonnull String purpose) {
-		final Collection header = query.getEntities();
+		final Collection header = query.getCollection();
 		return ofNullable(header)
 			.map(Collection::getEntityType)
 			.orElseThrow(() -> new EntityCollectionRequiredException(purpose));
@@ -319,7 +327,9 @@ public class EvitaRequest {
 					this.requiredLocaleSet = Set.of(theLocale);
 				}
 			} else {
-				final DataInLocales dataRequirement = QueryUtils.findConstraint(entityFetch, DataInLocales.class, SeparateEntityContentRequireContainer.class);
+				final DataInLocales dataRequirement = QueryUtils.findConstraint(
+					entityFetch, DataInLocales.class, SeparateEntityContentRequireContainer.class
+				);
 				if (dataRequirement != null) {
 					this.requiredLocaleSet = Arrays.stream(dataRequirement.getLocales())
 						.filter(Objects::nonNull)
@@ -378,7 +388,7 @@ public class EvitaRequest {
 
 	/**
 	 * Method will find all requirement specifying richness of main entities. The constraints inside
-	 * {@link ExtraResultRequireConstraint} implementing of same type are ignored because they relate to the different entity context.
+	 * {@link SeparateEntityContentRequireContainer} implementing of same type are ignored because they relate to the different entity context.
 	 */
 	@Nullable
 	public EntityFetch getEntityRequirement() {
@@ -386,6 +396,36 @@ public class EvitaRequest {
 			isRequiresEntity();
 		}
 		return this.entityRequirement;
+	}
+
+	/**
+	 * Method will determine if parent body is required for main entities.
+	 */
+	public boolean isRequiresParent() {
+		if (this.requiresParent == null) {
+			final EntityFetch entityFetch = getEntityRequirement();
+			if (entityFetch == null) {
+				this.parentContent = null;
+				this.requiresParent = false;
+			} else {
+				this.parentContent = QueryUtils.findConstraint(entityFetch, HierarchyContent.class, SeparateEntityContentRequireContainer.class);
+				this.requiresParent = this.parentContent != null;
+			}
+		}
+		return this.requiresParent;
+	}
+
+	/**
+	 * Method will find all requirement specifying richness of main entities. The constraints inside
+	 * {@link SeparateEntityContentRequireContainer} implementing of same type are ignored because they relate to the
+	 * different entity context.
+	 */
+	@Nullable
+	public HierarchyContent getHierarchyContent() {
+		if (this.requiresParent == null) {
+			isRequiresParent();
+		}
+		return this.parentContent;
 	}
 
 	/**
@@ -471,7 +511,7 @@ public class EvitaRequest {
 					Collections.emptySet() :
 					requiresReference
 						.stream()
-						.flatMap(it -> Arrays.stream(it.getReferencedEntityTypes()))
+						.flatMap(it -> Arrays.stream(it.getReferenceNames()))
 						.collect(Collectors.toSet());
 			}
 		}
@@ -584,63 +624,54 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Returns true if passed `groupId` of `referenceName` facets are requested to be joined by conjunction (AND) instead
-	 * of default disjunction (OR).
+	 * Returns filter by representing group entity primary keys of `referenceName` facets, that are requested to be
+	 * joined by conjunction (AND) instead of default disjunction (OR).
 	 */
-	public boolean isFacetGroupConjunction(@Nonnull String referenceName, int groupId) {
+	@Nonnull
+	public Optional<FilterBy> getFacetGroupConjunction(@Nonnull String referenceName) {
 		if (this.facetGroupConjunction == null) {
 			this.facetGroupConjunction = new HashMap<>();
 			QueryUtils.findRequires(query, FacetGroupsConjunction.class)
 				.forEach(it -> {
 					final String reqReferenceName = it.getReferenceName();
-					final Set<Integer> reqFacetGroups = CollectionUtils.createHashSet(it.getFacetGroups().length);
-					Arrays.stream(it.getFacetGroups()).forEach(reqFacetGroups::add);
-					this.facetGroupConjunction.put(reqReferenceName, reqFacetGroups);
+					this.facetGroupConjunction.put(reqReferenceName, it.getFacetGroups());
 				});
 		}
-		return ofNullable(this.facetGroupConjunction.get(referenceName))
-			.map(it -> it.contains(groupId))
-			.orElse(false);
+		return ofNullable(this.facetGroupConjunction.get(referenceName));
 	}
 
 	/**
-	 * Returns true if passed `groupId` of `referenceName` is requested to be joined with other facet groups by
-	 * disjunction (OR) instead of default conjunction (AND).
+	 * Returns filter by representing group entity primary keys of `referenceName` facets, that are requested to be
+	 * joined with other facet groups by disjunction (OR) instead of default conjunction (AND).
 	 */
-	public boolean isFacetGroupDisjunction(@Nonnull String referenceName, Integer groupId) {
+	@Nonnull
+	public Optional<FilterBy> getFacetGroupDisjunction(@Nonnull String referenceName) {
 		if (this.facetGroupDisjunction == null) {
 			this.facetGroupDisjunction = new HashMap<>();
 			QueryUtils.findRequires(query, FacetGroupsDisjunction.class)
 				.forEach(it -> {
 					final String reqReferenceName = it.getReferenceName();
-					final Set<Integer> reqFacetGroups = CollectionUtils.createHashSet(it.getFacetGroups().length);
-					Arrays.stream(it.getFacetGroups()).forEach(reqFacetGroups::add);
-					this.facetGroupDisjunction.put(reqReferenceName, reqFacetGroups);
+					this.facetGroupDisjunction.put(reqReferenceName, it.getFacetGroups());
 				});
 		}
-		return ofNullable(this.facetGroupDisjunction.get(referenceName))
-			.map(it -> it.contains(groupId))
-			.orElse(false);
+		return ofNullable(this.facetGroupDisjunction.get(referenceName));
 	}
 
 	/**
-	 * Returns true if passed `groupId` of `referenceName` facets are requested to be joined by negation (AND NOT) instead
-	 * of default disjunction (OR).
+	 * Returns filter by representing group entity primary keys of `referenceName` facets, that are requested to be
+	 * joined by negation (AND NOT) instead of default disjunction (OR).
 	 */
-	public boolean isFacetGroupNegation(@Nonnull String referenceName, Integer groupId) {
+	@Nonnull
+	public Optional<FilterBy> getFacetGroupNegation(@Nonnull String referenceName) {
 		if (this.facetGroupNegation == null) {
 			this.facetGroupNegation = new HashMap<>();
 			QueryUtils.findRequires(query, FacetGroupsNegation.class)
 				.forEach(it -> {
 					final String reqReferenceName = it.getReferenceName();
-					final Set<Integer> reqFacetGroups = CollectionUtils.createHashSet(it.getFacetGroups().length);
-					Arrays.stream(it.getFacetGroups()).forEach(reqFacetGroups::add);
-					this.facetGroupNegation.put(reqReferenceName, reqFacetGroups);
+					this.facetGroupNegation.put(reqReferenceName, it.getFacetGroups());
 				});
 		}
-		return ofNullable(this.facetGroupNegation.get(referenceName))
-			.map(it -> it.contains(groupId))
-			.orElse(false);
+		return ofNullable(this.facetGroupNegation.get(referenceName));
 	}
 
 	/**
@@ -700,7 +731,7 @@ public class EvitaRequest {
 					.stream()
 					.flatMap(it ->
 						Arrays
-							.stream(it.getReferencedEntityTypes())
+							.stream(it.getReferenceNames())
 							.map(entityType -> new SimpleEntry<>(
 									entityType,
 									new RequirementContext(
@@ -727,7 +758,7 @@ public class EvitaRequest {
 	 * Returns {@link HierarchyWithin} query
 	 */
 	@Nullable
-	public HierarchyWithin getHierarchyWithin(@Nullable String referenceName) {
+	public HierarchyFilterConstraint getHierarchyWithin(@Nullable String referenceName) {
 		if (requiredWithinHierarchy == null) {
 			if (query.getFilterBy() == null) {
 				hierarchyWithin = Collections.emptyMap();
@@ -735,9 +766,9 @@ public class EvitaRequest {
 				hierarchyWithin = new HashMap<>();
 				QueryUtils.findConstraints(
 						query.getFilterBy(),
-						HierarchyWithin.class
+						HierarchyFilterConstraint.class
 					)
-					.forEach(it -> hierarchyWithin.put(it.getReferenceName(), it));
+					.forEach(it -> hierarchyWithin.put(it.getReferenceName().orElse(null), it));
 			}
 			requiredWithinHierarchy = true;
 		}
@@ -765,7 +796,7 @@ public class EvitaRequest {
 	 * requirements.
 	 */
 	@Nonnull
-	public EvitaRequest deriveCopyWith(@Nonnull String entityType, @Nonnull EntityFetchRequirements requirements) {
+	public EvitaRequest deriveCopyWith(@Nonnull String entityType, @Nonnull EntityFetchRequire requirements) {
 		return new EvitaRequest(
 			this,
 			entityType, requirements

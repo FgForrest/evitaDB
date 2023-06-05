@@ -24,18 +24,15 @@
 package io.evitadb.externalApi.rest.api.testSuite;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Range;
-import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.extension.DataCarrier;
-import io.evitadb.test.extension.DbInstanceParameterResolver;
-import io.evitadb.test.tester.RestTester;
+import io.evitadb.test.extension.EvitaParameterResolver;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,7 +42,6 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
-import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 
 /**
@@ -56,7 +52,7 @@ import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
 @Tag(FUNCTIONAL_TEST)
-@ExtendWith(DbInstanceParameterResolver.class)
+@ExtendWith(EvitaParameterResolver.class)
 @Slf4j
 public abstract class RestEndpointFunctionalTest {
 
@@ -71,7 +67,7 @@ public abstract class RestEndpointFunctionalTest {
 	}
 
 
-	@DataSet(value = REST_THOUSAND_PRODUCTS, openWebApi = RestProvider.CODE)
+	@DataSet(value = TestDataGenerator.REST_THOUSAND_PRODUCTS, openWebApi = RestProvider.CODE)
 	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
 		return setUpData(evita, evitaServer, 1000);
 	}

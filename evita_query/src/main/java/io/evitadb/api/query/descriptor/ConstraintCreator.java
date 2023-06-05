@@ -25,35 +25,38 @@ package io.evitadb.api.query.descriptor;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Executable;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Contains metadata for reconstructing original constraint described by {@link ConstraintDescriptor}.
  *
- * @param constructor main constructor for reconstructing the original constraint usually from {@link #parameters()}
- * @param parameters descriptors of original parameters of {@link #constructor()} in same order to be able to reconstruct
+ * @param instantiator executable element (constructor or factory method) to instantiate original constraint from {@link #parameters()}
+ * @param parameters descriptors of original parameters of {@link #instantiator()} in same order to be able to reconstruct
  *                   the original constraint
  * @param implicitClassifier fixed implicit classifier, alternative to dynamic classifier parameter
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public record ConstraintCreator(@Nonnull Constructor<?> constructor,
+public record ConstraintCreator(@Nonnull Executable instantiator,
                                 @Nonnull List<ParameterDescriptor> parameters,
                                 @Nullable ImplicitClassifier implicitClassifier) {
 
-	public ConstraintCreator(@Nonnull Constructor<?> constructor,
+	public ConstraintCreator(@Nonnull Executable instantiator,
 	                         @Nonnull List<ParameterDescriptor> parameters,
 	                         @Nullable ImplicitClassifier implicitClassifier) {
-		this.constructor = constructor;
+		this.instantiator = instantiator;
 		this.parameters = parameters;
 		this.implicitClassifier = implicitClassifier;
 
@@ -67,27 +70,6 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 			this.parameters.stream().filter(ClassifierParameterDescriptor.class::isInstance).count() <= 1,
 			"Constraint must have maximum of 1 classifier."
 		);
-
-		final long numberOfChildParameters = parameters().stream()
-			.filter(ChildParameterDescriptor.class::isInstance)
-			.map(ChildParameterDescriptor.class::cast)
-			.count();
-		Assert.isPremiseValid(
-			numberOfChildParameters <= 1,
-			() -> new EvitaInternalError("Constraint cannot have multiple child parameters.")
-		);
-
-		final List<AdditionalChildParameterDescriptor> additionalChildParameters = parameters.stream()
-			.filter(AdditionalChildParameterDescriptor.class::isInstance)
-			.map(AdditionalChildParameterDescriptor.class::cast)
-			.toList();
-		final Set<ConstraintType> additionalChildParameterTypes = additionalChildParameters.stream()
-			.map(AdditionalChildParameterDescriptor::constraintType)
-			.collect(Collectors.toUnmodifiableSet());
-		Assert.isPremiseValid(
-			additionalChildParameters.size() == additionalChildParameterTypes.size(),
-			() -> new EvitaInternalError("Constraint cannot have multiple additional child parameters of same constraint type.")
-		);
 	}
 
 	/**
@@ -99,11 +81,21 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 	 */
 	public Constraint<?> instantiateConstraint(@Nonnull Object[] args, @Nonnull String parsedName) {
 		try {
-			constructor().trySetAccessible();
-			return (Constraint<?>) constructor().newInstance(args);
+			instantiator().trySetAccessible();
+			if (instantiator() instanceof Constructor<?> constructor) {
+				return (Constraint<?>) constructor.newInstance(args);
+			} else if (instantiator() instanceof Method method) {
+				return (Constraint<?>) method.invoke(null, args);
+			} else {
+				throw new EvitaInternalError("Unsupported creator.");
+			}
 		} catch (Exception e) {
+			if (e instanceof final InvocationTargetException invocationTargetException &&
+				invocationTargetException.getTargetException() instanceof final EvitaInvalidUsageException invalidUsageException) {
+				throw invalidUsageException;
+			}
 			throw new EvitaInternalError(
-				"Could not instantiate constraint `" + parsedName + "` to original constraint `" + constructor.getDeclaringClass().getName() + "`: " + e.getMessage(),
+				"Could not instantiate constraint `" + parsedName + "` to original constraint `" + instantiator().getDeclaringClass().getName() + "`: " + e.getMessage(),
 				"Could not recreate constraint `" + parsedName + "`.",
 				e
 			);
@@ -127,7 +119,7 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 	/**
 	 * Whether this constraint requires classifier, either fixed {@link #implicitClassifier()} or dynamic {@link #classifierParameter()}.
 	 */
-	public boolean needsClassifier() {
+	public boolean hasClassifier() {
 		return hasClassifierParameter() || hasImplicitClassifier();
 	}
 
@@ -154,14 +146,14 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 	}
 
 	/**
-	 * Finds children parameter in {@link #parameters()}.
+	 * Finds child parameters in {@link #parameters()}.
 	 */
 	@Nonnull
-	public Optional<ChildParameterDescriptor> childParameter() {
+	public List<ChildParameterDescriptor> childParameters() {
 		return parameters().stream()
 			.filter(ChildParameterDescriptor.class::isInstance)
 			.map(ChildParameterDescriptor.class::cast)
-			.findFirst();
+			.toList();
 	}
 
 	/**
@@ -229,6 +221,7 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 	 * @param name name of original parameter
 	 * @param type data type of original parameter
 	 * @param required children cannot be null
+	 * @param domain specifies domain for child constraints
 	 * @param uniqueChildren if each child constraint can be passed only once in this list parameter.
 	 * @param allowedChildTypes set of allowed child constraints. Constraint not specified in this set will be forbidden.
 	 * @param forbiddenChildTypes set of forbidden child constraints. All constraints are allowed except of these.
@@ -236,10 +229,10 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 	public record ChildParameterDescriptor(@Nonnull String name,
 	                                       @Nonnull Class<?> type,
 	                                       boolean required,
+	                                       @Nonnull ConstraintDomain domain,
 	                                       boolean uniqueChildren,
 	                                       @Nonnull Set<Class<? extends Constraint<?>>> allowedChildTypes,
-	                                       @Nonnull Set<Class<? extends Constraint<?>>> forbiddenChildTypes) implements ParameterDescriptor {
-	}
+	                                       @Nonnull Set<Class<? extends Constraint<?>>> forbiddenChildTypes) implements ParameterDescriptor {}
 
 	/**
 	 * Describes single constraint constructor parameter which holds single or multiple additional child constraints (of different type
@@ -249,10 +242,11 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 	 * @param name name of original parameter
 	 * @param type data type of original parameter
 	 * @param required children cannot be null
+	 * @param domain specifies domain for additional child constraints
 	 */
 	public record AdditionalChildParameterDescriptor(@Nonnull ConstraintType constraintType,
 	                                                 @Nonnull String name,
 	                                                 @Nonnull Class<?> type,
-	                                                 boolean required) implements ParameterDescriptor {
-	}
+	                                                 boolean required,
+	                                                 @Nonnull ConstraintDomain domain) implements ParameterDescriptor {}
 }

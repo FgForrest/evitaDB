@@ -9,7 +9,7 @@ The [REST](https://restfulapi.net/) API with an [OpenAPI schema](https://swagger
 to allow users to easily query domain-specific data from evitaDB via universal well-known API standard that REST APIs provide.
 
 The main idea behind our REST API implementation is that the [OpenAPI schema](https://swagger.io/specification/v3/) is dynamically generated based on
-evitaDB's [internal schemas](https://evitadb.io/documentation/use/schema). This means that users only see the data they
+evitaDB's [internal schemas](/docs/user/en/use/schema.md). This means that users only see the data they
 can actually retrieve. For example, if you have defined in evitaDB an
 entity called `product` with attributes `code` and `name`, the OpenAPI schema will contain only these to attributes in the
 `product` entity model with data types equivalent to the ones specified in evitaDB instead of some generic ones.
@@ -31,7 +31,7 @@ entity called `product` with attributes `code` and `name`, the OpenAPI schema wi
    </dl>
 </UsedTerms>
 
-There isn't a single REST API instance for the whole evitaDB instance. Instead, each evitaDB [catalog](https://evitadb.io/documentation/use/data-model#catalog)
+There isn't a single REST API instance for the whole evitaDB instance. Instead, each evitaDB [catalog](/docs/user/en/use/data-model.md#catalog)
 has its own REST API on its own URL with data only from that particular catalog.
 In addition, there is one another REST API instance that is reserved for evitaDB administration
 (e.g., creating new catalogs, removing existing catalogs) called <Term>system API</Term>.
@@ -43,7 +43,7 @@ HTTP request to that base URL which then lists all available endpoints.
 
 URLs of these REST API instances with above-mentioned base URLs are then further suffixed with specific resources.
 In case of <Term>system API</Term> those are typically catalogs. In case of <Term>catalog API</Term> 
-there are resources for individual [collections](https://evitadb.io/documentation/use/data-model#collection)
+there are resources for individual [collections](/docs/user/en/use/data-model.md#collection)
 and their actions.
 
 <Note type="example">
@@ -68,9 +68,9 @@ with its own relevant [OpenAPI schema](https://swagger.io/specification/v3/):
 
 A single <Term>catalog API</Term> for a single catalog contains only a few types of endpoints to retrieve and update data or its
 internal schema, but most of them are "duplicated" for
-each [collection](https://evitadb.io/documentation/use/data-model#collection) within that catalog.
-Also, there is a set of endpoints for retrieving and updating schema of the parent [catalog](https://evitadb.io/documentation/use/data-model#catalog).
-Each endpoint then takes arguments and returns data specific to a given collection and [its schema](https://evitadb.io/documentation/use/schema#entity).
+each [collection](/docs/user/en/use/data-model.md#collection) within that catalog.
+Also, there is a set of endpoints for retrieving and updating schema of the parent [catalog](/docs/user/en/use/data-model.md#catalog).
+Each endpoint then takes arguments and returns data specific to a given collection and [its schema](/docs/user/en/use/schema.md#entity).
 
 In addition to user-defined collections, there is a "virtual" simplified collection for each catalog in the REST API called `entity`
 that allows users to retrieve entities by global attributes without knowing the target collection. However, the `entity` "collection",
@@ -82,19 +82,21 @@ There is nothing special about the <Term>system API</Term>, just a set of basic 
 
 ## Query language
 
-evitaDB is shipped with its own [query language](https://evitadb.io/documentation/query/basics), for which our REST API has its own facade.
+evitaDB is shipped with its own [query language](/docs/user/en/query/basics.md), for which our REST API has its own facade.
 The main difference between these two is that the evitaDB's original language has generic set of constraints and doesn't
-care about concrete [collection](https://evitadb.io/documentation/use/data-model#collection) data structure, where the
-REST version has the same constraints but customized based on [collection](https://evitadb.io/documentation/use/data-model#collection) data structure
+care about concrete [collection](/docs/user/en/use/data-model.md#collection) data structure, where the
+REST version has the same constraints but customized based on [collection](/docs/user/en/use/data-model.md#collection) data structure
 to provide concrete available constraint for defined data structure.
 
 This custom version of the query language is possible because in our REST API, the query language is dynamically generated
-based on [internal collection schemas](https://evitadb.io/documentation/use/schema#entity) to display only constraints that
+based on [internal collection schemas](/docs/user/en/use/schema.md#entity) to display only constraints that
 can actually be used to query data (which also changes based on context of nested constraints). This also provides constraint arguments with data types that match
 the internal data. This helps with the self-documentation because you don't necessarily need to know about
 the domain model, since the [OpenAPI](https://swagger.io/specification/v3/) schema can be used to auto-complete the available constraints.
 
-<MDInclude><a href="docs/user/en/use/connectors/assets/dynamic-api-query-language-syntax.md">Syntax of query and constraints</a></MDInclude>
+### Syntax of query and constraints
+
+<MDInclude>[Syntax of query and constraints](/docs/user/en/use/connectors/assets/dynamic-api-query-language-syntax.md)</MDInclude>
 
 ## Recommended usage
 

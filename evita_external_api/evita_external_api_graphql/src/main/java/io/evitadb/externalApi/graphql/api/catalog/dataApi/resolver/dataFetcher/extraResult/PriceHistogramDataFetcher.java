@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -37,15 +36,12 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class PriceHistogramDataFetcher implements DataFetcher<DataFetcherResult<HistogramContract>> {
+public class PriceHistogramDataFetcher implements DataFetcher<HistogramContract> {
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<HistogramContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public HistogramContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final EvitaResponse<?> response = environment.getSource();
-		final PriceHistogram priceHistogram = response.getExtraResult(PriceHistogram.class);
-		return DataFetcherResult.<HistogramContract>newResult()
-			.data(priceHistogram)
-			.build();
+		return response.getExtraResult(PriceHistogram.class);
 	}
 }

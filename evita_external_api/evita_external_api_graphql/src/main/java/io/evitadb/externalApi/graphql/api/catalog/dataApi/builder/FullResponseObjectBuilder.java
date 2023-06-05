@@ -25,13 +25,25 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.builder;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import graphql.schema.GraphQLFieldDefinition;
+import graphql.schema.GraphQLInputObjectType;
+import graphql.schema.GraphQLInputType;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLOutputType;
 import graphql.schema.PropertyDataFetcher;
+import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.FilterGroupBy;
+import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.order.OrderGroupBy;
+import io.evitadb.api.query.require.HierarchyNode;
+import io.evitadb.api.query.require.HierarchyStopAt;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ExternalEntityDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.RecordPageDescriptor;
@@ -43,36 +55,38 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor.ParentsOfReferenceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor.HierarchyStatisticsLevelInfoDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.FilterConstraintSchemaBuilder;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.GraphQLConstraintSchemaBuildingContext;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.OrderConstraintSchemaBuilder;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.BucketsFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.QueryTelemetryFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.RecordPageFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.RecordStripFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.*;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyParentsHeaderDescriptor.HierarchyParentsSiblingsSpecification;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.RecordPageDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.RecordStripDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.SingleParentsOfReferenceDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.AttributeHistogramDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.AttributeHistogramsDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.ExtraResultsDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.FacetGroupStatisticsDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.FacetSummaryDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.HierarchyParentsDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.HierarchyStatisticsDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.HierarchyDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.PriceHistogramDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.QueryTelemetryDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.SpecificHierarchyDataFetcher;
+import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInputObjectTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLObjectTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLArgumentTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLFieldTransformer;
+import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLInputFieldTransformer;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -80,13 +94,13 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
 import static graphql.schema.GraphQLList.list;
 import static graphql.schema.GraphQLNonNull.nonNull;
 import static graphql.schema.GraphQLTypeReference.typeRef;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.TYPE_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars.OBJECT;
 import static io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars.STRING;
 
@@ -95,7 +109,6 @@ import static io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars.STRING;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@RequiredArgsConstructor
 public class FullResponseObjectBuilder {
 
 	private static final ObjectMapper QUERY_TELEMETRY_OBJECT_MAPPER = new ObjectMapper();
@@ -103,7 +116,35 @@ public class FullResponseObjectBuilder {
 	@Nonnull private final CatalogGraphQLSchemaBuildingContext buildingContext;
 	@Nonnull private final PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer;
+	@Nonnull private final ObjectDescriptorToGraphQLInputObjectTransformer inputObjectBuilderTransformer;
 	@Nonnull private final PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer;
+	@Nonnull private final PropertyDescriptorToGraphQLInputFieldTransformer inputFieldBuilderTransformer;
+	@Nonnull private final FilterConstraintSchemaBuilder filterConstraintSchemaBuilder;
+	@Nonnull private final OrderConstraintSchemaBuilder orderConstraintSchemaBuilder;
+	@Nonnull private final RequireConstraintSchemaBuilder extraResultRequireConstraintSchemaBuilder;
+
+	public FullResponseObjectBuilder(@Nonnull CatalogGraphQLSchemaBuildingContext buildingContext,
+	                                 @Nonnull PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer,
+	                                 @Nonnull ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer,
+									 @Nonnull ObjectDescriptorToGraphQLInputObjectTransformer inputObjectBuilderTransformer,
+	                                 @Nonnull PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer,
+									 @Nonnull PropertyDescriptorToGraphQLInputFieldTransformer inputFieldBuilderTransformer,
+	                                 @Nonnull GraphQLConstraintSchemaBuildingContext constraintSchemaBuildingContext,
+	                                 @Nonnull FilterConstraintSchemaBuilder filterConstraintSchemaBuilder,
+	                                 @Nonnull OrderConstraintSchemaBuilder orderConstraintSchemaBuilder) {
+		this.buildingContext = buildingContext;
+		this.argumentBuilderTransformer = argumentBuilderTransformer;
+		this.objectBuilderTransformer = objectBuilderTransformer;
+		this.inputObjectBuilderTransformer = inputObjectBuilderTransformer;
+		this.fieldBuilderTransformer = fieldBuilderTransformer;
+		this.inputFieldBuilderTransformer = inputFieldBuilderTransformer;
+		this.filterConstraintSchemaBuilder = filterConstraintSchemaBuilder;
+		this.orderConstraintSchemaBuilder = orderConstraintSchemaBuilder;
+		this.extraResultRequireConstraintSchemaBuilder = RequireConstraintSchemaBuilder.forExtraResultsRequire(
+			constraintSchemaBuildingContext,
+			new AtomicReference<>(filterConstraintSchemaBuilder)
+		);
+	}
 
 	public void buildCommonTypes() {
 		buildingContext.registerType(BucketDescriptor.THIS.to(objectBuilderTransformer).build());
@@ -231,7 +272,7 @@ public class FullResponseObjectBuilder {
 		buildAttributeHistogramsField(entitySchema).ifPresent(extraResultFields::add);
 		buildPriceHistogramField(entitySchema).ifPresent(extraResultFields::add);
 		buildFacetSummaryField(entitySchema).ifPresent(extraResultFields::add);
-		extraResultFields.addAll(buildHierarchyExtraResultFields(entitySchema));
+		buildHierarchyField(entitySchema).ifPresent(extraResultFields::add);
 		extraResultFields.add(buildQueryTelemetryField());
 
 		if (extraResultFields.isEmpty()) {
@@ -383,13 +424,31 @@ public class FullResponseObjectBuilder {
 			referenceSchema
 		);
 
-		final GraphQLFieldDefinition facetGroupStatisticsField =  newFieldDefinition()
+		final GraphQLFieldDefinition.Builder facetGroupStatisticsFieldBuilder = newFieldDefinition()
 			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
-			.type(list(nonNull(facetGroupStatisticsObject)))
-			.build();
+			.type(list(nonNull(facetGroupStatisticsObject)));
+
+		if (referenceSchema.getReferencedGroupType() != null) {
+			final DataLocator groupEntityDataLocator;
+			if (referenceSchema.isReferencedGroupTypeManaged()) {
+				groupEntityDataLocator = new EntityDataLocator(referenceSchema.getReferencedGroupType());
+			} else {
+				groupEntityDataLocator = new ExternalEntityDataLocator(referenceSchema.getReferencedGroupType());
+			}
+			final GraphQLInputType filterGroupByConstraint = filterConstraintSchemaBuilder.build(groupEntityDataLocator, FilterGroupBy.class);
+			final GraphQLInputType orderGroupByConstraint = orderConstraintSchemaBuilder.build(groupEntityDataLocator, OrderGroupBy.class);
+
+			facetGroupStatisticsFieldBuilder
+				.argument(FacetGroupStatisticsHeaderDescriptor.FILTER_GROUP_BY
+					.to(argumentBuilderTransformer)
+					.type(filterGroupByConstraint))
+				.argument(FacetGroupStatisticsHeaderDescriptor.ORDER_GROUP_BY
+					.to(argumentBuilderTransformer)
+					.type(orderGroupByConstraint));
+		}
 
 		return new BuiltFieldDescriptor(
-			facetGroupStatisticsField,
+			facetGroupStatisticsFieldBuilder.build(),
 			new FacetGroupStatisticsDataFetcher(referenceSchema)
 		);
 	}
@@ -397,6 +456,29 @@ public class FullResponseObjectBuilder {
 	@Nonnull
 	private GraphQLObjectType buildFacetGroupStatisticsObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                          @Nonnull ReferenceSchemaContract referenceSchema) {
+		final String objectName = FacetGroupStatisticsDescriptor.THIS.name(entitySchema, referenceSchema);
+
+		final GraphQLObjectType.Builder facetGroupStatisticsBuilder = FacetGroupStatisticsDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.name(objectName);
+
+		buildingContext.registerFieldToObject(
+			objectName,
+			facetGroupStatisticsBuilder,
+			buildFacetGroupEntityField(referenceSchema)
+		);
+
+		buildingContext.registerFieldToObject(
+			objectName,
+			facetGroupStatisticsBuilder,
+			buildFacetStatisticsField(entitySchema, referenceSchema)
+		);
+
+		return facetGroupStatisticsBuilder.build();
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildFacetGroupEntityField(@Nonnull ReferenceSchemaContract referenceSchema) {
 		final EntitySchemaContract groupEntitySchema = referenceSchema.isReferencedGroupTypeManaged() ?
 			Optional.ofNullable(referenceSchema.getReferencedGroupType())
 				.map(groupType -> buildingContext
@@ -406,18 +488,40 @@ public class FullResponseObjectBuilder {
 			null;
 
 		final GraphQLOutputType groupEntityObject = buildReferencedEntityObject(groupEntitySchema);
+
+		final GraphQLFieldDefinition groupEntityField = FacetGroupStatisticsDescriptor.GROUP_ENTITY
+			.to(fieldBuilderTransformer)
+			.type(groupEntityObject)
+			.build();
+
+		return new BuiltFieldDescriptor(groupEntityField, null);
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildFacetStatisticsField(@Nonnull EntitySchemaContract entitySchema,
+	                                                       @Nonnull ReferenceSchemaContract referenceSchema) {
+		final DataLocator facetEntityDataLocator;
+		if (referenceSchema.isReferencedEntityTypeManaged()) {
+			facetEntityDataLocator = new EntityDataLocator(referenceSchema.getReferencedEntityType());
+		} else {
+			facetEntityDataLocator = new ExternalEntityDataLocator(referenceSchema.getReferencedEntityType());
+		}
+		final GraphQLInputType filterByConstraint = filterConstraintSchemaBuilder.build(facetEntityDataLocator, FilterBy.class);
+		final GraphQLInputType orderByConstraint = orderConstraintSchemaBuilder.build(facetEntityDataLocator, OrderBy.class);
 		final GraphQLObjectType facetStatisticsObject = buildFacetStatisticsObject(entitySchema, referenceSchema);
 
-		return FacetGroupStatisticsDescriptor.THIS
-			.to(objectBuilderTransformer)
-			.name(FacetGroupStatisticsDescriptor.THIS.name(entitySchema, referenceSchema))
-			.field(FacetGroupStatisticsDescriptor.GROUP_ENTITY
-				.to(fieldBuilderTransformer)
-				.type(groupEntityObject))
-			.field(FacetGroupStatisticsDescriptor.FACET_STATISTICS
-				.to(fieldBuilderTransformer)
-				.type(nonNull(list(nonNull(facetStatisticsObject)))))
+		final GraphQLFieldDefinition facetStatisticsField = FacetGroupStatisticsDescriptor.FACET_STATISTICS
+			.to(fieldBuilderTransformer)
+			.type(nonNull(list(nonNull(facetStatisticsObject))))
+			.argument(FacetStatisticsHeaderDescriptor.FILTER_BY
+				.to(argumentBuilderTransformer)
+				.type(filterByConstraint))
+			.argument(FacetStatisticsHeaderDescriptor.ORDER_BY
+				.to(argumentBuilderTransformer)
+				.type(orderByConstraint))
 			.build();
+
+		return new BuiltFieldDescriptor(facetStatisticsField, null);
 	}
 
 	@Nonnull
@@ -440,7 +544,7 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private List<BuiltFieldDescriptor> buildHierarchyExtraResultFields(@Nonnull EntitySchemaContract entitySchema) {
+	private Optional<BuiltFieldDescriptor> buildHierarchyField(@Nonnull EntitySchemaContract entitySchema) {
 		final List<ReferenceSchemaContract> referenceSchemas = entitySchema
 			.getReferences()
 			.values()
@@ -452,193 +556,25 @@ public class FullResponseObjectBuilder {
 			.toList();
 
 		if (referenceSchemas.isEmpty() && !entitySchema.isWithHierarchy()) {
-			return List.of();
+			return Optional.empty();
 		}
 
-		final List<BuiltFieldDescriptor> hierarchyExtraResultFields = new ArrayList<>(2);
-
-		final GraphQLObjectType parentsObject = buildParentsObject(entitySchema, referenceSchemas);
-		final GraphQLFieldDefinition parentsField = ExtraResultsDescriptor.HIERARCHY_PARENTS
+		final GraphQLObjectType hierarchyObject = buildHierarchyObject(entitySchema, referenceSchemas);
+		final GraphQLFieldDefinition hierarchyField = ExtraResultsDescriptor.HIERARCHY
 			.to(fieldBuilderTransformer)
-			.type(parentsObject)
+			.type(hierarchyObject)
 			.build();
-		hierarchyExtraResultFields.add(new BuiltFieldDescriptor(
-			parentsField,
-			new HierarchyParentsDataFetcher(entitySchema.getReferences().values())
+		return Optional.of(new BuiltFieldDescriptor(
+			hierarchyField,
+			new HierarchyDataFetcher(entitySchema.getReferences().values())
 		));
-
-		final GraphQLObjectType hierarchyStatisticsObject = buildHierarchyStatisticsObject(entitySchema, referenceSchemas);
-		final GraphQLFieldDefinition hierarchyStatisticsField = ExtraResultsDescriptor.HIERARCHY_STATISTICS
-			.to(fieldBuilderTransformer)
-			.type(hierarchyStatisticsObject)
-			.build();
-		hierarchyExtraResultFields.add(new BuiltFieldDescriptor(
-			hierarchyStatisticsField,
-			new HierarchyStatisticsDataFetcher(entitySchema.getReferences().values())
-		));
-
-		return hierarchyExtraResultFields;
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildParentsObject(@Nonnull EntitySchemaContract entitySchema,
-	                                             @Nonnull List<ReferenceSchemaContract> referenceSchemas) {
-		final String objectName = HierarchyParentsDescriptor.THIS.name(entitySchema);
-
-		final GraphQLObjectType.Builder parentsObjectBuilder = HierarchyParentsDescriptor.THIS
-			.to(objectBuilderTransformer)
-			.name(objectName);
-
-		if (entitySchema.isWithHierarchy()) {
-			buildingContext.registerFieldToObject(
-				objectName,
-				parentsObjectBuilder,
-				buildSelfParentsOfEntityField(entitySchema)
-			);
-		}
-		referenceSchemas.forEach(referenceSchema ->
-			buildingContext.registerFieldToObject(
-				objectName,
-				parentsObjectBuilder,
-				buildParentsOfEntityField(entitySchema, referenceSchema)
-			)
-		);
-
-		return parentsObjectBuilder.build();
-	}
-
-	@Nonnull
-	private BuiltFieldDescriptor buildSelfParentsOfEntityField(@Nonnull EntitySchemaContract entitySchema) {
-		final GraphQLObjectType parentsOfEntityObject = buildSelfParentsOfEntityObject(entitySchema);
-
-		final GraphQLFieldDefinition parentsField = HierarchyParentsDescriptor.SELF
-			.to(fieldBuilderTransformer)
-			.type(list(nonNull(parentsOfEntityObject)))
-			.build();
-
-		return new BuiltFieldDescriptor(parentsField, null);
-	}
-
-	@Nonnull
-	private GraphQLObjectType buildSelfParentsOfEntityObject(@Nonnull EntitySchemaContract entitySchema) {
-		final String objectName = ParentsOfEntityDescriptor.THIS.name(entitySchema, entitySchema);
-
-		final GraphQLObjectType.Builder parentsOfEntityObjectBuilder = ParentsOfEntityDescriptor.THIS
-			.to(objectBuilderTransformer)
-			.name(objectName);
-
-		buildingContext.registerFieldToObject(
-			objectName,
-			parentsOfEntityObjectBuilder,
-			buildSelfParentsOfEntityParentEntitiesField(entitySchema)
-		);
-
-		return parentsOfEntityObjectBuilder.build();
-	}
-
-	@Nonnull
-	private BuiltFieldDescriptor buildSelfParentsOfEntityParentEntitiesField(@Nonnull EntitySchemaContract entitySchema) {
-		final GraphQLFieldDefinition parentEntitiesField = ParentsOfEntityDescriptor.PARENT_ENTITIES
-			.to(fieldBuilderTransformer)
-			.type(nonNull(list(nonNull(typeRef(EntityDescriptor.THIS.name(entitySchema))))))
-			.build();
-
-		return new BuiltFieldDescriptor(
-			parentEntitiesField,
-			new SingleParentsOfReferenceDataFetcher()
-		);
-	}
-
-	@Nonnull
-	private BuiltFieldDescriptor buildParentsOfEntityField(@Nonnull EntitySchemaContract entitySchema,
-	                                                       @Nonnull ReferenceSchemaContract referenceSchema) {
-		final GraphQLObjectType parentsOfEntityObject = buildParentsOfEntityObject(entitySchema, referenceSchema);
-
-		final GraphQLFieldDefinition singleParentsField = newFieldDefinition()
-			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
-			.type(list(nonNull(parentsOfEntityObject)))
-			.build();
-
-		return new BuiltFieldDescriptor(singleParentsField, null);
-	}
-
-	@Nonnull
-	private GraphQLObjectType buildParentsOfEntityObject(@Nonnull EntitySchemaContract entitySchema,
-	                                                     @Nonnull ReferenceSchemaContract referenceSchema) {
-		final String objectName = ParentsOfEntityDescriptor.THIS.name(entitySchema, referenceSchema);
-
-		final GraphQLObjectType.Builder parentsOfEntityObjectBuilder = ParentsOfEntityDescriptor.THIS
-			.to(objectBuilderTransformer)
-			.name(objectName);
-
-		buildingContext.registerFieldToObject(
-			objectName,
-			parentsOfEntityObjectBuilder,
-			buildParentsOfEntityParentEntitiesField(referenceSchema)
-		);
-
-		buildingContext.registerFieldToObject(
-			objectName,
-			parentsOfEntityObjectBuilder,
-			buildParentsOfEntityReferencesField(entitySchema, referenceSchema)
-		);
-
-		return parentsOfEntityObjectBuilder.build();
-	}
-
-	@Nonnull
-	private BuiltFieldDescriptor buildParentsOfEntityReferencesField(@Nonnull EntitySchemaContract entitySchema,
-	                                                                 @Nonnull ReferenceSchemaContract referenceSchema) {
-		final GraphQLObjectType object = buildParentsOfEntityReferencesObject(entitySchema, referenceSchema);
-
-		final GraphQLFieldDefinition referencesField = ParentsOfEntityDescriptor.REFERENCES
-			.to(fieldBuilderTransformer)
-			.type(nonNull(list(nonNull(object))))
-			.build();
-
-		return new BuiltFieldDescriptor(referencesField, null);
-	}
-
-	@Nonnull
-	private GraphQLObjectType buildParentsOfEntityReferencesObject(@Nonnull EntitySchemaContract entitySchema,
-	                                                               @Nonnull ReferenceSchemaContract referenceSchema) {
-		final EntitySchemaContract referencedEntitySchema = buildingContext
-			.getSchema()
-			.getEntitySchemaOrThrowException(referenceSchema.getReferencedEntityType());
-		final String referencedEntityObjectName = referencedEntitySchema.getNameVariant(TYPE_NAME_NAMING_CONVENTION);
-
-		return ParentsOfReferenceDescriptor.THIS
-			.to(objectBuilderTransformer)
-			.name(ParentsOfReferenceDescriptor.THIS.name(entitySchema, referenceSchema))
-			.field(ParentsOfReferenceDescriptor.PARENT_ENTITIES
-				.to(fieldBuilderTransformer)
-				.type(nonNull(list(nonNull(typeRef(referencedEntityObjectName))))))
-			.build();
-	}
-
-	@Nonnull
-	private BuiltFieldDescriptor buildParentsOfEntityParentEntitiesField(@Nonnull ReferenceSchemaContract referenceSchema) {
-		final EntitySchemaContract referencedEntitySchema = buildingContext
-			.getSchema()
-			.getEntitySchemaOrThrowException(referenceSchema.getReferencedEntityType());
-		final String referencedEntityObjectName = referencedEntitySchema.getNameVariant(TYPE_NAME_NAMING_CONVENTION);
-
-		final GraphQLFieldDefinition parentEntitiesField = ParentsOfEntityDescriptor.PARENT_ENTITIES
-			.to(fieldBuilderTransformer)
-			.type(nonNull(list(nonNull(typeRef(referencedEntityObjectName)))))
-			.build();
-
-		return new BuiltFieldDescriptor(
-			parentEntitiesField,
-			new SingleParentsOfReferenceDataFetcher()
-		);
-	}
-
-	@Nonnull
-	private GraphQLObjectType buildHierarchyStatisticsObject(@Nonnull EntitySchemaContract entitySchema,
-	                                                         @Nonnull List<ReferenceSchemaContract> referenceSchemas) {
-		final String objectName = HierarchyStatisticsDescriptor.THIS.name(entitySchema);
-		final GraphQLObjectType.Builder hierarchyStatisticsObjectBuilder = HierarchyStatisticsDescriptor.THIS
+	private GraphQLObjectType buildHierarchyObject(@Nonnull EntitySchemaContract entitySchema,
+	                                               @Nonnull List<ReferenceSchemaContract> referenceSchemas) {
+		final String objectName = HierarchyDescriptor.THIS.name(entitySchema);
+		final GraphQLObjectType.Builder hierarchyStatisticsObjectBuilder = HierarchyDescriptor.THIS
 			.to(objectBuilderTransformer)
 			.name(objectName);
 
@@ -646,14 +582,14 @@ public class FullResponseObjectBuilder {
 			buildingContext.registerFieldToObject(
 				objectName,
 				hierarchyStatisticsObjectBuilder,
-				buildSelfLevelInfoField(entitySchema)
+				buildHierarchyOfSelfField(entitySchema)
 			);
 		}
 		referenceSchemas.forEach(referenceSchema ->
 			buildingContext.registerFieldToObject(
 				objectName,
 				hierarchyStatisticsObjectBuilder,
-				buildLevelInfoField(entitySchema, referenceSchema)
+				buildHierarchyOfReferenceField(entitySchema, referenceSchema)
 			)
 		);
 
@@ -661,25 +597,79 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildSelfLevelInfoField(@Nonnull EntitySchemaContract entitySchema) {
-		final GraphQLObjectType selfLevelInfoObject = buildSelfLevelInfoObject(entitySchema);
-		final GraphQLFieldDefinition selfLevelInfoField = HierarchyStatisticsDescriptor.SELF
+	private BuiltFieldDescriptor buildHierarchyOfSelfField(@Nonnull EntitySchemaContract entitySchema) {
+		final GraphQLObjectType hierarchyOfSelfObject = buildHierarchyOfSelfObject(entitySchema);
+
+		final GraphQLInputType orderByConstraint = orderConstraintSchemaBuilder.build(new EntityDataLocator(entitySchema.getName()));
+
+		final GraphQLFieldDefinition hierarchyOfSelfField = HierarchyDescriptor.SELF
 			.to(fieldBuilderTransformer)
-			.type(list(nonNull(selfLevelInfoObject)))
+			.type(nonNull(hierarchyOfSelfObject))
+			.argument(HierarchyOfSelfHeaderDescriptor.ORDER_BY
+				.to(argumentBuilderTransformer)
+				.type(orderByConstraint))
 			.build();
-		return new BuiltFieldDescriptor(selfLevelInfoField, null);
+
+		return new BuiltFieldDescriptor(hierarchyOfSelfField, null);
+	}
+
+	@Nonnull
+	private GraphQLObjectType buildHierarchyOfSelfObject(@Nonnull EntitySchemaContract entitySchema) {
+		final String objectName = HierarchyOfSelfDescriptor.THIS.name(entitySchema, entitySchema);
+
+		final DataLocator selfHierarchyConstraintDataLocator = new HierarchyDataLocator(entitySchema.getName());
+		final GraphQLInputType nodeConstraint = extraResultRequireConstraintSchemaBuilder.build(selfHierarchyConstraintDataLocator, HierarchyNode.class);
+		final GraphQLInputType stopAtConstraint = extraResultRequireConstraintSchemaBuilder.build(selfHierarchyConstraintDataLocator, HierarchyStopAt.class);
+		final GraphQLInputObjectType parentsSiblingsSpecification = HierarchyParentsSiblingsSpecification.THIS
+			.to(inputObjectBuilderTransformer)
+			.name(HierarchyParentsSiblingsSpecification.THIS.name(entitySchema, entitySchema))
+			.field(HierarchyParentsSiblingsSpecification.STOP_AT
+				.to(inputFieldBuilderTransformer)
+				.type(stopAtConstraint))
+			.build();
+
+		final GraphQLObjectType selfLevelInfoObject = buildSelfLevelInfoObject(entitySchema);
+
+		final GraphQLObjectType.Builder hierarchyOfSelfObjectBuilder = HierarchyOfSelfDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.name(objectName);
+
+		buildingContext.registerFieldToObject(
+			objectName,
+			hierarchyOfSelfObjectBuilder,
+			buildHierarchyFromRootField(stopAtConstraint, selfLevelInfoObject)
+		);
+		buildingContext.registerFieldToObject(
+			objectName,
+			hierarchyOfSelfObjectBuilder,
+			buildHierarchyFromNodeField(nodeConstraint, stopAtConstraint, selfLevelInfoObject)
+		);
+		buildingContext.registerFieldToObject(
+			objectName,
+			hierarchyOfSelfObjectBuilder,
+			buildHierarchyChildrenField(stopAtConstraint, selfLevelInfoObject)
+		);
+		buildingContext.registerFieldToObject(
+			objectName,
+			hierarchyOfSelfObjectBuilder,
+			buildHierarchyParentsField(stopAtConstraint, parentsSiblingsSpecification, selfLevelInfoObject)
+		);
+		buildingContext.registerFieldToObject(
+			objectName,
+			hierarchyOfSelfObjectBuilder,
+			buildHierarchySiblingsField(stopAtConstraint, selfLevelInfoObject)
+		);
+
+		return hierarchyOfSelfObjectBuilder.build();
 	}
 
 	@Nonnull
 	private GraphQLObjectType buildSelfLevelInfoObject(@Nonnull EntitySchemaContract entitySchema) {
-		final String objectName = HierarchyStatisticsLevelInfoDescriptor.THIS.name(entitySchema, entitySchema);
+		final String objectName = LevelInfoDescriptor.THIS.name(entitySchema, entitySchema);
 
-		final GraphQLObjectType.Builder selfLevelInfoObjectBuilder = HierarchyStatisticsLevelInfoDescriptor.THIS
+		final GraphQLObjectType.Builder selfLevelInfoObjectBuilder = LevelInfoDescriptor.THIS
 			.to(objectBuilderTransformer)
-			.name(objectName)
-			.field(HierarchyStatisticsLevelInfoDescriptor.CHILDREN_STATISTICS
-				.to(fieldBuilderTransformer)
-				.type(nonNull(list(nonNull(typeRef(objectName))))));
+			.name(objectName);
 
 		buildingContext.registerFieldToObject(
 			objectName,
@@ -692,9 +682,9 @@ public class FullResponseObjectBuilder {
 
 	@Nonnull
 	private BuiltFieldDescriptor buildSelfLevelInfoEntityField(@Nonnull EntitySchemaContract entitySchema) {
-		final String referencedEntityObjectName = entitySchema.getNameVariant(TYPE_NAME_NAMING_CONVENTION);
+		final String referencedEntityObjectName = EntityDescriptor.THIS.name(entitySchema);
 
-		final GraphQLFieldDefinition entityField = HierarchyStatisticsLevelInfoDescriptor.ENTITY
+		final GraphQLFieldDefinition entityField = LevelInfoDescriptor.ENTITY
 			.to(fieldBuilderTransformer)
 			.type(nonNull(typeRef(referencedEntityObjectName)))
 			.build();
@@ -706,27 +696,94 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildLevelInfoField(@Nonnull EntitySchemaContract entitySchema,
-	                                                 @Nonnull ReferenceSchemaContract referenceSchema) {
-		final GraphQLObjectType levelInfoObject = buildLevelInfoObject(entitySchema, referenceSchema);
-		final GraphQLFieldDefinition levelInfoField = newFieldDefinition()
+	private BuiltFieldDescriptor buildHierarchyOfReferenceField(@Nonnull EntitySchemaContract entitySchema,
+	                                                            @Nonnull ReferenceSchemaContract referenceSchema) {
+		final GraphQLObjectType hierarchyOfReferenceObject = buildHierarchyOfReferenceObject(entitySchema, referenceSchema);
+
+		final GraphQLFieldDefinition.Builder hierarchyOfReferenceFieldBuilder = HierarchyDescriptor.REFERENCE
+			.to(fieldBuilderTransformer)
 			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
-			.type(list(nonNull(levelInfoObject)))
+			.description(HierarchyDescriptor.REFERENCE.description(referenceSchema.getReferencedEntityType()))
+			.type(nonNull(hierarchyOfReferenceObject))
+			.argument(HierarchyOfReferenceHeaderDescriptor.EMPTY_HIERARCHICAL_ENTITY_BEHAVIOUR
+				.to(argumentBuilderTransformer));
+
+		final DataLocator hierarchyDataLocator;
+		if (referenceSchema.isReferencedEntityTypeManaged()) {
+			hierarchyDataLocator = new EntityDataLocator(referenceSchema.getReferencedEntityType());
+		} else {
+			hierarchyDataLocator = new ExternalEntityDataLocator(referenceSchema.getReferencedEntityType());
+		}
+		final GraphQLInputType orderByConstraint = orderConstraintSchemaBuilder.build(hierarchyDataLocator);
+		hierarchyOfReferenceFieldBuilder.argument(HierarchyOfReferenceHeaderDescriptor.ORDER_BY
+			.to(argumentBuilderTransformer)
+			.type(orderByConstraint));
+
+		return new BuiltFieldDescriptor(hierarchyOfReferenceFieldBuilder.build(), null);
+	}
+
+	@Nonnull
+	private GraphQLObjectType buildHierarchyOfReferenceObject(@Nonnull EntitySchemaContract entitySchema,
+	                                                          @Nonnull ReferenceSchemaContract referenceSchema) {
+		final String objectName = HierarchyOfReferenceDescriptor.THIS.name(entitySchema, referenceSchema);
+
+		final DataLocator referenceHierarchyConstraintDataLocator = new HierarchyDataLocator(
+			entitySchema.getName(),
+			referenceSchema.getName()
+		);
+		final GraphQLInputType nodeConstraint = extraResultRequireConstraintSchemaBuilder.build(referenceHierarchyConstraintDataLocator, HierarchyNode.class);
+		final GraphQLInputType stopAtConstraint = extraResultRequireConstraintSchemaBuilder.build(referenceHierarchyConstraintDataLocator, HierarchyStopAt.class);
+		final GraphQLInputObjectType parentsSiblingsSpecification = HierarchyParentsSiblingsSpecification.THIS
+			.to(inputObjectBuilderTransformer)
+			.name(HierarchyParentsSiblingsSpecification.THIS.name(entitySchema, referenceSchema))
+			.field(HierarchyParentsSiblingsSpecification.STOP_AT
+				.to(inputFieldBuilderTransformer)
+				.type(stopAtConstraint))
 			.build();
-		return new BuiltFieldDescriptor(levelInfoField, null);
+
+		final GraphQLObjectType levelInfoObject = buildLevelInfoObject(entitySchema, referenceSchema);
+
+		final GraphQLObjectType.Builder hierarchyOfReferenceObjectBuilder = HierarchyOfReferenceDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.name(objectName);
+
+		buildingContext.registerFieldToObject(
+			objectName,
+			hierarchyOfReferenceObjectBuilder,
+			buildHierarchyFromRootField(stopAtConstraint, levelInfoObject)
+		);
+		buildingContext.registerFieldToObject(
+			objectName,
+			hierarchyOfReferenceObjectBuilder,
+			buildHierarchyFromNodeField(nodeConstraint, stopAtConstraint, levelInfoObject)
+		);
+		buildingContext.registerFieldToObject(
+			objectName,
+			hierarchyOfReferenceObjectBuilder,
+			buildHierarchyChildrenField(stopAtConstraint, levelInfoObject)
+		);
+		buildingContext.registerFieldToObject(
+			objectName,
+			hierarchyOfReferenceObjectBuilder,
+			buildHierarchyParentsField(stopAtConstraint, parentsSiblingsSpecification, levelInfoObject)
+		);
+		buildingContext.registerFieldToObject(
+			objectName,
+			hierarchyOfReferenceObjectBuilder,
+			buildHierarchySiblingsField(stopAtConstraint, levelInfoObject)
+		);
+
+		return hierarchyOfReferenceObjectBuilder.build();
 	}
 
 	@Nonnull
 	private GraphQLObjectType buildLevelInfoObject(@Nonnull EntitySchemaContract entitySchema,
 	                                               @Nonnull ReferenceSchemaContract referenceSchema) {
-		final String objectName = HierarchyStatisticsLevelInfoDescriptor.THIS.name(entitySchema, referenceSchema);
+		final String objectName = LevelInfoDescriptor.THIS.name(entitySchema, referenceSchema);
 
-		final GraphQLObjectType.Builder levelInfoObjectBuilder = HierarchyStatisticsLevelInfoDescriptor.THIS
+		final GraphQLObjectType.Builder levelInfoObjectBuilder = LevelInfoDescriptor.THIS
 			.to(objectBuilderTransformer)
-			.name(objectName)
-			.field(HierarchyStatisticsLevelInfoDescriptor.CHILDREN_STATISTICS
-				.to(fieldBuilderTransformer)
-				.type(nonNull(list(nonNull(typeRef(objectName))))));
+			.name(objectName);
 
 		buildingContext.registerFieldToObject(
 			objectName,
@@ -742,9 +799,9 @@ public class FullResponseObjectBuilder {
 		final EntitySchemaContract referencedEntitySchema = buildingContext
 			.getSchema()
 			.getEntitySchemaOrThrowException(referenceSchema.getReferencedEntityType());
-		final String referencedEntityObjectName = referencedEntitySchema.getNameVariant(TYPE_NAME_NAMING_CONVENTION);
+		final String referencedEntityObjectName = EntityDescriptor.THIS.name(referencedEntitySchema);
 
-		final GraphQLFieldDefinition entityField = HierarchyStatisticsLevelInfoDescriptor.ENTITY
+		final GraphQLFieldDefinition entityField = LevelInfoDescriptor.ENTITY
 			.to(fieldBuilderTransformer)
 			.type(nonNull(typeRef(referencedEntityObjectName)))
 			.build();
@@ -752,6 +809,99 @@ public class FullResponseObjectBuilder {
 		return new BuiltFieldDescriptor(
 			entityField,
 			null
+		);
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildHierarchyFromRootField(@Nonnull GraphQLInputType stopAtConstraint,
+	                                                         @Nonnull GraphQLObjectType levelInfoObject) {
+		return new BuiltFieldDescriptor(
+			HierarchyOfDescriptor.FROM_ROOT
+				.to(fieldBuilderTransformer)
+				.type(nonNull(list(nonNull(levelInfoObject))))
+				.argument(HierarchyFromRootHeaderDescriptor.STOP_AT
+					.to(argumentBuilderTransformer)
+					.type(stopAtConstraint))
+				.argument(HierarchyFromRootHeaderDescriptor.STATISTICS_BASE
+					.to(argumentBuilderTransformer))
+				.build(),
+			new SpecificHierarchyDataFetcher()
+		);
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildHierarchyFromNodeField(@Nonnull GraphQLInputType nodeConstraint,
+	                                                         @Nonnull GraphQLInputType stopAtConstraint,
+	                                                         @Nonnull GraphQLObjectType levelInfoObject) {
+		return new BuiltFieldDescriptor(
+			HierarchyOfDescriptor.FROM_NODE
+				.to(fieldBuilderTransformer)
+				.type(nonNull(list(nonNull(levelInfoObject))))
+				.argument(HierarchyFromNodeHeaderDescriptor.NODE
+					.to(argumentBuilderTransformer)
+					.type(nonNull(nodeConstraint)))
+				.argument(HierarchyFromNodeHeaderDescriptor.STOP_AT
+					.to(argumentBuilderTransformer)
+					.type(stopAtConstraint))
+				.argument(HierarchyFromNodeHeaderDescriptor.STATISTICS_BASE
+					.to(argumentBuilderTransformer))
+				.build(),
+			new SpecificHierarchyDataFetcher()
+		);
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildHierarchyChildrenField(@Nonnull GraphQLInputType stopAtConstraint,
+	                                                         @Nonnull GraphQLObjectType levelInfoObject) {
+		return new BuiltFieldDescriptor(
+			HierarchyOfDescriptor.CHILDREN
+				.to(fieldBuilderTransformer)
+				.type(nonNull(list(nonNull(levelInfoObject))))
+				.argument(HierarchyChildrenHeaderDescriptor.STOP_AT
+					.to(argumentBuilderTransformer)
+					.type(stopAtConstraint))
+				.argument(HierarchyChildrenHeaderDescriptor.STATISTICS_BASE
+					.to(argumentBuilderTransformer))
+				.build(),
+			new SpecificHierarchyDataFetcher()
+		);
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildHierarchyParentsField(@Nonnull GraphQLInputType stopAtConstraint,
+	                                                        @Nonnull GraphQLInputObjectType parentsSiblingsSpecification,
+	                                                        @Nonnull GraphQLObjectType levelInfoObject) {
+		return new BuiltFieldDescriptor(
+			HierarchyOfDescriptor.PARENTS
+				.to(fieldBuilderTransformer)
+				.type(nonNull(list(nonNull(levelInfoObject))))
+				.argument(HierarchyParentsHeaderDescriptor.STOP_AT
+					.to(argumentBuilderTransformer)
+					.type(stopAtConstraint))
+				.argument(HierarchyParentsHeaderDescriptor.STATISTICS_BASE
+					.to(argumentBuilderTransformer))
+				.argument(HierarchyParentsHeaderDescriptor.SIBLINGS
+					.to(argumentBuilderTransformer)
+					.type(parentsSiblingsSpecification))
+				.build(),
+			new SpecificHierarchyDataFetcher()
+		);
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildHierarchySiblingsField(@Nonnull GraphQLInputType stopAtConstraint,
+	                                                         @Nonnull GraphQLObjectType levelInfoObject) {
+		return new BuiltFieldDescriptor(
+			HierarchyOfDescriptor.SIBLINGS
+				.to(fieldBuilderTransformer)
+				.type(nonNull(list(nonNull(levelInfoObject))))
+				.argument(HierarchySiblingsHeaderDescriptor.STOP_AT
+					.to(argumentBuilderTransformer)
+					.type(stopAtConstraint))
+				.argument(HierarchySiblingsHeaderDescriptor.STATISTICS_BASE
+					.to(argumentBuilderTransformer))
+				.build(),
+			new SpecificHierarchyDataFetcher()
 		);
 	}
 

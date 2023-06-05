@@ -19,8 +19,8 @@ message GrpcLocalMutation {
     GrpcUpsertPriceMutation upsertPriceMutation = 6;
     GrpcRemovePriceMutation removePriceMutation = 7;
     GrpcSetPriceInnerRecordHandlingMutation setPriceInnerRecordHandlingMutation = 8;
-    GrpcSetHierarchicalPlacementMutation setHierarchicalPlacementMutation = 9;
-    GrpcRemoveHierarchicalPlacementMutation removeHierarchicalPlacementMutation = 10;
+    GrpcSetParentMutation setParentMutation = 9;
+    GrpcRemoveParentMutation removeParentMutation = 10;
     GrpcInsertReferenceMutation insertReferenceMutation = 11;
     GrpcRemoveReferenceMutation removeReferenceMutation = 12;
     GrpcSetReferenceGroupMutation setReferenceGroupMutation = 13;

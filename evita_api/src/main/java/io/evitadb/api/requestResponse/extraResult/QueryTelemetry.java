@@ -69,10 +69,26 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 	 */
 	@Getter private long spentTime;
 
-	public QueryTelemetry(QueryPhase operation, String... arguments) {
+	/**
+	 * This constructor should be used when the query telemetry is built up from scratch.
+	 */
+	public QueryTelemetry(@Nonnull QueryPhase operation, @Nonnull String... arguments) {
 		this.operation = operation;
 		this.arguments = arguments;
 		this.start = System.nanoTime();
+	}
+
+	/**
+	 * This constructor should be used for query telemetry deserialization.
+	 */
+	public QueryTelemetry(@Nonnull QueryPhase operation, long start, long spentTime, @Nonnull String[] arguments, @Nonnull QueryTelemetry[] steps) {
+		this.operation = operation;
+		this.start = start;
+		this.spentTime = spentTime;
+		this.arguments = arguments;
+		for (QueryTelemetry step : steps) {
+			step.addStep(step);
+		}
 	}
 
 	/**
@@ -193,6 +209,10 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 		 */
 		EXECUTION_FILTER,
 		/**
+		 * Computing entities within nested query that should be returned in output (filtering).
+		 */
+		EXECUTION_FILTER_NESTED_QUERY,
+		/**
 		 * Sorting output entities and slicing requested page.
 		 */
 		EXECUTION_SORT_AND_SLICE,
@@ -211,7 +231,11 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 		/**
 		 * Fetching referenced entities and entity groups from the storage based on referenced primary keys information.
 		 */
-		FETCHING_REFERENCES
+		FETCHING_REFERENCES,
+		/**
+		 * Fetching parent entities from the storage based on parent primary keys information.
+		 */
+		FETCHING_PARENTS
 
 	}
 }

@@ -24,10 +24,12 @@
 package io.evitadb.core.query.filter.translator.attribute;
 
 import io.evitadb.api.query.filter.AttributeEquals;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
@@ -57,7 +59,7 @@ public class AttributeEqualsTranslator implements FilteringConstraintTranslator<
 	public Formula translate(@Nonnull AttributeEquals attributeEquals, @Nonnull FilterByVisitor filterByVisitor) {
 		final String attributeName = attributeEquals.getAttributeName();
 		final Serializable attributeValue = attributeEquals.getAttributeValue();
-		final AttributeSchemaContract attributeDefinition = filterByVisitor.getAttributeSchema(attributeName);
+		final AttributeSchemaContract attributeDefinition = filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE);
 		final Serializable targetType = EvitaDataTypes.toTargetType(attributeValue, attributeDefinition.getPlainType());
 		final Comparable comparableValue = targetType instanceof Comparable comparable ? comparable : targetType.toString();
 
@@ -66,7 +68,9 @@ public class AttributeEqualsTranslator implements FilteringConstraintTranslator<
 			// when entity type is not known and attribute is unique globally - access catalog index instead
 			return filterByVisitor.applyOnGlobalUniqueIndex(
 				attributeDefinition, index -> {
-					final EntityReferenceContract<EntityReference> entityReference = index.getEntityReferenceByUniqueValue((Serializable) comparableValue);
+					final EntityReferenceContract<EntityReference> entityReference = index.getEntityReferenceByUniqueValue(
+						(Serializable) comparableValue, filterByVisitor.getLocale()
+					);
 					return entityReference == null ?
 						EmptyFormula.INSTANCE :
 						new MultipleEntityFormula(
@@ -77,7 +81,8 @@ public class AttributeEqualsTranslator implements FilteringConstraintTranslator<
 		} else if (attributeDefinition.isUnique()) {
 			// if attribute is unique prefer O(1) hash map lookup over histogram
 			return new AttributeFormula(
-				attributeName,
+				attributeDefinition.isLocalized() ?
+					new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 				filterByVisitor.applyOnUniqueIndexes(
 					attributeDefinition, index -> {
 						final Integer recordId = index.getRecordIdByUniqueValue((Serializable) comparableValue);
@@ -88,7 +93,8 @@ public class AttributeEqualsTranslator implements FilteringConstraintTranslator<
 		} else {
 			// use histogram lookup
 			return new AttributeFormula(
-				attributeName,
+				attributeDefinition.isLocalized() ?
+					new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 				filterByVisitor.applyOnFilterIndexes(
 					attributeDefinition, index -> index.getRecordsEqualToFormula(comparableValue)
 				)

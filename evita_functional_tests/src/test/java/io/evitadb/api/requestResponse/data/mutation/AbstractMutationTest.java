@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.data.mutation;
 
 import io.evitadb.api.APITestConstants;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -69,6 +70,7 @@ public abstract class AbstractMutationTest {
 		CatalogSchema._internalBuild(
 			APITestConstants.TEST_CATALOG,
 			Collections.emptyMap(),
+			EnumSet.allOf(CatalogEvolutionMode.class),
 			entitySchemas::get
 		)
 	);

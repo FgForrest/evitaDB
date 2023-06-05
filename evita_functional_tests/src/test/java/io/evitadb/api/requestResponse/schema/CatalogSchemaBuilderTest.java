@@ -31,6 +31,7 @@ import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
+import java.util.EnumSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -46,6 +47,7 @@ public class CatalogSchemaBuilderTest {
 	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(
 		APITestConstants.TEST_CATALOG,
 		NamingConvention.generate(APITestConstants.TEST_CATALOG),
+		EnumSet.allOf(CatalogEvolutionMode.class),
 		entityType -> null
 	);
 

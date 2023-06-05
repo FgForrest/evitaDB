@@ -27,7 +27,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
-import io.evitadb.test.extension.DbInstanceParameterResolver;
+import io.evitadb.test.extension.EvitaParameterResolver;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -42,7 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@ExtendWith(DbInstanceParameterResolver.class)
+@ExtendWith(EvitaParameterResolver.class)
 public class PrefilledDataSetTest implements EvitaTestSupport {
 	private static final String DATA_SET_WITH_A_FEW_DATA = "dataSetWithAFewData";
 	private static final String ENTITY_BRAND = "Brand";

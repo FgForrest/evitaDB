@@ -23,16 +23,8 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.builder.constraint;
 
-import io.evitadb.api.query.descriptor.ConstraintCreator;
-import io.evitadb.api.query.descriptor.ConstraintCreator.ClassifierParameterDescriptor;
-import io.evitadb.api.query.descriptor.ConstraintCreator.FixedImplicitClassifier;
-import io.evitadb.api.query.descriptor.ConstraintCreator.ValueParameterDescriptor;
-import io.evitadb.api.query.descriptor.ConstraintDescriptor;
-import io.evitadb.api.query.descriptor.ConstraintDescriptor.SupportedValues;
+import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
-import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.ConstraintPropertyType;
-import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.AttributeEquals;
 import io.evitadb.api.query.filter.AttributeStartsWith;
@@ -40,15 +32,17 @@ import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.query.filter.UserFilter;
 import io.evitadb.api.query.order.AttributeNatural;
-import io.evitadb.dataType.EvitaDataTypes;
-import lombok.SneakyThrows;
-import org.junit.jupiter.api.Test;
+import io.evitadb.api.query.require.AttributeContent;
+import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.api.query.require.HierarchyContent;
+import io.evitadb.api.query.require.Strip;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
-import java.io.Serializable;
-import java.util.List;
-import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -60,214 +54,52 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class AllowedConstraintPredicateTest {
 
-	static final ConstraintDescriptor ATTRIBUTE_EQUALS = createAttributeEqualsDescriptor();
-	static final ConstraintDescriptor ENTITY_LOCALE_EQUALS = createEntityLocaleEqualsDescriptor();
-	static final ConstraintDescriptor ATTRIBUTE_NATURAL = createAttributeNaturalDescriptor();
-
-	@Test
-	void shouldAllowConstraint() {
-		final AllowedConstraintPredicate emptyPredicate = new AllowedConstraintPredicate(Set.of(), Set.of());
-		assertTrue(emptyPredicate.test(ATTRIBUTE_EQUALS));
-
-		final AllowedConstraintPredicate onlyAllowedPredicate = new AllowedConstraintPredicate(
-			Set.of(And.class, AttributeEquals.class),
-			Set.of()
+	@ParameterizedTest
+	@MethodSource("allowedConstraints")
+	void shouldAllowConstraint(Class<? extends Constraint<?>> constraintClass,
+	                           Set<Class<? extends Constraint<?>>> allowed,
+	                           Set<Class<? extends Constraint<?>>> forbidden,
+	                           Class<? extends Constraint<?>> testedConstraint) {
+		final AllowedConstraintPredicate predicate = new AllowedConstraintPredicate(
+			ConstraintDescriptorProvider.getConstraint(constraintClass).creator().childParameters().get(0),
+			allowed,
+			forbidden
 		);
-		assertTrue(onlyAllowedPredicate.test(ATTRIBUTE_EQUALS));
-
-		final AllowedConstraintPredicate onlyForbiddenPredicate = new AllowedConstraintPredicate(
-			Set.of(),
-			Set.of(And.class)
-		);
-		assertTrue(onlyForbiddenPredicate.test(ATTRIBUTE_EQUALS));
-
-		final AllowedConstraintPredicate fullPredicate = new AllowedConstraintPredicate(
-			Set.of(And.class, AttributeEquals.class, Or.class),
-			Set.of(Or.class, AttributeStartsWith.class)
-		);
-		assertTrue(fullPredicate.test(ATTRIBUTE_EQUALS));
-	}
-
-	@Test
-	void shouldAllowConstraintFromConstructor() {
-		final AllowedConstraintPredicate emptyGlobalConstraints = new AllowedConstraintPredicate(
-			ConstraintDescriptorProvider.getConstraints(And.class).iterator().next().creator().childParameter().get(),
-			Set.of(),
-			Set.of()
-		);
-		assertTrue(emptyGlobalConstraints.test(ATTRIBUTE_EQUALS));
-
-		final AllowedConstraintPredicate onlyAllowedPredicate = new AllowedConstraintPredicate(
-			ConstraintDescriptorProvider.getConstraints(And.class).iterator().next().creator().childParameter().get(),
-			Set.of(And.class, AttributeEquals.class),
-			Set.of()
-		);
-		assertTrue(onlyAllowedPredicate.test(ATTRIBUTE_EQUALS));
-
-		final AllowedConstraintPredicate onlyForbiddenPredicate = new AllowedConstraintPredicate(
-			ConstraintDescriptorProvider.getConstraints(And.class).iterator().next().creator().childParameter().get(),
-			Set.of(),
-			Set.of(And.class)
-		);
-		assertTrue(onlyForbiddenPredicate.test(ATTRIBUTE_EQUALS));
-
-		final AllowedConstraintPredicate fullPredicate = new AllowedConstraintPredicate(
-			ConstraintDescriptorProvider.getConstraints(And.class).iterator().next().creator().childParameter().get(),
-			Set.of(And.class, AttributeEquals.class, Or.class),
-			Set.of(Or.class, AttributeStartsWith.class)
-		);
-		assertTrue(fullPredicate.test(ATTRIBUTE_EQUALS));
-	}
-
-	@Test
-	void shouldNotAllowConstraint() {
-		final AllowedConstraintPredicate onlyAllowedPredicate = new AllowedConstraintPredicate(
-			ConstraintDescriptorProvider.getConstraints(And.class).iterator().next().creator().childParameter().get(),
-			Set.of(And.class, AttributeEquals.class),
-			Set.of()
-		);
-		assertFalse(onlyAllowedPredicate.test(ENTITY_LOCALE_EQUALS));
-
-		final AllowedConstraintPredicate onlyForbiddenPredicate = new AllowedConstraintPredicate(
-			Set.of(),
-			Set.of(AttributeEquals.class)
-		);
-		assertFalse(onlyForbiddenPredicate.test(ATTRIBUTE_EQUALS));
-
-		final AllowedConstraintPredicate fullPredicateWithForbiddenConstraint = new AllowedConstraintPredicate(
-			Set.of(And.class, AttributeStartsWith.class),
-			Set.of(Or.class, AttributeEquals.class)
-		);
-		assertFalse(fullPredicateWithForbiddenConstraint.test(ATTRIBUTE_EQUALS));
-
-		final AllowedConstraintPredicate fullPredicateWithForbiddenAndAllowedConstraint = new AllowedConstraintPredicate(
-			Set.of(And.class, AttributeStartsWith.class, AttributeEquals.class),
-			Set.of(Or.class, AttributeEquals.class)
-		);
-		assertFalse(fullPredicateWithForbiddenAndAllowedConstraint.test(ATTRIBUTE_EQUALS));
-
-		final AllowedConstraintPredicate onlyBaseType = new AllowedConstraintPredicate(
-			ConstraintDescriptorProvider.getConstraints(And.class).iterator().next().creator().childParameter().get(),
-			Set.of(),
-			Set.of()
-		);
-		assertFalse(onlyBaseType.test(ATTRIBUTE_NATURAL));
-	}
-
-	@Test
-	void shouldNotAllowConstraintFromConstructor() {
-		final AllowedConstraintPredicate emptyGlobalConstraints = new AllowedConstraintPredicate(
-			ConstraintDescriptorProvider.getConstraints(UserFilter.class).iterator().next().creator().childParameter().get(),
-			Set.of(),
-			Set.of()
-		);
-		assertFalse(emptyGlobalConstraints.test(ENTITY_LOCALE_EQUALS));
-
-		final AllowedConstraintPredicate onlyForbiddenPredicate = new AllowedConstraintPredicate(
-			ConstraintDescriptorProvider.getConstraints(And.class).iterator().next().creator().childParameter().get(),
-			Set.of(),
-			Set.of(AttributeEquals.class)
-		);
-		assertFalse(onlyForbiddenPredicate.test(ATTRIBUTE_EQUALS));
-
-		final AllowedConstraintPredicate fullPredicateWithForbiddenConstraint = new AllowedConstraintPredicate(
-			Set.of(And.class, AttributeStartsWith.class),
-			Set.of(Or.class, AttributeEquals.class)
-		);
-		assertFalse(fullPredicateWithForbiddenConstraint.test(ATTRIBUTE_EQUALS));
-
-		final AllowedConstraintPredicate fullPredicateWithForbiddenAndAllowedConstraint = new AllowedConstraintPredicate(
-			Set.of(And.class, AttributeStartsWith.class, AttributeEquals.class),
-			Set.of(Or.class, AttributeEquals.class)
-		);
-		assertFalse(fullPredicateWithForbiddenAndAllowedConstraint.test(ATTRIBUTE_EQUALS));
-
-		final AllowedConstraintPredicate fullPredicateWithForbiddenAndAllowedConstraint2 = new AllowedConstraintPredicate(
-			Set.of(And.class, AttributeStartsWith.class, AttributeEquals.class),
-			Set.of(Or.class, AttributeEquals.class)
-		);
-		assertFalse(fullPredicateWithForbiddenAndAllowedConstraint2.test(ENTITY_LOCALE_EQUALS));
+		assertTrue(predicate.test(ConstraintDescriptorProvider.getConstraint(testedConstraint)));
 	}
 
 	@Nonnull
-	@SneakyThrows
-	private static ConstraintDescriptor createAttributeEqualsDescriptor() {
-		return new ConstraintDescriptor(
-			AttributeEquals.class,
-			ConstraintType.FILTER,
-			ConstraintPropertyType.ATTRIBUTE,
-			"equals",
-			"This is a description.",
-			Set.of(ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE),
-			new SupportedValues(
-				EvitaDataTypes.getSupportedDataTypes(),
-				true
-			),
-			new ConstraintCreator(
-				AttributeEquals.class.getConstructor(String.class, Serializable.class),
-				List.of(
-					new ClassifierParameterDescriptor("attributeName"),
-					new ValueParameterDescriptor(
-						"attributeValue",
-						Serializable.class,
-						true,
-						false
-					)
-				),
-				null
-			)
+	static Stream<Arguments> allowedConstraints() {
+		return Stream.of(
+			Arguments.of(And.class, Set.of(), Set.of(), AttributeEquals.class),
+			Arguments.of(And.class, Set.of(And.class, AttributeEquals.class), Set.of(), AttributeEquals.class),
+			Arguments.of(And.class, Set.of(), Set.of(And.class), AttributeEquals.class),
+			Arguments.of(And.class, Set.of(And.class, AttributeEquals.class, Or.class), Set.of(Or.class, AttributeStartsWith.class), AttributeEquals.class),
+			Arguments.of(EntityFetch.class, Set.of(HierarchyContent.class), Set.of(), HierarchyContent.class)
 		);
 	}
 
-	@Nonnull
-	@SneakyThrows
-	private static ConstraintDescriptor createEntityLocaleEqualsDescriptor() {
-		return new ConstraintDescriptor(
-			EntityLocaleEquals.class,
-			ConstraintType.FILTER,
-			ConstraintPropertyType.ENTITY,
-			"equals",
-			"This is a description.",
-			Set.of(ConstraintDomain.ENTITY),
-			null,
-			new ConstraintCreator(
-				EntityLocaleEquals.class.getConstructor(Locale.class),
-				List.of(
-					new ValueParameterDescriptor(
-						"locale",
-						Locale.class,
-						true,
-						false
-					)
-				),
-				new FixedImplicitClassifier("locale")
-			)
+	@ParameterizedTest
+	@MethodSource("notAllowedConstraints")
+	void shouldNotAllowConstraint(Class<? extends Constraint<?>> constraintClass,
+	                              Set<Class<? extends Constraint<?>>> allowed,
+	                              Set<Class<? extends Constraint<?>>> forbidden,
+	                              Class<? extends Constraint<?>> testedConstraint) {
+		final AllowedConstraintPredicate predicate = new AllowedConstraintPredicate(
+			ConstraintDescriptorProvider.getConstraint(constraintClass).creator().childParameters().get(0),
+			allowed,
+			forbidden
 		);
+		assertFalse(predicate.test(ConstraintDescriptorProvider.getConstraint(testedConstraint)));
 	}
 
 	@Nonnull
-	@SneakyThrows
-	private static ConstraintDescriptor createAttributeNaturalDescriptor() {
-		return new ConstraintDescriptor(
-			AttributeNatural.class,
-			ConstraintType.ORDER,
-			ConstraintPropertyType.ATTRIBUTE,
-			"equals",
-			"This is a description.",
-			Set.of(ConstraintDomain.ENTITY),
-			null,
-			new ConstraintCreator(
-				AttributeNatural.class.getConstructor(String.class),
-				List.of(
-					new ValueParameterDescriptor(
-						"attributeName",
-						String.class,
-						true,
-						false
-					)
-				),
-				null
-			)
+	static Stream<Arguments> notAllowedConstraints() {
+		return Stream.of(
+			Arguments.of(And.class, Set.of(And.class, AttributeEquals.class), Set.of(), EntityLocaleEquals.class),
+			Arguments.of(And.class, Set.of(), Set.of(), AttributeNatural.class),
+			Arguments.of(EntityFetch.class, Set.of(Strip.class), Set.of(), Strip.class),
+			Arguments.of(UserFilter.class, Set.of(), Set.of(AttributeEquals.class), AttributeEquals.class)
 		);
 	}
 }

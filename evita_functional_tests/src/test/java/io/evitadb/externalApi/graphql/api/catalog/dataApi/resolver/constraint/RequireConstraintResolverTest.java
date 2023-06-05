@@ -25,13 +25,17 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
+import io.evitadb.test.Entities;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
-import static io.evitadb.api.query.QueryConstraints.facetGroupsConjunction;
+import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.test.builder.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -47,23 +51,52 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 	@BeforeEach
 	void init() {
 		super.init();
-		resolver = new RequireConstraintResolver(catalogSchema, "PRODUCT");
+		resolver = new RequireConstraintResolver(catalogSchema, new AtomicReference<>(new FilterConstraintResolver(catalogSchema)));
 	}
 
 	@Test
 	void shouldResolveValueRequireConstraint() {
 		assertEquals(
-			facetGroupsConjunction("BRAND", 1, 2),
+			facetGroupsConjunction(Entities.BRAND, filterBy(and(entityPrimaryKeyInSet(1, 2)))),
 			resolver.resolve(
+				Entities.PRODUCT,
 				"facetBrandGroupsConjunction",
-				List.of(1, 2)
+				map()
+					.e("filterBy", map()
+						.e("entityPrimaryKeyInSet", List.of(1, 2)))
+					.build()
+			)
+		);
+	}
+
+	@Test
+	void shouldResolveRequireConstraintWithAdditionalChildConstraint() {
+		assertEquals(
+			stopAt(
+				node(
+					filterBy(
+						and(
+							entityPrimaryKeyInSet(1)
+						)
+					)
+				)
+			),
+			resolver.resolve(
+				new HierarchyDataLocator(Entities.PRODUCT),
+				new HierarchyDataLocator(Entities.PRODUCT),
+				"stopAt",
+				map()
+					.e("node", map()
+						.e("filterBy", map()
+							.e("entityPrimaryKeyInSet", List.of(1))))
+					.build()
 			)
 		);
 	}
 
 	@Test
 	void shouldNotResolveValueRequireConstraint() {
-		assertThrows(EvitaInvalidUsageException.class, () -> resolver.resolve("facetBrandGroupsConjunction", null));
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve("facetBrandGroupsConjunction", Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> resolver.resolve(Entities.PRODUCT, "facetBrandGroupsConjunction", null));
+		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "facetBrandGroupsConjunction", List.of()));
 	}
 }

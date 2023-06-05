@@ -1,13 +1,12 @@
 evita.queryCatalog(
-	"testCatalog",
+	"evita",
 	session -> {
 		final EvitaResponse<SealedEntity> entities = session.query(
 			query(
-				collection("product"),
+				collection("Product"),
 				filterBy(
 					and(
-						entityPrimaryKeyInSet(1),
-						entityLocaleEquals(Locale.ENGLISH),
+						entityLocaleEquals(Locale.US),
 						priceInPriceLists("basic"),
 						priceInCurrency(Currency.getInstance("CZK"))
 					)
@@ -28,9 +27,9 @@ evita.queryCatalog(
 		//   - reference `brand`
 		final SealedEntity enrichedEntity = session.enrichEntity(
 			entities.getRecordData().get(0),
-			attributeContent(),
-			associatedDataContent(),
-			priceContent("reference"),
+			attributeContentAll(),
+			associatedDataContentAll(),
+			priceContentRespectingFilter("reference"),
 			referenceContent("brand")
 		);
 		return entities;

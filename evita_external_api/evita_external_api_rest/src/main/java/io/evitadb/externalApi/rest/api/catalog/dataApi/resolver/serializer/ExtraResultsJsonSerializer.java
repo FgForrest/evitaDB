@@ -33,10 +33,8 @@ import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatistics;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
-import io.evitadb.api.requestResponse.extraResult.HierarchyParents;
-import io.evitadb.api.requestResponse.extraResult.HierarchyParents.ParentsByReference;
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics;
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
@@ -45,10 +43,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResults
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor.HierarchyStatisticsLevelInfoDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.utils.NamingConvention;
@@ -62,6 +58,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 
 /**
  * Handles serializing of Evita extra results into JSON structure
@@ -99,10 +96,8 @@ public class ExtraResultsJsonSerializer {
 				rootNode.putIfAbsent(ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM.name(), serializeAttributeHistogram(attributeHistogram));
 			} else if (extraResult instanceof PriceHistogram priceHistogram) {
 				rootNode.putIfAbsent(ExtraResultsDescriptor.PRICE_HISTOGRAM.name(), serializePriceHistogram(priceHistogram));
-			} else if (extraResult instanceof HierarchyParents hierarchyParents) {
-				rootNode.putIfAbsent(ExtraResultsDescriptor.HIERARCHY_PARENTS.name(), serializeHierarchyParents(hierarchyParents));
-			} else if (extraResult instanceof HierarchyStatistics hierarchyStats) {
-				rootNode.putIfAbsent(ExtraResultsDescriptor.HIERARCHY_STATISTICS.name(), serializeHierarchyStatistics(hierarchyStats));
+			} else if (extraResult instanceof Hierarchy hierarchyStats) {
+				rootNode.putIfAbsent(ExtraResultsDescriptor.HIERARCHY.name(), serializeHierarchy(hierarchyStats));
 			} else if (extraResult instanceof FacetSummary facetSummary) {
 				rootNode.putIfAbsent(ExtraResultsDescriptor.FACET_SUMMARY.name(), serializeFacetSummary(facetSummary));
 			}
@@ -155,35 +150,44 @@ public class ExtraResultsJsonSerializer {
 	@Nonnull
 	private JsonNode serializeFacetStatistics(@Nonnull FacetStatistics facetStatistics) {
 		final ObjectNode facetStatsNode = objectJsonSerializer.objectNode();
-		facetStatsNode.putIfAbsent(FacetStatisticsDescriptor.REQUESTED.name(), objectJsonSerializer.serializeObject(facetStatistics.requested()));
-		facetStatsNode.putIfAbsent(FacetStatisticsDescriptor.COUNT.name(), objectJsonSerializer.serializeObject(facetStatistics.count()));
-		if (facetStatistics.impact() != null) {
+		facetStatsNode.putIfAbsent(FacetStatisticsDescriptor.REQUESTED.name(), objectJsonSerializer.serializeObject(facetStatistics.isRequested()));
+		facetStatsNode.putIfAbsent(FacetStatisticsDescriptor.COUNT.name(), objectJsonSerializer.serializeObject(facetStatistics.getCount()));
+		if (facetStatistics.getImpact() != null) {
 			final ObjectNode impactNode = objectJsonSerializer.objectNode();
-			final RequestImpact impact = facetStatistics.impact();
+			final RequestImpact impact = facetStatistics.getImpact();
 			impactNode.putIfAbsent(FacetRequestImpactDescriptor.DIFFERENCE.name(), objectJsonSerializer.serializeObject(impact.difference()));
 			impactNode.putIfAbsent(FacetRequestImpactDescriptor.MATCH_COUNT.name(), objectJsonSerializer.serializeObject(impact.matchCount()));
 			impactNode.putIfAbsent(FacetRequestImpactDescriptor.HAS_SENSE.name(), objectJsonSerializer.serializeObject(impact.hasSense()));
 
 			facetStatsNode.putIfAbsent(FacetStatisticsDescriptor.IMPACT.name(), impactNode);
 		}
-		facetStatsNode.putIfAbsent(FacetStatisticsDescriptor.FACET_ENTITY.name(), serializeEntity(facetStatistics.facetEntity()));
+		facetStatsNode.putIfAbsent(FacetStatisticsDescriptor.FACET_ENTITY.name(), serializeEntity(facetStatistics.getFacetEntity()));
 		return facetStatsNode;
 	}
 
 	@Nonnull
-	private JsonNode serializeHierarchyStatistics(@Nonnull HierarchyStatistics statistics) {
-		final ObjectNode statisticsNode = objectJsonSerializer.objectNode();
+	private JsonNode serializeHierarchy(@Nonnull Hierarchy hierarchy) {
+		final ObjectNode hierarchyNode = objectJsonSerializer.objectNode();
 
-		final List<LevelInfo> selfStatistics = statistics.getSelfStatistics();
-		if (!selfStatistics.isEmpty()) {
-			statisticsNode.putIfAbsent(HierarchyStatisticsDescriptor.SELF.name(), serializeLevelInfos(selfStatistics));
+		final Map<String, List<LevelInfo>> selfHierarchy = hierarchy.getSelfHierarchy();
+		if (!selfHierarchy.isEmpty()) {
+			hierarchyNode.putIfAbsent(HierarchyDescriptor.SELF.name(), serializeHierarchyOf(selfHierarchy));
 		}
 
-		statistics.getStatistics().forEach((key, value) ->
-			statisticsNode.putIfAbsent(referenceNameToFieldName.get(key), serializeLevelInfos(value))
+		hierarchy.getReferenceHierarchies().forEach((referenceName, hierarchyOfReference) ->
+			hierarchyNode.putIfAbsent(referenceNameToFieldName.get(referenceName), serializeHierarchyOf(hierarchyOfReference))
 		);
 
-		return statisticsNode;
+		return hierarchyNode;
+	}
+
+	@Nonnull
+	private JsonNode serializeHierarchyOf(@Nonnull Map<String, List<LevelInfo>> hierarchyOf) {
+		final ObjectNode hierarchyOfNode = objectJsonSerializer.objectNode();
+		hierarchyOf.forEach((outputName, levelInfos) -> {
+			hierarchyOfNode.putIfAbsent(outputName, serializeLevelInfos(levelInfos));
+		});
+		return hierarchyOfNode;
 	}
 
 	@Nonnull
@@ -191,70 +195,21 @@ public class ExtraResultsJsonSerializer {
 		final ArrayNode levelInfoNodes = objectJsonSerializer.arrayNode();
 		for (LevelInfo levelInfo : levelInfos) {
 			final ObjectNode levelInfoNode = objectJsonSerializer.objectNode();
-			levelInfoNode.putIfAbsent(HierarchyStatisticsLevelInfoDescriptor.CARDINALITY.name(), objectJsonSerializer.serializeObject(levelInfo.cardinality()));
-			levelInfoNode.putIfAbsent(HierarchyStatisticsLevelInfoDescriptor.ENTITY.name(), serializeEntity(levelInfo.entity()));
-			final List<LevelInfo> childrenStats = levelInfo.childrenStatistics();
-			if (!childrenStats.isEmpty()) {
-				levelInfoNode.putIfAbsent(HierarchyStatisticsLevelInfoDescriptor.CHILDREN_STATISTICS.name(), serializeLevelInfos(childrenStats));
+
+			levelInfoNode.putIfAbsent(LevelInfoDescriptor.ENTITY.name(), serializeEntity(levelInfo.entity()));
+			Optional.ofNullable(levelInfo.queriedEntityCount())
+				.ifPresent(queriedEntityCount -> levelInfoNode.put(LevelInfoDescriptor.QUERIED_ENTITY_COUNT.name(), queriedEntityCount));
+			Optional.ofNullable(levelInfo.childrenCount())
+				.ifPresent(childrenCount -> levelInfoNode.put(LevelInfoDescriptor.CHILDREN_COUNT.name(), childrenCount));
+
+			final List<LevelInfo> children = levelInfo.children();
+			if (!children.isEmpty()) {
+				levelInfoNode.putIfAbsent(LevelInfoDescriptor.CHILDREN.name(), serializeLevelInfos(children));
 			}
 
 			levelInfoNodes.add(levelInfoNode);
 		}
 		return levelInfoNodes;
-	}
-
-	@Nonnull
-	private JsonNode serializeHierarchyParents(@Nonnull HierarchyParents hierarchyParents) {
-		final ObjectNode parentNode = objectJsonSerializer.objectNode();
-
-		final ParentsByReference selfParents = hierarchyParents.ofSelf();
-		if (selfParents != null) {
-			parentNode.putIfAbsent(
-				HierarchyParentsDescriptor.SELF.name(),
-				serializeParentsByReference(selfParents)
-			);
-		}
-
-		hierarchyParents.getParents().forEach((referenceName, parentsByType) ->
-			parentNode.putIfAbsent(referenceNameToFieldName.get(referenceName), serializeParentsByReference(parentsByType))
-		);
-		return parentNode;
-	}
-
-	@Nonnull
-	private JsonNode serializeParentsByReference(@Nonnull ParentsByReference parentsByReference) {
-		final ArrayNode parentsByReferenceNode = objectJsonSerializer.arrayNode();
-		parentsByReference.getParents().forEach((parentKey, parentValue) -> {
-
-			final ObjectNode reference = objectJsonSerializer.objectNode();
-			reference.putIfAbsent(ParentsOfEntityDescriptor.PRIMARY_KEY.name(), objectJsonSerializer.serializeObject(parentKey));
-
-			final ArrayNode innerReferencesNode = objectJsonSerializer.arrayNode();
-			parentValue.forEach((key, value) -> {
-				final ObjectNode innerReferenceNode = objectJsonSerializer.objectNode();
-				innerReferenceNode.putIfAbsent(ParentsOfEntityDescriptor.PRIMARY_KEY.name(), objectJsonSerializer.serializeObject(key));
-
-				if (value.length > 0) {
-					innerReferenceNode.putIfAbsent(ParentsOfEntityDescriptor.PARENT_ENTITIES.name(), serializeParentEntities(value));
-				}
-				innerReferencesNode.add(innerReferenceNode);
-			});
-
-			reference.putIfAbsent(ParentsOfEntityDescriptor.REFERENCES.name(), innerReferencesNode);
-
-			parentsByReferenceNode.add(reference);
-		});
-
-		return parentsByReferenceNode;
-	}
-
-	@Nonnull
-	private ArrayNode serializeParentEntities(@Nonnull EntityClassifier[] entityValues) {
-		final ArrayNode parentEntitiesNode = objectJsonSerializer.arrayNode();
-		for (EntityClassifier entity : entityValues) {
-			parentEntitiesNode.add(serializeEntity(entity));
-		}
-		return parentEntitiesNode;
 	}
 
 	@Nonnull

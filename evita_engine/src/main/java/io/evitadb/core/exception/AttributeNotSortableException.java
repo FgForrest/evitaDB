@@ -23,6 +23,7 @@
 
 package io.evitadb.core.exception;
 
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -38,6 +39,13 @@ import java.io.Serial;
 public class AttributeNotSortableException extends EvitaInvalidUsageException {
 
 	@Serial private static final long serialVersionUID = 6859221281683133623L;
+
+	public AttributeNotSortableException(@Nonnull String attributeName, @Nonnull CatalogSchemaContract catalogSchema) {
+		super(
+			"Global attribute schema with name `" + attributeName + "` in catalog `" + catalogSchema.getName() + "` is not " +
+				"marked as \"sortable\" and cannot be ordered by. Ordering by it without having an index would be slow."
+		);
+	}
 
 	public AttributeNotSortableException(@Nonnull String attributeName, @Nonnull EntitySchemaContract entitySchema) {
 		super(

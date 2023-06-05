@@ -310,27 +310,6 @@ public abstract class GrpcArtificialEntitiesBenchmark {
 	}
 
 	/*
-		PARENTS COMPUTATION
-	 */
-
-	/**
-	 * This test spins an empty DB inserts there full contents of the artificial database, switches it to the
-	 * transactional mode and starts to randomly read page of entities with hierarchy placement data and parents DTO
-	 * computation. During setup bunch of brands, categories, price lists and stores are created so that
-	 * they could be referenced in products.
-	 *
-	 * Test measures parents DTO computation in the dataset.
-	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
-	public void parentsComputation(GrpcArtificialHierarchyBenchmarkState benchmarkState, GrpcArtificialParentsComputationState state, Blackhole blackhole) {
-		blackhole.consume(
-			benchmarkState.getSession().query(state.getRequest())
-		);
-	}
-
-	/*
 		HIERARCHY STATISTICS COMPUTATION
 	 */
 

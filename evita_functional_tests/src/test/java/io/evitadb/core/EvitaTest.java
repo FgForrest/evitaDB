@@ -32,6 +32,7 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.*;
 import io.evitadb.api.mock.MockCatalogStructuralChangeObserver;
+import io.evitadb.api.query.Query;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -320,6 +321,79 @@ class EvitaTest implements EvitaTestSupport {
 		} finally {
 			evita.deleteCatalogIfExists(TEST_CATALOG);
 		}
+	}
+
+	@Test
+	void shouldFailToUpsertUnknownEntityToStrictlyValidatedCatalogSchema() {
+		/* set strict schema verification */
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getCatalogSchema()
+					.openForWrite()
+					.verifyCatalogSchemaStrictly()
+					.updateVia(session);
+			}
+		);
+
+		// now try to upset an unknown entity
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.createNewEntity(Entities.PRODUCT)
+						.setAttribute(ATTRIBUTE_NAME, LOCALE_CZ, "Produkt")
+						.upsertVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldUpsertUnknownEntityToLaxlyValidatedCatalogSchema() {
+		/* set strict schema verification */
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getCatalogSchema()
+					.openForWrite()
+					.verifyCatalogSchemaButCreateOnTheFly()
+					.updateVia(session);
+			}
+		);
+
+		// now try to upset an unknown entity
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.createNewEntity(Entities.PRODUCT)
+					.setAttribute(ATTRIBUTE_NAME, LOCALE_CZ, "Produkt")
+					.upsertVia(session);
+			}
+		);
+
+		assertNotNull(
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryOneSealedEntity(
+						Query.query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								and(
+									entityLocaleEquals(LOCALE_CZ),
+									attributeEquals(ATTRIBUTE_NAME, "Produkt")
+								)
+							),
+							require(
+								entityFetchAll()
+							)
+						)
+					);
+				}
+			)
+		);
 	}
 
 	@Test
@@ -887,7 +961,7 @@ class EvitaTest implements EvitaTestSupport {
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				session.getEntity(Entities.PRODUCT, 1, referenceContent(), dataInLocales())
+				session.getEntity(Entities.PRODUCT, 1, referenceContentAll(), dataInLocales())
 					.orElseThrow()
 					.openForWrite()
 					.setReference(Entities.BRAND, 1, thatIs -> thatIs
@@ -919,7 +993,7 @@ class EvitaTest implements EvitaTestSupport {
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				session.getEntity(Entities.PRODUCT, 1, referenceContent(), dataInLocales())
+				session.getEntity(Entities.PRODUCT, 1, referenceContentAll(), dataInLocales())
 					.orElseThrow()
 					.openForWrite()
 					.removeReference(Entities.BRAND, 3)
@@ -1044,7 +1118,7 @@ class EvitaTest implements EvitaTestSupport {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocales(), referenceContent())
+				final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocales(), referenceContentAll())
 					.orElseThrow();
 
 				assertEquals("01", product.getAttribute(ATTRIBUTE_EAN));
@@ -1057,6 +1131,83 @@ class EvitaTest implements EvitaTestSupport {
 				assertEquals("D", theBrand.getAttribute(ATTRIBUTE_BRAND_NAME, Locale.ENGLISH));
 				assertEquals("A", theBrand.getAttribute(ATTRIBUTE_BRAND_NAME, Locale.GERMAN));
 				assertEquals("A", theBrand.getAttribute(ATTRIBUTE_BRAND_NAME, Locale.FRENCH));
+			}
+		);
+	}
+
+	@Test
+	void shouldAcceptNullForNonNullableLocalizedAttributeWhenEntityLocaleIsMissing() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized())
+					.withAttribute(ATTRIBUTE_DESCRIPTION, String.class, whichIs -> whichIs.localized())
+					.updateVia(session);
+
+				session
+					.createNewEntity(Entities.PRODUCT, 1)
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "A")
+					.setAttribute(ATTRIBUTE_DESCRIPTION, Locale.ENGLISH, "A")
+					.setAttribute(ATTRIBUTE_NAME, Locale.FRENCH, "B")
+					.setAttribute(ATTRIBUTE_DESCRIPTION, Locale.FRENCH, "B")
+					.upsertVia(session);
+			}
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocales(), referenceContentAll())
+					.orElseThrow();
+
+				assertEquals("A", product.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
+				assertEquals("A", product.getAttribute(ATTRIBUTE_DESCRIPTION, Locale.ENGLISH));
+				assertEquals("B", product.getAttribute(ATTRIBUTE_NAME, Locale.FRENCH));
+				assertEquals("B", product.getAttribute(ATTRIBUTE_DESCRIPTION, Locale.FRENCH));
+				assertEquals(2, product.getAllLocales().size());
+			}
+		);
+
+		assertThrows(
+			MandatoryAttributesNotProvidedException.class,
+			() -> {
+				evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocales(), referenceContentAll())
+							.orElseThrow()
+							.openForWrite()
+							.removeAttribute(ATTRIBUTE_DESCRIPTION, Locale.FRENCH)
+							.upsertVia(session);
+					}
+				);
+			}
+		);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocales(), referenceContentAll())
+					.orElseThrow()
+					.openForWrite()
+					.removeAttribute(ATTRIBUTE_NAME, Locale.FRENCH)
+					.removeAttribute(ATTRIBUTE_DESCRIPTION, Locale.FRENCH)
+					.upsertVia(session);
+			}
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocales(), referenceContentAll())
+					.orElseThrow();
+
+				assertEquals("A", product.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
+				assertEquals("A", product.getAttribute(ATTRIBUTE_DESCRIPTION, Locale.ENGLISH));
+				assertEquals(1, product.getAllLocales().size());
+				assertEquals(Locale.ENGLISH, product.getAllLocales().iterator().next());
 			}
 		);
 	}
@@ -1161,7 +1312,7 @@ class EvitaTest implements EvitaTestSupport {
 				TEST_CATALOG,
 				session -> {
 					session
-						.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocales(), referenceContent())
+						.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocales(), referenceContentAll())
 						.orElseThrow()
 						.openForWrite()
 						.removeAttribute(ATTRIBUTE_EAN)
@@ -1328,7 +1479,7 @@ class EvitaTest implements EvitaTestSupport {
 			evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
-					session.getEntity(Entities.PRODUCT, 1, referenceContent())
+					session.getEntity(Entities.PRODUCT, 1, referenceContentAll())
 						.orElseThrow()
 						.openForWrite()
 						.setReference(Entities.BRAND, 2)
@@ -1394,7 +1545,7 @@ class EvitaTest implements EvitaTestSupport {
 			evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
-					session.getEntity(Entities.PRODUCT, 1, referenceContent())
+					session.getEntity(Entities.PRODUCT, 1, referenceContentAll())
 						.orElseThrow()
 						.openForWrite()
 						.removeReference(Entities.BRAND, 1)
@@ -1460,7 +1611,7 @@ class EvitaTest implements EvitaTestSupport {
 			evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
-					session.getEntity(Entities.PRODUCT, 1, referenceContent())
+					session.getEntity(Entities.PRODUCT, 1, referenceContentAll())
 						.orElseThrow()
 						.openForWrite()
 						.removeReference(Entities.BRAND, 1)
@@ -1522,12 +1673,12 @@ class EvitaTest implements EvitaTestSupport {
 					.withHierarchy()
 					.updateVia(session);
 
-				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1).setHierarchicalPlacement(1));
-				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 2).setHierarchicalPlacement(2));
-				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 3).setHierarchicalPlacement(1, 1));
-				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 4).setHierarchicalPlacement(1, 2));
-				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 5).setHierarchicalPlacement(3, 1));
-				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 6).setHierarchicalPlacement(3, 2));
+				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1));
+				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 2));
+				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 3).setParent(1));
+				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 4).setParent(1));
+				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 5).setParent(3));
+				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 6).setParent(3));
 
 				assertArrayEquals(new int[]{1, 2, 3, 4, 5, 6}, getAllCategories(session));
 				session.deleteEntityAndItsHierarchy(Entities.CATEGORY, 3);
@@ -1548,7 +1699,7 @@ class EvitaTest implements EvitaTestSupport {
 					.withHierarchy()
 					.updateVia(session);
 
-				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1).setHierarchicalPlacement(1));
+				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1));
 
 				session
 					.defineEntitySchema(Entities.BRAND);
@@ -1633,7 +1784,7 @@ class EvitaTest implements EvitaTestSupport {
 					.withHierarchy()
 					.updateVia(session);
 
-				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1).setHierarchicalPlacement(1));
+				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1));
 
 				session.defineEntitySchema(Entities.BRAND);
 
@@ -2185,7 +2336,9 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldCreateAndRenameCollectionInTransaction() {
 		setupCatalogWithProductAndCategory();
 
-		evita.updateCatalog(TEST_CATALOG, session -> { session.goLiveAndClose(); });
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			session.goLiveAndClose();
+		});
 
 		MockCatalogStructuralChangeObserver.reset();
 
@@ -2209,7 +2362,9 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldCreateAndReplaceCollectionInTransaction() {
 		setupCatalogWithProductAndCategory();
 
-		evita.updateCatalog(TEST_CATALOG, session -> { session.goLiveAndClose(); });
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			session.goLiveAndClose();
+		});
 
 		MockCatalogStructuralChangeObserver.reset();
 
@@ -2835,8 +2990,8 @@ class EvitaTest implements EvitaTestSupport {
 				.withHierarchy()
 				.updateVia(session);
 
-			session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1).setHierarchicalPlacement(1));
-			session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 2).setHierarchicalPlacement(2));
+			session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1));
+			session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 2));
 		});
 	}
 

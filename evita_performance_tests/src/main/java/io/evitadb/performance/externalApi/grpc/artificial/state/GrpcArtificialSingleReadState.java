@@ -96,7 +96,7 @@ public class GrpcArtificialSingleReadState extends AbstractGrpcArtificialState {
 
 			/* 75% only filtered prices */
 			if (benchmarkState.getRandom().nextInt(4) != 0) {
-				requirements.add(priceContent());
+				requirements.add(priceContentRespectingFilter());
 			} else {
 				requirements.add(priceContentAll());
 			}
@@ -108,7 +108,7 @@ public class GrpcArtificialSingleReadState extends AbstractGrpcArtificialState {
 		if (benchmarkState.getRandom().nextInt(4) == 0) {
 			/* 50% times load all references */
 			if (benchmarkState.getRandom().nextBoolean()) {
-				requirements.add(referenceContent());
+				requirements.add(referenceContentAll());
 			} else {
 				/* 50% select only some of them */
 				requirements.add(

@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query.filter;
 
+import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.PriceConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
@@ -35,6 +36,10 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
+import java.util.Optional;
+
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 
 /**
  * This `priceValidIn` is query accepts single {@link OffsetDateTime}
@@ -63,14 +68,16 @@ import java.time.OffsetDateTime;
 	shortDescription = "The constraint checks if entity has selling price valid at the passed moment.",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class PriceValidIn extends AbstractFilterConstraintLeaf implements PriceConstraint<FilterConstraint>, IndexUsingConstraint {
+public class PriceValidIn extends AbstractFilterConstraintLeaf
+	implements PriceConstraint<FilterConstraint>, IndexUsingConstraint, ConstraintWithSuffix {
 	@Serial private static final long serialVersionUID = -3041416427283645494L;
+	private static final String SUFFIX = "now";
 
 	private PriceValidIn(Serializable... arguments) {
 		super(arguments);
 	}
 
-	@Creator(suffix = "now")
+	@Creator(suffix = SUFFIX)
 	public PriceValidIn() {
 		super();
 	}
@@ -86,6 +93,12 @@ public class PriceValidIn extends AbstractFilterConstraintLeaf implements PriceC
 	@Nullable
 	public OffsetDateTime getTheMoment() {
 		return getArguments().length == 0 ? null : (OffsetDateTime) getArguments()[0];
+	}
+
+	@Nonnull
+	@Override
+	public Optional<String> getSuffixIfApplied() {
+		return getArguments().length == 0 ? of(SUFFIX) : empty();
 	}
 
 	@Override

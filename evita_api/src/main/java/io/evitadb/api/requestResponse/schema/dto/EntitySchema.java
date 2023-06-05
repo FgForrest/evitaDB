@@ -23,12 +23,12 @@
 
 package io.evitadb.api.requestResponse.schema.dto;
 
+import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -379,7 +379,7 @@ public final class EntitySchema implements EntitySchemaContract {
 			);
 		;
 		this.referenceNameIndex = _internalGenerateNameVariantIndex(this.references.values(), ReferenceSchemaContract::getNameVariants);
-		this.evolutionMode = evolutionMode;
+		this.evolutionMode = Collections.unmodifiableSet(evolutionMode);
 		this.nonNullableAttributes = this.attributes
 			.values()
 			.stream()
@@ -460,7 +460,7 @@ public final class EntitySchema implements EntitySchemaContract {
 	public ReferenceSchema getReferenceOrThrowException(@Nonnull String referenceName) {
 		return getReference(referenceName)
 			.map(it -> (ReferenceSchema)it)
-			.orElseThrow(() -> new EvitaInternalError("Reference schema of name `" + referenceName + "` was not found in entity schema `" + getName() + "`."));
+			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, this));
 	}
 
 	@Nonnull

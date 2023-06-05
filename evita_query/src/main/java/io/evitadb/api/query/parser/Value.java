@@ -109,6 +109,14 @@ public class Value {
         return asSpecificType(Number.class);
     }
 
+    /**
+     * Casts original value to {@link Number} and tries to convert that value into desired type.
+     */
+    @Nonnull
+    public <T extends Number> T asNumber(@Nonnull Class<T> numberType) {
+        return EvitaDataTypes.toTargetType(asNumber(), numberType);
+    }
+
     public int asInt() {
         if (actualValue instanceof final Long longNumber) {
             try {
@@ -213,6 +221,18 @@ public class Value {
     }
 
     @Nonnull
+    public String[] asStringArray() {
+        try {
+            return asArray(
+                v -> variadicValueItemAsSpecificType(v, String.class),
+                String.class
+            );
+        } catch (ClassCastException e) {
+            throw new EvitaInvalidUsageException("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
+        }
+    }
+
+    @Nonnull
     public Serializable[] asSerializableArray() {
         try {
             return asArray(v -> (Serializable) v, Serializable.class);
@@ -273,6 +293,30 @@ public class Value {
             );
         } catch (ClassCastException e) {
             throw new EvitaInvalidUsageException("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
+        }
+    }
+
+    @Nonnull
+    public <T extends Enum<T>> T[] asEnumArray(@Nonnull Class<T> enumType) {
+        try {
+            return asArray(
+                v -> {
+                    if (v instanceof Enum<?>) {
+                        return variadicValueItemAsSpecificType(v, enumType);
+                    } else if (v instanceof EnumWrapper) {
+                        return variadicValueItemAsSpecificType(v, EnumWrapper.class).toEnum(enumType);
+                    } else {
+                        throw new EvitaInvalidUsageException(
+                            "Expected enum value but got `" + v.getClass().getName() + "`."
+                        );
+                    }
+                },
+                enumType
+            );
+        } catch (ClassCastException e) {
+            // correct passed type from client should be checked at visitor level, here should be should correct checked type
+            // if everything is correct on parser side
+            throw new EvitaInternalError("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
         }
     }
 

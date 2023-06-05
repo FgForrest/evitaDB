@@ -23,12 +23,14 @@
 
 package io.evitadb.externalApi.grpc.builders.query.extraResults;
 
+import com.google.protobuf.Int32Value;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics;
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.externalApi.grpc.generated.GrpcEntityReference;
 import io.evitadb.externalApi.grpc.generated.GrpcExtraResults.Builder;
+import io.evitadb.externalApi.grpc.generated.GrpcHierarchy;
 import io.evitadb.externalApi.grpc.generated.GrpcLevelInfo;
 import io.evitadb.externalApi.grpc.generated.GrpcLevelInfos;
 import io.evitadb.externalApi.grpc.generated.GrpcSealedEntity;
@@ -40,9 +42,12 @@ import javax.annotation.Nonnull;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+
+import static java.util.Optional.ofNullable;
 
 /**
- * This class builds is used for building gRPC representation in gRPC message types of {@link HierarchyStatistics}.
+ * This class builds is used for building gRPC representation in gRPC message types of {@link Hierarchy}.
  *
  * @author Tomáš Pozler, 2022
  */
@@ -50,47 +55,57 @@ import java.util.Map;
 public class GrpcHierarchyStatisticsBuilder {
 
 	/**
-	 * This method is used to build {@link GrpcLevelInfos} from provided {@link HierarchyStatistics}.
+	 * This method is used to build {@link GrpcLevelInfos} from provided {@link Hierarchy}.
 	 *
-	 * @param extraResults        the builder where the built result should be placed in
-	 * @param hierarchyStatistics {@link HierarchyStatistics} returned by evita response
+	 * @param extraResults the builder where the built result should be placed in
+	 * @param hierarchy    {@link Hierarchy} returned by evita response
 	 */
-	public static void buildHierarchyStatistics(@Nonnull Builder extraResults,
-	                                                                     @Nonnull HierarchyStatistics hierarchyStatistics) {
-		final List<LevelInfo> statistics = hierarchyStatistics.getSelfStatistics();
-		if (!statistics.isEmpty()) {
-			extraResults.setSelfHierarchyStatistics(
-				buildHierarchyStatistics(statistics)
-			);
+	public static void buildHierarchy(@Nonnull Builder extraResults, @Nonnull Hierarchy hierarchy) {
+		final Map<String, List<LevelInfo>> hierarchyIndex = hierarchy.getSelfHierarchy();
+		if (!hierarchyIndex.isEmpty()) {
+			extraResults.setSelfHierarchy(buildHierarchy(hierarchy.getSelfHierarchy()));
 		}
 
-		for (Map.Entry<String, List<LevelInfo>> hierarchyStatisticsOfReference : hierarchyStatistics.getStatistics().entrySet()) {
-			extraResults.putHierarchyStatistics(
-				hierarchyStatisticsOfReference.getKey(),
-				buildHierarchyStatistics(hierarchyStatisticsOfReference.getValue())
+		for (Map.Entry<String, Map<String, List<LevelInfo>>> hierarchyIndexOfReference : hierarchy.getReferenceHierarchies().entrySet()) {
+			extraResults.putHierarchy(
+				hierarchyIndexOfReference.getKey(),
+				buildHierarchy(hierarchyIndexOfReference.getValue())
 			);
 		}
 	}
 
 	/**
-	 * This method is used to build {@link GrpcLevelInfos} from provided {@link HierarchyStatistics}.
+	 * This method is used to build {@link GrpcHierarchy} from provided {@link Hierarchy}.
 	 *
-	 * @param hierarchyStatistics {@link HierarchyStatistics} returned by evita response
+	 * @param hierarchies {@link Hierarchy} returned by evita response
 	 * @return map of all hierarchy statistics specified by their entity type
 	 */
 	@Nonnull
-	public static GrpcLevelInfos buildHierarchyStatistics(@Nonnull List<LevelInfo> hierarchyStatistics) {
-		final List<GrpcLevelInfo> children = new LinkedList<>();
-
-		if (hierarchyStatistics.isEmpty()) {
-			return GrpcLevelInfos.newBuilder().addAllLevelInfos(children).build();
+	public static GrpcHierarchy buildHierarchy(@Nonnull Map<String, List<LevelInfo>> hierarchies) {
+		final GrpcHierarchy.Builder builder = GrpcHierarchy.newBuilder();
+		if (!hierarchies.isEmpty()) {
+			for (Entry<String, List<LevelInfo>> entry : hierarchies.entrySet()) {
+				builder.putHierarchy(
+					entry.getKey(),
+					buildLevelInfos(entry.getValue())
+				);
+			}
 		}
+		return builder.build();
+	}
 
-		for (LevelInfo child : hierarchyStatistics) {
-			children.addAll(buildLevelInfoChild(child));
+	/**
+	 * This method is used to build {@link GrpcLevelInfos} from provided {@link List} of {@link LevelInfo}.
+	 * @param levelInfos {@link List} of {@link LevelInfo} to be converted to {@link GrpcLevelInfos}
+	 * @return {@link GrpcLevelInfos} consisting of all children of the given {@link LevelInfo}
+	 */
+	@Nonnull
+	public static GrpcLevelInfos buildLevelInfos(@Nonnull List<LevelInfo> levelInfos) {
+		final GrpcLevelInfos.Builder builder = GrpcLevelInfos.newBuilder();
+		for (LevelInfo levelInfo : levelInfos) {
+			builder.addLevelInfos(buildLevelInfo(levelInfo));
 		}
-
-		return GrpcLevelInfos.newBuilder().addAllLevelInfos(children).build();
+		return builder.build();
 	}
 
 
@@ -98,22 +113,24 @@ public class GrpcHierarchyStatisticsBuilder {
 	 * Method used to recursively find and build all {@link GrpcLevelInfo}. Entities on each level could be either represented by {@link Integer} or
 	 * by {@link SealedEntity}, those entities are here converted to {@link GrpcSealedEntity} with richness specified in query.
 	 *
-	 * @param levelInfo          to be converted to {@link GrpcLevelInfo}
+	 * @param levelInfo to be converted to {@link GrpcLevelInfo}
 	 * @return list of built {@link GrpcLevelInfo} consisting af all children (and recursively found their progeny) of the given {@link LevelInfo}
 	 */
 	@Nonnull
-	private static List<GrpcLevelInfo> buildLevelInfoChild(@Nonnull LevelInfo levelInfo) {
-		final List<GrpcLevelInfo> levelInfos = new LinkedList<>();
+	private static GrpcLevelInfo buildLevelInfo(@Nonnull LevelInfo levelInfo) {
 		final List<GrpcLevelInfo> children = new LinkedList<>();
-		if (!levelInfo.childrenStatistics().isEmpty()) {
-			for (LevelInfo child : levelInfo.childrenStatistics()) {
-				children.addAll(buildLevelInfoChild(child));
+		if (!levelInfo.children().isEmpty()) {
+			for (LevelInfo child : levelInfo.children()) {
+				children.add(buildLevelInfo(child));
 			}
 		}
 
-		final GrpcLevelInfo.Builder grpcLevelInfoBuilder = GrpcLevelInfo.newBuilder()
-			.setCardinality(levelInfo.cardinality())
-			.addAllChildrenStatistics(children);
+		final GrpcLevelInfo.Builder grpcLevelInfoBuilder = GrpcLevelInfo.newBuilder();
+		ofNullable(levelInfo.queriedEntityCount())
+			.ifPresent(it -> grpcLevelInfoBuilder.setQueriedEntityCount(Int32Value.of(it)));
+		ofNullable(levelInfo.childrenCount())
+			.ifPresent(it -> grpcLevelInfoBuilder.setChildrenCount(Int32Value.of(it)));
+		grpcLevelInfoBuilder.addAllItems(children);
 
 		if (levelInfo.entity() instanceof SealedEntity entity) {
 			grpcLevelInfoBuilder.setEntity(
@@ -128,7 +145,6 @@ public class GrpcHierarchyStatisticsBuilder {
 			);
 		}
 
-		levelInfos.add(grpcLevelInfoBuilder.build());
-		return levelInfos;
+		return grpcLevelInfoBuilder.build();
 	}
 }

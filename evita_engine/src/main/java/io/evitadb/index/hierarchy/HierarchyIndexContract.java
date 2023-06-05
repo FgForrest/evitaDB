@@ -26,9 +26,11 @@ package io.evitadb.index.hierarchy;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.OptionalInt;
 
 /**
  * HierarchyIndexContract describes the API of {@link HierarchyIndex} that maintains data structures for fast accessing
@@ -44,6 +46,13 @@ import javax.annotation.Nullable;
 public interface HierarchyIndexContract {
 
 	/**
+	 * Method initializes all existing nodes as root nodes. This method should be called at the moment the index is
+	 * created for the first time and all existing entities which are already present but have no parent relation set
+	 * should become as initial root nodes, so that all that are added after that could use them as their parents.
+	 */
+	void initRootNodes(@Nonnull Bitmap rootNodes);
+
+	/**
 	 * Method indexes `entityPrimaryKey` placement in the hierarchy tree using information about its `parentPrimaryKey`
 	 * and `orderAmongSiblings`.
 	 *
@@ -51,99 +60,200 @@ public interface HierarchyIndexContract {
 	 * are collected in the {@link #getOrphanHierarchyNodes()} array until their parent dependency is fulfilled. When the time comes they
 	 * are moved from {@link #getOrphanHierarchyNodes()} to {@link #getRootHierarchyNodes()} (recursively).
 	 */
-	void setHierarchyFor(int entityPrimaryKey, @Nullable Integer parentPrimaryKey, int orderAmongSiblings);
+	void addNode(int entityPrimaryKey, @Nullable Integer parentPrimaryKey);
 
 	/**
 	 * Method removes information about `entityPrimaryKey` placement from the index. It doesn't matter whether the key
 	 * is inside {@link #getOrphanHierarchyNodes()} or places in the living tree {@link #getRootHierarchyNodes()}.
 	 */
-	void removeHierarchyFor(int entityPrimaryKey);
+	void removeNode(int entityPrimaryKey);
 
 	/**
-	 * Method returns result of {@link #listHierarchyNodesFromRoot(int...)} wrapped as lazy lambda
+	 * Method returns result of {@link #listHierarchyNodesFromRoot(HierarchyFilteringPredicate)}  wrapped as lazy lambda
 	 * in {@link DeferredFormula}.
 	 */
 	@Nonnull
-	Formula getListHierarchyNodesFromRootFormula(@Nullable int... excludedNodeTrees);
+	default Formula getListHierarchyNodesFromRootFormula() {
+		return getListHierarchyNodesFromRootFormula(HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+	}
 
 	/**
-	 * Method returns all nodes that are reachable from all root nodes excluding the set of nodes and their sub-trees
-	 * specified in `excludedNodeTrees` parameter.
-	 */
-	@Nonnull
-	Bitmap listHierarchyNodesFromRoot(@Nullable int... excludedNodeTrees);
-
-	/**
-	 * Method returns result of {@link #listHierarchyNodesFromRootDownTo(int, int...)} wrapped as lazy lambda
+	 * Method returns result of {@link #listHierarchyNodesFromRoot(HierarchyFilteringPredicate)}  wrapped as lazy lambda
 	 * in {@link DeferredFormula}.
 	 */
 	@Nonnull
-	Formula getListHierarchyNodesFromRootDownToFormula(int levels, @Nullable int... excludedNodeTrees);
+	Formula getListHierarchyNodesFromRootFormula(@Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate);
 
 	/**
-	 * Method returns nodes that are reachable from all root nodes down to specified number of `levels`, excluding
-	 * the set of nodes and their sub-trees specified in `excludedNodeTrees` parameter.
+	 * Method returns all nodes that are reachable from all root nodes.
 	 */
 	@Nonnull
-	Bitmap listHierarchyNodesFromRootDownTo(int levels, @Nullable int... excludedNodeTrees);
+	default Bitmap listHierarchyNodesFromRoot() {
+		return listHierarchyNodesFromRoot(HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+	}
 
 	/**
-	 * Method returns result of {@link #listHierarchyNodesFromParentIncludingItself(int, int...)} wrapped as lazy lambda
+	 * Method returns all nodes that are reachable from all root nodes that satisfy the predicate.
+	 */
+	@Nonnull
+	Bitmap listHierarchyNodesFromRoot(@Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate);
+
+	/**
+	 * Method returns result of {@link #listHierarchyNodesFromRootDownTo(int, HierarchyFilteringPredicate)} wrapped as lazy lambda
 	 * in {@link DeferredFormula}.
 	 */
 	@Nonnull
-	Formula getListHierarchyNodesFromParentIncludingItselfFormula(int parentNode, @Nullable int... excludedNodeTrees);
+	default Formula getListHierarchyNodesFromRootDownToFormula(int levels) {
+		return getListHierarchyNodesFromRootDownToFormula(levels, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+	}
+
+	/**
+	 * Method returns result of {@link #listHierarchyNodesFromRootDownTo(int, HierarchyFilteringPredicate)} wrapped as lazy lambda
+	 * in {@link DeferredFormula}.
+	 */
+	@Nonnull
+	Formula getListHierarchyNodesFromRootDownToFormula(int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees);
+
+	/**
+	 * Method returns nodes that are reachable from all root nodes down to specified number of `levels`.
+	 */
+	@Nonnull
+	default Bitmap listHierarchyNodesFromRootDownTo(int levels) {
+		return listHierarchyNodesFromRootDownTo(levels, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+	}
+
+	/**
+	 * Method returns nodes that are reachable from all root nodes down to specified number of `levels` that satisfy
+	 * the predicate.
+	 */
+	@Nonnull
+	Bitmap listHierarchyNodesFromRootDownTo(int levels, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate);
+
+	/**
+	 * Method returns result of {@link #listHierarchyNodesFromParentIncludingItself(int, HierarchyFilteringPredicate)} wrapped as lazy lambda
+	 * in {@link DeferredFormula}.
+	 */
+	@Nonnull
+	default Formula getListHierarchyNodesFromParentIncludingItselfFormula(int parentNode) {
+		return getListHierarchyNodesFromParentIncludingItselfFormula(parentNode, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+	}
+
+	/**
+	 * Method returns result of {@link #listHierarchyNodesFromParentIncludingItself(int, HierarchyFilteringPredicate)} wrapped as lazy lambda
+	 * in {@link DeferredFormula}.
+	 */
+	@Nonnull
+	Formula getListHierarchyNodesFromParentIncludingItselfFormula(int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees);
+
+	/**
+	 * Method returns all nodes that are reachable from the specified `parentNode` (including the parent node itself).
+	 */
+	@Nonnull
+	default Bitmap listHierarchyNodesFromParentIncludingItself(int parentNode) {
+		return listHierarchyNodesFromParentIncludingItself(parentNode, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+	}
 
 	/**
 	 * Method returns all nodes that are reachable from the specified `parentNode` (including the parent node itself),
-	 * excluding the set of nodes and their sub-trees specified in `excludedNodeTrees` parameter.
+	 * that satisfy the predicate.
 	 */
 	@Nonnull
-	Bitmap listHierarchyNodesFromParentIncludingItself(int parentNode, @Nullable int... excludedNodeTrees);
+	Bitmap listHierarchyNodesFromParentIncludingItself(int parentNode, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate);
 
 	/**
-	 * Method returns result of {@link #listHierarchyNodesFromParentIncludingItselfDownTo(int, int, int...)}
+	 * Method returns result of {@link #listHierarchyNodesFromParentIncludingItselfDownTo(int, int, HierarchyFilteringPredicate)}
 	 * wrapped as lazy lambda in {@link DeferredFormula}.
 	 */
 	@Nonnull
-	Formula getListHierarchyNodesFromParentIncludingItselfDownToFormula(int parentNode, int levels, @Nullable int... excludedNodeTrees);
+	default Formula getListHierarchyNodesFromParentIncludingItselfDownToFormula(int parentNode, int levels) {
+		return getListHierarchyNodesFromParentIncludingItselfDownToFormula(parentNode, levels, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+	}
+
+	/**
+	 * Method returns result of {@link #listHierarchyNodesFromParentIncludingItselfDownTo(int, int, HierarchyFilteringPredicate)}
+	 * wrapped as lazy lambda in {@link DeferredFormula}.
+	 */
+	@Nonnull
+	Formula getListHierarchyNodesFromParentIncludingItselfDownToFormula(int parentNode, int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees);
 
 	/**
 	 * Method returns all nodes that are reachable from the specified `parentNode` (including the parent node itself)
-	 * down to specified number of `levels`, excluding the set of nodes and their sub-trees specified in
-	 * `excludedNodeTrees` parameter.
+	 * down to specified number of `levels`.
 	 */
 	@Nonnull
-	Bitmap listHierarchyNodesFromParentIncludingItselfDownTo(int parentNode, int levels, @Nullable int... excludedNodeTrees);
+	default Bitmap listHierarchyNodesFromParentIncludingItselfDownTo(int parentNode, int levels) {
+		return listHierarchyNodesFromParentIncludingItselfDownTo(parentNode, levels, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+	}
 
 	/**
-	 * Method returns result of {@link #listHierarchyNodesFromParent(int, int...)} wrapped as lazy lambda
+	 * Method returns all nodes that are reachable from the specified `parentNode` (including the parent node itself)
+	 * down to specified number of `levels`, that satisfy the predicate.
+	 */
+	@Nonnull
+	Bitmap listHierarchyNodesFromParentIncludingItselfDownTo(int parentNode, int levels, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate);
+
+	/**
+	 * Method returns result of {@link #listHierarchyNodesFromParent(int, HierarchyFilteringPredicate)} wrapped as lazy lambda
 	 * in {@link DeferredFormula}.
 	 */
 	@Nonnull
-	Formula getListHierarchyNodesFromParentFormula(int parentNode, @Nullable int... excludedNodeTrees);
+	default Formula getListHierarchyNodesFromParentFormula(int parentNode) {
+		return getListHierarchyNodesFromParentFormula(parentNode, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+	}
+
+	/**
+	 * Method returns result of {@link #listHierarchyNodesFromParent(int, HierarchyFilteringPredicate)} wrapped as lazy lambda
+	 * in {@link DeferredFormula}.
+	 */
+	@Nonnull
+	Formula getListHierarchyNodesFromParentFormula(int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees);
+
+	/**
+	 * Method returns all nodes that are reachable from the specified `parentNode` (excluding the parent node itself).
+	 */
+	@Nonnull
+	default Bitmap listHierarchyNodesFromParent(int parentNode) {
+		return listHierarchyNodesFromParent(parentNode, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+	}
 
 	/**
 	 * Method returns all nodes that are reachable from the specified `parentNode` (excluding the parent node itself),
-	 * excluding the set of nodes and their sub-trees specified in `excludedNodeTrees` parameter.
+	 * that satisfy the predicate.
 	 */
 	@Nonnull
-	Bitmap listHierarchyNodesFromParent(int parentNode, @Nullable int... excludedNodeTrees);
+	Bitmap listHierarchyNodesFromParent(int parentNode, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate);
 
 	/**
-	 * Method returns result of {@link #listHierarchyNodesFromParentDownTo(int, int, int...)} wrapped as lazy lambda
+	 * Method returns result of {@link #listHierarchyNodesFromParentDownTo(int, int, HierarchyFilteringPredicate)} wrapped as lazy lambda
 	 * in {@link DeferredFormula}.
 	 */
 	@Nonnull
-	Formula getListHierarchyNodesFromParentDownToFormula(int parentNode, int levels, @Nullable int... excludedNodeTrees);
+	default Formula getListHierarchyNodesFromParentDownToFormula(int parentNode, int levels) {
+		return getListHierarchyNodesFromParentDownToFormula(parentNode, levels, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+	}
+
+	/**
+	 * Method returns result of {@link #listHierarchyNodesFromParentDownTo(int, int, HierarchyFilteringPredicate)} wrapped as lazy lambda
+	 * in {@link DeferredFormula}.
+	 */
+	@Nonnull
+	Formula getListHierarchyNodesFromParentDownToFormula(int parentNode, int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees);
 
 	/**
 	 * Method returns all nodes that are reachable from the specified `parentNode` (excluding the parent node itself)
-	 * down to specified number of `levels`, excluding the set of nodes and their sub-trees specified in
-	 * `excludedNodeTrees` parameter.
+	 * down to specified number of `levels`.
 	 */
 	@Nonnull
-	Bitmap listHierarchyNodesFromParentDownTo(int parentNode, int levels, @Nullable int... excludedNodeTrees);
+	default Bitmap listHierarchyNodesFromParentDownTo(int parentNode, int levels) {
+		return listHierarchyNodesFromParentDownTo(parentNode, levels, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+	}
+
+	/**
+	 * Method returns all nodes that are reachable from the specified `parentNode` (excluding the parent node itself)
+	 * down to specified number of `levels`, filtering only those nodes that satisfy the predicate.
+	 */
+	@Nonnull
+	Bitmap listHierarchyNodesFromParentDownTo(int parentNode, int levels, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate);
 
 	/**
 	 * Method returns primary keys of all nodes from root node to `theNode` traversing entire hierarchy.
@@ -159,42 +269,106 @@ public interface HierarchyIndexContract {
 	Integer[] listHierarchyNodesFromRootToTheNodeIncludingSelf(int theNode);
 
 	/**
-	 * Method returns result of {@link #getRootHierarchyNodes()} wrapped as lazy lambda in {@link DeferredFormula}.
+	 * Method returns result of {@link #getRootHierarchyNodes(HierarchyFilteringPredicate)} wrapped as lazy lambda in {@link DeferredFormula}.
 	 */
 	@Nonnull
-	Formula getRootHierarchyNodesFormula();
+	default Formula getRootHierarchyNodesFormula() {
+		return getRootHierarchyNodesFormula(HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+	}
+
+	/**
+	 * Method returns result of {@link #getRootHierarchyNodes(HierarchyFilteringPredicate)} wrapped as lazy lambda in {@link DeferredFormula}.
+	 */
+	@Nonnull
+	Formula getRootHierarchyNodesFormula(@Nonnull HierarchyFilteringPredicate excludedNodeTrees);
 
 	/**
 	 * Method returns all nodes that are present on the `root` level (i.e. that have no parent themselves).
 	 */
 	@Nonnull
-	Bitmap getRootHierarchyNodes();
+	default Bitmap getRootHierarchyNodes() {
+		return getRootHierarchyNodes(HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+	}
+
+	/**
+	 * Method returns all nodes that are present on the `root` level (i.e. that have no parent themselves).
+	 */
+	@Nonnull
+	Bitmap getRootHierarchyNodes(@Nonnull HierarchyFilteringPredicate excludedNodeTrees);
 
 	/**
 	 * Method returns result of {@link #getHierarchyNodesForParent(int)} wrapped as lazy lambda in {@link DeferredFormula}.
 	 */
 	@Nonnull
-	Formula getHierarchyNodesForParentFormula(int parentNode);
+	default Formula getHierarchyNodesForParentFormula(int parentNode) {
+		return getHierarchyNodesForParentFormula(parentNode, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+	}
+
+	/**
+	 * Method returns result of {@link #getHierarchyNodesForParent(int)} wrapped as lazy lambda in {@link DeferredFormula}.
+	 */
+	@Nonnull
+	Formula getHierarchyNodesForParentFormula(int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees);
 
 	/**
 	 * Method returns all children of the `parentNode`.
 	 */
 	@Nonnull
-	Bitmap getHierarchyNodesForParent(int parentNode);
+	default Bitmap getHierarchyNodesForParent(int parentNode) {
+		return getHierarchyNodesForParent(parentNode, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+	}
+
+	/**
+	 * Method returns all children of the `parentNode`.
+	 */
+	@Nonnull
+	Bitmap getHierarchyNodesForParent(int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees);
+
+	/**
+	 * Returns primary key of the parent node for the node with primary key passed in argument.
+	 *
+	 * @param forNode primary key of the node whose parent should be returned
+	 * @return empty result if the node is the root node
+	 */
+	@Nonnull
+	OptionalInt getParentNode(int forNode);
 
 	/**
 	 * Method traverses entire hierarchy of (non-orphan) nodes, depth first. Visitor will first visit the leaf nodes
 	 * according to ordering specified on nodes and progresses up to the root. When one root node is examined, next
 	 * one leafs will be visited next.
 	 */
-	void traverseHierarchyFromNode(@Nonnull HierarchyVisitor visitor, int rootNode, boolean excludingRoot, @Nullable int... excludingNodes);
+	default void traverseHierarchyFromNode(@Nonnull HierarchyVisitor visitor, int rootNode, boolean excludingRoot) {
+		traverseHierarchyFromNode(visitor, rootNode, excludingRoot, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+	}
 
 	/**
 	 * Method traverses entire hierarchy of (non-orphan) nodes, depth first. Visitor will first visit the leaf nodes
 	 * according to ordering specified on nodes and progresses up to the root. When one root node is examined, next
 	 * one leafs will be visited next.
 	 */
-	void traverseHierarchy(@Nonnull HierarchyVisitor visitor);
+	void traverseHierarchyFromNode(@Nonnull HierarchyVisitor visitor, int rootNode, boolean excludingRoot, @Nonnull HierarchyFilteringPredicate excludedNodeTrees);
+
+	/**
+	 * Method traverses entire hierarchy of (non-orphan) nodes from the node up to the root node.
+	 */
+	void traverseHierarchyToRoot(@Nonnull HierarchyVisitor visitor, int node);
+
+	/**
+	 * Method traverses entire hierarchy of (non-orphan) nodes, depth first. Visitor will first visit the leaf nodes
+	 * according to ordering specified on nodes and progresses up to the root. When one root node is examined, next
+	 * one leafs will be visited next.
+	 */
+	default void traverseHierarchy(@Nonnull HierarchyVisitor visitor) {
+		traverseHierarchy(visitor, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+	}
+
+	/**
+	 * Method traverses entire hierarchy of (non-orphan) nodes, depth first. Visitor will first visit the leaf nodes
+	 * according to ordering specified on nodes and progresses up to the root. When one root node is examined, next
+	 * one leafs will be visited next.
+	 */
+	void traverseHierarchy(@Nonnull HierarchyVisitor visitor, @Nonnull HierarchyFilteringPredicate excludedNodeTrees);
 
 	/**
 	 * Method returns all nodes that are not reachable from the root nodes. We call them orphans. These orphans are

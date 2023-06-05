@@ -29,13 +29,11 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
-import io.evitadb.api.requestResponse.data.HierarchicalPlacementContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.Range;
 import io.evitadb.dataType.data.ComplexDataObjectToJsonConverter;
-import io.evitadb.externalApi.api.catalog.dataApi.model.HierarchicalPlacementDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import lombok.Getter;
@@ -111,7 +109,6 @@ public class ObjectJsonSerializer {
 		if (value instanceof ComplexDataObject complexDataObject) return serialize(complexDataObject);
 		if (value instanceof Range<?> range) return serialize(range);
 		if (value instanceof PriceContract price) return serialize(price);
-		if (value instanceof HierarchicalPlacementContract hierarchicalPlacement) return serialize(hierarchicalPlacement);
 		if (value instanceof PriceInnerRecordHandling priceInnerRecordHandling) return serialize(priceInnerRecordHandling);
 		if (value instanceof FacetStatisticsDepth facetStatisticsDepth) return serialize(facetStatisticsDepth);
 
@@ -209,14 +206,6 @@ public class ObjectJsonSerializer {
 		priceNode.putIfAbsent(PriceDescriptor.TAX_RATE.name(),serializeObject(price.getTaxRate()));
 		priceNode.putIfAbsent(PriceDescriptor.VALIDITY.name(), price.getValidity() != null?serializeObject(price.getValidity()):null);
 		return priceNode;
-	}
-
-	private JsonNode serialize(@Nonnull HierarchicalPlacementContract hierarchicalPlacement) {
-		final ObjectNode hierarchicalNode = jsonNodeFactory.objectNode();
-		hierarchicalNode.putIfAbsent(HierarchicalPlacementDescriptor.PARENT_PRIMARY_KEY.name(),
-			hierarchicalPlacement.getParentPrimaryKey() != null?serializeObject(hierarchicalPlacement.getParentPrimaryKey()):null);
-		hierarchicalNode.putIfAbsent(HierarchicalPlacementDescriptor.ORDER_AMONG_SIBLINGS.name(), serializeObject(hierarchicalPlacement.getOrderAmongSiblings()));
-		return hierarchicalNode;
 	}
 
 	private JsonNode serialize(@Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {

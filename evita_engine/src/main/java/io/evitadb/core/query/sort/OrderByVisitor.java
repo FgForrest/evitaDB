@@ -29,31 +29,37 @@ import io.evitadb.api.query.ConstraintLeaf;
 import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.order.AttributeNatural;
+import io.evitadb.api.query.order.AttributeSetExact;
+import io.evitadb.api.query.order.AttributeSetInFilter;
+import io.evitadb.api.query.order.EntityPrimaryKeyExact;
+import io.evitadb.api.query.order.EntityPrimaryKeyInFilter;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.query.order.Random;
 import io.evitadb.api.query.order.ReferenceProperty;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.core.exception.AttributeNotFoundException;
-import io.evitadb.core.exception.AttributeNotSortableException;
+import io.evitadb.core.query.AttributeSchemaAccessor;
+import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.PrefetchRequirementCollector;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.sort.attribute.translator.AttributeExtractor;
 import io.evitadb.core.query.sort.attribute.translator.AttributeNaturalTranslator;
+import io.evitadb.core.query.sort.attribute.translator.AttributeSetExactTranslator;
+import io.evitadb.core.query.sort.attribute.translator.AttributeSetInFilterTranslator;
 import io.evitadb.core.query.sort.attribute.translator.EntityAttributeExtractor;
 import io.evitadb.core.query.sort.attribute.translator.ReferencePropertyTranslator;
 import io.evitadb.core.query.sort.price.translator.PriceNaturalTranslator;
+import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyExactTranslator;
+import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyInFilterTranslator;
+import io.evitadb.core.query.sort.random.translator.RandomTranslator;
 import io.evitadb.core.query.sort.translator.OrderByTranslator;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
-import io.evitadb.core.query.sort.translator.RandomTranslator;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.attribute.SortIndex;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 import lombok.experimental.Delegate;
@@ -63,8 +69,6 @@ import javax.annotation.Nullable;
 import java.util.Deque;
 import java.util.LinkedList;
 import java.util.Map;
-import java.util.function.BiFunction;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static io.evitadb.utils.Assert.isPremiseValid;
@@ -88,6 +92,10 @@ public class OrderByVisitor implements ConstraintVisitor {
 		TRANSLATORS.put(ReferenceProperty.class, new ReferencePropertyTranslator());
 		TRANSLATORS.put(Random.class, new RandomTranslator());
 		TRANSLATORS.put(PriceNatural.class, new PriceNaturalTranslator());
+		TRANSLATORS.put(EntityPrimaryKeyInFilter.class, new EntityPrimaryKeyInFilterTranslator());
+		TRANSLATORS.put(EntityPrimaryKeyExact.class, new EntityPrimaryKeyExactTranslator());
+		TRANSLATORS.put(AttributeSetInFilter.class, new AttributeSetInFilterTranslator());
+		TRANSLATORS.put(AttributeSetExact.class, new AttributeSetExactTranslator());
 	}
 
 	/**
@@ -120,7 +128,7 @@ public class OrderByVisitor implements ConstraintVisitor {
 	) {
 		this(
 			queryContext, prefetchRequirementCollector, filteringFormula,
-			(entitySchema, attributeName) -> entitySchema.getAttribute(attributeName).orElse(null)
+			new AttributeSchemaAccessor(queryContext)
 		);
 	}
 
@@ -128,25 +136,14 @@ public class OrderByVisitor implements ConstraintVisitor {
 		@Nonnull QueryContext queryContext,
 		@Nonnull PrefetchRequirementCollector prefetchRequirementCollector,
 		@Nonnull Formula filteringFormula,
-		@Nonnull BiFunction<EntitySchemaContract, String, AttributeSchemaContract> attributeSchemaFetcher) {
+		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor) {
 		this.queryContext = queryContext;
 		this.prefetchRequirementCollector = prefetchRequirementCollector;
 		this.filteringFormula = filteringFormula;
 		scope.push(
 			new ProcessingScope(
-				this.queryContext.getGlobalEntityIndexIfExits(),
-				attributeName -> {
-					final EntitySchemaContract entitySchema = this.queryContext.getSchema();
-					final AttributeSchemaContract attributeSchema = attributeSchemaFetcher.apply(entitySchema, attributeName);
-					Assert.notNull(
-						attributeSchema,
-						() -> new AttributeNotFoundException(attributeName, entitySchema)
-					);
-					Assert.isTrue(
-						attributeSchema.isSortable(),
-						() -> new AttributeNotSortableException(attributeName, entitySchema)
-					);
-				},
+				this.queryContext.getGlobalEntityIndexIfExists().orElse(null),
+				attributeSchemaAccessor,
 				EntityAttributeExtractor.INSTANCE
 			)
 		);
@@ -174,7 +171,7 @@ public class OrderByVisitor implements ConstraintVisitor {
 	 */
 	public final <T> T executeInContext(
 		@Nonnull EntityIndex entityIndex,
-		@Nonnull Consumer<String> attributeSchemaVerifier,
+		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nonnull AttributeExtractor attributeSchemaEntityAccessor,
 		@Nonnull Supplier<T> lambda
 	) {
@@ -182,7 +179,7 @@ public class OrderByVisitor implements ConstraintVisitor {
 			this.scope.push(
 				new ProcessingScope(
 					entityIndex,
-					attributeSchemaVerifier,
+					attributeSchemaAccessor,
 					attributeSchemaEntityAccessor
 				)
 			);
@@ -250,14 +247,32 @@ public class OrderByVisitor implements ConstraintVisitor {
 	 * attribute schema information.
 	 *
 	 * @param entityIndex             Contains index, that should be used for accessing {@link SortIndex}.
-	 * @param attributeSchemaVerifier consumer verifies prerequisites in attribute schema via {@link AttributeSchemaContract}
+	 * @param attributeSchemaAccessor consumer verifies prerequisites in attribute schema via {@link AttributeSchemaContract}
 	 * @param attributeEntityAccessor function provides access to the attribute content via {@link EntityContract}
 	 */
 	public record ProcessingScope(
 		@Nullable EntityIndex entityIndex,
-		@Nonnull Consumer<String> attributeSchemaVerifier,
+		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nonnull AttributeExtractor attributeEntityAccessor
 	) {
+
+		/**
+		 * Returns attribute schema for attribute of passed name.
+		 */
+		@Nonnull
+		public AttributeSchemaContract getAttributeSchema(@Nonnull String theAttributeName, @Nonnull AttributeTrait... attributeTraits) {
+			return attributeSchemaAccessor.getAttributeSchema(theAttributeName, attributeTraits);
+		}
+
+		/**
+		 * Returns new attribute schema accessor that delegates lookup for attribute schema to appropriate reference
+		 * schema.
+		 */
+		@Nonnull
+		public AttributeSchemaAccessor withReferenceSchemaAccessor(@Nonnull String referenceName) {
+			return attributeSchemaAccessor.withReferenceSchemaAccessor(referenceName);
+		}
+
 	}
 
 }

@@ -101,7 +101,7 @@ public record ConstraintDescriptor(@Nonnull Class<?> constraintClass,
 
 		if (propertyType == ConstraintPropertyType.GENERIC) {
 			Assert.isPremiseValid(
-				!creator.needsClassifier(),
+				!creator.hasClassifier(),
 				"Creator for query `" + this.constraintClass.getName() + "` cannot have classifier because it is generic query."
 			);
 		}

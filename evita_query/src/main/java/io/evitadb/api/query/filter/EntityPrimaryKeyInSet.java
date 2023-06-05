@@ -26,8 +26,8 @@ package io.evitadb.api.query.filter;
 import io.evitadb.api.query.EntityConstraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
@@ -54,11 +54,12 @@ import java.util.Arrays;
  */
 @ConstraintDefinition(
 	name = "inSet",
-	shortDescription = "The constraint if primary key of the entity equals to at least one of the passed values. " +
+	shortDescription = "The constraint checks if primary key of the entity equals to at least one of the passed values. " +
 		"The constraint is equivalent to one or more `equals` constraints combined with logical OR.",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE }
 )
-public class EntityPrimaryKeyInSet extends AbstractFilterConstraintLeaf implements EntityConstraint<FilterConstraint>, IndexUsingConstraint {
+public class EntityPrimaryKeyInSet extends AbstractFilterConstraintLeaf
+	implements EntityConstraint<FilterConstraint>, IndexUsingConstraint {
 	@Serial private static final long serialVersionUID = -6950287451642746676L;
 
 	private EntityPrimaryKeyInSet(Serializable... arguments) {
@@ -78,11 +79,6 @@ public class EntityPrimaryKeyInSet extends AbstractFilterConstraintLeaf implemen
 		return Arrays.stream(getArguments())
 			.mapToInt(Integer.class::cast)
 			.toArray();
-	}
-
-	@Override
-	public boolean isApplicable() {
-		return isArgumentsNonNull() && getArguments().length > 0;
 	}
 
 	@Nonnull

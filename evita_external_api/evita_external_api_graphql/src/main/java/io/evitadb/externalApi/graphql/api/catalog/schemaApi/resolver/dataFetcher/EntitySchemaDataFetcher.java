@@ -23,33 +23,34 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher;
 
-import graphql.execution.DataFetcherResult;
-import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
-import lombok.RequiredArgsConstructor;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 
 import javax.annotation.Nonnull;
+import java.util.concurrent.Executor;
 
 /**
  * Returns currently available entity schema.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
-public class EntitySchemaDataFetcher implements DataFetcher<DataFetcherResult<EntitySchemaContract>> {
+public class EntitySchemaDataFetcher extends ReadDataFetcher<EntitySchemaContract> {
 
 	@Nonnull
 	private String entityType;
 
+	public EntitySchemaDataFetcher(@Nonnull Executor executor, @Nonnull String entityType) {
+		super(executor);
+		this.entityType = entityType;
+	}
+
 	@Nonnull
 	@Override
-	public DataFetcherResult<EntitySchemaContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public EntitySchemaContract doGet(@Nonnull DataFetchingEnvironment environment) {
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
-		return DataFetcherResult.<EntitySchemaContract>newResult()
-			.data(evitaSession.getEntitySchemaOrThrow(entityType))
-			.build();
+		return evitaSession.getEntitySchemaOrThrow(entityType);
 	}
 }

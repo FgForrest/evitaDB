@@ -29,17 +29,13 @@ import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
-import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
-import io.evitadb.externalApi.rest.exception.RestQueryResolvingInternalError;
-import io.evitadb.utils.Assert;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import java.util.Set;
+import javax.annotation.Nullable;
+import java.util.Optional;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
@@ -53,28 +49,24 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class FilterConstraintResolver extends RestConstraintResolver<FilterConstraint> {
-	@Getter
-	@Nonnull
-	private final ConstraintDescriptor wrapperContainer;
+
+	@Nonnull private final ConstraintDescriptor wrapperContainer;
 
 	public FilterConstraintResolver(@Nonnull CollectionRestHandlingContext restHandlingContext) {
 		super(
 			restHandlingContext,
 			createHashMap(0) // currently, we don't support any filter constraint with additional children
 		);
+		wrapperContainer = ConstraintDescriptorProvider.getConstraint(And.class);
+	}
 
-		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(And.class);
-		Assert.isPremiseValid(
-			!descriptors.isEmpty(),
-			() -> new RestQueryResolvingInternalError("Could not find `and` filter constraint for wrapper container.")
+	@Nullable
+	public FilterConstraint resolve(@Nonnull String key, @Nullable Object value) {
+		return resolve(
+			new EntityDataLocator(restHandlingContext.getEntityType()),
+			key,
+			value
 		);
-		Assert.isPremiseValid(
-			descriptors.size() == 1,
-			() -> new RestQueryResolvingInternalError(
-				"There multiple variants of `and` filter constraint, cannot decide which to choose for wrapper container."
-			)
-		);
-		wrapperContainer = descriptors.iterator().next();
 	}
 
 	@Override
@@ -90,22 +82,13 @@ public class FilterConstraintResolver extends RestConstraintResolver<FilterConst
 
 	@Nonnull
 	@Override
-	protected DataLocator getRootDataLocator() {
-		return new EntityDataLocator(restHandlingContext.getEntityType());
+	protected Optional<ConstraintDescriptor> getWrapperContainer() {
+		return Optional.of(wrapperContainer);
 	}
 
 	@Nonnull
 	@Override
-	protected ConstraintDescriptor getRootConstraintContainerDescriptor() {
-		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(FilterBy.class);
-		Assert.isPremiseValid(
-			!descriptors.isEmpty(),
-			() -> new OpenApiBuildingError("Could not find `filterBy` filter query.")
-		);
-		Assert.isPremiseValid(
-			descriptors.size() == 1,
-			() -> new OpenApiBuildingError("There multiple variants of `filterBy` filter query, cannot decide which to choose.")
-		);
-		return descriptors.iterator().next();
+	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
+		return ConstraintDescriptorProvider.getConstraint(FilterBy.class);
 	}
 }

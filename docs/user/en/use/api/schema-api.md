@@ -14,8 +14,8 @@ proofreading: 'needed'
 
 A schema can be programmatically defined this way:
 
-<SourceCodeTabs>
-[Imperative schema definition via Java API](docs/user/en/use/api/example/imperative-schema-definition.java)
+<SourceCodeTabs requires="/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/define-test-catalog.java">
+[Imperative schema definition via Java API](/docs/user/en/use/api/example/imperative-schema-definition.java)
 </SourceCodeTabs>
 
 ## Declarative schema definition
@@ -25,8 +25,8 @@ annotations that describe the entity structure you want to work with in your pro
 <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass> to define an entity schema
 for you:
 
-<SourceCodeTabs>
-[Declarative schema definition via Java API](docs/user/en/use/api/example/declarative-schema-definition.java)
+<SourceCodeTabs requires="/docs/user/en/use/api/example/declarative-model-example.java,/docs/user/en/get-started/example/define-test-catalog.java">
+[Declarative schema definition via Java API](/docs/user/en/use/api/example/declarative-schema-definition.java)
 </SourceCodeTabs>
 
 The model template can be:
@@ -113,8 +113,8 @@ that is annotated with following annotations:
 
 For a better idea, let's demonstrate a sample of the interface design of the product entity.
 
-<SourceCodeTabs>
-[Example of the model interface](docs/user/en/use/api/example/declarative-model-example.java)
+<SourceCodeTabs requires="/docs/user/en/get-started/example/complete-startup.java">
+[Example of the model interface](/docs/user/en/use/api/example/declarative-model-example.java)
 </SourceCodeTabs>
 
 <Note type="info">
@@ -145,6 +145,6 @@ The procedure and documentation for schema definition from C# will be added.
 
 <LanguageSpecific to="evitaql">
 Unfortunately, it is currently not possible to define a schema using EvitaQL. This extension is also not planned to be
-implemented in the near future, because we believe that sufficient options (Java, GraphQL, REST API) are sufficient 
+implemented in the near future, because we believe that sufficient options (Java, GraphQL, REST API) are available 
 for schema definition.
 </LanguageSpecific>

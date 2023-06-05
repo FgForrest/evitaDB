@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.core.Evita;
@@ -38,19 +37,14 @@ import javax.annotation.Nonnull;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class DeleteCatalogIfExistsMutatingDataFetcher implements DataFetcher<DataFetcherResult<Boolean>> {
+public class DeleteCatalogIfExistsMutatingDataFetcher implements DataFetcher<Boolean> {
 
     private final Evita evita;
 
     @Nonnull
     @Override
-    public DataFetcherResult<Boolean> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+    public Boolean get(@Nonnull DataFetchingEnvironment environment) throws Exception {
         final String catalogName = environment.getArgument(DeleteCatalogIfExistsMutationHeaderDescriptor.NAME.name());
-
-        final boolean deleted = evita.deleteCatalogIfExists(catalogName);
-
-        return DataFetcherResult.<Boolean>newResult()
-            .data(deleted)
-            .build();
+        return evita.deleteCatalogIfExists(catalogName);
     }
 }

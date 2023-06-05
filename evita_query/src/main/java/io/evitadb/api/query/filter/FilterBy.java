@@ -29,9 +29,10 @@ import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 
@@ -71,15 +72,8 @@ public class FilterBy extends AbstractFilterConstraintContainer implements Gener
 		super(children);
 	}
 
-	@Nonnull
-	@Override
-	public FilterConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		return children.length > 0 ? new FilterBy((FilterConstraint) children[0]) : new FilterBy();
-	}
-
-	@Nullable
-	public FilterConstraint getChild() {
-		return getChildrenCount() == 0 ? null : getChildren()[0];
+	public FilterBy(@Nonnull FilterConstraint... children) {
+		super(children);
 	}
 
 	@Override
@@ -91,6 +85,13 @@ public class FilterBy extends AbstractFilterConstraintContainer implements Gener
 	@Override
 	public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
 		throw new UnsupportedOperationException("FilterBy filtering query has no arguments!");
+	}
+
+	@Nonnull
+	@Override
+	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		Assert.isTrue(ArrayUtils.isEmpty(additionalChildren), "FilterBy doesn't accept other than filtering constraints!");
+		return children.length > 0 ? new FilterBy(children) : new FilterBy();
 	}
 
 }

@@ -23,10 +23,12 @@
 
 package io.evitadb.core.query.extraResult.translator.histogram;
 
+import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.query.require.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.Histogram;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
@@ -36,7 +38,6 @@ import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.AttributeHistogramProducer;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.utils.Assert;
@@ -109,10 +110,14 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 	@Nonnull
 	private AttributeSchemaContract getAttributeSchema(@Nonnull EntitySchemaContract schema, @Nonnull String attributeName) {
 		final AttributeSchemaContract attributeSchema = schema.getAttribute(attributeName)
-			.orElseThrow(() -> new EvitaInvalidUsageException("Attribute `" + attributeName + "` was not found in the schema of entity `" + schema.getName() + "`!"));
+			.orElseThrow(() -> new AttributeNotFoundException(attributeName, schema));
 		Assert.isTrue(
 			Number.class.isAssignableFrom(attributeSchema.getPlainType()),
 			"Attribute `" + attributeName + "` must be a number in order to compute histogram!"
+		);
+		Assert.isTrue(
+			attributeSchema.isFilterable(),
+			() -> new AttributeNotFilterableException(attributeName, "\"filterable\"", schema)
 		);
 		return attributeSchema;
 	}

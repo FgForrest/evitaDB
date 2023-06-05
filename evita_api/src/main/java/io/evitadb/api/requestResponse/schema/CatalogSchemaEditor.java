@@ -55,6 +55,23 @@ public interface CatalogSchemaEditor<S extends CatalogSchemaEditor<S>>
 	S withDescription(@Nullable String description);
 
 	/**
+	 * Sets strict verification mode for this catalog. No entity of the unknown entity type will be allowed to be
+	 * upserted in the catalog. The entity collections will be required to be set up upfront by the schema API.
+	 *
+	 * This mode is recommended if you want to strictly control schema and define structure up-front.
+	 */
+	@Nonnull
+	S verifyCatalogSchemaStrictly();
+
+	/**
+	 * This is lax mode of the schema evolution. New entity collection / schema is created when entity of new entity
+	 * type is upserted for the first time. This mode is good for prototyping but if developer makes a typo in
+	 * the entity type it may pollute your database with unwanted entity collections.
+	 */
+	@Nonnull
+	S verifyCatalogSchemaButCreateOnTheFly();
+
+	/**
 	 * Method creates new {@link EntitySchemaContract} within the catalog schema if the schema (entity collection) of
 	 * such name hasn't yet exist. The method doesn't allow to specify details of the schema - if you need to do so,
 	 * use the {@link #withEntitySchema(String, Consumer)} method instead.

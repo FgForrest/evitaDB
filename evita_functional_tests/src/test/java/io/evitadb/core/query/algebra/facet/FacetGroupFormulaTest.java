@@ -25,8 +25,10 @@ package io.evitadb.core.query.algebra.facet;
 
 import com.esotericsoftware.kryo.util.IntMap;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -44,7 +46,7 @@ class FacetGroupFormulaTest {
 	void shouldMergeTwoFacetGroupFormulasTogether() {
 		final FacetGroupAndFormula a = new FacetGroupAndFormula(
 			"product", 1,
-			new int[]{1, 2, 3},
+			new ArrayBitmap(1, 2, 3),
 			new BaseBitmap(10),
 			new BaseBitmap(11),
 			new BaseBitmap(12)
@@ -52,7 +54,7 @@ class FacetGroupFormulaTest {
 
 		final FacetGroupAndFormula b = new FacetGroupAndFormula(
 			"product", 1,
-			new int[]{3, 4},
+			new ArrayBitmap(3, 4),
 			new BaseBitmap(20),
 			new BaseBitmap(21)
 		);
@@ -82,10 +84,10 @@ class FacetGroupFormulaTest {
 			() -> FacetGroupFormula.mergeWith(
 				new FacetGroupAndFormula(
 					"productA", 1,
-					new int[0]
+					EmptyBitmap.INSTANCE
 				), new FacetGroupAndFormula(
 					"productB", 1,
-					new int[0]
+					EmptyBitmap.INSTANCE
 				),
 				(facetIds, bitmaps) -> new FacetGroupAndFormula("product", 1, facetIds, bitmaps)
 			)
@@ -99,10 +101,10 @@ class FacetGroupFormulaTest {
 			() -> FacetGroupFormula.mergeWith(
 				new FacetGroupAndFormula(
 					"product", 1,
-					new int[0]
+					EmptyBitmap.INSTANCE
 				), new FacetGroupAndFormula(
 					"product", 2,
-					new int[0]
+					EmptyBitmap.INSTANCE
 				),
 				(facetIds, bitmaps) -> new FacetGroupAndFormula("product", 1, facetIds, bitmaps)
 			)
@@ -116,21 +118,21 @@ class FacetGroupFormulaTest {
 			() -> FacetGroupFormula.mergeWith(
 				new FacetGroupAndFormula(
 					"product", 1,
-					new int[0]
+					EmptyBitmap.INSTANCE
 				), new FacetGroupOrFormula(
 					"product", 1,
-					new int[0]
+					EmptyBitmap.INSTANCE
 				),
 				(facetIds, bitmaps) -> new FacetGroupAndFormula("product", 1, facetIds, bitmaps)
 			)
 		);
 	}
 
-	private void assertFacetGroupFormulaIs(int[] facetIds, Bitmap[] bitmaps, FacetGroupAndFormula actualFormula) {
-		final int[] actualFacetIds = actualFormula.getFacetIds();
+	private static void assertFacetGroupFormulaIs(int[] facetIds, Bitmap[] bitmaps, FacetGroupAndFormula actualFormula) {
+		final Bitmap actualFacetIds = actualFormula.getFacetIds();
 		final Bitmap[] actualBitmaps = actualFormula.getBitmaps();
 
-		assertEquals(facetIds.length, actualFacetIds.length);
+		assertEquals(facetIds.length, actualFacetIds.size());
 		assertEquals(bitmaps.length, actualBitmaps.length);
 
 		final IntMap<Bitmap> expected = new IntMap<>(facetIds.length);
@@ -138,9 +140,10 @@ class FacetGroupFormulaTest {
 			expected.put(facetIds[i], bitmaps[i]);
 		}
 
-		final IntMap<Bitmap> actual = new IntMap<>(actualFacetIds.length);
-		for (int i = 0; i < actualFacetIds.length; i++) {
-			actual.put(actualFacetIds[i], actualBitmaps[i]);
+		final IntMap<Bitmap> actual = new IntMap<>(actualFacetIds.size());
+		int index = 0;
+		for (Integer facetId : actualFacetIds) {
+			actual.put(facetId, actualBitmaps[index++]);
 		}
 
 		assertEquals(expected, actual);

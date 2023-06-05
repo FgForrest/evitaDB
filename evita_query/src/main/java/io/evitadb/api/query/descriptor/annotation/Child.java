@@ -25,6 +25,7 @@ package io.evitadb.api.query.descriptor.annotation;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
+import io.evitadb.api.query.descriptor.ConstraintDomain;
 
 import javax.annotation.Nonnull;
 import java.lang.annotation.Documented;
@@ -37,7 +38,6 @@ import java.lang.annotation.Target;
  * Constraint children parameter definition that marks concrete constraint
  * constructor's (one that is annotated with {@link Creator}) parameter as child parameter which contains
  * one or more children of same constraint type.
- * Currently, only one parameter in single creator can be marked with this annotation.
  * <p>
  * Additionally, allowed children types can be limited with either {@link #allowed()}
  * or {@link #forbidden()} which take constraint classes.
@@ -52,6 +52,18 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
 public @interface Child {
+
+	/**
+	 * Specifies domain of child constraints. By default, domain of parent constraint (usually resolved from its
+	 * {@link io.evitadb.api.query.descriptor.ConstraintPropertyType}) is passed to children. However, custom domain
+	 * can be specified for children using this parameter.
+	 * <p>
+	 * <b>Note: </b>that not all combinations of parent constraint domain and custom children are possible. E.g. if custom domain
+	 * uses references underneath, the parent constraint domain must use references as well, because otherwise
+	 * there is no way how to specify the targeted reference. One exception is the {@link ConstraintDomain#HIERARCHY}
+	 * which can be used on hierarchical collection without reference.
+	 */
+	ConstraintDomain domain() default ConstraintDomain.DEFAULT;
 
 	/**
 	 * If each child constraint can be passed only once in this list parameter.

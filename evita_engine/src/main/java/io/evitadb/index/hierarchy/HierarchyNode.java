@@ -32,19 +32,15 @@ import javax.annotation.Nullable;
  * @param entityPrimaryKey       Primary key of the entity that is represented by this node.
  * @param parentEntityPrimaryKey Primary key of the entity that is declared as parent of this node.
  *                               Might be null if node has no parent.
- * @param order                  Order of the node among neighbouring items on the same level.
- *                               Order = 1 means first node, order = parent.numberOfChildren means last node. Order increases by one between
- *                               neighbouring nodes.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public record HierarchyNode(
 	int entityPrimaryKey,
-	@Nullable Integer parentEntityPrimaryKey,
-	int order
+	@Nullable Integer parentEntityPrimaryKey
 ) implements Comparable<HierarchyNode> {
 	@Override
 	public int compareTo(HierarchyNode o) {
-		return Integer.compare(order, o.order);
+		return Integer.compare(entityPrimaryKey, o.entityPrimaryKey);
 	}
 
 }

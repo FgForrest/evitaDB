@@ -24,23 +24,32 @@
 package io.evitadb.api;
 
 import io.evitadb.api.exception.UniqueValueViolationException;
-import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
-import io.evitadb.test.extension.DbInstanceParameterResolver;
+import io.evitadb.dataType.data.ReflectionCachingBehaviour;
+import io.evitadb.test.extension.EvitaParameterResolver;
+import io.evitadb.utils.ReflectionLookup;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.io.Serial;
+import java.io.Serializable;
+import java.util.Currency;
 import java.util.Locale;
 
 import static io.evitadb.api.EvitaApiFunctionalTest.LOGO;
 import static io.evitadb.api.EvitaApiFunctionalTest.SIEMENS_TITLE;
+import static io.evitadb.api.query.QueryConstraints.associatedDataContent;
+import static io.evitadb.api.query.QueryConstraints.attributeContent;
 import static io.evitadb.test.Entities.BRAND;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
@@ -51,7 +60,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  */
 @DisplayName("Evita indexing API")
 @Tag(FUNCTIONAL_TEST)
-@ExtendWith(DbInstanceParameterResolver.class)
+@ExtendWith(EvitaParameterResolver.class)
 public class EvitaIndexingFunctionalTest {
 
 	public static final String ATTRIBUTE_CODE = "code";
@@ -84,7 +93,7 @@ public class EvitaIndexingFunctionalTest {
 				session.upsertEntity(createBrand(session, 1));
 
 				// change the unique value
-				final SealedEntity theBrand = session.getEntity(BRAND, 1, QueryConstraints.attributeContent())
+				final SealedEntity theBrand = session.getEntity(BRAND, 1, attributeContent())
 					.orElseThrow();
 
 				session.upsertEntity(theBrand.openForWrite().setAttribute(ATTRIBUTE_CODE, "otherCode"));
@@ -108,12 +117,61 @@ public class EvitaIndexingFunctionalTest {
 				session.upsertEntity(createBrand(session, 1));
 
 				// change the unique value
-				final SealedEntity theBrand = session.getEntity(BRAND, 1, QueryConstraints.attributeContent())
+				final SealedEntity theBrand = session.getEntity(BRAND, 1, attributeContent())
 					.orElseThrow();
 				session.deleteEntity(BRAND, theBrand.getPrimaryKey());
 
 				// now we can use original code for different entity
 				session.upsertEntity(createBrand(session, 2));
+			}
+		);
+	}
+
+	@DisplayName("Tests situation when user creates minimal products and read it")
+	@Test
+	void shouldStoreMinimalEntityBugRegression(Evita evita) {
+		evita.defineCatalog("differentCatalog")
+			.withEntitySchema(
+				"Product",
+				entitySchema -> entitySchema
+					.withGeneratedPrimaryKey()
+					.withLocale(Locale.ENGLISH, Locale.GERMAN)
+					.withPriceInCurrency(
+						Currency.getInstance("USD"), Currency.getInstance("EUR")
+					)
+					.withAttribute(
+						"name", String.class,
+						whichIs -> whichIs
+							.withDescription("The apt product name.")
+							.localized()
+							.filterable()
+							.sortable()
+							.nullable()
+					)
+			)
+			.updateAndFetchViaNewSession(evita);
+
+		evita.updateCatalog(
+			"differentCatalog",
+			session -> {
+				session.createNewEntity("Product")
+					.setAssociatedData(
+						"stockAvailability",
+						new ProductStockAvailability(10)
+					)
+					.upsertVia(session);
+
+				//some custom logic to load proper entity
+				final SealedEntity entity = session
+					.getEntity("Product", 1, associatedDataContent())
+					.orElseThrow();
+				//deserialize the associated data
+				assertNotNull(
+					entity.getAssociatedData(
+						"stockAvailability", ProductStockAvailability.class,
+						new ReflectionLookup(ReflectionCachingBehaviour.NO_CACHE)
+					)
+				);
 			}
 		);
 	}
@@ -129,6 +187,13 @@ public class EvitaIndexingFunctionalTest {
 		newBrand.setAttribute("logo", LOGO);
 		newBrand.setAttribute("productCount", 1);
 		return newBrand;
+	}
+
+	@RequiredArgsConstructor
+	public static class ProductStockAvailability implements Serializable {
+		@Serial private static final long serialVersionUID = 373668161042101104L;
+
+		@Getter private final Integer available;
 	}
 
 }

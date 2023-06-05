@@ -30,24 +30,17 @@ import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaNameMutation;
 import io.evitadb.driver.certificate.ClientCertificateManager;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientNotTerminatedInTimeException;
 import io.evitadb.driver.pooling.ChannelPool;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc;
+import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceBlockingStub;
-import io.evitadb.externalApi.grpc.generated.GrpcCatalogNamesResponse;
-import io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsRequest;
-import io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsResponse;
-import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest;
-import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse;
-import io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation;
-import io.evitadb.externalApi.grpc.generated.GrpcUpdateEvitaRequest;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
@@ -96,23 +89,41 @@ import static java.util.Optional.ofNullable;
  * seamlessly. The client & server implementation takes advantage of gRPC API that is best suited for fast communication
  * between two endpoints if both parties are Java based.
  *
- * TODO JNO - extend the documentation once the client is fully completed
+ * The class is thread-safe and can be used from multiple threads to acquire {@link EvitaClientSession} that are not
+ * thread-safe.
  *
+ * @see EvitaContract
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @ThreadSafe
 @Slf4j
 public class EvitaClient implements EvitaContract {
-
 	private static final SchemaMutationConverter<TopLevelCatalogSchemaMutation, GrpcTopLevelCatalogSchemaMutation> CATALOG_SCHEMA_MUTATION_CONVERTER =
 		new DelegatingTopLevelCatalogSchemaMutationConverter();
 
 	@Getter private final EvitaClientConfiguration configuration;
 	private final ChannelPool channelPool;
+	/**
+	 * True if client is active and hasn't yet been closed.
+	 */
 	private final AtomicBoolean active = new AtomicBoolean(true);
+	/**
+	 * Reflection lookup is used to speed up reflection operation by memoizing the results for examined classes.
+	 */
 	private final ReflectionLookup reflectionLookup;
+	/**
+	 * Index of the {@link EntitySchemaContract} cache. See {@link EvitaEntitySchemaCache} for more information.
+	 * The key in index is the catalog name.
+	 */
 	private final Map<String, EvitaEntitySchemaCache> entitySchemaCache = new ConcurrentHashMap<>(8);
+	/**
+	 * Index of the opened and active {@link EvitaClientSession} indexed by their unique {@link UUID}
+	 */
 	private final Map<UUID, EvitaSessionContract> activeSessions = CollectionUtils.createConcurrentHashMap(16);
+	/**
+	 * A lambda that needs to be invoked upon EvitaClient closing. It goes through all opened {@link EvitaClientSession}
+	 * and closes them along with their gRPC channels.
+	 */
 	private final Runnable terminationCallback;
 
 	/**
@@ -308,17 +319,31 @@ public class EvitaClient implements EvitaContract {
 	@Override
 	public void renameCatalog(@Nonnull String catalogName, @Nonnull String newCatalogName) {
 		assertActive();
-		update(new ModifyCatalogSchemaNameMutation(catalogName, newCatalogName, false));
-		this.entitySchemaCache.remove(catalogName);
-		this.entitySchemaCache.remove(newCatalogName);
+		final GrpcRenameCatalogRequest request = GrpcRenameCatalogRequest.newBuilder()
+			.setCatalogName(catalogName)
+			.setNewCatalogName(newCatalogName)
+			.build();
+		final GrpcRenameCatalogResponse grpcResponse = executeWithEvitaService(evitaService -> evitaService.renameCatalog(request));
+		final boolean success = grpcResponse.getSuccess();
+		if (success) {
+			this.entitySchemaCache.remove(catalogName);
+			this.entitySchemaCache.remove(newCatalogName);
+		}
 	}
 
 	@Override
 	public void replaceCatalog(@Nonnull String catalogNameToBeReplacedWith, @Nonnull String catalogNameToBeReplaced) {
 		assertActive();
-		update(new ModifyCatalogSchemaNameMutation(catalogNameToBeReplacedWith, catalogNameToBeReplaced, true));
-		this.entitySchemaCache.remove(catalogNameToBeReplaced);
-		this.entitySchemaCache.remove(catalogNameToBeReplacedWith);
+		final GrpcReplaceCatalogRequest request = GrpcReplaceCatalogRequest.newBuilder()
+			.setCatalogNameToBeReplacedWith(catalogNameToBeReplacedWith)
+			.setCatalogNameToBeReplaced(catalogNameToBeReplaced)
+			.build();
+		final GrpcReplaceCatalogResponse grpcResponse = executeWithEvitaService(evitaService -> evitaService.replaceCatalog(request));
+		final boolean success = grpcResponse.getSuccess();
+		if (success) {
+			this.entitySchemaCache.remove(catalogNameToBeReplaced);
+			this.entitySchemaCache.remove(catalogNameToBeReplacedWith);
+		}
 	}
 
 	@Override

@@ -40,6 +40,7 @@ private static final long serialVersionUID = 0L;
   }
   private GrpcCatalogSchema() {
     name_ = "";
+    catalogEvolutionMode_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -97,11 +98,34 @@ private static final long serialVersionUID = 0L;
 
             break;
           }
-          case 34: {
+          case 32: {
+            int rawValue = input.readEnum();
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
+              catalogEvolutionMode_ = new java.util.ArrayList<java.lang.Integer>();
+              mutable_bitField0_ |= 0x00000001;
+            }
+            catalogEvolutionMode_.add(rawValue);
+            break;
+          }
+          case 34: {
+            int length = input.readRawVarint32();
+            int oldLimit = input.pushLimit(length);
+            while(input.getBytesUntilLimit() > 0) {
+              int rawValue = input.readEnum();
+              if (!((mutable_bitField0_ & 0x00000001) != 0)) {
+                catalogEvolutionMode_ = new java.util.ArrayList<java.lang.Integer>();
+                mutable_bitField0_ |= 0x00000001;
+              }
+              catalogEvolutionMode_.add(rawValue);
+            }
+            input.popLimit(oldLimit);
+            break;
+          }
+          case 42: {
+            if (!((mutable_bitField0_ & 0x00000002) != 0)) {
               attributes_ = com.google.protobuf.MapField.newMapField(
                   AttributesDefaultEntryHolder.defaultEntry);
-              mutable_bitField0_ |= 0x00000001;
+              mutable_bitField0_ |= 0x00000002;
             }
             com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema>
             attributes__ = input.readMessage(
@@ -125,6 +149,9 @@ private static final long serialVersionUID = 0L;
       throw new com.google.protobuf.InvalidProtocolBufferException(
           e).setUnfinishedMessage(this);
     } finally {
+      if (((mutable_bitField0_ & 0x00000001) != 0)) {
+        catalogEvolutionMode_ = java.util.Collections.unmodifiableList(catalogEvolutionMode_);
+      }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
     }
@@ -139,7 +166,7 @@ private static final long serialVersionUID = 0L;
   protected com.google.protobuf.MapField internalGetMapField(
       int number) {
     switch (number) {
-      case 4:
+      case 5:
         return internalGetAttributes();
       default:
         throw new RuntimeException(
@@ -166,7 +193,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       name_ = s;
@@ -182,7 +209,7 @@ private static final long serialVersionUID = 0L;
       getNameBytes() {
     java.lang.Object ref = name_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       name_ = b;
@@ -229,13 +256,71 @@ private static final long serialVersionUID = 0L;
     return getDescription();
   }
 
-  public static final int ATTRIBUTES_FIELD_NUMBER = 4;
+  public static final int CATALOGEVOLUTIONMODE_FIELD_NUMBER = 4;
+  private java.util.List<java.lang.Integer> catalogEvolutionMode_;
+  private static final com.google.protobuf.Internal.ListAdapter.Converter<
+      java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode> catalogEvolutionMode_converter_ =
+          new com.google.protobuf.Internal.ListAdapter.Converter<
+              java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode>() {
+            public io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode convert(java.lang.Integer from) {
+              @SuppressWarnings("deprecation")
+              io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode result = io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode.valueOf(from);
+              return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode.UNRECOGNIZED : result;
+            }
+          };
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
+   * @return A list containing the catalogEvolutionMode.
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode> getCatalogEvolutionModeList() {
+    return new com.google.protobuf.Internal.ListAdapter<
+        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode>(catalogEvolutionMode_, catalogEvolutionMode_converter_);
+  }
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
+   * @return The count of catalogEvolutionMode.
+   */
+  @java.lang.Override
+  public int getCatalogEvolutionModeCount() {
+    return catalogEvolutionMode_.size();
+  }
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
+   * @param index The index of the element to return.
+   * @return The catalogEvolutionMode at the given index.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode getCatalogEvolutionMode(int index) {
+    return catalogEvolutionMode_converter_.convert(catalogEvolutionMode_.get(index));
+  }
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
+   * @return A list containing the enum numeric values on the wire for catalogEvolutionMode.
+   */
+  @java.lang.Override
+  public java.util.List<java.lang.Integer>
+  getCatalogEvolutionModeValueList() {
+    return catalogEvolutionMode_;
+  }
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of catalogEvolutionMode at the given index.
+   */
+  @java.lang.Override
+  public int getCatalogEvolutionModeValue(int index) {
+    return catalogEvolutionMode_.get(index);
+  }
+  private int catalogEvolutionModeMemoizedSerializedSize;
+
+  public static final int ATTRIBUTES_FIELD_NUMBER = 5;
   private static final class AttributesDefaultEntryHolder {
     static final com.google.protobuf.MapEntry<
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcCatalogSchema_AttributesEntry_descriptor, 
+                io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcCatalogSchema_AttributesEntry_descriptor,
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -256,7 +341,7 @@ private static final long serialVersionUID = 0L;
     return internalGetAttributes().getMap().size();
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 4;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
    */
 
   @java.lang.Override
@@ -274,7 +359,7 @@ private static final long serialVersionUID = 0L;
     return getAttributesMap();
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 4;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
    */
   @java.lang.Override
 
@@ -282,7 +367,7 @@ private static final long serialVersionUID = 0L;
     return internalGetAttributes().getMap();
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 4;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
    */
   @java.lang.Override
 
@@ -295,7 +380,7 @@ private static final long serialVersionUID = 0L;
     return map.containsKey(key) ? map.get(key) : defaultValue;
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 4;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
    */
   @java.lang.Override
 
@@ -324,6 +409,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
+    getSerializedSize();
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(name_)) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 1, name_);
     }
@@ -333,12 +419,19 @@ private static final long serialVersionUID = 0L;
     if (description_ != null) {
       output.writeMessage(3, getDescription());
     }
+    if (getCatalogEvolutionModeList().size() > 0) {
+      output.writeUInt32NoTag(34);
+      output.writeUInt32NoTag(catalogEvolutionModeMemoizedSerializedSize);
+    }
+    for (int i = 0; i < catalogEvolutionMode_.size(); i++) {
+      output.writeEnumNoTag(catalogEvolutionMode_.get(i));
+    }
     com.google.protobuf.GeneratedMessageV3
       .serializeStringMapTo(
         output,
         internalGetAttributes(),
         AttributesDefaultEntryHolder.defaultEntry,
-        4);
+        5);
     unknownFields.writeTo(output);
   }
 
@@ -359,6 +452,18 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(3, getDescription());
     }
+    {
+      int dataSize = 0;
+      for (int i = 0; i < catalogEvolutionMode_.size(); i++) {
+        dataSize += com.google.protobuf.CodedOutputStream
+          .computeEnumSizeNoTag(catalogEvolutionMode_.get(i));
+      }
+      size += dataSize;
+      if (!getCatalogEvolutionModeList().isEmpty()) {  size += 1;
+        size += com.google.protobuf.CodedOutputStream
+          .computeUInt32SizeNoTag(dataSize);
+      }catalogEvolutionModeMemoizedSerializedSize = dataSize;
+    }
     for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema> entry
          : internalGetAttributes().getMap().entrySet()) {
       com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema>
@@ -367,7 +472,7 @@ private static final long serialVersionUID = 0L;
           .setValue(entry.getValue())
           .build();
       size += com.google.protobuf.CodedOutputStream
-          .computeMessageSize(4, attributes__);
+          .computeMessageSize(5, attributes__);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -393,6 +498,7 @@ private static final long serialVersionUID = 0L;
       if (!getDescription()
           .equals(other.getDescription())) return false;
     }
+    if (!catalogEvolutionMode_.equals(other.catalogEvolutionMode_)) return false;
     if (!internalGetAttributes().equals(
         other.internalGetAttributes())) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
@@ -413,6 +519,10 @@ private static final long serialVersionUID = 0L;
     if (hasDescription()) {
       hash = (37 * hash) + DESCRIPTION_FIELD_NUMBER;
       hash = (53 * hash) + getDescription().hashCode();
+    }
+    if (getCatalogEvolutionModeCount() > 0) {
+      hash = (37 * hash) + CATALOGEVOLUTIONMODE_FIELD_NUMBER;
+      hash = (53 * hash) + catalogEvolutionMode_.hashCode();
     }
     if (!internalGetAttributes().getMap().isEmpty()) {
       hash = (37 * hash) + ATTRIBUTES_FIELD_NUMBER;
@@ -529,7 +639,7 @@ private static final long serialVersionUID = 0L;
     protected com.google.protobuf.MapField internalGetMapField(
         int number) {
       switch (number) {
-        case 4:
+        case 5:
           return internalGetAttributes();
         default:
           throw new RuntimeException(
@@ -540,7 +650,7 @@ private static final long serialVersionUID = 0L;
     protected com.google.protobuf.MapField internalGetMutableMapField(
         int number) {
       switch (number) {
-        case 4:
+        case 5:
           return internalGetMutableAttributes();
         default:
           throw new RuntimeException(
@@ -583,6 +693,8 @@ private static final long serialVersionUID = 0L;
         description_ = null;
         descriptionBuilder_ = null;
       }
+      catalogEvolutionMode_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000001);
       internalGetMutableAttributes().clear();
       return this;
     }
@@ -618,6 +730,11 @@ private static final long serialVersionUID = 0L;
       } else {
         result.description_ = descriptionBuilder_.build();
       }
+      if (((bitField0_ & 0x00000001) != 0)) {
+        catalogEvolutionMode_ = java.util.Collections.unmodifiableList(catalogEvolutionMode_);
+        bitField0_ = (bitField0_ & ~0x00000001);
+      }
+      result.catalogEvolutionMode_ = catalogEvolutionMode_;
       result.attributes_ = internalGetAttributes();
       result.attributes_.makeImmutable();
       onBuilt();
@@ -678,6 +795,16 @@ private static final long serialVersionUID = 0L;
       if (other.hasDescription()) {
         mergeDescription(other.getDescription());
       }
+      if (!other.catalogEvolutionMode_.isEmpty()) {
+        if (catalogEvolutionMode_.isEmpty()) {
+          catalogEvolutionMode_ = other.catalogEvolutionMode_;
+          bitField0_ = (bitField0_ & ~0x00000001);
+        } else {
+          ensureCatalogEvolutionModeIsMutable();
+          catalogEvolutionMode_.addAll(other.catalogEvolutionMode_);
+        }
+        onChanged();
+      }
       internalGetMutableAttributes().mergeFrom(
           other.internalGetAttributes());
       this.mergeUnknownFields(other.unknownFields);
@@ -735,7 +862,7 @@ private static final long serialVersionUID = 0L;
         getNameBytes() {
       java.lang.Object ref = name_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         name_ = b;
@@ -754,7 +881,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       name_ = value;
       onChanged();
       return this;
@@ -764,7 +891,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearName() {
-      
+
       name_ = getDefaultInstance().getName();
       onChanged();
       return this;
@@ -780,7 +907,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       name_ = value;
       onChanged();
       return this;
@@ -801,7 +928,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setVersion(int value) {
-      
+
       version_ = value;
       onChanged();
       return this;
@@ -811,7 +938,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearVersion() {
-      
+
       version_ = 0;
       onChanged();
       return this;
@@ -904,7 +1031,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue description = 3;</code>
      */
     public com.google.protobuf.StringValue.Builder getDescriptionBuilder() {
-      
+
       onChanged();
       return getDescriptionFieldBuilder().getBuilder();
     }
@@ -923,7 +1050,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue description = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getDescriptionFieldBuilder() {
       if (descriptionBuilder_ == null) {
         descriptionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -934,6 +1061,146 @@ private static final long serialVersionUID = 0L;
         description_ = null;
       }
       return descriptionBuilder_;
+    }
+
+    private java.util.List<java.lang.Integer> catalogEvolutionMode_ =
+      java.util.Collections.emptyList();
+    private void ensureCatalogEvolutionModeIsMutable() {
+      if (!((bitField0_ & 0x00000001) != 0)) {
+        catalogEvolutionMode_ = new java.util.ArrayList<java.lang.Integer>(catalogEvolutionMode_);
+        bitField0_ |= 0x00000001;
+      }
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
+     * @return A list containing the catalogEvolutionMode.
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode> getCatalogEvolutionModeList() {
+      return new com.google.protobuf.Internal.ListAdapter<
+          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode>(catalogEvolutionMode_, catalogEvolutionMode_converter_);
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
+     * @return The count of catalogEvolutionMode.
+     */
+    public int getCatalogEvolutionModeCount() {
+      return catalogEvolutionMode_.size();
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
+     * @param index The index of the element to return.
+     * @return The catalogEvolutionMode at the given index.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode getCatalogEvolutionMode(int index) {
+      return catalogEvolutionMode_converter_.convert(catalogEvolutionMode_.get(index));
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
+     * @param index The index to set the value at.
+     * @param value The catalogEvolutionMode to set.
+     * @return This builder for chaining.
+     */
+    public Builder setCatalogEvolutionMode(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensureCatalogEvolutionModeIsMutable();
+      catalogEvolutionMode_.set(index, value.getNumber());
+      onChanged();
+      return this;
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
+     * @param value The catalogEvolutionMode to add.
+     * @return This builder for chaining.
+     */
+    public Builder addCatalogEvolutionMode(io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensureCatalogEvolutionModeIsMutable();
+      catalogEvolutionMode_.add(value.getNumber());
+      onChanged();
+      return this;
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
+     * @param values The catalogEvolutionMode to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllCatalogEvolutionMode(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode> values) {
+      ensureCatalogEvolutionModeIsMutable();
+      for (io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode value : values) {
+        catalogEvolutionMode_.add(value.getNumber());
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearCatalogEvolutionMode() {
+      catalogEvolutionMode_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000001);
+      onChanged();
+      return this;
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
+     * @return A list containing the enum numeric values on the wire for catalogEvolutionMode.
+     */
+    public java.util.List<java.lang.Integer>
+    getCatalogEvolutionModeValueList() {
+      return java.util.Collections.unmodifiableList(catalogEvolutionMode_);
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
+     * @param index The index of the value to return.
+     * @return The enum numeric value on the wire of catalogEvolutionMode at the given index.
+     */
+    public int getCatalogEvolutionModeValue(int index) {
+      return catalogEvolutionMode_.get(index);
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
+     * @param index The index of the value to return.
+     * @return The enum numeric value on the wire of catalogEvolutionMode at the given index.
+     * @return This builder for chaining.
+     */
+    public Builder setCatalogEvolutionModeValue(
+        int index, int value) {
+      ensureCatalogEvolutionModeIsMutable();
+      catalogEvolutionMode_.set(index, value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
+     * @param value The enum numeric value on the wire for catalogEvolutionMode to add.
+     * @return This builder for chaining.
+     */
+    public Builder addCatalogEvolutionModeValue(int value) {
+      ensureCatalogEvolutionModeIsMutable();
+      catalogEvolutionMode_.add(value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
+     * @param values The enum numeric values on the wire for catalogEvolutionMode to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllCatalogEvolutionModeValue(
+        java.lang.Iterable<java.lang.Integer> values) {
+      ensureCatalogEvolutionModeIsMutable();
+      for (int value : values) {
+        catalogEvolutionMode_.add(value);
+      }
+      onChanged();
+      return this;
     }
 
     private com.google.protobuf.MapField<
@@ -963,7 +1230,7 @@ private static final long serialVersionUID = 0L;
       return internalGetAttributes().getMap().size();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 4;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
      */
 
     @java.lang.Override
@@ -981,7 +1248,7 @@ private static final long serialVersionUID = 0L;
       return getAttributesMap();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 4;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
      */
     @java.lang.Override
 
@@ -989,7 +1256,7 @@ private static final long serialVersionUID = 0L;
       return internalGetAttributes().getMap();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 4;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
      */
     @java.lang.Override
 
@@ -1002,7 +1269,7 @@ private static final long serialVersionUID = 0L;
       return map.containsKey(key) ? map.get(key) : defaultValue;
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 4;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
      */
     @java.lang.Override
 
@@ -1023,7 +1290,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 4;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
      */
 
     public Builder removeAttributes(
@@ -1042,7 +1309,7 @@ private static final long serialVersionUID = 0L;
       return internalGetMutableAttributes().getMutableMap();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 4;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
      */
     public Builder putAttributes(
         java.lang.String key,
@@ -1057,7 +1324,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 4;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
      */
 
     public Builder putAllAttributes(

@@ -23,12 +23,14 @@
 
 package io.evitadb.core.query.filter.translator.reference;
 
+import io.evitadb.api.exception.ReferenceNotFoundException;
+import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.core.exception.ReferenceNotFoundException;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -46,9 +48,11 @@ import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import static io.evitadb.utils.Assert.isTrue;
-import static java.util.Optional.ofNullable;
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 
 /**
  * This implementation of {@link FilteringConstraintTranslator} converts {@link EntityPrimaryKeyInSet} to {@link AbstractFormula}.
@@ -73,32 +77,42 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 		if (referencedEntityIndexes.isEmpty()) {
 			return EmptyFormula.INSTANCE;
 		} else {
-			return applySearchOnIndexes(referenceHaving, filterByVisitor, referenceSchema, referencedEntityIndexes);
+			return filterByVisitor.computeOnlyOnce(
+				referencedEntityIndexes,
+				referenceHaving,
+				() -> applySearchOnIndexes(
+					referenceHaving, filterByVisitor, entitySchema, referenceSchema, referencedEntityIndexes
+				)
+			);
 		}
 	}
 
-	private Formula applySearchOnIndexes(
+	@Nonnull
+	private static Formula applySearchOnIndexes(
 		@Nonnull ReferenceHaving filterConstraint,
 		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull List<EntityIndex> referencedEntityIndexes
 	) {
 		final List<Formula> referencedEntityFormulas = new ArrayList<>(referencedEntityIndexes.size());
 		for (EntityIndex referencedEntityIndex : referencedEntityIndexes) {
 			final ProcessingScope processingScope = filterByVisitor.getProcessingScope();
+			final String referenceName = referenceSchema.getName();
 			referencedEntityFormulas.add(
-				filterByVisitor.executeInContext(
+				filterByVisitor.executeInContextAndIsolatedFormulaStack(
 					Collections.singletonList(referencedEntityIndex),
 					ReferenceContent.ALL_REFERENCES,
+					entitySchema,
 					referenceSchema,
 					processingScope.getNestedQueryFormulaEnricher(),
 					processingScope.getEntityNestedQueryComparator(),
-					(theEntitySchema, attributeName) -> FilterByVisitor.getReferenceAttributeSchema(
-						attributeName, ofNullable(theEntitySchema).orElseGet(filterByVisitor::getSchema), referenceSchema
-					),
-					(entityContract, attributeName, locale) -> entityContract.getReferences(referenceSchema.getName()).stream().map(it -> it.getAttributeValue(attributeName, locale)),
+					processingScope.withReferenceSchemaAccessor(referenceName),
+					(entityContract, attributeName, locale) -> entityContract.getReferences(referenceName)
+						.stream()
+						.map(it -> it.getAttributeValue(attributeName, locale)),
 					() -> {
-						filterConstraint.getConstraint().accept(filterByVisitor);
+						getFilterByFormula(filterConstraint).ifPresent(it -> it.accept(filterByVisitor));
 						final Formula[] collectedFormulas = filterByVisitor.getCollectedFormulasOnCurrentLevel();
 						return switch (collectedFormulas.length) {
 							case 0 -> filterByVisitor.getSuperSetFormula();
@@ -116,7 +130,19 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 	}
 
 	@Nonnull
-	private List<EntityIndex> getTargetIndexes(
+	private static Optional<FilterConstraint> getFilterByFormula(@Nonnull ReferenceHaving filterConstraint) {
+		final FilterConstraint[] children = filterConstraint.getChildren();
+		if (children.length == 0) {
+			return empty();
+		} else if (children.length == 1) {
+			return of(children[0]);
+		} else {
+			return of(new And(children));
+		}
+	}
+
+	@Nonnull
+	private static List<EntityIndex> getTargetIndexes(
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull ReferenceHaving referenceHaving
 	) {

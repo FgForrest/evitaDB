@@ -27,14 +27,15 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.filter.FacetInSet;
+import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
+import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.filter.HierarchySpecificationFilterConstraint;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.key.CompressiblePriceKey;
-import io.evitadb.api.requestResponse.extraResult.HierarchyParents;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.DateTimeRange;
@@ -221,7 +222,7 @@ public interface RandomQueryGenerator {
 		}
 
 		return Query.query(
-			existingQuery.getEntities(),
+			existingQuery.getCollection(),
 			existingQuery.getFilterBy(),
 			require(
 				ArrayUtils.mergeArrays(
@@ -273,7 +274,7 @@ public interface RandomQueryGenerator {
 			for (int i = 0; i < 5; i++) {
 				excludedIds[i] = categoryIds.get(Math.abs(rndKey * (i + 1)) % (categoryIds.size()));
 			}
-			specification.add(excluding(excludedIds));
+			specification.add(excluding(entityPrimaryKeyInSet(excludedIds)));
 		} else {
 			excludedIds = null;
 		}
@@ -283,10 +284,14 @@ public interface RandomQueryGenerator {
 			specification.add(directRelation());
 		}
 		final int parentId = categoryIds.get(rndKey % categoryIds.size());
-		hierarchyConstraint = hierarchyWithin(hierarchyEntityType, parentId, specification.toArray(EMPTY_HSFC_ARRAY));
+		hierarchyConstraint = hierarchyWithin(
+			hierarchyEntityType,
+			entityPrimaryKeyInSet(parentId),
+			specification.toArray(EMPTY_HSFC_ARRAY)
+		);
 
 		return Query.query(
-			existingQuery.getEntities(),
+			existingQuery.getCollection(),
 			filterBy(
 				and(
 					ArrayUtils.mergeArrays(
@@ -305,7 +310,7 @@ public interface RandomQueryGenerator {
 	 */
 	default Query generateRandomPriceHistogramQuery(@Nonnull Query existingQuery, @Nonnull Random random) {
 		return Query.query(
-			existingQuery.getEntities(),
+			existingQuery.getCollection(),
 			existingQuery.getFilterBy(),
 			require(
 				ArrayUtils.mergeArrays(
@@ -336,7 +341,7 @@ public interface RandomQueryGenerator {
 				userFilter(
 					selectedFacets.entrySet()
 						.stream()
-						.map(it -> facetInSet(it.getKey(), it.getValue().toArray(new Integer[0])))
+						.map(it -> facetHaving(it.getKey(), entityPrimaryKeyInSet(it.getValue().toArray(new Integer[0]))))
 						.toArray(FilterConstraint[]::new)
 				)
 			),
@@ -347,32 +352,7 @@ public interface RandomQueryGenerator {
 	}
 
 	/**
-	 * Creates randomized query requiring {@link HierarchyParents} computation for passed entity
-	 * schema based on passed set.
-	 */
-	default Query generateRandomParentSummaryQuery(@Nonnull Random random, @Nonnull EntitySchemaContract schema, @Nonnull Set<String> referencedHierarchyEntities, int maxProductId) {
-		final Integer[] requestedPks = new Integer[20];
-		int firstPk = random.nextInt(maxProductId / 2);
-		for (int i = 0; i < requestedPks.length; i++) {
-			requestedPks[i] = firstPk;
-			firstPk += random.nextInt(maxProductId / 40);
-		}
-		return Query.query(
-			collection(schema.getName()),
-			filterBy(
-				entityPrimaryKeyInSet(requestedPks)
-			),
-			require(
-				page(1, 20),
-				hierarchyParentsOfReference(
-					getRandomItems(random, referencedHierarchyEntities).toArray(String[]::new)
-				)
-			)
-		);
-	}
-
-	/**
-	 * Creates randomized query requiring {@link io.evitadb.api.requestResponse.extraResult.HierarchyStatistics} computation for
+	 * Creates randomized query requiring {@link Hierarchy} computation for
 	 * passed entity schema based on passed set.
 	 */
 	default Query generateRandomParentSummaryQuery(@Nonnull Random random, @Nonnull EntitySchemaContract schema, @Nonnull Set<String> referencedHierarchyEntities) {
@@ -383,7 +363,7 @@ public interface RandomQueryGenerator {
 			),
 			require(
 				page(1, 20),
-				hierarchyStatisticsOfReference(pickRandom(random, referencedHierarchyEntities))
+				hierarchyOfReference(pickRandom(random, referencedHierarchyEntities), fromRoot("megaMenu"))
 			)
 		);
 	}
@@ -392,28 +372,28 @@ public interface RandomQueryGenerator {
 	 * Updates randomized query adding a request to facet summary computation juggling inter facet relations.
 	 */
 	default Query generateRandomFacetSummaryQuery(@Nonnull Query existingQuery, @Nonnull Random random, @Nonnull EntitySchemaContract schema, @Nonnull FacetStatisticsDepth depth, @Nonnull Map<String, Map<Integer, Integer>> facetGroupsIndex) {
-		final List<FilterConstraint> facetFilters = FinderVisitor.findConstraints(existingQuery.getFilterBy(), FacetInSet.class::isInstance);
+		final List<FilterConstraint> facetFilters = FinderVisitor.findConstraints(existingQuery.getFilterBy(), FacetHaving.class::isInstance);
 		final List<RequireConstraint> requireConstraints = new LinkedList<>();
 		for (FilterConstraint facetFilter : facetFilters) {
-			final FacetInSet facetInSetConstraint = (FacetInSet) facetFilter;
+			final FacetHaving facetHaving = (FacetHaving) facetFilter;
 			final int dice = random.nextInt(4);
-			final Map<Integer, Integer> entityTypeGroups = facetGroupsIndex.get(facetInSetConstraint.getReferenceName());
-			final Set<Integer> groupIds = Arrays.stream(facetInSetConstraint.getFacetIds())
+			final Map<Integer, Integer> entityTypeGroups = facetGroupsIndex.get(facetHaving.getReferenceName());
+			final Set<Integer> groupIds = Arrays.stream(extractFacetIds(facetHaving))
 				.mapToObj(entityTypeGroups::get)
 				.filter(Objects::nonNull)
 				.collect(Collectors.toSet());
 			if (!groupIds.isEmpty()) {
 				if (dice == 1) {
 					requireConstraints.add(
-						facetGroupsConjunction(facetInSetConstraint.getReferenceName(), getRandomItem(random, groupIds))
+						facetGroupsConjunction(facetHaving.getReferenceName(), filterBy(entityPrimaryKeyInSet(getRandomItem(random, groupIds))))
 					);
 				} else if (dice == 2) {
 					requireConstraints.add(
-						facetGroupsDisjunction(facetInSetConstraint.getReferenceName(), getRandomItem(random, groupIds))
+						facetGroupsDisjunction(facetHaving.getReferenceName(), filterBy(entityPrimaryKeyInSet(getRandomItem(random, groupIds))))
 					);
 				} else if (dice == 3) {
 					requireConstraints.add(
-						facetGroupsNegation(facetInSetConstraint.getReferenceName(), getRandomItem(random, groupIds))
+						facetGroupsNegation(facetHaving.getReferenceName(), filterBy(entityPrimaryKeyInSet(getRandomItem(random, groupIds))))
 					);
 				}
 			}
@@ -1048,6 +1028,21 @@ public interface RandomQueryGenerator {
 		public <T extends Comparable<?> & Serializable> T getSomeValue(@Nonnull Random random) {
 			return (T) randomValues.get(random.nextInt(randomValues.size()));
 		}
+	}
+
+	/**
+	 * Extracts facet primary keys from the constraint.
+	 */
+	@Nonnull
+	static int[] extractFacetIds(@Nonnull FacetHaving facetHavingFilter) {
+		for (FilterConstraint child : facetHavingFilter.getChildren()) {
+			if (child instanceof EntityPrimaryKeyInSet epkis) {
+				return epkis.getPrimaryKeys();
+			} else {
+				throw new IllegalArgumentException("Unsupported constraint in facet filter: " + child);
+			}
+		}
+		return new int[0];
 	}
 
 }

@@ -58,7 +58,7 @@ public class FilterFormulaAttributeOptimizeVisitor extends AbstractFormulaStruct
 	private FilterFormulaAttributeOptimizeVisitor(@Nonnull Set<String> attributeNames) {
 		super(
 			formula -> formula instanceof AttributeFormula &&
-				attributeNames.contains(((AttributeFormula) formula).getAttributeName())
+				attributeNames.contains(((AttributeFormula) formula).getAttributeKey())
 		);
 	}
 

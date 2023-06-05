@@ -35,6 +35,7 @@ import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -45,17 +46,40 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@EqualsAndHashCode(callSuper = true, of = { "children", "additionalChildren" })
+@EqualsAndHashCode(callSuper = true, of = {"children", "additionalChildren"})
 public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseConstraint<T> implements Iterable<T> {
+	protected static final Serializable[] NO_ARGS = new Serializable[0];
+	protected static final RequireConstraint[] NO_CHILDREN = new RequireConstraint[0];
+	protected static final Constraint<?>[] NO_ADDITIONAL_CHILDREN = new Constraint<?>[0];
 	@Serial private static final long serialVersionUID = -446936362470832956L;
-	private static final Serializable[] NO_ARGS = new Serializable[0];
-	private static final Constraint<?>[] NO_ADDITIONAL_CHILDREN = new Constraint<?>[0];
 	private final T[] children;
 	private final Constraint<?>[] additionalChildren;
 
-	protected ConstraintContainer(@Nonnull Serializable[] arguments,
-								  @Nonnull T[] children,
-								  @Nonnull Constraint<?>... additionalChildren) {
+	protected ConstraintContainer(
+		@Nullable String name,
+		@Nonnull Serializable[] arguments,
+		@Nonnull T[] children,
+		@Nonnull Constraint<?>... additionalChildren
+	) {
+		super(name, arguments);
+		this.children = validateAndFilterChildren(children);
+		this.additionalChildren = validateAndFilterAdditionalChildren(additionalChildren);
+	}
+
+	@SafeVarargs
+	protected ConstraintContainer(
+		@Nullable String name,
+		@Nonnull Serializable[] arguments,
+		@Nonnull T... children
+	) {
+		this(name, arguments, children, NO_ADDITIONAL_CHILDREN);
+	}
+
+	protected ConstraintContainer(
+		@Nonnull Serializable[] arguments,
+		@Nonnull T[] children,
+		@Nonnull Constraint<?>... additionalChildren
+	) {
 		super(arguments);
 		this.children = validateAndFilterChildren(children);
 		this.additionalChildren = validateAndFilterAdditionalChildren(additionalChildren);
@@ -104,23 +128,6 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 	}
 
 	/**
-	 * Returns additional child whose type is same or subclass of passed type. Cannot be same type as this container.
-	 * This method should be used only internally to provide access to concrete additional children in implementations.
-	 */
-	@Nullable
-	protected <C extends Constraint<?>> C getAdditionalChild(@Nonnull Class<C> additionalChildType) {
-		if (getType().isAssignableFrom(additionalChildType) ||
-			additionalChildType.isAssignableFrom(getType())) {
-			throw new IllegalArgumentException("Type of additional child must be different from type of children of the main container.");
-		}
-		//noinspection unchecked
-		return (C) Arrays.stream(additionalChildren)
-			.filter(additionalChildType::isInstance)
-			.findFirst()
-			.orElse(null);
-	}
-
-	/**
 	 * Returns all additional children (of different types).
 	 */
 	@Nonnull
@@ -156,7 +163,7 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 	 * Returns copy of this container type with new children and new additional children.
 	 */
 	@Nonnull
-	public abstract T getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren);
+	public abstract T getCopyWithNewChildren(@Nonnull T[] children, @Nonnull Constraint<?>[] additionalChildren);
 
 	@Nonnull
 	@Override
@@ -171,6 +178,23 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 				.flatMap(it -> it)
 				.collect(Collectors.joining(",")) +
 			ARG_CLOSING;
+	}
+
+	/**
+	 * Returns additional child whose type is same or subclass of passed type. Cannot be same type as this container.
+	 * This method should be used only internally to provide access to concrete additional children in implementations.
+	 */
+	@Nullable
+	protected <C extends Constraint<?>> Optional<C> getAdditionalChild(@Nonnull Class<C> additionalChildType) {
+		if (getType().isAssignableFrom(additionalChildType) ||
+			additionalChildType.isAssignableFrom(getType())) {
+			throw new IllegalArgumentException("Type of additional child must be different from type of children of the main container.");
+		}
+		//noinspection unchecked
+		return Arrays.stream(additionalChildren)
+			.filter(additionalChildType::isInstance)
+			.findFirst()
+			.map(it -> (C) it);
 	}
 
 	@Nonnull
@@ -194,8 +218,7 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 
 	@Nonnull
 	private Constraint<?>[] validateAndFilterAdditionalChildren(@Nonnull Constraint<?>[] additionalChildren) {
-		final int additionalChildrenSize = additionalChildren.length;
-		if (additionalChildrenSize == 0) {
+		if (additionalChildren.length == 0) {
 			return additionalChildren;
 		}
 
@@ -203,30 +226,20 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 		final Constraint<?>[] newAdditionalChildren;
 		if (Arrays.stream(additionalChildren).anyMatch(Objects::isNull)) {
 			newAdditionalChildren = Arrays.stream(additionalChildren)
-					.filter(Objects::nonNull)
-					.toArray(Constraint<?>[]::new);
+				.filter(Objects::nonNull)
+				.toArray(size -> new Constraint<?>[size]);
 		} else {
 			newAdditionalChildren = additionalChildren;
 		}
 
 		// validate additional child is not of same type as container and validate that there are distinct children
 		for (int i = 0; i < newAdditionalChildren.length; i++) {
-			final Class<?> additionalChildType = additionalChildren[i].getType();
+			final Class<?> additionalChildType = newAdditionalChildren[i].getType();
 
 			Assert.isTrue(
 				!getType().isAssignableFrom(additionalChildType),
 				"Type of additional child must be different from type of children of the main container."
 			);
-
-			for (int j = i + 1; j < newAdditionalChildren.length; j++) {
-				final Class<?> comparingAdditionalChildType = additionalChildren[j].getType();
-				if (additionalChildType.isAssignableFrom(comparingAdditionalChildType) ||
-					comparingAdditionalChildType.isAssignableFrom(additionalChildType)) {
-					throw new EvitaInvalidUsageException(
-						"There are multiple additional children of same type: " + additionalChildType + " and " + comparingAdditionalChildType
-					);
-				}
-			}
 		}
 
 		return newAdditionalChildren;

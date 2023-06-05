@@ -23,22 +23,20 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
-import io.evitadb.api.requestResponse.data.HierarchicalPlacementContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.HierarchicalPlacementDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
-import io.evitadb.test.tester.GraphQLTester;
-import io.evitadb.server.EvitaServer;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
+import io.evitadb.test.tester.GraphQLTester;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -79,8 +77,8 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 
 	@Override
 	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)
-	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
-		return super.setUpData(evita, evitaServer, 50);
+	protected DataCarrier setUp(Evita evita) {
+		return super.setUpData(evita, 50);
 	}
 
 	@Test
@@ -373,10 +371,10 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE)
 	@DisplayName("Should update category with hierarchical placement mutations")
 	void shouldUpdateCategoryWithHierarchicalPlacementMutations(Evita evita, GraphQLTester tester) {
-		final SealedEntity entityInTree = evita.queryCatalog(
+		final SealedEntity rootEntity = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity rootEntity = session.queryOneSealedEntity(
+				return session.queryOneSealedEntity(
 					query(
 						collection(Entities.CATEGORY),
 						filterBy(
@@ -388,31 +386,37 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 						)
 					)
 				).orElseThrow();
+			}
+		);
+		final SealedEntity entityInTree = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
 				return session.queryOneSealedEntity(
 					query(
 						collection(Entities.CATEGORY),
 						filterBy(
-							hierarchyWithinSelf(rootEntity.getPrimaryKey(), directRelation())
+							hierarchyWithinSelf(
+								entityPrimaryKeyInSet(rootEntity.getPrimaryKey()),
+								directRelation()
+							)
 						),
 						require(
-							strip(0, 1),
+							strip(1, 1),
 							entityFetch()
 						)
 					)
-				);
+				).orElseThrow();
 			}
-		).orElseThrow();
+		);
 
-		assertTrue(entityInTree.getHierarchicalPlacement().isPresent());
+		assertTrue(rootEntity.getParent().isEmpty());
+		assertEquals(rootEntity.getPrimaryKey(), entityInTree.getParent().orElseThrow());
 
-		final HierarchicalPlacementContract hierarchicalPlacementContract = entityInTree.getHierarchicalPlacement().orElseThrow();
-		final Map<String, Object> expectedBodyWithHierarchicalPlacement = map()
-			.e(EntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
-			.e(EntityDescriptor.HIERARCHICAL_PLACEMENT.name(), map()
-				.e(HierarchicalPlacementDescriptor.ORDER_AMONG_SIBLINGS.name(), hierarchicalPlacementContract.getOrderAmongSiblings() + 10)
-				.build())
+		// remove existing parent reference
+		final Map<String, Object> expectedBodyWithoutParent = map()
+			.e(GraphQLEntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
+			.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), null)
 			.build();
-
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
@@ -422,55 +426,12 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	                        entityExistence: MUST_EXIST
 	                        mutations: [
 	                            {
-	                                setHierarchicalPlacementMutation: {
-	                                    orderAmongSiblings: %d
-	                                }
+	                                removeParentMutation: true
 	                            }
 	                        ]
                         ) {
 	                        primaryKey
-	                        hierarchicalPlacement {
-	                            orderAmongSiblings
-	                        }
-	                    }
-	                }
-					""",
-				entityInTree.getPrimaryKey(),
-				hierarchicalPlacementContract.getOrderAmongSiblings() + 10
-			)
-			.executeAndThen()
-			.statusCode(200)
-			.body(ERRORS_PATH, nullValue())
-			.body(
-				UPSERT_CATEGORY_PATH,
-				equalTo(
-					expectedBodyWithHierarchicalPlacement
-				)
-			);
-		assertHierarchicalPlacement(tester, entityInTree.getPrimaryKey(), expectedBodyWithHierarchicalPlacement);
-
-		final Map<String, Object> expectedBodyAfterRemoving = map()
-			.e(EntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
-			.e(EntityDescriptor.HIERARCHICAL_PLACEMENT.name(), null)
-			.build();
-
-		tester.test(TEST_CATALOG)
-			.document(
-				"""
-	                mutation {
-	                    upsertCategory(
-	                        primaryKey: %d
-	                        entityExistence: MUST_EXIST
-	                        mutations: [
-	                            {
-	                                removeHierarchicalPlacementMutation: true
-	                            }
-	                        ]
-                        ) {
-	                        primaryKey
-	                        hierarchicalPlacement {
-	                            orderAmongSiblings
-	                        }
+	                        parentPrimaryKey
 	                    }
 	                }
 					""",
@@ -479,8 +440,42 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(UPSERT_CATEGORY_PATH, equalTo(expectedBodyAfterRemoving));
-		assertHierarchicalPlacement(tester, entityInTree.getPrimaryKey(), expectedBodyAfterRemoving);
+			.body(UPSERT_CATEGORY_PATH, equalTo(expectedBodyWithoutParent));
+		assertParentPrimaryKey(tester, entityInTree.getPrimaryKey(), expectedBodyWithoutParent);
+
+		// revert original parent
+		final Map<String, Object> expectedBodyReverted = map()
+			.e(GraphQLEntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
+			.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), null)
+			.build();
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                mutation {
+	                    upsertCategory(
+	                        primaryKey: %d
+	                        entityExistence: MUST_EXIST
+	                        mutations: [
+	                            {
+	                                setParentMutation: {
+	                                    parentPrimaryKey: %d
+	                                }
+	                            }
+	                        ]
+                        ) {
+	                        primaryKey
+	                        parentPrimaryKey
+	                    }
+	                }
+					""",
+				entityInTree.getPrimaryKey(),
+				rootEntity.getPrimaryKey()
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(UPSERT_CATEGORY_PATH, equalTo(expectedBodyReverted));
+		assertParentPrimaryKey(tester, entityInTree.getPrimaryKey(), expectedBodyReverted);
 	}
 
 	@Test
@@ -922,7 +917,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				session.getEntity(Entities.PRODUCT, entity.getPrimaryKey(), referenceContent())
+				session.getEntity(Entities.PRODUCT, entity.getPrimaryKey(), referenceContentAll())
 					.orElseThrow()
 					.openForWrite()
 					.removeReference(REFERENCE_BRAND_WITH_GROUP, 1)
@@ -935,7 +930,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity updatedEntity = session.getEntity(Entities.PRODUCT, primaryKey, referenceContent())
+				final SealedEntity updatedEntity = session.getEntity(Entities.PRODUCT, primaryKey, referenceContentAll())
 					.orElseThrow();
 				assertEquals(
 					groupEntityReference,
@@ -946,16 +941,14 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	}
 
 
-	private void assertHierarchicalPlacement(@Nonnull GraphQLTester tester, int primaryKey, @Nonnull Map<String, Object> expectedBodyAfterRemoving) {
+	private void assertParentPrimaryKey(@Nonnull GraphQLTester tester, int primaryKey, @Nonnull Map<String, Object> expectedBodyAfterRemoving) {
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
 	                    getCategory(primaryKey: %d) {
 	                        primaryKey
-	                        hierarchicalPlacement {
-	                            orderAmongSiblings
-	                        }
+	                        parentPrimaryKey
 	                    }
 	                }
 					""",

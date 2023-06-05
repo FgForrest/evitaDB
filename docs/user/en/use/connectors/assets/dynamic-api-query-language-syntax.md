@@ -1,5 +1,3 @@
-### Syntax of query and constraints
-
 <UsedTerms>
     <h4>Used terms</h4>
    <dl>
@@ -11,10 +9,10 @@
    </dl>
 </UsedTerms>
 
-A [query](https://evitadb.io/documentation/query/basics#grammar), although custom for each [collection](https://evitadb.io/documentation/use/data-model#collection), has
+A [query](/docs/user/en/query/basics.md#grammar), although custom for each [collection](/docs/user/en/use/data-model.md#collection), has
 a predefined set of rules/structure. It is basically a tree of individual constraints that ultimately define how
 the queried data will be filtered, ordered and returned.
-The basic constraints are the same as for the evitaDB [query language](https://evitadb.io/documentation/query/basics), but
+The basic constraints are the same as for the evitaDB [query language](/docs/user/en/query/basics.md), but
 they are written differently and not every single one may be available for your domain-specific data types. There are two main
 reasons for this: the first one is that we want to help the user as much as possible
 with code completion, so we use dynamically generated queries, the second one is due to the limitations of JSON
@@ -53,13 +51,17 @@ The **property type** defines where the query processor will look for data to co
 
 - `generic` - generic constraint that typically doesn't work with concrete data, it's more for containers like `and`, `or` or `not`
     - for simplicity, this property type is not written in the key of an actual constraint
-- `entity` - handles properties directly accessible from an [entity](https://evitadb.io/documentation/use/data-model#entity) like the `primary key`
-- `attribute` - can operate on an entity’s [attribute values](https://evitadb.io/documentation/use/data-model#attributes-unique-filterable-sortable-localized)
-- `associatedData` - can operate on an entity’s [associated data values](https://evitadb.io/documentation/use/data-model#associated-data)
-- `price` - can operate on entity [prices](https://evitadb.io/documentation/use/data-model#prices)
-- `reference` - can operate on entity [references](https://evitadb.io/documentation/use/data-model#references)
-- `hierarchy` - can operate on an entity’s [hierarchical data](https://evitadb.io/documentation/use/data-model#hierarchical-placement) (the hierarchical data may be even referenced from other entities)
-- `facet` - can operate on referenced [facets](https://evitadb.io/documentation/use/data-model#references) to an entity
+- `entity` - handles properties directly accessible from an [entity](/docs/user/en/use/data-model.md#entity) like the `primary key`
+- `attribute` - can operate on an entity’s [attribute values](/docs/user/en/use/data-model.md#attributes-unique-filterable-sortable-localized)
+- `associatedData` - can operate on an entity’s [associated data values](/docs/user/en/use/data-model.md#associated-data)
+- `price` - can operate on entity [prices](/docs/user/en/use/data-model.md#prices)
+- `reference` - can operate on entity [references](/docs/user/en/use/data-model.md#references)
+- `hierarchy` - can operate on an entity’s [hierarchical data](/docs/user/en/use/data-model.md#hierarchical-placement) (the hierarchical data may be even referenced from other entities)
+- `facet` - can operate on referenced [facets](/docs/user/en/use/data-model.md#references) to an entity
+
+In some special case, the property type can be omitted and represent other property type than `generic`. This is usually
+when we have child constraints that are valid only in specific parent with same domain and so on. This is only to provide
+better DX.
 
 The **classifier** specifies exactly which data of the specified property type the constraint will operate on, if supported by the
 property type. This is used e.g.
@@ -73,7 +75,7 @@ data with data in the database).
 
 
 All possible parts combinations are:
-```
+```plain
 {constraint name} -> `and` (only usable for generic constraints)
 {property type}{constraint name} -> `hierarchyWithinSelf` (in this case the classifier of used hierarchy is implicitly defined by rest of a query)
 {property type}{classifier}{constraint name} -> `attributeCodeEquals` (key with all metadata)
@@ -156,7 +158,9 @@ filterBy: {
       {
          attributeCodeStartsWith: "ipho",
          hierarchyCategoryWithin: {
-            parentOf: 20
+            ofParent: {
+                entityPrimaryKeyInSet: [20]
+            }
          },
          priceBetween: ["100.0", "250.0"]
       }
@@ -174,7 +178,7 @@ filterBy: {
 </NoteTitle>
 
 We have written a whole [blog post](https://evitadb.io/blog/02-designing-evita-query-language-for-graphql-api) about how we
-approached the whole issue of representing the [evitaDB query language](https://evitadb.io/documentation/query/basics) in
+approached the whole issue of representing the [evitaDB query language](/docs/user/en/query/basics.md) in
 the APIs, the possible syntax variants, limitations of JSON, etc.
 
 </Note>

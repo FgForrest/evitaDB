@@ -98,12 +98,12 @@
 		"title": "Filtering",
 		"children": [
 		  {
-			"title": "Bitwise",
-			"path": "/query/filtering/bitwise.md"
+			"title": "Constant",
+			"path": "/query/filtering/constant.md"
 		  },
 		  {
-			"title": "Boolean",
-			"path": "/query/filtering/boolean.md"
+			"title": "Logical",
+			"path": "/query/filtering/logical.md"
 		  },
 		  {
 			"title": "Comparable",
@@ -134,14 +134,18 @@
 			"path": "/query/filtering/hierarchy.md"
 		  },
 		  {
-			"title": "Facet",
-			"path": "/query/filtering/facet.md"
+			"title": "Special",
+			"path": "/query/filtering/special.md"
 		  }
 		]
 	  },
 	  {
 		"title": "Ordering",
 		"children": [
+		  {
+			"title": "Constant",
+			"path": "/query/ordering/constant.md"
+		  },
 		  {
 			"title": "Natural",
 			"path": "/query/ordering/natural.md"
@@ -244,6 +248,10 @@
   {
 	"title": "Solve",
 	"children" : [
+	  {
+		"title": "Routing",
+		"path" : "/solve/routing.md"
+	  },
 	  {
 		"title": "Render category menu",
 		"path" : "/solve/render-category-menu.md"

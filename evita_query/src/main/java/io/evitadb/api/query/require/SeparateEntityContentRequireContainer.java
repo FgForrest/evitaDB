@@ -26,9 +26,10 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.RequireConstraint;
 
 /**
- * This interface must be implemented by all {@link Require} constraints that allow defining custom {@link EntityContentRequire}
- * in their body. By implementing this interface they declare, that they define new separate context for entity content
- * requirement specification that should not be mistaken with the global requirement context.
+ * This interface must be implemented by all {@link RequireConstraint} constraints that allow defining custom
+ * {@link EntityContentRequire} in their body. By implementing this interface they declare, that they define new
+ * separate context for entity content requirement specification that should not be mistaken with the global requirement
+ * context.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

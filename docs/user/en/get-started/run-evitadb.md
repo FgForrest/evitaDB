@@ -62,14 +62,14 @@ To integrate evitaDB into your project, use the following steps:
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_db</artifactId>
-    <version>0.5-SNAPSHOT</version>
+    <version>0.6-SNAPSHOT</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_db:0.5-SNAPSHOT'
+implementation 'io.evitadb:evita_db:0.6-SNAPSHOT'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -81,8 +81,8 @@ and keep the reference around so that your application can call it when needed.
 The <SourceClass>evita_engine/src/main/java/io/evitadb/core/Evita.java</SourceClass> is expensive because it loads all
 the indexes into memory when it starts.
 
-<SourceCodeTabs requires="docs/blog/en/examples/client-setup">
-[Example of web API enabling in Java](docs/user/en/get-started/example/server-startup.java)
+<SourceCodeTabs>
+[Example of web API enabling in Java](/docs/user/en/get-started/example/server-startup.java)
 </SourceCodeTabs>
 
 <Note type="warning">
@@ -107,14 +107,14 @@ exception when you enable the corresponding API in evitaDB's configuration.
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_grpc</artifactId>
-    <version>0.5-SNAPSHOT</version>
+    <version>0.6-SNAPSHOT</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_grpc:0.5-SNAPSHOT'
+implementation 'io.evitadb:evita_external_api_grpc:0.6-SNAPSHOT'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -127,14 +127,14 @@ implementation 'io.evitadb:evita_external_api_grpc:0.5-SNAPSHOT'
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_graphql</artifactId>
-    <version>0.5-SNAPSHOT</version>
+    <version>0.6-SNAPSHOT</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_graphql:0.5-SNAPSHOT'
+implementation 'io.evitadb:evita_external_api_graphql:0.6-SNAPSHOT'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -147,14 +147,14 @@ implementation 'io.evitadb:evita_external_api_graphql:0.5-SNAPSHOT'
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_rest</artifactId>
-    <version>0.5-SNAPSHOT</version>
+    <version>0.6-SNAPSHOT</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_rest:0.5-SNAPSHOT'
+implementation 'io.evitadb:evita_external_api_rest:0.6-SNAPSHOT'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -165,8 +165,8 @@ The evitaDB web APIs are maintained by a separate class <SourceClass>evita_exter
 You must instantiate and configure this class and pass it a reference to the
 <SourceClass>evita_engine/src/main/java/io/evitadb/core/Evita.java</SourceClass> instance:
 
-<SourceCodeTabs>    
-[Example of web API startup in Java](docs/user/en/get-started/example/api-startup.java)
+<SourceCodeTabs requires="/docs/user/en/get-started/example/server-startup.java">    
+[Example of web API startup in Java](/docs/user/en/get-started/example/api-startup.java)
 </SourceCodeTabs>
 
 <Note type="warning">
@@ -174,14 +174,15 @@ Don't forget to close the APIs when your application ends by calling the `close`
 the <SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/ExternalApiServer.java</SourceClass>
 instance. One of the options is to listen to Java process termination:
 
-```java
-Runtime.getRuntime().addShutdownHook(new Thread(externalApiServer::close));
-```
+<SourceCodeTabs requires="/docs/user/en/get-started/example/api-startup.java">    
+[Example of web API teardown in Java](/docs/user/en/get-started/example/server-teardown.java)
+</SourceCodeTabs>
+
 </Note>
 
 You should see the following information logged to the console when you start the API web server:
 
-```
+```plain
 Root CA Certificate fingerprint:        CERTIFICATE AUTHORITY FINGERPRINT
 API `gRPC` listening on                 https://your-domain:5556/
 API `graphQL` listening on              https://your-domain:5555/gql/
@@ -211,7 +212,7 @@ index.docker.io/evitadb/evitadb:latest
 
 When you start the evitaDB server you should see the following information in the console output:
 
-```
+```plain
             _ _        ____  ____  
   _____   _(_) |_ __ _|  _ \| __ ) 
  / _ \ \ / / | __/ _` | | | |  _ \ 

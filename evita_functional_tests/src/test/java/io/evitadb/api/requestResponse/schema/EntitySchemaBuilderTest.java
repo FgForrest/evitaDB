@@ -41,6 +41,7 @@ import org.junit.jupiter.api.Test;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -58,6 +59,7 @@ class EntitySchemaBuilderTest {
 	private final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
 		APITestConstants.TEST_CATALOG,
 		NamingConvention.generate(APITestConstants.TEST_CATALOG),
+		EnumSet.allOf(CatalogEvolutionMode.class),
 		entityType -> {
 			if (entityType.equals(productSchema.getName())) {
 				return productSchema;

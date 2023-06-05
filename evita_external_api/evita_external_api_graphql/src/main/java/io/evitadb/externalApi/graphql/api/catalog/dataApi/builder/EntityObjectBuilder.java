@@ -30,34 +30,43 @@ import graphql.schema.GraphQLInputType;
 import graphql.schema.GraphQLInterfaceType;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLOutputType;
+import graphql.schema.GraphQLType;
+import io.evitadb.api.query.require.HierarchyStopAt;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.HierarchicalPlacementDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.FilterConstraintSchemaBuilder;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.GraphQLConstraintSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.OrderConstraintSchemaBuilder;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.AssociatedDataFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.AttributesFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.PriceFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.PriceForSaleFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.PricesFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.ReferenceFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.*;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AssociatedDataFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AttributesFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ParentsFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PricesFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferenceFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.BigDecimalDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity.*;
 import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInterfaceTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLObjectTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLArgumentTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLFieldTransformer;
-import lombok.RequiredArgsConstructor;
+import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -65,13 +74,13 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
 import static graphql.schema.GraphQLList.list;
 import static graphql.schema.GraphQLNonNull.nonNull;
 import static graphql.schema.GraphQLTypeReference.typeRef;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.TYPE_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_CURRENCY_ENUM;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_LOCALE_ENUM;
 
@@ -80,7 +89,6 @@ import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRoo
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@RequiredArgsConstructor
 public class EntityObjectBuilder {
 
 	private static final PriceBigDecimalFieldDecorator PRICE_FIELD_DECORATOR = new PriceBigDecimalFieldDecorator();
@@ -88,11 +96,35 @@ public class EntityObjectBuilder {
 	@Nonnull private final CatalogGraphQLSchemaBuildingContext buildingContext;
 	@Nonnull private final FilterConstraintSchemaBuilder filterConstraintSchemaBuilder;
 	@Nonnull private final OrderConstraintSchemaBuilder orderConstraintSchemaBuilder;
+	@Nonnull private final RequireConstraintSchemaBuilder hierarchyRequireConstraintSchemaBuilder;
 	@Nonnull private final ObjectMapper cdoObjectMapper;
 	@Nonnull private final PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToGraphQLInterfaceTransformer interfaceBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer;
 	@Nonnull private final PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer;
+
+	public EntityObjectBuilder(@Nonnull CatalogGraphQLSchemaBuildingContext buildingContext,
+							   @Nonnull GraphQLConstraintSchemaBuildingContext constraintSchemaBuildingContext,
+	                           @Nonnull FilterConstraintSchemaBuilder filterConstraintSchemaBuilder,
+	                           @Nonnull OrderConstraintSchemaBuilder orderConstraintSchemaBuilder,
+	                           @Nonnull ObjectMapper cdoObjectMapper,
+	                           @Nonnull PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer,
+	                           @Nonnull ObjectDescriptorToGraphQLInterfaceTransformer interfaceBuilderTransformer,
+	                           @Nonnull ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer,
+	                           @Nonnull PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer) {
+		this.buildingContext = buildingContext;
+		this.filterConstraintSchemaBuilder = filterConstraintSchemaBuilder;
+		this.orderConstraintSchemaBuilder = orderConstraintSchemaBuilder;
+		this.hierarchyRequireConstraintSchemaBuilder = RequireConstraintSchemaBuilder.forHierarchyRequire(
+			constraintSchemaBuildingContext,
+			new AtomicReference<>(filterConstraintSchemaBuilder)
+		);
+		this.cdoObjectMapper = cdoObjectMapper;
+		this.argumentBuilderTransformer = argumentBuilderTransformer;
+		this.interfaceBuilderTransformer = interfaceBuilderTransformer;
+		this.objectBuilderTransformer = objectBuilderTransformer;
+		this.fieldBuilderTransformer = fieldBuilderTransformer;
+	}
 
 	public void buildCommonTypes() {
 		buildingContext.registerType(EntityDescriptor.THIS_ENTITY_REFERENCE.to(objectBuilderTransformer).build());
@@ -104,72 +136,102 @@ public class EntityObjectBuilder {
 			new EntityDtoTypeResolver(buildingContext.getEntityTypeToEntityObject())
 		);
 
-		buildingContext.registerType(HierarchicalPlacementDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(buildPriceObject());
 	}
 
 	@Nonnull
 	public GraphQLObjectType build(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
+		return build(collectionBuildingContext, EntityObjectVersion.DEFAULT);
+	}
+
+
+	@Nonnull
+	public GraphQLObjectType build(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
+	                               @Nonnull EntityObjectVersion version) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
 		// build specific entity object
-		final GraphQLObjectType.Builder entityObjectBuilder = EntityDescriptor.THIS
+		final ObjectDescriptor entityDescriptor = switch (version) {
+			case DEFAULT -> GraphQLEntityDescriptor.THIS;
+			case NON_HIERARCHICAL -> GraphQLEntityDescriptor.THIS_NON_HIERARCHICAL;
+			default -> throw new GraphQLSchemaBuildingError("Unsupported version `" + version + "`.");
+		};
+		final String objectName = entityDescriptor.name(entitySchema);
+		final GraphQLObjectType.Builder entityObjectBuilder = entityDescriptor
 			.to(objectBuilderTransformer)
-			.name(entitySchema.getNameVariant(TYPE_NAME_NAMING_CONVENTION))
+			.name(objectName)
 			.description(entitySchema.getDescription())
-			.withInterface(typeRef(EntityDescriptor.THIS_INTERFACE.name()));
+			.withInterface(typeRef(GraphQLEntityDescriptor.THIS_INTERFACE.name()));
 
 		// build locale fields
 		if (!entitySchema.getLocales().isEmpty()) {
-			entityObjectBuilder.field(EntityDescriptor.LOCALES.to(fieldBuilderTransformer));
-			entityObjectBuilder.field(EntityDescriptor.ALL_LOCALES.to(fieldBuilderTransformer));
+			entityObjectBuilder.field(GraphQLEntityDescriptor.LOCALES.to(fieldBuilderTransformer));
+			entityObjectBuilder.field(GraphQLEntityDescriptor.ALL_LOCALES.to(fieldBuilderTransformer));
 		}
 
-		// build hierarchy placement field
+		// build hierarchy fields
 		if (entitySchema.isWithHierarchy()) {
-			entityObjectBuilder.field(EntityDescriptor.HIERARCHICAL_PLACEMENT.to(fieldBuilderTransformer));
+			buildingContext.registerFieldToObject(
+				objectName,
+				entityObjectBuilder,
+				buildEntityParentPrimaryKeyField()
+			);
+
+			if (version == EntityObjectVersion.DEFAULT) {
+				buildingContext.registerFieldToObject(
+					objectName,
+					entityObjectBuilder,
+					buildEntityParentsField(collectionBuildingContext)
+				);
+			}
 		}
 
 		// build price fields
 		if (!entitySchema.getCurrencies().isEmpty()) {
-			collectionBuildingContext.registerEntityField(
+			buildingContext.registerFieldToObject(
+				objectName,
 				entityObjectBuilder,
 				buildEntityPriceForSaleField(collectionBuildingContext)
 			);
 
-			collectionBuildingContext.registerEntityField(
+			buildingContext.registerFieldToObject(
+				objectName,
 				entityObjectBuilder,
 				buildEntityPriceField(collectionBuildingContext)
 			);
 
-			collectionBuildingContext.registerEntityField(
+			buildingContext.registerFieldToObject(
+				objectName,
 				entityObjectBuilder,
 				buildEntityPricesField(collectionBuildingContext)
 			);
 
-			entityObjectBuilder.field(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.to(fieldBuilderTransformer));
+			entityObjectBuilder.field(GraphQLEntityDescriptor.PRICE_INNER_RECORD_HANDLING.to(fieldBuilderTransformer));
 		}
 
 		// build attributes
 		if (!entitySchema.getAttributes().isEmpty()) {
-			collectionBuildingContext.registerEntityField(
+			buildingContext.registerFieldToObject(
+				objectName,
 				entityObjectBuilder,
-				buildEntityAttributesField(collectionBuildingContext)
+				buildEntityAttributesField(collectionBuildingContext, version)
 			);
 		}
 
 		// build associated data fields
 		if (!entitySchema.getAssociatedData().isEmpty()) {
-			collectionBuildingContext.registerEntityField(
+			buildingContext.registerFieldToObject(
+				objectName,
 				entityObjectBuilder,
-				buildEntityAssociatedDataField(collectionBuildingContext)
+				buildEntityAssociatedDataField(collectionBuildingContext, version)
 			);
 		}
 
 		// build reference fields
 		if (!entitySchema.getReferences().isEmpty()) {
-			final List<BuiltFieldDescriptor> referenceFieldDescriptors = buildEntityReferenceFields(collectionBuildingContext);
-			referenceFieldDescriptors.forEach(referenceFieldDescriptor -> collectionBuildingContext.registerEntityField(
+			final List<BuiltFieldDescriptor> referenceFieldDescriptors = buildEntityReferenceFields(collectionBuildingContext, version);
+			referenceFieldDescriptors.forEach(referenceFieldDescriptor -> buildingContext.registerFieldToObject(
+				objectName,
 				entityObjectBuilder,
 				referenceFieldDescriptor
 			));
@@ -179,10 +241,42 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
+	private BuiltFieldDescriptor buildEntityParentPrimaryKeyField() {
+		return new BuiltFieldDescriptor(
+			GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.to(fieldBuilderTransformer).build(),
+			new ParentPrimaryKeyDataFetcher()
+		);
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildEntityParentsField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
+		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
+
+		final DataLocator selfHierarchyConstraintDataLocator = new HierarchyDataLocator(entitySchema.getName());
+		final GraphQLInputType stopAtConstraint = hierarchyRequireConstraintSchemaBuilder.build(
+			selfHierarchyConstraintDataLocator,
+			HierarchyStopAt.class
+		);
+
+		final GraphQLFieldDefinition field = GraphQLEntityDescriptor.PARENTS
+			.to(fieldBuilderTransformer)
+			.type(list(nonNull(typeRef(GraphQLEntityDescriptor.THIS_NON_HIERARCHICAL.name(entitySchema)))))
+			.argument(ParentsFieldHeaderDescriptor.STOP_AT
+				.to(argumentBuilderTransformer)
+				.type(stopAtConstraint))
+			.build();
+
+		return new BuiltFieldDescriptor(
+			field,
+			new ParentsDataFetcher()
+		);
+	}
+
+	@Nonnull
 	private BuiltFieldDescriptor buildEntityPriceForSaleField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
-		final GraphQLFieldDefinition field = EntityDescriptor.PRICE_FOR_SALE
+		final GraphQLFieldDefinition field = GraphQLEntityDescriptor.PRICE_FOR_SALE
 			.to(fieldBuilderTransformer)
 			.argument(PriceForSaleFieldHeaderDescriptor.PRICE_LIST
 				.to(argumentBuilderTransformer))
@@ -205,7 +299,7 @@ public class EntityObjectBuilder {
 	private BuiltFieldDescriptor buildEntityPriceField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
-		final GraphQLFieldDefinition field = EntityDescriptor.PRICE
+		final GraphQLFieldDefinition field = GraphQLEntityDescriptor.PRICE
 			.to(fieldBuilderTransformer)
 			.argument(PriceFieldHeaderDescriptor.PRICE_LIST
 				.to(argumentBuilderTransformer))
@@ -224,7 +318,7 @@ public class EntityObjectBuilder {
 	private BuiltFieldDescriptor buildEntityPricesField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
-		final GraphQLFieldDefinition field = EntityDescriptor.PRICES
+		final GraphQLFieldDefinition field = GraphQLEntityDescriptor.PRICES
 			.to(fieldBuilderTransformer)
 			.argument(PricesFieldHeaderDescriptor.PRICE_LISTS
 				.to(argumentBuilderTransformer))
@@ -240,14 +334,19 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildEntityAttributesField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
+	private BuiltFieldDescriptor buildEntityAttributesField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
+	                                                        @Nonnull EntityObjectVersion version) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-		final GraphQLObjectType attributesObject = buildAttributesObject(
-			entitySchema.getAttributes().values(),
-			AttributesDescriptor.THIS.name(entitySchema)
-		);
+		final GraphQLType attributesObject = switch (version) {
+			case DEFAULT -> buildAttributesObject(
+				entitySchema.getAttributes().values(),
+				AttributesDescriptor.THIS.name(entitySchema)
+			);
+			case NON_HIERARCHICAL -> typeRef(AttributesDescriptor.THIS.name(entitySchema));
+			default -> throw new GraphQLSchemaBuildingError("Unsupported version `" + version + "`.");
+		};
 
-		final GraphQLFieldDefinition.Builder attributesFieldBuilder = EntityDescriptor.ATTRIBUTES
+		final GraphQLFieldDefinition.Builder attributesFieldBuilder = GraphQLEntityDescriptor.ATTRIBUTES
 			.to(fieldBuilderTransformer)
 			.type(nonNull(attributesObject));
 
@@ -312,11 +411,16 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildEntityAssociatedDataField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
+	private BuiltFieldDescriptor buildEntityAssociatedDataField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
+	                                                            @Nonnull EntityObjectVersion version) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-		final GraphQLObjectType associatedDataObject = buildAssociatedDataObject(collectionBuildingContext);
+		final GraphQLType associatedDataObject = switch (version) {
+			case DEFAULT -> buildAssociatedDataObject(collectionBuildingContext);
+			case NON_HIERARCHICAL -> typeRef(AssociatedDataDescriptor.THIS.name(collectionBuildingContext.getSchema()));
+			default -> throw new GraphQLSchemaBuildingError("Unsupported version `" + version + "`.");
+		};
 
-		final GraphQLFieldDefinition.Builder associatedDataFieldBuilder = EntityDescriptor.ASSOCIATED_DATA
+		final GraphQLFieldDefinition.Builder associatedDataFieldBuilder = GraphQLEntityDescriptor.ASSOCIATED_DATA
 			.to(fieldBuilderTransformer)
 			.type(nonNull(associatedDataObject));
 
@@ -383,12 +487,17 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
-	private List<BuiltFieldDescriptor> buildEntityReferenceFields(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
+	private List<BuiltFieldDescriptor> buildEntityReferenceFields(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
+	                                                              @Nonnull EntityObjectVersion version) {
 		final Collection<ReferenceSchemaContract> referenceSchemas = collectionBuildingContext.getSchema().getReferences().values();
 
 		return referenceSchemas.stream()
 			.map(referenceSchema -> {
-				final GraphQLObjectType referenceObject = buildReferenceObject(collectionBuildingContext, referenceSchema);
+				final GraphQLOutputType referenceObject = switch (version) {
+					case DEFAULT -> buildReferenceObject(collectionBuildingContext, referenceSchema);
+					case NON_HIERARCHICAL -> typeRef(ReferenceDescriptor.THIS.name(collectionBuildingContext.getSchema(), referenceSchema));
+					default -> throw new GraphQLSchemaBuildingError("Unsupported version `" + version + "`.");
+				};
 
 				final ReferenceDataLocator referenceDataLocator = new ReferenceDataLocator(
 					collectionBuildingContext.getSchema().getName(),
@@ -532,9 +641,9 @@ public class EntityObjectBuilder {
 	@Nonnull
 	private static GraphQLOutputType buildReferencedEntityObject(@Nullable EntitySchemaContract referencedEntitySchema) {
 		if (referencedEntitySchema != null) {
-			return typeRef(EntityDescriptor.THIS.name(referencedEntitySchema));
+			return typeRef(GraphQLEntityDescriptor.THIS.name(referencedEntitySchema));
 		} else {
-			return typeRef(EntityDescriptor.THIS_ENTITY_REFERENCE.name());
+			return typeRef(GraphQLEntityDescriptor.THIS_ENTITY_REFERENCE.name());
 		}
 	}
 
@@ -563,5 +672,20 @@ public class EntityObjectBuilder {
 			.field(PriceDescriptor.PRICE_WITH_TAX.to(fieldBuilderTransformer.with(PRICE_FIELD_DECORATOR)))
 			.field(PriceDescriptor.TAX_RATE.to(fieldBuilderTransformer.with(PRICE_FIELD_DECORATOR)))
 			.build();
+	}
+
+	/**
+	 * Defines if entity object will have all possible fields for specified schema or there will be some restrictions.
+	 */
+	public enum EntityObjectVersion {
+		/**
+		 * Full entity object with all possible fields.
+		 */
+		DEFAULT,
+		/**
+		 * Restricted entity object which is same as {@link #DEFAULT} only without list of parent entities so that it
+		 * cannot form recursive structure.
+		 */
+		NON_HIERARCHICAL
 	}
 }

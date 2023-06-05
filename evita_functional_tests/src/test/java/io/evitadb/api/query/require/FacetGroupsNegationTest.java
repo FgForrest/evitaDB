@@ -25,7 +25,9 @@ package io.evitadb.api.query.require;
 
 import org.junit.jupiter.api.Test;
 
+import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.facetGroupsNegation;
+import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -37,37 +39,36 @@ class FacetGroupsNegationTest {
 
 	@Test
 	void shouldCreateViaFactoryClassWorkAsExpected() {
-		final FacetGroupsNegation facetGroupsNegation = facetGroupsNegation("brand", 1, 5, 7);
+		final FacetGroupsNegation facetGroupsNegation = facetGroupsNegation("brand", filterBy(entityPrimaryKeyInSet(1, 5, 7)));
 		assertEquals("brand", facetGroupsNegation.getReferenceName());
-		assertArrayEquals(new int[]{1, 5, 7}, facetGroupsNegation.getFacetGroups());
+		assertEquals(filterBy(entityPrimaryKeyInSet(1, 5, 7)), facetGroupsNegation.getFacetGroups());
 	}
 
 	@Test
 	void shouldRecognizeApplicability() {
-		assertFalse(new FacetGroupsNegation(null).isApplicable());
-		assertFalse(new FacetGroupsNegation("brand").isApplicable());
-		assertTrue(facetGroupsNegation("brand", 1).isApplicable());
-		assertTrue(facetGroupsNegation("brand", 1, 5, 7).isApplicable());
+		assertFalse(new FacetGroupsNegation(null, null).isApplicable());
+		assertFalse(new FacetGroupsNegation("brand", null).isApplicable());
+		assertTrue(facetGroupsNegation("brand", filterBy(entityPrimaryKeyInSet(1))).isApplicable());
 	}
 
 	@Test
 	void shouldToStringReturnExpectedFormat() {
-		final FacetGroupsNegation facetGroupsNegation = facetGroupsNegation("brand", 1, 5, 7);
-		assertEquals("facetGroupsNegation('brand',1,5,7)", facetGroupsNegation.toString());
+		final FacetGroupsNegation facetGroupsNegation = facetGroupsNegation("brand", filterBy(entityPrimaryKeyInSet(1, 5, 7)));
+		assertEquals("facetGroupsNegation('brand',filterBy(entityPrimaryKeyInSet(1,5,7)))", facetGroupsNegation.toString());
 	}
 
 	@Test
 	void shouldConformToEqualsAndHashContract() {
-		assertNotSame(facetGroupsNegation("brand", 1, 1, 5), facetGroupsNegation("brand", 1, 1, 5));
-		assertEquals(facetGroupsNegation("brand", 1, 1, 5), facetGroupsNegation("brand", 1, 1, 5));
-		assertNotEquals(facetGroupsNegation("brand", 1, 1, 5), facetGroupsNegation("brand", 1, 1, 6));
-		assertNotEquals(facetGroupsNegation("brand", 1, 1, 5), facetGroupsNegation("brand", 1, 1));
-		assertNotEquals(facetGroupsNegation("brand", 1, 1, 5), facetGroupsNegation("brand", 2, 1, 5));
-		assertNotEquals(facetGroupsNegation("brand", 1, 1, 5), facetGroupsNegation("category", 1, 1, 6));
-		assertNotEquals(facetGroupsNegation("brand", 1, 1, 5), facetGroupsNegation("brand", 1, 1));
-		assertEquals(facetGroupsNegation("brand", 1, 1, 5).hashCode(), facetGroupsNegation("brand", 1, 1, 5).hashCode());
-		assertNotEquals(facetGroupsNegation("brand", 1, 1, 5).hashCode(), facetGroupsNegation("brand", 1, 1, 6).hashCode());
-		assertNotEquals(facetGroupsNegation("brand", 1, 1, 5).hashCode(), facetGroupsNegation("brand", 1, 1).hashCode());
+		assertNotSame(facetGroupsNegation("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))), facetGroupsNegation("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))));
+		assertEquals(facetGroupsNegation("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))), facetGroupsNegation("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))));
+		assertNotEquals(facetGroupsNegation("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))), facetGroupsNegation("brand", filterBy(entityPrimaryKeyInSet(1, 1, 6))));
+		assertNotEquals(facetGroupsNegation("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))), facetGroupsNegation("brand", filterBy(entityPrimaryKeyInSet(1, 1))));
+		assertNotEquals(facetGroupsNegation("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))), facetGroupsNegation("brand", filterBy(entityPrimaryKeyInSet(2, 1, 5))));
+		assertNotEquals(facetGroupsNegation("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))), facetGroupsNegation("category", filterBy(entityPrimaryKeyInSet(1, 1, 6))));
+		assertNotEquals(facetGroupsNegation("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))), facetGroupsNegation("brand", filterBy(entityPrimaryKeyInSet(1, 1))));
+		assertEquals(facetGroupsNegation("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))).hashCode(), facetGroupsNegation("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))).hashCode());
+		assertNotEquals(facetGroupsNegation("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))).hashCode(), facetGroupsNegation("brand", filterBy(entityPrimaryKeyInSet(1, 1, 6))).hashCode());
+		assertNotEquals(facetGroupsNegation("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))).hashCode(), facetGroupsNegation("brand", filterBy(entityPrimaryKeyInSet(1, 1))).hashCode());
 	}
 
 }

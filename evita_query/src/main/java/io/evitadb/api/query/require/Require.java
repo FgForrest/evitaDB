@@ -33,7 +33,6 @@ import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Arrays;
 
 /**
  * This `require` is container for listing all additional requirements for th equery. It is mandatory container when
@@ -58,17 +57,14 @@ public class Require extends AbstractRequireConstraintContainer implements Gener
 	@Serial private static final long serialVersionUID = 6115101893250263038L;
 
 	@Creator
-	public Require(@Nonnull @Child RequireConstraint... children) {
+	public Require(@Nonnull @Child(uniqueChildren = true) RequireConstraint... children) {
 		super(children);
 	}
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		final RequireConstraint[] requireChildren = Arrays.stream(children)
-				.map(c -> (RequireConstraint) c)
-				.toArray(RequireConstraint[]::new);
-		return new Require(requireChildren);
+	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return new Require(children);
 	}
 
 	@Override

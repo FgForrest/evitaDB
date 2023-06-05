@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.structure.predicate;
 
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
@@ -71,7 +72,7 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 	/**
 	 * Contains information about underlying predicate that is bound to the {@link EntityDecorator}. This underlying
 	 * predicate represents the scope of the fetched (enriched) entity in its true form (i.e. {@link Entity}) and needs
-	 * to be carried around even if {@link io.evitadb.api.EntityCollectionContract#limitEntity(SealedEntity, EvitaRequest)}
+	 * to be carried around even if {@link io.evitadb.api.EntityCollectionContract#limitEntity(SealedEntity, EvitaRequest, EvitaSessionContract)}
 	 * is invoked on the entity.
 	 */
 	@Nullable @Getter private final AttributeValueSerializablePredicate underlyingPredicate;
@@ -119,7 +120,7 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 	}
 
 	@Override
-	public boolean test(@Nonnull AttributeValue attributeValue) {
+	public boolean test(AttributeValue attributeValue) {
 		if (requiresEntityAttributes) {
 			final AttributeKey key = attributeValue.getKey();
 			final Locale attributeLocale = attributeValue.getKey().getLocale();
@@ -133,10 +134,6 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 		} else {
 			return false;
 		}
-	}
-
-	public AttributeValueSerializablePredicate createCopyWithAccessToAllAttributes() {
-		return new AttributeValueSerializablePredicate(implicitLocale, locales, Collections.emptySet(), true);
 	}
 
 	public AttributeValueSerializablePredicate createRicherCopyWith(@Nonnull EvitaRequest evitaRequest) {

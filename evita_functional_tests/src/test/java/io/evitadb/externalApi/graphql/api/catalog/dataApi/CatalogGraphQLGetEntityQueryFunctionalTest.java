@@ -42,16 +42,21 @@ import java.text.NumberFormat;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
 
-import static io.evitadb.api.query.QueryConstraints.attributeContent;
+import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.api.query.QueryConstraints.entityFetch;
+import static io.evitadb.api.query.QueryConstraints.hierarchyContent;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ATTRIBUTE_MARKET_SHARE;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests for GraphQL catalog single entity query.
@@ -60,7 +65,8 @@ import static org.hamcrest.Matchers.*;
  */
 public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
 
-	private static final String PRODUCT_PATH = "data.getProduct";
+	private static final String GET_PRODUCT_PATH = "data.getProduct";
+	private static final String GET_CATEGORY_PATH = "data.getCategory";
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
@@ -94,7 +100,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_PATH,
+				GET_PRODUCT_PATH,
 				equalTo(
 					map()
 						.e(TYPENAME_FIELD, "Product")
@@ -146,7 +152,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_PATH,
+				GET_PRODUCT_PATH,
 				equalTo(
 					map()
 						.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithCode.getPrimaryKey())
@@ -223,7 +229,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_PATH,
+				GET_PRODUCT_PATH,
 				equalTo(
 					map()
 						.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
@@ -271,7 +277,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_PATH,
+				GET_PRODUCT_PATH,
 				equalTo(
 					map()
 						.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithUrl.getPrimaryKey())
@@ -307,6 +313,361 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, hasSize(greaterThan(0)));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return direct category parent entity references")
+	void shouldReturnAllDirectCategoryParentEntityReferences(Evita evita, GraphQLTester tester) {
+		final SealedEntity category = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryOneSealedEntity(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(16)
+						),
+						require(
+							entityFetch(
+								hierarchyContent()
+							)
+						)
+					)
+				).orElseThrow();
+			}
+		);
+		// check that it has at least 2 parents
+		assertTrue(category.getParentEntity().isPresent());
+		assertTrue(category.getParentEntity().get().getParentEntity().isPresent());
+
+		final Map<String, Object> expectedBody = createEntityWithSelfParentsDto(category, false);
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					getCategory(primaryKey: 16) {
+						parentPrimaryKey
+						parents {
+							primaryKey
+							parentPrimaryKey
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(GET_CATEGORY_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return direct category parent entities")
+	void shouldReturnAllDirectCategoryParentEntities(Evita evita, GraphQLTester tester) {
+		final SealedEntity category = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryOneSealedEntity(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(16)
+						),
+						require(
+							entityFetch(
+								hierarchyContent(
+									entityFetch(
+										attributeContent(ATTRIBUTE_CODE)
+									)
+								)
+							)
+						)
+					)
+				).orElseThrow();
+			}
+		);
+		// check that it has at least 2 parents
+		assertTrue(category.getParentEntity().isPresent());
+		assertTrue(category.getParentEntity().get().getParentEntity().isPresent());
+
+		final Map<String, Object> expectedBody = createEntityWithSelfParentsDto(category, true);
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					getCategory(primaryKey: 16) {
+						parentPrimaryKey
+						parents {
+							primaryKey
+							parentPrimaryKey
+							allLocales
+							attributes {
+								code
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(GET_CATEGORY_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return only direct category parent")
+	void shouldReturnOnlyDirectCategoryParent(Evita evita, GraphQLTester tester) {
+		final SealedEntity category = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryOneSealedEntity(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(16)
+						),
+						require(
+							entityFetch(
+								hierarchyContent(
+									stopAt(distance(1))
+								)
+							)
+						)
+					)
+				).orElseThrow();
+			}
+		);
+		// check that it has only one direct parent
+		assertTrue(category.getParentEntity().isPresent());
+		assertTrue(category.getParentEntity().get().getParentEntity().isEmpty());
+
+		final Map<String, Object> expectedBody = createEntityWithSelfParentsDto(category, false);
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					getCategory(primaryKey: 16) {
+						parentPrimaryKey
+						parents(
+							stopAt: {
+								distance: 1
+							}
+					    ) {
+							primaryKey
+							parentPrimaryKey
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(GET_CATEGORY_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return all direct product parent entity references")
+	void shouldReturnAllDirectProductParentEntityReferences(Evita evita, GraphQLTester tester) {
+		final SealedEntity product = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryOneSealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithin(
+								Entities.CATEGORY,
+								entityPrimaryKeyInSet(16)
+							)
+						),
+						require(
+							page(1, 1),
+							entityFetch(
+								referenceContent(
+									Entities.CATEGORY,
+									entityFetch(
+										hierarchyContent()
+									)
+								)
+							)
+						)
+					)
+				).orElseThrow();
+			}
+		);
+		// check that it has at least 2 referenced parents
+		assertTrue(product.getReferences(Entities.CATEGORY)
+			.iterator()
+			.next()
+			.getReferencedEntity()
+			.orElseThrow()
+			.getParentEntity()
+			.get()
+			.getParentEntity()
+			.isPresent());
+
+		final Map<String, Object> expectedBody = createEntityWithReferencedParentsDto(product, Entities.CATEGORY, false);
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					getProduct(primaryKey: %d) {
+						category {
+							referencedEntity {
+								parentPrimaryKey
+								parents {
+									primaryKey
+									parentPrimaryKey
+								}
+							}
+						}
+					}
+				}
+				""",
+				product.getPrimaryKey())
+			.executeAndExpectOkAndThen()
+			.body(GET_PRODUCT_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return all direct product parent entities")
+	void shouldReturnAllDirectProductParentEntities(Evita evita, GraphQLTester tester) {
+		final SealedEntity product = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryOneSealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithin(
+								Entities.CATEGORY,
+								entityPrimaryKeyInSet(16)
+							)
+						),
+						require(
+							page(1, 1),
+							entityFetch(
+								referenceContent(
+									Entities.CATEGORY,
+									entityFetch(
+										hierarchyContent(
+											entityFetch(
+												attributeContent(ATTRIBUTE_CODE)
+											)
+										)
+									)
+								)
+							)
+						)
+					)
+				).orElseThrow();
+			}
+		);
+		// check that it has at least 2 referenced parents
+		assertTrue(product.getReferences(Entities.CATEGORY)
+			.iterator()
+			.next()
+			.getReferencedEntity()
+			.orElseThrow()
+			.getParentEntity()
+			.get()
+			.getParentEntity()
+			.isPresent());
+
+		final Map<String, Object> expectedBody = createEntityWithReferencedParentsDto(product, Entities.CATEGORY, true);
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					getProduct(primaryKey: %d) {
+						category {
+							referencedEntity {
+								parentPrimaryKey
+								parents {
+									primaryKey
+									parentPrimaryKey
+									allLocales
+									attributes {
+										code
+									}
+								}
+							}
+						}
+					}
+				}
+				""",
+				product.getPrimaryKey())
+			.executeAndExpectOkAndThen()
+			.body(GET_PRODUCT_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return only direct product parent")
+	void shouldReturnOnlyDirectProductParent(Evita evita, GraphQLTester tester) {
+		final SealedEntity product = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryOneSealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithin(
+								Entities.CATEGORY,
+								entityPrimaryKeyInSet(16)
+							)
+						),
+						require(
+							page(1, 1),
+							entityFetch(
+								referenceContent(
+									Entities.CATEGORY,
+									entityFetch(
+										hierarchyContent(
+											stopAt(distance(1))
+										)
+									)
+								)
+							)
+						)
+					)
+				).orElseThrow();
+			}
+		);
+		// check that it has only one referenced parents
+		assertTrue(product.getReferences(Entities.CATEGORY)
+			.iterator()
+			.next()
+			.getReferencedEntity()
+			.orElseThrow()
+			.getParentEntity()
+			.get()
+			.getParentEntity()
+			.isEmpty());
+
+		final Map<String, Object> expectedBody = createEntityWithReferencedParentsDto(product, Entities.CATEGORY, false);
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					getProduct(primaryKey: %d) {
+						category {
+							referencedEntity {
+								parentPrimaryKey
+								parents(
+									stopAt: {
+										distance: 1
+									}
+							    ) {
+									primaryKey
+									parentPrimaryKey
+								}
+							}
+						}
+					}
+				}
+				""",
+				product.getPrimaryKey())
+			.executeAndExpectOkAndThen()
+			.body(GET_PRODUCT_PATH, equalTo(expectedBody));
 	}
 
 	@Test
@@ -360,7 +721,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(PRODUCT_PATH, equalTo(createEntityDtoWithPriceForSale(entity)));
+			.body(GET_PRODUCT_PATH, equalTo(createEntityDtoWithPriceForSale(entity)));
 	}
 
 	@Test
@@ -388,7 +749,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(PRODUCT_PATH, nullValue());
+			.body(GET_PRODUCT_PATH, nullValue());
 	}
 
 	@Test
@@ -416,7 +777,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, hasSize(greaterThan(0)))
-			.body(PRODUCT_PATH, nullValue());
+			.body(GET_PRODUCT_PATH, nullValue());
 	}
 
 	@Test
@@ -446,7 +807,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(PRODUCT_PATH, equalTo(createEntityDtoWithPriceForSale(entity)));
+			.body(GET_PRODUCT_PATH, equalTo(createEntityDtoWithPriceForSale(entity)));
 	}
 
 	@Test
@@ -476,7 +837,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(PRODUCT_PATH, equalTo(createEntityDtoWithFormattedPriceForSale(entity)));
+			.body(GET_PRODUCT_PATH, equalTo(createEntityDtoWithFormattedPriceForSale(entity)));
 	}
 
 	@Test
@@ -505,7 +866,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(PRODUCT_PATH, equalTo(createEntityDtoWithFormattedPriceForSale(entity)));
+			.body(GET_PRODUCT_PATH, equalTo(createEntityDtoWithFormattedPriceForSale(entity)));
 	}
 
 	@Test
@@ -570,7 +931,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(PRODUCT_PATH, equalTo(createEntityDtoWithPrice(entity)));
+			.body(GET_PRODUCT_PATH, equalTo(createEntityDtoWithPrice(entity)));
 	}
 
 	@Test
@@ -600,7 +961,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(PRODUCT_PATH, equalTo(createEntityDtoWithPrice(entity)));
+			.body(GET_PRODUCT_PATH, equalTo(createEntityDtoWithPrice(entity)));
 	}
 
 	@Test
@@ -625,7 +986,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(PRODUCT_PATH, equalTo(createEntityDtoWithFormattedPrice(entity)));
+			.body(GET_PRODUCT_PATH, equalTo(createEntityDtoWithFormattedPrice(entity)));
 	}
 
 	@Test
@@ -650,7 +1011,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(PRODUCT_PATH, equalTo(createEntityDtoWithFormattedPrice(entity)));
+			.body(GET_PRODUCT_PATH, equalTo(createEntityDtoWithFormattedPrice(entity)));
 	}
 
 	@Test
@@ -708,7 +1069,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_PATH + "." + EntityDescriptor.PRICES.name(),
+				GET_PRODUCT_PATH + "." + EntityDescriptor.PRICES.name(),
 				hasSize(greaterThan(0))
 			);
 	}
@@ -741,7 +1102,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_PATH,
+				GET_PRODUCT_PATH,
 				equalTo(
 					map()
 						.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
@@ -782,7 +1143,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_PATH,
+				GET_PRODUCT_PATH,
 				equalTo(
 					map()
 						.e(EntityDescriptor.PRICES.name(), List.of(
@@ -820,7 +1181,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(PRODUCT_PATH, equalTo(createEntityDtoWithFormattedPrices(entity)));
+			.body(GET_PRODUCT_PATH, equalTo(createEntityDtoWithFormattedPrices(entity)));
 	}
 
 	@Test
@@ -845,7 +1206,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(PRODUCT_PATH, equalTo(createEntityDtoWithFormattedPrices(entity)));
+			.body(GET_PRODUCT_PATH, equalTo(createEntityDtoWithFormattedPrices(entity)));
 	}
 
 	@Test
@@ -903,7 +1264,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(PRODUCT_PATH, equalTo(createEntityDtoWithAssociatedData(entity)));
+			.body(GET_PRODUCT_PATH, equalTo(createEntityDtoWithAssociatedData(entity)));
 	}
 
 	@Test
@@ -934,7 +1295,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(PRODUCT_PATH, equalTo(createEntityDtoWithAssociatedData(entity)));
+			.body(GET_PRODUCT_PATH, equalTo(createEntityDtoWithAssociatedData(entity)));
 	}
 
 	@Test
@@ -1000,7 +1361,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_PATH,
+				GET_PRODUCT_PATH,
 				equalTo(
 					map()
 						.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
@@ -1057,7 +1418,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_PATH + ".store." + ReferenceDescriptor.REFERENCED_ENTITY.name() + "." + EntityDescriptor.PRIMARY_KEY.name(),
+				GET_PRODUCT_PATH + ".store." + ReferenceDescriptor.REFERENCED_ENTITY.name() + "." + EntityDescriptor.PRIMARY_KEY.name(),
 				containsInAnyOrder(
 					entity.getReferences(Entities.STORE)
 						.stream()

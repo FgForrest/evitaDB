@@ -23,34 +23,31 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi;
 
-import io.evitadb.api.requestResponse.data.HierarchicalPlacementContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.HierarchicalPlacementDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.rest.RestProvider;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAssociatedDataDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAttributesDescriptor;
-import io.evitadb.test.tester.RestTester;
-import io.evitadb.test.tester.RestTester.Request;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.RestEntityDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAssociatedDataDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAttributesDescriptor;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
+import io.evitadb.test.tester.RestTester;
+import io.evitadb.test.tester.RestTester.Request;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -66,7 +63,6 @@ import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_LABELS;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_QUANTITY;
 import static io.evitadb.test.generator.DataGenerator.CZECH_LOCALE;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -413,30 +409,30 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 					query(
 						collection(Entities.CATEGORY),
 						filterBy(
-							hierarchyWithinSelf(rootEntity.getPrimaryKey(), directRelation())
+							hierarchyWithinSelf(
+								entityPrimaryKeyInSet(rootEntity.getPrimaryKey()),
+								directRelation()
+							)
 						),
 						require(
-							strip(0, 1),
+							strip(1, 1),
 							entityFetch()
 						)
 					)
-				);
+				).orElseThrow();
 			}
-		).orElseThrow();
+		);
 
-		assertTrue(entityInTree.getHierarchicalPlacement().isPresent());
+		assertTrue(entityInTree.getParent().isPresent());
 
-		final HierarchicalPlacementContract hierarchicalPlacementContract = entityInTree.getHierarchicalPlacement().orElseThrow();
+		final int parent = entityInTree.getParent().orElseThrow();
 		final Map<String, Object> expectedBodyWithHierarchicalPlacement = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.CATEGORY)
 			.e(EntityDescriptor.LOCALES.name(), List.of())
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-			.e(EntityDescriptor.HIERARCHICAL_PLACEMENT.name(), map()
-				.e(HierarchicalPlacementDescriptor.PARENT_PRIMARY_KEY.name(), null)
-				.e(HierarchicalPlacementDescriptor.ORDER_AMONG_SIBLINGS.name(), hierarchicalPlacementContract.getOrderAmongSiblings() + 10)
-				.build())
 			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
+			.e(RestEntityDescriptor.PARENT.name(), parent + 10)
 			.build();
 
 		tester.test(TEST_CATALOG)
@@ -447,28 +443,22 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                     "entityExistence": "MUST_EXIST",
                     "mutations": [
                         {
-                            "setHierarchicalPlacementMutation": {
-                                "orderAmongSiblings": %d
+                            "setParentMutation": {
+                                "parentPrimaryKey": %d
                             }
                         }
                     ],
 					"require": {
-					    "entityFetch": {
-				        }
+					    "entityFetch": {}
 					  }
 					}
                 }
                 """,
-				hierarchicalPlacementContract.getOrderAmongSiblings() + 10
+				parent + 10
 			)
 			.executeAndThen()
 			.statusCode(200)
-			.body(
-				"",
-				equalTo(
-					expectedBodyWithHierarchicalPlacement
-				)
-			);
+			.body("", equalTo(expectedBodyWithHierarchicalPlacement));
 		assertHierarchicalPlacement(tester, entityInTree.getPrimaryKey(), expectedBodyWithHierarchicalPlacement);
 
 		final Map<String, Object> expectedBodyAfterRemoving = map()
@@ -487,12 +477,11 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                     "entityExistence": "MUST_EXIST",
                     "mutations": [
                         {
-                            "removeHierarchicalPlacementMutation": true
+                            "removeParentMutation": true
                         }
                     ],
 					"require": {
-					    "entityFetch": {
-				        }
+					    "entityFetch": {}
 					  }
 					}
                 }
@@ -810,9 +799,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 					"require": {
 						"entityFetch": {
 							"attributeContentAll": true,
-					        "referenceStoreContent": {
-					            "requirements": {}
-					        }
+					        "referenceStoreContent": {}
 				        }
 					}
 				}
@@ -936,7 +923,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				session.getEntity(Entities.PRODUCT, entity.getPrimaryKey(), referenceContent())
+				session.getEntity(Entities.PRODUCT, entity.getPrimaryKey(), referenceContentAll())
 					.orElseThrow()
 					.openForWrite()
 					.removeReference(REFERENCE_BRAND_WITH_GROUP, 1)
@@ -949,7 +936,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity updatedEntity = session.getEntity(Entities.PRODUCT, primaryKey, referenceContent())
+				final SealedEntity updatedEntity = session.getEntity(Entities.PRODUCT, primaryKey, referenceContentAll())
 					.orElseThrow();
 				assertEquals(
 					groupEntityReference,

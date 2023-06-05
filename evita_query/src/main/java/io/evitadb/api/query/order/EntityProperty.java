@@ -34,7 +34,6 @@ import io.evitadb.api.query.descriptor.annotation.Creator;
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Arrays;
 
 /**
  * This `referenceAttribute` container is ordering that sorts returned entities by reference attributes. Ordering is
@@ -92,11 +91,7 @@ public class EntityProperty extends AbstractOrderConstraintContainer implements 
 
 	@Nonnull
 	@Override
-	public OrderConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		return new EntityProperty(
-			Arrays.stream(children)
-				.map(c -> (OrderConstraint) c)
-				.toArray(OrderConstraint[]::new)
-		);
+	public OrderConstraint getCopyWithNewChildren(@Nonnull OrderConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return new EntityProperty(children);
 	}
 }

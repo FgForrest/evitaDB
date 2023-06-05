@@ -38,8 +38,8 @@ import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
-import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInternalError;
@@ -49,7 +49,8 @@ import io.evitadb.utils.StringUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.lang.reflect.Constructor;
+import java.lang.reflect.Executable;
+import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
 import java.util.Arrays;
 import java.util.Collections;
@@ -58,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
@@ -175,39 +177,39 @@ class ConstraintProcessor {
 	                                                       @Nonnull ConstraintDefinition constraintDefinition) {
 		final Map<String, ConstraintCreator> creators = createHashMap(4);
 
-		findCreatorConstructors(constraintClass).forEach(creatorConstructor -> {
-			final Creator creatorDef = findCreatorDefAnnotation(creatorConstructor);
+		findCreators(constraintClass).forEach(creator -> {
+			final Creator creatorDefinition = findCreatorAnnotation(creator);
 
 			final String fullName;
-			if (creatorDef.suffix().isEmpty()) {
+			if (creatorDefinition.suffix().isEmpty()) {
 				fullName = constraintDefinition.name();
 			} else {
-				fullName = constraintDefinition.name() + StringUtils.capitalize(creatorDef.suffix());
+				fullName = constraintDefinition.name() + StringUtils.capitalize(creatorDefinition.suffix());
 			}
 
-			final List<ParameterDescriptor> parameterDescriptors = resolveCreatorParameters(creatorConstructor);
+			final List<ParameterDescriptor> parameterDescriptors = resolveCreatorParameters(creator);
 
 			Assert.isPremiseValid(
 				!creators.containsKey(fullName),
-				"Constraint `" + constraintClass.getName() + "` has multiple creator constructors with suffix `" + creatorDef.suffix() + "`."
+				"Constraint `" + constraintClass.getName() + "` has multiple creator constructors with suffix `" + creatorDefinition.suffix() + "`."
 			);
 
 			final ImplicitClassifier implicitClassifier;
-			if (creatorDef.silentImplicitClassifier() && !creatorDef.implicitClassifier().isEmpty()) {
+			if (creatorDefinition.silentImplicitClassifier() && !creatorDefinition.implicitClassifier().isEmpty()) {
 				throw new EvitaInternalError(
 					"Constraint `" + constraintClass.getName() + "` has both implicit classifiers specified. Cannot decide which one to use. Please define only one of them."
 				);
-			} else if (creatorDef.silentImplicitClassifier()) {
+			} else if (creatorDefinition.silentImplicitClassifier()) {
 				implicitClassifier = new SilentImplicitClassifier();
-			} else if (!creatorDef.implicitClassifier().isEmpty()) {
-				implicitClassifier = new FixedImplicitClassifier(creatorDef.implicitClassifier());
+			} else if (!creatorDefinition.implicitClassifier().isEmpty()) {
+				implicitClassifier = new FixedImplicitClassifier(creatorDefinition.implicitClassifier());
 			} else {
 				implicitClassifier = null;
 			}
 
 			creators.put(
 				fullName,
-				new ConstraintCreator(creatorConstructor, parameterDescriptors, implicitClassifier)
+				new ConstraintCreator(creator, parameterDescriptors, implicitClassifier)
 			);
 		});
 
@@ -218,26 +220,37 @@ class ConstraintProcessor {
 	 * Tries to find annotation creator constructor.
 	 */
 	@Nonnull
-	private Set<Constructor<?>> findCreatorConstructors(@Nonnull Class<? extends Constraint<?>> constraintClass) {
-		final Set<Constructor<?>> creatorConstructors = Arrays.stream(constraintClass.getDeclaredConstructors())
+	private Set<Executable> findCreators(@Nonnull Class<? extends Constraint<?>> constraintClass) {
+		final Stream<Executable> constructors = Arrays.stream(constraintClass.getDeclaredConstructors())
 			.filter(constructor -> constructor.getAnnotation(Creator.class) != null)
-			.collect(Collectors.toUnmodifiableSet());
+			.map(it -> it);
+
+		final Stream<Executable> factoryMethods = Arrays.stream(constraintClass.getDeclaredMethods())
+			.filter(method -> method.getAnnotation(Creator.class) != null)
+			.peek(method -> Assert.isPremiseValid(
+				Modifier.isStatic(method.getModifiers()),
+				() -> "Method used as creator must be static."
+			))
+			.map(it -> it);
+
+		final Set<Executable> creators = Stream.concat(constructors, factoryMethods).collect(Collectors.toUnmodifiableSet());
 		Assert.isPremiseValid(
-			!creatorConstructors.isEmpty(),
+			!creators.isEmpty(),
 			"Registered constraint `" + constraintClass.getName() + "` is missing creator."
 		);
-		return creatorConstructors;
+
+		return creators;
 	}
 
 	/**
 	 * Tries to find creator definition on constructor.
 	 */
 	@Nonnull
-	private Creator findCreatorDefAnnotation(@Nonnull Constructor<?> creatorConstructor) {
-		final Creator creatorDef = creatorConstructor.getAnnotation(Creator.class);
+	private Creator findCreatorAnnotation(@Nonnull Executable creator) {
+		final Creator creatorDef = creator.getAnnotation(Creator.class);
 		if (creatorDef == null) {
 			throw new EvitaInternalError(
-				"Constraint `" + creatorConstructor.getDeclaringClass().getName() + "` has been registered, creator constructor found but there is no creator definition specified."
+				"Constraint `" + creator.getDeclaringClass().getName() + "` has been registered, creator constructor found but there is no creator definition specified."
 			);
 		}
 		return creatorDef;
@@ -247,14 +260,14 @@ class ConstraintProcessor {
 	 * Transforms creator constructor Java parameters to its corresponding descriptors in same order.
 	 */
 	@Nonnull
-	private List<ParameterDescriptor> resolveCreatorParameters(@Nonnull Constructor<?> creatorConstructor) {
+	private List<ParameterDescriptor> resolveCreatorParameters(@Nonnull Executable creator) {
 		final List<ParameterDescriptor> parameterDescriptors = new LinkedList<>();
 
-		final Parameter[] creatorParameters = creatorConstructor.getParameters();
+		final Parameter[] creatorParameters = creator.getParameters();
 		for (Parameter parameter : creatorParameters) {
 			final ClassifierParameterDescriptor classifierParameter = resolveClassifierParameter(
 				parameter,
-				creatorConstructor.getDeclaringClass()
+				creator.getDeclaringClass()
 			);
 			if (classifierParameter != null) {
 				parameterDescriptors.add(classifierParameter);
@@ -269,7 +282,7 @@ class ConstraintProcessor {
 
 			final ChildParameterDescriptor childParameter = resolveChildParameter(
 				parameter,
-				creatorConstructor.getDeclaringClass()
+				creator.getDeclaringClass()
 			);
 			if (childParameter != null) {
 				parameterDescriptors.add(childParameter);
@@ -278,7 +291,7 @@ class ConstraintProcessor {
 
 			final AdditionalChildParameterDescriptor additionalChildParameter = resolveAdditionalChildParameter(
 				parameter,
-				creatorConstructor.getDeclaringClass()
+				creator.getDeclaringClass()
 			);
 			if (additionalChildParameter != null) {
 				parameterDescriptors.add(additionalChildParameter);
@@ -286,7 +299,7 @@ class ConstraintProcessor {
 			}
 
 			throw new EvitaInternalError(
-				"Constraint `" + creatorConstructor.getDeclaringClass().getName() + "` has creator parameter without supported annotation."
+				"Constraint `" + creator.getDeclaringClass().getName() + "` has creator parameter without supported annotation."
 			);
 		}
 		return parameterDescriptors;
@@ -361,6 +374,7 @@ class ConstraintProcessor {
 			parameter.getName(),
 			parameterType,
 			isParameterRequired(parameter),
+			child.domain(),
 			child.uniqueChildren(),
 			Arrays.stream(child.allowed())
 				.map(c -> (Class<Constraint<?>>) c)
@@ -402,7 +416,8 @@ class ConstraintProcessor {
 			resolveConstraintType((Class<? extends Constraint<?>>) parameterType),
 			parameter.getName(),
 			parameterType,
-			isParameterRequired(parameter)
+			isParameterRequired(parameter),
+			additionalChild.domain()
 		);
 	}
 

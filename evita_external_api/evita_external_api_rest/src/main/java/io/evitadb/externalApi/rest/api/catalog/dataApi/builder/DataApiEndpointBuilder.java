@@ -174,6 +174,10 @@ public class DataApiEndpointBuilder {
 	public Optional<OpenApiCatalogEndpoint> buildGetUnknownEntityEndpoint(@Nonnull CatalogRestBuildingContext buildingContext,
 	                                                                      @Nonnull List<GlobalAttributeSchemaContract> globallyUniqueAttributes,
 	                                                                      boolean localized) {
+		if (buildingContext.getEntitySchemas().isEmpty()) {
+			return Optional.empty();
+		}
+
 		final List<OpenApiEndpointParameter> queryParameters = new LinkedList<>();
 		queryParameters.addAll(
 			globallyUniqueAttributes.stream()
@@ -206,6 +210,10 @@ public class DataApiEndpointBuilder {
 	public Optional<OpenApiCatalogEndpoint> buildListUnknownEntityEndpoint(@Nonnull CatalogRestBuildingContext buildingContext,
 	                                                                       @Nonnull List<GlobalAttributeSchemaContract> globallyUniqueAttributes,
 	                                                                       boolean localized) {
+		if (buildingContext.getEntitySchemas().isEmpty()) {
+			return Optional.empty();
+		}
+
 		final List<OpenApiEndpointParameter> queryParameters = new LinkedList<>();
 		queryParameters.add(ListUnknownEntitiesEndpointHeaderDescriptor.LIMIT
 			.to(operationQueryParameterBuilderTransformer)
@@ -302,6 +310,7 @@ public class DataApiEndpointBuilder {
 		queryParameters.add(FetchEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT_ALL.to(operationQueryParameterBuilderTransformer).build());
 		queryParameters.add(FetchEntityEndpointHeaderDescriptor.PRICE_CONTENT.to(operationQueryParameterBuilderTransformer).build());
 		queryParameters.add(FetchEntityEndpointHeaderDescriptor.REFERENCE_CONTENT_ALL.to(operationQueryParameterBuilderTransformer).build());
+		queryParameters.add(FetchEntityEndpointHeaderDescriptor.HIERARCHY_CONTENT.to(operationQueryParameterBuilderTransformer).build());
 
 		return queryParameters;
 	}
@@ -388,6 +397,9 @@ public class DataApiEndpointBuilder {
 		if (!entitySchema.getReferences().isEmpty()) {
 			parameters.add(FetchEntityEndpointHeaderDescriptor.REFERENCE_CONTENT.to(operationQueryParameterBuilderTransformer).build());
 			parameters.add(FetchEntityEndpointHeaderDescriptor.REFERENCE_CONTENT_ALL.to(operationQueryParameterBuilderTransformer).build());
+		}
+		if (entitySchema.isWithHierarchy()) {
+			parameters.add(FetchEntityEndpointHeaderDescriptor.HIERARCHY_CONTENT.to(operationQueryParameterBuilderTransformer).build());
 		}
 
 		return parameters;

@@ -1,25 +1,23 @@
 query(
-   collection('product'),
+   collection('Product'),
    filterBy(
       and(
          hierarchyWithin(
             'categories',
-            entityHaving(
-               attributeEquals('url', '/local-food')
-            )
+            attributeEquals('url', '/local-food')
          ),
          entityLocaleEquals('cs-CZ'),
-         priceValidIn(),
+         priceValidInNow(),
          priceInCurrency('CZK'),
          priceInPriceLists('vip', 'loyal-customer', 'regular-prices'),
          userFilter(
-            facetInSet(
+            facetHaving(
                'parameter',
                entityHaving(
                   attributeInSet('code', 'gluten-free', 'original-recipe')
                )
             ),
-            priceBetween('600', '1600')
+            priceBetween(600, 1600)
          )
       )
    ),

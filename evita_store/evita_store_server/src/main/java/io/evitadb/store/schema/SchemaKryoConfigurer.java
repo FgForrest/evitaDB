@@ -25,6 +25,7 @@ package io.evitadb.store.schema;
 
 import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
@@ -62,6 +63,7 @@ public class SchemaKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(AssociatedDataSchema.class, new SerialVersionBasedSerializer<>(new AssociatedDataSchemaSerializer(), AssociatedDataSchema.class), index++);
 		kryo.register(ReferenceSchema.class, new SerialVersionBasedSerializer<>(new ReferenceSchemaSerializer(), ReferenceSchema.class), index++);
 		kryo.register(EvolutionMode.class, new EnumNameSerializer<>(), index++);
+		kryo.register(CatalogEvolutionMode.class, new EnumNameSerializer<>(), index++);
 		kryo.register(Cardinality.class, new EnumNameSerializer<>(), index++);
 
 		Assert.isPremiseValid(index < 500, "Index count overflow.");

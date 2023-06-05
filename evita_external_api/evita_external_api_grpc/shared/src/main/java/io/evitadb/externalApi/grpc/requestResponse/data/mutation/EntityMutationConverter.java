@@ -25,7 +25,6 @@ package io.evitadb.externalApi.grpc.requestResponse.data.mutation;
 
 import com.google.protobuf.Message;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
-import io.evitadb.externalApi.grpc.requestResponse.mutation.MutationConverter;
 
 /**
  * Ancestor for all converters converting implementations of {@link EntityMutation}.

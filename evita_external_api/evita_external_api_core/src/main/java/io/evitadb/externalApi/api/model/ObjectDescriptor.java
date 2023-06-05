@@ -28,6 +28,7 @@ import io.evitadb.externalApi.api.ExternalApiNamingConventions;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.utils.Assert;
 import lombok.Builder;
+import lombok.Singular;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -47,18 +48,33 @@ import java.util.stream.Stream;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@Builder
 public record ObjectDescriptor(@Nonnull String name,
                                @Nullable String description,
-                               @Nullable List<PropertyDescriptor> staticFields) {
+                               @Nonnull List<PropertyDescriptor> staticFields) {
 
 	public static String NAME_WILDCARD = "*";
 
-	public ObjectDescriptor {
+	@Builder
+	public ObjectDescriptor(@Nonnull String name,
+	                        @Nullable String description,
+	                        @Nullable @Singular List<PropertyDescriptor> staticFields) {
 		Assert.isPremiseValid(
 			!name.isEmpty(),
 			() -> new ExternalApiInternalError("Name of object cannot be empty.")
 		);
+		this.name = name;
+		this.description = description;
+		this.staticFields = staticFields != null ? staticFields : List.of();
+	}
+
+	/**
+	 * Extends existing descriptor into new one. Note that {@link ObjectDescriptor#name} is not being transferred to
+	 * prevent name duplication.
+	 */
+	public static ObjectDescriptorBuilder extend(@Nonnull ObjectDescriptor objectDescriptor) {
+		return builder()
+			.description(objectDescriptor.description())
+			.staticFields(objectDescriptor.staticFields());
 	}
 
 	@Nonnull

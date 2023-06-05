@@ -214,6 +214,7 @@ public class CreateGlobalAttributeSchemaMutation
 				catalogSchema.getName(),
 				catalogSchema.getNameVariants(),
 				catalogSchema.getDescription(),
+				catalogSchema.getCatalogEvolutionMode(),
 				Stream.concat(
 						catalogSchema.getAttributes().values().stream(),
 						Stream.of(newAttributeSchema)

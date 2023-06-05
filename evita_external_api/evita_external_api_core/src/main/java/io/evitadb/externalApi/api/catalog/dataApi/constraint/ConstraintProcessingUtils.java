@@ -27,7 +27,10 @@ import io.evitadb.api.query.descriptor.ConstraintCreator;
 import io.evitadb.api.query.descriptor.ConstraintCreator.AdditionalChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ValueParameterDescriptor;
+import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.ConstraintPropertyType;
+import io.evitadb.externalApi.exception.ExternalApiInternalError;
+import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -59,8 +62,6 @@ public class ConstraintProcessingUtils {
 	private static final String HIERARCHY_PREFIX = "hierarchy";
 	private static final String FACET_PREFIX = "facet";
 
-	public static final String KEY_PARTS_DELIMITER = "_";
-
 	private static final Map<ConstraintPropertyType, String> PROPERTY_TYPE_TO_PREFIX = Map.of(
 		ConstraintPropertyType.GENERIC, GENERIC_PREFIX,
 		ConstraintPropertyType.ENTITY, ENTITY_PREFIX,
@@ -82,6 +83,25 @@ public class ConstraintProcessingUtils {
 		FACET_PREFIX, ConstraintPropertyType.FACET
 	);
 
+	private static final Map<ConstraintDomain, ConstraintPropertyType> DOMAIN_TO_PROPERTY_TYPE = Map.of(
+		ConstraintDomain.GENERIC, ConstraintPropertyType.GENERIC,
+		ConstraintDomain.ENTITY, ConstraintPropertyType.ENTITY,
+		ConstraintDomain.REFERENCE, ConstraintPropertyType.REFERENCE,
+		ConstraintDomain.HIERARCHY, ConstraintPropertyType.HIERARCHY,
+		ConstraintDomain.FACET, ConstraintPropertyType.FACET
+	);
+
+	private static final Map<ConstraintPropertyType, ConstraintDomain> PROPERTY_TYPE_TO_DOMAIN = Map.of(
+		ConstraintPropertyType.GENERIC, ConstraintDomain.GENERIC,
+		ConstraintPropertyType.ENTITY, ConstraintDomain.ENTITY,
+		ConstraintPropertyType.ATTRIBUTE, ConstraintDomain.GENERIC, // this property type doesn't currently have its own domain, generic domain is used as safe fallback
+		ConstraintPropertyType.ASSOCIATED_DATA, ConstraintDomain.GENERIC, // this property type doesn't currently have its own domain, generic domain is used as safe fallback
+		ConstraintPropertyType.PRICE, ConstraintDomain.GENERIC, // this property type doesn't currently have its own domain, generic domain is used as safe fallback
+		ConstraintPropertyType.REFERENCE, ConstraintDomain.REFERENCE,
+		ConstraintPropertyType.HIERARCHY, ConstraintDomain.HIERARCHY,
+		ConstraintPropertyType.FACET, ConstraintDomain.FACET
+	);
+
 
 	/**
 	 * Wrapper range properties
@@ -95,7 +115,7 @@ public class ConstraintProcessingUtils {
 	 * Finds correct query JSON key prefix by property type.
 	 */
 	@Nonnull
-	public static Optional<String> getPrefixByPropertyType(@Nonnull ConstraintPropertyType propertyType) {
+	public static Optional<String> getPrefixForPropertyType(@Nonnull ConstraintPropertyType propertyType) {
 		return Optional.ofNullable(PROPERTY_TYPE_TO_PREFIX.get(propertyType));
 	}
 
@@ -103,7 +123,7 @@ public class ConstraintProcessingUtils {
 	 * Finds corresponding property type for query JSON key prefix. Returns found prefix with corresponding property type.
 	 */
 	@Nonnull
-	public static Entry<String, ConstraintPropertyType> getPropertyTypeByPrefix(@Nonnull String s) {
+	public static Entry<String, ConstraintPropertyType> getPropertyTypeFromPrefix(@Nonnull String s) {
 		return ConstraintProcessingUtils.PREFIX_TO_PROPERTY_TYPE.entrySet()
 			.stream()
 			.filter(it -> s.startsWith(it.getKey()))
@@ -112,12 +132,34 @@ public class ConstraintProcessingUtils {
 	}
 
 	/**
+	 * Finds property type that is valid in passed domain.
+	 */
+	@Nonnull
+	public static ConstraintPropertyType getFallbackPropertyTypeForDomain(@Nonnull ConstraintDomain domain) {
+		Assert.isPremiseValid(
+			!domain.isDynamic(),
+			() -> new ExternalApiInternalError("Dynamic domain (`" + domain + "`) cannot be mapped to specific property type.")
+		);
+		return Optional.ofNullable(DOMAIN_TO_PROPERTY_TYPE.get(domain))
+			.orElseThrow(() -> new ExternalApiInternalError("Domain `" + domain + "` doesn't have assigned property type."));
+	}
+
+	/**
+	 * Finds domain that corresponds to specified property type of constraint.
+	 */
+	@Nonnull
+	public static ConstraintDomain getDomainForPropertyType(@Nonnull ConstraintPropertyType propertyType) {
+		return Optional.ofNullable(PROPERTY_TYPE_TO_DOMAIN.get(propertyType))
+			.orElseThrow(() -> new ExternalApiInternalError("Property type `" + propertyType + "` doesn't have assigned default domain."));
+	}
+
+	/**
 	 * Decides which value structure a query in API should have depending on creator parameters.
 	 */
 	@Nonnull
 	public static ConstraintValueStructure getValueStructureForConstraintCreator(@Nonnull ConstraintCreator creator) {
 		final List<ValueParameterDescriptor> valueParameters = creator.valueParameters();
-		final Optional<ChildParameterDescriptor> childParameter = creator.childParameter();
+		final List<ChildParameterDescriptor> childParameter = creator.childParameters();
 		final List<AdditionalChildParameterDescriptor> additionalChildParameters = creator.additionalChildParameters();
 
 		final ConstraintValueStructure valueStructure;
@@ -131,7 +173,7 @@ public class ConstraintProcessingUtils {
 			valueParameters.stream().filter(p -> p.name().equals(WRAPPER_RANGE_FROM_VALUE_PARAMETER) || p.name().equals(WRAPPER_RANGE_TO_VALUE_PARAMETER)).count() == WRAPPER_RANGE_PARAMETERS_COUNT &&
 			valueParameters.get(0).type().equals(valueParameters.get(1).type())) {
 			valueStructure = ConstraintValueStructure.WRAPPER_RANGE;
-		} else if (valueParameters.isEmpty() && childParameter.isPresent() && additionalChildParameters.isEmpty()) {
+		} else if (valueParameters.isEmpty() && childParameter.size() == 1 && additionalChildParameters.isEmpty()) {
 			valueStructure = ConstraintValueStructure.CHILD;
 		} else {
 			valueStructure = ConstraintValueStructure.WRAPPER_OBJECT;

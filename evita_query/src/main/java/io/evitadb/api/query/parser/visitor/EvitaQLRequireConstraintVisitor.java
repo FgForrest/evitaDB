@@ -28,20 +28,21 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.parser.EnumWrapper;
 import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser.SingleRefWithFilterAndOrderReferenceContentConstraintContext;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser.SingleRefWithFilterReferenceContentConstraintContext;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser.SingleRefWithOrderReferenceContentConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.*;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.api.query.require.*;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.Arrays;
+import java.util.Deque;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Implementation of {@link EvitaQLVisitor} for parsing all require type constraints
@@ -51,7 +52,7 @@ import java.util.Optional;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2021
  * @see EvitaQLConstraintVisitor
  */
-public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireConstraint> {
+public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisitor<RequireConstraint> {
 
 	private static final String ONLY_ENTITY_FETCH_CONSTRAINTS_ARE_SUPPORTED_ERROR_MESSAGE = "Only `entityFetch` and `entityGroupFetch` constraints are supported.";
 
@@ -59,25 +60,23 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	protected final EvitaQLValueTokenVisitor queryPriceModeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(QueryPriceMode.class);
 	protected final EvitaQLValueTokenVisitor facetStatisticsDepthValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(FacetStatisticsDepth.class);
 	protected final EvitaQLValueTokenVisitor intValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
-		byte.class,
 		Byte.class,
-		short.class,
 		Short.class,
-		int.class,
 		Integer.class,
-		long.class,
 		Long.class
 	);
+	protected final EvitaQLValueTokenVisitor stringValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class);
 	protected final EvitaQLValueTokenVisitor localeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class, Locale.class);
-
-	protected final EvitaQLValueTokenVisitor priceContentArgValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class, Enum.class, PriceContentMode.class);
+	protected final EvitaQLValueTokenVisitor emptyHierarchicalEntityBehaviourValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(EmptyHierarchicalEntityBehaviour.class);
+	protected final EvitaQLValueTokenVisitor statisticsArgValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(StatisticsBase.class, StatisticsType.class);
+	protected final EvitaQLValueTokenVisitor priceContentModeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(PriceContentMode.class);
 
 	protected final EvitaQLFilterConstraintVisitor filterConstraintVisitor = new EvitaQLFilterConstraintVisitor();
 	protected final EvitaQLOrderConstraintVisitor orderConstraintVisitor = new EvitaQLOrderConstraintVisitor();
 
 
 	@Override
-	public RequireConstraint visitRequireContainerConstraint(@Nonnull EvitaQLParser.RequireContainerConstraintContext ctx) {
+	public RequireConstraint visitRequireContainerConstraint(@Nonnull RequireContainerConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -87,7 +86,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 				return new Require(
 					ctx.args.requirements
 						.stream()
-						.map(hc -> hc.accept(this))
+						.map(hc -> visitChildConstraint(hc, RequireConstraint.class))
 						.toArray(RequireConstraint[]::new)
 				);
 			}
@@ -95,7 +94,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	}
 
 	@Override
-	public RequireConstraint visitPageConstraint(@Nonnull EvitaQLParser.PageConstraintContext ctx) {
+	public RequireConstraint visitPageConstraint(@Nonnull PageConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new Page(
@@ -106,7 +105,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	}
 
 	@Override
-	public RequireConstraint visitStripConstraint(@Nonnull EvitaQLParser.StripConstraintContext ctx) {
+	public RequireConstraint visitStripConstraint(@Nonnull StripConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new Strip(
@@ -117,7 +116,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	}
 
 	@Override
-	public RequireConstraint visitEntityFetchConstraint(@Nonnull EvitaQLParser.EntityFetchConstraintContext ctx) {
+	public RequireConstraint visitEntityFetchConstraint(@Nonnull EntityFetchConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -127,7 +126,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 				return new EntityFetch(
 					ctx.args.requirements
 						.stream()
-						.map(this::visitEntityContentRequire)
+						.map(this::visitChildEntityContentRequire)
 						.toArray(EntityContentRequire[]::new)
 				);
 			}
@@ -135,7 +134,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	}
 
 	@Override
-	public RequireConstraint visitEntityGroupFetchConstraint(@Nonnull EvitaQLParser.EntityGroupFetchConstraintContext ctx) {
+	public RequireConstraint visitEntityGroupFetchConstraint(@Nonnull EntityGroupFetchConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -145,7 +144,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 				return new EntityGroupFetch(
 					ctx.args.requirements
 						.stream()
-						.map(this::visitEntityContentRequire)
+						.map(this::visitChildEntityContentRequire)
 						.toArray(EntityContentRequire[]::new)
 				);
 			}
@@ -153,7 +152,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	}
 
 	@Override
-	public RequireConstraint visitAttributeContentConstraint(@Nonnull EvitaQLParser.AttributeContentConstraintContext ctx) {
+	public RequireConstraint visitAttributeContentConstraint(@Nonnull AttributeContentConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -168,54 +167,44 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	}
 
 	@Override
-	public RequireConstraint visitPriceContentConstraint(@Nonnull EvitaQLParser.PriceContentConstraintContext ctx) {
+	public RequireConstraint visitPriceContentConstraint(@Nonnull PriceContentConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new PriceContent(
+				ctx.args.contentMode.accept(priceContentModeValueTokenVisitor).asEnum(PriceContentMode.class),
+				ctx.args.priceLists != null
+					? ctx.args.priceLists.accept(stringValueTokenVisitor).asStringArray()
+					: new String[0]
+			)
+		);
+	}
+
+	@Nullable
+	@Override
+	public RequireConstraint visitPriceContentAllConstraint(@Nonnull PriceContentAllConstraintContext ctx) {
+		return parse(ctx, () -> new PriceContent(PriceContentMode.ALL));
+	}
+
+	@Override
+	public RequireConstraint visitPriceContentRespectingFilterConstraint(@Nonnull PriceContentRespectingFilterConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
 				if (ctx.args == null) {
-					return new PriceContent();
+					return new PriceContent(PriceContentMode.RESPECTING_FILTER);
 				}
-				PriceContentMode contentMode = null;
-				List<String> priceLists = new LinkedList<>();
-				final Serializable[] values = ctx.args.values
-					.accept(priceContentArgValueTokenVisitor)
-					.asSerializableArray();
-				for (int i = 0; i < values.length; i++) {
-					final Serializable value = values[i];
-					if (i == 0) {
-						if (value instanceof PriceContentMode mode) {
-							contentMode = mode;
-							continue;
-						} else if (value instanceof EnumWrapper enumWrapper) {
-							contentMode = enumWrapper.toEnum(PriceContentMode.class);
-							continue;
-						}
-					}
-					Assert.isTrue(
-						value instanceof String,
-						() -> new EvitaQLInvalidQueryError(ctx, "Values of `priceContent` constraint must be of type string.")
-					);
-					priceLists.add((String) value);
-				}
-				if (contentMode == null) {
-					return new PriceContent(priceLists.toArray(String[]::new));
-				} else {
-					return new PriceContent(contentMode, priceLists.toArray(String[]::new));
-				}
+				return new PriceContent(
+					PriceContentMode.RESPECTING_FILTER,
+					ctx.args.values != null
+						? ctx.args.values.accept(stringValueTokenVisitor).asStringArray()
+						: new String[0]
+				);
 			}
 		);
 	}
 
 	@Override
-	public RequireConstraint visitPriceContentAllConstraint(@Nonnull EvitaQLParser.PriceContentAllConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> new PriceContent(PriceContentMode.ALL)
-		);
-	}
-
-	@Override
-	public RequireConstraint visitAssociatedDataContentConstraint(@Nonnull EvitaQLParser.AssociatedDataContentConstraintContext ctx) {
+	public RequireConstraint visitAssociatedDataContentConstraint(@Nonnull AssociatedDataContentConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -230,7 +219,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	}
 
 	@Override
-	public RequireConstraint visitAllRefsReferenceContentConstraint(@Nonnull EvitaQLParser.AllRefsReferenceContentConstraintContext ctx) {
+	public RequireConstraint visitAllRefsReferenceContentConstraint(@Nonnull AllRefsReferenceContentConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -238,7 +227,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 					return new ReferenceContent();
 				}
 				if (ctx.args.requirement != null) {
-					final EntityRequire require = visitInnerEntityRequire(ctx.args.requirement);
+					final EntityRequire require = visitChildEntityRequire(ctx.args.requirement);
 					if (require instanceof final EntityFetch entityFetch) {
 						return new ReferenceContent(entityFetch);
 					} else if (require instanceof final EntityGroupFetch entityGroupFetch) {
@@ -248,8 +237,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 					}
 				} else {
 					return new ReferenceContent(
-						visitInnerEntityFetch(ctx.args.facetEntityRequirement),
-						visitInnerEntityGroupFetch(ctx.args.groupEntityRequirement)
+						visitChildConstraint(ctx.args.facetEntityRequirement, EntityFetch.class),
+						visitChildConstraint(ctx.args.groupEntityRequirement, EntityGroupFetch.class)
 					);
 				}
 			}
@@ -257,7 +246,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	}
 
 	@Override
-	public RequireConstraint visitSingleRefReferenceContentConstraint(@Nonnull EvitaQLParser.SingleRefReferenceContentConstraintContext ctx) {
+	public RequireConstraint visitSingleRefReferenceContentConstraint(@Nonnull SingleRefReferenceContentConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -268,7 +257,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 				if (ctx.args.requirement == null && ctx.args.facetEntityRequirement == null && ctx.args.groupEntityRequirement == null) {
 					return new ReferenceContent(classifier);
 				} else if (ctx.args.requirement != null) {
-					final EntityRequire require = visitInnerEntityRequire(ctx.args.requirement);
+					final EntityRequire require = visitChildEntityRequire(ctx.args.requirement);
 					if (require instanceof final EntityFetch entityFetch) {
 						return new ReferenceContent(classifier, entityFetch);
 					} else if (require instanceof final EntityGroupFetch entityGroupFetch) {
@@ -280,10 +269,10 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 					return new ReferenceContent(
 						classifier,
 						Optional.ofNullable(ctx.args.facetEntityRequirement)
-							.map(this::visitInnerEntityFetch)
+							.map(c -> visitChildConstraint(c, EntityFetch.class))
 							.orElse(null),
 						Optional.ofNullable(ctx.args.groupEntityRequirement)
-							.map(this::visitInnerEntityGroupFetch)
+							.map(c -> visitChildConstraint(c, EntityGroupFetch.class))
 							.orElse(null)
 					);
 				}
@@ -292,7 +281,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	}
 
 	@Override
-	public RequireConstraint visitSingleRefWithFilterReferenceContentConstraint(SingleRefWithFilterReferenceContentConstraintContext ctx) {
+	public RequireConstraint visitSingleRefWithFilterReferenceContentConstraint(@Nonnull SingleRefWithFilterReferenceContentConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -307,7 +296,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 						filterBy
 					);
 				} else if (ctx.args.requirement != null) {
-					final EntityRequire require = visitInnerEntityRequire(ctx.args.requirement);
+					final EntityRequire require = visitChildEntityRequire(ctx.args.requirement);
 					if (require instanceof final EntityFetch entityFetch) {
 						return new ReferenceContent(
 							classifier,
@@ -328,10 +317,10 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 						classifier,
 						filterBy,
 						Optional.ofNullable(ctx.args.facetEntityRequirement)
-							.map(this::visitInnerEntityFetch)
+							.map(c -> visitChildConstraint(c, EntityFetch.class))
 							.orElse(null),
 						Optional.ofNullable(ctx.args.groupEntityRequirement)
-							.map(this::visitInnerEntityGroupFetch)
+							.map(c -> visitChildConstraint(c, EntityGroupFetch.class))
 							.orElse(null)
 					);
 				}
@@ -340,7 +329,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	}
 
 	@Override
-	public RequireConstraint visitSingleRefWithOrderReferenceContentConstraint(SingleRefWithOrderReferenceContentConstraintContext ctx) {
+	public RequireConstraint visitSingleRefWithOrderReferenceContentConstraint(@Nonnull SingleRefWithOrderReferenceContentConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -355,7 +344,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 						orderBy
 					);
 				} else if (ctx.args.requirement != null) {
-					final EntityRequire require = visitInnerEntityRequire(ctx.args.requirement);
+					final EntityRequire require = visitChildEntityRequire(ctx.args.requirement);
 					if (require instanceof final EntityFetch entityFetch) {
 						return new ReferenceContent(
 							classifier,
@@ -376,10 +365,10 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 						classifier,
 						orderBy,
 						Optional.ofNullable(ctx.args.facetEntityRequirement)
-							.map(this::visitInnerEntityFetch)
+							.map(c -> visitChildConstraint(c, EntityFetch.class))
 							.orElse(null),
 						Optional.ofNullable(ctx.args.groupEntityRequirement)
-							.map(this::visitInnerEntityGroupFetch)
+							.map(c -> visitChildConstraint(c, EntityGroupFetch.class))
 							.orElse(null)
 					);
 				}
@@ -388,7 +377,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	}
 
 	@Override
-	public RequireConstraint visitSingleRefWithFilterAndOrderReferenceContentConstraint(SingleRefWithFilterAndOrderReferenceContentConstraintContext ctx) {
+	public RequireConstraint visitSingleRefWithFilterAndOrderReferenceContentConstraint(@Nonnull SingleRefWithFilterAndOrderReferenceContentConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -405,7 +394,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 						orderBy
 					);
 				} else if (ctx.args.requirement != null) {
-					final EntityRequire require = visitInnerEntityRequire(ctx.args.requirement);
+					final EntityRequire require = visitChildEntityRequire(ctx.args.requirement);
 					if (require instanceof final EntityFetch entityFetch) {
 						return new ReferenceContent(
 							classifier,
@@ -429,10 +418,10 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 						filterBy,
 						orderBy,
 						Optional.ofNullable(ctx.args.facetEntityRequirement)
-							.map(this::visitInnerEntityFetch)
+							.map(c -> visitChildConstraint(c, EntityFetch.class))
 							.orElse(null),
 						Optional.ofNullable(ctx.args.groupEntityRequirement)
-							.map(this::visitInnerEntityGroupFetch)
+							.map(c -> visitChildConstraint(c, EntityGroupFetch.class))
 							.orElse(null)
 					);
 				}
@@ -441,7 +430,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	}
 
 	@Override
-	public RequireConstraint visitMultipleRefsReferenceContentConstraint(@Nonnull EvitaQLParser.MultipleRefsReferenceContentConstraintContext ctx) {
+	public RequireConstraint visitMultipleRefsReferenceContentConstraint(@Nonnull MultipleRefsReferenceContentConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -452,7 +441,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 				if (ctx.args.requirement == null && ctx.args.facetEntityRequirement == null && ctx.args.groupEntityRequirement == null) {
 					return new ReferenceContent(classifiers);
 				} else if (ctx.args.requirement != null) {
-					final EntityRequire require = visitInnerEntityRequire(ctx.args.requirement);
+					final EntityRequire require = visitChildEntityRequire(ctx.args.requirement);
 					if (require instanceof final EntityFetch entityFetch) {
 						return new ReferenceContent(classifiers, entityFetch);
 					} else if (require instanceof final EntityGroupFetch entityGroupFetch) {
@@ -464,10 +453,10 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 					return new ReferenceContent(
 						classifiers,
 						Optional.ofNullable(ctx.args.facetEntityRequirement)
-							.map(this::visitInnerEntityFetch)
+							.map(c -> visitChildConstraint(c, EntityFetch.class))
 							.orElse(null),
 						Optional.ofNullable(ctx.args.groupEntityRequirement)
-							.map(this::visitInnerEntityGroupFetch)
+							.map(c -> visitChildConstraint(c, EntityGroupFetch.class))
 							.orElse(null)
 					);
 				}
@@ -476,7 +465,41 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	}
 
 	@Override
-	public RequireConstraint visitPriceTypeConstraint(@Nonnull EvitaQLParser.PriceTypeConstraintContext ctx) {
+	public RequireConstraint visitEmptyHierarchyContentConstraint(@Nonnull EmptyHierarchyContentConstraintContext ctx) {
+		return parse(ctx, HierarchyContent::new);
+	}
+
+	@Override
+	public RequireConstraint visitSingleRequireHierarchyContentConstraint(@Nonnull SingleRequireHierarchyContentConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> {
+				final RequireConstraint requirement = visitChildConstraint(ctx.args.requirement, RequireConstraint.class);
+				if (requirement instanceof final HierarchyStopAt stopAt) {
+					return new HierarchyContent(stopAt);
+				} else if (requirement instanceof final EntityFetch entityFetch) {
+					return new HierarchyContent(entityFetch);
+				} else {
+					throw new EvitaQLInvalidQueryError(ctx, "Unsupported requirement constraint. Only `stopAt` and `entityFetch` are supported.");
+				}
+			}
+		);
+	}
+
+	@Override
+	public RequireConstraint visitAllRequiresHierarchyContentConstraint(@Nonnull AllRequiresHierarchyContentConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> {
+				final HierarchyStopAt stopAt = visitChildConstraint(ctx.args.stopAt, HierarchyStopAt.class);
+				final EntityFetch entityFetch = visitChildConstraint(ctx.args.entityRequirement, EntityFetch.class);
+				return new HierarchyContent(stopAt, entityFetch);
+			}
+		);
+	}
+
+	@Override
+	public RequireConstraint visitPriceTypeConstraint(@Nonnull PriceTypeConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new PriceType(
@@ -488,7 +511,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	}
 
 	@Override
-	public RequireConstraint visitDataInLocalesConstraint(@Nonnull EvitaQLParser.DataInLocalesConstraintContext ctx) {
+	public RequireConstraint visitDataInLocalesConstraint(@Nonnull DataInLocalesConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -504,36 +527,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	}
 
 	@Override
-	public RequireConstraint visitHierarchyParentsOfSelfConstraint(@Nonnull EvitaQLParser.HierarchyParentsOfSelfConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				if (ctx.args == null) {
-					return new HierarchyParentsOfSelf();
-				}
-				return new HierarchyParentsOfSelf(visitInnerEntityFetch(ctx.args.requirement));
-			}
-		);
-	}
-
-	@Override
-	public RequireConstraint visitHierarchyParentsOfReferenceConstraint(@Nonnull EvitaQLParser.HierarchyParentsOfReferenceConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final String[] classifiers = ctx.args.classifiers
-					.accept(classifierTokenVisitor)
-					.asClassifierArray();
-				if (ctx.args.requirement == null) {
-					return new HierarchyParentsOfReference(classifiers);
-				}
-				return new HierarchyParentsOfReference(classifiers, visitInnerEntityFetch(ctx.args.requirement));
-			}
-		);
-	}
-
-	@Override
-	public RequireConstraint visitFacetSummaryConstraint(@Nonnull EvitaQLParser.FacetSummaryConstraintContext ctx) {
+	public RequireConstraint visitFacetSummaryConstraint(@Nonnull FacetSummaryConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -550,7 +544,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 				}
 
 				if (ctx.args.requirement != null) {
-					final RequireConstraint requirement = ctx.args.requirement.accept(this);
+					final RequireConstraint requirement = visitChildConstraint(ctx.args.requirement, RequireConstraint.class);
 					if (requirement instanceof final EntityFetch facetEntityRequirement) {
 						return new FacetSummary(depth, facetEntityRequirement);
 					} else if (requirement instanceof final EntityGroupFetch groupEntityRequirement) {
@@ -561,10 +555,10 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 				}
 
 				final EntityFetch facetEntityRequirement = Optional.ofNullable(ctx.args.facetEntityRequirement)
-					.map(this::visitInnerEntityFetch)
+					.map(c -> visitChildConstraint(c, EntityFetch.class))
 					.orElse(null);
 				final EntityGroupFetch groupEntityRequirement = Optional.ofNullable(ctx.args.groupEntityRequirement)
-					.map(this::visitInnerEntityGroupFetch)
+					.map(c -> visitChildConstraint(c, EntityGroupFetch.class))
 					.orElse(null);
 				return new FacetSummary(depth, facetEntityRequirement, groupEntityRequirement);
 			}
@@ -572,7 +566,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	}
 
 	@Override
-	public RequireConstraint visitFacetSummaryOfReferenceConstraint(@Nonnull EvitaQLParser.FacetSummaryOfReferenceConstraintContext ctx) {
+	public RequireConstraint visitFacetSummaryOfReferenceConstraint(@Nonnull FacetSummaryOfReferenceConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -590,7 +584,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 				}
 
 				if (ctx.args.requirement != null) {
-					final RequireConstraint requirement = ctx.args.requirement.accept(this);
+					final RequireConstraint requirement = visitChildConstraint(ctx.args.requirement, RequireConstraint.class);
 					if (requirement instanceof final EntityFetch facetEntityRequirement) {
 						return new FacetSummaryOfReference(referenceName, depth, facetEntityRequirement);
 					} else if (requirement instanceof final EntityGroupFetch groupEntityRequirement) {
@@ -601,10 +595,10 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 				}
 
 				final EntityFetch facetEntityRequirement = Optional.ofNullable(ctx.args.facetEntityRequirement)
-					.map(this::visitInnerEntityFetch)
+					.map(c -> visitChildConstraint(c, EntityFetch.class))
 					.orElse(null);
 				final EntityGroupFetch groupEntityRequirement = Optional.ofNullable(ctx.args.groupEntityRequirement)
-					.map(this::visitInnerEntityGroupFetch)
+					.map(c -> visitChildConstraint(c, EntityGroupFetch.class))
 					.orElse(null);
 				return new FacetSummaryOfReference(referenceName, depth, facetEntityRequirement, groupEntityRequirement);
 			}
@@ -612,40 +606,40 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	}
 
 	@Override
-	public RequireConstraint visitFacetGroupsConjunctionConstraint(@Nonnull EvitaQLParser.FacetGroupsConjunctionConstraintContext ctx) {
+	public RequireConstraint visitFacetGroupsConjunctionConstraint(@Nonnull FacetGroupsConjunctionConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new FacetGroupsConjunction(
 				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
-				ctx.args.values.accept(intValueTokenVisitor).asIntegerArray()
+				(FilterBy) ctx.args.filterConstraint().accept(filterConstraintVisitor)
 			)
 		);
 	}
 
 	@Override
-	public RequireConstraint visitFacetGroupsDisjunctionConstraint(@Nonnull EvitaQLParser.FacetGroupsDisjunctionConstraintContext ctx) {
+	public RequireConstraint visitFacetGroupsDisjunctionConstraint(@Nonnull FacetGroupsDisjunctionConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new FacetGroupsDisjunction(
 				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
-				ctx.args.values.accept(intValueTokenVisitor).asIntegerArray()
+				(FilterBy) ctx.args.filterConstraint().accept(filterConstraintVisitor)
 			)
 		);
 	}
 
 	@Override
-	public RequireConstraint visitFacetGroupsNegationConstraint(@Nonnull EvitaQLParser.FacetGroupsNegationConstraintContext ctx) {
+	public RequireConstraint visitFacetGroupsNegationConstraint(@Nonnull FacetGroupsNegationConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new FacetGroupsNegation(
 				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
-				ctx.args.values.accept(intValueTokenVisitor).asIntegerArray()
+				(FilterBy) ctx.args.filterConstraint().accept(filterConstraintVisitor)
 			)
 		);
 	}
 
 	@Override
-	public RequireConstraint visitAttributeHistogramConstraint(@Nonnull EvitaQLParser.AttributeHistogramConstraintContext ctx) {
+	public RequireConstraint visitAttributeHistogramConstraint(@Nonnull AttributeHistogramConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new AttributeHistogram(
@@ -656,7 +650,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	}
 
 	@Override
-	public RequireConstraint visitPriceHistogramConstraint(@Nonnull EvitaQLParser.PriceHistogramConstraintContext ctx) {
+	public RequireConstraint visitPriceHistogramConstraint(@Nonnull PriceHistogramConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new PriceHistogram(
@@ -666,80 +660,440 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	}
 
 	@Override
-	public RequireConstraint visitHierarchyStatisticsOfSelfConstraint(@Nonnull EvitaQLParser.HierarchyStatisticsOfSelfConstraintContext ctx) {
+	public RequireConstraint visitHierarchyDistanceConstraint(@Nonnull HierarchyDistanceConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> {
-				if (ctx.args == null) {
-					return new HierarchyStatisticsOfSelf();
-				}
-				return new HierarchyStatisticsOfSelf(visitInnerEntityFetch(ctx.args.requirement));
-			}
+			() -> new HierarchyDistance(ctx.args.value.accept(intValueTokenVisitor).asInt())
 		);
 	}
 
 	@Override
-	public RequireConstraint visitHierarchyStatisticsOfReferenceConstraint(@Nonnull EvitaQLParser.HierarchyStatisticsOfReferenceConstraintContext ctx) {
+	public RequireConstraint visitHierarchyLevelConstraint(@Nonnull HierarchyLevelConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new HierarchyLevel(ctx.args.value.accept(intValueTokenVisitor).asInt())
+		);
+	}
+
+	@Override
+	public RequireConstraint visitHierarchyNodeConstraint(@Nonnull HierarchyNodeConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new HierarchyNode(visitChildConstraint(filterConstraintVisitor, ctx.args.filter, FilterBy.class))
+		);
+	}
+
+	@Override
+	public RequireConstraint visitHierarchyStopAtConstraint(@Nonnull HierarchyStopAtConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new HierarchyStopAt(visitChildConstraint(ctx.args.requirement, HierarchyStopAtRequireConstraint.class))
+		);
+	}
+
+	@Override
+	public RequireConstraint visitHierarchyStatisticsConstraint(@Nonnull HierarchyStatisticsConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
-
-				final String[] classifiers = ctx.args.classifiers
-					.accept(classifierTokenVisitor)
-					.asClassifierArray();
-				if (ctx.args.requirement == null) {
-					return new HierarchyStatisticsOfReference(classifiers);
+				if (ctx.args == null) {
+					return new HierarchyStatistics();
 				}
-				return new HierarchyStatisticsOfReference(
-					classifiers,
-					visitInnerEntityFetch(ctx.args.requirement)
+				final LinkedList<Serializable> settings = Arrays.stream(ctx.args.settings
+					.accept(statisticsArgValueTokenVisitor)
+					.asSerializableArray())
+					.collect(Collectors.toCollection(LinkedList::new));
+
+				// due to the varargs of any value in QL, we don't know which enum is where, on top of that it can be
+				// enum directly or just wrapper
+				final Serializable firstSettings = settings.peekFirst();
+				if (firstSettings instanceof StatisticsBase) {
+					return new HierarchyStatistics(
+						castArgument(ctx, settings.pop(), StatisticsBase.class),
+						settings.stream()
+							.map(it -> {
+								if (it instanceof EnumWrapper enumWrapper) {
+									return enumWrapper.toEnum(StatisticsType.class);
+								}
+								return castArgument(ctx, it, StatisticsType.class);
+							})
+							.toArray(StatisticsType[]::new)
+					);
+				}
+				if (firstSettings instanceof EnumWrapper enumWrapper && enumWrapper.canBeMappedTo(StatisticsBase.class)) {
+					return new HierarchyStatistics(
+						castArgument(ctx, settings.pop(), EnumWrapper.class)
+							.toEnum(StatisticsBase.class),
+						settings.stream()
+							.map(it -> {
+								if (it instanceof EnumWrapper statisticsType) {
+									return statisticsType.toEnum(StatisticsType.class);
+								}
+								return castArgument(ctx, it, StatisticsType.class);
+							})
+							.toArray(StatisticsType[]::new)
+					);
+				}
+				return new HierarchyStatistics(
+					StatisticsBase.WITHOUT_USER_FILTER,
+					settings.stream()
+						.map(it -> {
+							if (it instanceof EnumWrapper enumWrapper) {
+								return enumWrapper.toEnum(StatisticsType.class);
+							}
+							return castArgument(ctx, it, StatisticsType.class);
+						})
+						.toArray(StatisticsType[]::new)
 				);
 			}
 		);
 	}
 
 	@Override
-	public RequireConstraint visitQueryTelemetryConstraint(@Nonnull EvitaQLParser.QueryTelemetryConstraintContext ctx) {
+	public RequireConstraint visitHierarchyFromRootConstraint(@Nonnull HierarchyFromRootConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> {
+				final String outputName = ctx.args.outputName.accept(classifierTokenVisitor).asSingleClassifier();
+				final Deque<RequireConstraint> requirements = ctx.args.requirements
+					.stream()
+					.map(c -> visitChildConstraint(c, RequireConstraint.class))
+					.collect(Collectors.toCollection(LinkedList::new));
+
+				if (requirements.isEmpty()) {
+					return new HierarchyFromRoot(outputName);
+				}
+				if (requirements.peekFirst() instanceof EntityFetch) {
+					return new HierarchyFromRoot(
+						outputName,
+						(EntityFetch) requirements.pop(),
+						requirements.stream()
+							.map(it -> visitChildConstraint(ctx, it, HierarchyOutputRequireConstraint.class))
+							.toArray(HierarchyOutputRequireConstraint[]::new)
+					);
+				}
+				return new HierarchyFromRoot(
+					outputName,
+					requirements.stream()
+						.map(it -> visitChildConstraint(ctx, it, HierarchyOutputRequireConstraint.class))
+						.toArray(HierarchyOutputRequireConstraint[]::new)
+				);
+			}
+		);
+	}
+
+	@Override
+	public RequireConstraint visitHierarchyFromNodeConstraint(@Nonnull HierarchyFromNodeConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> {
+				final String outputName = ctx.args.outputName.accept(classifierTokenVisitor).asSingleClassifier();
+				final HierarchyNode node = visitChildConstraint(ctx.args.node, HierarchyNode.class);
+				final Deque<RequireConstraint> requirements = ctx.args.requirements
+					.stream()
+					.map(c -> visitChildConstraint(c, RequireConstraint.class))
+					.collect(Collectors.toCollection(LinkedList::new));
+
+				if (requirements.isEmpty()) {
+					return new HierarchyFromNode(
+						outputName,
+						node
+					);
+				}
+				if (requirements.peekFirst() instanceof EntityFetch) {
+					return new HierarchyFromNode(
+						outputName,
+						node,
+						(EntityFetch) requirements.pop(),
+						requirements.stream()
+							.map(it -> visitChildConstraint(ctx, it, HierarchyOutputRequireConstraint.class))
+							.toArray(HierarchyOutputRequireConstraint[]::new)
+					);
+				}
+				return new HierarchyFromNode(
+					outputName,
+					node,
+					requirements.stream()
+						.map(it -> visitChildConstraint(ctx, it, HierarchyOutputRequireConstraint.class))
+						.toArray(HierarchyOutputRequireConstraint[]::new)
+				);
+			}
+		);
+	}
+
+	@Override
+	public RequireConstraint visitHierarchyChildrenConstraint(@Nonnull HierarchyChildrenConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> {
+				final String outputName = ctx.args.outputName.accept(classifierTokenVisitor).asSingleClassifier();
+				final Deque<RequireConstraint> requirements = ctx.args.requirements
+					.stream()
+					.map(c -> visitChildConstraint(c, RequireConstraint.class))
+					.collect(Collectors.toCollection(LinkedList::new));
+
+				if (requirements.isEmpty()) {
+					return new HierarchyChildren(outputName);
+				}
+				if (requirements.peekFirst() instanceof EntityFetch) {
+					return new HierarchyChildren(
+						outputName,
+						(EntityFetch) requirements.pop(),
+						requirements.stream()
+							.map(it -> visitChildConstraint(ctx, it, HierarchyOutputRequireConstraint.class))
+							.toArray(HierarchyOutputRequireConstraint[]::new)
+					);
+				}
+				return new HierarchyChildren(
+					outputName,
+					requirements.stream()
+						.map(it -> visitChildConstraint(ctx, it, HierarchyOutputRequireConstraint.class))
+						.toArray(HierarchyOutputRequireConstraint[]::new)
+				);
+			}
+		);
+	}
+
+	@Override
+	public RequireConstraint visitEmptyHierarchySiblingsConstraint(EmptyHierarchySiblingsConstraintContext ctx) {
+		return parse(ctx, () -> new HierarchySiblings(null));
+	}
+
+	@Override
+	public RequireConstraint visitBasicHierarchySiblingsConstraint(@Nonnull BasicHierarchySiblingsConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> {
+				final Deque<RequireConstraint> requirements = ctx.args.requirements
+					.stream()
+					.map(c -> visitChildConstraint(c, RequireConstraint.class))
+					.collect(Collectors.toCollection(LinkedList::new));
+
+				if (requirements.isEmpty()) {
+					return new HierarchySiblings(null);
+				}
+				if (requirements.peekFirst() instanceof EntityFetch) {
+					return new HierarchySiblings(
+						null,
+						(EntityFetch) requirements.pop(),
+						requirements.stream()
+							.map(it -> visitChildConstraint(ctx, it, HierarchyOutputRequireConstraint.class))
+							.toArray(HierarchyOutputRequireConstraint[]::new)
+					);
+				}
+				return new HierarchySiblings(
+					null,
+					requirements.stream()
+						.map(it -> visitChildConstraint(ctx, it, HierarchyOutputRequireConstraint.class))
+						.toArray(HierarchyOutputRequireConstraint[]::new)
+				);
+			}
+		);
+	}
+
+	@Override
+	public RequireConstraint visitFullHierarchySiblingsConstraint(@Nonnull FullHierarchySiblingsConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> {
+				final String outputName = ctx.args.outputName.accept(classifierTokenVisitor).asSingleClassifier();
+				final Deque<RequireConstraint> requirements = ctx.args.requirements
+					.stream()
+					.map(c -> visitChildConstraint(c, RequireConstraint.class))
+					.collect(Collectors.toCollection(LinkedList::new));
+
+				if (requirements.isEmpty()) {
+					return new HierarchySiblings(outputName);
+				}
+				if (requirements.peekFirst() instanceof EntityFetch) {
+					return new HierarchySiblings(
+						outputName,
+						(EntityFetch) requirements.pop(),
+						requirements.stream()
+							.map(it -> visitChildConstraint(ctx, it, HierarchyOutputRequireConstraint.class))
+							.toArray(HierarchyOutputRequireConstraint[]::new)
+					);
+				}
+				return new HierarchySiblings(
+					outputName,
+					requirements.stream()
+						.map(it -> visitChildConstraint(ctx, it, HierarchyOutputRequireConstraint.class))
+						.toArray(HierarchyOutputRequireConstraint[]::new)
+				);
+			}
+		);
+	}
+
+	@Override
+	public RequireConstraint visitHierarchyParentsConstraint(@Nonnull HierarchyParentsConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> {
+				final String outputName = ctx.args.outputName.accept(classifierTokenVisitor).asSingleClassifier();
+				final Deque<RequireConstraint> requirements = ctx.args.requirements
+					.stream()
+					.map(c -> visitChildConstraint(c, RequireConstraint.class))
+					.collect(Collectors.toCollection(LinkedList::new));
+
+				if (requirements.isEmpty()) {
+					return new HierarchyParents(outputName);
+				}
+
+				if (requirements.peekFirst() instanceof EntityFetch) {
+					final EntityFetch entityFetch = (EntityFetch) requirements.pop();
+
+					if (requirements.peekFirst() instanceof HierarchySiblings) {
+						final HierarchySiblings siblings = (HierarchySiblings) requirements.pop();
+
+						return new HierarchyParents(
+							outputName,
+							entityFetch,
+							siblings,
+							requirements.stream()
+								.map(it -> visitChildConstraint(ctx, it, HierarchyOutputRequireConstraint.class))
+								.toArray(HierarchyOutputRequireConstraint[]::new)
+						);
+					}
+
+					return new HierarchyParents(
+						outputName,
+						entityFetch,
+						requirements.stream()
+							.map(it -> visitChildConstraint(ctx, it, HierarchyOutputRequireConstraint.class))
+							.toArray(HierarchyOutputRequireConstraint[]::new)
+					);
+				}
+
+				if (requirements.peekFirst() instanceof HierarchySiblings) {
+					return new HierarchyParents(
+						outputName,
+						(HierarchySiblings) requirements.pop(),
+						requirements.stream()
+							.map(it -> visitChildConstraint(ctx, it, HierarchyOutputRequireConstraint.class))
+							.toArray(HierarchyOutputRequireConstraint[]::new)
+					);
+				}
+
+				return new HierarchyParents(
+					outputName,
+					requirements.stream()
+						.map(it -> visitChildConstraint(ctx, it, HierarchyOutputRequireConstraint.class))
+						.toArray(HierarchyOutputRequireConstraint[]::new)
+				);
+			}
+		);
+	}
+
+	@Override
+	public RequireConstraint visitBasicHierarchyOfSelfConstraint(@Nonnull BasicHierarchyOfSelfConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new HierarchyOfSelf(
+				ctx.args.requirements
+					.stream()
+					.map(c -> visitChildConstraint(c, HierarchyRequireConstraint.class))
+					.toArray(HierarchyRequireConstraint[]::new)
+			)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitFullHierarchyOfSelfConstraint(@Nonnull FullHierarchyOfSelfConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new HierarchyOfSelf(
+				visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class),
+				ctx.args.requirements
+					.stream()
+					.map(c -> visitChildConstraint(c, HierarchyRequireConstraint.class))
+					.toArray(HierarchyRequireConstraint[]::new)
+			)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitBasicHierarchyOfReferenceConstraint(@Nonnull BasicHierarchyOfReferenceConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new HierarchyOfReference(
+				// todo lho support for multiple reference names
+				ctx.args.referenceName.accept(classifierTokenVisitor).asSingleClassifier(),
+				EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY,
+				ctx.args.requirements
+					.stream()
+					.map(c -> visitChildConstraint(c, HierarchyRequireConstraint.class))
+					.toArray(HierarchyRequireConstraint[]::new)
+			)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitBasicHierarchyOfReferenceWithBehaviourConstraint(@Nonnull BasicHierarchyOfReferenceWithBehaviourConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new HierarchyOfReference(
+				// todo lho support for multiple reference names
+				ctx.args.referenceName.accept(classifierTokenVisitor).asSingleClassifier(),
+				ctx.args.emptyHierarchicalEntityBehaviour
+					.accept(emptyHierarchicalEntityBehaviourValueTokenVisitor)
+					.asEnum(EmptyHierarchicalEntityBehaviour.class),
+				ctx.args.requirements
+					.stream()
+					.map(c -> visitChildConstraint(c, HierarchyRequireConstraint.class))
+					.toArray(HierarchyRequireConstraint[]::new)
+			)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitFullHierarchyOfReferenceConstraint(@Nonnull FullHierarchyOfReferenceConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new HierarchyOfReference(
+				// todo lho support for multiple reference names
+				ctx.args.referenceName.accept(classifierTokenVisitor).asSingleClassifier(),
+				EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY,
+				visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class),
+				ctx.args.requirements
+					.stream()
+					.map(c -> visitChildConstraint(c, HierarchyRequireConstraint.class))
+					.toArray(HierarchyRequireConstraint[]::new)
+			)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitFullHierarchyOfReferenceWithBehaviourConstraint(@Nonnull FullHierarchyOfReferenceWithBehaviourConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new HierarchyOfReference(
+				// todo lho support for multiple reference names
+				ctx.args.referenceName.accept(classifierTokenVisitor).asSingleClassifier(),
+				ctx.args.emptyHierarchicalEntityBehaviour
+					.accept(emptyHierarchicalEntityBehaviourValueTokenVisitor)
+					.asEnum(EmptyHierarchicalEntityBehaviour.class),
+				visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class),
+				ctx.args.requirements
+					.stream()
+					.map(c -> visitChildConstraint(c, HierarchyRequireConstraint.class))
+					.toArray(HierarchyRequireConstraint[]::new)
+			)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitQueryTelemetryConstraint(@Nonnull QueryTelemetryConstraintContext ctx) {
 		return parse(ctx, QueryTelemetry::new);
 	}
 
 
 	@Nonnull
-	private EntityFetch visitInnerEntityFetch(@Nonnull EvitaQLParser.RequireConstraintContext arg) {
-		final RequireConstraint entityFetch = arg.accept(this);
-		Assert.isTrue(
-			entityFetch instanceof EntityFetch,
-			() -> new EvitaQLInvalidQueryError(arg, "Only `entityFetch` constraint is supported.")
-		);
-		return (EntityFetch) entityFetch;
+	private EntityRequire visitChildEntityRequire(@Nonnull RequireConstraintContext arg) {
+		return visitChildConstraint(arg, EntityRequire.class);
 	}
 
 	@Nonnull
-	private EntityGroupFetch visitInnerEntityGroupFetch(@Nonnull EvitaQLParser.RequireConstraintContext arg) {
-		final RequireConstraint entityGroupFetch = arg.accept(this);
-		Assert.isTrue(
-			entityGroupFetch instanceof EntityGroupFetch,
-			() -> new EvitaQLInvalidQueryError(arg, "Only `entityGroupFetch` constraint is supported.")
-		);
-		return (EntityGroupFetch) entityGroupFetch;
-	}
-
-	@Nonnull
-	private EntityRequire visitInnerEntityRequire(@Nonnull EvitaQLParser.RequireConstraintContext arg) {
-		final RequireConstraint entityRequire = arg.accept(this);
-		Assert.isTrue(
-			entityRequire instanceof EntityRequire,
-			() -> new EvitaQLInvalidQueryError(arg, ONLY_ENTITY_FETCH_CONSTRAINTS_ARE_SUPPORTED_ERROR_MESSAGE)
-		);
-		return (EntityRequire) entityRequire;
-	}
-
-	@Nonnull
-	private EntityContentRequire visitEntityContentRequire(@Nonnull EvitaQLParser.RequireConstraintContext arg) {
-		final RequireConstraint constraint = arg.accept(this);
-		if (!(constraint instanceof EntityContentRequire)) {
-			throw new EvitaQLInvalidQueryError(arg, "Child constraint `" + constraint.getName() + "` is not of type `EntityContentRequire`.");
-		}
-		return (EntityContentRequire) constraint;
+	private EntityContentRequire visitChildEntityContentRequire(@Nonnull RequireConstraintContext arg) {
+		return visitChildConstraint(arg, EntityContentRequire.class);
 	}
 }

@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
-import io.evitadb.test.extension.DbInstanceParameterResolver;
+import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
@@ -43,7 +43,7 @@ import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContent;
-import static io.evitadb.api.query.QueryConstraints.priceContent;
+import static io.evitadb.api.query.QueryConstraints.priceContentRespectingFilter;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 
@@ -56,7 +56,7 @@ import static io.evitadb.test.TestConstants.TEST_CATALOG;
  */
 @DisplayName("Evita entity filtering by prices functionality - find first")
 @Tag(FUNCTIONAL_TEST)
-@ExtendWith(DbInstanceParameterResolver.class)
+@ExtendWith(EvitaParameterResolver.class)
 @Slf4j
 public class FindFirstPriceEntityByPriceFilteringFunctionalTest extends EntityByPriceFilteringFunctionalTest {
 	private static final String HUNDRED_PRODUCTS_WITH_FIND_FIRST_PRICES = "HundredProductsWithFindFirstPrices";
@@ -82,7 +82,7 @@ public class FindFirstPriceEntityByPriceFilteringFunctionalTest extends EntityBy
 				.toList();
 
 			return storedProducts.stream()
-				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContent(), priceContent()).orElseThrow())
+				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContent(), priceContentRespectingFilter()).orElseThrow())
 				.collect(Collectors.toList());
 		});
 	}

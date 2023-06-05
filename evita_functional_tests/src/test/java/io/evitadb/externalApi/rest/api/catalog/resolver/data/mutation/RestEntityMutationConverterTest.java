@@ -33,8 +33,8 @@ import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssocia
 import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
-import io.evitadb.api.requestResponse.data.mutation.entity.RemoveHierarchicalPlacementMutation;
-import io.evitadb.api.requestResponse.data.mutation.entity.SetHierarchicalPlacementMutation;
+import io.evitadb.api.requestResponse.data.mutation.entity.RemoveParentMutation;
+import io.evitadb.api.requestResponse.data.mutation.entity.SetParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.RemovePriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
@@ -44,6 +44,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceGro
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
@@ -55,7 +56,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.Apply
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.RemoveAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.UpsertAttributeMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetHierarchicalPlacementMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetParentMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.RemovePriceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.SetPriceInnerRecordHandlingMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.UpsertPriceMutationDescriptor;
@@ -75,6 +76,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -102,7 +104,7 @@ class RestEntityMutationConverterTest {
 	@BeforeEach
 	void init() {
 		final EntitySchemaContract entitySchema = new InternalEntitySchemaBuilder(
-			CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), entityType -> null),
+			CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), entityType -> null),
 			EntitySchema._internalBuild(Entities.PRODUCT)
 		)
 			.withAssociatedData(ASSOCIATED_DATA_LABELS, Dummy.class)
@@ -143,11 +145,11 @@ class RestEntityMutationConverterTest {
 					.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone"))
 				.build(),
 			jsonObject()
-				.e(LocalMutationAggregateDescriptor.REMOVE_HIERARCHICAL_PLACEMENT_MUTATION.name(), true)
+				.e(LocalMutationAggregateDescriptor.REMOVE_PARENT_MUTATION.name(), true)
 				.build(),
 			jsonObject()
-				.e(LocalMutationAggregateDescriptor.SET_HIERARCHICAL_PLACEMENT_MUTATION.name(), jsonObject()
-					.e(SetHierarchicalPlacementMutationDescriptor.ORDER_AMONG_SIBLINGS.name(), 10))
+				.e(LocalMutationAggregateDescriptor.SET_PARENT_MUTATION.name(), jsonObject()
+					.e(SetParentMutationDescriptor.PARENT_PRIMARY_KEY.name(), 10))
 				.build(),
 			jsonObject()
 				.e(LocalMutationAggregateDescriptor.SET_PRICE_INNER_RECORD_HANDLING_MUTATION.name(), jsonObject()
@@ -216,8 +218,8 @@ class RestEntityMutationConverterTest {
 		assertTrue(localMutationsIterator.next() instanceof ApplyDeltaAttributeMutation);
 		assertTrue(localMutationsIterator.next() instanceof RemoveAttributeMutation);
 		assertTrue(localMutationsIterator.next() instanceof UpsertAttributeMutation);
-		assertTrue(localMutationsIterator.next() instanceof RemoveHierarchicalPlacementMutation);
-		assertTrue(localMutationsIterator.next() instanceof SetHierarchicalPlacementMutation);
+		assertTrue(localMutationsIterator.next() instanceof RemoveParentMutation);
+		assertTrue(localMutationsIterator.next() instanceof SetParentMutation);
 		assertTrue(localMutationsIterator.next() instanceof SetPriceInnerRecordHandlingMutation);
 		assertTrue(localMutationsIterator.next() instanceof RemovePriceMutation);
 		assertTrue(localMutationsIterator.next() instanceof UpsertPriceMutation);
@@ -246,9 +248,9 @@ class RestEntityMutationConverterTest {
 				.e(LocalMutationAggregateDescriptor.UPSERT_ATTRIBUTE_MUTATION.name(), jsonObject()
 					.e(UpsertAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 					.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone"))
-				.e(LocalMutationAggregateDescriptor.REMOVE_HIERARCHICAL_PLACEMENT_MUTATION.name(), true)
-				.e(LocalMutationAggregateDescriptor.SET_HIERARCHICAL_PLACEMENT_MUTATION.name(), jsonObject()
-					.e(SetHierarchicalPlacementMutationDescriptor.ORDER_AMONG_SIBLINGS.name(), 10))
+				.e(LocalMutationAggregateDescriptor.REMOVE_PARENT_MUTATION.name(), true)
+				.e(LocalMutationAggregateDescriptor.SET_PARENT_MUTATION.name(), jsonObject()
+					.e(SetParentMutationDescriptor.PARENT_PRIMARY_KEY.name(), 10))
 				.e(LocalMutationAggregateDescriptor.SET_PRICE_INNER_RECORD_HANDLING_MUTATION.name(), jsonObject()
 					.e(SetPriceInnerRecordHandlingMutationDescriptor.PRICE_INNER_RECORD_HANDLING.name(), "SUM"))
 				.e(LocalMutationAggregateDescriptor.REMOVE_PRICE_MUTATION.name(), jsonObject()
@@ -300,8 +302,8 @@ class RestEntityMutationConverterTest {
 		assertTrue(localMutationsIterator.next() instanceof ApplyDeltaAttributeMutation);
 		assertTrue(localMutationsIterator.next() instanceof RemoveAttributeMutation);
 		assertTrue(localMutationsIterator.next() instanceof UpsertAttributeMutation);
-		assertTrue(localMutationsIterator.next() instanceof RemoveHierarchicalPlacementMutation);
-		assertTrue(localMutationsIterator.next() instanceof SetHierarchicalPlacementMutation);
+		assertTrue(localMutationsIterator.next() instanceof RemoveParentMutation);
+		assertTrue(localMutationsIterator.next() instanceof SetParentMutation);
 		assertTrue(localMutationsIterator.next() instanceof SetPriceInnerRecordHandlingMutation);
 		assertTrue(localMutationsIterator.next() instanceof RemovePriceMutation);
 		assertTrue(localMutationsIterator.next() instanceof UpsertPriceMutation);

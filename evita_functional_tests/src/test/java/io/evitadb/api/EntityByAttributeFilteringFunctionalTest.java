@@ -36,14 +36,16 @@ import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
+import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Multiple;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
-import io.evitadb.test.extension.DbInstanceParameterResolver;
+import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
+import io.evitadb.utils.ArrayUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -88,7 +90,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @DisplayName("Evita entity filtering by attributes functionality")
 @Tag(FUNCTIONAL_TEST)
-@ExtendWith(DbInstanceParameterResolver.class)
+@ExtendWith(EvitaParameterResolver.class)
 @Slf4j
 public class EntityByAttributeFilteringFunctionalTest {
 	private static final String HUNDRED_PRODUCTS = "HundredProducts";
@@ -2567,6 +2569,44 @@ public class EntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should not return entities by equals to global localized attribute when locale doesn't match (String)")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldNotReturnEntitiesByGlobalLocalizedAttributeEqualToStringWhenLocaleDoesNotMatch(Evita evita, List<SealedEntity> originalProductEntities) {
+		final Random rnd = new Random(SEED);
+		final SealedEntity selectedEntity = originalProductEntities.stream()
+			.filter(it -> it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH) != null && it.getLocales().contains(Locale.ENGLISH) && it.getLocales().contains(CZECH_LOCALE))
+			.filter(it -> rnd.nextInt(100) > 85)
+			.findFirst()
+			.get();
+		final String urlAttribute = selectedEntity.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						filterBy(
+							attributeEquals(ATTRIBUTE_URL, urlAttribute),
+							entityLocaleEquals(CZECH_LOCALE)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							entityFetch(
+								attributeContent(ATTRIBUTE_URL),
+								dataInLocales(CZECH_LOCALE)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+				assertEquals(0, result.getRecordData().size());
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return entities by having attribute set on two referenced entities (AND)")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -3070,6 +3110,166 @@ public class EntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should return products sorted by exact order of the attribute in the filter constraint")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnProductSortedByExactOrderInFilter(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Random random = new Random();
+				final String[] randomCodes = originalProductEntities
+					.stream()
+					.filter(it -> random.nextInt(10) == 1)
+					.map(it -> it.getAttribute(ATTRIBUTE_CODE, String.class))
+					.toArray(String[]::new);
+
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeInSet(ATTRIBUTE_CODE, randomCodes)
+						),
+						orderBy(
+							attributeSetInFilter(ATTRIBUTE_CODE)
+						)
+					)
+				);
+				assertEquals(randomCodes.length, products.getRecordData().size());
+				assertEquals(randomCodes.length, products.getTotalRecordCount());
+
+				assertArrayEquals(
+					randomCodes,
+					products.getRecordData().stream()
+						.map(it -> it.getAttribute(ATTRIBUTE_CODE, String.class))
+						.toArray(String[]::new)
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return products sorted by exact order of the attribute with prefetch")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnProductSortedByExactOrderWithPrefetch(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Random random = new Random();
+				final AttributeTuple[] randomData = originalProductEntities
+					.stream()
+					.filter(it -> random.nextInt(10) == 1)
+					.map(it -> new AttributeTuple(
+						it.getPrimaryKey(),
+						it.getAttribute(ATTRIBUTE_CODE, String.class)
+					))
+					.toArray(AttributeTuple[]::new);
+				final Integer[] randomProductIds = Arrays.stream(randomData)
+					.map(AttributeTuple::primaryKey)
+					.toArray(Integer[]::new);
+				final String[] randomCodes = Arrays.stream(randomData)
+					.map(AttributeTuple::attributeValue)
+					.toArray(String[]::new);
+				ArrayUtils.shuffleArray(random, randomCodes);
+
+				final EvitaResponse<SealedEntity> products = SelectionFormula.doWithCustomPrefetchCostEstimator(
+					() -> session.querySealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								entityPrimaryKeyInSet(randomProductIds)
+							),
+							orderBy(
+								attributeSetExact(ATTRIBUTE_CODE, randomCodes)
+							),
+							require(
+								entityFetch(
+									attributeContent(ATTRIBUTE_CODE)
+								)
+							)
+						)
+					),
+					(t, u) -> -1L
+				);
+				assertEquals(randomCodes.length, products.getRecordData().size());
+				assertEquals(randomCodes.length, products.getTotalRecordCount());
+
+				assertArrayEquals(
+					randomCodes,
+					products.getRecordData().stream()
+						.map(it -> it.getAttribute(ATTRIBUTE_CODE, String.class))
+						.toArray(String[]::new)
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return products sorted by exact order of the attribute")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnProductSortedByExactOrder(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Random random = new Random();
+				final AttributeTuple[] randomData = originalProductEntities
+					.stream()
+					.filter(it -> random.nextInt(10) == 1)
+					.map(it -> new AttributeTuple(
+						it.getPrimaryKey(),
+						it.getAttribute(ATTRIBUTE_CODE, String.class)
+					))
+					.toArray(AttributeTuple[]::new);
+				final Integer[] randomProductIds = Arrays.stream(randomData)
+					.map(AttributeTuple::primaryKey)
+					.toArray(Integer[]::new);
+				final String[] randomCodes = Arrays.stream(randomData)
+					.map(AttributeTuple::attributeValue)
+					.toArray(String[]::new);
+				ArrayUtils.shuffleArray(random, randomCodes);
+				final Integer[] randomSortedProductIds = Arrays.stream(randomCodes)
+					.map(
+						it -> Arrays.stream(randomData)
+							.filter(att -> it.equals(att.attributeValue()))
+							.map(AttributeTuple::primaryKey)
+							.findFirst()
+							.orElseThrow()
+					)
+					.toArray(Integer[]::new);
+
+
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(randomProductIds)
+						),
+						orderBy(
+							attributeSetExact(ATTRIBUTE_CODE, randomCodes)
+						),
+						require(
+							entityFetch(
+								attributeContent(ATTRIBUTE_CODE)
+							)
+						)
+					)
+				);
+				assertEquals(randomCodes.length, products.getRecordData().size());
+				assertEquals(randomCodes.length, products.getTotalRecordCount());
+
+				assertArrayEquals(
+					randomSortedProductIds,
+					products.getRecordData().stream()
+						.map(EntityContract::getPrimaryKey)
+						.toArray(Integer[]::new)
+				);
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return only first page of filtered and sorted entities")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -3563,6 +3763,9 @@ public class EntityByAttributeFilteringFunctionalTest {
 	}
 
 	public record PredicateWithComparatorTuple(Predicate<SealedEntity> predicate, Comparator<SealedEntity> comparator) {
+	}
+
+	private record AttributeTuple(Integer primaryKey, String attributeValue) {
 	}
 
 }

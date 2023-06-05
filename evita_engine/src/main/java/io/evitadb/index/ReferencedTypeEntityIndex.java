@@ -33,19 +33,14 @@ import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.VoidPriceIndex;
-import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
-import io.evitadb.store.model.StoragePart;
-import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
-import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
 import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -96,24 +91,6 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements VoidTransa
 	public <S extends PriceIndexContract> S getPriceIndex() {
 		//noinspection unchecked
 		return (S) priceIndex;
-	}
-
-	@Override
-	protected StoragePart createStoragePart(boolean hierarchyIndexEmpty,
-	                                        @Nullable Integer internalPriceIdSequence,
-	                                        @Nonnull Set<AttributeIndexStorageKey> attributeIndexStorageKeys,
-	                                        @Nonnull Set<PriceIndexKey> priceIndexKeys,
-	                                        @Nonnull Set<String> facetIndexReferencedEntities
-	) {
-		return new EntityIndexStoragePart(
-			primaryKey, version, indexKey,
-			entityIds, entityIdsByLanguage,
-			attributeIndexStorageKeys,
-			internalPriceIdSequence,
-			priceIndexKeys,
-			!hierarchyIndexEmpty,
-			facetIndexReferencedEntities
-		);
 	}
 
 	/*

@@ -46,6 +46,7 @@ import java.util.Collection;
 import java.util.Currency;
 import java.util.Locale;
 
+import static java.util.OptionalInt.of;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -72,7 +73,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 	@BeforeEach
 	void setUp() {
 		initialEntity = new InitialEntityBuilder("product", 1)
-			.setHierarchicalPlacement(5, 1)
+			.setParent(5)
 			.setPriceInnerRecordHandling(PriceInnerRecordHandling.FIRST_OCCURRENCE)
 			.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 			.setPrice(2, "reference", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, false)
@@ -91,7 +92,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 	@Test
 	void shouldSkipMutationsThatMeansNoChange() {
 		builder
-			.setHierarchicalPlacement(5, 1)
+			.setParent(5)
 			.setPriceInnerRecordHandling(PriceInnerRecordHandling.FIRST_OCCURRENCE)
 			.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 			.setPrice(2, "reference", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, false)
@@ -108,15 +109,17 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
-	void shouldRemoveHierarchicalPlacement() {
-		builder.removeHierarchicalPlacement();
-		assertTrue(builder.getHierarchicalPlacement().isEmpty());
+	void shouldRemoveParent() {
+		assertFalse(builder.getParent().isEmpty());
+		builder.removeParent();
+		assertTrue(builder.getParent().isEmpty());
 
 		final Entity updatedEntity = builder.toMutation()
 			.map(it -> it.mutate(initialEntity.getSchema(), initialEntity))
 			.orElse(initialEntity);
-		assertNotNull(updatedEntity.getHierarchicalPlacement());
-		assertTrue(updatedEntity.getHierarchicalPlacement().filter(Droppable::exists).isEmpty());
+		assertNotNull(updatedEntity.getParent());
+		assertEquals(initialEntity.getVersion() + 1, updatedEntity.getVersion());
+		assertTrue(updatedEntity.getParent().isEmpty());
 	}
 
 	@Test
@@ -153,12 +156,13 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
-	void shouldOverwriteHierarchicalPlacement() {
-		builder.setHierarchicalPlacement(78, 5);
-		assertEquals(new HierarchicalPlacement(2, 78, 5), builder.getHierarchicalPlacement().orElse(null));
+	void shouldOverwriteParent() {
+		builder.setParent(78);
+		assertEquals(of(78), builder.getParent());
 
 		final Entity updatedEntity = builder.toMutation().orElseThrow().mutate(initialEntity.getSchema(), initialEntity);
-		assertEquals(new HierarchicalPlacement(2, 78, 5), updatedEntity.getHierarchicalPlacement().orElse(null));
+		assertEquals(initialEntity.getVersion() + 1, updatedEntity.getVersion());
+		assertEquals(of(78), updatedEntity.getParent());
 	}
 
 	@Test
@@ -210,7 +214,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 	@Test
 	void shouldReturnOriginalEntityInstanceWhenNothingHasChanged() {
 		final Entity newEntity = new ExistingEntityBuilder(initialEntity)
-			.setHierarchicalPlacement(5, 1)
+			.setParent(5)
 			.setPriceInnerRecordHandling(PriceInnerRecordHandling.FIRST_OCCURRENCE)
 			.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 			.setPrice(2, "reference", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, false)

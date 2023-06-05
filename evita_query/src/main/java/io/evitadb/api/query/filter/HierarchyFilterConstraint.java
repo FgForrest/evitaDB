@@ -28,6 +28,7 @@ import io.evitadb.api.query.HierarchyConstraint;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Optional;
 
 /**
  * This interface marks all filtering constraints that represent hierarchy filtering constraing.
@@ -41,7 +42,7 @@ public interface HierarchyFilterConstraint extends FilterConstraint, HierarchyCo
 	 * Returns null if reference name is not specified and thus the same entity type as "queried" should be used.
 	 */
 	@Nullable
-	String getReferenceName();
+	Optional<String> getReferenceName();
 
 	/**
 	 * Returns true if withinHierarchy should return only entities directly related to the root entity.
@@ -49,9 +50,15 @@ public interface HierarchyFilterConstraint extends FilterConstraint, HierarchyCo
 	boolean isDirectRelation();
 
 	/**
-	 * Returns ids of child entities which hierarchies should be excluded from search.
+	 * Returns filtering constraints that return entities whose trees should be included from hierarchy query.
 	 */
 	@Nonnull
-	int[] getExcludedChildrenIds();
+	FilterConstraint[] getHavingChildrenFilter();
+
+	/**
+	 * Returns filtering constraints that return entities whose trees should be excluded from hierarchy query.
+	 */
+	@Nonnull
+	FilterConstraint[] getExcludedChildrenFilter();
 
 }

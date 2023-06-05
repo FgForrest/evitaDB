@@ -28,12 +28,16 @@ import io.evitadb.api.query.descriptor.ConstraintCreator.AdditionalChildParamete
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ValueParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
+import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.AllowedConstraintPredicate;
+import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintBuildContext;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ContainerKey;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.WrapperObjectKey;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintProcessingUtils;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter.ConvertedEnum;
@@ -44,6 +48,7 @@ import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.ClassUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -82,7 +87,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 
 	@Nonnull
 	@Override
-	protected OpenApiSimpleType buildContainer(@Nonnull BuildContext buildContext,
+	protected OpenApiSimpleType buildContainer(@Nonnull ConstraintBuildContext buildContext,
 	                                           @Nonnull ContainerKey containerKey,
 	                                           @Nonnull AllowedConstraintPredicate allowedChildrenPredicate) {
 		final String containerName = constructContainerName(containerKey);
@@ -142,7 +147,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 
 	@Nonnull
 	@Override
-	protected OpenApiSimpleType buildPrimitiveConstraintValue(@Nonnull BuildContext buildContext,
+	protected OpenApiSimpleType buildPrimitiveConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 	                                                          @Nonnull ValueParameterDescriptor valueParameter,
 	                                                          boolean canBeRequired,
 	                                                          @Nullable ValueTypeSupplier valueTypeSupplier) {
@@ -167,14 +172,14 @@ public abstract class OpenApiConstraintSchemaBuilder
 			if (Locale.class.equals(valueParameterType) || Locale.class.equals(valueParameterType.getComponentType())) {
 				// if locale data type is explicitly defined, we expect that such locale is schema-defined locale
 				return DataTypesConverter.wrapOpenApiComponentType(
-					typeRefTo(ENTITY_LOCALE_ENUM.name(findRequiredEntitySchema(buildContext.dataLocator()))),
+					typeRefTo(ENTITY_LOCALE_ENUM.name(sharedContext.getEntitySchemaOrThrowException(buildContext.dataLocator().entityType()))),
 					valueParameterType,
 					canBeRequired && valueParameter.required()
 				);
 			} else if (Currency.class.equals(valueParameterType) || Currency.class.equals(valueParameterType.getComponentType())) {
 				// if currency data type is explicitly defined, we expect that such currency is schema-defined currency
 				return DataTypesConverter.wrapOpenApiComponentType(
-					typeRefTo(ENTITY_CURRENCY_ENUM.name(findRequiredEntitySchema(buildContext.dataLocator()))),
+					typeRefTo(ENTITY_CURRENCY_ENUM.name(sharedContext.getEntitySchemaOrThrowException(buildContext.dataLocator().entityType()))),
 					valueParameterType,
 					canBeRequired && valueParameter.required()
 				);
@@ -186,7 +191,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 
 	@Nonnull
 	@Override
-	protected OpenApiSimpleType buildWrapperRangeConstraintValue(@Nonnull BuildContext buildContext,
+	protected OpenApiSimpleType buildWrapperRangeConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 	                                                             @Nonnull List<ValueParameterDescriptor> valueParameters,
 	                                                             @Nullable ValueTypeSupplier valueTypeSupplier) {
 		final OpenApiSimpleType itemType = buildPrimitiveConstraintValue(
@@ -200,28 +205,51 @@ public abstract class OpenApiConstraintSchemaBuilder
 
 	@Nonnull
 	@Override
-	protected OpenApiSimpleType buildChildConstraintValue(@Nonnull BuildContext buildContext,
+	protected OpenApiSimpleType buildChildConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 	                                                      @Nonnull ChildParameterDescriptor childParameter) {
-		final OpenApiSimpleType childContainer = obtainContainer(buildContext, childParameter);
+		final DataLocator childDataLocator = resolveChildDataLocator(buildContext, childParameter.domain());
+		final ConstraintBuildContext childBuildContext = buildContext.switchToChildContext(childDataLocator);
+		final OpenApiSimpleType childType;
 
-		if (childContainer instanceof OpenApiScalar) {
-			// child container didn't have any usable children, but we want to have at least marker constraint, thus boolean value was used instead
-			return childContainer;
+		final Class<?> childParameterType = childParameter.type();
+		if (!childParameterType.isArray() && !ClassUtils.isAbstract(childParameterType)) {
+			//noinspection unchecked
+			final ConstraintDescriptor childConstraintDescriptor = ConstraintDescriptorProvider.getConstraint(
+				(Class<? extends Constraint<?>>) childParameterType
+			);
+
+			// we need switch child domain again manually based on property type of the child constraint because there
+			// is no intermediate wrapper container that would do it for us (while generating all possible constraint for that container)
+			final DataLocator childConstraintDataLocator = resolveChildDataLocator(
+				buildContext,
+				ConstraintProcessingUtils.getDomainForPropertyType(childConstraintDescriptor.propertyType())
+			);
+			childType = build(
+				childBuildContext.switchToChildContext(childConstraintDataLocator),
+				childConstraintDescriptor
+			);
 		} else {
-			if (childParameter.type().isArray() && !isChildrenUnique(childParameter)) {
-				return arrayOf(childContainer);
+			childType = obtainContainer(childBuildContext, childParameter);
+		}
+
+		if (childType instanceof OpenApiScalar) {
+			// child container didn't have any usable children, but we want to have at least marker constraint, thus boolean value was used instead
+			return childType;
+		} else {
+			if (childParameterType.isArray() && !isChildrenUnique(childParameter)) {
+				return arrayOf(childType);
 			} else {
-				return childContainer;
+				return childType;
 			}
 		}
 	}
 
 	@Nonnull
 	@Override
-	protected OpenApiSimpleType buildWrapperObjectConstraintValue(@Nonnull BuildContext buildContext,
+	protected OpenApiSimpleType buildWrapperObjectConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 	                                                              @Nonnull WrapperObjectKey wrapperObjectKey,
 	                                                              @Nonnull List<ValueParameterDescriptor> valueParameters,
-	                                                              @Nullable ChildParameterDescriptor childParameter,
+	                                                              @Nullable List<ChildParameterDescriptor> childParameters,
 	                                                              @Nonnull List<AdditionalChildParameterDescriptor> additionalChildParameters,
 	                                                              @Nullable ValueTypeSupplier valueTypeSupplier) {
 		final String wrapperObjectName = constructWrapperObjectName(wrapperObjectKey);
@@ -243,8 +271,8 @@ public abstract class OpenApiConstraintSchemaBuilder
 				.type(nestedPrimitiveConstraintValue));
 		});
 
-		// build child value
-		if (childParameter != null) {
+		// build children values
+		childParameters.forEach(childParameter -> {
 			OpenApiSimpleType nestedChildConstraintValue = buildChildConstraintValue(buildContext, childParameter);
 			if (childParameter.required() &&
 				!childParameter.type().isArray() // we want treat missing arrays as empty arrays for more client convenience
@@ -255,7 +283,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 			wrapperObjectBuilder.property(newProperty()
 				.name(childParameter.name())
 				.type(nestedChildConstraintValue));
-		}
+		});
 
 		// build additional children values
 		additionalChildParameters.forEach(additionalChildParameter -> {

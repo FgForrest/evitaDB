@@ -33,7 +33,7 @@ public interface GrpcOffsetDateTimeArrayOrBuilder extends
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value = 1;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime>
       getValueList();
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value = 1;</code>
@@ -46,7 +46,7 @@ public interface GrpcOffsetDateTimeArrayOrBuilder extends
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value = 1;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
       getValueOrBuilderList();
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value = 1;</code>

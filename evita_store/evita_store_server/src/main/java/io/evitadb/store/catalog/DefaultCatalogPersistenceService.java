@@ -779,9 +779,9 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			final StringBuilder stats = new StringBuilder("Catalog `" + catalogHeader.getCatalogHeader().getCatalogName() + "` " + operation + " and ");
 			final Map<String, EntityCollectionHeader> collectionHeaders = catalogHeader.getCollectionHeaders();
 			if (collectionHeaders.isEmpty()) {
-				stats.append(" it's empty.");
+				stats.append("it's empty.");
 			} else {
-				stats.append(" it contains:");
+				stats.append("it contains:");
 				for (EntityCollectionHeader entityTypeHeader : collectionHeaders.values()) {
 					stats.append("\n\t- ")
 						.append(entityTypeHeader.getEntityType())

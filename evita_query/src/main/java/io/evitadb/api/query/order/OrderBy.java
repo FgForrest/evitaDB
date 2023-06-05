@@ -34,7 +34,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Arrays;
 
 /**
  * This `orderBy` is container for ordering. It is mandatory container when any ordering is to be used. Ordering
@@ -81,11 +80,8 @@ public class OrderBy extends AbstractOrderConstraintContainer implements Generic
 
 	@Nonnull
 	@Override
-	public OrderConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		final OrderConstraint[] orderChildren = Arrays.stream(children)
-				.map(c -> (OrderConstraint) c)
-				.toArray(OrderConstraint[]::new);
-		return new OrderBy(orderChildren);
+	public OrderConstraint getCopyWithNewChildren(@Nonnull OrderConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return new OrderBy(children);
 	}
 
 	@Override

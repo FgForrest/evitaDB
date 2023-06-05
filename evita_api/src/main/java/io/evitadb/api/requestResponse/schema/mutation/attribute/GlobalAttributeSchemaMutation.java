@@ -61,6 +61,7 @@ public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, 
 				catalogSchema.getName(),
 				catalogSchema.getNameVariants(),
 				catalogSchema.getDescription(),
+				catalogSchema.getCatalogEvolutionMode(),
 				Stream.concat(
 						catalogSchema.getAttributes().values().stream().filter(it -> !updatedAttributeSchema.getName().equals(it.getName())),
 						Stream.of(updatedAttributeSchema)

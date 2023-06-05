@@ -44,9 +44,20 @@ public class DataCarrier {
 	private final Map<String, Object> valuesByName = new HashMap<>();
 	private final Map<Class<?>, Object> valuesByType = new HashMap<>();
 
+	public static Tuple tuple(@Nonnull String name, @Nonnull Object value) {
+		return new Tuple(name, value);
+	}
+
 	public DataCarrier(Object... value) {
 		for (Object valueItem : value) {
 			valuesByType.put(valueItem.getClass(), valueItem);
+		}
+	}
+
+	public DataCarrier(Tuple... entry) {
+		for (Tuple tuple : entry) {
+			valuesByName.put(tuple.name(), tuple.value());
+			valuesByType.put(tuple.value().getClass(), tuple.value());
 		}
 	}
 
@@ -55,6 +66,11 @@ public class DataCarrier {
 			this.valuesByName.put(entry.getKey(), entry.getValue());
 			this.valuesByType.putIfAbsent(entry.getValue().getClass(), entry.getValue());
 		});
+	}
+
+	public DataCarrier(String name, Object value) {
+		this.valuesByName.put(name, value);
+		this.valuesByType.put(value.getClass(), value);
 	}
 
 	public DataCarrier(String name, Object value, String name2, Object value2) {
@@ -115,5 +131,7 @@ public class DataCarrier {
 	public Collection<Object> anonymousValues() {
 		return valuesByName.isEmpty() ? valuesByType.values() : Collections.emptySet();
 	}
+
+	public record Tuple(@Nonnull String name, @Nonnull Object value) {}
 
 }

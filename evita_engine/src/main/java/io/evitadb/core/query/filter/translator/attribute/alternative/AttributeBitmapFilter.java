@@ -31,13 +31,13 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.algebra.prefetch.EntityToBitmapFilter;
 import io.evitadb.core.query.filter.FilterByVisitor;
-import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.function.TriFunction;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.List;
@@ -48,15 +48,12 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
-import static java.util.Optional.ofNullable;
-
 /**
  * Implementation of {@link EntityToBitmapFilter} that verifies that the entity has the appropriate attribute value
  * matching the {@link #filter} predicate.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
 public class AttributeBitmapFilter implements EntityToBitmapFilter {
 
 	/**
@@ -71,7 +68,7 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 	 * Contains the attribute schema location function, that will extract the proper attribute schema from the entity
 	 * schema.
 	 */
-	private final BiFunction<EntitySchemaContract, String, AttributeSchemaContract> attributeSchemaAccessor;
+	private final TriFunction<EntitySchemaContract, String, AttributeTrait[], AttributeSchemaContract> attributeSchemaAccessor;
 	/**
 	 * Contains the attribute value location function, that will extract the proper attribute value from the entity body.
 	 */
@@ -81,6 +78,26 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 	 * in order attribute value is accepted by the filter.
 	 */
 	private final Function<AttributeSchemaContract, Predicate<Stream<Optional<AttributeValue>>>> filterFactory;
+	/**
+	 * Contains array of all attribute required traits.
+	 */
+	private final AttributeTrait[] requiredAttributeTraits;
+
+	public AttributeBitmapFilter(
+		@Nonnull String attributeName,
+		@Nonnull EntityContentRequire requirements,
+		@Nonnull TriFunction<EntitySchemaContract, String, AttributeTrait[], AttributeSchemaContract> attributeSchemaAccessor,
+		@Nonnull BiFunction<EntityContract, String, Stream<Optional<AttributeValue>>> attributeValueAccessor,
+		@Nonnull Function<AttributeSchemaContract, Predicate<Stream<Optional<AttributeValue>>>> filterFactory,
+		@Nonnull AttributeTrait... requiredAttributeTraits
+	) {
+		this.attributeName = attributeName;
+		this.requirements = requirements;
+		this.attributeSchemaAccessor = attributeSchemaAccessor;
+		this.attributeValueAccessor = attributeValueAccessor;
+		this.filterFactory = filterFactory;
+		this.requiredAttributeTraits = requiredAttributeTraits;
+	}
 
 	@Nonnull
 	@Override
@@ -108,8 +125,9 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 				final EntitySchemaContract entitySchema = entity.getSchema();
 				if (!Objects.equals(entityType, entitySchema.getName())) {
 					entityType = entitySchema.getName();
-					final AttributeSchemaContract attributeSchema = ofNullable(attributeSchemaAccessor.apply(entitySchema, attributeName))
-						.orElseThrow(() -> new EvitaInvalidUsageException("Attribute `" + attributeName + "` is not defined!"));
+					final AttributeSchemaContract attributeSchema = attributeSchemaAccessor.apply(
+						entitySchema, attributeName, requiredAttributeTraits
+					);
 					filter = filterFactory.apply(attributeSchema);
 				}
 				// and filter by predicate

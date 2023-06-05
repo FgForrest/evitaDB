@@ -19,14 +19,14 @@ To be able to describe quite complex constraints, some terms have been defined:
 - *property type* (represented by `io.evitadb.api.query.descriptor.ConstraintPropertyType`)
     - defines on which properties of targeted data (entity, reference, ...) a constraint can operate
 - *domain* (represented by `io.evitadb.api.query.descriptor.ConstraintDomain`)
-    - defines set of allowed/supported constraints
+    - defines set of allowed/supported constraints and overall data
     - a domain can be `entity`, `reference` or `hierarchy reference`
 - *base name*
     - describes a main condition or operation of a constraint for distinguishing it from other constraints
 - *full name*
     - extends *base name* with suffix for supporting multiple variants of the same constraint
 - *creator* (represented by `io.evitadb.api.query.descriptor.ConstraintCreator`)
-    - describes constructor which defines suffix (and ultimately *full name*) and instantiation parameters
+    - describes constructor or factory method which defines suffix (and ultimately *full name*) and instantiation parameters
     - is used to instantiate the representing constraint
 - *classifier*
     - is special *creator* parameter that is used by Evita to find target data (entity type, attribute name, ...)
@@ -54,7 +54,7 @@ A constraint *type* is specified by implementing any supported subclass of `io.e
 
 Constraint implementing such interface may look like this:
 ```java
-public class FacetInSet extends ConstraintLeaf<FilterConstraint> implements FilterConstraint {
+public class FacetHaving extends ConstraintLeaf<FilterConstraint> implements FilterConstraint {
 ```
 
 ### Constraint property type
@@ -81,7 +81,7 @@ of `io.evitadb.api.query.PropertyTypeDefiningConstraint`. There are 8 types to c
 
 Constraint implementing such interface with constraint type interface may look like this:
 ```java
-public class FacetInSet extends ConstraintLeaf<FilterConstraint> implements FilterConstraint, FacetConstraint<FilterConstraint> {
+public class FacetHaving extends ConstraintLeaf<FilterConstraint> implements FilterConstraint, FacetConstraint<FilterConstraint> {
 ```
 
 ## Annotation framework
@@ -109,10 +109,10 @@ Constraint definition may look like this:
 public class AttributeEquals extends /* ... */ {
 ```
 
-### Constructor definition
+### Creator definition
 
-Then, at least one constructor must be annotated with
-the `io.evitadb.api.query.descriptor.annotation.Creator` to mark it as a *creator*. A *creator* constructor
+Then, at least one constructor or factory method must be annotated with
+the `io.evitadb.api.query.descriptor.annotation.Creator` to mark it as a *creator*. A *creator*
 may define a custom suffix (to form *full name*) and an implicit classifier and all of its parameters (if there are any)
 must be annotated with the  `io.evitadb.api.query.descriptor.annotation.Classifier`, 
 `io.evitadb.api.query.descriptor.annotation.Value`, `io.evitadb.api.query.descriptor.annotation.Child`, or
@@ -123,6 +123,14 @@ Basic *creator* may look like this:
 @Creator
 public AttributeIs(@Nonnull @Classifier String attributeName,
                    @Nonnull @Value AttributeSpecialValue specialValue) {
+    /* ... */
+}
+```
+or in case of factory method:
+```java
+@Creator
+public static AttributeIs attributeIs(@Nonnull @Classifier String attributeName,
+                                      @Nonnull @Value AttributeSpecialValue specialValue) {
     /* ... */
 }
 ```
@@ -157,8 +165,8 @@ children that are of the same type as the parent container is and directly corre
 On the other hand, additional children extend such containers with possibility of adding constraint containers
 of different constraint type, e.g. require container can have its own embedded filter container.
 
-Main child parameter can be only one in a single constructor and takes one or more child constraints. 
-Such a parameter must be annotated with the `io.evitadb.api.query.descriptor.annotation.Child` annotation.
+Such a parameter must be annotated with the `io.evitadb.api.query.descriptor.annotation.Child` annotation. With this annotation,
+multiple parameters can be annotated in single constructor.
 Additionally, one can mark array of children as unique where each child constraint can be used only once. This is useful
 for constraint containers where only limited number of child constraints are allowed.
 By default, only subclasses of the parameter type are allowed which are then limited to subset defined by context of current
@@ -166,16 +174,21 @@ By default, only subclasses of the parameter type are allowed which are then lim
 To further limit allowed child constraints, one can specify set of `allowed` or `forbidden` constraints in this
 annotation.
 
-Contrary to main child parameter, *creator* constructor can have multiple additional child parameters, **but** 
-each parameter must be of different constraint type (which is specified by parameter type) and 
-none can be of the same type as the parent container. Such parameter must be annotated with the
-`io.evitadb.api.query.descriptor.annotation.AdditionalChild` annotation. However, there are some limitations in place to simplify
+Additional child parameters must be annotated with the `io.evitadb.api.query.descriptor.annotation.AdditionalChild` annotation
+and cannot be of same constraint type as the parent container. However, there are some limitations in place to simplify
 processing logic of these annotations and to produce reasonable JSON objects (which are also quite limited for our use cases).
 The type of parameter must be some concrete generic constraint container of desired constraint type, so that it generates
-enclosing JSON object automatically. Also, the container must have *creator* constructor with only one parameter which 
+enclosing JSON object automatically. Also, the container must have *creator* with only one parameter which 
 must be the `io.evitadb.api.query.descriptor.annotation.Child`.
 Lastly, the additional child parameter cannot be an array, because the referenced container can have its own array child parameter,
 which would clash.
+
+Both child parameters support overriding *domain* for its children. By default, the domain for children is passed from the
+parent constraint which has its domain resolved from the *property type*. However, sometimes we need completely different
+context for children (e.g. we want nested `filterBy` container inside hierarchy constraint to support filtering on referenced hierarchical entity),
+then we can use the `domain` parameter on either `io.evitadb.api.query.descriptor.annotation.Child` or 
+`io.evitadb.api.query.descriptor.annotation.AdditionalChild` annotation. Unfortunately, not all combinations of
+parent domain and overridden domain are possible, check JavaDoc of the `domain` parameter for more info. 
 
 More complex set of *creator*s combining options described above may look like this:
 ```java

@@ -338,7 +338,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	@Nonnull
 	@Override
 	public BinaryEntity enrichEntity(@Nonnull EntitySchema entitySchema, @Nonnull BinaryEntity entity, @Nonnull EvitaRequest evitaRequest, @Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer) throws EntityAlreadyRemovedException {
-		/* TODO JNO - implement me */
+		/* TOBEDONE https://github.com/FgForrest/evitaDB/issues/13 */
 		return entity;
 	}
 
@@ -851,6 +851,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			attributeKey,
 			new SortIndex(
 				sortIndexCnt.getType(),
+				sortIndexCnt.getAttributeKey().getLocale(),
 				sortIndexCnt.getSortedRecords(),
 				sortIndexCnt.getSortedRecordsValues(),
 				sortIndexCnt.getValueCardinalities()

@@ -35,6 +35,10 @@ import javax.annotation.Nullable;
  */
 public record FacetDataLocator(@Nonnull String entityType, @Nullable String referenceName) implements DataLocatorWithReference {
 
+	public FacetDataLocator(@Nonnull String entityType) {
+		this(entityType, null);
+	}
+
 	@Nonnull
 	@Override
 	public ConstraintDomain targetDomain() {

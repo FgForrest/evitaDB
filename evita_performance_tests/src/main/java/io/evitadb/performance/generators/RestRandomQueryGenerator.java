@@ -39,11 +39,14 @@ import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.key.CompressiblePriceKey;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintBuildContext;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintKeyBuilder;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.externalApi.graphql.api.dataType.coercing.AnyCoercing;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -64,12 +67,10 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
-import static io.evitadb.api.query.QueryConstraints.collection;
-import static io.evitadb.api.query.QueryConstraints.facetInSet;
-import static io.evitadb.api.query.QueryConstraints.filterBy;
-import static io.evitadb.api.query.QueryConstraints.userFilter;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
+import static io.evitadb.performance.generators.RandomQueryGenerator.extractFacetIds;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -280,7 +281,10 @@ public interface RestRandomQueryGenerator {
 			for (int i = 0; i < 5; i++) {
 				excludedIds[i] = categoryIds.get(Math.abs(rndKey * (i + 1)) % (categoryIds.size()));
 			}
-			specification.add(new RestConstraint(HierarchyExcluding.class, excludedIds));
+			specification.add(new RestConstraint(
+				HierarchyExcluding.class,
+				new RestConstraint(EntityPrimaryKeyInSet.class, (Object[]) excludedIds)
+			));
 		} else {
 			excludedIds = null;
 		}
@@ -290,7 +294,16 @@ public interface RestRandomQueryGenerator {
 			specification.add(new RestConstraint(HierarchyDirectRelation.class, true));
 		}
 		final int parentId = categoryIds.get(rndKey % categoryIds.size());
-		hierarchyConstraint = new RestConstraint(hierarchyEntityType, HierarchyWithin.class, Map.of("ofParent", parentId, "with", specification.toArray(EMPTY_HSFC_ARRAY)));
+		hierarchyConstraint = new RestConstraint(
+			hierarchyEntityType,
+			HierarchyWithin.class,
+			Map.of(
+				"ofParent",
+				new RestConstraint(EntityPrimaryKeyInSet.class, parentId),
+				"with",
+				specification.toArray(EMPTY_HSFC_ARRAY)
+			)
+		);
 
 		return new RestQuery(
 			null,
@@ -342,7 +355,7 @@ public interface RestRandomQueryGenerator {
 					userFilter(
 						selectedFacets.entrySet()
 							.stream()
-							.map(it -> facetInSet(it.getKey(), it.getValue().toArray(new Integer[0])))
+							.map(it -> facetHaving(it.getKey(), entityPrimaryKeyInSet(it.getValue().toArray(new Integer[0]))))
 							.toArray(FilterConstraint[]::new)
 					)
 				)
@@ -352,7 +365,11 @@ public interface RestRandomQueryGenerator {
 				UserFilter.class,
 				selectedFacets.entrySet()
 					.stream()
-					.map(it -> new RestConstraint(it.getKey(), FacetInSet.class, (Object[]) it.getValue().toArray(new Integer[0])))
+					.map(it -> new RestConstraint(
+						it.getKey(),
+						FacetHaving.class,
+						new RestConstraint(EntityPrimaryKeyInSet.class, (Object[]) it.getValue().toArray(new Integer[0]))
+					))
 					.toArray(RestConstraint[]::new)
 			),
 			null,
@@ -363,41 +380,10 @@ public interface RestRandomQueryGenerator {
 	}
 
 	/**
-	 * Creates randomized query requiring {@link io.evitadb.api.requestResponse.extraResult.Parents} computation for passed entity
-	 * schema based on passed set.
-	 */
-	default RestQuery generateRandomParentSummaryQuery(@Nonnull Random random, @Nonnull EntitySchemaContract schema, @Nonnull Set<String> referencedHierarchyEntities, int maxProductId) {
-		final Integer[] requestedPks = new Integer[20];
-		int firstPk = random.nextInt(maxProductId / 2);
-		for (int i = 0; i < requestedPks.length; i++) {
-			requestedPks[i] = firstPk;
-			firstPk += random.nextInt(maxProductId / 40);
-		}
-
-		return new RestQuery(
-			null,
-			schema.getName(),
-			new RestConstraint(
-				EntityPrimaryKeyInSet.class,
-				(Object[]) requestedPks
-			),
-			null,
-			ArrayUtils.mergeArrays(
-				new RestConstraint[] {
-					new RestConstraint(Page.class, Map.of("number", 1, "size", 20)),
-				},
-				Arrays.stream(getRandomItems(random, referencedHierarchyEntities).toArray(String[]::new))
-					.map(it -> new RestConstraint(it, HierarchyParentsOfReference.class, true))
-					.toArray(RestConstraint[]::new)
-			)
-		);
-	}
-
-	/**
-	 * Creates randomized query requiring {@link io.evitadb.api.requestResponse.extraResult.HierarchyStatistics} computation for
+	 * Creates randomized query requiring {@link Hierarchy} computation for
 	 * passed entity schema based on passed set.
 	 */
-	default RestQuery generateRandomParentSummaryQuery(@Nonnull Random random, @Nonnull EntitySchemaContract schema, @Nonnull Set<String> referencedHierarchyEntities) {
+	default RestQuery generateRandomHierarchyQuery(@Nonnull Random random, @Nonnull EntitySchemaContract schema, @Nonnull Set<String> referencedHierarchyEntities) {
 		return new RestQuery(
 			null,
 			schema.getName(),
@@ -409,7 +395,11 @@ public interface RestRandomQueryGenerator {
 			new RestConstraint[] {
 				new RestConstraint(Page.class, Map.of("number", 1, "size", 20)),
 				Optional.of(pickRandom(random, referencedHierarchyEntities))
-					.map(it -> new RestConstraint(it, HierarchyStatisticsOfReference.class, true))
+					.map(it -> new RestConstraint(
+						it,
+						HierarchyOfReference.class,
+						new RestConstraint(HierarchyFromRoot.class, "megaMenu")
+					))
 					.orElseThrow()
 			}
 		);
@@ -419,28 +409,28 @@ public interface RestRandomQueryGenerator {
 	 * Updates randomized query adding a request to facet summary computation juggling inter facet relations.
 	 */
 	default RestQuery generateRandomFacetSummaryQuery(@Nonnull RestQuery existingQuery, @Nonnull Random random, @Nonnull EntitySchemaContract schema, @Nonnull FacetStatisticsDepth depth, @Nonnull Map<String, Map<Integer, Integer>> facetGroupsIndex) {
-		final List<FilterConstraint> facetFilters = FinderVisitor.findConstraints(existingQuery.originalQuery().getFilterBy(), FacetInSet.class::isInstance);
+		final List<FilterConstraint> facetFilters = FinderVisitor.findConstraints(existingQuery.originalQuery().getFilterBy(), FacetHaving.class::isInstance);
 		final List<RestConstraint> requireConstraints = new LinkedList<>();
 		for (FilterConstraint facetFilter : facetFilters) {
-			final FacetInSet facetInSetConstraint = (FacetInSet) facetFilter;
+			final FacetHaving facetHaving = (FacetHaving) facetFilter;
 			final int dice = random.nextInt(4);
-			final Map<Integer, Integer> entityTypeGroups = facetGroupsIndex.get(facetInSetConstraint.getReferenceName());
-			final Set<Integer> groupIds = Arrays.stream(facetInSetConstraint.getFacetIds())
+			final Map<Integer, Integer> entityTypeGroups = facetGroupsIndex.get(facetHaving.getReferenceName());
+			final Set<Integer> groupIds = Arrays.stream(extractFacetIds(facetHaving))
 				.mapToObj(entityTypeGroups::get)
 				.filter(Objects::nonNull)
 				.collect(Collectors.toSet());
 			if (!groupIds.isEmpty()) {
 				if (dice == 1) {
 					requireConstraints.add(
-						new RestConstraint(facetInSetConstraint.getReferenceName(), FacetGroupsConjunction.class, new Object[] {getRandomItem(random, groupIds)})
+						new RestConstraint(facetHaving.getReferenceName(), FacetGroupsConjunction.class, new Object[] {getRandomItem(random, groupIds)})
 					);
 				} else if (dice == 2) {
 					requireConstraints.add(
-						new RestConstraint(facetInSetConstraint.getReferenceName(), FacetGroupsDisjunction.class, new Object[] {getRandomItem(random, groupIds)})
+						new RestConstraint(facetHaving.getReferenceName(), FacetGroupsDisjunction.class, new Object[] {getRandomItem(random, groupIds)})
 					);
 				} else if (dice == 3) {
 					requireConstraints.add(
-						new RestConstraint(facetInSetConstraint.getReferenceName(), FacetGroupsNegation.class, new Object[] {getRandomItem(random, groupIds)})
+						new RestConstraint(facetHaving.getReferenceName(), FacetGroupsNegation.class, new Object[] {getRandomItem(random, groupIds)})
 					);
 				}
 			}
@@ -1237,7 +1227,7 @@ public interface RestRandomQueryGenerator {
 
 		@Nonnull
 		private static String convertChildren(@Nonnull RestConstraint[] children, @Nonnull ConstraintDescriptor constraintDescriptor) {
-			final ChildParameterDescriptor childrenParameterDescriptor = constraintDescriptor.creator().childParameter().orElseThrow();
+			final ChildParameterDescriptor childrenParameterDescriptor = constraintDescriptor.creator().childParameters().get(0);
 			if (childrenParameterDescriptor.uniqueChildren() || constraintDescriptor.type() == ConstraintType.ORDER || constraintDescriptor.type() == ConstraintType.REQUIRE) {
 				return "{\n" +
 					Arrays.stream(children)
@@ -1283,7 +1273,7 @@ public interface RestRandomQueryGenerator {
 
 		@Override
 		public String toString() {
-			final String key = new ConstraintKeyBuilder().build(constraintDescriptor, () -> classifier);
+			final String key = new ConstraintKeyBuilder().build(new ConstraintBuildContext(new GenericDataLocator("")), constraintDescriptor, () -> classifier);
 			return "\"" + key + "\": " + value;
 		}
 	}

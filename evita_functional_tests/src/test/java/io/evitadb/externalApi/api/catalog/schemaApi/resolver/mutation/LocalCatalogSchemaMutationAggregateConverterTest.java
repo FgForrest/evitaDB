@@ -23,15 +23,20 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation;
 
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDescriptionMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ModifyAttributeSchemaDescriptionMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateEntitySchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -60,7 +65,9 @@ class LocalCatalogSchemaMutationAggregateConverterTest {
 	void shouldResolveInputToLocalMutation() {
 		final List<LocalCatalogSchemaMutation> expectedMutations = List.of(
 			new ModifyAttributeSchemaDescriptionMutation("code", "desc"),
-			new CreateEntitySchemaMutation("product")
+			new CreateEntitySchemaMutation("product"),
+			new AllowEvolutionModeInCatalogSchemaMutation(CatalogEvolutionMode.ADDING_ENTITY_TYPES),
+			new DisallowEvolutionModeInCatalogSchemaMutation(CatalogEvolutionMode.ADDING_ENTITY_TYPES)
 		);
 
 		final List<LocalCatalogSchemaMutation> convertedMutations1 = converter.convert(
@@ -71,6 +78,12 @@ class LocalCatalogSchemaMutationAggregateConverterTest {
 					.build())
 				.e(LocalCatalogSchemaMutationAggregateDescriptor.CREATE_ENTITY_SCHEMA_MUTATION.name(), map()
 					.e(CreateEntitySchemaMutationDescriptor.ENTITY_TYPE.name(), "product")
+					.build())
+				.e(LocalCatalogSchemaMutationAggregateDescriptor.ALLOW_EVOLUTION_MODE_IN_CATALOG_SCHEMA_MUTATION.name(), map()
+					.e(AllowEvolutionModeInCatalogSchemaMutationDescriptor.EVOLUTION_MODES.name(), List.of("ADDING_ENTITY_TYPES"))
+					.build())
+				.e(LocalCatalogSchemaMutationAggregateDescriptor.DISALLOW_EVOLUTION_MODE_IN_CATALOG_SCHEMA_MUTATION.name(), map()
+					.e(DisallowEvolutionModeInCatalogSchemaMutationDescriptor.EVOLUTION_MODES.name(), List.of("ADDING_ENTITY_TYPES"))
 					.build())
 				.build()
 		);
@@ -84,6 +97,6 @@ class LocalCatalogSchemaMutationAggregateConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(null));
 	}
 }

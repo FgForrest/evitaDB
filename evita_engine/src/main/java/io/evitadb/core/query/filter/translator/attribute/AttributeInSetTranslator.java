@@ -24,9 +24,11 @@
 package io.evitadb.core.query.filter.translator.attribute;
 
 import io.evitadb.api.query.filter.AttributeInSet;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
@@ -60,8 +62,8 @@ public class AttributeInSetTranslator implements FilteringConstraintTranslator<A
 	@Override
 	public Formula translate(@Nonnull AttributeInSet attributeInSet, @Nonnull FilterByVisitor filterByVisitor) {
 		final String attributeName = attributeInSet.getAttributeName();
-		final Serializable[] comparedValues = attributeInSet.getSet();
-		final AttributeSchemaContract attributeDefinition = filterByVisitor.getAttributeSchema(attributeName);
+		final Serializable[] comparedValues = attributeInSet.getAttributeValues();
+		final AttributeSchemaContract attributeDefinition = filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE);
 		final List<? extends Serializable> valueStream = Arrays.stream(comparedValues)
 			.map(it -> EvitaDataTypes.toTargetType(it, attributeDefinition.getPlainType()))
 			.map(it -> it instanceof Comparable<?> comparable ? comparable : String.valueOf(it))
@@ -75,7 +77,7 @@ public class AttributeInSetTranslator implements FilteringConstraintTranslator<A
 				attributeDefinition,
 				index -> {
 					final EntityReferenceContract[] filteredEntityMaskedIds = valueStream.stream()
-						.map(index::getEntityReferenceByUniqueValue)
+						.map(it -> index.getEntityReferenceByUniqueValue(it, filterByVisitor.getLocale()))
 						.filter(Objects::nonNull)
 						.toArray(EntityReferenceContract[]::new);
 
@@ -91,7 +93,8 @@ public class AttributeInSetTranslator implements FilteringConstraintTranslator<A
 		} else if (attributeDefinition.isUnique()) {
 			// if attribute is unique prefer O(1) hash map lookup over histogram
 			return new AttributeFormula(
-				attributeName,
+				attributeDefinition.isLocalized() ?
+					new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 				filterByVisitor.applyStreamOnUniqueIndexes(
 					attributeDefinition,
 					index -> valueStream.stream().map(it ->
@@ -104,7 +107,8 @@ public class AttributeInSetTranslator implements FilteringConstraintTranslator<A
 		} else {
 			// use histogram lookup
 			return new AttributeFormula(
-				attributeName,
+				attributeDefinition.isLocalized() ?
+					new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 				filterByVisitor.applyStreamOnFilterIndexes(
 					attributeDefinition,
 					index -> valueStream.stream().map(it -> index.getRecordsEqualToFormula((Comparable) it))

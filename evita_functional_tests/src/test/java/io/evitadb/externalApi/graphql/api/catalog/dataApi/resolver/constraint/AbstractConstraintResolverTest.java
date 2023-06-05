@@ -24,13 +24,16 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
 
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -46,29 +49,36 @@ abstract class AbstractConstraintResolverTest {
 
 	void init() {
 		this.entitySchemaIndex = new HashMap<>();
-		this.catalogSchema = CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), entitySchemaIndex::get);
+		this.catalogSchema = CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), entitySchemaIndex::get);
 
 		final EntitySchemaContract productSchema = new InternalEntitySchemaBuilder(
 			catalogSchema,
-			EntitySchema._internalBuild("PRODUCT")
+			EntitySchema._internalBuild(Entities.PRODUCT)
 		)
 			.withPrice()
 			.withAttribute("CODE", String.class)
 			.withAttribute("AGE", Integer.class)
-			.withReferenceToEntity("CATEGORY", "CATEGORY", Cardinality.ONE_OR_MORE, thatIs -> thatIs.withAttribute("CODE", String.class))
-			.withReferenceTo("BRAND", "BRAND", Cardinality.EXACTLY_ONE)
+			.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE, thatIs -> thatIs.withAttribute("CODE", String.class))
+			.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.EXACTLY_ONE)
 			.toInstance();
 
-		entitySchemaIndex.put("PRODUCT", productSchema);
+		entitySchemaIndex.put(Entities.PRODUCT, productSchema);
 
 		final EntitySchemaContract categorySchema = new InternalEntitySchemaBuilder(
 			catalogSchema,
-			EntitySchema._internalBuild("CATEGORY")
+			EntitySchema._internalBuild(Entities.CATEGORY)
 		)
 			.withPrice()
 			.withAttribute("NAME", String.class)
-			.withReferenceToEntity("RELATED_PRODUCTS", "PRODUCT", Cardinality.ONE_OR_MORE, thatIs -> thatIs.withAttribute("ORDER", Integer.class))
+			.withReferenceToEntity("RELATED_PRODUCTS", Entities.PRODUCT, Cardinality.ONE_OR_MORE, thatIs -> thatIs.withAttribute("ORDER", Integer.class))
 			.toInstance();
-		entitySchemaIndex.put("CATEGORY", categorySchema);
+		entitySchemaIndex.put(Entities.CATEGORY, categorySchema);
+
+		final EntitySchemaContract brandSchema = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			EntitySchema._internalBuild(Entities.BRAND)
+		)
+			.toInstance();
+		entitySchemaIndex.put(Entities.BRAND, brandSchema);
 	}
 }

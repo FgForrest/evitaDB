@@ -27,15 +27,15 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.filter.AttributeContains;
 import io.evitadb.api.query.filter.AttributeEquals;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
-import io.evitadb.api.query.filter.FacetInSet;
+import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.PriceInPriceLists;
 import io.evitadb.api.query.order.AttributeNatural;
 import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.query.require.AssociatedDataContent;
 import io.evitadb.api.query.require.AttributeContent;
-import io.evitadb.api.query.require.HierarchyParentsOfSelf;
-import io.evitadb.api.query.require.HierarchyStatisticsOfSelf;
+import io.evitadb.api.query.require.HierarchyContent;
+import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceHistogram;
 import io.evitadb.api.query.require.QueryPriceMode;
@@ -144,14 +144,14 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>>
 	S withoutGeneratedPrimaryKey();
 
 	/**
-	 * Enables hierarchy structure for this type of entity. Entities may have {@link Entity#getHierarchicalPlacement()}
+	 * Enables hierarchy structure for this type of entity. Entities may have {@link Entity#getParent()}
 	 * defined on them. That means that entity may refer to single parent entity and may be
 	 * referred by multiple child entities. Hierarchy is always composed of entities of same type.
 	 * Each entity must be part of at most single hierarchy (tree).
 	 *
 	 * Hierarchy can limit returned entities by using filtering constraints {@link HierarchyWithin}. It's also used for
-	 * computation of extra data - such as {@link HierarchyParentsOfSelf}. It can also invert type of returned entities in case requirement
-	 * {@link HierarchyStatisticsOfSelf} is used.
+	 * computation of extra data - such as {@link HierarchyContent}. It can also invert type of returned
+	 * entities in case requirement {@link HierarchyOfSelf} is used.
 	 */
 	@Nonnull
 	S withHierarchy();
@@ -349,7 +349,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>>
 	 * are preserved unless you make changes to them.
 	 *
 	 * The references refer to other entities (of same or different entity type).
-	 * Allows entity filtering (but not sorting) of the entities by using {@link FacetInSet} query
+	 * Allows entity filtering (but not sorting) of the entities by using {@link FacetHaving} query
 	 * and statistics computation if when {@link FacetStatistics} requirement is used. Reference
 	 * is uniquely represented by int positive number (max. 2<sup>63</sup>-1) and {@link Serializable} entity type and can be
 	 * part of multiple reference groups, that are also represented by int and {@link Serializable} entity type.
@@ -372,7 +372,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>>
 	 * are preserved unless you make changes to them.
 	 *
 	 * The references refer to other entities (of same or different entity type).
-	 * Allows entity filtering (but not sorting) of the entities by using {@link FacetInSet} query
+	 * Allows entity filtering (but not sorting) of the entities by using {@link FacetHaving} query
 	 * and statistics computation if when {@link FacetStatistics} requirement is used. Reference
 	 * is uniquely represented by int positive number (max. 2<sup>63</sup>-1) and {@link Serializable} entity type and can be
 	 * part of multiple reference groups, that are also represented by int and {@link Serializable} entity type.
@@ -404,7 +404,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>>
 	 * are preserved unless you make changes to them.
 	 *
 	 * The references refer to other entities (of same or different entity type).
-	 * Allows entity filtering (but not sorting) of the entities by using {@link FacetInSet} query
+	 * Allows entity filtering (but not sorting) of the entities by using {@link FacetHaving} query
 	 * and statistics computation if when {@link FacetStatistics} requirement is used. Reference
 	 * is uniquely represented by int positive number (max. 2<sup>63</sup>-1) and {@link Serializable} entity type and can be
 	 * part of multiple reference groups, that are also represented by int and {@link Serializable} entity type.
@@ -429,7 +429,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>>
 	 * are preserved unless you make changes to them.
 	 *
 	 * The references refer to other entities (of same or different entity type).
-	 * Allows entity filtering (but not sorting) of the entities by using {@link FacetInSet} query
+	 * Allows entity filtering (but not sorting) of the entities by using {@link FacetHaving} query
 	 * and statistics computation if when {@link FacetStatistics} requirement is used. Reference
 	 * is uniquely represented by int positive number (max. 2<sup>63</sup>-1) and {@link Serializable} entity type and can be
 	 * part of multiple reference groups, that are also represented by int and {@link Serializable} entity type.

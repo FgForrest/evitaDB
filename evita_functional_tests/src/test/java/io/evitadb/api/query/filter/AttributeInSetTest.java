@@ -38,7 +38,7 @@ class AttributeInSetTest {
 	@Test
 	void shouldCreateViaFactoryClassWorkAsExpected() {
 		final AttributeInSet attributeInSet = attributeInSet("refs", 1, 5);
-		assertArrayEquals(new Comparable<?>[] {1, 5}, attributeInSet.getSet());
+		assertArrayEquals(new Comparable<?>[] {1, 5}, attributeInSet.getAttributeValues());
 	}
 
 	@Test

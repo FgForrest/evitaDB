@@ -42,7 +42,7 @@ import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.OnDataSetTearDown;
 import io.evitadb.test.annotation.UseDataSet;
-import io.evitadb.test.extension.DbInstanceParameterResolver;
+import io.evitadb.test.extension.EvitaParameterResolver;
 import io.grpc.ManagedChannel;
 import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
@@ -55,22 +55,21 @@ import org.junit.jupiter.api.function.Executable;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.evitadb.test.TestConstants.INTEGRATION_TEST;
+import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-@SuppressWarnings({"ResultOfMethodCallIgnored", "UnusedParameters"})
 @DisplayName("Evita gRPC integration test")
-@ExtendWith(DbInstanceParameterResolver.class)
-@Tag(INTEGRATION_TEST)
+@ExtendWith(EvitaParameterResolver.class)
+@Tag(FUNCTIONAL_TEST)
 @Slf4j
 public class EvitaGrpcIntegrationTest {
 	private static final String GRPC_THOUSAND_PRODUCTS = "GrpcEvitaGrpcIntegrationTest";
 
-	@DataSet(value = GRPC_THOUSAND_PRODUCTS, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, readOnly = false, destroyAfterClass = true)
+	@DataSet(value = GRPC_THOUSAND_PRODUCTS, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, destroyAfterClass = true)
 	ManagedChannel setUp(Evita evita, EvitaServer evitaServer) {
 		new TestDataProvider().generateEntities(evita, 1);
 		return TestChannelCreator.getChannel(new ClientSessionInterceptor(), evitaServer.getExternalApiServer());
@@ -89,7 +88,7 @@ public class EvitaGrpcIntegrationTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should be able to get a session id from EvitaService and with its usage should be able to get valid response from EvitaSessionService")
-	void shouldBeAbleToGetSessionAndWithItCallSessionDependentMethods(Evita evita, ManagedChannel channel) {
+	void shouldBeAbleToGetSessionAndWithItCallSessionDependentMethods(ManagedChannel channel) {
 		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 

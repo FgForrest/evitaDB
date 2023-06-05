@@ -30,13 +30,13 @@ import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
-import io.evitadb.test.extension.DbInstanceParameterResolver;
+import io.evitadb.test.extension.EvitaParameterResolver;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.Locale;
 
-import static io.evitadb.api.query.QueryConstraints.attributeContent;
+import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.api.query.QueryConstraints.dataInLocales;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -45,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@ExtendWith(DbInstanceParameterResolver.class)
+@ExtendWith(EvitaParameterResolver.class)
 public class PrefilledDataSetWebApiTest implements EvitaTestSupport {
 	private static final String DATA_SET_WITH_A_FEW_DATA = "dataSetWebApiWithAFewData";
 	private static final String ENTITY_BRAND = "Brand";
@@ -73,7 +73,8 @@ public class PrefilledDataSetWebApiTest implements EvitaTestSupport {
 
 				final SealedEntity theBrand = session.getEntity(
 					ENTITY_BRAND, 1,
-					attributeContent(), dataInLocales(Locale.ENGLISH)
+					attributeContentAll(),
+					dataInLocales(Locale.ENGLISH)
 				).orElseThrow();
 
 				assertEquals("Siemens", theBrand.getAttribute("name"));

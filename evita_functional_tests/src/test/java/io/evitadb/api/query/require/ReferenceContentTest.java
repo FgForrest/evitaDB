@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.api.query.QueryConstraints;
 import org.junit.jupiter.api.Test;
 
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -37,15 +38,15 @@ class ReferenceContentTest {
 
 	@Test
 	void shouldCreateViaFactoryClassWorkAsExpected() {
-		final ReferenceContent referenceContent1 = referenceContent();
-		assertArrayEquals(new String[0], referenceContent1.getReferencedEntityTypes());
+		final ReferenceContent referenceContent1 = referenceContentAll();
+		assertArrayEquals(new String[0], referenceContent1.getReferenceNames());
 		assertNull(referenceContent1.getFilterBy());
 		assertNull(referenceContent1.getOrderBy());
 		assertNull(referenceContent1.getEntityRequirement());
 		assertNull(referenceContent1.getGroupEntityRequirement());
 
 		final ReferenceContent referenceContent2 = referenceContent("a");
-		assertArrayEquals(new String[] {"a"}, referenceContent2.getReferencedEntityTypes());
+		assertArrayEquals(new String[] {"a"}, referenceContent2.getReferenceNames());
 		assertNull(referenceContent2.getFilterBy());
 		assertNull(referenceContent2.getOrderBy());
 		assertNull(referenceContent2.getEntityRequirement());
@@ -55,7 +56,7 @@ class ReferenceContentTest {
 				"a",
 				filterBy(attributeEquals("code", "a"))
 		);
-		assertArrayEquals(new String[] {"a"}, referenceContent3.getReferencedEntityTypes());
+		assertArrayEquals(new String[] {"a"}, referenceContent3.getReferenceNames());
 		assertNotNull(referenceContent3.getFilterBy());
 		assertNull(referenceContent3.getOrderBy());
 		assertNull(referenceContent3.getEntityRequirement());
@@ -66,59 +67,59 @@ class ReferenceContentTest {
 				filterBy(attributeEquals("code", "a")),
 				entityFetch()
 		);
-		assertArrayEquals(new String[] {"a"}, referenceContent4.getReferencedEntityTypes());
+		assertArrayEquals(new String[] {"a"}, referenceContent4.getReferenceNames());
 		assertNotNull(referenceContent4.getFilterBy());
 		assertNull(referenceContent4.getOrderBy());
 		assertEquals(entityFetch(), referenceContent4.getEntityRequirement());
 		assertNull(referenceContent4.getGroupEntityRequirement());
 
 		final ReferenceContent referenceContent5 = referenceContent("a", "b");
-		assertArrayEquals(new String[] {"a", "b"}, referenceContent5.getReferencedEntityTypes());
+		assertArrayEquals(new String[] {"a", "b"}, referenceContent5.getReferenceNames());
 		assertNull(referenceContent5.getFilterBy());
 		assertNull(referenceContent5.getOrderBy());
 		assertNull(referenceContent5.getEntityRequirement());
 		assertNull(referenceContent5.getGroupEntityRequirement());
 
-		final ReferenceContent referenceContent6 = referenceContent(entityFetch());
-		assertArrayEquals(new String[0], referenceContent6.getReferencedEntityTypes());
+		final ReferenceContent referenceContent6 = QueryConstraints.referenceContentAll(entityFetch());
+		assertArrayEquals(new String[0], referenceContent6.getReferenceNames());
 		assertNull(referenceContent6.getFilterBy());
 		assertNull(referenceContent6.getOrderBy());
 		assertEquals(entityFetch(), referenceContent6.getEntityRequirement());
 		assertNull(referenceContent6.getGroupEntityRequirement());
 
-		final ReferenceContent referenceContent7 = referenceContent(new String[] {"a", "b"}, entityFetch(attributeContent()));
-		assertArrayEquals(new String[] {"a", "b"}, referenceContent7.getReferencedEntityTypes());
+		final ReferenceContent referenceContent7 = referenceContent(new String[] {"a", "b"}, entityFetch(attributeContentAll()));
+		assertArrayEquals(new String[] {"a", "b"}, referenceContent7.getReferenceNames());
 		assertNull(referenceContent7.getFilterBy());
 		assertNull(referenceContent7.getOrderBy());
-		assertEquals(entityFetch(attributeContent()), referenceContent7.getEntityRequirement());
+		assertEquals(entityFetch(attributeContentAll()), referenceContent7.getEntityRequirement());
 		assertNull(referenceContent7.getGroupEntityRequirement());
 
 		final ReferenceContent referenceContent8 = referenceContent("a", null, null, null, null);
-		assertArrayEquals(new String[] {"a"}, referenceContent8.getReferencedEntityTypes());
+		assertArrayEquals(new String[] {"a"}, referenceContent8.getReferenceNames());
 		assertNull(referenceContent8.getFilterBy());
 		assertNull(referenceContent8.getOrderBy());
 		assertNull(referenceContent8.getEntityRequirement());
 		assertNull(referenceContent8.getGroupEntityRequirement());
 
-		final ReferenceContent referenceContent9 = referenceContent(new String[] {"a", "b"}, entityGroupFetch(attributeContent()));
-		assertArrayEquals(new String[] {"a", "b"}, referenceContent9.getReferencedEntityTypes());
+		final ReferenceContent referenceContent9 = referenceContent(new String[] {"a", "b"}, entityGroupFetch(attributeContentAll()));
+		assertArrayEquals(new String[] {"a", "b"}, referenceContent9.getReferenceNames());
 		assertNull(referenceContent9.getFilterBy());
 		assertNull(referenceContent9.getOrderBy());
 		assertNull(referenceContent9.getEntityRequirement());
-		assertEquals(entityGroupFetch(attributeContent()), referenceContent9.getGroupEntityRequirement());
+		assertEquals(entityGroupFetch(attributeContentAll()), referenceContent9.getGroupEntityRequirement());
 
-		final ReferenceContent referenceContent10 = referenceContent(new String[] {"a", "b"}, entityFetch(associatedDataContent()), entityGroupFetch(attributeContent()));
-		assertArrayEquals(new String[] {"a", "b"}, referenceContent10.getReferencedEntityTypes());
+		final ReferenceContent referenceContent10 = referenceContent(new String[] {"a", "b"}, entityFetch(associatedDataContentAll()), entityGroupFetch(attributeContentAll()));
+		assertArrayEquals(new String[] {"a", "b"}, referenceContent10.getReferenceNames());
 		assertNull(referenceContent10.getFilterBy());
 		assertNull(referenceContent10.getOrderBy());
-		assertEquals(entityFetch(associatedDataContent()), referenceContent10.getEntityRequirement());
-		assertEquals(entityGroupFetch(attributeContent()), referenceContent10.getGroupEntityRequirement());
+		assertEquals(entityFetch(associatedDataContentAll()), referenceContent10.getEntityRequirement());
+		assertEquals(entityGroupFetch(attributeContentAll()), referenceContent10.getGroupEntityRequirement());
 
 		final ReferenceContent referenceContent11 = referenceContent(
 			"a",
 			orderBy(attributeNatural("code"))
 		);
-		assertArrayEquals(new String[] {"a"}, referenceContent11.getReferencedEntityTypes());
+		assertArrayEquals(new String[] {"a"}, referenceContent11.getReferenceNames());
 		assertNull(referenceContent11.getFilterBy());
 		assertNotNull(referenceContent11.getOrderBy());
 		assertNull(referenceContent11.getEntityRequirement());
@@ -129,7 +130,7 @@ class ReferenceContentTest {
 			orderBy(attributeNatural("code")),
 			entityFetch()
 		);
-		assertArrayEquals(new String[] {"a"}, referenceContent12.getReferencedEntityTypes());
+		assertArrayEquals(new String[] {"a"}, referenceContent12.getReferenceNames());
 		assertNull(referenceContent12.getFilterBy());
 		assertNotNull(referenceContent12.getOrderBy());
 		assertEquals(entityFetch(), referenceContent12.getEntityRequirement());
@@ -141,7 +142,7 @@ class ReferenceContentTest {
 			orderBy(attributeNatural("code")),
 			entityFetch()
 		);
-		assertArrayEquals(new String[] {"a"}, referenceContent13.getReferencedEntityTypes());
+		assertArrayEquals(new String[] {"a"}, referenceContent13.getReferenceNames());
 		assertNotNull(referenceContent13.getFilterBy());
 		assertNotNull(referenceContent13.getOrderBy());
 		assertEquals(entityFetch(), referenceContent13.getEntityRequirement());
@@ -154,7 +155,7 @@ class ReferenceContentTest {
 			entityFetch(),
 			entityGroupFetch()
 		);
-		assertArrayEquals(new String[] {"a"}, referenceContent14.getReferencedEntityTypes());
+		assertArrayEquals(new String[] {"a"}, referenceContent14.getReferenceNames());
 		assertNotNull(referenceContent14.getFilterBy());
 		assertNotNull(referenceContent14.getOrderBy());
 		assertEquals(entityFetch(), referenceContent14.getEntityRequirement());
@@ -165,7 +166,7 @@ class ReferenceContentTest {
 			filterBy(attributeEquals("code", "a")),
 			orderBy(attributeNatural("code"))
 		);
-		assertArrayEquals(new String[] {"a"}, referenceContent15.getReferencedEntityTypes());
+		assertArrayEquals(new String[] {"a"}, referenceContent15.getReferenceNames());
 		assertNotNull(referenceContent15.getFilterBy());
 		assertNotNull(referenceContent15.getOrderBy());
 		assertNull(referenceContent15.getEntityRequirement());
@@ -174,15 +175,15 @@ class ReferenceContentTest {
 
 	@Test
 	void shouldRecognizeApplicability() {
-		assertTrue(referenceContent().isApplicable());
+		assertTrue(referenceContentAll().isApplicable());
 		assertTrue(referenceContent("a").isApplicable());
 		assertTrue(referenceContent("a", "c").isApplicable());
 		assertTrue(referenceContent("a", filterBy(entityPrimaryKeyInSet(1))).isApplicable());
 		assertTrue(referenceContent("a", orderBy(attributeNatural("code"))).isApplicable());
 		assertTrue(referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), orderBy(attributeNatural("code"))).isApplicable());
-		assertTrue(referenceContent("a", entityFetch(attributeContent())).isApplicable());
-		assertTrue(referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), entityFetch(attributeContent())).isApplicable());
-		assertTrue(referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), orderBy(attributeNatural("code")), entityFetch(attributeContent()), entityGroupFetch()).isApplicable());
+		assertTrue(referenceContent("a", entityFetch(attributeContentAll())).isApplicable());
+		assertTrue(referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), entityFetch(attributeContentAll())).isApplicable());
+		assertTrue(referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), orderBy(attributeNatural("code")), entityFetch(attributeContentAll()), entityGroupFetch()).isApplicable());
 	}
 
 	@Test
@@ -193,23 +194,23 @@ class ReferenceContentTest {
 		final ReferenceContent referenceContent2 = referenceContent("a", filterBy(entityPrimaryKeyInSet(1)));
 		assertEquals("referenceContent('a',filterBy(entityPrimaryKeyInSet(1)))", referenceContent2.toString());
 
-		final ReferenceContent referenceContent3 = referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), entityFetch(attributeContent()));
-		assertEquals("referenceContent('a',filterBy(entityPrimaryKeyInSet(1)),entityFetch(attributeContent()))", referenceContent3.toString());
+		final ReferenceContent referenceContent3 = referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), entityFetch(attributeContentAll()));
+		assertEquals("referenceContent('a',filterBy(entityPrimaryKeyInSet(1)),entityFetch(attributeContentAll()))", referenceContent3.toString());
 
-		final ReferenceContent referenceContent4 = referenceContent(entityFetch(attributeContent()));
-		assertEquals("referenceContent(entityFetch(attributeContent()))", referenceContent4.toString());
+		final ReferenceContent referenceContent4 = QueryConstraints.referenceContentAll(entityFetch(attributeContentAll()));
+		assertEquals("referenceContentAll(entityFetch(attributeContentAll()))", referenceContent4.toString());
 
-		final ReferenceContent referenceContent5 = referenceContent(new String[]{"a", "b"}, entityFetch(attributeContent()));
-		assertEquals("referenceContent('a','b',entityFetch(attributeContent()))", referenceContent5.toString());
+		final ReferenceContent referenceContent5 = referenceContent(new String[]{"a", "b"}, entityFetch(attributeContentAll()));
+		assertEquals("referenceContent('a','b',entityFetch(attributeContentAll()))", referenceContent5.toString());
 
-		final ReferenceContent referenceContent6 = referenceContent(new String[]{"a", "b"}, entityFetch(attributeContent()), entityGroupFetch(associatedDataContent()));
-		assertEquals("referenceContent('a','b',entityFetch(attributeContent()),entityGroupFetch(associatedDataContent()))", referenceContent6.toString());
+		final ReferenceContent referenceContent6 = referenceContent(new String[]{"a", "b"}, entityFetch(attributeContentAll()), entityGroupFetch(associatedDataContentAll()));
+		assertEquals("referenceContent('a','b',entityFetch(attributeContentAll()),entityGroupFetch(associatedDataContentAll()))", referenceContent6.toString());
 
-		final ReferenceContent referenceContent7 = referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), entityFetch(attributeContent()), entityGroupFetch(associatedDataContent()));
-		assertEquals("referenceContent('a',filterBy(entityPrimaryKeyInSet(1)),entityFetch(attributeContent()),entityGroupFetch(associatedDataContent()))", referenceContent7.toString());
+		final ReferenceContent referenceContent7 = referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), entityFetch(attributeContentAll()), entityGroupFetch(associatedDataContentAll()));
+		assertEquals("referenceContent('a',filterBy(entityPrimaryKeyInSet(1)),entityFetch(attributeContentAll()),entityGroupFetch(associatedDataContentAll()))", referenceContent7.toString());
 
-		final ReferenceContent referenceContent8 = referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), orderBy(attributeNatural("code")), entityFetch(attributeContent()), entityGroupFetch(associatedDataContent()));
-		assertEquals("referenceContent('a',filterBy(entityPrimaryKeyInSet(1)),orderBy(attributeNatural('code',ASC)),entityFetch(attributeContent()),entityGroupFetch(associatedDataContent()))", referenceContent8.toString());
+		final ReferenceContent referenceContent8 = referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), orderBy(attributeNatural("code")), entityFetch(attributeContentAll()), entityGroupFetch(associatedDataContentAll()));
+		assertEquals("referenceContent('a',filterBy(entityPrimaryKeyInSet(1)),orderBy(attributeNatural('code',ASC)),entityFetch(attributeContentAll()),entityGroupFetch(associatedDataContentAll()))", referenceContent8.toString());
 
 		final ReferenceContent referenceContent9 = referenceContent("a", orderBy(attributeNatural("code")));
 		assertEquals("referenceContent('a',orderBy(attributeNatural('code',ASC)))", referenceContent9.toString());
@@ -219,7 +220,7 @@ class ReferenceContentTest {
 	void shouldConformToEqualsAndHashContract() {
 		assertNotSame(referenceContent("a", "b"), referenceContent("a", "b"));
 		assertEquals(referenceContent("a", "b"), referenceContent("a", "b"));
-		assertEquals(referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), entityFetch(attributeContent())), referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), entityFetch(attributeContent())));
+		assertEquals(referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), entityFetch(attributeContentAll())), referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), entityFetch(attributeContentAll())));
 		assertNotEquals(referenceContent("a", "b"), referenceContent("a", "e"));
 		assertNotEquals(referenceContent("a", "b"), referenceContent("a"));
 		assertNotEquals(referenceContent("a", filterBy(entityPrimaryKeyInSet(1))), referenceContent("a", entityFetch()));

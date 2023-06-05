@@ -88,25 +88,33 @@ public enum GrpcQueryPhase
    */
   EXECUTION_FILTER(13),
   /**
-   * <code>EXECUTION_SORT_AND_SLICE = 14;</code>
+   * <code>EXECUTION_FILTER_NESTED_QUERY = 14;</code>
    */
-  EXECUTION_SORT_AND_SLICE(14),
+  EXECUTION_FILTER_NESTED_QUERY(14),
   /**
-   * <code>EXTRA_RESULTS_FABRICATION = 15;</code>
+   * <code>EXECUTION_SORT_AND_SLICE = 15;</code>
    */
-  EXTRA_RESULTS_FABRICATION(15),
+  EXECUTION_SORT_AND_SLICE(15),
   /**
-   * <code>EXTRA_RESULT_ITEM_FABRICATION = 16;</code>
+   * <code>EXTRA_RESULTS_FABRICATION = 16;</code>
    */
-  EXTRA_RESULT_ITEM_FABRICATION(16),
+  EXTRA_RESULTS_FABRICATION(16),
   /**
-   * <code>FETCHING = 17;</code>
+   * <code>EXTRA_RESULT_ITEM_FABRICATION = 17;</code>
    */
-  FETCHING(17),
+  EXTRA_RESULT_ITEM_FABRICATION(17),
   /**
-   * <code>FETCHING_REFERENCES = 18;</code>
+   * <code>FETCHING = 18;</code>
    */
-  FETCHING_REFERENCES(18),
+  FETCHING(18),
+  /**
+   * <code>FETCHING_REFERENCES = 19;</code>
+   */
+  FETCHING_REFERENCES(19),
+  /**
+   * <code>FETCHING_PARENTS = 20;</code>
+   */
+  FETCHING_PARENTS(20),
   UNRECOGNIZED(-1),
   ;
 
@@ -167,25 +175,33 @@ public enum GrpcQueryPhase
    */
   public static final int EXECUTION_FILTER_VALUE = 13;
   /**
-   * <code>EXECUTION_SORT_AND_SLICE = 14;</code>
+   * <code>EXECUTION_FILTER_NESTED_QUERY = 14;</code>
    */
-  public static final int EXECUTION_SORT_AND_SLICE_VALUE = 14;
+  public static final int EXECUTION_FILTER_NESTED_QUERY_VALUE = 14;
   /**
-   * <code>EXTRA_RESULTS_FABRICATION = 15;</code>
+   * <code>EXECUTION_SORT_AND_SLICE = 15;</code>
    */
-  public static final int EXTRA_RESULTS_FABRICATION_VALUE = 15;
+  public static final int EXECUTION_SORT_AND_SLICE_VALUE = 15;
   /**
-   * <code>EXTRA_RESULT_ITEM_FABRICATION = 16;</code>
+   * <code>EXTRA_RESULTS_FABRICATION = 16;</code>
    */
-  public static final int EXTRA_RESULT_ITEM_FABRICATION_VALUE = 16;
+  public static final int EXTRA_RESULTS_FABRICATION_VALUE = 16;
   /**
-   * <code>FETCHING = 17;</code>
+   * <code>EXTRA_RESULT_ITEM_FABRICATION = 17;</code>
    */
-  public static final int FETCHING_VALUE = 17;
+  public static final int EXTRA_RESULT_ITEM_FABRICATION_VALUE = 17;
   /**
-   * <code>FETCHING_REFERENCES = 18;</code>
+   * <code>FETCHING = 18;</code>
    */
-  public static final int FETCHING_REFERENCES_VALUE = 18;
+  public static final int FETCHING_VALUE = 18;
+  /**
+   * <code>FETCHING_REFERENCES = 19;</code>
+   */
+  public static final int FETCHING_REFERENCES_VALUE = 19;
+  /**
+   * <code>FETCHING_PARENTS = 20;</code>
+   */
+  public static final int FETCHING_PARENTS_VALUE = 20;
 
 
   public final int getNumber() {
@@ -226,11 +242,13 @@ public enum GrpcQueryPhase
       case 11: return EXECUTION;
       case 12: return EXECUTION_PREFETCH;
       case 13: return EXECUTION_FILTER;
-      case 14: return EXECUTION_SORT_AND_SLICE;
-      case 15: return EXTRA_RESULTS_FABRICATION;
-      case 16: return EXTRA_RESULT_ITEM_FABRICATION;
-      case 17: return FETCHING;
-      case 18: return FETCHING_REFERENCES;
+      case 14: return EXECUTION_FILTER_NESTED_QUERY;
+      case 15: return EXECUTION_SORT_AND_SLICE;
+      case 16: return EXTRA_RESULTS_FABRICATION;
+      case 17: return EXTRA_RESULT_ITEM_FABRICATION;
+      case 18: return FETCHING;
+      case 19: return FETCHING_REFERENCES;
+      case 20: return FETCHING_PARENTS;
       default: return null;
     }
   }
@@ -261,7 +279,7 @@ public enum GrpcQueryPhase
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(11);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(15);
   }
 
   private static final GrpcQueryPhase[] VALUES = values();

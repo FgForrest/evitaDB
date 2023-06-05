@@ -1,0 +1,306 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/wrappers.proto";
+import "GrpcEntity.proto";
+import "GrpcEvitaDataTypes.proto";
+import "GrpcExtraResults.proto";
+import "GrpcEnums.proto";
+import "GrpcCatalogSchema.proto";
+import "GrpcEntitySchema.proto";
+import "GrpcLocalMutation.proto";
+import "GrpcEntityMutation.proto";
+import "GrpcCatalogSchemaMutation.proto";
+import "GrpcCatalogSchemaMutations.proto";
+
+message GrpcCatalogStateResponse {
+  GrpcCatalogState state = 1;
+}
+
+message GrpcCatalogSchemaResponse {
+  GrpcCatalogSchema catalogSchema = 1;
+}
+
+message GrpcEntitySchemaRequest {
+  string entityType = 1;
+}
+
+message GrpcEntitySchemaResponse {
+  GrpcEntitySchema entitySchema = 1;
+}
+
+message GrpcUpdateCatalogSchemaRequest {
+  repeated GrpcLocalCatalogSchemaMutation schemaMutations = 1;
+}
+
+message GrpcUpdateCatalogSchemaResponse {
+  int32 version = 1;
+}
+
+message GrpcUpdateAndFetchCatalogSchemaResponse {
+  GrpcCatalogSchema catalogSchema = 1;
+}
+
+message GrpcDefineEntitySchemaRequest {
+  string entityType = 1;
+}
+
+message GrpcDefineEntitySchemaResponse {
+  GrpcEntitySchema entitySchema = 1;
+}
+
+message GrpcUpdateEntitySchemaRequest {
+  GrpcModifyEntitySchemaMutation schemaMutation = 1;
+}
+
+message GrpcUpdateEntitySchemaResponse {
+  int32 version = 1;
+}
+
+message GrpcUpdateAndFetchEntitySchemaResponse {
+  GrpcEntitySchema entitySchema = 1;
+}
+
+message GrpcEntityRequest {
+  int32 primaryKey = 1;
+  string entityType = 2;
+  string require = 3;
+  repeated QueryParam positionalQueryParams = 4;
+  map<string, QueryParam> namedQueryParams = 5;
+}
+
+message GrpcEntityResponse {
+  GrpcSealedEntity entity = 1;
+}
+
+message GrpcPaginatedList {
+  int32 pageSize = 1;
+  int32 pageNumber = 2;
+}
+
+message GrpcStripList {
+  int32 limit = 1;
+  int32 offset = 2;
+}
+
+message GrpcDataChunk {
+  repeated GrpcEntityReference entityReferences = 1;
+  repeated GrpcSealedEntity sealedEntities = 2;
+  repeated GrpcBinaryEntity binaryEntities = 3;
+  oneof chunk {
+    GrpcPaginatedList paginatedList = 4;
+    GrpcStripList stripList = 5;
+  }
+  int32 totalRecordCount = 6;
+  bool isFirst = 7;
+  bool isLast = 8;
+  bool hasPrevious = 9;
+  bool hasNext = 10;
+  bool isSinglePage = 11;
+  bool isEmpty = 12;
+}
+
+message GrpcDeleteCollectionRequest {
+  string entityType = 1;
+}
+
+message GrpcDeleteCollectionResponse {
+  bool deleted = 1;
+}
+
+message GrpcRenameCollectionRequest {
+  string entityType = 1;
+  string newName = 2;
+}
+
+message GrpcRenameCollectionResponse {
+  bool renamed = 1;
+}
+
+message GrpcReplaceCollectionRequest {
+  string entityTypeToBeReplaced = 1;
+  string entityTypeToBeReplacedWith = 2;
+}
+
+message GrpcReplaceCollectionResponse {
+  bool replaced = 1;
+}
+
+message GrpcEntityCollectionSizeRequest {
+  string entityType = 1;
+}
+
+message GrpcEntityCollectionSizeResponse {
+  int32 size = 1;
+}
+
+message GrpcGoLiveAndCloseResponse {
+  bool success = 1;
+}
+
+message GrpcEntityTypesResponse {
+  repeated string entityTypes = 1;
+}
+
+message GrpcQueryRequest {
+  string query = 1;
+  repeated QueryParam positionalQueryParams = 2;
+  map<string, QueryParam> namedQueryParams = 3;
+}
+
+message GrpcQueryResponse {
+  GrpcDataChunk recordPage = 1;
+  GrpcExtraResults extraResults = 2;
+}
+
+message GrpcQueryOneResponse {
+  GrpcEntityReference entityReference = 1;
+  GrpcSealedEntity sealedEntity = 2;
+  GrpcBinaryEntity binaryEntity = 3;
+}
+
+message GrpcQueryListResponse {
+  repeated GrpcEntityReference entityReferences = 1;
+  repeated GrpcSealedEntity sealedEntities = 2;
+  repeated GrpcBinaryEntity binaryEntities = 3;
+}
+
+message GrpcUpsertEntityRequest {
+  GrpcEntityMutation entityMutation = 1;
+  string require = 2;
+  repeated QueryParam positionalQueryParams = 3;
+  map<string, QueryParam> namedQueryParams = 4;
+}
+
+message GrpcDeleteEntityRequest {
+  string entityType = 1;
+  google.protobuf.Int32Value primaryKey = 2;
+  GrpcEntityExistence entityExistence = 3;
+  string require = 4;
+  repeated QueryParam positionalQueryParams = 5;
+  map<string, QueryParam> namedQueryParams = 6;
+}
+
+message GrpcDeleteEntitiesRequest {
+  string query = 1;
+  repeated QueryParam positionalQueryParams = 2;
+  map<string, QueryParam> namedQueryParams = 3;
+}
+
+message GrpcUpsertEntityResponse {
+  oneof response {
+    GrpcEntityReference entityReference = 1;
+    GrpcSealedEntity entity = 2;
+  }
+}
+
+message GrpcDeleteEntityResponse {
+  oneof response {
+    GrpcEntityReference entityReference = 1;
+    GrpcSealedEntity entity = 2;
+  }
+}
+
+message GrpcDeleteEntityAndItsHierarchyResponse {
+  int32 deletedEntities = 1;
+  oneof response {
+    GrpcEntityReference deletedRootEntityReference = 2;
+    GrpcSealedEntity deletedRootEntity = 3;
+  }
+}
+
+message GrpcDeleteEntitiesResponse {
+  int32 deletedEntities = 1;
+  repeated GrpcSealedEntity deletedEntityBodies = 2;
+}
+
+message GrpcOpenTransactionResponse {
+  bool alreadyOpenedBefore = 1;
+  int64 transactionId = 2;
+}
+
+message GrpcCloseTransactionRequest {
+  bool rollback = 1;
+}
+
+message QueryParam {
+  oneof queryParam {
+    string stringValue = 1;
+    int32 integerValue = 2;
+    int64 longValue = 3;
+    bool booleanValue = 4;
+    GrpcBigDecimal bigDecimalValue = 5;
+    GrpcDateTimeRange dateTimeRangeValue = 6;
+    GrpcIntegerNumberRange integerNumberRangeValue = 7;
+    GrpcLongNumberRange longNumberRangeValue = 8;
+    GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;
+    GrpcOffsetDateTime offsetDateTimeValue = 10;
+    GrpcLocale localeValue = 11;
+    GrpcCurrency currencyValue = 12;
+    GrpcFacetStatisticsDepth facetStatisticsDepthValue = 13;
+    GrpcQueryPriceMode queryPriceModelValue = 14;
+    GrpcPriceContentMode priceContentModeValue = 15;
+    GrpcAttributeSpecialValue attributeSpecialValue = 16;
+    GrpcOrderDirection orderDirectionValue = 17;
+    GrpcEmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour = 18;
+    GrpcStatisticsBase statisticsBase = 19;
+    GrpcStatisticsType statisticsType = 20;
+
+    GrpcStringArray stringArrayValue = 21;
+    GrpcIntegerArray integerArrayValue = 22;
+    GrpcLongArray longArrayValue = 23;
+    GrpcBooleanArray booleanArrayValue = 24;
+    GrpcBigDecimalArray bigDecimalArrayValue = 25;
+    GrpcDateTimeRangeArray dateTimeRangeArrayValue = 26;
+    GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 27;
+    GrpcLongNumberRangeArray longNumberRangeArrayValue = 28;
+    GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 29;
+    GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 30;
+    GrpcLocaleArray localeArrayValue = 31;
+    GrpcCurrencyArray currencyArrayValue = 32;
+    GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 33;
+    GrpcQueryPriceModeArray queryPriceModelArrayValue = 34;
+    GrpcPriceContentModeArray priceContentModeArrayValue = 35;
+    GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 36;
+    GrpcOrderDirectionArray orderDirectionArrayValue = 37;
+    GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 38;
+    GrpcStatisticsBaseArray statisticsBaseArrayValue = 39;
+    GrpcStatisticsTypeArray statisticsTypeArrayValue = 40;
+  }
+}
+
+service EvitaSessionService {
+  rpc GetCatalogSchema(google.protobuf.Empty) returns (GrpcCatalogSchemaResponse);
+  rpc GetCatalogState(google.protobuf.Empty) returns (GrpcCatalogStateResponse);
+  rpc GetEntitySchema(GrpcEntitySchemaRequest) returns (GrpcEntitySchemaResponse);
+  rpc GetAllEntityTypes(google.protobuf.Empty) returns (GrpcEntityTypesResponse);
+  rpc GoLiveAndClose(google.protobuf.Empty) returns (GrpcGoLiveAndCloseResponse);
+  rpc Close(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+  rpc QueryOne(GrpcQueryRequest) returns (GrpcQueryOneResponse);
+  rpc QueryList(GrpcQueryRequest) returns (GrpcQueryListResponse);
+  rpc Query(GrpcQueryRequest) returns (GrpcQueryResponse);
+  rpc GetEntity(GrpcEntityRequest) returns (GrpcEntityResponse);
+
+  rpc UpdateCatalogSchema(GrpcUpdateCatalogSchemaRequest) returns (GrpcUpdateCatalogSchemaResponse);
+  rpc UpdateAndFetchCatalogSchema(GrpcUpdateCatalogSchemaRequest) returns (GrpcUpdateAndFetchCatalogSchemaResponse);
+  rpc DefineEntitySchema(GrpcDefineEntitySchemaRequest) returns (GrpcDefineEntitySchemaResponse);
+  rpc UpdateEntitySchema(GrpcUpdateEntitySchemaRequest) returns (GrpcUpdateEntitySchemaResponse);
+  rpc UpdateAndFetchEntitySchema(GrpcUpdateEntitySchemaRequest) returns (GrpcUpdateAndFetchEntitySchemaResponse);
+
+  rpc DeleteCollection(GrpcDeleteCollectionRequest) returns (GrpcDeleteCollectionResponse);
+  rpc RenameCollection(GrpcRenameCollectionRequest) returns (GrpcRenameCollectionResponse);
+  rpc ReplaceCollection(GrpcReplaceCollectionRequest) returns (GrpcReplaceCollectionResponse);
+  rpc GetEntityCollectionSize(GrpcEntityCollectionSizeRequest) returns (GrpcEntityCollectionSizeResponse);
+
+  rpc UpsertEntity(GrpcUpsertEntityRequest) returns (GrpcUpsertEntityResponse);
+  rpc DeleteEntity(GrpcDeleteEntityRequest) returns (GrpcDeleteEntityResponse);
+  rpc DeleteEntityAndItsHierarchy(GrpcDeleteEntityRequest) returns (GrpcDeleteEntityAndItsHierarchyResponse);
+  rpc DeleteEntities(GrpcDeleteEntitiesRequest) returns (GrpcDeleteEntitiesResponse);
+
+  rpc OpenTransaction(google.protobuf.Empty) returns (GrpcOpenTransactionResponse);
+  rpc CloseTransaction(GrpcCloseTransactionRequest) returns (google.protobuf.Empty);
+}

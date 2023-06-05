@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -35,13 +34,11 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class ExtraResultsDataFetcher implements DataFetcher<DataFetcherResult<EvitaResponse<?>>> {
+public class ExtraResultsDataFetcher implements DataFetcher<EvitaResponse<?>> {
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<EvitaResponse<?>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		return DataFetcherResult.<EvitaResponse<?>>newResult()
-			.data(environment.getSource())
-			.build();
+	public EvitaResponse<?> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+		return environment.getSource();
 	}
 }

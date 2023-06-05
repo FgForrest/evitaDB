@@ -1,0 +1,11 @@
+query(
+    collection('Product'),
+    filterBy(
+        attributeGreaterThanEquals('battery-life', '40')
+    ),
+    require(
+       entityFetch(
+           attributeContent('code', 'battery-life')
+       )
+    )
+)

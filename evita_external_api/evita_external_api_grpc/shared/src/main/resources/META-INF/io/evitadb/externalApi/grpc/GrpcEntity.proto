@@ -21,22 +21,18 @@ message GrpcSealedEntity {
   int32 primaryKey = 2;
   int32 version = 3;
   int32 schemaVersion = 4;
-  GrpcHierarchicalPlacement hierarchicalPlacement = 5;
-  map<string, GrpcEvitaValue> globalAttributes = 6;
-  map<string, GrpcLocalizedAttribute> localizedAttributes = 7;
-  repeated GrpcPrice prices = 8;
-  GrpcPrice priceForSale = 9;
-  GrpcPriceInnerRecordHandling priceInnerRecordHandling = 10;
-  repeated GrpcReference references = 11;
-  map<string, GrpcEvitaAssociatedDataValue> globalAssociatedData = 12;
-  map<string, GrpcLocalizedAssociatedData> localizedAssociatedData = 13;
-  repeated GrpcLocale locales = 14;
-}
-
-message GrpcHierarchicalPlacement {
-  int32 version = 3;
-  int32 orderAmongSiblings = 13;
-  google.protobuf.Int32Value parentPrimaryKey = 14;
+  google.protobuf.Int32Value parent = 5;
+  repeated GrpcEntityReference parentReference = 6;
+  repeated GrpcSealedEntity parentEntity = 7;
+  map<string, GrpcEvitaValue> globalAttributes = 8;
+  map<string, GrpcLocalizedAttribute> localizedAttributes = 9;
+  repeated GrpcPrice prices = 10;
+  GrpcPrice priceForSale = 11;
+  GrpcPriceInnerRecordHandling priceInnerRecordHandling = 12;
+  repeated GrpcReference references = 13;
+  map<string, GrpcEvitaAssociatedDataValue> globalAssociatedData = 14;
+  map<string, GrpcLocalizedAssociatedData> localizedAssociatedData = 15;
+  repeated GrpcLocale locales = 16;
 }
 
 message GrpcBinaryEntity {

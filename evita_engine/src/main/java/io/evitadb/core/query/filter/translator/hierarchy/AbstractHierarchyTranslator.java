@@ -24,72 +24,120 @@
 package io.evitadb.core.query.filter.translator.hierarchy;
 
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
+import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
+import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import java.util.Arrays;
-import java.util.List;
+import javax.annotation.Nullable;
 import java.util.Objects;
+import java.util.function.Supplier;
+import java.util.stream.StreamSupport;
 
 /**
  * Abstract super class for hierarchy query translators containing the shared logic.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-abstract class AbstractHierarchyTranslator<T extends FilterConstraint> implements FilteringConstraintTranslator<T>, SelfTraversingTranslator {
+public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> implements FilteringConstraintTranslator<T>, SelfTraversingTranslator {
 
 	/**
-	 * Method returns {@link Formula} that returns all entity ids that are referencing ids in `pivotIds`.
+	 * Creates a hierarchy exclusion predicate if the exclusion filter is defined and stores it to {@link QueryContext}
+	 * for later use.
 	 */
-	@Nonnull
-	protected Formula getReferencedEntityFormulas(@Nonnull FilterByVisitor filterByVisitor, @Nonnull String referenceName, @Nonnull int[] pivotIds) {
-		// hierarchy indexes are tied to the entity that is being requested
-		final String containingEntityType = filterByVisitor.getSchema().getName();
-		// return OR product of all indexed primary keys in those indexes
-		return FormulaFactory.or(
-			Arrays.stream(pivotIds)
-				// for each pivot id create EntityIndexKey to REFERENCED_HIERARCHY_NODE entity index
-				.mapToObj(referencedId -> new EntityIndexKey(
-					EntityIndexType.REFERENCED_HIERARCHY_NODE,
-					new ReferenceKey(referenceName, referencedId)
-				))
-				// get the index
-				.map(it -> filterByVisitor.getIndex(containingEntityType, it))
-				// filter out indexes that are not present (no entity references the pivot id)
-				.filter(Objects::nonNull)
-				// get all entity ids referencing the pivot id
-				.map(EntityIndex::getAllPrimaryKeysFormula)
-				// filter out empty formulas (with no results) to optimize computation
-				.filter(it -> !(it instanceof EmptyFormula))
-				// return as array
-				.toArray(Formula[]::new)
+	@Nullable
+	protected static HierarchyFilteringPredicate createAndStoreHavingPredicate(
+		@Nonnull QueryContext queryContext,
+		@Nullable FilterBy havingFilter,
+		@Nullable FilterBy exclusionFilter,
+		@Nullable ReferenceSchemaContract referenceSchema
+	) {
+		final boolean havingNotPresent = havingFilter == null || !havingFilter.isApplicable();
+		final boolean exclusionNotPresent = exclusionFilter == null || !exclusionFilter.isApplicable();
+		Assert.isTrue(
+			havingNotPresent || exclusionNotPresent,
+			() -> "Having and exclusion filters are mutually exclusive! " +
+				"The query contains both having: " + havingFilter + " and exclusion: " + exclusionFilter + " constraints."
 		);
+		if (exclusionNotPresent && havingNotPresent) {
+			return null;
+		} else {
+			final HierarchyFilteringPredicate predicate;
+			if (havingNotPresent) {
+				predicate = new FilteringFormulaHierarchyEntityPredicate(
+					queryContext,
+					exclusionFilter,
+					referenceSchema
+				).negate();
+			} else {
+				predicate = new FilteringFormulaHierarchyEntityPredicate(
+					queryContext,
+					havingFilter,
+					referenceSchema
+				);
+			}
+
+			queryContext.setHierarchyHavingPredicate(predicate);
+			return predicate;
+		}
 	}
 
 	/**
-	 * Method returns {@link Formula} that returns all entity ids that are referencing ids in `pivotIds`.
+	 * Method creates a formula producing primary keys that are part of the requested `hierarchyWithinConstraint`.
+	 * It favorites the already resolved target index set connected with the constraint, but if such is missing it
+	 * computes the set using provided `hierarchyNodesFormulaSupplier`.
 	 */
 	@Nonnull
-	protected Formula getReferencedEntityFormulas(@Nonnull List<EntityIndex> entityIndexes) {
-		// return OR product of all indexed primary keys in those indexes
-		return FormulaFactory.or(
-			entityIndexes.stream()
-				// get all entity ids referencing the pivot id
-				.map(EntityIndex::getAllPrimaryKeysFormula)
-				// filter out empty formulas (with no results) to optimize computation
-				.filter(it -> !(it instanceof EmptyFormula))
-				// return as array
-				.toArray(Formula[]::new)
+	protected static Formula createFormulaForReferencingEntities(
+		@Nonnull HierarchyFilterConstraint hierarchyWithinConstraint,
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull Supplier<Formula> hierarchyNodesFormulaSupplier
+		) {
+		final String referenceName = hierarchyWithinConstraint.getReferenceName().orElseThrow();
+		Assert.notNull(
+			filterByVisitor.getSchema().getReferenceOrThrowException(referenceName),
+			"Reference name validation (will never be printed)."
 		);
+		final TargetIndexes targetIndexes = filterByVisitor.findTargetIndexSet(hierarchyWithinConstraint);
+		if (targetIndexes == null) {
+			final Formula hierarchyNodesFormula = hierarchyNodesFormulaSupplier.get();
+			final QueryContext queryContext = filterByVisitor.getQueryContext();
+			return FormulaFactory.or(
+				StreamSupport.stream(hierarchyNodesFormula.compute().spliterator(), false)
+					.map(hierarchyNodeId -> (EntityIndex) queryContext.getIndex(
+						new EntityIndexKey(
+							EntityIndexType.REFERENCED_HIERARCHY_NODE,
+							new ReferenceKey(referenceName, hierarchyNodeId)
+						)
+					))
+					.filter(Objects::nonNull)
+					.map(EntityIndex::getAllPrimaryKeysFormula)
+					.toArray(Formula[]::new)
+			);
+		} else {
+			// the exclusion was already evaluated when the target indexes were initialized
+			return FormulaFactory.or(
+				targetIndexes.getIndexesOfType(EntityIndex.class)
+					.stream()
+					.filter(Objects::nonNull)
+					.map(EntityIndex::getAllPrimaryKeysFormula)
+					.toArray(Formula[]::new)
+			);
+		}
 	}
 
 }

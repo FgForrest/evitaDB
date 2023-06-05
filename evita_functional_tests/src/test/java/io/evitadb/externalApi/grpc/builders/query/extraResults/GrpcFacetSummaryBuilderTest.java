@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatist
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -42,6 +43,7 @@ import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -51,7 +53,7 @@ import java.util.Objects;
  *
  * @author Tomáš Pozler, 2022
  */
-class GrpcFacetSummaryBuilderTest {
+public class GrpcFacetSummaryBuilderTest {
 
 	@Test
 	void buildFacetSummary() {
@@ -82,7 +84,7 @@ class GrpcFacetSummaryBuilderTest {
 				),
 				new FacetGroupStatistics(
 					types[1],
-					createGroupEntity(),
+					createGroupEntity("testGroup2"),
 					15,
 					List.of(
 						new FacetStatistics(createFacetEntity(types[1].getReferencedEntityType(), 1, "phone1"), true, 5, new RequestImpact(55, 7)),
@@ -112,11 +114,11 @@ class GrpcFacetSummaryBuilderTest {
 	}
 
 	@Nonnull
-	private SealedEntity createGroupEntity() {
+	public static SealedEntity createGroupEntity(String groupEntityType) {
 		return new InitialEntityBuilder(
 			new InternalEntitySchemaBuilder(
-				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), entityType -> null),
-				EntitySchema._internalBuild("testGroup2")
+				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), entityType -> null),
+				EntitySchema._internalBuild(groupEntityType)
 			)
 				.withAttribute("code", String.class)
 				.withAttribute("name", String.class)
@@ -129,10 +131,10 @@ class GrpcFacetSummaryBuilderTest {
 	}
 
 	@Nonnull
-	private SealedEntity createFacetEntity(@Nonnull String type, int pk, @Nonnull String code) {
+	public static SealedEntity createFacetEntity(@Nonnull String type, int pk, @Nonnull String code) {
 		return new InitialEntityBuilder(
 			new InternalEntitySchemaBuilder(
-				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), entityType -> null),
+				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), entityType -> null),
 				EntitySchema._internalBuild(type)
 			)
 				.withAttribute("code", String.class)

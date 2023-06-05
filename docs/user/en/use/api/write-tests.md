@@ -43,14 +43,14 @@ artifact into your project:
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_test_support</artifactId>
-    <version>0.5-SNAPSHOT</version>
+    <version>0.6-SNAPSHOT</version>
     <scope>test</scope>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_test_support:0.5-SNAPSHOT'
+implementation 'io.evitadb:evita_test_support:0.6-SNAPSHOT'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -63,7 +63,7 @@ framework.
 Let's first take a look at what a commonly written automated test that uses data in evitaDB would look like:
 
 <SourceCodeTabs>
-[JUnit5 test example](docs/user/en/use/api/example/test-with-empty-dataset-example.java)
+[JUnit5 test example](/docs/user/en/use/api/example/test-with-empty-dataset-example.java)
 </SourceCodeTabs>
 
 That's quite a lot of work. Therefore, we provide better support for evitaDB server initialization using 
@@ -71,7 +71,7 @@ That's quite a lot of work. Therefore, we provide better support for evitaDB ser
 which can be integrated into your test via JUnit 5 annotation `@ExtendWith(DbInstanceParameterResolver.class)`:
 
 <SourceCodeTabs>
-[Alternative test example](docs/user/en/use/api/example/test-with-empty-dataset-alternative.java)
+[Alternative test example](/docs/user/en/use/api/example/test-with-empty-dataset-alternative.java)
 </SourceCodeTabs>
 
 This example class will create *an anonymous instance* of an empty embedded evitaDB server and destroy it immediately 
@@ -81,7 +81,7 @@ annotations <SourceClass>evita_test_support/src/main/java/io/evitadb/test/annota
 and <SourceClass>evita_test_support/src/main/java/io/evitadb/test/annotation/UseDataSet.java</SourceClass>:
 
 <SourceCodeTabs>
-[Named and filled dataset test example](docs/user/en/use/api/example/test-with-prefilled-dataset.java)
+[Named and filled dataset test example](/docs/user/en/use/api/example/test-with-prefilled-dataset.java)
 </SourceCodeTabs>
 
 As you can see in the example, the `setUpData` method declares that it will initialize a data set named 
@@ -108,20 +108,20 @@ A similar approach is possible with the evitaDB Java Client through gRPC API. Wh
 want to initialize the gRPC web server and open required set of web APIs:
 
 <SourceCodeTabs>
-[Web API test example](docs/user/en/use/api/example/test-with-prefilled-dataset-and-grpc-web-api.java)
+[Web API test example](/docs/user/en/use/api/example/test-with-prefilled-dataset-and-grpc-web-api.java)
 </SourceCodeTabs>
 
 The example is identical to the previous one with the only significant difference - instead of communicating 
 with the embedded evitaDB server via direct method calls, it uses
 <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>,
 which communicates with the same embedded evitaDB server via gRPC protocol using HTTP/2 and local network. The server 
-opens a free port, generates self-signed <Term location="docs/user/en/operate/tls.md">certificate authority</Term> 
+opens a free port, generates self-signed <Term location="/docs/user/en/operate/tls.md">certificate authority</Term> 
 certificate. The 
 <SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DbInstanceParameterResolver.java</SourceClass>
 creates a
 <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass> 
 instance that is properly configured to communicate with this gRPC API, the client downloads the self-signed
-<Term location="docs/user/en/operate/tls.md">certificate authority</Term> certificate and the generic client 
+<Term location="/docs/user/en/operate/tls.md">certificate authority</Term> certificate and the generic client 
 certificate to pass [mTLS verification](../../operate/tls.md#default-mtls-behaviour-not-secure), and 
 communicates with the *embedded evitaDB* over the wire.
 
@@ -133,14 +133,14 @@ A similar approach is possible with the evitaDB GraphQL API. When setting up you
 want to initialize the GraphQL web server and open required web API:
 
 <SourceCodeTabs>
-[Web API test example](docs/user/en/use/api/example/test-with-prefilled-dataset-and-graphql-web-api.java)
+[Web API test example](/docs/user/en/use/api/example/test-with-prefilled-dataset-and-graphql-web-api.java)
 </SourceCodeTabs>
 
 The example is similar to the previous one with the only significant difference - instead of communicating
 with the embedded evitaDB server via direct method calls, it uses
 exposed GraphQL API,
 which communicates with the same embedded evitaDB server via GraphQL protocol using HTTP and local network. The server
-opens a free port and generates self-signed <Term location="docs/user/en/operate/tls.md">certificate authority</Term>
+opens a free port and generates self-signed <Term location="/docs/user/en/operate/tls.md">certificate authority</Term>
 certificate. The
 <SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DbInstanceParameterResolver.java</SourceClass>
 creates a
@@ -160,14 +160,14 @@ A similar approach is possible with the evitaDB REST API. When setting up your d
 want to initialize the REST web server and open required web API:
 
 <SourceCodeTabs>
-[Web API test example](docs/user/en/use/api/example/test-with-prefilled-dataset-and-rest-web-api.java)
+[Web API test example](/docs/user/en/use/api/example/test-with-prefilled-dataset-and-rest-web-api.java)
 </SourceCodeTabs>
 
 The example is similar to the previous one with the only significant difference - instead of communicating
 with the embedded evitaDB server via direct method calls, it uses
 exposed REST API,
 which communicates with the same embedded evitaDB server via REST protocol using HTTP and local network. The server
-opens a free port and generates self-signed <Term location="docs/user/en/operate/tls.md">certificate authority</Term>
+opens a free port and generates self-signed <Term location="/docs/user/en/operate/tls.md">certificate authority</Term>
 certificate. The
 <SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DbInstanceParameterResolver.java</SourceClass>
 creates a
@@ -190,7 +190,7 @@ be associated with the test dataset of such name and will be available for <Term
 tests along with other evitaDB related objects. Let's have a look at the following example:
 
 <SourceCodeTabs>
-[Company objects initialization](docs/user/en/use/api/example/test-company-objects.java)
+[Company objects initialization](/docs/user/en/use/api/example/test-company-objects.java)
 </SourceCodeTabs>
 
 In the initial method we return a special 

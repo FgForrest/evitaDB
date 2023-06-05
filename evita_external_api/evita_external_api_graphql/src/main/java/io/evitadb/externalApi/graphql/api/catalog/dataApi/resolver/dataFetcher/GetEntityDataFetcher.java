@@ -24,12 +24,12 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
 
 import graphql.execution.DataFetcherResult;
-import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
@@ -39,6 +39,12 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GetEntityQueryHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
+import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import io.evitadb.utils.Assert;
@@ -55,7 +61,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -71,33 +78,34 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<EntityClassifier>> {
+public class GetEntityDataFetcher extends ReadDataFetcher<DataFetcherResult<EntityClassifier>> {
 
-	/**
-	 * Schema of catalog in which the collection is placed.
-	 */
-	@Nonnull
-	private final CatalogSchemaContract catalogSchema;
 	/**
 	 * Schema of collection to which this fetcher is mapped to.
 	 */
-	@Nonnull
-	private final EntitySchemaContract entitySchema;
-	/**
-	 * Function to fetch specific entity schema based on its name.
-	 */
-	@Nonnull
-	private final Function<String, EntitySchemaContract> entitySchemaFetcher;
+	@Nonnull private final EntitySchemaContract entitySchema;
 
-	public GetEntityDataFetcher(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaContract entitySchema) {
-		this.catalogSchema = catalogSchema;
+	@Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
+
+	public GetEntityDataFetcher(@Nonnull Executor executor,
+	                            @Nonnull CatalogSchemaContract catalogSchema,
+	                            @Nonnull EntitySchemaContract entitySchema) {
+		super(executor);
 		this.entitySchema = entitySchema;
-		this.entitySchemaFetcher = catalogSchema::getEntitySchemaOrThrowException;
+		final FilterConstraintResolver filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
+		final OrderConstraintResolver orderConstraintResolver = new OrderConstraintResolver(catalogSchema);
+		final RequireConstraintResolver requireConstraintResolver = new RequireConstraintResolver(catalogSchema, new AtomicReference<>(filterConstraintResolver));
+		this.entityFetchRequireResolver = new EntityFetchRequireResolver(
+			catalogSchema::getEntitySchemaOrThrowException,
+			filterConstraintResolver,
+			orderConstraintResolver,
+			requireConstraintResolver
+		);
 	}
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<EntityClassifier> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public DataFetcherResult<EntityClassifier> doGet(@Nonnull DataFetchingEnvironment environment) {
 		final Arguments arguments = Arguments.from(environment, entitySchema);
 
 		final FilterBy filterBy = buildFilterBy(arguments);
@@ -141,8 +149,8 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
         filterConstraints.add(priceInCurrency(arguments.priceInCurrency()));
         if (arguments.priceValidIn() != null) {
             filterConstraints.add(priceValidIn(arguments.priceValidIn()));
-        } else if (arguments.priceValidNow()) {
-            filterConstraints.add(priceValidNow());
+        } else if (arguments.priceValidInNow()) {
+            filterConstraints.add(priceValidInNow());
         }
 
 		return filterBy(
@@ -154,15 +162,14 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 
     @Nonnull
     private Require buildRequire(@Nonnull DataFetchingEnvironment environment, @Nonnull Arguments arguments) {
-        return require(
-            EntityFetchRequireBuilder.buildEntityRequirement(
-	            catalogSchema,
-                SelectionSetWrapper.from(environment.getSelectionSet()),
-                arguments.locale(),
-                entitySchema,
-	            entitySchemaFetcher
-            )
-        );
+	    final EntityFetch entityFetch = entityFetchRequireResolver.resolveEntityFetch(
+		    SelectionSetWrapper.from(environment.getSelectionSet()),
+		    arguments.locale(),
+		    entitySchema
+	    )
+		    .orElse(null);
+
+	    return require(entityFetch);
     }
 
     @Nonnull
@@ -171,7 +178,7 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
             .desiredLocale(arguments.locale())
             .desiredPriceInCurrency(arguments.priceInCurrency())
             .desiredPriceValidIn(arguments.priceValidIn())
-            .desiredPriceValidNow(arguments.priceValidNow())
+            .desiredpriceValidInNow(arguments.priceValidInNow())
             .desiredPriceInPriceLists(arguments.priceInPriceLists())
             .build();
     }
@@ -184,7 +191,7 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
                              @Nullable Currency priceInCurrency,
                              @Nullable String[] priceInPriceLists,
                              @Nullable OffsetDateTime priceValidIn,
-                             boolean priceValidNow,
+                             boolean priceValidInNow,
                              @Nonnull Map<AttributeSchemaContract, Object> uniqueAttributes) {
 
 		private static Arguments from(@Nonnull DataFetchingEnvironment environment, @Nonnull EntitySchemaContract entitySchema) {
@@ -199,7 +206,7 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
             //noinspection unchecked
             final List<String> priceInPriceLists = (List<String>) arguments.remove(GetEntityQueryHeaderDescriptor.PRICE_IN_PRICE_LISTS.name());
             final OffsetDateTime priceValidIn = (OffsetDateTime) arguments.remove(GetEntityQueryHeaderDescriptor.PRICE_VALID_IN.name());
-            final boolean priceValidNow = (boolean) Optional.ofNullable(arguments.remove(GetEntityQueryHeaderDescriptor.PRICE_VALID_NOW.name()))
+            final boolean priceValidInNow = (boolean) Optional.ofNullable(arguments.remove(GetEntityQueryHeaderDescriptor.PRICE_VALID_NOW.name()))
                 .orElse(false);
 
 			// left over arguments are unique attribute filters as defined by schema
@@ -218,7 +225,7 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
                 priceInCurrency,
                 (priceInPriceLists != null ? priceInPriceLists.toArray(String[]::new) : null),
                 priceValidIn,
-                priceValidNow,
+                priceValidInNow,
                 uniqueAttributes
             );
         }

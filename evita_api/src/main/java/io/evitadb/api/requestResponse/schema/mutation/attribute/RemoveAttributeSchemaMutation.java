@@ -130,6 +130,7 @@ public class RemoveAttributeSchemaMutation implements
 				catalogSchema.getName(),
 				catalogSchema.getNameVariants(),
 				catalogSchema.getDescription(),
+				catalogSchema.getCatalogEvolutionMode(),
 				catalogSchema.getAttributes().values()
 					.stream()
 					.filter(it -> !it.getName().equals(name))

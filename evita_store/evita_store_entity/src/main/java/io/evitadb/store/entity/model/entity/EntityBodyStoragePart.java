@@ -24,7 +24,6 @@
 package io.evitadb.store.entity.model.entity;
 
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
-import io.evitadb.api.requestResponse.data.HierarchicalPlacementContract;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.store.model.EntityStoragePart;
 import io.evitadb.store.service.KeyCompressor;
@@ -63,7 +62,7 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	/**
 	 * See {@link Entity#getAttributeLocales()}.
 	 */
-	@Getter private final Set<Locale> attributeLocales;
+	@Getter @Nonnull private final Set<Locale> attributeLocales;
 	/**
 	 * Contains TRUE if the container was not stored yet.
 	 */
@@ -73,17 +72,17 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	 */
 	private int version;
 	/**
-	 * See {@link Entity#getHierarchicalPlacement()}.
+	 * See {@link Entity#getParent()}.
 	 */
-	@Getter private HierarchicalPlacementContract hierarchicalPlacement;
+	@Getter @Nullable private Integer parent;
 	/**
 	 * See {@link Entity#getLocales()}.
 	 */
-	@Getter private Set<Locale> locales;
+	@Getter @Nonnull private Set<Locale> locales;
 	/**
 	 * Contains set of all associated data keys that are used in this entity.
 	 */
-	@Getter private final Set<AssociatedDataKey> associatedDataKeys;
+	@Getter @Nonnull private final Set<AssociatedDataKey> associatedDataKeys;
 	/**
 	 * Contains true if anything changed in this container.
 	 */
@@ -103,10 +102,10 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 		this.initialRevision = true;
 	}
 
-	public EntityBodyStoragePart(int version, @Nonnull Integer primaryKey, @Nonnull HierarchicalPlacementContract hierarchicalPlacement, @Nonnull Set<Locale> locales, @Nonnull Set<Locale> attributeLocales, @Nonnull Set<AssociatedDataKey> associatedDataKeys) {
+	public EntityBodyStoragePart(int version, @Nonnull Integer primaryKey, @Nonnull Integer parent, @Nonnull Set<Locale> locales, @Nonnull Set<Locale> attributeLocales, @Nonnull Set<AssociatedDataKey> associatedDataKeys) {
 		this.version = version;
 		this.primaryKey = primaryKey;
-		this.hierarchicalPlacement = hierarchicalPlacement;
+		this.parent = parent;
 		this.locales = locales;
 		this.attributeLocales = attributeLocales;
 		this.associatedDataKeys = associatedDataKeys;
@@ -137,9 +136,9 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	/**
 	 * Updates hierarchical placement of the entity.
 	 */
-	public void setHierarchicalPlacement(HierarchicalPlacementContract hierarchicalPlacement) {
-		if ((this.hierarchicalPlacement == null && hierarchicalPlacement != null) || (this.hierarchicalPlacement != null && this.hierarchicalPlacement.differsFrom(hierarchicalPlacement))) {
-			this.hierarchicalPlacement = hierarchicalPlacement;
+	public void setParent(@Nullable Integer parent) {
+		if ((this.parent == null && parent != null) || (this.parent != null && !Objects.equals(this.parent, parent))) {
+			this.parent = parent;
 			this.dirty = true;
 		}
 	}

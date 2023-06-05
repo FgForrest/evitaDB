@@ -24,6 +24,7 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.ReferenceConstraint;
@@ -32,8 +33,8 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
-import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.utils.ArrayUtils;
@@ -44,7 +45,12 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Stream;
+
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 
 /**
  * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
@@ -67,8 +73,10 @@ import java.util.stream.Stream;
 	shortDescription = "The constraint triggers fetching referenced entity bodies into returned main entities.",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class ReferenceContent extends AbstractRequireConstraintContainer implements ReferenceConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, CombinableEntityContentRequire {
+public class ReferenceContent extends AbstractRequireConstraintContainer
+	implements ReferenceConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, EntityContentRequire, ConstraintWithSuffix {
 	@Serial private static final long serialVersionUID = 3374240925555151814L;
+	private static final String SUFFIX = "all";
 	public static final ReferenceContent ALL_REFERENCES = new ReferenceContent();
 
 	private ReferenceContent(@Nonnull String[] referencedEntityType,
@@ -77,7 +85,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer impleme
 		super(referencedEntityType, requirements, additionalChildren);
 	}
 
-	@Creator(suffix = "all")
+	@Creator(suffix = SUFFIX)
 	public ReferenceContent() {
 		super();
 	}
@@ -184,12 +192,13 @@ public class ReferenceContent extends AbstractRequireConstraintContainer impleme
 		super(new String[] { referencedEntityType }, new RequireConstraint[] {groupEntityRequirement}, filterBy, orderBy);
 	}
 
-	public ReferenceContent(@Nonnull String referencedEntityType,
-							@Nullable FilterBy filterBy,
-	                        @Nullable OrderBy orderBy,
-	                        @Nullable EntityFetch entityRequirement,
-	                        @Nullable EntityGroupFetch groupEntityRequirement) {
-		super(new String[] { referencedEntityType }, new RequireConstraint[] {entityRequirement, groupEntityRequirement}, filterBy, orderBy);
+	@Creator
+	public ReferenceContent(@Nonnull @Classifier String referencedEntityType,
+							@Nullable @AdditionalChild FilterBy filterBy,
+	                        @Nullable @AdditionalChild OrderBy orderBy,
+	                        @Nullable @Child EntityFetch entityFetch,
+	                        @Nullable @Child EntityGroupFetch entityGroupFetch) {
+		super(new String[] { referencedEntityType }, new RequireConstraint[] {entityFetch, entityGroupFetch}, filterBy, orderBy);
 	}
 
 	public ReferenceContent(@Nonnull String referencedEntityType,
@@ -210,19 +219,11 @@ public class ReferenceContent extends AbstractRequireConstraintContainer impleme
 		super(entityRequirement, groupEntityRequirement);
 	}
 
-	@Creator
-	private ReferenceContent(@Nonnull @Classifier String referencedEntityType,
-	                         @Nullable @AdditionalChild FilterBy filterBy,
-	                         @Nullable @AdditionalChild OrderBy orderBy,
-	                         @Nullable @Child(uniqueChildren = true) EntityRequire... requirements) {
-		super(new String[] { referencedEntityType }, requirements, filterBy, orderBy);
-	}
-
 	/**
-	 * Returns names of entity types or external entities which references should be loaded along with entity.
+	 * Returns names of references which should be loaded along with entity.
 	 */
 	@Nonnull
-	public String[] getReferencedEntityTypes() {
+	public String[] getReferenceNames() {
 		return Arrays.stream(getArguments())
 			.map(String.class::cast)
 			.toArray(String[]::new);
@@ -271,7 +272,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer impleme
 	 */
 	@Nullable
 	public FilterBy getFilterBy() {
-		return getAdditionalChild(FilterBy.class);
+		return getAdditionalChild(FilterBy.class).orElse(null);
 	}
 
 	/**
@@ -279,17 +280,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer impleme
 	 */
 	@Nullable
 	public OrderBy getOrderBy() {
-		return getAdditionalChild(OrderBy.class);
-	}
-
-	@Override
-	public boolean isNecessary() {
-		return true;
-	}
-
-	@Override
-	public boolean isApplicable() {
-		return true;
+		return getAdditionalChild(OrderBy.class).orElse(null);
 	}
 
 	/**
@@ -300,36 +291,81 @@ public class ReferenceContent extends AbstractRequireConstraintContainer impleme
 	}
 
 	@Nonnull
+	@Override
+	public Optional<String> getSuffixIfApplied() {
+		return isAllRequested() ? of(SUFFIX) : empty();
+	}
+
+	@Override
+	public boolean isApplicable() {
+		return true;
+	}
+
+	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override
-	public <T extends CombinableEntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
+	public <T extends EntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
 		Assert.isTrue(anotherRequirement instanceof ReferenceContent, "Only References requirement can be combined with this one!");
 		if (isAllRequested()) {
 			return (T) this;
 		} else if (((ReferenceContent) anotherRequirement).isAllRequested()) {
 			return anotherRequirement;
 		} else {
+			final EntityFetch combinedEntityRequirement = combineRequirements(getEntityRequirement(), ((ReferenceContent) anotherRequirement).getEntityRequirement());
+			final EntityGroupFetch combinedGroupEntityRequirement = combineRequirements(getGroupEntityRequirement(), ((ReferenceContent) anotherRequirement).getGroupEntityRequirement());
+			final String[] arguments = Stream.concat(
+					Arrays.stream(getArguments()).map(String.class::cast),
+					Arrays.stream(anotherRequirement.getArguments()).map(String.class::cast)
+				)
+				.distinct()
+				.toArray(String[]::new);
 			return (T) new ReferenceContent(
-				Stream.concat(
-						Arrays.stream(getArguments()).map(String.class::cast),
-						Arrays.stream(anotherRequirement.getArguments()).map(String.class::cast)
-					)
-					.distinct()
-					.toArray(String[]::new)
+				arguments,
+				Arrays.stream(
+					new RequireConstraint[] {
+						combinedEntityRequirement,
+						combinedGroupEntityRequirement
+					}
+				).filter(Objects::nonNull).toArray(RequireConstraint[]::new),
+				Arrays.stream(
+					new Constraint<?>[] {
+						getFilterBy(),
+						getOrderBy()
+					}
+				).filter(Objects::nonNull).toArray(Constraint[]::new)
 			);
+		}
+	}
+
+	@Nullable
+	private EntityFetch combineRequirements(@Nullable EntityFetch a, @Nullable EntityFetch b) {
+		if (a == null) {
+			return b;
+		} else if (b == null) {
+			return a;
+		} else {
+			return a.combineWith(b);
+		}
+	}
+
+	@Nullable
+	private EntityGroupFetch combineRequirements(@Nullable EntityGroupFetch a, @Nullable EntityGroupFetch b) {
+		if (a == null) {
+			return b;
+		} else if (b == null) {
+			return a;
+		} else {
+			return a.combineWith(b);
 		}
 	}
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
 		if (additionalChildren.length > 2 || (additionalChildren.length == 2 && !FilterConstraint.class.isAssignableFrom(additionalChildren[0].getType()) && !OrderConstraint.class.isAssignableFrom(additionalChildren[1].getType()))) {
 			throw new IllegalArgumentException("Expected single or no additional filter and order child query.");
 		}
-		final RequireConstraint[] requireChildren = Arrays.stream(children)
-			.map(c -> (RequireConstraint) c)
-			.toArray(RequireConstraint[]::new);
-		return new ReferenceContent(getReferencedEntityTypes(), requireChildren, additionalChildren);
+		return new ReferenceContent(getReferenceNames(), children, additionalChildren);
 	}
 
 	@Nonnull

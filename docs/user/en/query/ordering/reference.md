@@ -12,3 +12,6 @@ This article will contain copy of:
 - [reference](https://evitadb.io/research/assignment/querying/query_language#reference-attribute)
 
 once it's proof-read.
+
+## Reference property
+## Entity property

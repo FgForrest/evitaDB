@@ -31,19 +31,18 @@ import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedData
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
-import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAssociatedDataDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAttributesDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.RestEntityDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAssociatedDataDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAttributesDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
-import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NamingConvention;
 import lombok.extern.slf4j.Slf4j;
@@ -101,37 +100,39 @@ public class EntityJsonSerializer {
 
 	@Nonnull
 	private ObjectNode serializeSingleEntity(@Nonnull EntityClassifier entityClassifier) {
-		if (entityClassifier instanceof EntityReference entity) {
-			final ObjectNode rootNode = objectJsonSerializer.objectNode();
-			rootNode.put(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey());
-			rootNode.put(EntityDescriptor.TYPE.name(), entity.getType());
-			return rootNode;
-		} else if (entityClassifier instanceof EntityContract entity) {
-			final ObjectNode rootNode = objectJsonSerializer.objectNode();
+		final ObjectNode rootNode = serializeEntityClassifier(entityClassifier);
+		if (entityClassifier instanceof EntityContract entity) {
 			serializeEntityBody(rootNode, entity);
 			serializeEntityAttributes(rootNode, entity);
 			serializeEntityAssociatedData(rootNode, entity);
 			serializePrices(rootNode, entity);
 			serializeReferences(rootNode, entity);
-			return rootNode;
-		} else {
-			throw new RestInternalError("Unprocessable entity class: " + entityClassifier.getClass().getName());
+		} else if (entityClassifier instanceof EntityClassifierWithParent entity) {
+			entity.getParentEntity().ifPresent(parent ->
+				rootNode.putIfAbsent(RestEntityDescriptor.PARENT_ENTITY.name(), serialize(parent)));
 		}
+		return rootNode;
+	}
+
+	@Nonnull
+	private ObjectNode serializeEntityClassifier(@Nonnull EntityClassifier entity) {
+		final ObjectNode rootNode = objectJsonSerializer.objectNode();
+		rootNode.put(RestEntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey());
+		rootNode.put(RestEntityDescriptor.TYPE.name(), entity.getType());
+		return rootNode;
 	}
 
 	/**
 	 * Serialize body of entity
 	 */
 	private void serializeEntityBody(@Nonnull ObjectNode rootNode, @Nonnull EntityContract entity) {
-		rootNode.put(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey());
-		rootNode.put(EntityDescriptor.TYPE.name(), entity.getType());
+		entity.getParent().ifPresent(pk -> rootNode.put(RestEntityDescriptor.PARENT.name(), pk));
+		entity.getParentEntity().ifPresent(parent -> rootNode.putIfAbsent(RestEntityDescriptor.PARENT_ENTITY.name(), serialize(parent)));
 
-		rootNode.putIfAbsent(EntityDescriptor.LOCALES.name(), objectJsonSerializer.serializeObject(entity.getLocales()));
-		rootNode.putIfAbsent(EntityDescriptor.ALL_LOCALES.name(), objectJsonSerializer.serializeObject(entity.getAllLocales()));
+		rootNode.putIfAbsent(RestEntityDescriptor.LOCALES.name(), objectJsonSerializer.serializeObject(entity.getLocales()));
+		rootNode.putIfAbsent(RestEntityDescriptor.ALL_LOCALES.name(), objectJsonSerializer.serializeObject(entity.getAllLocales()));
 
-		entity.getHierarchicalPlacement()
-			.ifPresent(it -> rootNode.putIfAbsent(EntityDescriptor.HIERARCHICAL_PLACEMENT.name(), objectJsonSerializer.serializeObject(it)));
-		rootNode.putIfAbsent(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), objectJsonSerializer.serializeObject(entity.getPriceInnerRecordHandling()));
+		rootNode.putIfAbsent(RestEntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), objectJsonSerializer.serializeObject(entity.getPriceInnerRecordHandling()));
 	}
 
 	/**
@@ -140,7 +141,7 @@ public class EntityJsonSerializer {
 	private void serializeEntityAttributes(@Nonnull ObjectNode rootNode, @Nonnull EntityContract entity) {
 		if (!entity.getAttributeKeys().isEmpty()) {
 			final ObjectNode attributesNode = objectJsonSerializer.objectNode();
-			rootNode.putIfAbsent(EntityDescriptor.ATTRIBUTES.name(), attributesNode);
+			rootNode.putIfAbsent(RestEntityDescriptor.ATTRIBUTES.name(), attributesNode);
 			final Set<AttributeKey> attributeKeys = entity.getAttributeKeys();
 			if (restHandlingContext.isLocalized()) {
 				writeAttributesIntoNode(attributesNode, attributeKeys, entity);
@@ -201,7 +202,7 @@ public class EntityJsonSerializer {
 				}
 			}
 			if(!associatedDataNode.isEmpty()) {
-				rootNode.putIfAbsent(EntityDescriptor.ASSOCIATED_DATA.name(), associatedDataNode);
+				rootNode.putIfAbsent(RestEntityDescriptor.ASSOCIATED_DATA.name(), associatedDataNode);
 			}
 		}
 	}
@@ -264,14 +265,6 @@ public class EntityJsonSerializer {
 	}
 
 	/**
-	 * Gets name of referenced entity type.
-	 */
-	@Nonnull
-	private String getReferencedEntityName(ReferenceContract firstReference) {
-		return restHandlingContext.getEntitySchema(firstReference.getReferencedEntityType()).getNameVariant(NamingConvention.CAMEL_CASE);
-	}
-
-	/**
 	 * Serializes single reference
 	 */
 	@Nonnull
@@ -289,8 +282,8 @@ public class EntityJsonSerializer {
 		} else {
 			reference.getGroup().ifPresent(group -> {
 				final ObjectNode referencedEntityNode = objectJsonSerializer.objectNode();
-				referencedEntityNode.putIfAbsent(EntityDescriptor.PRIMARY_KEY.name(), objectJsonSerializer.serializeObject(group.getPrimaryKey()));
-				referencedEntityNode.putIfAbsent(EntityDescriptor.TYPE.name(), objectJsonSerializer.serializeObject(group.getType()));
+				referencedEntityNode.putIfAbsent(RestEntityDescriptor.PRIMARY_KEY.name(), objectJsonSerializer.serializeObject(group.getPrimaryKey()));
+				referencedEntityNode.putIfAbsent(RestEntityDescriptor.TYPE.name(), objectJsonSerializer.serializeObject(group.getType()));
 
 				referenceNode.putIfAbsent(ReferenceDescriptor.GROUP_ENTITY.name(), referencedEntityNode);
 			});
@@ -308,14 +301,14 @@ public class EntityJsonSerializer {
 		final Collection<PriceContract> prices = entity.getPrices();
 		if (!prices.isEmpty()) {
 			final ArrayNode pricesNode = objectJsonSerializer.arrayNode();
-			rootNode.putIfAbsent(EntityDescriptor.PRICES.name(), pricesNode);
+			rootNode.putIfAbsent(RestEntityDescriptor.PRICES.name(), pricesNode);
 			for (PriceContract price : prices) {
 				pricesNode.add(objectJsonSerializer.serializeObject(price));
 			}
 		}
 
 		entity.getPriceForSaleIfAvailable()
-			.ifPresent(it -> rootNode.putIfAbsent(EntityDescriptor.PRICE_FOR_SALE.name(), objectJsonSerializer.serializeObject(it)));
+			.ifPresent(it -> rootNode.putIfAbsent(RestEntityDescriptor.PRICE_FOR_SALE.name(), objectJsonSerializer.serializeObject(it)));
 	}
 
 	private void writeAttributesIntoNode(@Nonnull ObjectNode attributesNode,

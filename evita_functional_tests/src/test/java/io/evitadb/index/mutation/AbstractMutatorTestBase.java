@@ -23,6 +23,7 @@
 
 package io.evitadb.index.mutation;
 
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
@@ -43,6 +44,8 @@ import io.evitadb.test.TestConstants;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.NamingConvention;
 import org.mockito.Mockito;
+
+import java.util.EnumSet;
 
 /**
  * This class contains shared variables and logic for mutation specific tests in this package.
@@ -67,6 +70,7 @@ abstract class AbstractMutatorTestBase {
 			CatalogSchema._internalBuild(
 				TestConstants.TEST_CATALOG,
 				NamingConvention.generate(TestConstants.TEST_CATALOG),
+				EnumSet.allOf(CatalogEvolutionMode.class),
 				entityType -> catalog.getEntitySchema(entityType).orElse(null)
 			)
 		);

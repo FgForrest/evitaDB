@@ -1,7 +1,7 @@
 # Query language parser
 
 A parser enables parsing queries, constraints, classifier and value objects from
-their [string representation](https://evitadb.io/research/assignment/querying/query_language).
+their [string representation](/docs/research/en/assignment/querying/query_language.md).
 
 ## Usage
 
@@ -271,7 +271,7 @@ All core data types are of course supported:
 - **date range literal** - converts to `io.evitadb.api.dataType.DateTimeRange`
 - **multiple literal** - converts to `io.evitadb.api.dataType.Multiple`
 
-For more info check [supported data types](https://evitadb.io/research/assignment/model/data_types).
+For more info check [supported data types](/docs/research/en/assignment/model/data_types.md).
 
 #### Variadic classifiers and values
 

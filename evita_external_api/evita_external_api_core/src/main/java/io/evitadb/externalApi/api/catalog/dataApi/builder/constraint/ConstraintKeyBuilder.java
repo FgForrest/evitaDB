@@ -57,8 +57,6 @@ import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_N
 @RequiredArgsConstructor
 public class ConstraintKeyBuilder {
 
-	// todo lho spustit perf testy pro gql a rest
-
 	/**
 	 * Builds field key uniquely representing single variant of constraint.
 	 *
@@ -67,17 +65,29 @@ public class ConstraintKeyBuilder {
 	 * @return key
 	 */
 	@Nonnull
-	public String build(@Nonnull ConstraintDescriptor constraintDescriptor, @Nullable Supplier<String> classifierSupplier) {
-		final StringBuilder keyBuilder = new StringBuilder();
-
+	public String build(@Nonnull ConstraintBuildContext buildContext,
+	                    @Nonnull ConstraintDescriptor constraintDescriptor,
+	                    @Nullable Supplier<String> classifierSupplier) {
 		final ConstraintCreator creator = constraintDescriptor.creator();
 
-		final String prefix = ConstraintProcessingUtils.getPrefixByPropertyType(constraintDescriptor.propertyType())
+		final String prefix = ConstraintProcessingUtils.getPrefixForPropertyType(constraintDescriptor.propertyType())
 			.orElseThrow(() -> new ExternalApiInternalError("Missing prefix pro constraint property type `" + constraintDescriptor.propertyType() + "`."));
+
+		// we can simplify child constraint if is in same domain as its parent and if it has property type the
+		// one that is expected when derived from child domain. These constraints are usually valid only in specific context
+		// and not globally available
+		if (!buildContext.isAtRoot() &&
+			buildContext.dataLocator().targetDomain().equals(buildContext.parentDataLocator().targetDomain()) &&
+			!creator.hasClassifier() &&
+			constraintDescriptor.propertyType().equals(ConstraintProcessingUtils.getFallbackPropertyTypeForDomain(buildContext.dataLocator().targetDomain()))) {
+			return StringUtils.toSpecificCase(constraintDescriptor.fullName(), PROPERTY_NAME_NAMING_CONVENTION);
+		}
+
+		final StringBuilder keyBuilder = new StringBuilder();
 		if (!prefix.isEmpty()) {
 			keyBuilder.append(prefix);
 		}
-		if (creator.needsClassifier()) {
+		if (creator.hasClassifier()) {
 			if (creator.hasImplicitClassifier()) {
 				if (creator.implicitClassifier() instanceof FixedImplicitClassifier fixedImplicitClassifier) {
 					keyBuilder.append(StringUtils.toSpecificCase(fixedImplicitClassifier.classifier(), PROPERTY_NAME_PART_NAMING_CONVENTION));

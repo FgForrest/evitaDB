@@ -28,26 +28,66 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
-import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Arrays;
 
 /**
- * This `or` is container query that contains two or more inner constraints which output is combined by
- * <a href="https://en.wikipedia.org/wiki/Logical_disjunction">logical OR</a>.
+ * The `and` container represents a <a href="https://en.wikipedia.org/wiki/Logical_conjunction">logical conjunction</a>,
+ * that is demonstrated on following table:
  *
- * Example:
+ * <table>
+ *     <thead>
+ *         <tr>
+ *             <th align="center">A</th>
+ *             <th align="center">B</th>
+ *             <th align="center">A ∨ B</th>
+ *         </tr>
+ *     </thead>
+ *     <tbody>
+ *         <tr>
+ *             <td align="center">True</td>
+ *             <td align="center">True</td>
+ *             <td align="center">True</td>
+ *         </tr>
+ *         <tr>
+ *             <td align="center">True</td>
+ *             <td align="center">False</td>
+ *             <td align="center">True</td>
+ *         </tr>
+ *         <tr>
+ *             <td align="center">False</td>
+ *             <td align="center">True</td>
+ *             <td align="center">True</td>
+ *         </tr>
+ *         <tr>
+ *             <td align="center">False</td>
+ *             <td align="center">False</td>
+ *             <td align="center">False</td>
+ *         </tr>
+ *     </tbody>
+ * </table>
  *
- * ```
- * or(
- *     isTrue('visible'),
- *     greaterThan('price', 20)
+ * The following query:
+ *
+ * <pre>
+ * query(
+ *     collection('Product'),
+ *     filterBy(
+ *         and(
+ *             entityPrimaryKeyInSet(110066, 106742, 110513),
+ *             entityPrimaryKeyInSet(110066, 106742),
+ *             entityPrimaryKeyInSet(107546, 106742,  107546)
+ *         )
+ *     )
  * )
- * ```
+ * </pre>
+ *
+ * ... returns four results representing a combination of all primary keys used in the `entityPrimaryKeyInSet`
+ * constraints.
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
@@ -66,11 +106,8 @@ public class Or extends AbstractFilterConstraintContainer implements GenericCons
 
 	@Nonnull
 	@Override
-	public FilterConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		final FilterConstraint[] filterChildren = Arrays.stream(children)
-				.map(c -> (FilterConstraint) c)
-				.toArray(FilterConstraint[]::new);
-		return new Or(filterChildren);
+	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return new Or(children);
 	}
 
 	@Nonnull

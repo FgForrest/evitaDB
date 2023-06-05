@@ -24,14 +24,12 @@
 package io.evitadb.api.query.parser.visitor;
 
 import io.evitadb.api.query.OrderConstraint;
-import io.evitadb.api.query.order.AttributeNatural;
-import io.evitadb.api.query.order.EntityProperty;
-import io.evitadb.api.query.order.OrderBy;
-import io.evitadb.api.query.order.OrderDirection;
-import io.evitadb.api.query.order.PriceNatural;
-import io.evitadb.api.query.order.Random;
-import io.evitadb.api.query.order.ReferenceProperty;
+import io.evitadb.api.query.order.*;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.AttributeSetExactConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.AttributeSetInFilterConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPrimaryKeyExactConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPrimaryKeyInFilterConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPropertyConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 
@@ -45,9 +43,16 @@ import javax.annotation.Nonnull;
  * @see EvitaQLConstraintVisitor
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2021
  */
-public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseVisitor<OrderConstraint> {
+public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<OrderConstraint> {
 
 	protected final EvitaQLClassifierTokenVisitor classifierTokenVisitor = new EvitaQLClassifierTokenVisitor();
+	protected final EvitaQLValueTokenVisitor comparableValueTokenVisitor = EvitaQLValueTokenVisitor.withComparableTypesAllowed();
+	protected final EvitaQLValueTokenVisitor intValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
+		Byte.class,
+		Short.class,
+		Integer.class,
+		Long.class
+	);
 	protected final EvitaQLValueTokenVisitor orderDirectionValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(OrderDirection.class);
 
 
@@ -62,7 +67,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseVisitor<OrderConst
 				return new OrderBy(
 					ctx.args.constraints
 						.stream()
-						.map(oc -> oc.accept(this))
+						.map(oc -> visitChildConstraint(oc, OrderConstraint.class))
 						.toArray(OrderConstraint[]::new)
 				);
 			}
@@ -86,6 +91,27 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseVisitor<OrderConst
 					);
 				}
 			}
+		);
+	}
+
+	@Override
+	public OrderConstraint visitAttributeSetExactConstraint(AttributeSetExactConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new AttributeSetExact(
+				ctx.args.attributeName.accept(classifierTokenVisitor).asSingleClassifier(),
+				ctx.args.attributeValues.accept(comparableValueTokenVisitor).asSerializableArray()
+			)
+		);
+	}
+
+	@Override
+	public OrderConstraint visitAttributeSetInFilterConstraint(AttributeSetInFilterConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new AttributeSetInFilter(
+				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier()
+			)
 		);
 	}
 
@@ -120,10 +146,25 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseVisitor<OrderConst
 				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
 				ctx.args.constrains
 					.stream()
-					.map(c -> c.accept(this))
+					.map(c -> visitChildConstraint(c, OrderConstraint.class))
 					.toArray(OrderConstraint[]::new)
 			)
 		);
+	}
+
+	@Override
+	public OrderConstraint visitEntityPrimaryKeyExactConstraint(EntityPrimaryKeyExactConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new EntityPrimaryKeyExact(
+				ctx.args.values.accept(intValueTokenVisitor).asIntegerArray()
+			)
+		);
+	}
+
+	@Override
+	public OrderConstraint visitEntityPrimaryKeyInFilterConstraint(EntityPrimaryKeyInFilterConstraintContext ctx) {
+		return parse(ctx, EntityPrimaryKeyInFilter::new);
 	}
 
 	@Override
@@ -133,7 +174,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseVisitor<OrderConst
 			() -> new EntityProperty(
 				ctx.args.constraints
 					.stream()
-					.map(c -> c.accept(this))
+					.map(c -> visitChildConstraint(c, OrderConstraint.class))
 					.toArray(OrderConstraint[]::new)
 			)
 		);

@@ -31,11 +31,11 @@ import graphql.schema.GraphQLInputType;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
 import io.evitadb.api.CatalogContract;
-import io.evitadb.api.EvitaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
@@ -43,6 +43,7 @@ import io.evitadb.externalApi.graphql.api.builder.FinalGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.CollectionGraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.EntityObjectBuilder;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.EntityObjectBuilder.EntityObjectVersion;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.FullResponseObjectBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.LocalMutationAggregateObjectBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.FilterConstraintSchemaBuilder;
@@ -71,6 +72,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static graphql.schema.GraphQLArgument.newArgument;
 import static graphql.schema.GraphQLEnumType.newEnum;
@@ -95,22 +97,26 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	@Nonnull private final GraphQLConstraintSchemaBuildingContext constraintContext;
 	@Nonnull private final FilterConstraintSchemaBuilder filterConstraintSchemaBuilder;
 	@Nonnull private final OrderConstraintSchemaBuilder orderConstraintSchemaBuilder;
-	@Nonnull private final RequireConstraintSchemaBuilder requireConstraintSchemaBuilder;
+	@Nonnull private final RequireConstraintSchemaBuilder mainRequireConstraintSchemaBuilder;
 
 	@Nonnull private final EntityObjectBuilder entityObjectBuilder;
 	@Nonnull private final FullResponseObjectBuilder fullResponseObjectBuilder;
 	@Nonnull private final LocalMutationAggregateObjectBuilder localMutationAggregateObjectBuilder;
 
-	public CatalogDataApiGraphQLSchemaBuilder(@Nonnull EvitaContract evita, @Nonnull CatalogContract catalog) {
+	public CatalogDataApiGraphQLSchemaBuilder(@Nonnull Evita evita, @Nonnull CatalogContract catalog) {
 		super(new CatalogGraphQLSchemaBuildingContext(evita, catalog));
 		this.constraintContext = new GraphQLConstraintSchemaBuildingContext(buildingContext);
 
 		this.filterConstraintSchemaBuilder = new FilterConstraintSchemaBuilder(constraintContext);
 		this.orderConstraintSchemaBuilder = new OrderConstraintSchemaBuilder(constraintContext);
-		this.requireConstraintSchemaBuilder = new RequireConstraintSchemaBuilder(constraintContext);
+		this.mainRequireConstraintSchemaBuilder = RequireConstraintSchemaBuilder.forMainRequire(
+			constraintContext,
+			new AtomicReference<>(filterConstraintSchemaBuilder)
+		);
 
 		this.entityObjectBuilder = new EntityObjectBuilder(
 			buildingContext,
+			constraintContext,
 			filterConstraintSchemaBuilder,
 			orderConstraintSchemaBuilder,
 			CDO_OBJECT_MAPPER,
@@ -123,7 +129,12 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			buildingContext,
 			argumentBuilderTransformer,
 			objectBuilderTransformer,
-			fieldBuilderTransformer
+			inputObjectBuilderTransformer,
+			fieldBuilderTransformer,
+			inputFieldBuilderTransformer,
+			constraintContext,
+			filterConstraintSchemaBuilder,
+			orderConstraintSchemaBuilder
 		);
 		this.localMutationAggregateObjectBuilder = new LocalMutationAggregateObjectBuilder(
 			buildingContext,
@@ -228,13 +239,15 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		// build only if there are any prices or facets because these are only few allowed constraints in require builder
 		if (!entitySchema.getCurrencies().isEmpty() ||
 			entitySchema.getReferences().values().stream().anyMatch(ReferenceSchemaContract::isFaceted)) {
-			final GraphQLInputType requireInputObject = requireConstraintSchemaBuilder.build(collectionBuildingContext.getSchema().getName());
+			final GraphQLInputType requireInputObject = mainRequireConstraintSchemaBuilder.build(collectionBuildingContext.getSchema().getName());
 			collectionBuildingContext.setRequireInputObject(requireInputObject);
 		}
 
 		// build entity object specific to this schema
-
+		// default entity object with all fields
 		collectionBuildingContext.registerEntityObject(entityObjectBuilder.build(collectionBuildingContext));
+		// non-hierarchical version of entity object with missing recursive parent entities
+		collectionBuildingContext.registerEntityObject(entityObjectBuilder.build(collectionBuildingContext, EntityObjectVersion.NON_HIERARCHICAL));
 
 		return collectionBuildingContext;
 	}
@@ -243,7 +256,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private BuiltFieldDescriptor buildCollectionsField() {
 		return new BuiltFieldDescriptor(
 			CatalogDataApiRootDescriptor.COLLECTIONS.to(staticEndpointBuilderTransformer).build(),
-			new CollectionsDataFetcher()
+			new CollectionsDataFetcher(buildingContext.getEvitaExecutor())
 		);
 	}
 
@@ -277,7 +290,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			unknownSingleEntityFieldBuilder.build(),
-			new GetUnknownEntityDataFetcher(buildingContext.getSchema(), buildingContext.getEntitySchemas())
+			new GetUnknownEntityDataFetcher(buildingContext.getEvitaExecutor(), buildingContext.getSchema(), buildingContext.getEntitySchemas())
 		);
 	}
 
@@ -312,7 +325,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			unknownEntityListFieldBuilder.build(),
-			new ListUnknownEntitiesDataFetcher(buildingContext.getSchema(), buildingContext.getEntitySchemas())
+			new ListUnknownEntitiesDataFetcher(buildingContext.getEvitaExecutor(), buildingContext.getSchema(), buildingContext.getEntitySchemas())
 		);
 	}
 
@@ -322,6 +335,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		final GraphQLFieldDefinition.Builder singleEntityFieldBuilder = CatalogDataApiRootDescriptor.GET_ENTITY
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer, entitySchema))
+			.description(CatalogDataApiRootDescriptor.GET_ENTITY.description(entitySchema))
 			.type(typeRef(EntityDescriptor.THIS.name(entitySchema)))
 			.argument(GetEntityQueryHeaderDescriptor.PRIMARY_KEY.to(argumentBuilderTransformer));
 
@@ -361,7 +375,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			singleEntityFieldBuilder.build(),
-			new GetEntityDataFetcher(buildingContext.getSchema(), entitySchema)
+			new GetEntityDataFetcher(buildingContext.getEvitaExecutor(), buildingContext.getSchema(), entitySchema)
 		);
 	}
 
@@ -371,6 +385,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		final GraphQLFieldDefinition.Builder entityListFieldBuilder = CatalogDataApiRootDescriptor.LIST_ENTITY
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer, entitySchema))
+			.description(CatalogDataApiRootDescriptor.LIST_ENTITY.description(entitySchema))
 			.type(nonNull(list(nonNull(typeRef(EntityDescriptor.THIS.name(entitySchema))))))
 			.argument(ListEntitiesQueryHeaderDescriptor.FILTER_BY
 				.to(argumentBuilderTransformer)
@@ -383,7 +398,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			entityListFieldBuilder.build(),
-			new ListEntitiesDataFetcher(buildingContext.getSchema(), entitySchema)
+			new ListEntitiesDataFetcher(buildingContext.getEvitaExecutor(), buildingContext.getSchema(), entitySchema)
 		);
 	}
 
@@ -395,6 +410,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		final GraphQLFieldDefinition.Builder entityQueryFieldBuilder = CatalogDataApiRootDescriptor.QUERY_ENTITY
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer, entitySchema))
+			.description(CatalogDataApiRootDescriptor.QUERY_ENTITY.description(entitySchema))
 			.type(nonNull(entityFullResponseObject))
 			.argument(QueryEntitiesQueryHeaderDescriptor.FILTER_BY
 				.to(argumentBuilderTransformer)
@@ -413,7 +429,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			entityQueryFieldBuilder.build(),
-			new QueryEntitiesDataFetcher(buildingContext.getSchema(), entitySchema)
+			new QueryEntitiesDataFetcher(buildingContext.getEvitaExecutor(), buildingContext.getSchema(), entitySchema)
 		);
 	}
 
@@ -424,7 +440,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			CatalogDataApiRootDescriptor.COUNT_COLLECTION
 				.to(new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer, entitySchema))
 				.build(),
-			new CollectionSizeDataFetcher(entitySchema)
+			new CollectionSizeDataFetcher(buildingContext.getEvitaExecutor(), entitySchema)
 		);
 	}
 

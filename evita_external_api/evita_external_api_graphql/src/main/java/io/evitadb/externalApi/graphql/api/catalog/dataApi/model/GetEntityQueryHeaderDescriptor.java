@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.model;
 
-import io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.time.OffsetDateTime;
@@ -31,7 +31,7 @@ import java.time.OffsetDateTime;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * Descriptor for header arguments of {@link CatalogRootDescriptor#ENTITY_GET}
+ * Descriptor for header arguments of {@link CatalogDataApiRootDescriptor#GET_ENTITY}
  * query.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
@@ -75,10 +75,10 @@ public interface GetEntityQueryHeaderDescriptor {
 		.type(nullable(OffsetDateTime.class))
 		.build();
 	PropertyDescriptor PRICE_VALID_NOW = PropertyDescriptor.builder()
-		.name("priceValidNow")
+		.name("priceValidInNow")
 		.description("""
 			Parameter specifying desired validity of price for sale of queried entity. The date time is resolved to
-			`now` by evitaDB. If both `priceValidNow` and `priceValidIn` parameters are specified `priceValidIn` is used.
+			`now` by evitaDB. If both `priceValidInNow` and `priceValidIn` parameters are specified `priceValidIn` is used.
 			""")
 		.type(nullable(Boolean.class))
 		.build();

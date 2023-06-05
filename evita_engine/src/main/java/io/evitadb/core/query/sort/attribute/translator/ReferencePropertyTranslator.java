@@ -25,20 +25,12 @@ package io.evitadb.core.query.sort.attribute.translator;
 
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.order.ReferenceProperty;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.core.exception.AttributeNotFoundException;
-import io.evitadb.core.exception.AttributeNotSortableException;
-import io.evitadb.core.exception.ReferenceNotFoundException;
-import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 
@@ -56,27 +48,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		final EntityIndexKey entityIndexKey = new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, referenceName);
 		return orderByVisitor.executeInContext(
 			orderByVisitor.getQueryContext().getIndex(entityIndexKey),
-			attributeName -> {
-				final EntitySchemaContract entitySchema = orderByVisitor.getSchema();
-				final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName).orElse(null);
-				Assert.notNull(
-					referenceSchema,
-					() -> new ReferenceNotFoundException(referenceName, entitySchema)
-				);
-				Assert.isTrue(
-					referenceSchema.isFilterable(),
-					() -> new ReferenceNotIndexedException(referenceName, entitySchema)
-				);
-				final AttributeSchemaContract attributeSchema = referenceSchema.getAttribute(attributeName).orElse(null);
-				Assert.notNull(
-					attributeSchema,
-					() -> new AttributeNotFoundException(attributeName, referenceSchema, entitySchema)
-				);
-				Assert.isTrue(
-					attributeSchema.isSortable(),
-					() -> new AttributeNotSortableException(attributeName, referenceSchema, entitySchema)
-				);
-			},
+			orderByVisitor.getProcessingScope().withReferenceSchemaAccessor(referenceName),
 			new EntityReferenceAttributeExtractor(referenceName),
 			() -> {
 				for (OrderConstraint innerConstraint : orderConstraint.getChildren()) {

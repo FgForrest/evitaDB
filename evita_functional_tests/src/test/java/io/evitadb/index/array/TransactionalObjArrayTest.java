@@ -33,6 +33,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Random;
@@ -53,7 +54,7 @@ class TransactionalObjArrayTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldCorrectlyAddItemsOnFirstLastAndMiddlePositionsAndRollback() {
-		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 5, 10});
+		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 5, 10}, Comparator.naturalOrder());
 
 		assertStateAfterRollback(
 			array,
@@ -70,7 +71,7 @@ class TransactionalObjArrayTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldCorrectlyRemoveItemsOnFirstLastAndMiddlePositionsAndRollback() {
-		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 5, 10});
+		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 5, 10}, Comparator.naturalOrder());
 
 		assertStateAfterRollback(
 			array,
@@ -88,7 +89,7 @@ class TransactionalObjArrayTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldCorrectlyAddItemsOnFirstLastAndMiddlePositionsAndCommit() {
-		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 5, 10});
+		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 5, 10}, Comparator.naturalOrder());
 
 		assertStateAfterCommit(
 			array,
@@ -108,7 +109,7 @@ class TransactionalObjArrayTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldCorrectlyRemoveItemsFromFirstLastAndMiddlePositionsAndCommit() {
-		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 2, 5, 6, 10, 11});
+		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 2, 5, 6, 10, 11}, Comparator.naturalOrder());
 
 		assertStateAfterCommit(
 			array,
@@ -128,7 +129,7 @@ class TransactionalObjArrayTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldCorrectlyRemoveMultipleItemsInARowAndCommit() {
-		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 2, 5, 6, 10, 11});
+		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 2, 5, 6, 10, 11}, Comparator.naturalOrder());
 
 		assertStateAfterCommit(
 			array,
@@ -146,7 +147,7 @@ class TransactionalObjArrayTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldCorrectlyRemoveMultipleItemsInARowTillTheEndAndCommit() {
-		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 2, 5, 6, 10, 11});
+		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 2, 5, 6, 10, 11}, Comparator.naturalOrder());
 
 		assertStateAfterCommit(
 			array,
@@ -166,7 +167,7 @@ class TransactionalObjArrayTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldCorrectlyRemoveMultipleItemsInARowFromTheBeginningAndCommit() {
-		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 2, 5, 6, 10, 11});
+		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 2, 5, 6, 10, 11}, Comparator.naturalOrder());
 
 		assertStateAfterCommit(
 			array,
@@ -184,7 +185,7 @@ class TransactionalObjArrayTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldAddNothingAndCommit() {
-		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 5, 10});
+		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 5, 10}, Comparator.naturalOrder());
 
 		assertStateAfterCommit(
 			array,
@@ -200,7 +201,7 @@ class TransactionalObjArrayTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldAddAndRemoveEverythingAndCommit() {
-		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[0]);
+		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[0], Comparator.naturalOrder());
 
 		assertStateAfterCommit(
 			array,
@@ -219,7 +220,7 @@ class TransactionalObjArrayTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldCorrectlyAddMultipleItemsOnSamePositionsAndCommit() {
-		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 5, 10});
+		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 5, 10}, Comparator.naturalOrder());
 
 		assertStateAfterCommit(
 			array,
@@ -238,7 +239,7 @@ class TransactionalObjArrayTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldCorrectlyAddAndRemoveOnNonOverlappingPositionsAndCommit() {
-		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 2, 5, 6, 10, 11});
+		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 2, 5, 6, 10, 11}, Comparator.naturalOrder());
 
 		assertStateAfterCommit(
 			array,
@@ -263,7 +264,7 @@ class TransactionalObjArrayTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldCorrectlyAddAndRemoveSameNumberAndCommit() {
-		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 2, 5, 6, 10, 11});
+		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 2, 5, 6, 10, 11}, Comparator.naturalOrder());
 
 		assertStateAfterCommit(
 			array,
@@ -283,7 +284,7 @@ class TransactionalObjArrayTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldCorrectlyRemoveAndAddSameNumberAndCommit() {
-		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 2, 5, 6, 10, 11});
+		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 2, 5, 6, 10, 11}, Comparator.naturalOrder());
 
 		assertStateAfterCommit(
 			array,
@@ -307,7 +308,7 @@ class TransactionalObjArrayTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldCorrectlyAddAndRemoveOnOverlappingBoundaryPositionsAndCommit() {
-		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 2, 5, 6, 10, 11});
+		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 2, 5, 6, 10, 11}, Comparator.naturalOrder());
 
 		assertStateAfterCommit(
 			array,
@@ -328,7 +329,7 @@ class TransactionalObjArrayTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldCorrectlyAddAndRemoveOnOverlappingMiddlePositionsAndCommit() {
-		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 5, 8, 11});
+		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 5, 8, 11}, Comparator.naturalOrder());
 
 		assertStateAfterCommit(
 			array,
@@ -352,7 +353,7 @@ class TransactionalObjArrayTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldProperlyHandleChangesOnSinglePosition() {
-		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 2});
+		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{1, 2}, Comparator.naturalOrder());
 
 		assertStateAfterCommit(
 			array,
@@ -374,8 +375,27 @@ class TransactionalObjArrayTest implements TimeBoundedTestSupport {
 	}
 
 	@Test
+	void shouldUseSpecificComparator() {
+		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[0], Comparator.reverseOrder());
+
+		assertStateAfterCommit(
+			array,
+			original -> {
+				original.add(5);
+				original.add(1);
+				original.add(10);
+				assertTransactionalArrayIs(new Integer[] {10,5,1}, original);
+			},
+			(original, committed) -> {
+				assertTransactionalArrayIs(new Integer[0], array);
+				assertArrayEquals(new Integer[] {10,5,1}, committed);
+			}
+		);
+	}
+
+	@Test
 	void shouldCorrectlyWipeAll() {
-		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{36, 59, 179});
+		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{36, 59, 179}, Comparator.naturalOrder());
 
 		assertStateAfterCommit(
 			array,
@@ -409,7 +429,7 @@ class TransactionalObjArrayTest implements TimeBoundedTestSupport {
 			10_000,
 			new TestState(initialState),
 			(random, testState) -> {
-				final TransactionalObjArray<Integer> transactionalArray = new TransactionalObjArray<>(testState.initialArray());
+				final TransactionalObjArray<Integer> transactionalArray = new TransactionalObjArray<>(testState.initialArray(), Comparator.naturalOrder());
 				final AtomicReference<Integer[]> nextArrayToCompare = new AtomicReference<>(testState.initialArray());
 
 				assertStateAfterCommit(

@@ -210,7 +210,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 		return new BuiltFieldDescriptor(
 			catalogField,
-			new CatalogDataFetcher(evita)
+			new CatalogDataFetcher(buildingContext.getEvitaExecutor(), evita)
 		);
 	}
 
@@ -218,7 +218,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 	private BuiltFieldDescriptor buildCatalogsField() {
 		return new BuiltFieldDescriptor(
 			SystemRootDescriptor.CATALOGS.to(staticEndpointBuilderTransformer).build(),
-			new CatalogsDataFetcher(evita)
+			new CatalogsDataFetcher(buildingContext.getEvitaExecutor(), evita)
 		);
 	}
 

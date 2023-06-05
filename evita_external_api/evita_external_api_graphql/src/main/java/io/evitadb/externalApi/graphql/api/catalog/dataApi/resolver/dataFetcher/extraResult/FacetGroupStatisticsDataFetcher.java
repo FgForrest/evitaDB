@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
@@ -33,7 +32,6 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
-import java.util.List;
 
 /**
  * Extracts list of all {@link FacetGroupStatistics} of certain reference name from {@link FacetSummary}.
@@ -41,21 +39,18 @@ import java.util.List;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class FacetGroupStatisticsDataFetcher implements DataFetcher<DataFetcherResult<Collection<FacetGroupStatistics>>> {
+public class FacetGroupStatisticsDataFetcher implements DataFetcher<Collection<FacetGroupStatistics>> {
 
 	@Nonnull
 	private final ReferenceSchemaContract referenceSchema;
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<Collection<FacetGroupStatistics>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public Collection<FacetGroupStatistics> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final FacetSummary facetSummary = environment.getSource();
-		final List<FacetGroupStatistics> facetGroupStatistics = facetSummary.getFacetGroupStatistics()
+		return facetSummary.getFacetGroupStatistics()
 			.stream()
 			.filter(it -> it.getReferenceName().equals(referenceSchema.getName()))
 			.toList();
-		return DataFetcherResult.<Collection<FacetGroupStatistics>>newResult()
-			.data(facetGroupStatistics)
-			.build();
 	}
 }
