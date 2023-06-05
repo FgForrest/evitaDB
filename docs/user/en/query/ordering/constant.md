@@ -23,7 +23,7 @@ The constraint requires the presence of exactly one [`entityPrimaryKeyInSet`](..
 constraint in the filter part of the query. It uses the specified array of entity primary keys to sort the result 
 returned by the query.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Transitive category listing](/docs/user/en/query/ordering/examples/constant/entity-primary-key-in-filter.evitaql)
 </SourceCodeTabs>
 
@@ -37,7 +37,17 @@ was issued.
 ##### List of products sorted by order of entity primary keys in filter
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java">
+
 <MDInclude>[Entities sorted by order of the filtered primary keys](/docs/user/en/query/ordering/examples/constant/entity-primary-key-in-filter.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[Entities sorted by order of the filtered primary keys](/docs/user/en/query/ordering/examples/constant/entity-primary-key-in-filter.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>
 
@@ -59,7 +69,7 @@ entityPrimaryKeyExact(
 The constraint allows output entities to be sorted by entity primary keys in the exact order specified in the 2nd through 
 Nth arguments of this constraint.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Transitive category listing](/docs/user/en/query/ordering/examples/constant/entity-primary-key-exact.evitaql)
 </SourceCodeTabs>
 
@@ -76,7 +86,17 @@ the rest of the query result.
 ##### List of products sorted by the exact order of entity primary keys
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java">
+
 <MDInclude>[Entities sorted by the specified order of the primary keys](/docs/user/en/query/ordering/examples/constant/entity-primary-key-exact.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[Entities sorted by the specified order of the primary keys](/docs/user/en/query/ordering/examples/constant/entity-primary-key-exact.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>
 
@@ -101,7 +121,7 @@ they were filtered. The constraint requires the presence of exactly one [`attrib
 in the filter part of the query, referring to the attribute with the same name as used in the first argument of this 
 constraint. It uses the specified array of attribute values to sort the result returned by the query.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Transitive category listing](/docs/user/en/query/ordering/examples/constant/attribute-set-in-filter.evitaql)
 </SourceCodeTabs>
 
@@ -115,7 +135,17 @@ constraint of the query that was issued.
 ##### List of products sorted by order of attribute `code` in filter
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java">
+
 <MDInclude>[Entities sorted by order `code` attribute of the filtered entities](/docs/user/en/query/ordering/examples/constant/attribute-set-in-filter.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[Entities sorted by order `code` attribute of the filtered entities](/docs/user/en/query/ordering/examples/constant/attribute-set-in-filter.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>
 
@@ -144,7 +174,7 @@ attributeSetExact(
 The constraint allows output entities to be sorted by attribute values in the exact order specified in the 2nd through
 Nth arguments of this constraint.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Transitive category listing](/docs/user/en/query/ordering/examples/constant/attribute-set-exact.evitaql)
 </SourceCodeTabs>
 
@@ -161,6 +191,16 @@ the rest of the query result.
 ##### List of products sorted by the exact order of entity attribute `code`
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java">
+
 <MDInclude>[Entities sorted by the specified order of the attribute `code` values](/docs/user/en/query/ordering/examples/constant/attribute-set-exact.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[Entities sorted by the specified order of the attribute `code` values](/docs/user/en/query/ordering/examples/constant/attribute-set-exact.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>

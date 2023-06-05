@@ -233,7 +233,8 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 			parsedConstraintDescriptor.constraintDescriptor().creator()
 		);
 
-		if (valueStructure == ConstraintValueStructure.NONE) {
+		if (valueStructure == ConstraintValueStructure.NONE &&
+			!parsedConstraintDescriptor.constraintDescriptor().creator().hasClassifierParameter()) {
 			return resolveNoneParameter(parsedConstraintDescriptor, value) ? new ArrayList<>(0) : null;
 		}
 
