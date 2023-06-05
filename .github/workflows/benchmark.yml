@@ -30,7 +30,6 @@ env:
   BENCHMARK_K8S_LIMIT_CPU: "4"
   BENCHMARK_JAVA_OPTS: "-Xmx9g"
 
-
 jobs:
   do-benchmark:
     runs-on: ubuntu-latest

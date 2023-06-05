@@ -37,24 +37,29 @@ function help {
 [ "$1" != "bash" ] || exec bash "$@"
 
 ## args
-EXTRA_JAVA_OPTS=""
-BENCHMARK_SELECTOR="${2:-io.evitadb.performance.artificial.ArtificialEntitiesThroughputBenchmark.singleEntityRead}"
+EXTRA_JAVA_OPTS="${1:-}"
+BENCHMARK_SELECTOR="${2:-.*}"
 SHARED_GIST='abc12461f21d1cc66a541417edcb6ba7'
 RESULT_JSON=latest-performance-results.json
 # DO_CLUSTER_NODE_SLUG="mock"
 
 PROCESSOR=$(lscpu | awk -F': +' '/Model name/ {model=$2} /Core\(s\) per socket/ {core=$2} /Thread\(s\) per core/ {thread=$2} /^CPU\(s\)/ {cpu=$2} /Architecture/ {arch=$2} END {printf "Processor: %s (%s * %s = %s CPU), architecture: %s\n", model, core, thread, cpu, arch}')
 
-## https://gitlab.fg.cz/hv/evita/-/issues/32#note_233553
 [ -n "$JMH_ARGS" ] || JMH_ARGS="-i 2 -wi 1 -f 1"
 
 now="$(date -Is)"
+new_filename="$(echo "$now" | sed 's/[-:]/_/g' | sed 's/\+/_/g' | sed 's/T/-/')"
 echo "now: $now"
-# echo "DO_REGISTRY_SLUG: $DO_REGISTRY_SLUG"
-# echo "DO_CLUSTER_NODE_SLUG: $DO_CLUSTER_NODE_SLUG"
-# echo "BENCHMARK_K8S_REQUEST_CPU: $BENCHMARK_K8S_REQUEST_CPU"
-# echo "BENCHMARK_K8S_LIMIT_CPU: $BENCHMARK_K8S_LIMIT_CPU"
-# echo "BENCHMARK_K8S_LIMIT_MEMORY: $BENCHMARK_K8S_LIMIT_MEMORY"
+echo "new_filename: $new_filename"
+echo "EXTRA_JAVA_OPTS: $EXTRA_JAVA_OPTS"
+echo "BENCHMARK_JAVA_OPTS: $BENCHMARK_JAVA_OPTS"
+echo "BENCHMARK_SELECTOR: $BENCHMARK_SELECTOR"
+echo "JMH_ARGS: $JMH_ARGS"
+echo "DO_REGISTRY_SLUG: $DO_REGISTRY_SLUG"
+echo "DO_CLUSTER_NODE_SLUG: $DO_CLUSTER_NODE_SLUG"
+echo "BENCHMARK_K8S_REQUEST_CPU: $BENCHMARK_K8S_REQUEST_CPU"
+echo "BENCHMARK_K8S_LIMIT_CPU: $BENCHMARK_K8S_LIMIT_CPU"
+echo "BENCHMARK_K8S_LIMIT_MEMORY: $BENCHMARK_K8S_LIMIT_MEMORY"
 
 echo
 lscpu
@@ -81,7 +86,8 @@ java \
         -jvmArgs "$EXTRA_JAVA_OPTS $BENCHMARK_JAVA_OPTS -DdataFolder=/data -DevitaData=/evita-data/data"
 
 ## public gist
-gh gist create -d "Evita performance results: $BENCHMARK_SELECTOR - $now (node: $DO_CLUSTER_NODE_SLUG)($PROCESSOR)" --public $RESULT_JSON
+cp $RESULT_JSON "$new_filename".json
+gh gist create -d "Evita performance results: $BENCHMARK_SELECTOR - $now (node: $DO_CLUSTER_NODE_SLUG, $PROCESSOR)" --public "$new_filename".json
 
 ## shared gist
 rm -rf "$SHARED_GIST"
