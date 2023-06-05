@@ -58,6 +58,14 @@ example breakdown of a language tag: `en-US`.
 Language tags can also include additional subtags to specify variations such as script, variant, and extensions, 
 allowing for more granular language identification.
 
+<LanguageSpecific to="graphql">
+
+In the GraphQL API, for ease of use, we convert all locales defined in stored data into an enum for better code completion.
+However, the GraphQL doesn't support hyphens in enum items, and thus we use underscores instead. Otherwise, the syntax
+is the same.
+
+</LanguageSpecific>
+
 </Note>
 
 If any filter constraint of the query targets a localized attribute, the `entityLocaleEquals` must also be provided,
