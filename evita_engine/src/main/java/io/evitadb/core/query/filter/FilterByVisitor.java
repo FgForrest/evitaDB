@@ -100,6 +100,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -124,6 +125,10 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Contains index of all {@link FilterConstraint} to {@link Formula} translators.
 	 */
 	private static final Map<Class<? extends FilterConstraint>, FilteringConstraintTranslator<? extends FilterConstraint>> TRANSLATORS;
+	/**
+	 * Contains set of formulas that are considered conjunctive for purpose of this visitor.
+	 */
+	private static final Set<Class<? extends FilterConstraint>> CONJUNCTIVE_CONSTRAINTS;
 	/**
 	 * Contains set of formulas that are considered conjunctive for purpose of this visitor.
 	 */
@@ -164,6 +169,11 @@ public class FilterByVisitor implements ConstraintVisitor {
 		CONJUNCTIVE_FORMULAS = new HashSet<>();
 		CONJUNCTIVE_FORMULAS.add(AndFormula.class);
 		CONJUNCTIVE_FORMULAS.add(UserFilterFormula.class);
+
+		CONJUNCTIVE_CONSTRAINTS = new HashSet<>();
+		CONJUNCTIVE_CONSTRAINTS.add(And.class);
+		CONJUNCTIVE_CONSTRAINTS.add(UserFilter.class);
+		CONJUNCTIVE_CONSTRAINTS.add(FilterBy.class);
 	}
 
 	/**
@@ -386,33 +396,20 @@ public class FilterByVisitor implements ConstraintVisitor {
 	}
 
 	/**
-	 * Method returns true if parent of the currently examined query matches passed type.
-	 */
-	public boolean isParentConstraint(@Nonnull Class<? extends FilterConstraint> constraintType) {
-		final ProcessingScope theScope = getProcessingScope();
-		return ofNullable(theScope.getParentConstraint())
-			.map(constraintType::isInstance)
-			.orElse(false);
-	}
-
-	/**
 	 * Method returns true if any of the siblings of the currently examined query matches any of the passed types.
 	 */
 	@SuppressWarnings("unchecked")
-	public boolean isAnySiblingConstraintPresent(@Nonnull Class<? extends FilterConstraint>... constraintType) {
+	public boolean isAnyConstraintPresentInConjunctionScopeExcludingUserFilter(@Nonnull Class<? extends FilterConstraint>... constraintType) {
 		final ProcessingScope theScope = getProcessingScope();
-		final FilterConstraint parentConstraint = theScope.getParentConstraint();
-		if (parentConstraint instanceof ConstraintContainer) {
-			//noinspection unchecked
-			for (FilterConstraint examinedType : (ConstraintContainer<FilterConstraint>) parentConstraint) {
-				for (Class<? extends FilterConstraint> lookedUpType : constraintType) {
-					if (lookedUpType.isInstance(examinedType)) {
-						return true;
-					}
+		final AtomicBoolean result = new AtomicBoolean();
+		theScope.doInConjunctionBlock(theConstraint -> {
+				if (Arrays.stream(constraintType).anyMatch(it -> it.isInstance(theConstraint))) {
+					result.set(true);
 				}
-			}
-		}
-		return false;
+			},
+			fc -> !(fc instanceof UserFilter) && CONJUNCTIVE_CONSTRAINTS.contains(fc.getClass())
+		);
+		return result.get();
 	}
 
 	/**
@@ -435,7 +432,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Conjunction block for `EQ` is none.
 	 */
 	@Nullable
-	public <T extends FilterConstraint> T findInConjunctionTree(Class<T> constraintType) {
+	public <T extends FilterConstraint> T findInConjunctionTree(@Nonnull Class<T> constraintType) {
 		final ProcessingScope theScope = getProcessingScope();
 		final List<T> foundConstraints = new LinkedList<>();
 		theScope.doInConjunctionBlock(theConstraint -> {
@@ -1114,7 +1111,17 @@ public class FilterByVisitor implements ConstraintVisitor {
 		 * @see FilterByVisitor#findInConjunctionTree(Class)
 		 */
 		public void doInConjunctionBlock(@Nonnull Consumer<FilterConstraint> lambda) {
-			final Predicate<FilterConstraint> isConjunction = fc -> fc instanceof And || fc instanceof UserFilter;
+			final Predicate<FilterConstraint> isConjunction = fc -> CONJUNCTIVE_CONSTRAINTS.contains(fc.getClass());
+			doInConjunctionBlock(lambda, isConjunction);
+		}
+
+		/**
+		 * Method will apply `lambda` in a parent scope of currently processed {@link FilterConstraint} that shares same
+		 * conjunction relation.
+		 *
+		 * @see FilterByVisitor#findInConjunctionTree(Class)
+		 */
+		public void doInConjunctionBlock(@Nonnull Consumer<FilterConstraint> lambda, @Nonnull Predicate<FilterConstraint> isConjunction) {
 			final Iterator<FilterConstraint> it = this.processedConstraints.iterator();
 			if (it.hasNext()) {
 				// this will get rid of "this" query and first examines its parent
