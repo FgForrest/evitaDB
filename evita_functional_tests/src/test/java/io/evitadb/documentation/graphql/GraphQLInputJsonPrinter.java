@@ -46,6 +46,7 @@ public class GraphQLInputJsonPrinter {
 
 	private final static String INDENTATION = "  ";
 	private final static Pattern ENUM_PATTERN = Pattern.compile("\"([A-Z]+(_[A-Z]+)*)\"");
+	private final static Pattern LOCALE_PATTERN = Pattern.compile("\"([a-z]{2}(_[A-Z]{2})?)\"");
 
 	@Nonnull private final ObjectWriter constraintWriter;
 
@@ -70,6 +71,7 @@ public class GraphQLInputJsonPrinter {
 			throw new IllegalStateException(e);
 		}
 		graphQLJson = correctEnumValues(graphQLJson);
+		graphQLJson = correctLocaleValues(graphQLJson);
 		graphQLJson = offsetJson(offset, graphQLJson);
 		return graphQLJson;
 	}
@@ -78,6 +80,12 @@ public class GraphQLInputJsonPrinter {
 	private String correctEnumValues(@Nonnull String graphQLJson) {
 		final Matcher enumMatcher = ENUM_PATTERN.matcher(graphQLJson);
 		return enumMatcher.replaceAll(mr -> mr.group(1));
+	}
+
+	@Nonnull
+	private String correctLocaleValues(@Nonnull String graphQLJson) {
+		final Matcher localeMatcher = LOCALE_PATTERN.matcher(graphQLJson);
+		return localeMatcher.replaceAll(mr -> mr.group(1));
 	}
 
 	@Nonnull

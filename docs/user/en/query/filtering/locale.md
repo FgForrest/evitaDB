@@ -80,7 +80,7 @@ To test the locale specific query, we need to focus on the *Vouchers for shareho
 [demo dataset](/documentation/get-started/query-our-dataset). We know that there are products that have only English 
 (*en_US*) localization. To select the products with English localization, we can issue this query:
 
-<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Listing product with English locale](/docs/user/en/query/filtering/examples/locale/locale.evitaql)
 </SourceCodeTabs>
 
@@ -93,7 +93,17 @@ To test the locale specific query, we need to focus on the *Vouchers for shareho
 ##### List of all products with English localization in category
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java">
+
 <MDInclude>[List of all products with English localization](/docs/user/en/query/filtering/examples/locale/locale.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[List of all products with English localization](/docs/user/en/query/filtering/examples/locale/locale.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 You will notice that the output contains two columns: *code* and *name*. The *code* is not a localized attribute, while 
 the *name* is. The names listed in the response reflect the English locale that is part of the filter constraint. 
@@ -107,7 +117,7 @@ you can use the require constraint [`data-in-locale`](../requirements/fetching.m
 
 But when we request products in Czech locale:
 
-<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Listing product with English locale](/docs/user/en/query/filtering/examples/locale/locale_missing.evitaql)
 </SourceCodeTabs>
 
@@ -120,6 +130,16 @@ But when we request products in Czech locale:
 ##### List of all products with Czech localization in category
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java">
+
 <MDInclude>[List of all products with Czech localization](/docs/user/en/query/filtering/examples/locale/locale_missing.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[List of all products with Czech localization](/docs/user/en/query/filtering/examples/locale/locale_missing.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>
