@@ -45,7 +45,7 @@ import java.util.stream.Collectors;
 public class GraphQLInputJsonPrinter {
 
 	private final static String INDENTATION = "  ";
-	private final static Pattern ENUM_PATTERN = Pattern.compile("\"([A-Z]+('_'[A-Z]+)*)\"");
+	private final static Pattern ENUM_PATTERN = Pattern.compile("\"([A-Z]+(_[A-Z]+)*)\"");
 
 	@Nonnull private final ObjectWriter constraintWriter;
 

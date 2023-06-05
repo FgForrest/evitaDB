@@ -4,4 +4,4 @@
 | 108570           | 'amazfit-neo'      | 160.00000        |
 | 108585           | 'fitbit-inspire-2' | 148.00000        |
 
-###### **Total number of results:** 3
+###### **Page** 1/1 **(Total number of results: 3)**

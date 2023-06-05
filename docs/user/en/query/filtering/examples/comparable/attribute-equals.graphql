@@ -1,0 +1,16 @@
+{
+  queryProduct(
+    filterBy: {
+      attributeCodeEquals: "apple-iphone-13-pro-3"
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+        }
+      }
+    }
+  }
+}
