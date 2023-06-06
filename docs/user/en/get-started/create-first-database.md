@@ -192,17 +192,6 @@ that mutate already existing data.
 
 For more information, see the [write API description](../use/api/write-data.md#upsert).
 
-## Delete any of existing entities
-
-You can issue a query that removes all the entities that match the query using the same catalog data API which you
-would use for inserting, updating or retrieving entities:
-
-<SourceCodeTabs langSpecificTabOnly>
-[Example of deleting entity by query](/docs/user/en/get-started/example/delete-entity-by-query.graphql)
-</SourceCodeTabs>
-
-For more complex examples and explanations, see the [write API chapter](../use/api/write-data.md#removal).
-
 </LanguageSpecific>
 
 <LanguageSpecific to="java">
