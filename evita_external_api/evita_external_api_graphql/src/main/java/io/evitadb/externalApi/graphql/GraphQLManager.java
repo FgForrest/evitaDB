@@ -125,8 +125,8 @@ public class GraphQLManager {
 			final GraphQL catalogDataApiGraphQL = new CatalogGraphQLBuilder(
 				evita,
 				catalog,
-				new CatalogDataApiGraphQLSchemaBuilder(evita, catalog).build()
-			).build();
+				new CatalogDataApiGraphQLSchemaBuilder(graphQLConfig, evita, catalog).build()
+			).build(graphQLConfig);
 			final RegisteredGraphQLApi registeredDataApiGraphQL = new RegisteredGraphQLApi(
 				catalogDataApiPath,
 				new AtomicReference<>(catalogDataApiGraphQL)
@@ -137,8 +137,8 @@ public class GraphQLManager {
 			final GraphQL catalogSchemaApiGraphQL = new CatalogGraphQLBuilder(
 				evita,
 				catalog,
-				new CatalogSchemaApiGraphQLSchemaBuilder(evita, catalog).build()
-			).build();
+				new CatalogSchemaApiGraphQLSchemaBuilder(graphQLConfig, evita, catalog).build()
+			).build(graphQLConfig);
 			final RegisteredGraphQLApi registeredSchemaApiGraphQL = new RegisteredGraphQLApi(
 				catalogSchemaApiPath,
 				new AtomicReference<>(catalogSchemaApiGraphQL)
@@ -168,15 +168,15 @@ public class GraphQLManager {
 		final GraphQL newCatalogDataApiGraphQL = new CatalogGraphQLBuilder(
 			evita,
 			catalog,
-			new CatalogDataApiGraphQLSchemaBuilder(evita, catalog).build()
-		).build();
+			new CatalogDataApiGraphQLSchemaBuilder(graphQLConfig, evita, catalog).build()
+		).build(graphQLConfig);
 		registeredCatalog.dataApi().graphQLReference().set(newCatalogDataApiGraphQL);
 
 		final GraphQL newCatalogSchemaApiGraphQL = new CatalogGraphQLBuilder(
 			evita,
 			catalog,
-			new CatalogSchemaApiGraphQLSchemaBuilder(evita, catalog).build()
-		).build();
+			new CatalogSchemaApiGraphQLSchemaBuilder(graphQLConfig, evita, catalog).build()
+		).build(graphQLConfig);
 		registeredCatalog.schemaApi().graphQLReference().set(newCatalogSchemaApiGraphQL);
 	}
 
@@ -200,7 +200,7 @@ public class GraphQLManager {
 	private void registerSystemApi() {
 		registerGraphQLEndpoint(new RegisteredGraphQLApi(
 			"/system",
-			new AtomicReference<>(new SystemGraphQLBuilder(evita).build())
+			new AtomicReference<>(new SystemGraphQLBuilder(evita).build(graphQLConfig))
 		));
 	}
 

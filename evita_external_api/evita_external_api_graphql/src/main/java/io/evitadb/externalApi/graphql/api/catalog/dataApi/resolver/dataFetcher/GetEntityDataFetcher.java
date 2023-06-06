@@ -87,7 +87,7 @@ public class GetEntityDataFetcher extends ReadDataFetcher<DataFetcherResult<Enti
 
 	@Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 
-	public GetEntityDataFetcher(@Nonnull Executor executor,
+	public GetEntityDataFetcher(@Nullable Executor executor,
 	                            @Nonnull CatalogSchemaContract catalogSchema,
 	                            @Nonnull EntitySchemaContract entitySchema) {
 		super(executor);

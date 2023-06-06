@@ -102,7 +102,7 @@ public class ListUnknownEntitiesDataFetcher extends ReadDataFetcher<DataFetcherR
 
     @Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 
-    public ListUnknownEntitiesDataFetcher(@Nonnull Executor executor,
+    public ListUnknownEntitiesDataFetcher(@Nullable Executor executor,
                                           @Nonnull CatalogSchemaContract catalogSchema,
                                           @Nonnull Set<EntitySchemaContract> allEntitySchemas) {
         super(executor);

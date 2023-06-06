@@ -67,6 +67,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutatingDataF
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutatingDataFetcher.UpsertEntityMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
+import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -103,8 +104,10 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	@Nonnull private final FullResponseObjectBuilder fullResponseObjectBuilder;
 	@Nonnull private final LocalMutationAggregateObjectBuilder localMutationAggregateObjectBuilder;
 
-	public CatalogDataApiGraphQLSchemaBuilder(@Nonnull Evita evita, @Nonnull CatalogContract catalog) {
-		super(new CatalogGraphQLSchemaBuildingContext(evita, catalog));
+	public CatalogDataApiGraphQLSchemaBuilder(@Nonnull GraphQLConfig config,
+	                                          @Nonnull Evita evita,
+	                                          @Nonnull CatalogContract catalog) {
+		super(new CatalogGraphQLSchemaBuildingContext(config, evita, catalog));
 		this.constraintContext = new GraphQLConstraintSchemaBuildingContext(buildingContext);
 
 		this.filterConstraintSchemaBuilder = new FilterConstraintSchemaBuilder(constraintContext);
@@ -256,7 +259,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private BuiltFieldDescriptor buildCollectionsField() {
 		return new BuiltFieldDescriptor(
 			CatalogDataApiRootDescriptor.COLLECTIONS.to(staticEndpointBuilderTransformer).build(),
-			new CollectionsDataFetcher(buildingContext.getEvitaExecutor())
+			new CollectionsDataFetcher(buildingContext.getEvitaExecutor().orElse(null))
 		);
 	}
 
@@ -290,7 +293,11 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			unknownSingleEntityFieldBuilder.build(),
-			new GetUnknownEntityDataFetcher(buildingContext.getEvitaExecutor(), buildingContext.getSchema(), buildingContext.getEntitySchemas())
+			new GetUnknownEntityDataFetcher(
+				buildingContext.getEvitaExecutor().orElse(null),
+				buildingContext.getSchema(),
+				buildingContext.getEntitySchemas()
+			)
 		);
 	}
 
@@ -325,7 +332,11 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			unknownEntityListFieldBuilder.build(),
-			new ListUnknownEntitiesDataFetcher(buildingContext.getEvitaExecutor(), buildingContext.getSchema(), buildingContext.getEntitySchemas())
+			new ListUnknownEntitiesDataFetcher(
+				buildingContext.getEvitaExecutor().orElse(null),
+				buildingContext.getSchema(),
+				buildingContext.getEntitySchemas()
+			)
 		);
 	}
 
@@ -375,7 +386,11 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			singleEntityFieldBuilder.build(),
-			new GetEntityDataFetcher(buildingContext.getEvitaExecutor(), buildingContext.getSchema(), entitySchema)
+			new GetEntityDataFetcher(
+				buildingContext.getEvitaExecutor().orElse(null),
+				buildingContext.getSchema(),
+				entitySchema
+			)
 		);
 	}
 
@@ -398,7 +413,11 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			entityListFieldBuilder.build(),
-			new ListEntitiesDataFetcher(buildingContext.getEvitaExecutor(), buildingContext.getSchema(), entitySchema)
+			new ListEntitiesDataFetcher(
+				buildingContext.getEvitaExecutor().orElse(null),
+				buildingContext.getSchema(),
+				entitySchema
+			)
 		);
 	}
 
@@ -429,7 +448,11 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			entityQueryFieldBuilder.build(),
-			new QueryEntitiesDataFetcher(buildingContext.getEvitaExecutor(), buildingContext.getSchema(), entitySchema)
+			new QueryEntitiesDataFetcher(
+				buildingContext.getEvitaExecutor().orElse(null),
+				buildingContext.getSchema(),
+				entitySchema
+			)
 		);
 	}
 
@@ -440,7 +463,10 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			CatalogDataApiRootDescriptor.COUNT_COLLECTION
 				.to(new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer, entitySchema))
 				.build(),
-			new CollectionSizeDataFetcher(buildingContext.getEvitaExecutor(), entitySchema)
+			new CollectionSizeDataFetcher(
+				buildingContext.getEvitaExecutor().orElse(null),
+				entitySchema
+			)
 		);
 	}
 

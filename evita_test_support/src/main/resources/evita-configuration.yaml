@@ -41,6 +41,7 @@ api:
       enabled: ${api.endpoints.graphQL.enabled:true}
       host: ${api.endpoints.graphQL.host:localhost:5555}
       allowedOrigins: ${api.endpoints.graphQL.allowedOrigins:null}
+      parallelize: ${api.endpoints.graphQL.parallelize:true}
     rest:
       enabled: ${api.endpoints.rest.enabled:true}
       host: ${api.endpoints.rest.host:localhost:5555}
