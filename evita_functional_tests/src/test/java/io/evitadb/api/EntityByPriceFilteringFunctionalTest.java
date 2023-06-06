@@ -1215,6 +1215,55 @@ public class EntityByPriceFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should return products with price in price list and currency within interval (with tax) ordered by price asc without explicit AND")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
+	@Test
+	void shouldReturnProductsHavingPriceInCurrencyAndPriceListInIntervalWithTaxOrderByPriceAscendingWithoutExplicitAnd(Evita evita, List<SealedEntity> originalProductEntities) {
+		final BigDecimal from = new BigDecimal("30");
+		final BigDecimal to = new BigDecimal("60");
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							priceInCurrency(CURRENCY_EUR),
+							priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC),
+							priceBetween(from, to)
+						),
+						require(
+							page(1, 10),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							entityFetch(
+								priceContentAll()
+							)
+						),
+						orderBy(
+							priceNatural()
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertSortedResultIs(
+					originalProductEntities,
+					sealedEntity -> sealedEntity.hasPriceInInterval(from, to, QueryPriceMode.WITH_TAX, CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC),
+					result.getRecordData(),
+					Comparator.comparing(PriceContract::getPriceWithTax),
+					page(1, 10),
+					PriceContentMode.ALL,
+					CURRENCY_EUR,
+					null,
+					PRICE_LIST_VIP, PRICE_LIST_BASIC
+				);
+
+				return null;
+			}
+		);
+	}
+
 	/*
 		ASSERTIONS
 	 */
