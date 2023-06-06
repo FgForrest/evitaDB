@@ -1,42 +1,42 @@
 query {
-	listProduct(
-		filterBy: {
-			priceInPriceLists: ["basic"]
-			priceInCurrency: EUR
-			priceBetween: ["300", null]
-			entityLocaleEquals: en
-		}
-		orderBy: {
-			priceNatural: ASC
-		}
-	) {
-		primaryKey
-		type
-		allLocales
-		attributes {
-			name
-			catalogCode
-			stockQuantity
-		}
-		associatedData {
-			gallery
-		}
-		brand {
-			referencedPrimaryKey
-		}
-		categories {
-			referencedPrimaryKey
-		}
-		prices {
-			priceId
-			priceList
-			currency
-			innerRecordId
-			sellable
-			validity
-			priceWithoutTax
-			priceWithTax
-			taxRate
-		}
-	}
+  listProduct(
+    filterBy: {
+      priceInPriceLists: ["basic"]
+      priceInCurrency: EUR
+      priceBetween: ["300", null]
+      entityLocaleEquals: en
+    }
+    orderBy: {
+      priceNatural: ASC
+    }
+  ) {
+    primaryKey
+    type
+    allLocales
+    attributes {
+      name
+      catalogCode
+      stockQuantity
+    }
+    associatedData {
+      gallery
+    }
+    brand {
+      referencedPrimaryKey
+    }
+    categories {
+      referencedPrimaryKey
+    }
+    prices {
+      priceId
+      priceList
+      currency
+      innerRecordId
+      sellable
+      validity
+      priceWithoutTax
+      priceWithTax
+      taxRate
+    }
+  }
 }

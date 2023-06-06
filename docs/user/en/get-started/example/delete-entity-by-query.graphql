@@ -1,9 +1,9 @@
 mutation {
-	deleteBrand(
-		filterBy: {
-			entityPrimaryKeyInSet: [1, 2]
-		}
-	) {
-		primaryKey
-	}
+  deleteBrand(
+    filterBy: {
+      entityPrimaryKeyInSet: [1, 2]
+    }
+  ) {
+    primaryKey
+  }
 }
