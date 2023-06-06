@@ -63,8 +63,8 @@ public class CreateAssociatedDataSchemaMutationConverter extends AssociatedDataS
 				CreateAssociatedDataSchemaMutationDescriptor.TYPE.name(),
 				new ValueTypeMapper(getExceptionFactory(), CreateAssociatedDataSchemaMutationDescriptor.TYPE)
 			),
-			inputMutation.getRequiredField(CreateAssociatedDataSchemaMutationDescriptor.LOCALIZED),
-			inputMutation.getRequiredField(CreateAssociatedDataSchemaMutationDescriptor.NULLABLE)
+			inputMutation.getOptionalField(CreateAssociatedDataSchemaMutationDescriptor.LOCALIZED, false),
+			inputMutation.getOptionalField(CreateAssociatedDataSchemaMutationDescriptor.NULLABLE, false)
 		);
 	}
 }

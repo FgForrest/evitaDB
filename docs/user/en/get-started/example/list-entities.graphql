@@ -1,0 +1,32 @@
+query {
+	listProduct {
+		primaryKey
+		type
+		allLocales
+		attributes(locale: en) {
+			name
+			catalogCode
+			stockQuantity
+		}
+		associatedData {
+			gallery
+		}
+		prices {
+			priceId
+			priceList
+			currency
+			innerRecordId
+			sellable
+			validity
+			priceWithoutTax
+			priceWithTax
+			taxRate
+		}
+		brand {
+			referencedPrimaryKey
+		}
+		categories {
+			referencedPrimaryKey
+		}
+	}
+}

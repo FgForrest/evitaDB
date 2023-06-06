@@ -1,0 +1,27 @@
+mutation {
+	upsertProduct(
+		primaryKey: 1
+		entityExistence: MUST_EXIST
+		mutations: [
+			{
+				upsertAttributeMutation: {
+					name: "stockQuantity"
+					value: 12
+				}
+			},
+			{
+				upsertPriceMutation: {
+					priceId: 1
+					priceList: "basic"
+					currency: "EUR"
+					priceWithoutTax: "51.64"
+					taxRate: "22"
+					priceWithTax: "63"
+					sellable: true
+				}
+			}
+		]
+	) {
+		primaryKey
+	}
+}

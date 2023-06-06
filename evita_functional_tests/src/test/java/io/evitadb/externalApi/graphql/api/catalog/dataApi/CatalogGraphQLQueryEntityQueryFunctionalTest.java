@@ -4574,7 +4574,12 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						collection(Entities.PRODUCT),
 						filterBy(
 							userFilter(
-								facetHaving(Entities.PARAMETER, attributeLessThanEquals(ATTRIBUTE_CODE, "H"))
+								facetHaving(
+									Entities.PARAMETER,
+									entityHaving(
+										attributeLessThanEquals(ATTRIBUTE_CODE, "H")
+									)
+								)
 							)
 						),
 						require(
@@ -4602,7 +4607,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                    filterBy: {
 		                        userFilter: {
 		                            facetParameterHaving: {
-		                                attributeCodeLessThanEquals: "H"
+		                                entityHaving: {
+		                                    attributeCodeLessThanEquals: "H"
+		                                }
 		                            }
 		                        }
 		                    }

@@ -79,14 +79,14 @@ evita.defineCatalog("testCatalog")
 					.withDescription("List of links to images in the product gallery.")
 			)
 			.withReferenceToEntity(
-				"brand", "brand", Cardinality.ZERO_OR_ONE,
+				"brand", "Brand", Cardinality.ZERO_OR_ONE,
 				whichIs -> whichIs
 					.withDescription("Reference to the brand or manufacturer of the product.")
 					.filterable()
 					.faceted()
 			)
 			.withReferenceToEntity(
-				"categories", "category", Cardinality.ZERO_OR_MORE,
+				"categories", "Category", Cardinality.ZERO_OR_MORE,
 				whichIs -> whichIs
 					.withDescription("Reference to one or more categories the product is listed in.")
 					.filterable()
