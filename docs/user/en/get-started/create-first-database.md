@@ -20,7 +20,7 @@ So the evitaDB instance is up and running and ready to communicate.
 
 </LanguageSpecific>
 
-<LanguageSpecific to="java">
+<LanguageSpecific to="graphql,rest">
 
 We assume you already have the following Docker image up and running from the [previous chapter](run-evitadb.md):
 
