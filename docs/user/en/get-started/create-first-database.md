@@ -16,13 +16,13 @@ We assume you already have the following snippet of the code from the [previous 
 [Example of starting the evitaDB server](/docs/user/en/get-started/example/complete-startup.java)
 </SourceCodeTabs>
 
-So the evitaDB instance is up and running and ready to communicate.
+So the evitaDB instance is now up and running and ready to communicate.
 
 </LanguageSpecific>
 
 <LanguageSpecific to="graphql,rest">
 
-We assume you already have the following Docker image up and running from the [previous chapter](run-evitadb.md):
+We assume that you already have the following Docker image up and running from the [previous chapter](run-evitadb.md):
 
 ```shell
 # run on foreground, destroy container after exit, use host ports without NAT
@@ -30,7 +30,7 @@ docker run --name evitadb -i --rm --net=host \
 index.docker.io/evitadb/evitadb:latest
 ```
 
-So the web API server is up and running and ready to communicate.
+So the web API server is now up and running and ready to communicate.
 
 </LanguageSpecific>
 
@@ -52,7 +52,7 @@ a tree, product is enabled to have prices:
 
 ## Define a new catalog with a schema
 
-Now you can use the [system API](/docs/user/en/use/connectors/graphql.md#graphql-api-instances) via URL
+Now you can use the [system API](/docs/user/en/use/connectors/graphql.md#graphql-api-instances) via the URL
 `https://your-server:5555/gql/system` to create a new empty catalog:
 
 <SourceCodeTabs>
@@ -75,13 +75,13 @@ a tree, product is enabled to have prices:
 
 ## Open session to catalog and insert your first entity
 
-When the catalog is created and schema known, you may insert a first entity to it:
+Once the catalog is created and the schema is known, you can insert a first entity to the catalog:
 
 <SourceCodeTabs requires="/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
 [Example of inserting an entity](/docs/user/en/get-started/example/create-first-entity.java)
 </SourceCodeTabs>
 
-The session is opened implicitly for the scope of the `updateCatalog` method. The analogous method `queryCatalog` on 
+The session is implicitly opened for the scope of the `updateCatalog` method. The analogous method `queryCatalog` on 
 the evitaDB contract also opens a session, but only in read-only mode, which doesn't allow updating the catalog. 
 Differentiating between read-write and read-only sessions allows evitaDB to optimize query processing and distribute 
 the load in the cluster.
@@ -97,17 +97,17 @@ Let's see how you can retrieve the entity you just created in another read-only 
 
 ## Open session to catalog and insert your first entity
 
-When the catalog is created and schema known, you may insert a first entity to it via catalog via the
-[catalog data API](/docs/user/en/use/connectors/graphql.md#graphql-api-instances) at URL
+Once the catalog is created and the schema is known, you can insert a first entity to the catalog via the
+[catalog data API](/docs/user/en/use/connectors/graphql.md#graphql-api-instances) at the URL
 `https://your-server:5555/gql/test-catalog`:
 
 <SourceCodeTabs langSpecificTabOnly>
 [Example of inserting an entity](/docs/user/en/get-started/example/create-first-entity.graphql)
 </SourceCodeTabs>
 
-The session is opened implicitly for the scope of a single GraphQL request and is also automatically closed when the
-request is processed. Depending on its body, evitaDB either creates
-read-only session (for queries) or read-write session (for mutations).
+The session is implicitly opened for the scope of a single GraphQL request and is also automatically closed when the
+request is processed. Depending on the body of the request, evitaDB either creates
+a read-only session (for queries) or a read-write session (for mutations).
 Differentiating between read-write and read-only sessions allows evitaDB to optimize query processing and distribute
 the load in the cluster.
 
@@ -187,7 +187,7 @@ Updating an entity is similar to creating a new entity:
 [Example of listing entities](/docs/user/en/get-started/example/update-entity.graphql)
 </SourceCodeTabs>
 
-The main difference is that you have to pass a primary key of existing entity to modify and specify only those mutations
+The main difference is that you must pass a primary key of an existing entity to modify and specify only those mutations
 that mutate already existing data.
 
 For more information, see the [write API description](../use/api/write-data.md#upsert).
@@ -223,9 +223,8 @@ For more complex examples and explanations, see the [write API chapter](../use/a
 
 ## Delete any of existing entities
 
-You can issue a query that removes all the entities that match the query using the same catalog data API which you
-would use for insert, updating and
-retrieving entities:
+You can issue a query that removes all the entities that match the query using the same catalog data API that you
+would use to insert, update or retrieve entities:
 
 <SourceCodeTabs langSpecificTabOnly>
 [Example of deleting entity by query](/docs/user/en/get-started/example/delete-entity-by-query.graphql)
