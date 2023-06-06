@@ -26,6 +26,7 @@ package io.evitadb.externalApi.graphql.api.resolver.dataFetcher;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.concurrent.CompletableFuture;
@@ -38,6 +39,7 @@ import java.util.concurrent.Executor;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
+@Slf4j
 public abstract class ReadDataFetcher<T> implements DataFetcher<CompletableFuture<T>> {
 
 	/**
@@ -47,7 +49,15 @@ public abstract class ReadDataFetcher<T> implements DataFetcher<CompletableFutur
 
 	@Override
 	public CompletableFuture<T> get(DataFetchingEnvironment environment) throws Exception {
-		return CompletableFuture.supplyAsync(() -> doGet(environment), executor);
+		return CompletableFuture.supplyAsync(() -> {
+			try {
+				return doGet(environment);
+			} catch (Throwable e) {
+				/* TODO LHO */
+				log.error("", e);
+				throw e;
+			}
+		}, executor);
 	}
 
 	/**

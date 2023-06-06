@@ -34,9 +34,10 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
-import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * GraphQL API specific configuration.
@@ -52,27 +53,37 @@ public class GraphQLConfig extends AbstractApiConfiguration implements ApiWithSp
 	 * Default value is `gql`.
 	 */
 	@Getter private final String prefix;
+	/**
+	 * Controls whether the ReadDataFetcher will be executed in parallel.
+	 */
+	@Getter private final boolean parallelize;
 	@Getter private final String[] allowedOrigins;
 
 	public GraphQLConfig() {
 		super();
 		this.prefix = BASE_GRAPHQL_PATH;
+		this.parallelize = false;
 		this.allowedOrigins = null;
 	}
 
 	public GraphQLConfig(@Nonnull String host) {
 		super(true, host);
 		this.prefix = BASE_GRAPHQL_PATH;
+		this.parallelize = false;
 		this.allowedOrigins = null;
 	}
 
 	@JsonCreator
-	public GraphQLConfig(@Nullable @JsonProperty("enabled") Boolean enabled,
-	                     @Nonnull @JsonProperty("host") String host,
-	                     @Nullable @JsonProperty("prefix") String prefix,
-	                     @Nullable @JsonProperty("allowedOrigins") String allowedOrigins) {
+	public GraphQLConfig(
+		@Nullable @JsonProperty("enabled") Boolean enabled,
+		@Nonnull @JsonProperty("host") String host,
+		@Nullable @JsonProperty("prefix") String prefix,
+		@Nullable @JsonProperty("allowedOrigins") String allowedOrigins,
+		@Nullable @JsonProperty("parallelize") Boolean parallelize
+	) {
 		super(enabled, host);
-		this.prefix = Optional.ofNullable(prefix).orElse(BASE_GRAPHQL_PATH);
+		this.prefix = ofNullable(prefix).orElse(BASE_GRAPHQL_PATH);
+		this.parallelize = ofNullable(parallelize).orElse(false);
 		if (allowedOrigins == null) {
 			this.allowedOrigins = null;
 		} else {
