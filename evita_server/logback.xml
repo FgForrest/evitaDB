@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~
+  ~                         _ _        ____  ____
+  ~               _____   _(_) |_ __ _|  _ \| __ )
+  ~              / _ \ \ / / | __/ _` | | | |  _ \
+  ~             |  __/\ V /| | || (_| | |_| | |_) |
+  ~              \___| \_/ |_|\__\__,_|____/|____/
+  ~
+  ~   Copyright (c) 2023
+  ~
+  ~   Licensed under the Business Source License, Version 1.1 (the "License");
+  ~   you may not use this file except in compliance with the License.
+  ~   You may obtain a copy of the License at
+  ~
+  ~   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+  ~
+  ~   Unless required by applicable law or agreed to in writing, software
+  ~   distributed under the License is distributed on an "AS IS" BASIS,
+  ~   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~   See the License for the specific language governing permissions and
+  ~   limitations under the License.
+  -->
+
+<configuration>
+
+	<appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
+		<target>System.err</target>
+		<filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+			<level>WARN</level>
+		</filter>
+		<encoder>
+			<pattern>%d{HH:mm:ss.SSS} %-5level %logger{10} - %msg%n</pattern>
+		</encoder>
+	</appender>
+
+	<appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+		<target>System.out</target>
+		<filter class="ch.qos.logback.classic.filter.LevelFilter">
+			<level>INFO</level>
+			<onMatch>ACCEPT</onMatch>
+			<onMismatch>DENY</onMismatch>
+		</filter>
+		<encoder>
+			<pattern>%d{HH:mm:ss.SSS} %-5level %logger{10} - %msg%n</pattern>
+		</encoder>
+	</appender>
+
+	<appender name="FILE" class="ch.qos.logback.core.FileAppender">
+		<file>/evita/logs/evita_server.log</file>
+
+		<encoder>
+			<pattern>%date %level [%thread] %logger{10} [%file:%line] -%kvp- %msg%n</pattern>
+		</encoder>
+	</appender>
+
+	<root level="INFO">
+		<appender-ref ref="STDOUT" />
+		<appender-ref ref="STDERR" />
+		<appender-ref ref="FILE" />
+	</root>
+
+	<logger name="org.xnio" level="ERROR"/>
+	<logger name="org.jboss" level="ERROR"/>
+	<logger name="io.undertow" level="ERROR"/>
+
+</configuration>

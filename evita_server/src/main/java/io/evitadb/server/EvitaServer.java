@@ -169,15 +169,15 @@ public class EvitaServer {
 	 * Initializes the file from the specified location.
 	 */
 	private static String initLog() {
-		final String logMsg;
+		String logMsg;
 		if (System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY) == null) {
 			System.setProperty(ContextInitializer.CONFIG_FILE_PROPERTY, "META-INF/logback.xml");
 			logMsg = null;
 		} else {
 			final String originalFilePath = System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY);
-			final File logFile = new File(ContextInitializer.CONFIG_FILE_PROPERTY);
+			final File logFile = new File(originalFilePath);
 			if (!logFile.exists() || !logFile.isFile()) {
-				logMsg = "original file `" + originalFilePath + "` doesn't exit";
+				logMsg = "original file `" + originalFilePath + "` doesn't exist";
 				System.setProperty(ContextInitializer.CONFIG_FILE_PROPERTY, "META-INF/logback.xml");
 			} else {
 				logMsg = null;
