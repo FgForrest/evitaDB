@@ -58,7 +58,8 @@ public class AttributeNaturalTranslator
 	@Nonnull
 	@Override
 	public Sorter createSorter(@Nonnull AttributeNatural attributeNatural, @Nonnull OrderByVisitor orderByVisitor) {
-		final String attributeName = attributeNatural.getAttributeName();
+		/* TODO JNO - handle this */
+		final String attributeName = attributeNatural.getAttributeNames()[0];
 		final OrderDirection orderDirection = attributeNatural.getOrderDirection();
 		final Sorter lastUsedSorter = orderByVisitor.getLastUsedSorter();
 		final Locale locale = orderByVisitor.getLocale();
@@ -109,7 +110,8 @@ public class AttributeNaturalTranslator
 	@Nonnull
 	@Override
 	public ReferenceComparator createComparator(@Nonnull AttributeNatural attributeNatural, @Nonnull ReferenceOrderByVisitor orderByVisitor) {
-		final String attributeName = attributeNatural.getAttributeName();
+		/* TODO JNO - Handle this */
+		final String attributeName = attributeNatural.getAttributeNames()[0];
 		final OrderDirection orderDirection = attributeNatural.getOrderDirection();
 		final ReferenceComparator lastUsedComparator = orderByVisitor.getLastUsedComparator();
 		final Locale locale = orderByVisitor.getLocale();

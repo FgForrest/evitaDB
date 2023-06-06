@@ -2003,19 +2003,19 @@ public interface QueryConstraints {
 	 * Sorts returned entities by values in attribute with name passed in the first argument
 	 * and optionally order direction in second. First argument must be of {@link String} type. Second argument must be one of
 	 * {@link OrderDirection} enum otherwise {@link OrderDirection#ASC} is the default.
-	 * 
+	 *
 	 * Ordering is executed by natural order of the {@link Comparable}
 	 * type.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * ```
 	 * attribute('married')
 	 * attribute('age', ASC)
 	 * ```
-	*/
+	 */
 	@Nonnull
-	static AttributeNatural attributeNatural(@Nonnull String attributeName, @Nonnull OrderDirection orderDirection) {
+	static AttributeNatural attributeNatural(@Nonnull OrderDirection orderDirection, @Nonnull String... attributeName) {
 		return new AttributeNatural(attributeName, orderDirection);
 	}
 

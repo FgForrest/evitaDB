@@ -2377,7 +2377,7 @@ public class EntityFetchingFunctionalTest {
 									filterBy(entityPrimaryKeyInSet(randomStores)),
 									orderBy(
 										entityProperty(
-											attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)
+											attributeNatural(OrderDirection.DESC, ATTRIBUTE_NAME)
 										)
 									),
 									entityFetch(attributeContent(), associatedDataContent())
@@ -2486,7 +2486,7 @@ public class EntityFetchingFunctionalTest {
 									),
 									orderBy(
 										entityProperty(
-											attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)
+											attributeNatural(OrderDirection.DESC, ATTRIBUTE_NAME)
 										)
 									),
 									entityFetch(attributeContent(), associatedDataContent())
@@ -2593,7 +2593,7 @@ public class EntityFetchingFunctionalTest {
 									),
 									orderBy(
 										entityProperty(
-											attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)
+											attributeNatural(OrderDirection.DESC, ATTRIBUTE_NAME)
 										)
 									)
 								)
@@ -2659,7 +2659,7 @@ public class EntityFetchingFunctionalTest {
 						filterBy(entityPrimaryKeyInSet(randomStores)),
 						orderBy(
 							entityProperty(
-								attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)
+								attributeNatural(OrderDirection.DESC, ATTRIBUTE_NAME)
 							)
 						),
 						entityFetch(attributeContent(), associatedDataContent())
@@ -2738,7 +2738,7 @@ public class EntityFetchingFunctionalTest {
 										attributeGreaterThanEquals(ATTRIBUTE_CATEGORY_PRIORITY, secondCategoryPriority)
 									),
 									orderBy(
-										attributeNatural(ATTRIBUTE_CATEGORY_PRIORITY, OrderDirection.DESC)
+										attributeNatural(OrderDirection.DESC, ATTRIBUTE_CATEGORY_PRIORITY)
 									),
 									entityFetch(attributeContent(), associatedDataContent())
 								)
@@ -2844,7 +2844,7 @@ public class EntityFetchingFunctionalTest {
 										)
 									),
 									orderBy(
-										attributeNatural(ATTRIBUTE_CATEGORY_PRIORITY, OrderDirection.DESC)
+										attributeNatural(OrderDirection.DESC, ATTRIBUTE_CATEGORY_PRIORITY)
 									),
 									entityFetch(attributeContent(), associatedDataContent())
 								)

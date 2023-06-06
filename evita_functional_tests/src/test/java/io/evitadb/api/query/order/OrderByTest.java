@@ -49,13 +49,13 @@ class OrderByTest {
 		final ConstraintContainer<OrderConstraint> orderBy =
 				orderBy(
 					QueryConstraints.attributeNatural("abc"),
-					attributeNatural("def", DESC)
+					attributeNatural(DESC, "def")
 				);
 		assertNotNull(orderBy);
 		assertEquals(2, orderBy.getChildrenCount());
-		assertEquals("abc", ((AttributeNatural)orderBy.getChildren()[0]).getAttributeName());
+		assertArrayEquals(new String[] {"abc"}, ((AttributeNatural)orderBy.getChildren()[0]).getAttributeNames());
 		assertEquals(ASC, ((AttributeNatural) orderBy.getChildren()[0]).getOrderDirection());
-		assertEquals("def", ((AttributeNatural)orderBy.getChildren()[1]).getAttributeName());
+		assertArrayEquals(new String[] {"def"}, ((AttributeNatural)orderBy.getChildren()[1]).getAttributeNames());
 		assertEquals(DESC, ((AttributeNatural) orderBy.getChildren()[1]).getOrderDirection());
 	}
 
@@ -67,7 +67,7 @@ class OrderByTest {
 
 	@Test
 	void shouldRecognizeNecessity() {
-		assertTrue(new OrderBy(QueryConstraints.attributeNatural("abc"), attributeNatural("xyz", DESC)).isNecessary());
+		assertTrue(new OrderBy(QueryConstraints.attributeNatural("abc"), attributeNatural(DESC, "xyz")).isNecessary());
 		assertTrue(new OrderBy(QueryConstraints.attributeNatural("abc")).isNecessary());
 		assertFalse(new OrderBy().isNecessary());
 	}
@@ -77,7 +77,7 @@ class OrderByTest {
 		final ConstraintContainer<OrderConstraint> orderBy =
 				orderBy(
 					QueryConstraints.attributeNatural("ab'c"),
-					attributeNatural("abc", DESC)
+					attributeNatural(DESC, "abc")
 				);
 		assertNotNull(orderBy);
 		assertEquals("orderBy(attributeNatural('ab\\'c',ASC),attributeNatural('abc',DESC))", orderBy.toString());

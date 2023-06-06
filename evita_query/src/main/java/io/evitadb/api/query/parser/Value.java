@@ -27,7 +27,6 @@ import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.LongNumberRange;
-import io.evitadb.dataType.Multiple;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
@@ -213,11 +212,6 @@ public class Value {
         } else {
             throw new EvitaInvalidUsageException("Expected currency or string value but got `" + actualValue.getClass().getName() + "`.");
         }
-    }
-
-    @Nonnull
-    public Multiple asMultiple() {
-        return asSpecificType(Multiple.class);
     }
 
     @Nonnull

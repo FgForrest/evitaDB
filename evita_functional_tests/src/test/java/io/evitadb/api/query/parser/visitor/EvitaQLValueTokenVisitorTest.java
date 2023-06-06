@@ -34,7 +34,6 @@ import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.LongNumberRange;
-import io.evitadb.dataType.Multiple;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -521,30 +520,6 @@ class EvitaQLValueTokenVisitorTest {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("WITH_TAX", String.class));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("withTax"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("_WITH-TAX"));
-    }
-
-    @Test
-    void shouldParseMultipleLiteral() {
-        final Value value1 = parseValueUnsafe("{123,'a'}");
-        assertEquals(Multiple.class, value1.getType());
-        assertEquals(new Multiple(123L, "a"), value1.asMultiple());
-
-        final Value value2 = parseValueUnsafe(formatValue(new Multiple(123L, "a")));
-        assertEquals(Multiple.class, value2.getType());
-        assertEquals(new Multiple(123L, "a"), value2.asMultiple());
-    }
-
-    @Test
-    void shouldNotParseMultipleLiteral() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValue("{123,'a'}"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("{123,'a'}", String.class));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("{}"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("{123}"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("{something}"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("{123,'a',{'b','c'}}"));
-
-        final Value value = parseValueUnsafe("[123,159]");
-        assertNotEquals(Multiple.class, value.getType());
     }
 
     /**

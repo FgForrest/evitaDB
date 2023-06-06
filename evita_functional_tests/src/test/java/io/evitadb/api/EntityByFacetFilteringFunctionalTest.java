@@ -1675,7 +1675,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 							Entities.PARAMETER,
 							FacetStatisticsDepth.COUNTS,
 							filterBy(attributeLessThanEquals(ATTRIBUTE_CODE, "K")),
-							orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
+							orderBy(attributeNatural(OrderDirection.DESC, ATTRIBUTE_NAME))
 						)
 					)
 				);
@@ -1758,7 +1758,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 							Entities.PARAMETER,
 							FacetStatisticsDepth.COUNTS,
 							filterGroupBy(attributeLessThanEquals(ATTRIBUTE_CODE, "K")),
-							orderGroupBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
+							orderGroupBy(attributeNatural(OrderDirection.DESC, ATTRIBUTE_NAME))
 						)
 					)
 				);

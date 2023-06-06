@@ -39,7 +39,6 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
-import io.evitadb.dataType.Multiple;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -254,7 +253,8 @@ public class EntityByAttributeFilteringFunctionalTest {
 								.withAttribute(ATTRIBUTE_MANUFACTURED, LocalDate.class, whichIs -> whichIs.filterable().sortable())
 								.withAttribute(ATTRIBUTE_CURRENCY, Currency.class, whichIs -> whichIs.filterable())
 								.withAttribute(ATTRIBUTE_LOCALE, Locale.class, whichIs -> whichIs.filterable())
-								.withAttribute(ATTRIBUTE_COMBINED_PRIORITY, Multiple.class, whichIs -> whichIs.filterable().sortable())
+								/* TODO JNO - THIS NEEDS TO REIMPLEMENTED AS MULTIPLE */
+								.withAttribute(ATTRIBUTE_COMBINED_PRIORITY, Long.class, whichIs -> whichIs.filterable().sortable())
 								.withAttribute(ATTRIBUTE_VISIBLE, Boolean.class, whichIs -> whichIs.filterable())
 								.withReferenceToEntity(
 									Entities.BRAND,
@@ -460,7 +460,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 							attributeInSet(ATTRIBUTE_CODE, codeAttribute1, codeAttribute2, codeAttribute3)
 						),
 						orderBy(
-							attributeNatural(ATTRIBUTE_CODE, ASC)
+							attributeNatural(ASC, ATTRIBUTE_CODE)
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
@@ -538,7 +538,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 						orderBy(
 							referenceProperty(
 								Entities.BRAND,
-								attributeNatural(ATTRIBUTE_MARKET_SHARE, ASC)
+								attributeNatural(ASC, ATTRIBUTE_MARKET_SHARE)
 							)
 						),
 						require(
@@ -948,7 +948,8 @@ public class EntityByAttributeFilteringFunctionalTest {
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldReturnEntitiesByAttributeEqualToMultiple(Evita evita, List<SealedEntity> originalProductEntities) {
-		final Multiple combinedPriorityAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_COMBINED_PRIORITY);
+		/* TODO JNO - rewrite this test */
+		final Long combinedPriorityAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_COMBINED_PRIORITY);
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2792,7 +2793,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 							attributeLessThan(ATTRIBUTE_PRIORITY, 35000L)
 						),
 						orderBy(
-							attributeNatural(ATTRIBUTE_CODE, DESC)
+							attributeNatural(DESC, ATTRIBUTE_CODE)
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
@@ -2831,7 +2832,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 							attributeLessThan(ATTRIBUTE_PRIORITY, 35000L)
 						),
 						orderBy(
-							attributeNatural(ATTRIBUTE_CREATED, DESC),
+							attributeNatural(DESC, ATTRIBUTE_CREATED),
 							attributeNatural(ATTRIBUTE_MANUFACTURED)
 						),
 						require(
@@ -2878,7 +2879,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 							attributeLessThan(ATTRIBUTE_PRIORITY, 14000L)
 						),
 						orderBy(
-							attributeNatural(ATTRIBUTE_PRIORITY, DESC)
+							attributeNatural(DESC, ATTRIBUTE_PRIORITY)
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
@@ -2980,6 +2981,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldSortEntitiesAccordingToAttribute(Evita evita, List<SealedEntity> originalProductEntities) {
+		/* TODO JNO - update this test */
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2990,7 +2992,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 							attributeIsNotNull(ATTRIBUTE_COMBINED_PRIORITY)
 						),
 						orderBy(
-							attributeNatural(ATTRIBUTE_COMBINED_PRIORITY, DESC)
+							attributeNatural(DESC, ATTRIBUTE_COMBINED_PRIORITY)
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
@@ -3004,7 +3006,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 					result.getRecordData(),
 					sealedEntity -> sealedEntity.getAttribute(ATTRIBUTE_COMBINED_PRIORITY) != null,
 					(sealedEntityA, sealedEntityB) -> {
-						final Multiple priority = sealedEntityB.getAttribute(ATTRIBUTE_COMBINED_PRIORITY);
+						final Long priority = sealedEntityB.getAttribute(ATTRIBUTE_COMBINED_PRIORITY);
 						return priority.compareTo(sealedEntityA.getAttribute(ATTRIBUTE_COMBINED_PRIORITY));
 					}
 				);
@@ -3032,7 +3034,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 						orderBy(
 							referenceProperty(
 								Entities.BRAND,
-								attributeNatural(ATTRIBUTE_MARKET_SHARE, DESC)
+								attributeNatural(DESC, ATTRIBUTE_MARKET_SHARE)
 							)
 						),
 						require(
@@ -3070,7 +3072,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 						orderBy(
 							referenceProperty(
 								Entities.BRAND,
-								attributeNatural(ATTRIBUTE_MARKET_SHARE, DESC)
+								attributeNatural(DESC, ATTRIBUTE_MARKET_SHARE)
 							),
 							referenceProperty(
 								Entities.STORE,

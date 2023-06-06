@@ -437,7 +437,7 @@ class DefaultQueryParserTest {
     void shouldParseOrderConstraintListUnsafe() {
         final List<OrderConstraint> constraintList2 = parser.parseOrderConstraintListUnsafe("attributeNatural('code',ASC),attributeNatural('age',DESC)");
         assertEquals(
-            List.of(attributeNatural("code", OrderDirection.ASC), attributeNatural("age", OrderDirection.DESC)),
+            List.of(attributeNatural(OrderDirection.ASC, "code"), attributeNatural(OrderDirection.DESC, "age")),
             constraintList2
         );
     }

@@ -2347,7 +2347,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							hierarchyOfReference(
 								Entities.CATEGORY,
 								orderBy(
-									attributeNatural(ATTRIBUTE_NAME, OrderDirection.ASC)
+									attributeNatural(OrderDirection.ASC, ATTRIBUTE_NAME)
 								),
 								fromRoot(
 									"megaMenu",

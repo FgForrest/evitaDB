@@ -43,7 +43,6 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
-import io.evitadb.dataType.Multiple;
 import io.evitadb.dataType.data.DataItem;
 import io.evitadb.dataType.data.DataItemMap;
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
@@ -528,8 +527,6 @@ public class DataGenerator {
 					randomArray[i] = generateRandomNumberRange(fakerToUse);
 				}
 				value = randomArray;
-			} else if (Multiple.class.equals(type)) {
-				value = new Multiple(fakerToUse.random().nextInt(10000), fakerToUse.random().nextInt(10000));
 			} else if (type.isEnum()) {
 				final Object[] values = type.getEnumConstants();
 				value = values[fakerToUse.random().nextInt(values.length)];

@@ -57,7 +57,7 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 	@Test
 	void shouldResolveValueOrderConstraint() {
 		assertEquals(
-			attributeNatural("CODE", OrderDirection.ASC),
+			attributeNatural(OrderDirection.ASC, "CODE"),
 			resolver.resolve(
 				Entities.PRODUCT,
 				"attributeCodeNatural",
@@ -78,7 +78,7 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 		assertEquals(
 			referenceProperty(
 				"CATEGORY",
-				attributeNatural("CODE", OrderDirection.ASC),
+				attributeNatural(OrderDirection.ASC, "CODE"),
 				random()
 			),
 			resolver.resolve(
@@ -104,11 +104,11 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 		//noinspection ConstantConditions
 		assertEquals(
 			orderBy(
-				attributeNatural("CODE", OrderDirection.ASC),
+				attributeNatural(OrderDirection.ASC, "CODE"),
 				priceNatural(OrderDirection.DESC),
 				referenceProperty(
 					"CATEGORY",
-					attributeNatural("CODE", OrderDirection.DESC),
+					attributeNatural(OrderDirection.DESC, "CODE"),
 					random()
 				)
 			),

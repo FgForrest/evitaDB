@@ -30,11 +30,11 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAttributesDescriptor;
-import io.evitadb.test.tester.RestTester;
-import io.evitadb.test.tester.RestTester.Request;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.tester.RestTester;
+import io.evitadb.test.tester.RestTester.Request;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -1148,7 +1148,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 								attributeLessThan(ATTRIBUTE_PRIORITY, 35000L)
 							),
 							orderBy(
-								attributeNatural(TestDataGenerator.ATTRIBUTE_CREATED, DESC),
+								attributeNatural(DESC, TestDataGenerator.ATTRIBUTE_CREATED),
 								attributeNatural(TestDataGenerator.ATTRIBUTE_MANUFACTURED)
 							),
 							require(

@@ -500,7 +500,6 @@ public class EvitaDataTypes {
 		queryDataTypes.add(IntegerNumberRange.class);
 		queryDataTypes.add(ShortNumberRange.class);
 		queryDataTypes.add(ByteNumberRange.class);
-		queryDataTypes.add(Multiple.class);
 		queryDataTypes.add(Locale.class);
 		queryDataTypes.add(Currency.class);
 		SUPPORTED_QUERY_DATA_TYPES = Collections.unmodifiableSet(queryDataTypes);
@@ -660,8 +659,6 @@ public class EvitaDataTypes {
 			return value.toString();
 		} else if (value instanceof Range) {
 			return value.toString();
-		} else if (value instanceof Multiple) {
-			return value.toString();
 		} else if (value instanceof OffsetDateTime) {
 			return DateTimeFormatter.ISO_OFFSET_DATE_TIME.format((TemporalAccessor) value);
 		} else if (value instanceof LocalDateTime) {
@@ -743,8 +740,6 @@ public class EvitaDataTypes {
 				+ 2 * (innerDataType == null ? 0 : estimateSize(innerDataType)) +
 				MemoryMeasuringConstants.REFERENCE_SIZE + MemoryMeasuringConstants.INT_SIZE +
 				2 * (MemoryMeasuringConstants.LONG_SIZE);
-		} else if (unknownObject instanceof final Multiple multiple) {
-			return MemoryMeasuringConstants.OBJECT_HEADER_SIZE + EvitaDataTypes.estimateSize(multiple.getValues());
 		} else if (unknownObject instanceof Locale) {
 			return 0;
 		} else if (unknownObject instanceof Enum) {
@@ -794,12 +789,6 @@ public class EvitaDataTypes {
 			result = DATE_TIME_RANGE_FUNCTION.apply(requestedType, unknownObject);
 		} else if (NumberRange.class.isAssignableFrom(requestedType)) {
 			result = NUMBER_RANGE_FUNCTION.apply(new TypeWithPrecision(requestedType, allowedDecimalPlaces), unknownObject);
-		} else if (Multiple.class.isAssignableFrom(requestedType)) {
-			if (unknownObject instanceof Multiple) {
-				result = unknownObject;
-			} else {
-				throw new InconvertibleDataTypeException(requestedType, unknownObject);
-			}
 		} else if (Locale.class.isAssignableFrom(requestedType)) {
 			result = LOCALE_FUNCTION.apply(requestedType, unknownObject);
 		} else if (Currency.class.isAssignableFrom(requestedType)) {

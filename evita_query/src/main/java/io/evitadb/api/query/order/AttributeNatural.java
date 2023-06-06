@@ -31,10 +31,12 @@ import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
+import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Arrays;
 
 /**
  * Sorts returned entities by values in attribute with name passed in the first argument
@@ -68,14 +70,25 @@ public class AttributeNatural extends AbstractOrderConstraintLeaf implements Att
         super(arguments);
     }
 
-    public AttributeNatural(@Nonnull String attributeName) {
+    public AttributeNatural(@Nonnull String... attributeName) {
         super(attributeName, OrderDirection.ASC);
     }
 
-    @Creator
-    public AttributeNatural(@Nonnull @Classifier String attributeName,
-                            @Nonnull @Value OrderDirection orderDirection) {
+    public AttributeNatural(@Nonnull String attributeName, @Nonnull OrderDirection orderDirection) {
         super(attributeName, orderDirection);
+    }
+
+    @Creator
+    public AttributeNatural(
+        @Nonnull @Classifier String[] attributeName,
+        @Nonnull @Value OrderDirection orderDirection
+    ) {
+        super(
+            ArrayUtils.mergeArrays(
+                attributeName,
+                new Serializable[] {orderDirection}
+            )
+        );
     }
 
     @Override
@@ -86,8 +99,10 @@ public class AttributeNatural extends AbstractOrderConstraintLeaf implements Att
     /**
      * Returns attribute name that needs to be examined.
      */
-    public String getAttributeName() {
-        return (String) getArguments()[0];
+    public String[] getAttributeNames() {
+        return Arrays.stream(getArguments())
+            .filter(String.class::isInstance)
+            .toArray(String[]::new);
     }
 
     /**
@@ -95,7 +110,11 @@ public class AttributeNatural extends AbstractOrderConstraintLeaf implements Att
      */
     @Nonnull
     public OrderDirection getOrderDirection() {
-        return (OrderDirection) getArguments()[1];
+        return Arrays.stream(getArguments())
+            .filter(OrderDirection.class::isInstance)
+            .map(OrderDirection.class::cast)
+            .findFirst()
+            .orElse(OrderDirection.ASC);
     }
 
     @Nonnull

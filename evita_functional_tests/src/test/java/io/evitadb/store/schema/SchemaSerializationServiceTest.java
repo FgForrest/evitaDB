@@ -31,7 +31,6 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.DateTimeRange;
-import io.evitadb.dataType.Multiple;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
 import io.evitadb.utils.NamingConvention;
@@ -103,7 +102,6 @@ class SchemaSerializationServiceTest {
 			.withAttribute("validity", DateTimeRange.class, whichIs -> whichIs.filterable())
 			.withAttribute("quantity", BigDecimal.class, whichIs -> whichIs.filterable().indexDecimalPlaces(2))
 			.withAttribute("alias", Boolean.class, whichIs -> whichIs.filterable())
-			.withAttribute("multiple", Multiple.class, whichIs -> whichIs.sortable())
 			/* here we define set of associated data, that can be stored along with entity */
 			.withAssociatedData("referencedFiles", ReferencedFileSet.class)
 			.withAssociatedData("labels", Labels.class, whichIs -> whichIs.localized())

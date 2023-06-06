@@ -255,7 +255,7 @@ class QueryTest {
 					)
 				),
 				orderBy(
-					attributeNatural("name", DESC)
+					attributeNatural(DESC, "name")
 				),
 				require(
 					page(1, 5)
@@ -399,7 +399,7 @@ class QueryTest {
 					)
 				),
 				orderBy(
-					attributeNatural("name", DESC)
+					attributeNatural(DESC, "name")
 				),
 				require(
 					page(1, 5)
@@ -500,7 +500,7 @@ class QueryTest {
 				),
 				orderBy(
 					attributeNatural("name"),
-					attributeNatural(null, DESC)
+					attributeNatural(DESC, null)
 				),
 				require(
 					page(1, 5)

@@ -41,18 +41,23 @@ class AttributeNaturalTest {
 	@Test
 	void shouldCreateViaFactoryClassWorkAsExpected() {
 		final AttributeNatural attributeNatural1 = attributeNatural("age");
-		assertEquals("age", attributeNatural1.getAttributeName());
+		assertArrayEquals(new String[] {"age"}, attributeNatural1.getAttributeNames());
 		assertEquals(ASC, attributeNatural1.getOrderDirection());
 
-		final AttributeNatural attributeNatural2 = attributeNatural("married", DESC);
-		assertEquals("married", attributeNatural2.getAttributeName());
+		final AttributeNatural attributeNatural2 = attributeNatural(DESC, "married");
+		assertArrayEquals(new String[] {"married"}, attributeNatural2.getAttributeNames());
 		assertEquals(DESC, attributeNatural2.getOrderDirection());
+
+		final AttributeNatural attributeNatural3 = attributeNatural(DESC, "age", "married");
+		assertArrayEquals(new String[] {"age", "married"}, attributeNatural3.getAttributeNames());
+		assertEquals(DESC, attributeNatural3.getOrderDirection());
 	}
 
 	@Test
 	void shouldRecognizeApplicability() {
 		assertTrue(attributeNatural("married").isApplicable());
-		assertTrue(attributeNatural("age", DESC).isApplicable());
+		assertTrue(attributeNatural(DESC, "age").isApplicable());
+		assertTrue(attributeNatural(DESC, "married", "age").isApplicable());
 		assertFalse(attributeNatural(null).isApplicable());
 	}
 
@@ -61,7 +66,7 @@ class AttributeNaturalTest {
 		final AttributeNatural attributeNatural1 = attributeNatural("married");
 		assertEquals("attributeNatural('married',ASC)", attributeNatural1.toString());
 
-		final AttributeNatural attributeNatural2 = attributeNatural("married", DESC);
+		final AttributeNatural attributeNatural2 = attributeNatural(DESC, "married");
 		assertEquals("attributeNatural('married',DESC)", attributeNatural2.toString());
 	}
 
@@ -69,11 +74,11 @@ class AttributeNaturalTest {
 	void shouldConformToEqualsAndHashContract() {
 		assertNotSame(attributeNatural("married"), attributeNatural("married"));
 		assertEquals(attributeNatural("married"), attributeNatural("married"));
-		assertEquals(attributeNatural("married", ASC), attributeNatural("married"));
+		assertEquals(attributeNatural(ASC, "married"), attributeNatural("married"));
 		assertNotEquals(attributeNatural("married"), attributeNatural("single"));
 		assertNotEquals(attributeNatural("married"), attributeNatural(null));
 		assertEquals(attributeNatural("married").hashCode(), attributeNatural("married").hashCode());
-		assertEquals(attributeNatural("married", ASC).hashCode(), attributeNatural("married").hashCode());
+		assertEquals(attributeNatural(ASC, "married").hashCode(), attributeNatural("married").hashCode());
 		assertNotEquals(attributeNatural("married").hashCode(), attributeNatural("single").hashCode());
 		assertNotEquals(attributeNatural("married").hashCode(), attributeNatural(null).hashCode());
 	}

@@ -570,7 +570,7 @@ class EvitaTest implements EvitaTestSupport {
 						query(
 							collection(Entities.PRODUCT),
 							orderBy(
-								attributeNatural(ATTRIBUTE_NAME, OrderDirection.ASC)
+								attributeNatural(OrderDirection.ASC, ATTRIBUTE_NAME)
 							)
 						),
 						EntityClassifier.class
@@ -608,7 +608,7 @@ class EvitaTest implements EvitaTestSupport {
 							orderBy(
 								referenceProperty(
 									Entities.BRAND,
-									attributeNatural(ATTRIBUTE_NAME, OrderDirection.ASC)
+									attributeNatural(OrderDirection.ASC, ATTRIBUTE_NAME)
 								)
 							)
 						),

@@ -34,7 +34,6 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.IntegerNumberRange;
-import io.evitadb.dataType.Multiple;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -151,7 +150,8 @@ public class CombinedEntityFilteringFunctionalTest {
 								.withAttribute(ATTRIBUTE_SIZE, IntegerNumberRange[].class, whichIs -> whichIs.filterable())
 								.withAttribute(ATTRIBUTE_CREATED, OffsetDateTime.class, whichIs -> whichIs.filterable().sortable())
 								.withAttribute(ATTRIBUTE_MANUFACTURED, LocalDate.class, whichIs -> whichIs.filterable().sortable())
-								.withAttribute(ATTRIBUTE_COMBINED_PRIORITY, Multiple.class, whichIs -> whichIs.filterable().sortable())
+								/* TODO JNO - upravit na vícenásobné filtrování */
+								.withAttribute(ATTRIBUTE_COMBINED_PRIORITY, Long.class, whichIs -> whichIs.filterable().sortable())
 								.withAttribute(ATTRIBUTE_TARGET_MARKET, String.class, whichIs -> whichIs.filterable())
 								.withReferenceToEntity(
 									Entities.BRAND,

@@ -329,7 +329,6 @@ valueToken
     | INT_NUMBER_RANGE                                                                                    # intNumberRangeValueToken
     | DATE_TIME_RANGE                                                                                     # dateTimeRangeValueToken
     | ENUM                                                                                                # enumValueToken
-    | MULTIPLE_OPENING values = variadicValueTokens MULTIPLE_CLOSING                                      # multipleValueToken
     ;
 
 
@@ -380,10 +379,6 @@ ARGS_OPENING : '(' ;
 ARGS_CLOSING : ')' ;
 
 ARGS_DELIMITER : ',' ;
-
-MULTIPLE_OPENING : '{' ;
-
-MULTIPLE_CLOSING : '}' ;
 
 
 /**

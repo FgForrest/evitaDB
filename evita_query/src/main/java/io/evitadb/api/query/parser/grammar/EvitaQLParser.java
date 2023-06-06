@@ -1,15 +1,49 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2023
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
 // Generated from EvitaQL.g4 by ANTLR 4.9.2
 
 package io.evitadb.api.query.parser.grammar;
 
-import org.antlr.v4.runtime.atn.*;
+import org.antlr.v4.runtime.NoViableAltException;
+import org.antlr.v4.runtime.Parser;
+import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.RecognitionException;
+import org.antlr.v4.runtime.RuntimeMetaData;
+import org.antlr.v4.runtime.TokenStream;
+import org.antlr.v4.runtime.Vocabulary;
+import org.antlr.v4.runtime.VocabularyImpl;
+import org.antlr.v4.runtime.atn.ATN;
+import org.antlr.v4.runtime.atn.ATNDeserializer;
+import org.antlr.v4.runtime.atn.ParserATNSimulator;
+import org.antlr.v4.runtime.atn.PredictionContextCache;
 import org.antlr.v4.runtime.dfa.DFA;
-import org.antlr.v4.runtime.*;
-import org.antlr.v4.runtime.misc.*;
-import org.antlr.v4.runtime.tree.*;
-import java.util.List;
-import java.util.Iterator;
+import org.antlr.v4.runtime.tree.ParseTreeListener;
+import org.antlr.v4.runtime.tree.ParseTreeVisitor;
+import org.antlr.v4.runtime.tree.TerminalNode;
+
 import java.util.ArrayList;
+import java.util.List;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})
 public class EvitaQLParser extends Parser {
@@ -34,8 +68,8 @@ public class EvitaQLParser extends Parser {
 		T__87=88, POSITIONAL_PARAMETER=89, NAMED_PARAMETER=90, STRING=91, INT=92, 
 		FLOAT=93, BOOLEAN=94, DATE=95, TIME=96, DATE_TIME=97, OFFSET_DATE_TIME=98, 
 		FLOAT_NUMBER_RANGE=99, INT_NUMBER_RANGE=100, DATE_TIME_RANGE=101, ENUM=102, 
-		ARGS_OPENING=103, ARGS_CLOSING=104, ARGS_DELIMITER=105, MULTIPLE_OPENING=106, 
-		MULTIPLE_CLOSING=107, WHITESPACE=108, UNEXPECTED_CHAR=109;
+		ARGS_OPENING=103, ARGS_CLOSING=104, ARGS_DELIMITER=105, WHITESPACE=106, 
+		UNEXPECTED_CHAR=107;
 	public static final int
 		RULE_queryUnit = 0, RULE_headConstraintListUnit = 1, RULE_filterConstraintListUnit = 2, 
 		RULE_orderConstraintListUnit = 3, RULE_requireConstraintListUnit = 4, 
@@ -119,7 +153,7 @@ public class EvitaQLParser extends Parser {
 			"'node'", "'stopAt'", "'statistics'", "'fromRoot'", "'fromNode'", "'children'", 
 			"'siblings'", "'parents'", "'hierarchyOfSelf'", "'hierarchyOfReference'", 
 			"'queryTelemetry'", "'?'", null, null, null, null, null, null, null, 
-			null, null, null, null, null, null, "'('", "')'", "','", "'{'", "'}'"
+			null, null, null, null, null, null, "'('", "')'", "','"
 		};
 	}
 	private static final String[] _LITERAL_NAMES = makeLiteralNames();
@@ -135,8 +169,7 @@ public class EvitaQLParser extends Parser {
 			null, null, null, null, null, "POSITIONAL_PARAMETER", "NAMED_PARAMETER", 
 			"STRING", "INT", "FLOAT", "BOOLEAN", "DATE", "TIME", "DATE_TIME", "OFFSET_DATE_TIME", 
 			"FLOAT_NUMBER_RANGE", "INT_NUMBER_RANGE", "DATE_TIME_RANGE", "ENUM", 
-			"ARGS_OPENING", "ARGS_CLOSING", "ARGS_DELIMITER", "MULTIPLE_OPENING", 
-			"MULTIPLE_CLOSING", "WHITESPACE", "UNEXPECTED_CHAR"
+			"ARGS_OPENING", "ARGS_CLOSING", "ARGS_DELIMITER", "WHITESPACE", "UNEXPECTED_CHAR"
 		};
 	}
 	private static final String[] _SYMBOLIC_NAMES = makeSymbolicNames();
@@ -8479,28 +8512,6 @@ public class EvitaQLParser extends Parser {
 			else return visitor.visitChildren(this);
 		}
 	}
-	public static class MultipleValueTokenContext extends ValueTokenContext {
-		public VariadicValueTokensContext values;
-		public TerminalNode MULTIPLE_OPENING() { return getToken(EvitaQLParser.MULTIPLE_OPENING, 0); }
-		public TerminalNode MULTIPLE_CLOSING() { return getToken(EvitaQLParser.MULTIPLE_CLOSING, 0); }
-		public VariadicValueTokensContext variadicValueTokens() {
-			return getRuleContext(VariadicValueTokensContext.class,0);
-		}
-		public MultipleValueTokenContext(ValueTokenContext ctx) { copyFrom(ctx); }
-		@Override
-		public void enterRule(ParseTreeListener listener) {
-			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).enterMultipleValueToken(this);
-		}
-		@Override
-		public void exitRule(ParseTreeListener listener) {
-			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).exitMultipleValueToken(this);
-		}
-		@Override
-		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-			if ( visitor instanceof EvitaQLVisitor ) return ((EvitaQLVisitor<? extends T>)visitor).visitMultipleValueToken(this);
-			else return visitor.visitChildren(this);
-		}
-	}
 	public static class EnumValueTokenContext extends ValueTokenContext {
 		public TerminalNode ENUM() { return getToken(EvitaQLParser.ENUM, 0); }
 		public EnumValueTokenContext(ValueTokenContext ctx) { copyFrom(ctx); }
@@ -8593,7 +8604,7 @@ public class EvitaQLParser extends Parser {
 		ValueTokenContext _localctx = new ValueTokenContext(_ctx, getState());
 		enterRule(_localctx, 136, RULE_valueToken);
 		try {
-			setState(960);
+			setState(956);
 			_errHandler.sync(this);
 			switch (_input.LA(1)) {
 			case POSITIONAL_PARAMETER:
@@ -8708,18 +8719,6 @@ public class EvitaQLParser extends Parser {
 				match(ENUM);
 				}
 				break;
-			case MULTIPLE_OPENING:
-				_localctx = new MultipleValueTokenContext(_localctx);
-				enterOuterAlt(_localctx, 15);
-				{
-				setState(956);
-				match(MULTIPLE_OPENING);
-				setState(957);
-				((MultipleValueTokenContext)_localctx).values = variadicValueTokens();
-				setState(958);
-				match(MULTIPLE_CLOSING);
-				}
-				break;
 			default:
 				throw new NoViableAltException(this);
 			}
@@ -8736,7 +8735,7 @@ public class EvitaQLParser extends Parser {
 	}
 
 	public static final String _serializedATN =
-		"\3\u608b\ua72a\u8133\ub9ed\u417c\u3be7\u7786\u5964\3o\u03c5\4\2\t\2\4"+
+		"\3\u608b\ua72a\u8133\ub9ed\u417c\u3be7\u7786\u5964\3m\u03c1\4\2\t\2\4"+
 		"\3\t\3\4\4\t\4\4\5\t\5\4\6\t\6\4\7\t\7\4\b\t\b\4\t\t\t\4\n\t\n\4\13\t"+
 		"\13\4\f\t\f\4\r\t\r\4\16\t\16\4\17\t\17\4\20\t\20\4\21\t\21\4\22\t\22"+
 		"\4\23\t\23\4\24\t\24\4\25\t\25\4\26\t\26\4\27\t\27\4\30\t\30\4\31\t\31"+
@@ -8800,13 +8799,13 @@ public class EvitaQLParser extends Parser {
 		"\n?\r?\16?\u037d\3?\3?\3@\3@\3@\3@\3@\3@\3@\3@\6@\u038a\n@\r@\16@\u038b"+
 		"\3@\3@\3A\3A\3B\3B\3C\3C\3C\3C\3C\7C\u0399\nC\fC\16C\u039c\13C\5C\u039e"+
 		"\nC\3D\3D\3D\5D\u03a3\nD\3E\3E\3E\3E\3E\7E\u03aa\nE\fE\16E\u03ad\13E\5"+
-		"E\u03af\nE\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\5F\u03c3"+
-		"\nF\3F\2\2G\2\4\6\b\n\f\16\20\22\24\26\30\32\34\36 \"$&(*,.\60\62\64\66"+
-		"8:<>@BDFHJLNPRTVXZ\\^`bdfhjlnprtvxz|~\u0080\u0082\u0084\u0086\u0088\u008a"+
-		"\2\2\2\u0430\2\u008c\3\2\2\2\4\u008f\3\2\2\2\6\u0092\3\2\2\2\b\u0095\3"+
-		"\2\2\2\n\u0098\3\2\2\2\f\u009b\3\2\2\2\16\u009e\3\2\2\2\20\u00a1\3\2\2"+
-		"\2\22\u00a8\3\2\2\2\24\u00aa\3\2\2\2\26\u010a\3\2\2\2\30\u0126\3\2\2\2"+
-		"\32\u01a2\3\2\2\2\34\u01a4\3\2\2\2\36\u01ac\3\2\2\2 \u01b4\3\2\2\2\"\u01bc"+
+		"E\u03af\nE\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\3F\5F\u03bf\nF\3F\2"+
+		"\2G\2\4\6\b\n\f\16\20\22\24\26\30\32\34\36 \"$&(*,.\60\62\64\668:<>@B"+
+		"DFHJLNPRTVXZ\\^`bdfhjlnprtvxz|~\u0080\u0082\u0084\u0086\u0088\u008a\2"+
+		"\2\2\u042b\2\u008c\3\2\2\2\4\u008f\3\2\2\2\6\u0092\3\2\2\2\b\u0095\3\2"+
+		"\2\2\n\u0098\3\2\2\2\f\u009b\3\2\2\2\16\u009e\3\2\2\2\20\u00a1\3\2\2\2"+
+		"\22\u00a8\3\2\2\2\24\u00aa\3\2\2\2\26\u010a\3\2\2\2\30\u0126\3\2\2\2\32"+
+		"\u01a2\3\2\2\2\34\u01a4\3\2\2\2\36\u01ac\3\2\2\2 \u01b4\3\2\2\2\"\u01bc"+
 		"\3\2\2\2$\u01c4\3\2\2\2&\u01cf\3\2\2\2(\u01d2\3\2\2\2*\u01dd\3\2\2\2,"+
 		"\u01e1\3\2\2\2.\u01ec\3\2\2\2\60\u01f0\3\2\2\2\62\u01fb\3\2\2\2\64\u01ff"+
 		"\3\2\2\2\66\u0205\3\2\2\28\u020d\3\2\2\2:\u0213\3\2\2\2<\u021b\3\2\2\2"+
@@ -8818,7 +8817,7 @@ public class EvitaQLParser extends Parser {
 		"\3\2\2\2n\u0321\3\2\2\2p\u0339\3\2\2\2r\u033d\3\2\2\2t\u0348\3\2\2\2v"+
 		"\u0355\3\2\2\2x\u035f\3\2\2\2z\u0369\3\2\2\2|\u0375\3\2\2\2~\u0381\3\2"+
 		"\2\2\u0080\u038f\3\2\2\2\u0082\u0391\3\2\2\2\u0084\u039d\3\2\2\2\u0086"+
-		"\u03a2\3\2\2\2\u0088\u03ae\3\2\2\2\u008a\u03c2\3\2\2\2\u008c\u008d\5\20"+
+		"\u03a2\3\2\2\2\u0088\u03ae\3\2\2\2\u008a\u03be\3\2\2\2\u008c\u008d\5\20"+
 		"\t\2\u008d\u008e\7\2\2\3\u008e\3\3\2\2\2\u008f\u0090\5\34\17\2\u0090\u0091"+
 		"\7\2\2\3\u0091\5\3\2\2\2\u0092\u0093\5\36\20\2\u0093\u0094\7\2\2\3\u0094"+
 		"\7\3\2\2\2\u0095\u0096\5 \21\2\u0096\u0097\7\2\2\3\u0097\t\3\2\2\2\u0098"+
@@ -9089,22 +9088,20 @@ public class EvitaQLParser extends Parser {
 		"\u03a8\7k\2\2\u03a8\u03aa\5\u008aF\2\u03a9\u03a7\3\2\2\2\u03aa\u03ad\3"+
 		"\2\2\2\u03ab\u03a9\3\2\2\2\u03ab\u03ac\3\2\2\2\u03ac\u03af\3\2\2\2\u03ad"+
 		"\u03ab\3\2\2\2\u03ae\u03a4\3\2\2\2\u03ae\u03a5\3\2\2\2\u03ae\u03a6\3\2"+
-		"\2\2\u03af\u0089\3\2\2\2\u03b0\u03c3\5\u0080A\2\u03b1\u03c3\5\u0082B\2"+
-		"\u03b2\u03c3\7]\2\2\u03b3\u03c3\7^\2\2\u03b4\u03c3\7_\2\2\u03b5\u03c3"+
-		"\7`\2\2\u03b6\u03c3\7a\2\2\u03b7\u03c3\7b\2\2\u03b8\u03c3\7c\2\2\u03b9"+
-		"\u03c3\7d\2\2\u03ba\u03c3\7e\2\2\u03bb\u03c3\7f\2\2\u03bc\u03c3\7g\2\2"+
-		"\u03bd\u03c3\7h\2\2\u03be\u03bf\7l\2\2\u03bf\u03c0\5\u0088E\2\u03c0\u03c1"+
-		"\7m\2\2\u03c1\u03c3\3\2\2\2\u03c2\u03b0\3\2\2\2\u03c2\u03b1\3\2\2\2\u03c2"+
-		"\u03b2\3\2\2\2\u03c2\u03b3\3\2\2\2\u03c2\u03b4\3\2\2\2\u03c2\u03b5\3\2"+
-		"\2\2\u03c2\u03b6\3\2\2\2\u03c2\u03b7\3\2\2\2\u03c2\u03b8\3\2\2\2\u03c2"+
-		"\u03b9\3\2\2\2\u03c2\u03ba\3\2\2\2\u03c2\u03bb\3\2\2\2\u03c2\u03bc\3\2"+
-		"\2\2\u03c2\u03bd\3\2\2\2\u03c2\u03be\3\2\2\2\u03c3\u008b\3\2\2\2B\u00a8"+
-		"\u00b2\u00b7\u00be\u00e9\u00fe\u010a\u010f\u011a\u0126\u012b\u0134\u0139"+
-		"\u0146\u014f\u0166\u016b\u0184\u01a2\u01a9\u01b1\u01b9\u01c1\u01ca\u01d8"+
-		"\u01e7\u01f6\u0209\u023f\u0249\u0256\u0261\u026d\u0270\u027a\u0295\u029d"+
-		"\u02a5\u02af\u02b9\u02c1\u02c5\u02ca\u02d1\u02dd\u02e9\u02f1\u02f9\u0303"+
-		"\u031d\u0335\u0343\u0350\u035b\u0365\u0371\u037d\u038b\u039a\u039d\u03a2"+
-		"\u03ab\u03ae\u03c2";
+		"\2\2\u03af\u0089\3\2\2\2\u03b0\u03bf\5\u0080A\2\u03b1\u03bf\5\u0082B\2"+
+		"\u03b2\u03bf\7]\2\2\u03b3\u03bf\7^\2\2\u03b4\u03bf\7_\2\2\u03b5\u03bf"+
+		"\7`\2\2\u03b6\u03bf\7a\2\2\u03b7\u03bf\7b\2\2\u03b8\u03bf\7c\2\2\u03b9"+
+		"\u03bf\7d\2\2\u03ba\u03bf\7e\2\2\u03bb\u03bf\7f\2\2\u03bc\u03bf\7g\2\2"+
+		"\u03bd\u03bf\7h\2\2\u03be\u03b0\3\2\2\2\u03be\u03b1\3\2\2\2\u03be\u03b2"+
+		"\3\2\2\2\u03be\u03b3\3\2\2\2\u03be\u03b4\3\2\2\2\u03be\u03b5\3\2\2\2\u03be"+
+		"\u03b6\3\2\2\2\u03be\u03b7\3\2\2\2\u03be\u03b8\3\2\2\2\u03be\u03b9\3\2"+
+		"\2\2\u03be\u03ba\3\2\2\2\u03be\u03bb\3\2\2\2\u03be\u03bc\3\2\2\2\u03be"+
+		"\u03bd\3\2\2\2\u03bf\u008b\3\2\2\2B\u00a8\u00b2\u00b7\u00be\u00e9\u00fe"+
+		"\u010a\u010f\u011a\u0126\u012b\u0134\u0139\u0146\u014f\u0166\u016b\u0184"+
+		"\u01a2\u01a9\u01b1\u01b9\u01c1\u01ca\u01d8\u01e7\u01f6\u0209\u023f\u0249"+
+		"\u0256\u0261\u026d\u0270\u027a\u0295\u029d\u02a5\u02af\u02b9\u02c1\u02c5"+
+		"\u02ca\u02d1\u02dd\u02e9\u02f1\u02f9\u0303\u031d\u0335\u0343\u0350\u035b"+
+		"\u0365\u0371\u037d\u038b\u039a\u039d\u03a2\u03ab\u03ae\u03be";
 	public static final ATN _ATN =
 		new ATNDeserializer().deserialize(_serializedATN.toCharArray());
 	static {

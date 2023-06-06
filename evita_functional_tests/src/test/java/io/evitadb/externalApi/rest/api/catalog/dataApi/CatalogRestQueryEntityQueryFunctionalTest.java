@@ -1334,7 +1334,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 								attributeLessThan(ATTRIBUTE_PRIORITY, 35000L)
 							),
 							orderBy(
-								attributeNatural(TestDataGenerator.ATTRIBUTE_CREATED, DESC),
+								attributeNatural(DESC, TestDataGenerator.ATTRIBUTE_CREATED),
 								attributeNatural(TestDataGenerator.ATTRIBUTE_MANUFACTURED)
 							),
 							require(
@@ -2642,7 +2642,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							// we need only data about cardinalities
 							hierarchyOfSelf(
-								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								orderBy(attributeNatural(DESC, ATTRIBUTE_CODE)),
 								hierarchies
 							)
 						)
@@ -2709,7 +2709,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 							// we need only data about cardinalities
 							hierarchyOfReference(
 								Entities.CATEGORY,
-								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								orderBy(attributeNatural(DESC, ATTRIBUTE_CODE)),
 								hierarchies
 							)
 						)
