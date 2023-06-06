@@ -51,6 +51,7 @@ import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -97,7 +98,7 @@ public class GetUnknownEntityDataFetcher extends ReadDataFetcher<DataFetcherResu
 
     @Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 
-    public GetUnknownEntityDataFetcher(@Nonnull Executor executor,
+    public GetUnknownEntityDataFetcher(@Nullable Executor executor,
                                        @Nonnull CatalogSchemaContract catalogSchema,
                                        @Nonnull Set<EntitySchemaContract> allEntitySchemas) {
         super(executor);

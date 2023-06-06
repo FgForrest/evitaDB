@@ -29,6 +29,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -40,21 +41,26 @@ import java.util.concurrent.Executor;
  */
 @RequiredArgsConstructor
 @Slf4j
-public abstract class ReadDataFetcher<T> implements DataFetcher<CompletableFuture<T>> {
+public abstract class ReadDataFetcher<T> implements DataFetcher<Object> {
 
 	/**
-	 * Executor responsible for executing data fetcher asynchronously.
+	 * Executor responsible for executing data fetcher asynchronously. If null, data fetcher will work synchronously.
 	 */
-	@Nonnull private final Executor executor;
+	@Nullable private final Executor executor;
 
 	@Override
-	public CompletableFuture<T> get(DataFetchingEnvironment environment) throws Exception {
+	public Object get(DataFetchingEnvironment environment) throws Exception {
+		if (executor == null) {
+			// no executor, no async call
+			log.debug("No executor for processing data fetcher `" + getClass().getName() + "`, processing synchronously.");
+			return doGet(environment);
+		}
 		return CompletableFuture.supplyAsync(() -> {
 			try {
 				return doGet(environment);
 			} catch (Throwable e) {
-				/* TODO LHO */
-				log.error("", e);
+				// todo lho for debug, should be deleted after
+				log.error("DEBUG: Error occurred during async data fetcher call: ", e);
 				throw e;
 			}
 		}, executor);

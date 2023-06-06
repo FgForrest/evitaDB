@@ -29,6 +29,7 @@ import io.evitadb.api.EvitaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.graphql.api.GraphQLBuilder;
 import io.evitadb.externalApi.graphql.api.system.builder.SystemGraphQLSchemaBuilder;
+import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.graphql.exception.EvitaDataFetcherExceptionHandler;
 import lombok.RequiredArgsConstructor;
 
@@ -46,8 +47,8 @@ public class SystemGraphQLBuilder implements GraphQLBuilder {
     private final Evita evita;
 
     @Override
-    public GraphQL build() {
-        final GraphQLSchema schema = new SystemGraphQLSchemaBuilder(evita).build();
+    public GraphQL build(@Nonnull GraphQLConfig config) {
+        final GraphQLSchema schema = new SystemGraphQLSchemaBuilder(config, evita).build();
         final EvitaDataFetcherExceptionHandler dataFetcherExceptionHandler = new EvitaDataFetcherExceptionHandler();
 
         return GraphQL.newGraphQL(schema)

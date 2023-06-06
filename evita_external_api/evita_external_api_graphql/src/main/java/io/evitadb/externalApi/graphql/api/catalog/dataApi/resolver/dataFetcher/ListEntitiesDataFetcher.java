@@ -87,7 +87,7 @@ public class ListEntitiesDataFetcher extends ReadDataFetcher<DataFetcherResult<L
     @Nonnull private final OrderConstraintResolver orderConstraintResolver;
     @Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 
-    public ListEntitiesDataFetcher(@Nonnull Executor executor,
+    public ListEntitiesDataFetcher(@Nullable Executor executor,
                                    @Nonnull CatalogSchemaContract catalogSchema,
                                    @Nonnull EntitySchemaContract entitySchema) {
         super(executor);

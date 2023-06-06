@@ -62,14 +62,14 @@ public class GraphQLConfig extends AbstractApiConfiguration implements ApiWithSp
 	public GraphQLConfig() {
 		super();
 		this.prefix = BASE_GRAPHQL_PATH;
-		this.parallelize = false;
+		this.parallelize = true;
 		this.allowedOrigins = null;
 	}
 
 	public GraphQLConfig(@Nonnull String host) {
 		super(true, host);
 		this.prefix = BASE_GRAPHQL_PATH;
-		this.parallelize = false;
+		this.parallelize = true;
 		this.allowedOrigins = null;
 	}
 
