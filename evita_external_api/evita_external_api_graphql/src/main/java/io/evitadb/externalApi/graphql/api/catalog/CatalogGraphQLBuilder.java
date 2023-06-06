@@ -28,6 +28,7 @@ import graphql.schema.GraphQLSchema;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.externalApi.graphql.api.GraphQLBuilder;
+import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.graphql.exception.EvitaDataFetcherExceptionHandler;
 import lombok.RequiredArgsConstructor;
 
@@ -49,7 +50,7 @@ public class CatalogGraphQLBuilder implements GraphQLBuilder {
     private final GraphQLSchema graphQLSchema;
 
     @Override
-    public GraphQL build() {
+    public GraphQL build(@Nonnull GraphQLConfig config) {
         final EvitaSessionManagingInstrumentation instrumentation = new EvitaSessionManagingInstrumentation(evita, catalog.getName());
         final EvitaDataFetcherExceptionHandler dataFetcherExceptionHandler = new EvitaDataFetcherExceptionHandler();
 

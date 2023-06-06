@@ -30,6 +30,7 @@ import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.concurrent.Executor;
 
 /**
@@ -41,7 +42,7 @@ public class CollectionSizeDataFetcher extends ReadDataFetcher<Integer> {
 
 	@Nonnull private final EntitySchemaContract entitySchema;
 
-	public CollectionSizeDataFetcher(@Nonnull Executor executor, @Nonnull EntitySchemaContract entitySchema) {
+	public CollectionSizeDataFetcher(@Nullable Executor executor, @Nonnull EntitySchemaContract entitySchema) {
 		super(executor);
 		this.entitySchema = entitySchema;
 	}

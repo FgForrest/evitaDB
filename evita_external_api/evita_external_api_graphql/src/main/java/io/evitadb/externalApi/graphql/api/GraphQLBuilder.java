@@ -24,6 +24,9 @@
 package io.evitadb.externalApi.graphql.api;
 
 import graphql.GraphQL;
+import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
+
+import javax.annotation.Nonnull;
 
 /**
  * Builds instance of {@link GraphQL} with specific configuration and schema.
@@ -36,5 +39,5 @@ public interface GraphQLBuilder {
      * Builds new instance of {@link GraphQL}.
      * @return ready-to-use GraphQL
      */
-    GraphQL build();
+    GraphQL build(@Nonnull GraphQLConfig config);
 }

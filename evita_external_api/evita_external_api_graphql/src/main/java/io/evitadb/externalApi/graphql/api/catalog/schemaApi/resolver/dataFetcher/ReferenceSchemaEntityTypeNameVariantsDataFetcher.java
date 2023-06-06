@@ -32,6 +32,7 @@ import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
@@ -43,7 +44,7 @@ import java.util.function.Function;
  */
 public class ReferenceSchemaEntityTypeNameVariantsDataFetcher extends ReadDataFetcher<Map<NamingConvention, String>> {
 
-	public ReferenceSchemaEntityTypeNameVariantsDataFetcher(@Nonnull Executor executor) {
+	public ReferenceSchemaEntityTypeNameVariantsDataFetcher(@Nullable Executor executor) {
 		super(executor);
 	}
 

@@ -21,33 +21,33 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
+package io.evitadb.core.scheduling;
 
-import graphql.schema.DataFetchingEnvironment;
-import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
-import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
+import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.util.Set;
+import java.util.Optional;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.function.Supplier;
 
 /**
- * Finds entity types of available entity collections.
+ * Custom rejecting executor that logs the problem when the queue gets full.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class CollectionsDataFetcher extends ReadDataFetcher<Set<String>> {
+@Slf4j
+public class RejectingExecutor implements Executor {
+	@Setter private Supplier<String> additionalLogger;
 
-    public CollectionsDataFetcher(@Nullable Executor executor) {
-        super(executor);
-    }
+	@Override
+	public void execute(@Nonnull Runnable command) {
+		log.error(
+			"Evita executor queue full. Please, add more threads to the pool." +
+			Optional.ofNullable(additionalLogger).map(Supplier::get).orElse("")
+		);
+		throw new RejectedExecutionException("Evita executor queue full. Please, add more threads to the pool.");
+	}
 
-    @Nonnull
-    @Override
-    public Set<String> doGet(@Nonnull DataFetchingEnvironment environment) {
-        final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
-        return evitaSession.getAllEntityTypes();
-    }
 }

@@ -30,6 +30,7 @@ import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.concurrent.Executor;
 
 /**
@@ -39,7 +40,7 @@ import java.util.concurrent.Executor;
  */
 public class CatalogSchemaDataFetcher extends ReadDataFetcher<CatalogSchemaContract> {
 
-	public CatalogSchemaDataFetcher(@Nonnull Executor executor) {
+	public CatalogSchemaDataFetcher(@Nullable Executor executor) {
 		super(executor);
 	}
 

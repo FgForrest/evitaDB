@@ -113,7 +113,7 @@ public class QueryEntitiesDataFetcher extends ReadDataFetcher<DataFetcherResult<
 			.orElse(null);
 	}
 
-	public QueryEntitiesDataFetcher(@Nonnull Executor executor,
+	public QueryEntitiesDataFetcher(@Nullable Executor executor,
                                     @Nonnull CatalogSchemaContract catalogSchema,
 	                                @Nonnull EntitySchemaContract entitySchema) {
         super(executor);

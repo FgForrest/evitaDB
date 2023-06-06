@@ -54,6 +54,7 @@ import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.Cr
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.DeleteCatalogIfExistsMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.RenameCatalogMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.ReplaceCatalogMutatingDataFetcher;
+import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
@@ -68,8 +69,8 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 	@Nonnull
 	private final Evita evita;
 
-	public SystemGraphQLSchemaBuilder(@Nonnull Evita evita) {
-		super(new GraphQLSchemaBuildingContext(evita));
+	public SystemGraphQLSchemaBuilder(@Nonnull GraphQLConfig config, @Nonnull Evita evita) {
+		super(new GraphQLSchemaBuildingContext(config, evita));
 		this.evita = evita;
 	}
 
@@ -210,7 +211,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 		return new BuiltFieldDescriptor(
 			catalogField,
-			new CatalogDataFetcher(buildingContext.getEvitaExecutor(), evita)
+			new CatalogDataFetcher(buildingContext.getEvitaExecutor().orElse(null), evita)
 		);
 	}
 
@@ -218,7 +219,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 	private BuiltFieldDescriptor buildCatalogsField() {
 		return new BuiltFieldDescriptor(
 			SystemRootDescriptor.CATALOGS.to(staticEndpointBuilderTransformer).build(),
-			new CatalogsDataFetcher(buildingContext.getEvitaExecutor(), evita)
+			new CatalogsDataFetcher(buildingContext.getEvitaExecutor().orElse(null), evita)
 		);
 	}
 
