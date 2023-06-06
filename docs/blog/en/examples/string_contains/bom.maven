@@ -1,6 +1,6 @@
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_graphql</artifactId>
-    <version>0.7-INTERNAL</version>
+    <version>0.7-SNAPSHOT</version>
     <type>pom</type>
 </dependency>
