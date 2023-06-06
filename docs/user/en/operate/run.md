@@ -336,7 +336,7 @@ this should return following confirmation about liveness status of the REST API:
 
 evitaDB uses the [Slf4j](https://www.slf4j.org/) logging facade with [Logback](https://logback.qos.ch/) implementation, but
 you're free to change this. The default logback configuration is defined in a file 
-<SourceClass>evita_server/src/main/resources/logback.xml</SourceClass>.
+<SourceClass>evita_server/src/main/resources/META-INF/logback.xml</SourceClass>.
 
 You can completely override the default logback configuration by providing your own
 [logback configuration file](https://logback.qos.ch/manual/configuration.html#syntax) in a volume:
