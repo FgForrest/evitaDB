@@ -55,7 +55,10 @@ public class EvitaTestContextFactory implements TestContextFactory<EvitaTestCont
 	public DynamicTest getTearDownTest() {
 		return dynamicTest(
 			"Destroy Evita Demo connection",
-			() -> getContext().getEvitaContract().close()
+			() -> {
+				getContext().getEvitaContract().close();
+				getContext().getGraphQLQueryConverter().close();
+			}
 		);
 	}
 

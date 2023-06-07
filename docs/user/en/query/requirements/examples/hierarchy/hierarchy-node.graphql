@@ -1,0 +1,38 @@
+{
+  queryProduct(
+    filterBy: {
+      hierarchyCategoriesWithin: {
+        ofParent: {
+          attributeCodeEquals: "accessories"
+        }
+      }
+    }
+  ) {
+    extraResults {
+      hierarchy {
+        categories {
+          subMenu: children(
+            stopAt: {
+              node: {
+                filterBy: {
+                  attributeCodeStartsWith: "w"
+                }
+              }
+            }
+          ) {
+            parentPrimaryKey
+            level
+            entity {
+              primaryKey
+              parentPrimaryKey
+              attributes {
+                code
+              }
+            }
+            hasChildren
+          }
+        }
+      }
+    }
+  }
+}

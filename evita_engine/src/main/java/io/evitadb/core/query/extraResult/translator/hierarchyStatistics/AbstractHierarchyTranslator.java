@@ -97,7 +97,7 @@ public abstract class AbstractHierarchyTranslator {
 		@Nonnull EntityIndex entityIndex,
 		@Nullable ReferenceSchemaContract referenceSchema
 	) {
-		final HierarchyStopAtRequireConstraint filter = stopAt.getGenericHierarchyOutputRequireConstraint();
+		final HierarchyStopAtRequireConstraint filter = stopAt.getStopAtDefinition();
 		if (filter instanceof HierarchyLevel levelConstraint) {
 			final int requiredLevel = levelConstraint.getLevel();
 			return (hierarchyNodeId, level, distance) -> direction == TraversalDirection.TOP_DOWN ? level <= requiredLevel : level >= requiredLevel;

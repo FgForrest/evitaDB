@@ -181,10 +181,13 @@ class ConstraintProcessor {
 			final Creator creatorDefinition = findCreatorAnnotation(creator);
 
 			final String fullName;
+			final String suffix;
 			if (creatorDefinition.suffix().isEmpty()) {
 				fullName = constraintDefinition.name();
+				suffix = null;
 			} else {
 				fullName = constraintDefinition.name() + StringUtils.capitalize(creatorDefinition.suffix());
+				suffix = creatorDefinition.suffix();;
 			}
 
 			final List<ParameterDescriptor> parameterDescriptors = resolveCreatorParameters(creator);
@@ -209,7 +212,7 @@ class ConstraintProcessor {
 
 			creators.put(
 				fullName,
-				new ConstraintCreator(creator, parameterDescriptors, implicitClassifier)
+				new ConstraintCreator(suffix, creator, parameterDescriptors, implicitClassifier)
 			);
 		});
 

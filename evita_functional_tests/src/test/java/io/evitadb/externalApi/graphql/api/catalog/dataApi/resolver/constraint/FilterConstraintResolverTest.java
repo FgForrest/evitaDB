@@ -123,7 +123,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 					.e("ofParent", map()
 						.e("entityPrimaryKeyInSet", List.of(1)))
 					.e("with", map()
-						.e("hierarchyDirectRelation", true))
+						.e("directRelation", true))
 					.build()
 			)
 		);
@@ -226,27 +226,25 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 		//noinspection ConstantConditions
 		assertEquals(
 			filterBy(
-				and(
-					attributeEquals("CODE", "123"),
-					or(
-						attributeIs("AGE", AttributeSpecialValue.NULL),
-						and(
-							priceBetween(BigDecimal.valueOf(10L), BigDecimal.valueOf(20L)),
-							facetHaving("BRAND", entityPrimaryKeyInSet(10, 20, 30))
-						)
-					),
-					referenceHaving(
-						"CATEGORY",
-						and(
-							attributeStartsWith("CODE", "ab"),
-							entityPrimaryKeyInSet(2),
-							entityHaving(
-								and(
-									attributeEquals("NAME", "cd"),
-									referenceHaving(
-										"RELATED_PRODUCTS",
-										attributeEquals("ORDER", 1)
-									)
+				attributeEquals("CODE", "123"),
+				or(
+					attributeIs("AGE", AttributeSpecialValue.NULL),
+					and(
+						priceBetween(BigDecimal.valueOf(10L), BigDecimal.valueOf(20L)),
+						facetHaving("BRAND", entityPrimaryKeyInSet(10, 20, 30))
+					)
+				),
+				referenceHaving(
+					"CATEGORY",
+					and(
+						attributeStartsWith("CODE", "ab"),
+						entityPrimaryKeyInSet(2),
+						entityHaving(
+							and(
+								attributeEquals("NAME", "cd"),
+								referenceHaving(
+									"RELATED_PRODUCTS",
+									attributeEquals("ORDER", 1)
 								)
 							)
 						)

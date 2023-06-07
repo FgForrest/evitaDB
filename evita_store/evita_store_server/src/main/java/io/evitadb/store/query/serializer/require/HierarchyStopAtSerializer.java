@@ -41,7 +41,7 @@ public class HierarchyStopAtSerializer extends Serializer<HierarchyStopAt> {
 
 	@Override
 	public void write(Kryo kryo, Output output, HierarchyStopAt object) {
-		kryo.writeClassAndObject(output, object.getGenericHierarchyOutputRequireConstraint());
+		kryo.writeClassAndObject(output, object.getStopAtDefinition());
 	}
 
 	@Override

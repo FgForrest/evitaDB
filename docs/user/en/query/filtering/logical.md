@@ -19,15 +19,9 @@ To make the query language more concise, we omit logical binding in container-ty
 a logical conjunctive relation "and at the same time" ([`and`](#and)) unless an explicit binding is set.
 For example, you can issue the following query:
 
-```evitaql
-query(
-    collection('Product'),
-    filterBy(
-        entityPrimaryKeyInSet(110066, 106742),
-        attributeEquals('code', 'lenovo-thinkpad-t495-2')
-    )
-)
-```
+<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+[Implicit binding example](/docs/user/en/query/filtering/examples/logical/implicit-binding.evitaql)
+</SourceCodeTabs>
 
 As you can see - there is no logical binding between `entityPrimaryKeyInSet` and `attributeEquals` constraints, and for 
 this case the logical conjunction will be applied, which will result in a single returned product with *code* 
@@ -62,7 +56,7 @@ demonstrated on following table:
 
 The following query:
 
-<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Logical conjunction example](/docs/user/en/query/filtering/examples/logical/and.evitaql)
 </SourceCodeTabs>
 
@@ -76,7 +70,17 @@ The following query:
 ##### List of all products matching conjunction filter
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java">
+
 <MDInclude>[Logical conjunction example result](/docs/user/en/query/filtering/examples/logical/and.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[Logical conjunction example result](/docs/user/en/query/filtering/examples/logical/and.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>
 
@@ -107,7 +111,7 @@ demonstrated on following table:
 
 The following query:
 
-<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Logical disjunction example](/docs/user/en/query/filtering/examples/logical/or.evitaql)
 </SourceCodeTabs>
 
@@ -120,7 +124,17 @@ The following query:
 ##### List of all products matching disjunction filter
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java">
+
 <MDInclude>[Logical disjunction example result](/docs/user/en/query/filtering/examples/logical/or.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[Logical disjunction example result](/docs/user/en/query/filtering/examples/logical/or.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>
 
@@ -149,7 +163,7 @@ demonstrated on following table:
 
 The following query:
 
-<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Logical negation example](/docs/user/en/query/filtering/examples/logical/not.evitaql)
 </SourceCodeTabs>
 
@@ -162,13 +176,23 @@ The following query:
 ##### List of all products matching negation filter
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java">
+
 <MDInclude>[Logical negation example result](/docs/user/en/query/filtering/examples/logical/not.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[Logical negation example result](/docs/user/en/query/filtering/examples/logical/not.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>
 
 Because this situation is hard to visualize - let's narrow our super set to only a few entities:
 
-<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Logical conjunction example](/docs/user/en/query/filtering/examples/logical/not-narrowed.evitaql)
 </SourceCodeTabs>
 
@@ -181,6 +205,16 @@ Because this situation is hard to visualize - let's narrow our super set to only
 ##### List of all products matching negation filter (narrowed)
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java">
+
 <MDInclude>[Logical negation example result (narrowed)](/docs/user/en/query/filtering/examples/logical/not-narrowed.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[Logical negation example result (narrowed)](/docs/user/en/query/filtering/examples/logical/not-narrowed.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>

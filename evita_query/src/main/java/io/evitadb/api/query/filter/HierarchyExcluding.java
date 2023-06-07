@@ -71,8 +71,8 @@ public class HierarchyExcluding extends AbstractFilterConstraintContainer implem
 	private static final String CONSTRAINT_NAME = "excluding";
 
 	@Creator
-	public HierarchyExcluding(@Nonnull @Child(domain = ConstraintDomain.ENTITY) FilterConstraint... filterConstraint) {
-		super(CONSTRAINT_NAME, NO_ARGS, filterConstraint);
+	public HierarchyExcluding(@Nonnull @Child(domain = ConstraintDomain.ENTITY) FilterConstraint... filtering) {
+		super(CONSTRAINT_NAME, NO_ARGS, filtering);
 	}
 
 	/**

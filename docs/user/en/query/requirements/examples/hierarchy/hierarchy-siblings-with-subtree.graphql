@@ -1,0 +1,36 @@
+{
+  queryProduct(
+    filterBy: {
+      hierarchyCategoriesWithin: {
+        ofParent: {
+          attributeCodeEquals: "audio"
+        }
+      }
+    }
+  ) {
+    extraResults {
+      hierarchy {
+        categories {
+          audioSiblings: siblings(
+            stopAt: {
+              distance: 1
+            }
+          ) {
+            parentPrimaryKey
+            level
+            entity {
+              primaryKey
+              parentPrimaryKey
+              attributes {
+                code
+              }
+            }
+            queriedEntityCount
+            childrenCount
+            hasChildren
+          }
+        }
+      }
+    }
+  }
+}

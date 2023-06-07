@@ -73,7 +73,7 @@ public interface CreateAssociatedDataSchemaMutationDescriptor extends Associated
 			Localized associated data has to be ALWAYS used in connection with specific `locale`. In other
 			words - it cannot be stored unless associated locale is also provided.
 			""")
-		.type(nonNull(Boolean.class))
+		.type(nullable(Boolean.class))
 		.build();
 	PropertyDescriptor NULLABLE = PropertyDescriptor.builder()
 		.name("nullable")
@@ -81,7 +81,7 @@ public interface CreateAssociatedDataSchemaMutationDescriptor extends Associated
 			When associated data is nullable, its values may be missing in the entities. Otherwise, the system will enforce
 			non-null checks upon upserting of the entity.
 			""")
-		.type(nonNull(Boolean.class))
+		.type(nullable(Boolean.class))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()

@@ -58,6 +58,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
@@ -4573,7 +4574,12 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						collection(Entities.PRODUCT),
 						filterBy(
 							userFilter(
-								facetHaving(Entities.PARAMETER, attributeLessThanEquals(ATTRIBUTE_CODE, "H"))
+								facetHaving(
+									Entities.PARAMETER,
+									entityHaving(
+										attributeLessThanEquals(ATTRIBUTE_CODE, "H")
+									)
+								)
 							)
 						),
 						require(
@@ -4601,7 +4607,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                    filterBy: {
 		                        userFilter: {
 		                            facetParameterHaving: {
-		                                attributeCodeLessThanEquals: "H"
+		                                entityHaving: {
+		                                    attributeCodeLessThanEquals: "H"
+		                                }
 		                            }
 		                        }
 		                    }
@@ -4750,6 +4758,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                      @Nullable LevelInfo parentLevelInfo,
 	                                      @Nonnull LevelInfo levelInfo,
 	                                      int currentLevel) {
+		final SealedEntity entity = (SealedEntity) levelInfo.entity();
+
 		final MapBuilder currentLevelInfoDto = map()
 			.e(LevelInfoDescriptor.PARENT_PRIMARY_KEY.name(), parentLevelInfo != null
 				? parentLevelInfo.entity().getPrimaryKey()
@@ -4757,8 +4767,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.e(LevelInfoDescriptor.LEVEL.name(), currentLevel)
 			.e(LevelInfoDescriptor.ENTITY.name(), map()
 				.e(EntityDescriptor.PRIMARY_KEY.name(), levelInfo.entity().getPrimaryKey())
+				.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), entity.getParent().isPresent() ? entity.getParent().getAsInt() : null)
 				.e(EntityDescriptor.ATTRIBUTES.name(), map()
-					.e(ATTRIBUTE_CODE, ((SealedEntity) levelInfo.entity()).getAttribute(ATTRIBUTE_CODE))))
+					.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))))
 			.e(LevelInfoDescriptor.HAS_CHILDREN.name(), !levelInfo.children().isEmpty());
 
 		if (levelInfo.queriedEntityCount() != null) {
@@ -4877,6 +4888,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				level
 				entity {
 					primaryKey
+					parentPrimaryKey
 					attributes {
 						code
 					}

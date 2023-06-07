@@ -42,6 +42,7 @@ import java.util.Set;
 /**
  * Contains metadata for reconstructing original constraint described by {@link ConstraintDescriptor}.
  *
+ * @param suffix name suffix associated with this creator
  * @param instantiator executable element (constructor or factory method) to instantiate original constraint from {@link #parameters()}
  * @param parameters descriptors of original parameters of {@link #instantiator()} in same order to be able to reconstruct
  *                   the original constraint
@@ -49,13 +50,22 @@ import java.util.Set;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public record ConstraintCreator(@Nonnull Executable instantiator,
+public record ConstraintCreator(@Nullable String suffix,
+                                @Nonnull Executable instantiator,
                                 @Nonnull List<ParameterDescriptor> parameters,
                                 @Nullable ImplicitClassifier implicitClassifier) {
 
 	public ConstraintCreator(@Nonnull Executable instantiator,
 	                         @Nonnull List<ParameterDescriptor> parameters,
 	                         @Nullable ImplicitClassifier implicitClassifier) {
+		this(null, instantiator, parameters, implicitClassifier);
+	};
+
+	public ConstraintCreator(@Nullable String suffix,
+	                         @Nonnull Executable instantiator,
+	                         @Nonnull List<ParameterDescriptor> parameters,
+	                         @Nullable ImplicitClassifier implicitClassifier) {
+		this.suffix = suffix;
 		this.instantiator = instantiator;
 		this.parameters = parameters;
 		this.implicitClassifier = implicitClassifier;
@@ -190,7 +200,12 @@ public record ConstraintCreator(@Nonnull Executable instantiator,
 	/**
 	 * Common ancestor for all constraint parameters.
 	 */
-	public interface ParameterDescriptor {}
+	public interface ParameterDescriptor {
+		/**
+		 * Name of original parameter.
+		 */
+		@Nonnull String name();
+	}
 
 	/**
 	 * Describes single constraint constructor parameter whose purpose is to classify target data (e.g. entity type, attribute name...).

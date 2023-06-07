@@ -51,7 +51,7 @@ attributeEquals(
 The `attributeEquals` compares filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
 for strict equality with the passed value.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Product with `code` attribute equal to `apple-iphone-13-pro-3`](/docs/user/en/query/filtering/examples/comparable/attribute-equals.evitaql)
 </SourceCodeTabs>
 
@@ -64,7 +64,17 @@ Returns exactly one product with *code* equal to *apple-iphone-13-pro-3*.
 ##### Product found by a `code` attribute
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java">
+
 <MDInclude>[Product with `code` attribute equal to `apple-iphone-13-pro-3`](/docs/user/en/query/filtering/examples/comparable/attribute-equals.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[Product with `code` attribute equal to `apple-iphone-13-pro-3`](/docs/user/en/query/filtering/examples/comparable/attribute-equals.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>
 
@@ -93,7 +103,7 @@ attributeGreaterThan(
 The `attributeGreaterThan` compares the filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
 with the value in the second argument and is satisfied only if the entity attribute is greater than the value.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Products with `battery-life` attribute greater than 40 hours](/docs/user/en/query/filtering/examples/comparable/attribute-greater-than.evitaql)
 </SourceCodeTabs>
 
@@ -106,7 +116,17 @@ Returns exactly several products with *battery-life* greater than *40* hours.
 ##### Products with `battery-life` attribute greater than 40 hours
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java">
+
 <MDInclude>[Products with `battery-life` attribute greater than 40 hours](/docs/user/en/query/filtering/examples/comparable/attribute-greater-than.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[Products with `battery-life` attribute greater than 40 hours](/docs/user/en/query/filtering/examples/comparable/attribute-greater-than.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>
 
@@ -136,7 +156,7 @@ The `attributeGreaterThanEquals` compares the filterable or unique entity [attri
 with the value in the second argument and is satisfied only if the entity attribute is greater than or equal to 
 the value.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Products with `battery-life` attribute greater than or equal to 40 hours](/docs/user/en/query/filtering/examples/comparable/attribute-greater-than-equals.evitaql)
 </SourceCodeTabs>
 
@@ -149,7 +169,17 @@ Returns exactly several products with *battery-life* greater than or equal to *4
 ##### Products with `battery-life` attribute greater than or equal to 40 hours
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java">
+
 <MDInclude>[Products with `battery-life` attribute greater than or equal to 40 hours](/docs/user/en/query/filtering/examples/comparable/attribute-greater-than-equals.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[Products with `battery-life` attribute greater than or equal to 40 hours](/docs/user/en/query/filtering/examples/comparable/attribute-greater-than-equals.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>
 
@@ -178,7 +208,7 @@ attributeLessThan(
 The `attributeLessThan` compares the filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
 with the value in the second argument and is satisfied only if the entity attribute is less than the value.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Products with `battery-life` attribute less than 125 mWH](/docs/user/en/query/filtering/examples/comparable/attribute-less-than.evitaql)
 </SourceCodeTabs>
 
@@ -191,7 +221,17 @@ Returns exactly several products with *battery-capacity* less than *125* mWH.
 ##### Products with `battery-capacity` attribute less than 125 mWH
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java">
+
 <MDInclude>[Products with `battery-life` attribute less than 125 mWH](/docs/user/en/query/filtering/examples/comparable/attribute-less-than.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[Products with `battery-life` attribute less than 125 mWH](/docs/user/en/query/filtering/examples/comparable/attribute-less-than.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>
 
@@ -220,7 +260,7 @@ attributeLessThanEquals(
 The `attributeLessThanEquals` compares the filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
 with the value in the second argument and is satisfied only if the entity attribute is less than or equal to the value.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Products with `battery-life` attribute less than or equal to 125 mWH](/docs/user/en/query/filtering/examples/comparable/attribute-less-than-equals.evitaql)
 </SourceCodeTabs>
 
@@ -233,7 +273,17 @@ Returns exactly several products with *battery-capacity* less than or equal to *
 ##### Products with `battery-capacity` attribute less than or equal to 125 mWH
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java">
+
 <MDInclude>[Products with `battery-life` attribute less than or equal to 125 mWH](/docs/user/en/query/filtering/examples/comparable/attribute-less-than-equals.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[Products with `battery-life` attribute less than or equal to 125 mWH](/docs/user/en/query/filtering/examples/comparable/attribute-less-than-equals.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>
 
@@ -269,7 +319,7 @@ The `attributeBetween` compares the filterable or unique entity [attribute](../.
 and is satisfied only if the entity attribute is less than or equal to the first argument and at the same time greater
 than or equal to the second argument of the constraint.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Products with `battery-life` attribute less than or equal to 125 mWH](/docs/user/en/query/filtering/examples/comparable/attribute-between.evitaql)
 </SourceCodeTabs>
 
@@ -282,7 +332,17 @@ Returns exactly several products with *battery-capacity* between *125* and *160*
 ##### Products with `battery-capacity` attribute is between 125 mWH and 160 mWH
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java">
+
 <MDInclude>[Products with `battery-life` attribute less than or equal to 125 mWH](/docs/user/en/query/filtering/examples/comparable/attribute-between.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[Products with `battery-life` attribute less than or equal to 125 mWH](/docs/user/en/query/filtering/examples/comparable/attribute-between.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>
 
@@ -310,7 +370,7 @@ attributeInSet(
 The `attributeInSet` compares filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
 for strict equality with any of the passed values.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Product found by a `code` attribute in given set](/docs/user/en/query/filtering/examples/comparable/attribute-in-set.evitaql)
 </SourceCodeTabs>
 
@@ -324,7 +384,17 @@ in the database and is missing in the result.
 ##### Product found by a `code` attribute in given set
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java">
+
 <MDInclude>[Product found by a `code` attribute in given set](/docs/user/en/query/filtering/examples/comparable/attribute-in-set.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[Product found by a `code` attribute in given set](/docs/user/en/query/filtering/examples/comparable/attribute-in-set.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>
 
@@ -348,7 +418,7 @@ attributeIs(
 The `attributeIs` can be used to test for the existence of an entity 
 [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized) of a given name.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Product with `catalogNumber` attribute present](/docs/user/en/query/filtering/examples/comparable/attribute-is-not-null.evitaql)
 </SourceCodeTabs>
 
@@ -361,13 +431,23 @@ Returns hundreds of products with the *catalogNumber* attribute set.
 ##### Products with `catalogNumber` present
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java">
+
 <MDInclude>[Product with `catalogNumber` attribute present](/docs/user/en/query/filtering/examples/comparable/attribute-is-not-null.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[Product with `catalogNumber` attribute present](/docs/user/en/query/filtering/examples/comparable/attribute-is-not-null.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>
 
 When you try to list products without such attribute:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Product with `catalog-number` attribute missing](/docs/user/en/query/filtering/examples/comparable/attribute-is-null.evitaql)
 </SourceCodeTabs>
 
@@ -380,6 +460,16 @@ When you try to list products without such attribute:
 ##### Products with `catalog-number` missing
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java">
+
 <MDInclude>[Product with `catalog-number` attribute missing](/docs/user/en/query/filtering/examples/comparable/attribute-is-null.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[Product with `catalog-number` attribute missing](/docs/user/en/query/filtering/examples/comparable/attribute-is-null.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>

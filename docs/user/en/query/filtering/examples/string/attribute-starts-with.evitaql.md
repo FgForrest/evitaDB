@@ -21,4 +21,4 @@
 | 108371           | 'garmin-instinct-esports-edition' |
 | 108377           | 'garmin-lily'                     |
 
-###### **Total number of results:** 39
+###### **Page** 1/2 **(Total number of results: 39)**

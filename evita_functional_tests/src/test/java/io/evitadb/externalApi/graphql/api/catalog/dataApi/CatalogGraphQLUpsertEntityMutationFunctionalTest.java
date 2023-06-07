@@ -446,7 +446,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 		// revert original parent
 		final Map<String, Object> expectedBodyReverted = map()
 			.e(GraphQLEntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
-			.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), null)
+			.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), rootEntity.getPrimaryKey())
 			.build();
 		tester.test(TEST_CATALOG)
 			.document(

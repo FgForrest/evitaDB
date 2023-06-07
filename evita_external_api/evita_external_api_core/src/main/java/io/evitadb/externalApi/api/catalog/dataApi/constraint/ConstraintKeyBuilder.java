@@ -21,12 +21,12 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.dataApi.builder.constraint;
+package io.evitadb.externalApi.api.catalog.dataApi.constraint;
 
 import io.evitadb.api.query.descriptor.ConstraintCreator;
 import io.evitadb.api.query.descriptor.ConstraintCreator.FixedImplicitClassifier;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintProcessingUtils;
+import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuilder;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
@@ -65,7 +65,7 @@ public class ConstraintKeyBuilder {
 	 * @return key
 	 */
 	@Nonnull
-	public String build(@Nonnull ConstraintBuildContext buildContext,
+	public String build(@Nonnull ConstraintTraverseContext<?> traverseContext,
 	                    @Nonnull ConstraintDescriptor constraintDescriptor,
 	                    @Nullable Supplier<String> classifierSupplier) {
 		final ConstraintCreator creator = constraintDescriptor.creator();
@@ -76,10 +76,10 @@ public class ConstraintKeyBuilder {
 		// we can simplify child constraint if is in same domain as its parent and if it has property type the
 		// one that is expected when derived from child domain. These constraints are usually valid only in specific context
 		// and not globally available
-		if (!buildContext.isAtRoot() &&
-			buildContext.dataLocator().targetDomain().equals(buildContext.parentDataLocator().targetDomain()) &&
+		if (!traverseContext.isAtRoot() &&
+			traverseContext.dataLocator().targetDomain().equals(traverseContext.parentDataLocator().targetDomain()) &&
 			!creator.hasClassifier() &&
-			constraintDescriptor.propertyType().equals(ConstraintProcessingUtils.getFallbackPropertyTypeForDomain(buildContext.dataLocator().targetDomain()))) {
+			constraintDescriptor.propertyType().equals(ConstraintProcessingUtils.getFallbackPropertyTypeForDomain(traverseContext.dataLocator().targetDomain()))) {
 			return StringUtils.toSpecificCase(constraintDescriptor.fullName(), PROPERTY_NAME_NAMING_CONVENTION);
 		}
 

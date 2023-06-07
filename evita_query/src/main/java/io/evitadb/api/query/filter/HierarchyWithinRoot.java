@@ -27,6 +27,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
@@ -143,10 +144,10 @@ public class HierarchyWithinRoot extends AbstractFilterConstraintContainer
 
 	@Creator
 	public HierarchyWithinRoot(
-		@Nonnull @Classifier String entityType,
+		@Nonnull @Classifier String referenceName,
 		@Nonnull @Child(uniqueChildren = true) HierarchySpecificationFilterConstraint... with
 	) {
-		this(new Serializable[]{entityType}, with);
+		this(new Serializable[]{referenceName}, with);
 	}
 
 	@Override
@@ -198,6 +199,18 @@ public class HierarchyWithinRoot extends AbstractFilterConstraintContainer
 			.map(it -> ((HierarchyExcluding) it).getFiltering())
 			.findFirst()
 			.orElseGet(() -> new FilterConstraint[0]);
+	}
+
+	/**
+	 * Returns all specification constraints passed in `with` parameter.
+	 */
+	@AliasForParameter("with")
+	@Nonnull
+	public HierarchySpecificationFilterConstraint[] getHierarchySpecificationConstraints() {
+		return Arrays.stream(getChildren())
+			.filter(HierarchySpecificationFilterConstraint.class::isInstance)
+			.map(it -> (HierarchySpecificationFilterConstraint) it)
+			.toArray(HierarchySpecificationFilterConstraint[]::new);
 	}
 
 	@Override

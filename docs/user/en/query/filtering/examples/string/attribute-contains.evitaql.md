@@ -5,4 +5,4 @@
 | 108328           | 'garmin-epix-gen-2-sapphire-1' |
 | 108330           | 'garmin-epix-gen-2-sapphire-2' |
 
-###### **Total number of results:** 4
+###### **Page** 1/1 **(Total number of results: 4)**

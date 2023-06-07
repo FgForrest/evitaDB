@@ -2612,7 +2612,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		final PriceHistogram priceHistogram = response.getExtraResult(PriceHistogram.class);
 
 		return map()
+			.e(HistogramDescriptor.MIN.name(), priceHistogram.getMin().toString())
 			.e(HistogramDescriptor.MAX.name(), priceHistogram.getMax().toString())
+			.e(HistogramDescriptor.OVERALL_COUNT.name(), priceHistogram.getOverallCount())
 			.e(HistogramDescriptor.BUCKETS.name(), Arrays.stream(priceHistogram.getBuckets())
 				.map(bucket -> map()
 					.e(BucketDescriptor.INDEX.name(), bucket.getIndex())

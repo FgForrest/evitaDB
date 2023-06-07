@@ -2,4 +2,4 @@
 | ---------------- | ------------------------------- | ------------- |
 | 108531           | 'samsung-galaxy-watch5-pro-lte' ||               
 
-###### **Total number of results:** 1
+###### **Page** 1/1 **(Total number of results: 1)**

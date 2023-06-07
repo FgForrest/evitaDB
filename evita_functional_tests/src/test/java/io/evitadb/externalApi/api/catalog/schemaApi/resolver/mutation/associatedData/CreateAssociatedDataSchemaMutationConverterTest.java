@@ -93,16 +93,14 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 			null,
 			null,
 			String.class,
-			true,
-			true
+			false,
+			false
 		);
 
 		final CreateAssociatedDataSchemaMutation convertedMutation1 = converter.convert(
 			map()
 				.e(CreateAssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 				.e(CreateAssociatedDataSchemaMutationDescriptor.TYPE.name(), String.class)
-				.e(CreateAssociatedDataSchemaMutationDescriptor.LOCALIZED.name(), true)
-				.e(CreateAssociatedDataSchemaMutationDescriptor.NULLABLE.name(), true)
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation1);
@@ -115,8 +113,6 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 			() -> converter.convert(
 				map()
 					.e(CreateAssociatedDataSchemaMutationDescriptor.TYPE.name(), String.class)
-					.e(CreateAssociatedDataSchemaMutationDescriptor.LOCALIZED.name(), true)
-					.e(CreateAssociatedDataSchemaMutationDescriptor.NULLABLE.name(), true)
 					.build()
 			)
 		);
@@ -125,28 +121,6 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 			() -> converter.convert(
 				map()
 					.e(CreateAssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
-					.e(CreateAssociatedDataSchemaMutationDescriptor.LOCALIZED.name(), true)
-					.e(CreateAssociatedDataSchemaMutationDescriptor.NULLABLE.name(), true)
-					.build()
-			)
-		);
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> converter.convert(
-				map()
-					.e(CreateAssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
-					.e(CreateAssociatedDataSchemaMutationDescriptor.TYPE.name(), String.class)
-					.e(CreateAssociatedDataSchemaMutationDescriptor.NULLABLE.name(), true)
-					.build()
-			)
-		);
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> converter.convert(
-				map()
-					.e(CreateAssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
-					.e(CreateAssociatedDataSchemaMutationDescriptor.TYPE.name(), String.class)
-					.e(CreateAssociatedDataSchemaMutationDescriptor.LOCALIZED.name(), true)
 					.build()
 			)
 		);

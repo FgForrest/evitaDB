@@ -25,9 +25,12 @@ package io.evitadb.documentation.evitaql;
 
 import io.evitadb.api.EvitaContract;
 import io.evitadb.documentation.TestContext;
+import io.evitadb.documentation.graphql.GraphQLQueryConverter;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import lombok.Getter;
+
+import javax.annotation.Nonnull;
 
 /**
  * Context creates new {@link EvitaClient} instance that is connected to the demo server.
@@ -42,6 +45,11 @@ public class EvitaTestContext implements TestContext {
 	@Getter
 	private final EvitaContract evitaContract;
 
+	/**
+	 * Query builder for GraphQL.
+	 */
+	@Nonnull @Getter private final GraphQLQueryConverter graphQLQueryConverter;
+
 	public EvitaTestContext() {
 		this.evitaContract = new EvitaClient(
 			EvitaClientConfiguration.builder()
@@ -53,5 +61,7 @@ public class EvitaTestContext implements TestContext {
 				.mtlsEnabled(false)
 				.build()
 		);
+
+		this.graphQLQueryConverter = new GraphQLQueryConverter(evitaContract);
 	}
 }
