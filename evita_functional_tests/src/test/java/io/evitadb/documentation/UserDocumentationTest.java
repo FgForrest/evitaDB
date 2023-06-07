@@ -398,6 +398,10 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		while (sourceCodeTabsMatcher.find()) {
 			final Path referencedFile = createPathRelativeToRootDirectory(rootDirectory, sourceCodeTabsMatcher.group(4));
 			final String referencedFileExtension = getFileNameExtension(referencedFile);
+			// todo lho: temporary skip testing of source code tab if we dont support its current execution yet
+			if (ofNullable(sourceCodeTabsMatcher.group(2)).map(it -> it.contains("ignoreTest")).orElse(false)) {
+				continue;
+			}
 			if (!NOT_TESTED_LANGUAGES.contains(referencedFileExtension)) {
 				final Path[] requiredScripts = ofNullable(sourceCodeTabsMatcher.group(2))
 					.map(

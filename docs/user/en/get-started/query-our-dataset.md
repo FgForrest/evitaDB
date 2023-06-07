@@ -129,7 +129,7 @@ instance:
 After that you can create a new session and try any of the evitaQL queries described in 
 [the reference documentation](../query/basics.md):
 
-<SourceCodeTabs requires="/docs/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Query the demo server](/docs/user/en/get-started/example/query-demo-server.java)
 </SourceCodeTabs>
 
@@ -180,7 +180,7 @@ the URL of the catalog data API of our demo catalog `https://demo.evitadb.io:555
 After that you can send GraphQL requests to that URL and try any of the GraphQL queries described in
 [the reference documentation](../query/basics.md):
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
 [Query the demo server](/docs/user/en/get-started/example/query-demo-server.graphql)
 </SourceCodeTabs>
 

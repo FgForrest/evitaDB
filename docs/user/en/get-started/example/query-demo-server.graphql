@@ -1,20 +1,17 @@
-var entities = evita.queryCatalog(
-	"evita",
-	session -> {
-		return session.queryListOfSealedEntities(
-			query(
-				collection("Brand"),
-				filterBy(
-					and(
-						attributeStartsWith("name", "A"),
-						entityLocaleEquals(Locale.ENGLISH)
-					)
-				),
-				orderBy(
-					attributeNatural("name", OrderDirection.ASC)
-				),
-				require(entityFetchAll())
-			)
-		);
+query {
+	listBrand(
+		filterBy: {
+			attributeNameStartsWith: "A"
+		}
+		orderBy: {
+			attributeNameNatural: ASC
+		}
+	) {
+		primaryKey
+		type
+		allLocales
+		attributes {
+			name
+		}
 	}
-)
+}

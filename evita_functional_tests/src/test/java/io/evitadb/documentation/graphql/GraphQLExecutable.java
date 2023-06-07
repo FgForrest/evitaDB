@@ -185,7 +185,7 @@ public class GraphQLExecutable implements Executable, EvitaTestSupport {
 	) {
 		final String outputFormat = ofNullable(outputSnippet).map(OutputSnippet::forFormat).orElse("json");
 		if (outputFormat.equals("json")) {
-			final String sourceVariable = outputSnippet.sourceVariable();
+			final String sourceVariable = ofNullable(outputSnippet).map(OutputSnippet::sourceVariable).orElse(null);
 			return generateMarkDownJsonBlock(response, sourceVariable);
 		} else {
 			throw new UnsupportedOperationException("Unsupported output format: " + outputFormat);
