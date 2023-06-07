@@ -537,15 +537,15 @@ public class FilterByVisitor implements ConstraintVisitor {
 	@Nonnull
 	public List<EntityIndex> getReferencedRecordEntityIndexes(@Nonnull ReferenceHaving referenceHaving) {
 		final String referenceName = referenceHaving.getReferenceName();
-		final EntitySchemaContract entitySchema = getSchema();
+		final EntitySchemaContract entitySchema = getProcessingScope().getEntitySchema();
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName)
 			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, entitySchema));
 		final boolean referencesHierarchicalEntity = isReferencingHierarchicalEntity(referenceSchema);
-		final Formula referencedRecordIdFormula = getReferencedRecordIdFormula(referenceSchema, new FilterBy(referenceHaving.getChildren()));
+		final Formula referencedRecordIdFormula = getReferencedRecordIdFormula(entitySchema, referenceSchema, new FilterBy(referenceHaving.getChildren()));
 		final Bitmap referencedRecordIds = referencedRecordIdFormula.compute();
 		final List<EntityIndex> result = new ArrayList<>(referencedRecordIds.size());
 		for (Integer referencedRecordId : referencedRecordIds) {
-			ofNullable(getReferencedEntityIndex(referenceName, referencesHierarchicalEntity, referencedRecordId))
+			ofNullable(getReferencedEntityIndex(entitySchema, referenceName, referencesHierarchicalEntity, referencedRecordId))
 				.ifPresent(result::add);
 		}
 		return result;
@@ -555,20 +555,24 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Returns bitmap of primary keys ({@link EntityContract#getPrimaryKey()}) of referenced entities that satisfy
 	 * the passed filtering constraint.
 	 *
+	 * @param entitySchema that identifies the examined entities
 	 * @param referenceSchema that identifies the examined entities
 	 * @param filterBy        the filtering constraint to satisfy
 	 * @return bitmap with referenced entity ids
 	 */
 	@Nonnull
 	public Formula getReferencedRecordIdFormula(
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull FilterBy filterBy
 	) {
 		final String referenceName = referenceSchema.getName();
-		final EntitySchemaContract entitySchema = getSchema();
 		isTrue(referenceSchema.isFilterable(), () -> new ReferenceNotIndexedException(referenceName, entitySchema));
 
-		final EntityIndex entityIndex = getIndex(new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, referenceName));
+		final EntityIndex entityIndex = getIndex(
+			entitySchema.getName(),
+			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, referenceName)
+		);
 		if (entityIndex == null) {
 			return EmptyFormula.INSTANCE;
 		}
@@ -630,8 +634,13 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Argument `referencesHierarchicalEntity` should be evaluated first by {@link #isReferencingHierarchicalEntity(ReferenceSchemaContract)} method.
 	 */
 	@Nullable
-	public EntityIndex getReferencedEntityIndex(@Nonnull ReferenceSchemaContract referenceSchema, int referencedEntityId) {
+	public EntityIndex getReferencedEntityIndex(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		int referencedEntityId
+	) {
 		return getReferencedEntityIndex(
+			entitySchema,
 			referenceSchema.getName(),
 			isReferencingHierarchicalEntity(referenceSchema),
 			referencedEntityId
@@ -643,9 +652,15 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Argument `referencesHierarchicalEntity` should be evaluated first by {@link #isReferencingHierarchicalEntity(ReferenceSchemaContract)} method.
 	 */
 	@Nullable
-	public EntityIndex getReferencedEntityIndex(@Nonnull String referenceName, boolean referencesHierarchicalEntity, int referencedEntityId) {
+	public EntityIndex getReferencedEntityIndex(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull String referenceName,
+		boolean referencesHierarchicalEntity,
+		int referencedEntityId
+	) {
 		if (referencesHierarchicalEntity) {
 			return getQueryContext().getIndex(
+				entitySchema.getName(),
 				new EntityIndexKey(
 					EntityIndexType.REFERENCED_HIERARCHY_NODE,
 					new ReferenceKey(referenceName, referencedEntityId)
@@ -653,6 +668,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 			);
 		} else {
 			return getQueryContext().getIndex(
+				entitySchema.getName(),
 				new EntityIndexKey(
 					EntityIndexType.REFERENCED_ENTITY,
 					new ReferenceKey(referenceName, referencedEntityId)
