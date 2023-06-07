@@ -1,0 +1,24 @@
+{
+  queryCategory(
+    filterBy: {
+      hierarchyWithinSelf: {
+        ofParent: {
+          attributeCodeEquals: "accessories"
+        },
+        with: {
+          directRelation: true
+        }
+      }
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        parentPrimaryKey
+        attributes {
+          code
+        }
+      }
+    }
+  }
+}

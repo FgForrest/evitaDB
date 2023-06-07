@@ -2,4 +2,4 @@
 | ---------------- | ----------------------- |
 | 106250           | 'apple-iphone-13-pro-3' |
 
-###### **Total number of results:** 1
+###### **Page** 1/1 **(Total number of results: 1)**

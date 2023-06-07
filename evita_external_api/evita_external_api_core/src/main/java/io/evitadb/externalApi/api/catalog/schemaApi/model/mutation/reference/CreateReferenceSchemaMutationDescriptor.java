@@ -98,7 +98,7 @@ public interface CreateReferenceSchemaMutationDescriptor extends ReferenceSchema
 			Whether `referencedGroupType` refers to any existing `EntitySchema.name` that is
 			maintained by Evita.
 			""")
-		.type(nonNull(Boolean.class))
+		.type(nullable(Boolean.class))
 		.build();
 	PropertyDescriptor FILTERABLE = PropertyDescriptor.builder()
 		.name("filterable")
@@ -112,7 +112,7 @@ public interface CreateReferenceSchemaMutationDescriptor extends ReferenceSchema
 			cannot be looked up by reference attributes or relation existence itself, but the data is loaded alongside
 			other references if requested.
 			""")
-		.type(nonNull(Boolean.class))
+		.type(nullable(Boolean.class))
 		.build();
 	PropertyDescriptor FACETED = PropertyDescriptor.builder()
 		.name("faceted")
@@ -125,7 +125,7 @@ public interface CreateReferenceSchemaMutationDescriptor extends ReferenceSchema
 			occupies (memory/disk) space in the form of index.
 			Reference that was marked as faceted is called Facet.
 			""")
-		.type(nonNull(Boolean.class))
+		.type(nullable(Boolean.class))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()

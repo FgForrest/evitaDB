@@ -1,0 +1,17 @@
+{
+  queryProduct(
+    filterBy: {
+      attributeBatteryCapacityLessThanEquals: "125"
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+          batteryCapacity
+        }
+      }
+    }
+  }
+}

@@ -25,11 +25,11 @@ package io.evitadb.externalApi.grpc.requestResponse.schema;
 
 import com.google.protobuf.StringValue;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema;
 import io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema;
@@ -43,7 +43,6 @@ import lombok.NoArgsConstructor;
 import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
@@ -80,10 +79,7 @@ public class CatalogSchemaConverter {
 	 * Creates {@link SealedCatalogSchema} from the {@link GrpcCatalogSchema}.
 	 */
 	@Nonnull
-	public static CatalogSchema convert(
-		@Nonnull Function<String, EntitySchemaContract> entitySchemaSupplier,
-		@Nonnull GrpcCatalogSchema catalogSchema
-	) {
+	public static CatalogSchema convert(@Nonnull GrpcCatalogSchema catalogSchema) {
 		return CatalogSchema._internalBuild(
 				catalogSchema.getVersion(),
 				catalogSchema.getName(),
@@ -100,7 +96,9 @@ public class CatalogSchemaConverter {
 						Entry::getKey,
 						it -> toGlobalAttributeSchema(it.getValue())
 					)),
-				entitySchemaSupplier
+				__ -> {
+					throw new EvitaInternalError("Unsupported operation. Missing current session.");
+				}
 		);
 	}
 

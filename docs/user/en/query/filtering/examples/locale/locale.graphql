@@ -1,0 +1,22 @@
+{
+  queryProduct(
+    filterBy: {
+      hierarchyCategoriesWithin: {
+        ofParent: {
+          attributeCodeEquals: "vouchers-for-shareholders"
+        }
+      },
+      entityLocaleEquals: en_US
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+          name
+        }
+      }
+    }
+  }
+}

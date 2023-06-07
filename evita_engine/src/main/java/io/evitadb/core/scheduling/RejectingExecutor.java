@@ -26,13 +26,14 @@ package io.evitadb.core.scheduling;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.annotation.Nonnull;
 import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Supplier;
 
 /**
- * TODO JNO - document me
+ * Custom rejecting executor that logs the problem when the queue gets full.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -41,7 +42,7 @@ public class RejectingExecutor implements Executor {
 	@Setter private Supplier<String> additionalLogger;
 
 	@Override
-	public void execute(Runnable command) {
+	public void execute(@Nonnull Runnable command) {
 		log.error(
 			"Evita executor queue full. Please, add more threads to the pool." +
 			Optional.ofNullable(additionalLogger).map(Supplier::get).orElse("")

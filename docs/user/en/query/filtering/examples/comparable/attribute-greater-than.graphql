@@ -1,0 +1,17 @@
+{
+  queryProduct(
+    filterBy: {
+      attributeBatteryLifeGreaterThan: "40"
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+          batteryLife
+        }
+      }
+    }
+  }
+}

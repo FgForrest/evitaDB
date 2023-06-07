@@ -163,13 +163,11 @@ public class ListEntitiesHandler extends RestHandler<CollectionRestHandlingConte
 			if (filterBy != null) {
 				final EntityLocaleEquals newLocaleConstraint = entityLocaleEquals(locale);
 				return filterBy(
-					and(
 						combineConstraints(
-							((And)filterBy.getChildren()[0]).getChildren(),
+							filterBy.getChildren(),
 							newLocaleConstraint,
 							FilterConstraint.class
 						)
-					)
 				);
 			} else {
 				return filterBy(

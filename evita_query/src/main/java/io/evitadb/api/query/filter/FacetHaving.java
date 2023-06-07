@@ -27,6 +27,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
@@ -100,7 +101,7 @@ public class FacetHaving extends AbstractFilterConstraintContainer implements Fa
 
 	@Creator
 	public FacetHaving(@Nonnull @Classifier String referenceName,
-	                   @Nonnull @Child(domain = ConstraintDomain.ENTITY) FilterConstraint... filter) {
+	                   @Nonnull @Child(domain = ConstraintDomain.REFERENCE) FilterConstraint... filter) {
 		super(new Serializable[]{referenceName}, filter);
 	}
 
@@ -115,6 +116,13 @@ public class FacetHaving extends AbstractFilterConstraintContainer implements Fa
 	@Override
 	public boolean isNecessary() {
 		return getArguments().length == 1 && getChildren().length > 0;
+	}
+
+	@AliasForParameter("filter")
+	@Nonnull
+	@Override
+	public FilterConstraint[] getChildren() {
+		return super.getChildren();
 	}
 
 	@Nonnull

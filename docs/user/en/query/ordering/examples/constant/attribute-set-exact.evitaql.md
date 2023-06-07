@@ -297,4 +297,4 @@
 | 110148           | 'lenovo-yoga-c940-4'                       |
 | 110149           | 'lenovo-yoga-c940-5'                       |
 
-###### **Total number of results:** 296
+###### **Page** 1/15 **(Total number of results: 296)**

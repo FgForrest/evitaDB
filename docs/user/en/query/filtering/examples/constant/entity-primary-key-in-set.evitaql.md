@@ -5,4 +5,4 @@
 | 110066           | 'lenovo-thinkpad-t495-2'     |
 | 110513           | 'msi-ge66-11uh-raider-6'     |
 
-###### **Total number of results:** 4
+###### **Page** 1/1 **(Total number of results: 4)**

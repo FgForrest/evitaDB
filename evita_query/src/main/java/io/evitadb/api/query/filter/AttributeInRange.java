@@ -25,6 +25,7 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
@@ -120,6 +121,7 @@ public class AttributeInRange extends AbstractAttributeFilterConstraintLeaf impl
 	/**
 	 * Returns {@link Serializable} argument that should be verified whether is within the range (inclusive) of attribute validity.
 	 */
+	@AliasForParameter("value")
 	@Nullable
 	public Serializable getUnknownArgument() {
 		final boolean argsReady = getArguments().length == 2;

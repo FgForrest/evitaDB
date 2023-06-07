@@ -68,11 +68,7 @@ public class FilterBy extends AbstractFilterConstraintContainer implements Gener
 	}
 
 	@Creator
-	public FilterBy(@Nonnull @Child FilterConstraint children) {
-		super(children);
-	}
-
-	public FilterBy(@Nonnull FilterConstraint... children) {
+	public FilterBy(@Nonnull @Child(uniqueChildren = true) FilterConstraint... children) {
 		super(children);
 	}
 

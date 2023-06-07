@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.builder.constraint;
 
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintTraverseContext;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -43,7 +44,7 @@ import javax.annotation.Nullable;
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 @ToString
 @EqualsAndHashCode
-public class ConstraintBuildContext {
+public class ConstraintBuildContext implements ConstraintTraverseContext<ConstraintBuildContext> {
 
 	@Nullable private final DataLocator parentDataLocator;
 	@Nonnull private final DataLocator dataLocator;
@@ -71,7 +72,7 @@ public class ConstraintBuildContext {
 	 * {@link #dataLocator()} that was used by parent constraint as main data locator. Useful for logic that is based
 	 * on difference between current and parent data locator.
 	 */
-	@Nonnull
+	@Nullable
 	public DataLocator parentDataLocator() {
 		return parentDataLocator;
 	}

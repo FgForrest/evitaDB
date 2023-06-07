@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint;
 
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintTraverseContext;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -34,14 +35,14 @@ import javax.annotation.Nullable;
 
 /**
  * Local context for constraint resolving. It is passed down the constraint tree. Each node can create new
- * context for its children if received context from parent is not relevant
+ * context for its children.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Builder(access = AccessLevel.PRIVATE, toBuilder = true)
 @ToString
 @EqualsAndHashCode
-class ConstraintResolveContext {
+class ConstraintResolveContext implements ConstraintTraverseContext<ConstraintResolveContext> {
 
 	@Nullable private final DataLocator parentDataLocator;
 	@Nonnull private final DataLocator dataLocator;

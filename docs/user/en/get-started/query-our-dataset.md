@@ -129,7 +129,7 @@ instance:
 After that you can create a new session and try any of the evitaQL queries described in 
 [the reference documentation](../query/basics.md):
 
-<SourceCodeTabs requires="/docs/user/en/get-started/example/connect-demo-server.java">
+<SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Query the demo server](/docs/user/en/get-started/example/query-demo-server.java)
 </SourceCodeTabs>
 
@@ -143,6 +143,7 @@ After that you can create a new session and try any of the evitaQL queries descr
 
 For complete instructions on setting up a Java client, see [the Java drivers chapter](../use/connectors/java.md).
 If you need more hints for querying the data, try [the query API chapter](../use/query-api.md).
+
 </Note>
 
 </LanguageSpecific>
@@ -171,7 +172,17 @@ If you need more hints for querying the data, try [the query API chapter](../use
 
 <LanguageSpecific to="graphql">
 
-## Try querying the graphQL endpoint in your favourite IDE
+## Connect to the GraphQL API
+
+Open your [GraphQL client](../use/connectors/graphql.md#recommended-ides) of choice and enter
+the URL of the catalog data API of our demo catalog `https://demo.evitadb.io:5555/gql/evita`.
+
+After that you can send GraphQL requests to that URL and try any of the GraphQL queries described in
+[the reference documentation](../query/basics.md):
+
+<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+[Query the demo server](/docs/user/en/get-started/example/query-demo-server.graphql)
+</SourceCodeTabs>
 
 <Note type="info">
 
@@ -183,6 +194,7 @@ If you need more hints for querying the data, try [the query API chapter](../use
 
 For complete instructions on setting up a GraphQL client, see [the GraphQL drivers chapter](../use/connectors/graphql.md).
 If you need more hints for querying the data, try [the query API chapter](../use/query-api.md).
+
 </Note>
 
 </LanguageSpecific>

@@ -104,13 +104,18 @@ public class Not extends AbstractFilterConstraintContainer implements GenericCon
 	private Not() {}
 
 	@Creator
-	public Not(@Nonnull @Child FilterConstraint children) {
-		super(children);
+	public Not(@Nonnull @Child FilterConstraint child) {
+		super(child);
 	}
 
 	@Override
 	public boolean isNecessary() {
 		return getChildren().length > 0;
+	}
+
+	@Nonnull
+	public FilterConstraint getChild() {
+		return getChildren()[0];
 	}
 
 	@Nonnull
