@@ -31,8 +31,7 @@ import io.evitadb.api.query.filter.AttributeStartsWith;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.query.filter.UserFilter;
-import io.evitadb.api.query.order.AttributeNatural;
-import io.evitadb.api.query.require.AttributeContent;
+import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.Strip;
@@ -97,7 +96,7 @@ class AllowedConstraintPredicateTest {
 	static Stream<Arguments> notAllowedConstraints() {
 		return Stream.of(
 			Arguments.of(And.class, Set.of(And.class, AttributeEquals.class), Set.of(), EntityLocaleEquals.class),
-			Arguments.of(And.class, Set.of(), Set.of(), AttributeNatural.class),
+			Arguments.of(And.class, Set.of(), Set.of(), PriceNatural.class),
 			Arguments.of(EntityFetch.class, Set.of(Strip.class), Set.of(), Strip.class),
 			Arguments.of(UserFilter.class, Set.of(), Set.of(AttributeEquals.class), AttributeEquals.class)
 		);

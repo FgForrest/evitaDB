@@ -87,7 +87,8 @@ public class AttributeNatural extends AbstractOrderConstraintLeaf implements Att
     }
 
     // todo lho
-//    @Creator
+    // todo lho tests
+    @Creator
     public AttributeNatural(
         @Nonnull @Value String[] attributeName,
         @Nonnull @Value OrderDirection orderDirection

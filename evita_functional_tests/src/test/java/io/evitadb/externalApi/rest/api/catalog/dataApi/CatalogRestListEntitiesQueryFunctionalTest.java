@@ -1171,10 +1171,10 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 					"\"filterBy\": {" +
 					"  \"attributePriorityLessThan\": 35000" +
 					"}," +
-					"\"orderBy\": {" +
+					"\"orderBy\": [{" +
 					"  \"attributeCreatedNatural\": \"DESC\"," +
 					"  \"attributeManufacturedNatural\": \"ASC\"" +
-					"}," +
+					"}]," +
 					"\"require\": {" +
 					"  \"page\": {" +
 					"     \"number\": 0," +

@@ -84,9 +84,11 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 			resolver.resolve(
 				Entities.PRODUCT,
 				"referenceCategoryProperty",
-				mapOf(
-					"attributeCodeNatural", OrderDirection.ASC,
-					"random", true
+				List.of(
+					mapOf(
+						"attributeCodeNatural", OrderDirection.ASC,
+						"random", true
+					)
 				)
 			)
 		);
@@ -96,7 +98,7 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 	void shouldNotResolveChildOrderConstraint() {
 		assertThrows(EvitaInvalidUsageException.class, () -> resolver.resolve(Entities.PRODUCT, "referenceCategoryProperty", null));
 		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "referenceCategoryProperty", "abc"));
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "referenceCategoryProperty", List.of()));
+		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "referenceCategoryProperty", Map.of()));
 	}
 
 	@Test
@@ -116,12 +118,16 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 				resolver.resolve(
 					Entities.PRODUCT,
 					"orderBy",
-					mapOf(
-						"attributeCodeNatural", OrderDirection.ASC,
-						"priceNatural", OrderDirection.DESC,
-						"referenceCategoryProperty", mapOf(
-							"attributeCodeNatural", OrderDirection.DESC,
-							"random", true
+					List.of(
+						mapOf(
+							"attributeCodeNatural", OrderDirection.ASC,
+							"priceNatural", OrderDirection.DESC,
+							"referenceCategoryProperty", List.of(
+								mapOf(
+									"attributeCodeNatural", OrderDirection.DESC,
+									"random", true
+								)
+							)
 						)
 					)
 				)

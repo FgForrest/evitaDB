@@ -86,14 +86,14 @@ class ConstraintProcessor {
 			final ConstraintPropertyType propertyType = resolveConstraintPropertyType(constraintClass);
 
 			final SupportedValues supportedValues = resolveSupportedValues(constraintDefinition);
-			final Map<String, ConstraintCreator> creators = resolveCreators(constraintClass, constraintDefinition);
+			final Map<CreatorKey, ConstraintCreator> creators = resolveCreators(constraintClass, constraintDefinition);
 
-			creators.forEach((fullName, creator) -> {
+			creators.forEach((key, creator) -> {
 				final ConstraintDescriptor descriptor = new ConstraintDescriptor(
 					constraintClass,
 					type,
 					propertyType,
-					fullName,
+					key.fullName(),
 					constraintDefinition.shortDescription(),
 					Set.of(constraintDefinition.supportedIn()),
 					supportedValues,
@@ -168,17 +168,21 @@ class ConstraintProcessor {
 		return supportedValues;
 	}
 
+	// todo lho should be full name in creator itself? and this in equals?
+	// todo lho tests
+	private record CreatorKey(@Nonnull String fullName, boolean hasClassifier) {}
+
 	/**
 	 * Gathers creator constructors, its parameters and other data from constraint class and creates creator descriptor from them
 	 * and associates them with full names.
 	 */
 	@Nonnull
-	private Map<String, ConstraintCreator> resolveCreators(@Nonnull Class<? extends Constraint<?>> constraintClass,
+	private Map<CreatorKey, ConstraintCreator> resolveCreators(@Nonnull Class<? extends Constraint<?>> constraintClass,
 	                                                       @Nonnull ConstraintDefinition constraintDefinition) {
-		final Map<String, ConstraintCreator> creators = createHashMap(4);
+		final Map<CreatorKey, ConstraintCreator> creators = createHashMap(4);
 
-		findCreators(constraintClass).forEach(creator -> {
-			final Creator creatorDefinition = findCreatorAnnotation(creator);
+		findCreators(constraintClass).forEach(creatorTemplate -> {
+			final Creator creatorDefinition = findCreatorAnnotation(creatorTemplate);
 
 			final String fullName;
 			if (creatorDefinition.suffix().isEmpty()) {
@@ -187,7 +191,7 @@ class ConstraintProcessor {
 				fullName = constraintDefinition.name() + StringUtils.capitalize(creatorDefinition.suffix());
 			}
 
-			final List<ParameterDescriptor> parameterDescriptors = resolveCreatorParameters(creator);
+			final List<ParameterDescriptor> parameterDescriptors = resolveCreatorParameters(creatorTemplate);
 
 			Assert.isPremiseValid(
 				!creators.containsKey(fullName),
@@ -207,9 +211,10 @@ class ConstraintProcessor {
 				implicitClassifier = null;
 			}
 
+			final ConstraintCreator creator = new ConstraintCreator(creatorTemplate, parameterDescriptors, implicitClassifier);
 			creators.put(
-				fullName,
-				new ConstraintCreator(creator, parameterDescriptors, implicitClassifier)
+				new CreatorKey(fullName, creator.hasClassifierParameter() || creator.implicitClassifier() instanceof FixedImplicitClassifier),
+				creator
 			);
 		});
 
