@@ -1995,7 +1995,7 @@ public interface QueryConstraints {
 	 * ```
 	*/
 	@Nonnull
-	static AttributeNatural attributeNatural(@Nonnull String attributeName) {
+	static AttributeNatural attributeNatural(@Nonnull String... attributeName) {
 		return new AttributeNatural(attributeName);
 	}
 
