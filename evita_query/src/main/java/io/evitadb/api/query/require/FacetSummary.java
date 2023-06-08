@@ -38,6 +38,7 @@ import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
@@ -124,12 +125,12 @@ public class FacetSummary extends AbstractRequireConstraintContainer
 	}
 
 	public FacetSummary(
-		FacetStatisticsDepth statisticsDepth,
-		FilterBy filterBy,
-		FilterGroupBy filterGroupBy,
-		OrderBy orderBy,
-		OrderGroupBy orderGroupBy,
-		EntityRequire... requirements
+		@Nonnull FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy filterBy,
+		@Nullable FilterGroupBy filterGroupBy,
+		@Nullable OrderBy orderBy,
+		@Nullable OrderGroupBy orderGroupBy,
+		@Nonnull EntityRequire... requirements
 	) {
 		super(
 			new Serializable[]{statisticsDepth},

@@ -75,6 +75,24 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 	}
 
 	@Override
+	public OrderConstraint visitOrderGroupByConstraint(@Nonnull EvitaQLParser.OrderGroupByConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> {
+				if (ctx.args == null) {
+					return new OrderGroupBy();
+				}
+				return new OrderGroupBy(
+					ctx.args.constraints
+						.stream()
+						.map(oc -> visitChildConstraint(oc, OrderConstraint.class))
+						.toArray(OrderConstraint[]::new)
+				);
+			}
+		);
+	}
+
+	@Override
 	public OrderConstraint visitAttributeNaturalConstraint(@Nonnull EvitaQLParser.AttributeNaturalConstraintContext ctx) {
 		return parse(
 			ctx,

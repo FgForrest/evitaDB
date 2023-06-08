@@ -42,6 +42,7 @@ headConstraint
 
 filterConstraint
     : 'filterBy'                        args = filterConstraintListArgs                             # filterByConstraint
+    | 'filterGroupBy'                   args = filterConstraintListArgs                             # filterGroupByConstraint
     | 'and'                             (emptyArgs | args = filterConstraintListArgs)               # andConstraint
     | 'or'                              (emptyArgs | args = filterConstraintListArgs)               # orConstraint
     | 'not'                             args = filterConstraintArgs                                 # notConstraint
@@ -84,6 +85,7 @@ filterConstraint
 
 orderConstraint
     : 'orderBy'                         (emptyArgs | args = orderConstraintListArgs)                # orderByConstraint
+    | 'orderGroupBy'                    (emptyArgs | args = orderConstraintListArgs)                # orderGroupByConstraint
     | 'attributeNatural'                args = classifierWithOptionalValueArgs                      # attributeNaturalConstraint
     | 'attributeSetExact'               args = attributeSetExactArgs                                # attributeSetExactConstraint
     | 'attributeSetInFilter'            args = classifierArgs                                       # attributeSetInFilterConstraint
@@ -119,8 +121,10 @@ requireConstraint
     | 'hierarchyContent'                args = allRequiresHierarchyContentArgs                      # allRequiresHierarchyContentConstraint
     | 'priceType'                       args = valueArgs                                            # priceTypeConstraint
     | 'dataInLocales'                   (emptyArgs | args = valueListArgs)                          # dataInLocalesConstraint
-    | 'facetSummary'                    (emptyArgs | args = facetSummaryArgs)                       # facetSummaryConstraint
-    | 'facetSummaryOfReference'         args = facetSummaryOfReferenceArgs                          # facetSummaryOfReferenceConstraint
+    | 'facetSummary'                    (emptyArgs | args = facetSummary1Args)                      # facetSummary1Constraint
+    | 'facetSummary'                    args = facetSummary2Args                                    # facetSummary2Constraint
+    | 'facetSummaryOfReference'         args = facetSummaryOfReference1Args                         # facetSummaryOfReference1Constraint
+    | 'facetSummaryOfReference'         args = facetSummaryOfReference2Args                         # facetSummaryOfReference2Constraint
     | 'facetGroupsConjunction'          args = classifierWithFilterConstraintArgs                   # facetGroupsConjunctionConstraint
     | 'facetGroupsDisjunction'          args = classifierWithFilterConstraintArgs                   # facetGroupsDisjunctionConstraint
     | 'facetGroupsNegation'             args = classifierWithFilterConstraintArgs                   # facetGroupsNegationConstraint
@@ -248,18 +252,28 @@ singleRequireHierarchyContentArgs :                 ARGS_OPENING requirement = r
 
 allRequiresHierarchyContentArgs :                   ARGS_OPENING stopAt = requireConstraint ARGS_DELIMITER entityRequirement = requireConstraint ARGS_CLOSING ;
 
-facetSummaryArgs :                                  ARGS_OPENING (
-                                                        (depth = valueToken) |
-                                                        (depth = valueToken ARGS_DELIMITER requirement = requireConstraint) |
-                                                        (depth = valueToken ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint)
-                                                    ) ARGS_CLOSING ;
+facetSummary1Args :                                 ARGS_OPENING depth = valueToken ARGS_CLOSING ;
 
-facetSummaryOfReferenceArgs :                       ARGS_OPENING (
-                                                        (referenceName = classifierToken) |
-                                                        (referenceName = classifierToken ARGS_DELIMITER depth = valueToken) |
-                                                        (referenceName = classifierToken ARGS_DELIMITER depth = valueToken ARGS_DELIMITER requirement = requireConstraint) |
-                                                        (referenceName = classifierToken ARGS_DELIMITER depth = valueToken ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint)
-                                                    ) ARGS_CLOSING ;
+facetSummary2Args :                                 ARGS_OPENING depth = valueToken (ARGS_DELIMITER filter = facetSummaryFilterArgs)? (ARGS_DELIMITER order = facetSummaryOrderArgs)? (ARGS_DELIMITER requirements = facetSummaryRequirementsArgs)? ARGS_CLOSING ;
+
+facetSummaryOfReference1Args :                      ARGS_OPENING referenceName = classifierToken ARGS_CLOSING ;
+
+facetSummaryOfReference2Args :                      ARGS_OPENING referenceName = classifierToken ARGS_DELIMITER depth = valueToken (ARGS_DELIMITER filter = facetSummaryFilterArgs)? (ARGS_DELIMITER order = facetSummaryOrderArgs)? (ARGS_DELIMITER requirements = facetSummaryRequirementsArgs)? ARGS_CLOSING ;
+
+facetSummaryRequirementsArgs :                      (
+                                                        (requirement = requireConstraint) |
+                                                        (facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint)
+                                                    ) ;
+
+facetSummaryFilterArgs :                            (
+                                                        (filterBy = filterConstraint) |
+                                                        (filterBy = filterConstraint ARGS_DELIMITER filterGroupBy = filterConstraint)
+                                                    ) ;
+
+facetSummaryOrderArgs :                             (
+                                                        (orderBy = orderConstraint) |
+                                                        (orderBy = orderConstraint ARGS_DELIMITER orderGroupBy = orderConstraint)
+                                                    ) ;
 
 hierarchyStatisticsArgs :                           ARGS_OPENING settings = variadicValueTokens ARGS_CLOSING ;
 
