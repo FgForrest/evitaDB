@@ -23,9 +23,13 @@
 
 package io.evitadb.api.query.parser.visitor;
 
+import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.FilterGroupBy;
 import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.api.query.parser.EnumWrapper;
 import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.*;
@@ -39,7 +43,6 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -527,80 +530,126 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitFacetSummaryConstraint(@Nonnull FacetSummaryConstraintContext ctx) {
+	public RequireConstraint visitFacetSummary1Constraint(FacetSummary1ConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
 				if (ctx.args == null) {
 					return new FacetSummary();
 				}
-
-				final FacetStatisticsDepth depth = ctx.args.depth
-					.accept(facetStatisticsDepthValueTokenVisitor)
-					.asEnum(FacetStatisticsDepth.class);
-
-				if (ctx.args.requirement == null && ctx.args.facetEntityRequirement == null && ctx.args.groupEntityRequirement == null) {
-					return new FacetSummary(depth);
-				}
-
-				if (ctx.args.requirement != null) {
-					final RequireConstraint requirement = visitChildConstraint(ctx.args.requirement, RequireConstraint.class);
-					if (requirement instanceof final EntityFetch facetEntityRequirement) {
-						return new FacetSummary(depth, facetEntityRequirement);
-					} else if (requirement instanceof final EntityGroupFetch groupEntityRequirement) {
-						return new FacetSummary(depth, groupEntityRequirement);
-					} else {
-						throw new EvitaQLInvalidQueryError(ctx, "Unsupported requirement constraint.");
-					}
-				}
-
-				final EntityFetch facetEntityRequirement = Optional.ofNullable(ctx.args.facetEntityRequirement)
-					.map(c -> visitChildConstraint(c, EntityFetch.class))
-					.orElse(null);
-				final EntityGroupFetch groupEntityRequirement = Optional.ofNullable(ctx.args.groupEntityRequirement)
-					.map(c -> visitChildConstraint(c, EntityGroupFetch.class))
-					.orElse(null);
-				return new FacetSummary(depth, facetEntityRequirement, groupEntityRequirement);
+				return new FacetSummary(
+					ctx.args.depth.accept(facetStatisticsDepthValueTokenVisitor).asEnum(FacetStatisticsDepth.class)
+				);
 			}
 		);
 	}
 
 	@Override
-	public RequireConstraint visitFacetSummaryOfReferenceConstraint(@Nonnull FacetSummaryOfReferenceConstraintContext ctx) {
+	public RequireConstraint visitFacetSummary2Constraint(FacetSummary2ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> {
+				final FacetStatisticsDepth depth = ctx.args.depth.accept(facetStatisticsDepthValueTokenVisitor).asEnum(FacetStatisticsDepth.class);
+
+				final FilterConstraint filterBy1 = Optional.ofNullable(ctx.args.filter)
+					.map(filter -> filter.filterBy)
+					.map(c -> (FilterConstraint) visitChildConstraint(filterConstraintVisitor, c, FilterBy.class, FilterGroupBy.class))
+					.orElse(null);
+				final FilterGroupBy filterBy2 = Optional.ofNullable(ctx.args.filter)
+					.flatMap(filter -> Optional.ofNullable(filter.filterGroupBy))
+					.map(c -> visitChildConstraint(filterConstraintVisitor, c, FilterGroupBy.class))
+					.orElse(null);
+				if (filterBy2 != null) {
+					Assert.isTrue(
+						filterBy1 instanceof FilterBy,
+						() -> new EvitaQLInvalidQueryError(ctx, "Cannot pass 2 `filterGroupBy` constraints.")
+					);
+				}
+
+				final OrderConstraint orderBy1 = Optional.ofNullable(ctx.args.order)
+					.map(order -> order.orderBy)
+					.map(c -> (OrderConstraint) visitChildConstraint(orderConstraintVisitor, c, OrderBy.class, OrderGroupBy.class))
+					.orElse(null);
+				final OrderGroupBy orderBy2 = Optional.ofNullable(ctx.args.order)
+					.flatMap(order -> Optional.ofNullable(order.orderGroupBy))
+					.map(c -> visitChildConstraint(orderConstraintVisitor, c, OrderGroupBy.class))
+					.orElse(null);
+				if (orderBy2 != null) {
+					Assert.isTrue(
+						orderBy1 instanceof OrderBy,
+						() -> new EvitaQLInvalidQueryError(ctx, "Cannot pass 2 `orderGroupBy` constraints.")
+					);
+				}
+
+				return new FacetSummary(
+					depth,
+					filterBy1 instanceof FilterBy f ? f : null,
+					filterBy1 instanceof FilterGroupBy f ? f : filterBy2,
+					orderBy1 instanceof OrderBy o ? o : null,
+					orderBy1 instanceof OrderGroupBy o ? o : orderBy2,
+					parseFacetSummaryRequirementsArgs(ctx.args.requirements)
+				);
+			}
+		);
+	}
+
+	@Override
+	public RequireConstraint visitFacetSummaryOfReference1Constraint(@Nonnull FacetSummaryOfReference1ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new FacetSummaryOfReference(
+				ctx.args.referenceName.accept(classifierTokenVisitor).asSingleClassifier()
+			)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitFacetSummaryOfReference2Constraint(@Nonnull FacetSummaryOfReference2ConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
 				final String referenceName = ctx.args.referenceName.accept(classifierTokenVisitor).asSingleClassifier();
-				if (ctx.args.depth == null) {
-					return new FacetSummaryOfReference(referenceName);
-				}
+				final FacetStatisticsDepth depth = ctx.args.depth.accept(facetStatisticsDepthValueTokenVisitor).asEnum(FacetStatisticsDepth.class);
 
-				final FacetStatisticsDepth depth = ctx.args.depth
-					.accept(facetStatisticsDepthValueTokenVisitor)
-					.asEnum(FacetStatisticsDepth.class);
-
-				if (ctx.args.requirement == null && ctx.args.facetEntityRequirement == null && ctx.args.groupEntityRequirement == null) {
-					return new FacetSummaryOfReference(referenceName, depth);
-				}
-
-				if (ctx.args.requirement != null) {
-					final RequireConstraint requirement = visitChildConstraint(ctx.args.requirement, RequireConstraint.class);
-					if (requirement instanceof final EntityFetch facetEntityRequirement) {
-						return new FacetSummaryOfReference(referenceName, depth, facetEntityRequirement);
-					} else if (requirement instanceof final EntityGroupFetch groupEntityRequirement) {
-						return new FacetSummaryOfReference(referenceName, depth, groupEntityRequirement);
-					} else {
-						throw new EvitaQLInvalidQueryError(ctx, "Unsupported requirement constraint.");
-					}
-				}
-
-				final EntityFetch facetEntityRequirement = Optional.ofNullable(ctx.args.facetEntityRequirement)
-					.map(c -> visitChildConstraint(c, EntityFetch.class))
+				final FilterConstraint filterBy1 = Optional.ofNullable(ctx.args.filter)
+					.map(filter -> filter.filterBy)
+					.map(c -> (FilterConstraint) visitChildConstraint(filterConstraintVisitor, c, FilterBy.class, FilterGroupBy.class))
 					.orElse(null);
-				final EntityGroupFetch groupEntityRequirement = Optional.ofNullable(ctx.args.groupEntityRequirement)
-					.map(c -> visitChildConstraint(c, EntityGroupFetch.class))
+				final FilterGroupBy filterBy2 = Optional.ofNullable(ctx.args.filter)
+					.flatMap(filter -> Optional.ofNullable(filter.filterGroupBy))
+					.map(c -> visitChildConstraint(filterConstraintVisitor, c, FilterGroupBy.class))
 					.orElse(null);
-				return new FacetSummaryOfReference(referenceName, depth, facetEntityRequirement, groupEntityRequirement);
+				if (filterBy2 != null) {
+					Assert.isTrue(
+						filterBy1 instanceof FilterBy,
+						() -> new EvitaQLInvalidQueryError(ctx, "Cannot pass 2 `filterGroupBy` constraints.")
+					);
+				}
+
+				final OrderConstraint orderBy1 = Optional.ofNullable(ctx.args.order)
+					.map(order -> order.orderBy)
+					.map(c -> (OrderConstraint) visitChildConstraint(orderConstraintVisitor, c, OrderBy.class, OrderGroupBy.class))
+					.orElse(null);
+				final OrderGroupBy orderBy2 = Optional.ofNullable(ctx.args.order)
+					.flatMap(order -> Optional.ofNullable(order.orderGroupBy))
+					.map(c -> visitChildConstraint(orderConstraintVisitor, c, OrderGroupBy.class))
+					.orElse(null);
+				if (orderBy2 != null) {
+					Assert.isTrue(
+						orderBy1 instanceof OrderBy,
+						() -> new EvitaQLInvalidQueryError(ctx, "Cannot pass 2 `orderGroupBy` constraints.")
+					);
+				}
+
+				return new FacetSummaryOfReference(
+					referenceName,
+					depth,
+					filterBy1 instanceof FilterBy f ? f : null,
+					filterBy1 instanceof FilterGroupBy f ? f : filterBy2,
+					orderBy1 instanceof OrderBy o ? o : null,
+					orderBy1 instanceof OrderGroupBy o ? o : orderBy2,
+					parseFacetSummaryRequirementsArgs(ctx.args.requirements)
+				);
 			}
 		);
 	}
@@ -1095,5 +1144,26 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	@Nonnull
 	private EntityContentRequire visitChildEntityContentRequire(@Nonnull RequireConstraintContext arg) {
 		return visitChildConstraint(arg, EntityContentRequire.class);
+	}
+
+	@Nonnull
+	private EntityRequire[] parseFacetSummaryRequirementsArgs(@Nullable FacetSummaryRequirementsArgsContext ctx) {
+		if (ctx == null) {
+			return new EntityRequire[0];
+		}
+		if (ctx.requirement != null) {
+			final EntityRequire requirement = visitChildEntityRequire(ctx.requirement);
+			if (requirement instanceof final EntityFetch facetEntityRequirement) {
+				return new EntityRequire[] { facetEntityRequirement };
+			} else if (requirement instanceof final EntityGroupFetch groupEntityRequirement) {
+				return new EntityRequire[] { groupEntityRequirement };
+			} else {
+				throw new EvitaQLInvalidQueryError(ctx, "Unsupported requirement constraint.");
+			}
+		}
+		return new EntityRequire[] {
+			visitChildConstraint(ctx.facetEntityRequirement, EntityFetch.class),
+			visitChildConstraint(ctx.groupEntityRequirement, EntityGroupFetch.class)
+		};
 	}
 }
