@@ -235,7 +235,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 			// child container didn't have any usable children, but we want to have at least marker constraint, thus boolean value was used instead
 			return childType;
 		} else {
-			if (childParameter.type().isArray() && !isChildrenUnique(childParameter)) {
+			if (childParameter.type().isArray() && !childParameter.uniqueChildren()) {
 				return list(nonNull(childType));
 			} else {
 				return childType;

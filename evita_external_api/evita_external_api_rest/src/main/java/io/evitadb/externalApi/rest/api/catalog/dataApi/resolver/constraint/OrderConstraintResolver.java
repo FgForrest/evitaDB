@@ -82,17 +82,12 @@ public class OrderConstraintResolver extends RestConstraintResolver<OrderConstra
 	@Override
 	@Nonnull
 	protected Optional<ConstraintDescriptor> getWrapperContainer() {
-		throw new RestInternalError("Wrapper container is not supported for `order` constraints.");
+		return Optional.empty();
 	}
 
 	@Nonnull
 	@Override
 	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
 		return ConstraintDescriptorProvider.getConstraint(OrderBy.class);
-	}
-
-	@Override
-	protected boolean isChildrenUnique(@Nonnull ChildParameterDescriptor childParameter) {
-		return true;
 	}
 }

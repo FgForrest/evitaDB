@@ -236,7 +236,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 			// child container didn't have any usable children, but we want to have at least marker constraint, thus boolean value was used instead
 			return childType;
 		} else {
-			if (childParameterType.isArray() && !isChildrenUnique(childParameter)) {
+			if (childParameterType.isArray() && !childParameter.uniqueChildren()) {
 				return arrayOf(childType);
 			} else {
 				return childType;

@@ -71,21 +71,32 @@ public class AttributeNatural extends AbstractOrderConstraintLeaf implements Att
     }
 
     public AttributeNatural(@Nonnull String... attributeName) {
-        super(attributeName, OrderDirection.ASC);
-    }
-
-    public AttributeNatural(@Nonnull String attributeName, @Nonnull OrderDirection orderDirection) {
-        super(attributeName, orderDirection);
+        super(
+            ArrayUtils.mergeArrays(
+                Arrays.stream(attributeName)
+                    .map(it -> (Serializable) it)
+                    .toArray(Serializable[]::new),
+                new Serializable[] {OrderDirection.ASC}
+            )
+        );
     }
 
     @Creator
+    public AttributeNatural(@Nonnull @Classifier String attributeName, @Nonnull @Value OrderDirection orderDirection) {
+        super(attributeName, orderDirection);
+    }
+
+    // todo lho
+//    @Creator
     public AttributeNatural(
-        @Nonnull @Classifier String[] attributeName,
+        @Nonnull @Value String[] attributeName,
         @Nonnull @Value OrderDirection orderDirection
     ) {
         super(
             ArrayUtils.mergeArrays(
-                attributeName,
+                Arrays.stream(attributeName)
+                    .map(it -> (Serializable) it)
+                    .toArray(Serializable[]::new),
                 new Serializable[] {orderDirection}
             )
         );
@@ -93,7 +104,7 @@ public class AttributeNatural extends AbstractOrderConstraintLeaf implements Att
 
     @Override
     public boolean isApplicable() {
-        return isArgumentsNonNull() && getArguments().length == 2;
+        return isArgumentsNonNull() && getArguments().length >= 2;
     }
 
     /**

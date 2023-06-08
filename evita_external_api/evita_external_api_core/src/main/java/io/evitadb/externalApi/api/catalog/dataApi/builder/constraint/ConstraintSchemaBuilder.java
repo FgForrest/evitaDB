@@ -218,13 +218,6 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	}
 
 	/**
-	 * Determines if children constraints are unique.
-	 */
-	protected boolean isChildrenUnique(@Nonnull ChildParameterDescriptor childParameter) {
-		return childParameter.uniqueChildren();
-	}
-
-	/**
 	 * Returns predicate filtering allowed child constraints restricted by globally allowed and forbidden constraints.
 	 */
 	@Nonnull
