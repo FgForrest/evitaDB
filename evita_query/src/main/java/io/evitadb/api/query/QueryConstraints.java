@@ -102,7 +102,7 @@ public interface QueryConstraints {
 	 * TOBEDONE JNO - document me
 	*/
 	@Nullable
-	static FilterGroupBy filterGroupBy(@Nullable FilterConstraint constraint) {
+	static FilterGroupBy filterGroupBy(@Nullable FilterConstraint... constraint) {
 		return constraint == null ? null : new FilterGroupBy(constraint);
 	}
 

@@ -318,7 +318,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	protected List<OBJECT_FIELD> buildGenericChildren(@Nonnull ConstraintBuildContext buildContext,
 	                                                  @Nonnull AllowedConstraintPredicate allowedChildrenPredicate) {
 		return buildBasicChildren(
-			buildContext,
+			buildContext.switchToChildContext(buildContext.dataLocator()),
 			allowedChildrenPredicate,
 			ConstraintPropertyType.GENERIC
 		);

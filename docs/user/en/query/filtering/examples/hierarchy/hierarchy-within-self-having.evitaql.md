@@ -21,4 +21,4 @@
 | 66500            | 'earbuds-1'           |
 | 66537            | 'mouses'              |
 
-###### **Total number of results:** 21
+###### **Page** 1/2 **(Total number of results: 21)**

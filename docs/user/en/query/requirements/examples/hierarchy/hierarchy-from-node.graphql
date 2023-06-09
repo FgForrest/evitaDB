@@ -1,0 +1,64 @@
+{
+  queryProduct(
+    filterBy: {
+      hierarchyCategoriesWithin: {
+        ofParent: {
+          attributeCodeEquals: "audio"
+        }
+      }
+    }
+  ) {
+    extraResults {
+      hierarchy {
+        categories {
+          sideMenu1: fromNode(
+            node: {
+              filterBy: {
+                attributeCodeEquals: "portables"
+              }
+            }
+            stopAt: {
+              distance: 1
+            }
+          ) {
+            parentPrimaryKey
+            level
+            entity {
+              primaryKey
+              parentPrimaryKey
+              attributes {
+                code
+              }
+            }
+            queriedEntityCount
+            childrenCount
+            hasChildren
+          }
+          sideMenu2: fromNode(
+            node: {
+              filterBy: {
+                attributeCodeEquals: "laptops"
+              }
+            }
+            stopAt: {
+              distance: 1
+            }
+          ) {
+            parentPrimaryKey
+            level
+            entity {
+              primaryKey
+              parentPrimaryKey
+              attributes {
+                code
+              }
+            }
+            queriedEntityCount
+            childrenCount
+            hasChildren
+          }
+        }
+      }
+    }
+  }
+}

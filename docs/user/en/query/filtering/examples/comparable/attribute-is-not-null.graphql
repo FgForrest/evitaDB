@@ -1,0 +1,17 @@
+{
+  queryProduct(
+    filterBy: {
+      attributeCatalogNumberIs: NOT_NULL
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+          catalogNumber
+        }
+      }
+    }
+  }
+}

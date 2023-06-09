@@ -42,6 +42,7 @@ import java.util.Set;
 /**
  * Contains metadata for reconstructing original constraint described by {@link ConstraintDescriptor}.
  *
+ * @param suffix name suffix associated with this creator
  * @param instantiator executable element (constructor or factory method) to instantiate original constraint from {@link #parameters()}
  * @param suffix suffix of creator, defining {@link ConstraintDescriptor#fullName()}
  * @param parameters descriptors of original parameters of {@link #instantiator()} in same order to be able to reconstruct
@@ -211,7 +212,12 @@ public record ConstraintCreator(@Nonnull Executable instantiator,
 	/**
 	 * Common ancestor for all constraint parameters.
 	 */
-	public interface ParameterDescriptor {}
+	public interface ParameterDescriptor {
+		/**
+		 * Name of original parameter.
+		 */
+		@Nonnull String name();
+	}
 
 	/**
 	 * Describes single constraint constructor parameter whose purpose is to classify target data (e.g. entity type, attribute name...).

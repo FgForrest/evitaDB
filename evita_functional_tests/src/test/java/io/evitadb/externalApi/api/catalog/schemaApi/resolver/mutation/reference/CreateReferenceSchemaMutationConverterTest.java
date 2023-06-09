@@ -112,7 +112,7 @@ class CreateReferenceSchemaMutationConverterTest {
 			true,
 			null,
 			false,
-			true,
+			false,
 			false
 		);
 
@@ -121,9 +121,6 @@ class CreateReferenceSchemaMutationConverterTest {
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 				.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
 				.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), true)
-				.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), false)
-				.e(CreateReferenceSchemaMutationDescriptor.FILTERABLE.name(), true)
-				.e(CreateReferenceSchemaMutationDescriptor.FACETED.name(), false)
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation1);
@@ -137,9 +134,6 @@ class CreateReferenceSchemaMutationConverterTest {
 				map()
 					.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
 					.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), true)
-					.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), false)
-					.e(CreateReferenceSchemaMutationDescriptor.FILTERABLE.name(), true)
-					.e(CreateReferenceSchemaMutationDescriptor.FACETED.name(), false)
 					.build()
 			)
 		);
@@ -149,9 +143,6 @@ class CreateReferenceSchemaMutationConverterTest {
 				map()
 					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 					.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), true)
-					.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), false)
-					.e(CreateReferenceSchemaMutationDescriptor.FILTERABLE.name(), true)
-					.e(CreateReferenceSchemaMutationDescriptor.FACETED.name(), false)
 					.build()
 			)
 		);
@@ -161,45 +152,6 @@ class CreateReferenceSchemaMutationConverterTest {
 				map()
 					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 					.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
-					.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), false)
-					.e(CreateReferenceSchemaMutationDescriptor.FILTERABLE.name(), true)
-					.e(CreateReferenceSchemaMutationDescriptor.FACETED.name(), false)
-					.build()
-			)
-		);
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> converter.convert(
-				map()
-					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
-					.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
-					.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), true)
-					.e(CreateReferenceSchemaMutationDescriptor.FILTERABLE.name(), true)
-					.e(CreateReferenceSchemaMutationDescriptor.FACETED.name(), false)
-					.build()
-			)
-		);
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> converter.convert(
-				map()
-					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
-					.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
-					.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), true)
-					.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), false)
-					.e(CreateReferenceSchemaMutationDescriptor.FACETED.name(), false)
-					.build()
-			)
-		);
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> converter.convert(
-				map()
-					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
-					.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
-					.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), true)
-					.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), false)
-					.e(CreateReferenceSchemaMutationDescriptor.FILTERABLE.name(), true)
 					.build()
 			)
 		);

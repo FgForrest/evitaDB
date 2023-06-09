@@ -1,0 +1,27 @@
+{
+  queryProduct(
+    filterBy: {
+      hierarchyCategoriesWithin: {
+        ofParent: {
+          attributeCodeEquals: "accessories"
+        },
+        with: {
+          excluding: [
+            {
+              attributeCodeEquals: "wireless-headphones"
+            }
+          ]
+        }
+      }
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+        }
+      }
+    }
+  }
+}

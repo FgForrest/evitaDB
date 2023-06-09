@@ -65,15 +65,15 @@ public class CreateGlobalAttributeSchemaMutationConverter extends AttributeSchem
 			inputMutation.getRequiredField(AttributeSchemaMutationDescriptor.NAME),
 			inputMutation.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.DESCRIPTION),
 			inputMutation.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE),
-			inputMutation.getRequiredField(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE),
-			inputMutation.getRequiredField(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE_GLOBALLY),
-			inputMutation.getRequiredField(CreateGlobalAttributeSchemaMutationDescriptor.FILTERABLE),
-			inputMutation.getRequiredField(CreateGlobalAttributeSchemaMutationDescriptor.SORTABLE),
-			inputMutation.getRequiredField(CreateGlobalAttributeSchemaMutationDescriptor.LOCALIZED),
-			inputMutation.getRequiredField(CreateGlobalAttributeSchemaMutationDescriptor.NULLABLE),
+			inputMutation.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE, false),
+			inputMutation.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE_GLOBALLY, false),
+			inputMutation.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.FILTERABLE, false),
+			inputMutation.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.SORTABLE, false),
+			inputMutation.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.LOCALIZED, false),
+			inputMutation.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.NULLABLE, false),
 			valueType,
 			inputMutation.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), valueType),
-			inputMutation.getRequiredField(CreateGlobalAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES)
+			inputMutation.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES, 0)
 		);
 	}
 }

@@ -28,6 +28,7 @@ import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.filter.AttributeInSet;
 import io.evitadb.utils.Assert;
@@ -64,7 +65,8 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "setInFilter",
 	shortDescription = "The constraint sorts returned entities by ordering of the values specified `attributeInSet` in filter sharing the same attribute name.",
-	supportedIn = { ConstraintDomain.ENTITY }
+	supportedIn = { ConstraintDomain.ENTITY },
+	supportedValues = @ConstraintSupportedValues(allTypesSupported = true)
 )
 public class AttributeSetInFilter extends AbstractOrderConstraintLeaf implements AttributeConstraint<OrderConstraint> {
 	@Serial private static final long serialVersionUID = -8627803791652731430L;

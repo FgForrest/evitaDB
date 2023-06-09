@@ -24,7 +24,6 @@
 package io.evitadb.core.query.filter.translator.price;
 
 import io.evitadb.api.exception.TargetEntityHasNoPricesException;
-import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.PriceBetween;
 import io.evitadb.api.query.filter.PriceInCurrency;
 import io.evitadb.api.query.filter.PriceInPriceLists;
@@ -74,7 +73,7 @@ public class PriceInPriceListsTranslator extends AbstractPriceRelatedConstraintT
 
 		// if there are any more specific constraints - skip itself
 		//noinspection unchecked
-		if (filterByVisitor.isParentConstraint(And.class) && filterByVisitor.isAnySiblingConstraintPresent(PriceValidIn.class, PriceBetween.class)) {
+		if (filterByVisitor.isAnyConstraintPresentInConjunctionScopeExcludingUserFilter(PriceValidIn.class, PriceBetween.class)) {
 			return SkipFormula.INSTANCE;
 		} else {
 			final String[] priceLists = priceInPriceLists.getPriceLists();

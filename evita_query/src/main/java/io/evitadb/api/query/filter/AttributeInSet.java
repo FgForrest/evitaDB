@@ -79,8 +79,8 @@ public class AttributeInSet extends AbstractAttributeFilterConstraintLeaf implem
 
 	@Creator
 	public <T extends Serializable> AttributeInSet(@Nonnull @Classifier String attributeName,
-	                                               @Nonnull @Value T... set) {
-		super(concat(attributeName, set));
+	                                               @Nonnull @Value T... attributeValues) {
+		super(concat(attributeName, attributeValues));
 	}
 
 	/**

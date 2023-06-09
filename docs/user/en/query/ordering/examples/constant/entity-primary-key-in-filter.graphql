@@ -1,0 +1,24 @@
+{
+  queryProduct(
+    filterBy: {
+      entityPrimaryKeyInSet: [
+        110066,
+        106742,
+        107546,
+        110513
+      ]
+    },
+    orderBy: {
+      entityPrimaryKeyInFilter: true
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+        }
+      }
+    }
+  }
+}

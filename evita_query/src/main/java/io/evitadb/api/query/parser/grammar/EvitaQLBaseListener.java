@@ -173,6 +173,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterFilterGroupByConstraint(EvitaQLParser.FilterGroupByConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitFilterGroupByConstraint(EvitaQLParser.FilterGroupByConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterAndConstraint(EvitaQLParser.AndConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -641,6 +653,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterOrderGroupByConstraint(EvitaQLParser.OrderGroupByConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitOrderGroupByConstraint(EvitaQLParser.OrderGroupByConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterAttributeNaturalConstraint(EvitaQLParser.AttributeNaturalConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -1001,25 +1025,49 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterFacetSummaryConstraint(EvitaQLParser.FacetSummaryConstraintContext ctx) { }
+	@Override public void enterFacetSummary1Constraint(EvitaQLParser.FacetSummary1ConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void exitFacetSummaryConstraint(EvitaQLParser.FacetSummaryConstraintContext ctx) { }
+	@Override public void exitFacetSummary1Constraint(EvitaQLParser.FacetSummary1ConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterFacetSummaryOfReferenceConstraint(EvitaQLParser.FacetSummaryOfReferenceConstraintContext ctx) { }
+	@Override public void enterFacetSummary2Constraint(EvitaQLParser.FacetSummary2ConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void exitFacetSummaryOfReferenceConstraint(EvitaQLParser.FacetSummaryOfReferenceConstraintContext ctx) { }
+	@Override public void exitFacetSummary2Constraint(EvitaQLParser.FacetSummary2ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterFacetSummaryOfReference1Constraint(EvitaQLParser.FacetSummaryOfReference1ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitFacetSummaryOfReference1Constraint(EvitaQLParser.FacetSummaryOfReference1ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterFacetSummaryOfReference2Constraint(EvitaQLParser.FacetSummaryOfReference2ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitFacetSummaryOfReference2Constraint(EvitaQLParser.FacetSummaryOfReference2ConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -1793,25 +1841,85 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterFacetSummaryArgs(EvitaQLParser.FacetSummaryArgsContext ctx) { }
+	@Override public void enterFacetSummary1Args(EvitaQLParser.FacetSummary1ArgsContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void exitFacetSummaryArgs(EvitaQLParser.FacetSummaryArgsContext ctx) { }
+	@Override public void exitFacetSummary1Args(EvitaQLParser.FacetSummary1ArgsContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterFacetSummaryOfReferenceArgs(EvitaQLParser.FacetSummaryOfReferenceArgsContext ctx) { }
+	@Override public void enterFacetSummary2Args(EvitaQLParser.FacetSummary2ArgsContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void exitFacetSummaryOfReferenceArgs(EvitaQLParser.FacetSummaryOfReferenceArgsContext ctx) { }
+	@Override public void exitFacetSummary2Args(EvitaQLParser.FacetSummary2ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterFacetSummaryOfReference1Args(EvitaQLParser.FacetSummaryOfReference1ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitFacetSummaryOfReference1Args(EvitaQLParser.FacetSummaryOfReference1ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterFacetSummaryOfReference2Args(EvitaQLParser.FacetSummaryOfReference2ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitFacetSummaryOfReference2Args(EvitaQLParser.FacetSummaryOfReference2ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterFacetSummaryRequirementsArgs(EvitaQLParser.FacetSummaryRequirementsArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitFacetSummaryRequirementsArgs(EvitaQLParser.FacetSummaryRequirementsArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterFacetSummaryFilterArgs(EvitaQLParser.FacetSummaryFilterArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitFacetSummaryFilterArgs(EvitaQLParser.FacetSummaryFilterArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterFacetSummaryOrderArgs(EvitaQLParser.FacetSummaryOrderArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitFacetSummaryOrderArgs(EvitaQLParser.FacetSummaryOrderArgsContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *

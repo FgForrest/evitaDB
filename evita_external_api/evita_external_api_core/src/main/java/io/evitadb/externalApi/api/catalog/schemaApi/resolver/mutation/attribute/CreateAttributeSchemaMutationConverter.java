@@ -65,14 +65,14 @@ public class CreateAttributeSchemaMutationConverter extends AttributeSchemaMutat
 			inputMutation.getRequiredField(AttributeSchemaMutationDescriptor.NAME),
 			inputMutation.getOptionalField(CreateAttributeSchemaMutationDescriptor.DESCRIPTION),
 			inputMutation.getOptionalField(CreateAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE),
-			inputMutation.getRequiredField(CreateAttributeSchemaMutationDescriptor.UNIQUE),
-			inputMutation.getRequiredField(CreateAttributeSchemaMutationDescriptor.FILTERABLE),
-			inputMutation.getRequiredField(CreateAttributeSchemaMutationDescriptor.SORTABLE),
-			inputMutation.getRequiredField(CreateAttributeSchemaMutationDescriptor.LOCALIZED),
-			inputMutation.getRequiredField(CreateAttributeSchemaMutationDescriptor.NULLABLE),
+			inputMutation.getOptionalField(CreateAttributeSchemaMutationDescriptor.UNIQUE, false),
+			inputMutation.getOptionalField(CreateAttributeSchemaMutationDescriptor.FILTERABLE, false),
+			inputMutation.getOptionalField(CreateAttributeSchemaMutationDescriptor.SORTABLE, false),
+			inputMutation.getOptionalField(CreateAttributeSchemaMutationDescriptor.LOCALIZED, false),
+			inputMutation.getOptionalField(CreateAttributeSchemaMutationDescriptor.NULLABLE, false),
 			valueType,
 			inputMutation.getOptionalField(CreateAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), valueType),
-			inputMutation.getRequiredField(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES)
+			inputMutation.getOptionalField(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES, 0)
 		);
 	}
 }

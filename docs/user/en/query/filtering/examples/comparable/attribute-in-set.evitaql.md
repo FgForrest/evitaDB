@@ -4,4 +4,4 @@
 | 108335           | 'garmin-fenix-6-solar'  |
 | 108434           | 'garmin-vivomove-luxe'  |
 
-###### **Total number of results:** 3
+###### **Page** 1/1 **(Total number of results: 3)**

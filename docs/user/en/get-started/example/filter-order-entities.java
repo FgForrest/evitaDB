@@ -5,10 +5,7 @@ return evita.queryCatalog(
 			query(
 				collection("Brand"),
 				filterBy(
-					and(
-						attributeStartsWith("name", "A"),
-						entityLocaleEquals(Locale.ENGLISH)
-					)
+					attributeStartsWith("name", "A")
 				),
 				orderBy(
 					attributeNatural("name", OrderDirection.ASC)

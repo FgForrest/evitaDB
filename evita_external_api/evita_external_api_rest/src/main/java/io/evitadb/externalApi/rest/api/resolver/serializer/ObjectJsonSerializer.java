@@ -39,6 +39,7 @@ import io.evitadb.externalApi.rest.exception.RestInternalError;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -84,14 +85,9 @@ public class ObjectJsonSerializer {
 	 */
 	@Nonnull
 	public JsonNode serializeObject(@Nonnull Object value) {
-		if (value instanceof Collection<?> values) {
-			return serializeCollection(values);
-		}
-
-		if(value instanceof Object[] values) {
-			return serializeArray(values);
-		}
-
+		if (value instanceof Collection<?> values) return serializeCollection(values);
+		if(value instanceof Object[] values) return serializeArray(values);
+		if (value.getClass().isArray()) return serializeArray(value);
 		if (value instanceof String string) return jsonNodeFactory.textNode(string);
 		if (value instanceof Character character) return jsonNodeFactory.textNode(character.toString());
 		if (value instanceof Integer integer) return jsonNodeFactory.numberNode(integer);
@@ -109,8 +105,7 @@ public class ObjectJsonSerializer {
 		if (value instanceof ComplexDataObject complexDataObject) return serialize(complexDataObject);
 		if (value instanceof Range<?> range) return serialize(range);
 		if (value instanceof PriceContract price) return serialize(price);
-		if (value instanceof PriceInnerRecordHandling priceInnerRecordHandling) return serialize(priceInnerRecordHandling);
-		if (value instanceof FacetStatisticsDepth facetStatisticsDepth) return serialize(facetStatisticsDepth);
+		if (value.getClass().isEnum()) return serialize((Enum<?>) value);
 
 		throw new RestInternalError("Serialization of value of class: " + value.getClass().getName() + " is not implemented yet.");
 	}
@@ -142,6 +137,21 @@ public class ObjectJsonSerializer {
 		for (Object value : values) {
 			arrayNode.add(serializeObject(value));
 		}
+		return arrayNode;
+	}
+
+	/**
+	 * Serialize {@link Array} of unknown primitive type into JSON {@link ArrayNode}.
+	 */
+	public JsonNode serializeArray(@Nonnull Object values) {
+		final ArrayNode arrayNode = jsonNodeFactory.arrayNode();
+
+		final int arraySize = Array.getLength(values);
+		for (int i = 0; i < arraySize; i++) {
+			final Object item = Array.get(values, 0);
+			arrayNode.add(serializeObject(item));
+		}
+
 		return arrayNode;
 	}
 
@@ -177,8 +187,8 @@ public class ObjectJsonSerializer {
 		return jsonNodeFactory.textNode(DateTimeFormatter.ISO_LOCAL_TIME.format(localTime));
 	}
 
-	private JsonNode serialize(@Nonnull FacetStatisticsDepth facetStatisticsDepth) {
-		return jsonNodeFactory.textNode(facetStatisticsDepth.name());
+	private JsonNode serialize(@Nonnull Enum<?> e) {
+		return jsonNodeFactory.textNode(e.name());
 	}
 
 	private JsonNode serialize(@Nonnull ComplexDataObject complexDataObject) {
@@ -206,9 +216,5 @@ public class ObjectJsonSerializer {
 		priceNode.putIfAbsent(PriceDescriptor.TAX_RATE.name(),serializeObject(price.getTaxRate()));
 		priceNode.putIfAbsent(PriceDescriptor.VALIDITY.name(), price.getValidity() != null?serializeObject(price.getValidity()):null);
 		return priceNode;
-	}
-
-	private JsonNode serialize(@Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
-		return jsonNodeFactory.textNode(priceInnerRecordHandling.name());
 	}
 }

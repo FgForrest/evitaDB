@@ -46,6 +46,7 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import io.evitadb.documentation.JavaPrettyPrintingVisitor;
 import io.evitadb.documentation.UserDocumentationTest.CreateSnippets;
@@ -86,7 +87,6 @@ import static io.evitadb.documentation.evitaql.CustomJsonVisibilityChecker.allow
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
@@ -236,6 +236,14 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 	}
 
 	/**
+	 * Generates the GraphQL code snippet for the given query.
+	 */
+	@Nonnull
+	private String generateGraphQLSnippet(@Nonnull Query theQuery) {
+		return testContextAccessor.get().getGraphQLQueryConverter().convert(theQuery);
+	}
+
+	/**
 	 * Generates the MarkDown output with the results of the given query.
 	 */
 	@Nonnull
@@ -249,11 +257,7 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 			return generateMarkDownAttributeTable(query, response);
 		} else if (outputFormat.equals("json")) {
 			final String sourceVariable = outputSnippet.sourceVariable();
-			assertTrue(
-				sourceVariable != null && !sourceVariable.isEmpty(),
-				"Cannot generate `" + outputSnippet.path() + "`. The attribute `sourceVariable` is missing!"
-			);
-			return generateMarkDownJsonBlock(query, response, sourceVariable);
+			return generateMarkDownJsonBlock(response, sourceVariable);
 		} else {
 			throw new UnsupportedOperationException("Unsupported output format: " + outputFormat);
 		}
@@ -313,7 +317,8 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 		}
 
 		// generate MarkDown
-		return tableBuilder.build().serialize() + "\n\n###### **Total number of results:** " + response.getTotalRecordCount();
+		final PaginatedList<SealedEntity> recordPage = (PaginatedList<SealedEntity>) response.getRecordPage();
+		return tableBuilder.build().serialize() + "\n\n###### **Page** " + recordPage.getPageNumber() + "/" + recordPage.getLastPageNumber() + " **(Total number of results: "  + response.getTotalRecordCount() + ")**";
 	}
 
 	/**
@@ -321,12 +326,16 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 	 */
 	@Nonnull
 	private static String generateMarkDownJsonBlock(
-		@Nonnull Query query,
 		@Nonnull EvitaResponse<SealedEntity> response,
-		@Nonnull String sourceVariable
+		@Nullable String sourceVariable
 	) {
-		final String[] sourceVariableParts = sourceVariable.split("\\.");
-		final Object theValue = extractValueFrom(response, sourceVariableParts);
+		final Object theValue;
+		if (sourceVariable == null || sourceVariable.isBlank()) {
+			theValue = response;
+		} else {
+			final String[] sourceVariableParts = sourceVariable.split("\\.");
+			theValue = extractValueFrom(response, sourceVariableParts);
+		}
 		final String json = ofNullable(theValue)
 			.map(it -> {
 				try {
@@ -431,6 +440,10 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 				final String javaSnippet = generateJavaSnippet(theQuery);
 				writeFile(resource, "java", javaSnippet);
 			}
+			if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.GRAPHQL)) {
+				final String graphQLSnippet = generateGraphQLSnippet(theQuery);
+				writeFile(resource, "graphql", graphQLSnippet);
+			}
 			// generate Markdown snippet from the result if required
 			final String outputFormat = ofNullable(outputSnippet).map(OutputSnippet::forFormat).orElse("md");
 			if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.MARKDOWN)) {
@@ -447,8 +460,8 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 			markDownFile.ifPresent(
 				content -> {
 					assertEquals(
-						markdownSnippet,
-						content
+						content,
+						markdownSnippet
 					);
 
 					final Path assertSource = outputSnippet == null ?

@@ -1,0 +1,165 @@
+mutation {
+  updateCatalogSchema(
+    mutations: [
+      {
+        createEntitySchemaMutation: {
+          entityType: "Brand"
+        }
+      },
+      {
+        modifyEntitySchemaMutation: {
+          entityType: "Brand"
+          schemaMutations: [
+            {
+              modifyEntitySchemaDescriptionMutation: {
+                description: "Brand is entity that represents manufacturer or supplier of the product."
+              }
+            },
+            {
+              setEntitySchemaWithGeneratedPrimaryKeyMutation: {
+                withGeneratedPrimaryKey: false
+              }
+            },
+            {
+              allowLocaleInEntitySchemaMutation: {
+                locales: ["en", "de"]
+              }
+            },
+            {
+              createAttributeSchemaMutation: {
+                name: "name"
+                type: String
+                description: "The apt brand name."
+                filterable: true
+                sortable: true
+              }
+            }
+          ]
+        }
+      },
+      {
+        createEntitySchemaMutation: {
+          entityType: "Category"
+        }
+      },
+      {
+        modifyEntitySchemaMutation: {
+          entityType: "Category"
+          schemaMutations: [
+            {
+              modifyEntitySchemaDescriptionMutation: {
+                description: "Category is entity that forms a hierarchical tree and categorizes items on the e-commerce site into a better accessible form for the customer."
+              }
+              setEntitySchemaWithGeneratedPrimaryKeyMutation: {
+                withGeneratedPrimaryKey: false
+              }
+              allowLocaleInEntitySchemaMutation: {
+                locales: ["en", "de"]
+              }
+              createAttributeSchemaMutation: {
+                name: "name"
+                type: String
+                description: "The apt category name."
+                localized: true
+                filterable: true
+                sortable: true
+              }
+            }
+          ]
+        }
+      }
+      {
+        createEntitySchemaMutation: {
+          entityType: "Product"
+        }
+        modifyEntitySchemaMutation: {
+          entityType: "Product"
+          schemaMutations: [
+            {
+              modifyEntitySchemaDescriptionMutation: {
+                description: "Product represents an article that can be displayed and sold on e-shop. Product can be organized in categories or groups. Product can relate to groups or brands. Product have prices."
+              }
+            },
+            {
+              setEntitySchemaWithGeneratedPrimaryKeyMutation: {
+                withGeneratedPrimaryKey: true
+              }
+            },
+            {
+              allowLocaleInEntitySchemaMutation: {
+                locales: ["en", "de"]
+              }
+            },
+            {
+              allowCurrencyInEntitySchemaMutation: {
+                currencies: ["USD", "EUR"]
+              }
+            },
+            {
+              createAttributeSchemaMutation: {
+                name: "name"
+                type: String
+                description: "The apt brand name."
+                localized: true
+                filterable: true
+                sortable: true
+                nullable: true
+              }
+            },
+            {
+              createAttributeSchemaMutation: {
+                name: "catalogCode"
+                type: String
+                description: "Product designation in your sales catalogue."
+                filterable: true
+                sortable: true
+                nullable: true
+              }
+            },
+            {
+              createAttributeSchemaMutation: {
+                name: "stockQuantity"
+                type: Integer
+                description: "Number of pieces in stock."
+                filterable: true
+                sortable: true
+                defaultValue: 0
+              }
+            },
+            {
+              createAssociatedDataSchemaMutation: {
+                name: "gallery"
+                type: StringArray
+                nullable: true
+                description: "List of links to images in the product gallery."
+              }
+            },
+            {
+              createReferenceSchemaMutation: {
+                name: "brand"
+                referencedEntityType: "Brand"
+                referencedEntityTypeManaged: true
+                cardinality: ZERO_OR_ONE
+                description: "Reference to the brand or manufacturer of the product."
+                filterable: true
+                faceted: true
+              }
+            },
+            {
+              createReferenceSchemaMutation: {
+                name: "categories"
+                referencedEntityType: "Category"
+                referencedEntityTypeManaged: true
+                cardinality: ZERO_OR_MORE
+                description: "Reference to one or more categories the product is listed in."
+                filterable: true
+              }
+            }
+          ]
+        }
+      }
+    ]
+  ) {
+    name
+  }
+}

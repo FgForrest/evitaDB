@@ -27,6 +27,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.ReferenceConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
@@ -102,6 +103,13 @@ public class ReferenceHaving extends AbstractFilterConstraintContainer implement
 	@Override
 	public boolean isNecessary() {
 		return getArguments().length == 1 && getChildren().length == 1;
+	}
+
+	@AliasForParameter("filter")
+	@Nonnull
+	@Override
+	public FilterConstraint[] getChildren() {
+		return super.getChildren();
 	}
 
 	@Nonnull

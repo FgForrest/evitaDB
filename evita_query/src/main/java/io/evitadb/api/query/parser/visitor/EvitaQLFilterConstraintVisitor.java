@@ -90,6 +90,19 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
+	public FilterConstraint visitFilterGroupByConstraint(@Nonnull EvitaQLParser.FilterGroupByConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new FilterGroupBy(
+				ctx.args.constraints
+					.stream()
+					.map(c -> visitChildConstraint(c, FilterConstraint.class))
+					.toArray(FilterConstraint[]::new)
+			)
+		);
+	}
+
+	@Override
 	public FilterConstraint visitAndConstraint(@Nonnull EvitaQLParser.AndConstraintContext ctx) {
 		return parse(
 			ctx,
