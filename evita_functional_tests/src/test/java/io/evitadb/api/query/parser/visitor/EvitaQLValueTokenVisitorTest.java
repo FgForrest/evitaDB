@@ -73,13 +73,13 @@ class EvitaQLValueTokenVisitorTest {
     @Test
     void shouldCreateVisitorWithAllComparableDataTypes() {
         final EvitaQLValueTokenVisitor visitor = EvitaQLValueTokenVisitor.withComparableTypesAllowed();
-        assertEquals(19, visitor.allowedDataTypes.size());
+        assertEquals(18, visitor.allowedDataTypes.size());
     }
 
     @Test
     void shouldCreateVisitorWithAllDataTypes() {
         final EvitaQLValueTokenVisitor visitor = EvitaQLValueTokenVisitor.withAllDataTypesAllowed();
-        assertEquals(22, visitor.allowedDataTypes.size());
+        assertEquals(21, visitor.allowedDataTypes.size());
     }
 
     @Test
