@@ -1808,7 +1808,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 								attributeLessThan(ATTRIBUTE_PRIORITY, 35000L)
 							),
 							orderBy(
-								attributeNatural(DESC, ATTRIBUTE_CREATED),
+								attributeNatural(ATTRIBUTE_CREATED, DESC),
 								attributeNatural(ATTRIBUTE_MANUFACTURED)
 							),
 							require(

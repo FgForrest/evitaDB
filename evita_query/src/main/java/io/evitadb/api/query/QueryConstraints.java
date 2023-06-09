@@ -1995,7 +1995,7 @@ public interface QueryConstraints {
 	 * ```
 	*/
 	@Nonnull
-	static AttributeNatural attributeNatural(@Nonnull String... attributeName) {
+	static AttributeNatural attributeNatural(@Nonnull String attributeName) {
 		return new AttributeNatural(attributeName);
 	}
 
@@ -2015,7 +2015,7 @@ public interface QueryConstraints {
 	 * ```
 	*/
 	@Nonnull
-	static AttributeNatural attributeNatural(@Nonnull OrderDirection orderDirection, @Nonnull String... attributeName) {
+	static AttributeNatural attributeNatural(@Nonnull String attributeName, @Nonnull OrderDirection orderDirection) {
 		return new AttributeNatural(attributeName, orderDirection);
 	}
 

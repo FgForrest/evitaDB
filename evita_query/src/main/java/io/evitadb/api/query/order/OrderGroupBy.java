@@ -50,7 +50,7 @@ public class OrderGroupBy extends AbstractOrderConstraintContainer implements Ge
 	@Serial private static final long serialVersionUID = -309362096093370813L;
 
 	@Creator
-	public OrderGroupBy(@Nonnull @Child OrderConstraint... children) {
+	public OrderGroupBy(@Nonnull @Child(uniqueChildren = true) OrderConstraint... children) {
 		super(children);
 	}
 

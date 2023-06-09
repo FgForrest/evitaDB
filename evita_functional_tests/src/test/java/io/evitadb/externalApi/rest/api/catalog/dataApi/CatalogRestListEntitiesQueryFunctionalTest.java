@@ -1148,7 +1148,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 								attributeLessThan(ATTRIBUTE_PRIORITY, 35000L)
 							),
 							orderBy(
-								attributeNatural(DESC, TestDataGenerator.ATTRIBUTE_CREATED),
+								attributeNatural(TestDataGenerator.ATTRIBUTE_CREATED, DESC),
 								attributeNatural(TestDataGenerator.ATTRIBUTE_MANUFACTURED)
 							),
 							require(
@@ -1171,10 +1171,10 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 					"\"filterBy\": {" +
 					"  \"attributePriorityLessThan\": 35000" +
 					"}," +
-					"\"orderBy\": [{" +
+					"\"orderBy\": {" +
 					"  \"attributeCreatedNatural\": \"DESC\"," +
 					"  \"attributeManufacturedNatural\": \"ASC\"" +
-					"}]," +
+					"}," +
 					"\"require\": {" +
 					"  \"page\": {" +
 					"     \"number\": 0," +

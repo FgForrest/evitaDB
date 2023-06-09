@@ -653,7 +653,7 @@ public interface RandomQueryGenerator {
 		if (random.nextBoolean()) {
 			randomOrderBy = attributeNatural(pickRandom(random, sortableAttributes));
 		} else {
-			randomOrderBy = attributeNatural(DESC, pickRandom(random, sortableAttributes));
+			randomOrderBy = attributeNatural(pickRandom(random, sortableAttributes), DESC);
 		}
 		return randomOrderBy;
 	}

@@ -2247,7 +2247,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								attributeLessThan(ATTRIBUTE_PRIORITY, 35000L)
 							),
 							orderBy(
-								attributeNatural(DESC, ATTRIBUTE_CREATED),
+								attributeNatural(ATTRIBUTE_CREATED, DESC),
 								attributeNatural(ATTRIBUTE_MANUFACTURED)
 							),
 							require(
@@ -3087,7 +3087,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							// we need only data about cardinalities
 							hierarchyOfSelf(
-								orderBy(attributeNatural(DESC, ATTRIBUTE_CODE)),
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								fromRoot(
 									"megaMenu",
 									entityFetch(attributeContent()),
@@ -3161,7 +3161,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							// we need only data about cardinalities
 							hierarchyOfSelf(
-								orderBy(attributeNatural(DESC, ATTRIBUTE_CODE)),
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								fromNode(
 									"megaMenu",
 									node(filterBy(entityPrimaryKeyInSet(2))),
@@ -3238,7 +3238,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							// we need only data about cardinalities
 							hierarchyOfSelf(
-								orderBy(attributeNatural(DESC, ATTRIBUTE_CODE)),
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								children(
 									"megaMenu",
 									entityFetch(attributeContent()),
@@ -3313,7 +3313,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							// we need only data about cardinalities
 							hierarchyOfSelf(
-								orderBy(attributeNatural(DESC, ATTRIBUTE_CODE)),
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								parents(
 									"megaMenu",
 									entityFetch(attributeContent()),
@@ -3387,7 +3387,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							// we need only data about cardinalities
 							hierarchyOfSelf(
-								orderBy(attributeNatural(DESC, ATTRIBUTE_CODE)),
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								parents(
 									"megaMenu",
 									entityFetch(attributeContent()),
@@ -3471,7 +3471,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							// we need only data about cardinalities
 							hierarchyOfSelf(
-								orderBy(attributeNatural(DESC, ATTRIBUTE_CODE)),
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								siblings(
 									"rootSiblings",
 									entityFetch(attributeContent()),
@@ -3544,7 +3544,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							// we need only data about cardinalities
 							hierarchyOfSelf(
-								orderBy(attributeNatural(DESC, ATTRIBUTE_CODE)),
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								fromRoot(
 									"megaMenu",
 									entityFetch(attributeContent()),
@@ -3672,7 +3672,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							// we need only data about cardinalities
 							hierarchyOfReference(
 								Entities.CATEGORY,
-								orderBy(attributeNatural(DESC, ATTRIBUTE_CODE)),
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								fromRoot(
 									"megaMenu",
 									entityFetch(attributeContent()),
@@ -3750,7 +3750,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							// we need only data about cardinalities
 							hierarchyOfReference(
 								Entities.CATEGORY,
-								orderBy(attributeNatural(DESC, ATTRIBUTE_CODE)),
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								fromNode(
 									"megaMenu",
 									node(filterBy(entityPrimaryKeyInSet(2))),
@@ -3831,7 +3831,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							// we need only data about cardinalities
 							hierarchyOfReference(
 								Entities.CATEGORY,
-								orderBy(attributeNatural(DESC, ATTRIBUTE_CODE)),
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								children(
 									"megaMenu",
 									entityFetch(attributeContent()),
@@ -3910,7 +3910,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							// we need only data about cardinalities
 							hierarchyOfReference(
 								Entities.CATEGORY,
-								orderBy(attributeNatural(DESC, ATTRIBUTE_CODE)),
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								parents(
 									"megaMenu",
 									entityFetch(attributeContent()),
@@ -3988,7 +3988,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							// we need only data about cardinalities
 							hierarchyOfReference(
 								Entities.CATEGORY,
-								orderBy(attributeNatural(DESC, ATTRIBUTE_CODE)),
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								parents(
 									"megaMenu",
 									entityFetch(attributeContent()),
@@ -4073,7 +4073,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							// we need only data about cardinalities
 							hierarchyOfReference(
 								Entities.CATEGORY,
-								orderBy(attributeNatural(DESC, ATTRIBUTE_CODE)),
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								siblings(
 									"rootSiblings",
 									entityFetch(attributeContent()),
@@ -4152,7 +4152,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							// we need only data about cardinalities
 							hierarchyOfReference(
 								Entities.CATEGORY,
-								orderBy(attributeNatural(DESC, ATTRIBUTE_CODE)),
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								fromRoot(
 									"megaMenu",
 									entityFetch(attributeContent()),
@@ -4424,7 +4424,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								Entities.PARAMETER,
 								FacetStatisticsDepth.COUNTS,
 								filterGroupBy(attributeLessThanEquals(ATTRIBUTE_CODE, "K")),
-								orderGroupBy(attributeNatural(OrderDirection.DESC, ATTRIBUTE_NAME))
+								orderGroupBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
 							)
 						)
 					),
@@ -4500,7 +4500,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								Entities.PARAMETER,
 								FacetStatisticsDepth.COUNTS,
 								filterBy(attributeLessThanEquals(ATTRIBUTE_CODE, "K")),
-								orderBy(attributeNatural(OrderDirection.DESC, ATTRIBUTE_NAME))
+								orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
 							)
 						)
 					),
@@ -4581,7 +4581,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								Entities.PARAMETER,
 								FacetStatisticsDepth.COUNTS,
 								filterBy(attributeLessThanEquals(ATTRIBUTE_CODE, "K")),
-								orderBy(attributeNatural(OrderDirection.DESC, ATTRIBUTE_NAME))
+								orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
 							)
 						)
 					),

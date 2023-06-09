@@ -60,8 +60,8 @@ class FacetSummaryOfReferenceTest {
 			FacetStatisticsDepth.COUNTS,
 			filterBy(entityPrimaryKeyInSet(1)),
 			filterGroupBy(entityPrimaryKeyInSet(2)),
-			orderBy(attributeNatural(OrderDirection.ASC, "code")),
-			orderGroupBy(attributeNatural(OrderDirection.ASC, "code"))
+			orderBy(attributeNatural("code", OrderDirection.ASC)),
+			orderGroupBy(attributeNatural("code", OrderDirection.ASC))
 		);
 		assertEquals(
 			new FacetSummaryOfReference(
@@ -130,8 +130,8 @@ class FacetSummaryOfReferenceTest {
 				FacetStatisticsDepth.COUNTS,
 				filterBy(entityPrimaryKeyInSet(1)),
 				filterGroupBy(entityPrimaryKeyInSet(2)),
-				orderBy(attributeNatural(OrderDirection.ASC, "code")),
-				orderGroupBy(attributeNatural(OrderDirection.ASC, "code"))
+				orderBy(attributeNatural("code", OrderDirection.ASC)),
+				orderGroupBy(attributeNatural("code", OrderDirection.ASC))
 			).isApplicable()
 		);
 	}
@@ -148,8 +148,8 @@ class FacetSummaryOfReferenceTest {
 				FacetStatisticsDepth.COUNTS,
 				filterBy(entityPrimaryKeyInSet(1)),
 				filterGroupBy(entityPrimaryKeyInSet(2)),
-				orderBy(attributeNatural(OrderDirection.ASC, "code")),
-				orderGroupBy(attributeNatural(OrderDirection.ASC, "code"))
+				orderBy(attributeNatural("code", OrderDirection.ASC)),
+				orderGroupBy(attributeNatural("code", OrderDirection.ASC))
 			).toString()
 		);
 	}
@@ -167,16 +167,16 @@ class FacetSummaryOfReferenceTest {
 				FacetStatisticsDepth.COUNTS,
 				filterBy(entityPrimaryKeyInSet(1)),
 				filterGroupBy(entityPrimaryKeyInSet(2)),
-				orderBy(attributeNatural(OrderDirection.ASC, "code")),
-				orderGroupBy(attributeNatural(OrderDirection.ASC, "code"))
+				orderBy(attributeNatural("code", OrderDirection.ASC)),
+				orderGroupBy(attributeNatural("code", OrderDirection.ASC))
 			),
 			facetSummaryOfReference(
 				"parameter",
 				FacetStatisticsDepth.COUNTS,
 				filterBy(entityPrimaryKeyInSet(4)),
 				filterGroupBy(entityPrimaryKeyInSet(3)),
-				orderBy(attributeNatural(OrderDirection.DESC, "code")),
-				orderGroupBy(attributeNatural(OrderDirection.DESC, "code"))
+				orderBy(attributeNatural("code", OrderDirection.DESC)),
+				orderGroupBy(attributeNatural("code", OrderDirection.DESC))
 			)
 		);
 		assertEquals(facetSummaryOfReference("parameter").hashCode(), facetSummaryOfReference("parameter").hashCode());
@@ -188,16 +188,16 @@ class FacetSummaryOfReferenceTest {
 				FacetStatisticsDepth.COUNTS,
 				filterBy(entityPrimaryKeyInSet(1)),
 				filterGroupBy(entityPrimaryKeyInSet(2)),
-				orderBy(attributeNatural(OrderDirection.ASC, "code")),
-				orderGroupBy(attributeNatural(OrderDirection.ASC, "code"))
+				orderBy(attributeNatural("code", OrderDirection.ASC)),
+				orderGroupBy(attributeNatural("code", OrderDirection.ASC))
 			).hashCode(),
 			facetSummaryOfReference(
 				"parameter",
 				FacetStatisticsDepth.COUNTS,
 				filterBy(entityPrimaryKeyInSet(4)),
 				filterGroupBy(entityPrimaryKeyInSet(3)),
-				orderBy(attributeNatural(OrderDirection.DESC, "code")),
-				orderGroupBy(attributeNatural(OrderDirection.DESC, "code"))
+				orderBy(attributeNatural("code", OrderDirection.DESC)),
+				orderGroupBy(attributeNatural("code", OrderDirection.DESC))
 			).hashCode()
 		);
 	}
@@ -246,10 +246,10 @@ class FacetSummaryOfReferenceTest {
 		);
 		assertEquals(
 			filterBy(entityPrimaryKeyInSet(1)),
-			facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, filterBy(entityPrimaryKeyInSet(1)), orderBy(attributeNatural(OrderDirection.ASC, "code")), entityGroupFetch(attributeContent("name"))).getFilterBy().orElse(null)
+			facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, filterBy(entityPrimaryKeyInSet(1)), orderBy(attributeNatural("code", OrderDirection.ASC)), entityGroupFetch(attributeContent("name"))).getFilterBy().orElse(null)
 		);
 		assertNull(
-			facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, null, orderBy(attributeNatural(OrderDirection.ASC, "code"))).getFilterBy().orElse(null)
+			facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, null, orderBy(attributeNatural("code", OrderDirection.ASC))).getFilterBy().orElse(null)
 		);
 		assertNull(
 			facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT).getFilterBy().orElse(null)
@@ -264,10 +264,10 @@ class FacetSummaryOfReferenceTest {
 		);
 		assertEquals(
 			filterGroupBy(entityPrimaryKeyInSet(1)),
-			facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, filterGroupBy(entityPrimaryKeyInSet(1)), orderGroupBy(attributeNatural(OrderDirection.ASC, "code")), entityGroupFetch(attributeContent("name"))).getFilterGroupBy().orElse(null)
+			facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, filterGroupBy(entityPrimaryKeyInSet(1)), orderGroupBy(attributeNatural("code", OrderDirection.ASC)), entityGroupFetch(attributeContent("name"))).getFilterGroupBy().orElse(null)
 		);
 		assertNull(
-			facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, null, orderBy(attributeNatural(OrderDirection.ASC, "code"))).getFilterGroupBy().orElse(null)
+			facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, null, orderBy(attributeNatural("code", OrderDirection.ASC))).getFilterGroupBy().orElse(null)
 		);
 		assertNull(
 			facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT).getFilterGroupBy().orElse(null)
@@ -277,12 +277,12 @@ class FacetSummaryOfReferenceTest {
 	@Test
 	void shouldReturnOrderFilterConstraint() {
 		assertEquals(
-			orderBy(attributeNatural(OrderDirection.ASC, "code")),
-			facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, null, orderBy(attributeNatural(OrderDirection.ASC, "code"))).getOrderBy().orElse(null)
+			orderBy(attributeNatural("code", OrderDirection.ASC)),
+			facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, null, orderBy(attributeNatural("code", OrderDirection.ASC))).getOrderBy().orElse(null)
 		);
 		assertEquals(
-			orderBy(attributeNatural(OrderDirection.ASC, "code")),
-			facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, filterBy(entityPrimaryKeyInSet(1)), orderBy(attributeNatural(OrderDirection.ASC, "code")), entityGroupFetch(attributeContent("name"))).getOrderBy().orElse(null)
+			orderBy(attributeNatural("code", OrderDirection.ASC)),
+			facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, filterBy(entityPrimaryKeyInSet(1)), orderBy(attributeNatural("code", OrderDirection.ASC)), entityGroupFetch(attributeContent("name"))).getOrderBy().orElse(null)
 		);
 		assertNull(
 			facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, filterBy(entityPrimaryKeyInSet(1)), null).getOrderBy().orElse(null)
@@ -295,12 +295,12 @@ class FacetSummaryOfReferenceTest {
 	@Test
 	void shouldReturnOrderGroupFilterConstraint() {
 		assertEquals(
-			orderGroupBy(attributeNatural(OrderDirection.ASC, "code")),
-			facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, null, orderGroupBy(attributeNatural(OrderDirection.ASC, "code"))).getOrderGroupBy().orElse(null)
+			orderGroupBy(attributeNatural("code", OrderDirection.ASC)),
+			facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, null, orderGroupBy(attributeNatural("code", OrderDirection.ASC))).getOrderGroupBy().orElse(null)
 		);
 		assertEquals(
-			orderGroupBy(attributeNatural(OrderDirection.ASC, "code")),
-			facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, filterGroupBy(entityPrimaryKeyInSet(1)), orderGroupBy(attributeNatural(OrderDirection.ASC, "code")), entityGroupFetch(attributeContent("name"))).getOrderGroupBy().orElse(null)
+			orderGroupBy(attributeNatural("code", OrderDirection.ASC)),
+			facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, filterGroupBy(entityPrimaryKeyInSet(1)), orderGroupBy(attributeNatural("code", OrderDirection.ASC)), entityGroupFetch(attributeContent("name"))).getOrderGroupBy().orElse(null)
 		);
 		assertNull(
 			facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, filterBy(entityPrimaryKeyInSet(1)), null).getOrderGroupBy().orElse(null)

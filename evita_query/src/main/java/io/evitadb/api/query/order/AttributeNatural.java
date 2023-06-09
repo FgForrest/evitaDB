@@ -31,7 +31,6 @@ import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
-import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -70,15 +69,8 @@ public class AttributeNatural extends AbstractOrderConstraintLeaf implements Att
         super(arguments);
     }
 
-    public AttributeNatural(@Nonnull String... attributeName) {
-        super(
-            ArrayUtils.mergeArrays(
-                Arrays.stream(attributeName)
-                    .map(it -> (Serializable) it)
-                    .toArray(Serializable[]::new),
-                new Serializable[] {OrderDirection.ASC}
-            )
-        );
+    public AttributeNatural(@Nonnull String attributeName) {
+        super(attributeName, OrderDirection.ASC);
     }
 
     @Creator
@@ -86,35 +78,17 @@ public class AttributeNatural extends AbstractOrderConstraintLeaf implements Att
         super(attributeName, orderDirection);
     }
 
-    // todo lho
-    // todo lho tests
-    @Creator
-    public AttributeNatural(
-        @Nonnull @Value String[] attributeName,
-        @Nonnull @Value OrderDirection orderDirection
-    ) {
-        super(
-            ArrayUtils.mergeArrays(
-                Arrays.stream(attributeName)
-                    .map(it -> (Serializable) it)
-                    .toArray(Serializable[]::new),
-                new Serializable[] {orderDirection}
-            )
-        );
-    }
-
     @Override
     public boolean isApplicable() {
-        return isArgumentsNonNull() && getArguments().length >= 2;
+        return isArgumentsNonNull() && getArguments().length == 2;
     }
 
     /**
      * Returns attribute name that needs to be examined.
      */
-    public String[] getAttributeNames() {
-        return Arrays.stream(getArguments())
-            .filter(String.class::isInstance)
-            .toArray(String[]::new);
+    @Nonnull
+    public String getAttributeName() {
+        return (String) getArguments()[0];
     }
 
     /**
@@ -122,11 +96,7 @@ public class AttributeNatural extends AbstractOrderConstraintLeaf implements Att
      */
     @Nonnull
     public OrderDirection getOrderDirection() {
-        return Arrays.stream(getArguments())
-            .filter(OrderDirection.class::isInstance)
-            .map(OrderDirection.class::cast)
-            .findFirst()
-            .orElse(OrderDirection.ASC);
+        return (OrderDirection) getArguments()[1];
     }
 
     @Nonnull

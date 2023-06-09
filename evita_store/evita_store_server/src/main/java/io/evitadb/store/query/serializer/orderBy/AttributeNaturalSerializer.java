@@ -41,23 +41,15 @@ public class AttributeNaturalSerializer extends Serializer<AttributeNatural> {
 
 	@Override
 	public void write(Kryo kryo, Output output, AttributeNatural object) {
-		final String[] attributeNames = object.getAttributeNames();
-		output.writeVarInt(attributeNames.length, true);
-		for (String attributeName : attributeNames) {
-			output.writeString(attributeName);
-		}
+		output.writeString(object.getAttributeName());
 		kryo.writeObject(output, object.getOrderDirection());
 	}
 
 	@Override
 	public AttributeNatural read(Kryo kryo, Input input, Class<? extends AttributeNatural> type) {
-		final int attributeNamesCount = input.readVarInt(true);
-		final String[] attributeNames = new String[attributeNamesCount];
-		for (int i = 0; i < attributeNames.length; i++) {
-			 attributeNames[i] = input.readString();
-		}
+		final String attributeName = input.readString();
 		final OrderDirection orderDirection = kryo.readObject(input, OrderDirection.class);
-		return new AttributeNatural(attributeNames, orderDirection);
+		return new AttributeNatural(attributeName, orderDirection);
 	}
 
 }

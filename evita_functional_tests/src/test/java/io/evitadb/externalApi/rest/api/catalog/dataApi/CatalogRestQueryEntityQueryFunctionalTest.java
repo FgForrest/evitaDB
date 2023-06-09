@@ -1189,11 +1189,11 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		                                    "attributeCodeInSet": [%s]
 		                                }
 		                            },
-		                            "orderBy": [{
+		                            "orderBy": {
 		                                "entityProperty": {
 		                                    "attributeNameNatural": "DESC"
 		                                }
-		                            }]
+		                            }
 		                        }
 	                        }
 	                    }
@@ -1334,7 +1334,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 								attributeLessThan(ATTRIBUTE_PRIORITY, 35000L)
 							),
 							orderBy(
-								attributeNatural(DESC, TestDataGenerator.ATTRIBUTE_CREATED),
+								attributeNatural(TestDataGenerator.ATTRIBUTE_CREATED, DESC),
 								attributeNatural(TestDataGenerator.ATTRIBUTE_MANUFACTURED)
 							),
 							require(
@@ -1357,10 +1357,10 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				"\"filterBy\": {" +
 				"  \"attributePriorityLessThan\": 35000" +
 				"}," +
-				"\"orderBy\": [{" +
+				"\"orderBy\": {" +
 				"  \"attributeCreatedNatural\": \"DESC\"," +
 				"  \"attributeManufacturedNatural\": \"ASC\"" +
-				"}]," +
+				"}," +
 				"\"require\": {" +
 				"  \"strip\": {" +
 				"     \"limit\": 30" +
@@ -2642,7 +2642,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							// we need only data about cardinalities
 							hierarchyOfSelf(
-								orderBy(attributeNatural(DESC, ATTRIBUTE_CODE)),
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								hierarchies
 							)
 						)
@@ -2675,9 +2675,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 									"size": 0
 								},
 								"hierarchyOfSelf": {
-									"orderBy": [{
+									"orderBy": {
 										"attributeCodeNatural": "DESC"
-									}],
+									},
 									"requirements": [
 										%s
 									]
@@ -2709,7 +2709,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 							// we need only data about cardinalities
 							hierarchyOfReference(
 								Entities.CATEGORY,
-								orderBy(attributeNatural(DESC, ATTRIBUTE_CODE)),
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								hierarchies
 							)
 						)
@@ -2742,9 +2742,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 									"size": 0
 								},
 								"hierarchyCategoryOfReference": {
-									"orderBy": [{
+									"orderBy": {
 										"attributeCodeNatural": "DESC"
-									}],
+									},
 									"emptyHierarchicalEntityBehaviour": "REMOVE_EMPTY",
 									"requirements": [
 										%s

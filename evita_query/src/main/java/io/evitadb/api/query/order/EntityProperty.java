@@ -74,7 +74,7 @@ public class EntityProperty extends AbstractOrderConstraintContainer implements 
 	}
 
 	@Creator
-	public EntityProperty(@Nonnull @Child OrderConstraint... children) {
+	public EntityProperty(@Nonnull @Child(uniqueChildren = true) OrderConstraint... children) {
 		super(children);
 	}
 

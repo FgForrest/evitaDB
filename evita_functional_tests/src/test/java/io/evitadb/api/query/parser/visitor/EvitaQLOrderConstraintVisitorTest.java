@@ -54,10 +54,10 @@ class EvitaQLOrderConstraintVisitorTest {
         assertEquals(orderBy(attributeNatural("a")), constraint1);
 
         final OrderConstraint constraint2 = parseOrderConstraintUnsafe("orderBy(attributeNatural('a'),attributeNatural('b',DESC))");
-        assertEquals(orderBy(attributeNatural("a"), attributeNatural(DESC, "b")), constraint2);
+        assertEquals(orderBy(attributeNatural("a"), attributeNatural("b",DESC )), constraint2);
 
         final OrderConstraint constraint3 = parseOrderConstraintUnsafe("orderBy( attributeNatural('a') ,  attributeNatural('b',  DESC ) )");
-        assertEquals(orderBy(attributeNatural("a"), attributeNatural(DESC, "b")), constraint3);
+        assertEquals(orderBy(attributeNatural("a"), attributeNatural("b", DESC)), constraint3);
 
         final OrderConstraint constraint4 = parseOrderConstraint("orderBy()");
         assertEquals(orderBy(), constraint4);
@@ -78,16 +78,16 @@ class EvitaQLOrderConstraintVisitorTest {
         assertEquals(attributeNatural("a"), constraint2);
 
         final OrderConstraint constraint3 = parseOrderConstraintUnsafe("attributeNatural('a',DESC)");
-        assertEquals(attributeNatural(DESC, "a"), constraint3);
+        assertEquals(attributeNatural("a", DESC), constraint3);
 
         final OrderConstraint constraint4 = parseOrderConstraintUnsafe("attributeNatural( 'a' ,  DESC )");
-        assertEquals(attributeNatural(DESC, "a"), constraint4);
+        assertEquals(attributeNatural("a", DESC), constraint4);
 
         final OrderConstraint constraint5 = parseOrderConstraint("attributeNatural(?,?)", "a", DESC);
-        assertEquals(attributeNatural(DESC, "a"), constraint5);
+        assertEquals(attributeNatural("a", DESC), constraint5);
 
         final OrderConstraint constraint6 = parseOrderConstraint("attributeNatural(@name,@dir)", Map.of("name", "a", "dir", DESC));
-        assertEquals(attributeNatural(DESC, "a"), constraint6);
+        assertEquals(attributeNatural("a", DESC), constraint6);
     }
 
     @Test
@@ -222,7 +222,7 @@ class EvitaQLOrderConstraintVisitorTest {
                 referenceProperty(
                     "a",
                     attributeNatural("b"),
-                    attributeNatural(DESC, "c")
+                    attributeNatural("c", DESC)
                 ),
                 constraint2
         );
@@ -232,7 +232,7 @@ class EvitaQLOrderConstraintVisitorTest {
                 referenceProperty(
                     "a",
                     attributeNatural("b"),
-                    attributeNatural(DESC, "c")
+                    attributeNatural("c", DESC)
                 ),
                 constraint3
         );
@@ -327,7 +327,7 @@ class EvitaQLOrderConstraintVisitorTest {
         assertEquals(
             entityProperty(
                 attributeNatural("b"),
-                attributeNatural(DESC, "c")
+                attributeNatural("c", DESC)
             ),
             constraint2
         );
@@ -336,7 +336,7 @@ class EvitaQLOrderConstraintVisitorTest {
         assertEquals(
             entityProperty(
                 attributeNatural("b"),
-                attributeNatural(DESC, "c")
+                attributeNatural("c", DESC)
             ),
             constraint3
         );

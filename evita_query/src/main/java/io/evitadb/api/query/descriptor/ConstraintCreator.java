@@ -43,6 +43,7 @@ import java.util.Set;
  * Contains metadata for reconstructing original constraint described by {@link ConstraintDescriptor}.
  *
  * @param instantiator executable element (constructor or factory method) to instantiate original constraint from {@link #parameters()}
+ * @param suffix suffix of creator, defining {@link ConstraintDescriptor#fullName()}
  * @param parameters descriptors of original parameters of {@link #instantiator()} in same order to be able to reconstruct
  *                   the original constraint
  * @param implicitClassifier fixed implicit classifier, alternative to dynamic classifier parameter
@@ -50,13 +51,33 @@ import java.util.Set;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 public record ConstraintCreator(@Nonnull Executable instantiator,
+								@Nullable String suffix,
                                 @Nonnull List<ParameterDescriptor> parameters,
                                 @Nullable ImplicitClassifier implicitClassifier) {
 
 	public ConstraintCreator(@Nonnull Executable instantiator,
+	                         @Nonnull List<ParameterDescriptor> parameters) {
+		this(instantiator, null, parameters, null);
+	}
+
+	public ConstraintCreator(@Nonnull Executable instantiator,
+	                         @Nullable String suffix,
+	                         @Nonnull List<ParameterDescriptor> parameters) {
+		this(instantiator, suffix, parameters, null);
+	}
+
+	public ConstraintCreator(@Nonnull Executable instantiator,
+	                         @Nonnull List<ParameterDescriptor> parameters,
+	                         @Nullable ImplicitClassifier implicitClassifier) {
+		this(instantiator, null, parameters, implicitClassifier);
+	}
+
+	public ConstraintCreator(@Nonnull Executable instantiator,
+							 @Nullable String suffix,
 	                         @Nonnull List<ParameterDescriptor> parameters,
 	                         @Nullable ImplicitClassifier implicitClassifier) {
 		this.instantiator = instantiator;
+		this.suffix = suffix;
 		this.parameters = parameters;
 		this.implicitClassifier = implicitClassifier;
 

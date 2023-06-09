@@ -86,14 +86,16 @@ class ConstraintProcessor {
 			final ConstraintPropertyType propertyType = resolveConstraintPropertyType(constraintClass);
 
 			final SupportedValues supportedValues = resolveSupportedValues(constraintDefinition);
-			final Map<CreatorKey, ConstraintCreator> creators = resolveCreators(constraintClass, constraintDefinition);
+			final List<ConstraintCreator> creators = resolveCreators(constraintClass);
 
-			creators.forEach((key, creator) -> {
+			creators.forEach((creator) -> {
 				final ConstraintDescriptor descriptor = new ConstraintDescriptor(
 					constraintClass,
 					type,
 					propertyType,
-					key.fullName(),
+					creator.suffix() == null
+						? constraintDefinition.name()
+						: constraintDefinition.name() + StringUtils.capitalize(creator.suffix()),
 					constraintDefinition.shortDescription(),
 					Set.of(constraintDefinition.supportedIn()),
 					supportedValues,
@@ -168,57 +170,44 @@ class ConstraintProcessor {
 		return supportedValues;
 	}
 
-	// todo lho should be full name in creator itself? and this in equals?
-	// todo lho tests
-	private record CreatorKey(@Nonnull String fullName, boolean hasClassifier) {}
-
 	/**
 	 * Gathers creator constructors, its parameters and other data from constraint class and creates creator descriptor from them
 	 * and associates them with full names.
 	 */
 	@Nonnull
-	private Map<CreatorKey, ConstraintCreator> resolveCreators(@Nonnull Class<? extends Constraint<?>> constraintClass,
-	                                                       @Nonnull ConstraintDefinition constraintDefinition) {
-		final Map<CreatorKey, ConstraintCreator> creators = createHashMap(4);
+	private List<ConstraintCreator> resolveCreators(@Nonnull Class<? extends Constraint<?>> constraintClass) {
+		return findCreators(constraintClass)
+			.stream()
+			.map(creatorTemplate -> {
+				final Creator creatorDefinition = findCreatorAnnotation(creatorTemplate);
 
-		findCreators(constraintClass).forEach(creatorTemplate -> {
-			final Creator creatorDefinition = findCreatorAnnotation(creatorTemplate);
+				final String suffix = creatorDefinition.suffix().isBlank()
+					? null
+					: creatorDefinition.suffix();
 
-			final String fullName;
-			if (creatorDefinition.suffix().isEmpty()) {
-				fullName = constraintDefinition.name();
-			} else {
-				fullName = constraintDefinition.name() + StringUtils.capitalize(creatorDefinition.suffix());
-			}
+				final List<ParameterDescriptor> parameterDescriptors = resolveCreatorParameters(creatorTemplate);
 
-			final List<ParameterDescriptor> parameterDescriptors = resolveCreatorParameters(creatorTemplate);
+				final ImplicitClassifier implicitClassifier;
+				if (creatorDefinition.silentImplicitClassifier() && !creatorDefinition.implicitClassifier().isEmpty()) {
+					throw new EvitaInternalError(
+						"Constraint `" + constraintClass.getName() + "` has both implicit classifiers specified. Cannot decide which one to use. Please define only one of them."
+					);
+				} else if (creatorDefinition.silentImplicitClassifier()) {
+					implicitClassifier = new SilentImplicitClassifier();
+				} else if (!creatorDefinition.implicitClassifier().isEmpty()) {
+					implicitClassifier = new FixedImplicitClassifier(creatorDefinition.implicitClassifier());
+				} else {
+					implicitClassifier = null;
+				}
 
-			Assert.isPremiseValid(
-				!creators.containsKey(fullName),
-				"Constraint `" + constraintClass.getName() + "` has multiple creator constructors with suffix `" + creatorDefinition.suffix() + "`."
-			);
-
-			final ImplicitClassifier implicitClassifier;
-			if (creatorDefinition.silentImplicitClassifier() && !creatorDefinition.implicitClassifier().isEmpty()) {
-				throw new EvitaInternalError(
-					"Constraint `" + constraintClass.getName() + "` has both implicit classifiers specified. Cannot decide which one to use. Please define only one of them."
+				return new ConstraintCreator(
+					creatorTemplate,
+					suffix,
+					parameterDescriptors,
+					implicitClassifier
 				);
-			} else if (creatorDefinition.silentImplicitClassifier()) {
-				implicitClassifier = new SilentImplicitClassifier();
-			} else if (!creatorDefinition.implicitClassifier().isEmpty()) {
-				implicitClassifier = new FixedImplicitClassifier(creatorDefinition.implicitClassifier());
-			} else {
-				implicitClassifier = null;
-			}
-
-			final ConstraintCreator creator = new ConstraintCreator(creatorTemplate, parameterDescriptors, implicitClassifier);
-			creators.put(
-				new CreatorKey(fullName, creator.hasClassifierParameter() || creator.implicitClassifier() instanceof FixedImplicitClassifier),
-				creator
-			);
-		});
-
-		return creators;
+			})
+			.toList();
 	}
 
 	/**

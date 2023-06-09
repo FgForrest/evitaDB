@@ -75,7 +75,7 @@ public class ReferenceProperty extends AbstractOrderConstraintContainer implemen
 
 	@Creator
 	public ReferenceProperty(@Nonnull @Classifier String referenceName,
-	                         @Nonnull @Child OrderConstraint... children) {
+	                         @Nonnull @Child(uniqueChildren = true) OrderConstraint... children) {
 		super(referenceName, children);
 	}
 

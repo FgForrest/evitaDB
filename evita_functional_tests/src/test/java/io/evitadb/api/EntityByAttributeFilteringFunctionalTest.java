@@ -460,7 +460,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 							attributeInSet(ATTRIBUTE_CODE, codeAttribute1, codeAttribute2, codeAttribute3)
 						),
 						orderBy(
-							attributeNatural(ASC, ATTRIBUTE_CODE)
+							attributeNatural(ATTRIBUTE_CODE, ASC)
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
@@ -538,7 +538,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 						orderBy(
 							referenceProperty(
 								Entities.BRAND,
-								attributeNatural(ASC, ATTRIBUTE_MARKET_SHARE)
+								attributeNatural(ATTRIBUTE_MARKET_SHARE, ASC)
 							)
 						),
 						require(
@@ -2793,7 +2793,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 							attributeLessThan(ATTRIBUTE_PRIORITY, 35000L)
 						),
 						orderBy(
-							attributeNatural(DESC, ATTRIBUTE_CODE)
+							attributeNatural(ATTRIBUTE_CODE, DESC)
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
@@ -2832,7 +2832,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 							attributeLessThan(ATTRIBUTE_PRIORITY, 35000L)
 						),
 						orderBy(
-							attributeNatural(DESC, ATTRIBUTE_CREATED),
+							attributeNatural(ATTRIBUTE_CREATED, DESC),
 							attributeNatural(ATTRIBUTE_MANUFACTURED)
 						),
 						require(
@@ -2879,7 +2879,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 							attributeLessThan(ATTRIBUTE_PRIORITY, 14000L)
 						),
 						orderBy(
-							attributeNatural(DESC, ATTRIBUTE_PRIORITY)
+							attributeNatural(ATTRIBUTE_PRIORITY, DESC)
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
@@ -2992,7 +2992,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 							attributeIsNotNull(ATTRIBUTE_COMBINED_PRIORITY)
 						),
 						orderBy(
-							attributeNatural(DESC, ATTRIBUTE_COMBINED_PRIORITY)
+							attributeNatural(ATTRIBUTE_COMBINED_PRIORITY, DESC)
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
@@ -3034,7 +3034,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 						orderBy(
 							referenceProperty(
 								Entities.BRAND,
-								attributeNatural(DESC, ATTRIBUTE_MARKET_SHARE)
+								attributeNatural(ATTRIBUTE_MARKET_SHARE, DESC)
 							)
 						),
 						require(
@@ -3072,7 +3072,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 						orderBy(
 							referenceProperty(
 								Entities.BRAND,
-								attributeNatural(DESC, ATTRIBUTE_MARKET_SHARE)
+								attributeNatural(ATTRIBUTE_MARKET_SHARE, DESC)
 							),
 							referenceProperty(
 								Entities.STORE,

@@ -69,7 +69,7 @@ public class OrderBy extends AbstractOrderConstraintContainer implements Generic
 	@Serial private static final long serialVersionUID = 6352220342769661652L;
 
 	@Creator
-	public OrderBy(@Nonnull @Child OrderConstraint... children) {
+	public OrderBy(@Nonnull @Child(uniqueChildren = true) OrderConstraint... children) {
 		super(children);
 	}
 

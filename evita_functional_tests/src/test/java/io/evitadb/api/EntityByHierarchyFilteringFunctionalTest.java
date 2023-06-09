@@ -2369,7 +2369,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							// we need only data about cardinalities
 							hierarchyOfSelf(
 								orderBy(
-									attributeNatural(OrderDirection.ASC, ATTRIBUTE_NAME)
+									attributeNatural(ATTRIBUTE_NAME, OrderDirection.ASC)
 								),
 								fromRoot(
 									"megaMenu",
