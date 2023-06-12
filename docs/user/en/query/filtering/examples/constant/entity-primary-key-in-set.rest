@@ -1,0 +1,17 @@
+{
+  "filterBy" : {
+    "entityPrimaryKeyInSet" : [
+      110066,
+      106742,
+      107546,
+      110513
+    ]
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ]
+    }
+  }
+}
