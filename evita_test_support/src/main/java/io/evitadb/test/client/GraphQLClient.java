@@ -25,79 +25,28 @@ package io.evitadb.test.client;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.graphql.io.GraphQLRequest;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
-import java.security.cert.X509Certificate;
 
 /**
  * Simple client for calling GraphQL requests from documentation.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class GraphQLClient {
-
-	private static final ObjectMapper objectMapper = new ObjectMapper();
-
-	private final URL url;
+public class GraphQLClient extends ApiClient {
 
 	public GraphQLClient(@Nonnull String url) {
-		this(url, true);
+		super(url);
 	}
 
 	public GraphQLClient(@Nonnull String url, boolean validateSsl) {
-		try {
-			this.url = new URL(url);
-		} catch (MalformedURLException e) {
-			throw new EvitaInvalidUsageException("Invalid url.", e);
-		}
-
-		if (!validateSsl) {
-			// Create a trust manager that does not validate certificate chains
-			final TrustManager[] trustAllCerts = new TrustManager[] {
-				new X509TrustManager() {
-					public java.security.cert.X509Certificate[] getAcceptedIssuers() {
-						return null;
-					}
-					public void checkClientTrusted(X509Certificate[] certs, String authType) {}
-					public void checkServerTrusted(X509Certificate[] certs, String authType) {}
-				}
-			};
-			// Install the all-trusting trust manager
-			final SSLContext sc;
-			try {
-				sc = SSLContext.getInstance("SSL");
-			} catch (NoSuchAlgorithmException e) {
-				throw new EvitaInternalError("Cannot get SSL context.", e);
-			}
-			try {
-				sc.init(null, trustAllCerts, new java.security.SecureRandom());
-			} catch (KeyManagementException e) {
-				throw new EvitaInternalError("Cannot init SSL context with custom trust manager.", e);
-			}
-			HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
-
-			// Install the all-trusting host verifier
-			HttpsURLConnection.setDefaultHostnameVerifier((hostname, session) -> true);
-		}
+		super(url, validateSsl);
 	}
 
 	@Nonnull
@@ -125,6 +74,7 @@ public class GraphQLClient {
 
 	@Nonnull
 	private HttpURLConnection createConnection() throws IOException {
+		final URL url = new URL(this.url);
 		final HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 		connection.setRequestMethod("POST");
 		connection.setRequestProperty("Content-Type", "application/graphql+json");
@@ -133,27 +83,12 @@ public class GraphQLClient {
 		return connection;
 	}
 
-	private void writeRequestBody(@Nonnull HttpURLConnection connection, @Nonnull String document) throws IOException {
+	@Override
+	protected void writeRequestBody(@Nonnull HttpURLConnection connection, @Nonnull String document) throws IOException {
 		final GraphQLRequest requestBody = new GraphQLRequest(document, null, null);
 		final String requestBodyJson = objectMapper.writeValueAsString(requestBody);
 
-		try (OutputStream os = connection.getOutputStream()) {
-			byte[] input = requestBodyJson.getBytes(StandardCharsets.UTF_8);
-			os.write(input, 0, input.length);
-		}
-	}
-
-	@Nonnull
-	private JsonNode readResponseBody(@Nonnull HttpURLConnection connection) throws IOException {
-		final StringBuilder rawResponseBody = new StringBuilder();
-		try (BufferedReader br = new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
-			String responseLine;
-			while ((responseLine = br.readLine()) != null) {
-				rawResponseBody.append(responseLine.trim());
-			}
-		}
-
-		return objectMapper.readTree(rawResponseBody.toString());
+		super.writeRequestBody(connection, requestBodyJson);
 	}
 
 	private void validateResponseBody(@Nonnull JsonNode responseBody) throws JsonProcessingException {

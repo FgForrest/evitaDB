@@ -29,6 +29,8 @@ import io.evitadb.documentation.graphql.GraphQLExecutable;
 import io.evitadb.documentation.graphql.GraphQLTestContextFactory;
 import io.evitadb.documentation.java.JavaExecutable;
 import io.evitadb.documentation.java.JavaTestContextFactory;
+import io.evitadb.documentation.rest.RestExecutable;
+import io.evitadb.documentation.rest.RestTestContextFactory;
 import io.evitadb.test.EvitaTestSupport;
 import jdk.jshell.JShell;
 import lombok.Getter;
@@ -110,7 +112,6 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		NOT_TESTED_LANGUAGES.add("Gradle");
 		NOT_TESTED_LANGUAGES.add("shell");
 		NOT_TESTED_LANGUAGES.add("json");
-		NOT_TESTED_LANGUAGES.add("rest");
 		NOT_TESTED_LANGUAGES.add("yaml");
 		NOT_TESTED_LANGUAGES.add("plain");
 	}
@@ -238,6 +239,16 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			case "graphql" -> {
 				return new GraphQLExecutable(
 					contextAccessor.get(GraphQLTestContextFactory.class),
+					sourceContent,
+					rootPath,
+					resource,
+					outputSnippet,
+					createSnippets
+				);
+			}
+			case "rest" -> {
+				return new RestExecutable(
+					contextAccessor.get(RestTestContextFactory.class),
 					sourceContent,
 					rootPath,
 					resource,
@@ -501,7 +512,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 */
 	public enum CreateSnippets {
 
-		JAVA, MARKDOWN, GRAPHQL
+		JAVA, MARKDOWN, GRAPHQL, REST
 
 	}
 
