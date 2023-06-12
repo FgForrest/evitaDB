@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.documentation.graphql;
+package io.evitadb.documentation.rest;
 
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -41,9 +41,8 @@ import io.evitadb.documentation.UserDocumentationTest.CreateSnippets;
 import io.evitadb.documentation.UserDocumentationTest.OutputSnippet;
 import io.evitadb.documentation.evitaql.CustomJsonVisibilityChecker;
 import io.evitadb.documentation.evitaql.EntityDocumentationJsonSerializer;
-import io.evitadb.driver.EvitaClient;
 import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.test.client.GraphQLClient;
+import io.evitadb.test.client.RestClient;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 import net.steppschuh.markdowngenerator.MarkdownSerializationException;
@@ -60,7 +59,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
 
 import static io.evitadb.documentation.UserDocumentationTest.readFile;
 import static io.evitadb.documentation.UserDocumentationTest.resolveSiblingWithDifferentExtension;
@@ -70,8 +68,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * The implementation of the GraphQL source code dynamic test verifying single GraphQL example from the documentation.
- * GraphQL needs to be successfully parsed, executed via {@link GraphQLClient} against our demo server and its result
+ * The implementation of the REST source code dynamic test verifying single REST example from the documentation.
+ * REST needs to be successfully parsed, executed via {@link io.evitadb.test.client.RestClient} against our demo server and its result
  * must match the previously frozen content in the MarkDown table of the same name.
  *
  * The executor can also generate {@link CreateSnippets#MARKDOWN} if requested. This
@@ -80,7 +78,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class GraphQLExecutable implements Executable, EvitaTestSupport {
+public class RestExecutable implements Executable, EvitaTestSupport {
 	/**
 	 * Object mapper used to serialize unknown objects to JSON output.
 	 */
@@ -119,9 +117,9 @@ public class GraphQLExecutable implements Executable, EvitaTestSupport {
 	}
 
 	/**
-	 * Provides access to the {@link GraphQLTestContext} instance.
+	 * Provides access to the {@link RestTestContext} instance.
 	 */
-	private final @Nonnull Supplier<GraphQLTestContext> testContextAccessor;
+	private final @Nonnull Supplier<RestTestContext> testContextAccessor;
 	/**
 	 * Contains the tested EvitaQL code.
 	 */
@@ -251,10 +249,11 @@ public class GraphQLExecutable implements Executable, EvitaTestSupport {
 	@Override
 	public void execute() throws Throwable {
 		final String theQuery = sourceContent;
-		final GraphQLClient graphQLClient = testContextAccessor.get().getGraphQLClient();
+		final RestClient restClient = testContextAccessor.get().getRestClient();
 		final JsonNode theResult;
 		try {
-			theResult = graphQLClient.call(theQuery);
+			// todo lho dynamic resource path
+			theResult = restClient.call("/product/query", theQuery);
 		} catch (Exception ex) {
 			fail("The query " + theQuery + " failed: " + ex.getMessage(), ex);
 			return;

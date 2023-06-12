@@ -244,6 +244,14 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 	}
 
 	/**
+	 * Generates the GraphQL code snippet for the given query.
+	 */
+	@Nonnull
+	private String generateRestSnippet(@Nonnull Query theQuery) {
+		return testContextAccessor.get().getRestQueryConverter().convert(theQuery);
+	}
+
+	/**
 	 * Generates the MarkDown output with the results of the given query.
 	 */
 	@Nonnull
@@ -443,6 +451,10 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 			if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.GRAPHQL)) {
 				final String graphQLSnippet = generateGraphQLSnippet(theQuery);
 				writeFile(resource, "graphql", graphQLSnippet);
+			}
+			if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.REST)) {
+				final String restSnippet = generateRestSnippet(theQuery);
+				writeFile(resource, "rest", restSnippet);
 			}
 			// generate Markdown snippet from the result if required
 			final String outputFormat = ofNullable(outputSnippet).map(OutputSnippet::forFormat).orElse("md");

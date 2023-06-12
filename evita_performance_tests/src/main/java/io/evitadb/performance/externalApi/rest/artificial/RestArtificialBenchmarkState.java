@@ -23,8 +23,12 @@
 
 package io.evitadb.performance.externalApi.rest.artificial;
 
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.performance.artificial.AbstractArtificialBenchmarkState;
+import io.evitadb.test.client.RestClient;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.function.Supplier;
 
 /**
@@ -38,7 +42,13 @@ public abstract class RestArtificialBenchmarkState extends AbstractArtificialBen
 	 * Returns an existing session unique for the thread or creates new one.
 	 */
 	public RestClient getSession() {
-		return getSession(RestClient::new);
+		return getSession(() -> {
+			try {
+				return new RestClient("https://" + InetAddress.getByName("localhost").getHostAddress() + ":5555/rest/test-catalog", false);
+			} catch (UnknownHostException e) {
+				throw new EvitaInternalError("Could not create REST API URL:", e);
+			}
+		});
 	}
 
 	/**
