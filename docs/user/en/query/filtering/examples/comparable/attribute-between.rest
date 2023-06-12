@@ -1,0 +1,16 @@
+{
+  "filterBy" : {
+    "attributeBatteryCapacityBetween" : [
+      "125",
+      "160"
+    ]
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code",
+        "battery-capacity"
+      ]
+    }
+  }
+}
