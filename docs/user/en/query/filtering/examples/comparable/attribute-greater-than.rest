@@ -1,0 +1,13 @@
+{
+  "filterBy" : {
+    "attributeBatteryLifeGreaterThan" : "40"
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code",
+        "battery-life"
+      ]
+    }
+  }
+}

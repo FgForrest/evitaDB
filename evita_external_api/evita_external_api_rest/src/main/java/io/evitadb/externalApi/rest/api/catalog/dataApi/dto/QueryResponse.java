@@ -23,6 +23,8 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Builder;
 import lombok.Data;
@@ -34,6 +36,7 @@ import lombok.Data;
  */
 @Data
 @Builder
+@JsonInclude(Include.NON_NULL)
 public class QueryResponse  {
 	private final DataChunkDto recordPage;
 	private final JsonNode extraResults;

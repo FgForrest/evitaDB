@@ -1,0 +1,13 @@
+{
+  "filterBy" : {
+    "attributeCatalogNumberIs" : "NULL"
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code",
+        "catalogNumber"
+      ]
+    }
+  }
+}

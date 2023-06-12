@@ -1,0 +1,13 @@
+{
+  "filterBy" : {
+    "attributeBatteryCapacityLessThanEquals" : "125"
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code",
+        "battery-capacity"
+      ]
+    }
+  }
+}
