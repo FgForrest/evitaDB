@@ -60,4 +60,10 @@ ordering constraint.
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[Entities filtered by the primary keys](/docs/user/en/query/filtering/examples/constant/entity-primary-key-in-set.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>
