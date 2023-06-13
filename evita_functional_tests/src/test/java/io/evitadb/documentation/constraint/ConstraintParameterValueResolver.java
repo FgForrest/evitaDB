@@ -45,8 +45,8 @@ import java.util.Optional;
  */
 public class ConstraintParameterValueResolver {
 
-	@Nullable
-	public Object resolveParameterValue(@Nonnull Constraint<?> constraint, @Nonnull ParameterDescriptor parameter) {
+	@Nonnull
+	public Optional<?> resolveParameterValue(@Nonnull Constraint<?> constraint, @Nonnull ParameterDescriptor parameter) {
 		final Class<?> constraintClass = constraint.getClass();
 
 		final Method getter = findGetter(constraintClass.getDeclaredMethods(), parameter.name())
@@ -63,9 +63,9 @@ public class ConstraintParameterValueResolver {
 		}
 
 		if (parameterValue instanceof Optional<?> optionalParameterValue) {
-			return optionalParameterValue.orElse(null);
+			return optionalParameterValue;
 		}
-		return parameterValue;
+		return Optional.ofNullable(parameterValue);
 	}
 
 	@Nonnull

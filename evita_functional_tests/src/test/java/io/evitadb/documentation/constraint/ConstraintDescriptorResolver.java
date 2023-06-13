@@ -83,8 +83,9 @@ class ConstraintDescriptorResolver {
 	@Nonnull
 	private Optional<String> resolveClassifier(@Nonnull ConstraintDescriptor constraintDescriptor,
 	                                           @Nonnull Constraint<?> constraint) {
+		//noinspection unchecked
 		return constraintDescriptor.creator().classifierParameter()
-			.map(it -> (String) parameterValueResolver.resolveParameterValue(constraint, it));
+			.flatMap(it -> (Optional<String>) parameterValueResolver.resolveParameterValue(constraint, it));
 	}
 
 	/**

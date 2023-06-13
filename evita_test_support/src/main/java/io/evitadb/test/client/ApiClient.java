@@ -34,6 +34,7 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -98,9 +99,9 @@ abstract class ApiClient {
 	}
 
 	@Nonnull
-	protected JsonNode readResponseBody(@Nonnull HttpURLConnection connection) throws IOException {
+	protected JsonNode readResponseBody(@Nonnull InputStream bodyStream) throws IOException {
 		final StringBuilder rawResponseBody = new StringBuilder();
-		try (BufferedReader br = new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
+		try (BufferedReader br = new BufferedReader(new InputStreamReader(bodyStream, StandardCharsets.UTF_8))) {
 			String responseLine;
 			while ((responseLine = br.readLine()) != null) {
 				rawResponseBody.append(responseLine.trim());

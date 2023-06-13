@@ -59,16 +59,21 @@ public class RestClient extends ApiClient {
 			}
 
 			connection.connect();
-			Assert.isPremiseValid(
-				connection.getResponseCode() == 200 || connection.getResponseCode() == 404,
-				"Call to REST server ended with status " + connection.getResponseCode()
-			);
 
-			if (connection.getResponseCode() != 200) {
+			final int responseCode = connection.getResponseCode();
+			if (responseCode == 200) {
+				return readResponseBody(connection.getInputStream());
+			}
+			if (responseCode == 404) {
 				return null;
 			}
+			if (responseCode >= 400 && responseCode <= 499) {
+				final JsonNode errorResponse = readResponseBody(connection.getErrorStream());
+				final String errorResponseString = objectMapper.writeValueAsString(errorResponse);
+				throw new EvitaInternalError("Call to REST server ended with status " + responseCode + " and response: \n" + errorResponseString);
+			}
 
-			return readResponseBody(connection);
+			throw new EvitaInternalError("Call to REST server ended with status " + responseCode);
 		} catch (IOException | URISyntaxException e) {
 			throw new EvitaInternalError("Unexpected error.", e);
 		} finally {

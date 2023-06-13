@@ -1,0 +1,37 @@
+POST /rest/evita/product/query
+
+{
+  "filterBy" : {
+    "hierarchyCategoriesWithin" : {
+      "ofParent" : {
+        "attributeCodeEquals" : "accessories"
+      }
+    }
+  },
+  "require" : {
+    "hierarchyCategoriesOfReference" : {
+      "emptyHierarchicalEntityBehaviour" : "REMOVE_EMPTY",
+      "requirements" : [
+        {
+          "children" : {
+            "outputName" : "subMenu",
+            "entityFetch" : {
+              "attributeContent" : [
+                "code"
+              ]
+            },
+            "requirements" : {
+              "stopAt" : {
+                "node" : {
+                  "filterBy" : {
+                    "attributeCodeStartsWith" : "w"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
