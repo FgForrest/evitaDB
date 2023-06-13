@@ -73,7 +73,7 @@ The following code snippet contains a query that lists all (transitive) categori
 returns menu items that contain direct children of the *Audio* category and its direct parent category (which is 
 *Accessories*):
 
-<SourceCodeTabs  requires="/docs/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/docs/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
 [Hierarchy request association](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-data-structure-association.java)
 </SourceCodeTabs>
 
@@ -82,7 +82,7 @@ extra result data structure and are available under the labels that correspond t
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy">[Output with multiple menu parts](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-data-structure-association.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.selfHierarchy">[Output with multiple menu parts](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-data-structure-association.java.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -94,7 +94,7 @@ extra result data structure and are available under the labels that correspond t
 
 <LanguageSpecific to="rest">
 
-<MDInclude sourceVariable="extraResults.hierarchy>[Output with multiple menu parts](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-data-structure-association.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.hierarchy.self">[Output with multiple menu parts](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-data-structure-association.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
