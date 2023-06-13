@@ -113,6 +113,12 @@ To test the locale specific query, we need to focus on the *Vouchers for shareho
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[List of all products with English localization](/docs/user/en/query/filtering/examples/locale/locale.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 You will notice that the output contains two columns: *code* and *name*. The *code* is not a localized attribute, while 
 the *name* is. The names listed in the response reflect the English locale that is part of the filter constraint. 
 
@@ -147,6 +153,12 @@ But when we request products in Czech locale:
 <LanguageSpecific to="graphql">
 
 <MDInclude>[List of all products with Czech localization](/docs/user/en/query/filtering/examples/locale/locale_missing.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+<MDInclude>[List of all products with Czech localization](/docs/user/en/query/filtering/examples/locale/locale_missing.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 

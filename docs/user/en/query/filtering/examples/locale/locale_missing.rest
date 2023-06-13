@@ -1,0 +1,18 @@
+{
+  "filterBy" : {
+    "hierarchyCategoriesWithin" : {
+      "ofParent" : {
+        "attributeCodeEquals" : "vouchers-for-shareholders"
+      }
+    },
+    "entityLocaleEquals" : "cs-CZ"
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code",
+        "name"
+      ]
+    }
+  }
+}

@@ -46,7 +46,7 @@ public class GraphQLInputJsonPrinter {
 
 	private final static String INDENTATION = "  ";
 	private final static Pattern ENUM_PATTERN = Pattern.compile("\"([A-Z]+(_[A-Z]+)*)\"");
-	private final static Pattern LOCALE_PATTERN = Pattern.compile("\"([a-z]{2}(_[A-Z]{2})?)\"");
+	private final static Pattern LOCALE_PATTERN = Pattern.compile("\"([a-z]{2}(-[A-Z]{2})?)\"");
 
 	@Nonnull private final ObjectWriter constraintWriter;
 
@@ -85,7 +85,7 @@ public class GraphQLInputJsonPrinter {
 	@Nonnull
 	private String correctLocaleValues(@Nonnull String graphQLJson) {
 		final Matcher localeMatcher = LOCALE_PATTERN.matcher(graphQLJson);
-		return localeMatcher.replaceAll(mr -> mr.group(1));
+		return localeMatcher.replaceAll(mr -> mr.group(1).replace("-", "_"));
 	}
 
 	@Nonnull
