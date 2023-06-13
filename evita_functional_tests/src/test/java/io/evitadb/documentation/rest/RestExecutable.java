@@ -59,6 +59,8 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static io.evitadb.documentation.UserDocumentationTest.readFile;
 import static io.evitadb.documentation.UserDocumentationTest.resolveSiblingWithDifferentExtension;
@@ -87,6 +89,11 @@ public class RestExecutable implements Executable, EvitaTestSupport {
 	 * Pretty printer used to format JSON output.
 	 */
 	private final static DefaultPrettyPrinter DEFAULT_PRETTY_PRINTER;
+
+	/**
+	 * Regex pattern to parse input request into URL and query (request body)
+	 */
+	private static final Pattern REQUEST_PATTERN = Pattern.compile("POST\\s((/[a-z\\-]+)+)\\s+([.\\s\\S]+)");
 
 	/*
 	  Initializes the Java code template to be used when {@link CreateSnippets#JAVA} is requested.
@@ -248,12 +255,15 @@ public class RestExecutable implements Executable, EvitaTestSupport {
 
 	@Override
 	public void execute() throws Throwable {
-		final String theQuery = sourceContent;
+		final Matcher request = REQUEST_PATTERN.matcher(sourceContent);
+		Assert.isPremiseValid(request.matches(), "Invalid request format.");
+		final String path = request.group(1);
+		final String theQuery = request.group(3);
+
 		final RestClient restClient = testContextAccessor.get().getRestClient();
 		final JsonNode theResult;
 		try {
-			// todo lho dynamic resource path
-			theResult = restClient.call("/product/query", theQuery);
+			theResult = restClient.call(path, theQuery);
 		} catch (Exception ex) {
 			fail("The query " + theQuery + " failed: " + ex.getMessage(), ex);
 			return;

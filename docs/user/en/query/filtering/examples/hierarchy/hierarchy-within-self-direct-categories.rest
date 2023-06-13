@@ -1,0 +1,21 @@
+POST /rest/evita/category/query
+
+{
+  "filterBy" : {
+    "hierarchyWithinSelf" : {
+      "ofParent" : {
+        "attributeCodeEquals" : "accessories"
+      },
+      "with" : {
+        "directRelation" : true
+      }
+    }
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ]
+    }
+  }
+}
