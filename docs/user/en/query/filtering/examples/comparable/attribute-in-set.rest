@@ -1,3 +1,5 @@
+POST /rest/evita/product/query
+
 {
   "filterBy" : {
     "attributeCodeInSet" : [
