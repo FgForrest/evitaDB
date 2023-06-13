@@ -1,0 +1,12 @@
+{
+  "filterBy" : {
+    "attributeCodeStartsWith" : "garmin"
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ]
+    }
+  }
+}

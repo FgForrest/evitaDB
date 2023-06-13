@@ -1,0 +1,12 @@
+{
+  "filterBy" : {
+    "attributeCodeContains" : "epix"
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ]
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "filterBy" : {
+    "attributeCodeEndsWith" : "solar"
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ]
+    }
+  }
+}
