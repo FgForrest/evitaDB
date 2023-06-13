@@ -59,7 +59,7 @@ public class GraphQLClient extends ApiClient {
 			connection.connect();
 			Assert.isPremiseValid(connection.getResponseCode() == 200, "Call to GraphQL server ended with status " + connection.getResponseCode());
 
-			final JsonNode responseBody = readResponseBody(connection);
+			final JsonNode responseBody = readResponseBody(connection.getInputStream());
 			validateResponseBody(responseBody);
 
 			return responseBody;
