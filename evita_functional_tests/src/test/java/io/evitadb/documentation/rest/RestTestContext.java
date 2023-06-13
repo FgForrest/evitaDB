@@ -41,6 +41,8 @@ public class RestTestContext implements TestContext {
 	private final RestClient restClient;
 
 	public RestTestContext() {
-		this.restClient = new RestClient("https://demo.evitadb.io:5555/rest/evita");
+		// todo lho revert
+//		this.restClient = new RestClient("https://demo.evitadb.io:5555/rest/evita");
+		this.restClient = new RestClient("https://localhost:5555/rest/evita", false);
 	}
 }

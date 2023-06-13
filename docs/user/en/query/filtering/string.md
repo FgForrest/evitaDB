@@ -61,6 +61,12 @@ Returns a few products having a string *epix* in the attribute *code*.
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[Products having a `epix` string in the `code` attribute](/docs/user/en/query/filtering/examples/string/attribute-contains.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>
 
 ## Attribute starts with
@@ -115,6 +121,12 @@ Returns a few pages of products that start with a *garmin* string in the *code* 
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[Products having a `garmin` string at the beginning of the `code` attribute](/docs/user/en/query/filtering/examples/string/attribute-starts-with.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>
 
 ## Attribute ends with
@@ -166,6 +178,12 @@ Returns a few products that end with a *solar* string in the *code* attribute.
 <LanguageSpecific to="graphql">
 
 <MDInclude>[Products having a `solar` string at the end of the `code` attribute](/docs/user/en/query/filtering/examples/string/attribute-ends-with.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+<MDInclude>[Products having a `solar` string at the end of the `code` attribute](/docs/user/en/query/filtering/examples/string/attribute-ends-with.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
