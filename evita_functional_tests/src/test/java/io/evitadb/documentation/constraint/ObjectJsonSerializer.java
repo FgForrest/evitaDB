@@ -155,7 +155,7 @@ public class ObjectJsonSerializer {
 	}
 
 	private JsonNode serialize(@Nonnull Locale locale) {
-		return jsonNodeFactory.textNode(locale.toString());
+		return jsonNodeFactory.textNode(locale.toLanguageTag());
 	}
 
 	private JsonNode serialize(@Nonnull Currency currency) {
