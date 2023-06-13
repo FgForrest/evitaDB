@@ -36,6 +36,7 @@ import io.evitadb.documentation.constraint.RequireConstraintToJsonConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.StringUtils;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -51,7 +52,6 @@ import java.util.List;
 public class RestQueryConverter implements AutoCloseable {
 
 	private static final String CATALOG_NAME = "evita";
-	public static final String SUPPORTED_ENTITY_TYPE = "Product";
 
 	@Nonnull private final RestInputJsonPrinter inputJsonPrinter = new RestInputJsonPrinter();
 	@Nonnull private final JsonNodeFactory jsonNodeFactory = new JsonNodeFactory(true);
@@ -66,19 +66,21 @@ public class RestQueryConverter implements AutoCloseable {
 
 			// convert query parts
 			final String collection = query.getCollection().getEntityType();
-			Assert.isPremiseValid(
-				collection.equals(SUPPORTED_ENTITY_TYPE),
-				"Currently, only supported entity type for conversion is `" + SUPPORTED_ENTITY_TYPE + "`."
-			);
+			final String header = resolveHeader(collection);
 			final String body = convertBody(catalogSchema, query, collection);
 
-			return body;
+			return constructRequest(header, body);
 		}
 	}
 
 	@Override
 	public void close() throws Exception {
 		evita.close();
+	}
+
+	@Nonnull
+	private String resolveHeader(@Nonnull String entityType) {
+		return "/rest/" + CATALOG_NAME + "/" + StringUtils.toKebabCase(entityType) + "/query";
 	}
 
 	@Nonnull
@@ -112,5 +114,10 @@ public class RestQueryConverter implements AutoCloseable {
 
 		rootConstraints.forEach(c -> body.putIfAbsent(c.key(), c.value()));
 		return inputJsonPrinter.print(body);
+	}
+
+	@Nonnull
+	private String constructRequest(@Nonnull String header, @Nonnull String query) {
+		return "POST " + header + "\n\n" + query;
 	}
 }
