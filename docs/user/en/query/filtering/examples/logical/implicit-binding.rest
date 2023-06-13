@@ -1,0 +1,9 @@
+{
+  "filterBy" : {
+    "entityPrimaryKeyInSet" : [
+      110066,
+      106742
+    ],
+    "attributeCodeEquals" : "lenovo-thinkpad-t495-2"
+  }
+}
