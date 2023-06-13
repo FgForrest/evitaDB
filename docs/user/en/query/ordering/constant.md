@@ -49,6 +49,12 @@ was issued.
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[Entities sorted by order of the filtered primary keys](/docs/user/en/query/ordering/examples/constant/entity-primary-key-in-filter.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>
 
 ## Exact entity primary key order
@@ -98,6 +104,12 @@ the rest of the query result.
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[Entities sorted by the specified order of the primary keys](/docs/user/en/query/ordering/examples/constant/entity-primary-key-exact.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>
 
 ## Exact entity attribute value order used in filter
@@ -144,6 +156,12 @@ constraint of the query that was issued.
 <LanguageSpecific to="graphql">
 
 <MDInclude>[Entities sorted by order `code` attribute of the filtered entities](/docs/user/en/query/ordering/examples/constant/attribute-set-in-filter.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+<MDInclude>[Entities sorted by order `code` attribute of the filtered entities](/docs/user/en/query/ordering/examples/constant/attribute-set-in-filter.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -200,6 +218,12 @@ the rest of the query result.
 <LanguageSpecific to="graphql">
 
 <MDInclude>[Entities sorted by the specified order of the attribute `code` values](/docs/user/en/query/ordering/examples/constant/attribute-set-exact.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+<MDInclude>[Entities sorted by the specified order of the attribute `code` values](/docs/user/en/query/ordering/examples/constant/attribute-set-exact.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
