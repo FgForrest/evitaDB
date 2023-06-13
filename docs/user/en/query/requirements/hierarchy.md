@@ -879,9 +879,15 @@ Which returns:
 
 </LanguageSpecific>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="graphql">
 
 <MDInclude>[Top 2 level of categories](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-level.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="extraResults.hierarchy.categories.megaMenu">[Top 2 level of categories](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-level.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
