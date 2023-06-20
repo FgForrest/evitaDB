@@ -460,7 +460,7 @@
 					<pushChanges>false</pushChanges>
 					<mavenExecutorId>forked-path</mavenExecutorId>
 					<arguments>-Dgpg.passphrase=${gpg.passphrase}</arguments>
-					<releaseProfiles>unitAndFunctional</releaseProfiles>
+					<preparationProfiles>unitAndFunctional</preparationProfiles>
 				</configuration>
 				<dependencies>
 					<dependency>
