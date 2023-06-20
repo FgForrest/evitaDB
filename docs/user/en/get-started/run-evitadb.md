@@ -62,14 +62,14 @@ To integrate evitaDB into your project, use the following steps:
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_db</artifactId>
-    <version>0.6.ALPHA</version>
+    <version>0.7-SNAPSHOT</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_db:0.6.ALPHA'
+implementation 'io.evitadb:evita_db:0.7-SNAPSHOT'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -107,14 +107,14 @@ exception when you enable the corresponding API in evitaDB's configuration.
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_grpc</artifactId>
-    <version>0.6.ALPHA</version>
+    <version>0.7-SNAPSHOT</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_grpc:0.6.ALPHA'
+implementation 'io.evitadb:evita_external_api_grpc:0.7-SNAPSHOT'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -127,14 +127,14 @@ implementation 'io.evitadb:evita_external_api_grpc:0.6.ALPHA'
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_graphql</artifactId>
-    <version>0.6.ALPHA</version>
+    <version>0.7-SNAPSHOT</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_graphql:0.6.ALPHA'
+implementation 'io.evitadb:evita_external_api_graphql:0.7-SNAPSHOT'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -147,14 +147,14 @@ implementation 'io.evitadb:evita_external_api_graphql:0.6.ALPHA'
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_rest</artifactId>
-    <version>0.6.ALPHA</version>
+    <version>0.7-SNAPSHOT</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_rest:0.6.ALPHA'
+implementation 'io.evitadb:evita_external_api_rest:0.7-SNAPSHOT'
 ```
 </CodeTabsBlock>
 </CodeTabs>
