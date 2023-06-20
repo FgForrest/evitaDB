@@ -282,12 +282,6 @@
 		<!-- GPG Signature on release -->
 		<profile>
 			<id>release-sign-artifacts</id>
-			<activation>
-				<property>
-					<name>performRelease</name>
-					<value>true</value>
-				</property>
-			</activation>
 			<build>
 				<plugins>
 					<plugin>
@@ -459,6 +453,7 @@
 					<pushChanges>false</pushChanges>
 					<mavenExecutorId>forked-path</mavenExecutorId>
 					<arguments>-Dgpg.passphrase=${gpg.passphrase} -DskipTests=true</arguments>
+					<releaseProfiles>release-sign-artifacts</releaseProfiles>
 				</configuration>
 				<dependencies>
 					<dependency>
