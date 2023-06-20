@@ -89,6 +89,13 @@
 		</license>
 	</licenses>
 
+	<scm>
+		<connection>scm:git:ssh://git@github.com:FgForrest/evitaDB</connection>
+		<developerConnection>scm:git:git@github.com:FgForrest/evitaDB</developerConnection>
+		<url>https://evitadb.io/</url>
+		<tag>HEAD</tag>
+	</scm>
+
 	<organization>
 		<name>FG Forrest, a.s.</name>
 		<url>http://www.fg.cz</url>
