@@ -430,6 +430,14 @@
 					<doclint>none</doclint>
 					<failOnError>false</failOnError>
 				</configuration>
+				<executions>
+				    <execution>
+				        <id>attach-javadocs</id>
+				        <goals>
+				            <goal>jar</goal>
+				        </goals>
+				    </execution>
+				</executions>
 			</plugin>
 			<plugin>
 				<artifactId>maven-deploy-plugin</artifactId>
@@ -479,6 +487,7 @@
 				<artifactId>maven-source-plugin</artifactId>
 				<version>3.2.1</version>
 				<configuration>
+					<forceCreation>true</forceCreation>
 					<encoding>UTF-8</encoding>
 				</configuration>
 				<executions>
