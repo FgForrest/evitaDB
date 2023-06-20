@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index;
+package io.evitadb.index.workaround;
 
 /**
  * Empty class to enforce JavaDoc generation that is required by the SonaType rules.
