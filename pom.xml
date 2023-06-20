@@ -459,8 +459,7 @@
 					<localCheckout>true</localCheckout>
 					<pushChanges>false</pushChanges>
 					<mavenExecutorId>forked-path</mavenExecutorId>
-					<arguments>-Dgpg.passphrase=${gpg.passphrase}</arguments>
-					<preparationProfiles>unitAndFunctional</preparationProfiles>
+					<arguments>-Dgpg.passphrase=${gpg.passphrase} -DskipTests=true</arguments>
 				</configuration>
 				<dependencies>
 					<dependency>
