@@ -1,0 +1,51 @@
+# Performance test pipeline, operates on `performance` branch
+
+name: Kubernetes-benchmark-hook
+
+on:
+  repository_dispatch:
+    types:
+      - clean-webhook
+
+env:
+  KUBECONFIG: ${{ github.workspace }}/evita_performance_tests/src/do_k8s_automation/deploy/kube.cfg
+
+  DO_CLUSTER_NAME: evita-bench01
+  K8S_JOB_NAME: benchmark
+
+  KUBECTL_VER: "v1.27.2"
+
+jobs:
+  do-benchmark-hook:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3    
+
+    - name: Install kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: ${{ env.KUBECTL_VER }} 
+
+    - name: Get Kubeconfig for DO cluster
+      run: |
+        export DO_CLUSTER_BENCHMARK_NAME="${DO_CLUSTER_NAME}-memory"
+        doctl k8s cluster kubeconfig show "${DO_CLUSTER_BENCHMARK_NAME}" > ${KUBECONFIG}
+
+    - name: Prep artifact for upload 
+      run: |
+        mkdir -p /tmp/logs
+        kubectl -n evita get events --sort-by=.metadata.creationTimestamp > /tmp/logs/${K8S_JOB_NAME}-events.txt || : 
+        kubectl -n evita logs job/${K8S_JOB_NAME} -c benchmark > /tmp/logs/${K8S_JOB_NAME}-log.txt || :
+
+    - name: Archive logs from run
+      uses: actions/upload-artifact@v3
+      with:
+        name: logs
+        path: /tmp/logs
+  
+    - name: delete Kubernetes cluster in DO
+      run: |
+        export DO_CLUSTER_BENCHMARK_NAME="${DO_CLUSTER_NAME}-memory"
+        doctl k8s cluster delete "${DO_CLUSTER_BENCHMARK_NAME}" --force --dangerous
+      if: ${{ always () }}

@@ -6,7 +6,7 @@ on:
     - cron: '0 0 * * *'
     
 jobs:
-  do-clean-benchmark:
+  do-benchmark-clean:
     runs-on: ubuntu-latest
 
     steps: 
