@@ -35,11 +35,17 @@ function help {
 
 function _trap_exit() {
     set +x
-    
     echo
     if [ -n "$GH_ACTION" ] && [ "$GH_ACTION" == "1" ]; then
         echo "$now"
         echo "Run in GH Action - clean Kubernetes cluster"
+        curl -s -L \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $REPO_TOKEN"\
+            https://api.github.com/repos/FgForrest/evitaDB/dispatches \
+            -d '{"event_type": "clean-webhook"}'
+
     else
         echo "Run on local"
     fi
