@@ -21,8 +21,10 @@ env:
 
   DBG_CLUSTER_KEEP: "false"
 
-  KUBECTL_VER: "v1.26.3"
+  KUBECTL_VER: "v1.27.2"
   IMAGES: "evitadb/evitadb:benchmark"
+
+  DATASET: "https://evitadb.io/download/performance_test_datasets.zip"
 
   BENCHMARK_SELECTOR: ""                            # use if you want limit running only sub set of the benchmarks
   JMH_ARGS: ""                                      # use if you want to configure JMH tool arguments
@@ -70,9 +72,3 @@ jobs:
         run: |
           export DO_CLUSTER_BENCHMARK_NAME="${DO_CLUSTER_NAME}-memory"
           ./evita_performance_tests/src/do_k8s_automation/deploy/03-benchmark.sh
-
-      - name: delete Kubernetes cluster in DO
-        run: |
-          export DO_CLUSTER_BENCHMARK_NAME="${DO_CLUSTER_NAME}-memory"
-          doctl k8s cluster delete "${DO_CLUSTER_BENCHMARK_NAME}" --force --dangerous
-        if: ${{ always () }}
