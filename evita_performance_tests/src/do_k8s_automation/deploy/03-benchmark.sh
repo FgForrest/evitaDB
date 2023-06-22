@@ -91,13 +91,14 @@ kubectl create configmap benchmark \
     \
     "--from-literal=DATASET=$DATASET" \
     \
-    "--from-literal=GH_ACTION=1"
+    "--from-literal=GH_ACTION=$GH_ACTION"
     ## end
 
 ## secret values
 kubectl delete secret benchmark || :
 kubectl create secret generic benchmark \
     "--from-literal=GITHUB_TOKEN=$PERFORMANCE_GIST_TOKEN" \
+    "--from-literal=REPO_TOKEN=$REPO_TOKEN" \
     ## end
 
 

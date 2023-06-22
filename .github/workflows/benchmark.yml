@@ -31,6 +31,7 @@ env:
   
   BENCHMARK_K8S_LIMIT_CPU: "4"
   BENCHMARK_JAVA_OPTS: "-Xmx9g"
+  GH_ACTION: 1
 
 jobs:
   do-benchmark:
@@ -69,6 +70,7 @@ jobs:
       - name: Run benchmark
         env:
           PERFORMANCE_GIST_TOKEN: ${{ secrets.PERFORMANCE_GIST_TOKEN }}
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
         run: |
           export DO_CLUSTER_BENCHMARK_NAME="${DO_CLUSTER_NAME}-memory"
           ./evita_performance_tests/src/do_k8s_automation/deploy/03-benchmark.sh
