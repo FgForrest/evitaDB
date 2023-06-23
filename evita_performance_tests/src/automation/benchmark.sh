@@ -122,13 +122,14 @@ gh gist clone "$SHARED_GIST" "$SHARED_GIST"
 cd "$SHARED_GIST"
 cp -f ../$RESULT_JSON $RESULT_JSON
 
+set +x
+
 ## push back
 git config user.email "novotny@fg.cz"
 git config user.name "Novoj"
 git commit -a -m "Updated results from $now"
 git push "https://$GITHUB_TOKEN:x-oauth-basic@gist.github.com/evita-db/$SHARED_GIST"
 
-set +x
 CHILL_OUT_SEC=90
 echo
 echo "Let the cluster chill-out after benchmark: $CHILL_OUT_SEC sec"
