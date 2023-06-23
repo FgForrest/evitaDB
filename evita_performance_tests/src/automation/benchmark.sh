@@ -43,7 +43,7 @@ function _trap_exit() {
         curl -s -L \
             -X POST \
             -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer $REPO_TOKEN"\
+            -H "Authorization: Bearer $GITHUB_TOKEN"\
             https://api.github.com/repos/FgForrest/evitaDB/dispatches \
             -d '{"event_type": "clean-webhook"}'
 

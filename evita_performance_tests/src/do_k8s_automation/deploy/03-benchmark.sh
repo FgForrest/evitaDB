@@ -98,7 +98,6 @@ kubectl create configmap benchmark \
 kubectl delete secret benchmark || :
 kubectl create secret generic benchmark \
     "--from-literal=GITHUB_TOKEN=$PERFORMANCE_GIST_TOKEN" \
-    "--from-literal=REPO_TOKEN=$REPO_TOKEN" \
     ## end
 
 
