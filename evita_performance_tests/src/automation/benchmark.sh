@@ -38,7 +38,7 @@ function _trap_exit() {
     
     echo
     if [ -n "$GH_ACTION" ] && [ "$GH_ACTION" == "1" ]; then
-        echo "$now"
+        date -Is
         echo "Run in GH Action - clean Kubernetes cluster"
         curl -s -L \
             -X POST \
@@ -112,6 +112,8 @@ java \
         $JMH_ARGS -rf json -rff $RESULT_JSON \
         -jvmArgs "$EXTRA_JAVA_OPTS $BENCHMARK_JAVA_OPTS -DdataFolder=/data -DevitaData=/evita-data/data"
 
+set +x
+
 ## public gist
 cp $RESULT_JSON "$new_filename".json
 gh gist create -d "Evita performance results: $BENCHMARK_SELECTOR - $now (node: $DO_CLUSTER_NODE_SLUG, $PROCESSOR)" --public "$new_filename".json
@@ -121,8 +123,6 @@ rm -rf "$SHARED_GIST"
 gh gist clone "$SHARED_GIST" "$SHARED_GIST"
 cd "$SHARED_GIST"
 cp -f ../$RESULT_JSON $RESULT_JSON
-
-set +x
 
 ## push back
 git config user.email "novotny@fg.cz"
