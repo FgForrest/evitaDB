@@ -35,14 +35,15 @@ function help {
 
 function _trap_exit() {
     set +x
+    
     echo
     if [ -n "$GH_ACTION" ] && [ "$GH_ACTION" == "1" ]; then
-        echo "$now"
+        date -Is
         echo "Run in GH Action - clean Kubernetes cluster"
         curl -s -L \
             -X POST \
             -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer $REPO_TOKEN"\
+            -H "Authorization: Bearer $GITHUB_TOKEN"\
             https://api.github.com/repos/FgForrest/evitaDB/dispatches \
             -d '{"event_type": "clean-webhook"}'
 
@@ -111,6 +112,8 @@ java \
         $JMH_ARGS -rf json -rff $RESULT_JSON \
         -jvmArgs "$EXTRA_JAVA_OPTS $BENCHMARK_JAVA_OPTS -DdataFolder=/data -DevitaData=/evita-data/data"
 
+set +x
+
 ## public gist
 cp $RESULT_JSON "$new_filename".json
 gh gist create -d "Evita performance results: $BENCHMARK_SELECTOR - $now (node: $DO_CLUSTER_NODE_SLUG, $PROCESSOR)" --public "$new_filename".json
@@ -127,7 +130,6 @@ git config user.name "Novoj"
 git commit -a -m "Updated results from $now"
 git push "https://$GITHUB_TOKEN:x-oauth-basic@gist.github.com/evita-db/$SHARED_GIST"
 
-set +x
 CHILL_OUT_SEC=90
 echo
 echo "Let the cluster chill-out after benchmark: $CHILL_OUT_SEC sec"
