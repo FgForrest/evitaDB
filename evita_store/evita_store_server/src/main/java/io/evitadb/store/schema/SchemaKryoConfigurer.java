@@ -24,15 +24,18 @@
 package io.evitadb.store.schema;
 
 import com.esotericsoftware.kryo.Kryo;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.store.dataType.serializer.EnumNameSerializer;
 import io.evitadb.store.dataType.serializer.SerialVersionBasedSerializer;
 import io.evitadb.store.schema.serializer.AssociatedDataSchemaSerializer;
@@ -41,6 +44,7 @@ import io.evitadb.store.schema.serializer.CatalogSchemaSerializer;
 import io.evitadb.store.schema.serializer.EntitySchemaSerializer;
 import io.evitadb.store.schema.serializer.GlobalAttributeSchemaSerializer;
 import io.evitadb.store.schema.serializer.ReferenceSchemaSerializer;
+import io.evitadb.store.schema.serializer.SortableAttributeCompoundSchemaSerializer;
 import io.evitadb.utils.Assert;
 
 import java.util.function.Consumer;
@@ -62,9 +66,12 @@ public class SchemaKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(GlobalAttributeSchema.class, new SerialVersionBasedSerializer<>(new GlobalAttributeSchemaSerializer(), GlobalAttributeSchema.class), index++);
 		kryo.register(AssociatedDataSchema.class, new SerialVersionBasedSerializer<>(new AssociatedDataSchemaSerializer(), AssociatedDataSchema.class), index++);
 		kryo.register(ReferenceSchema.class, new SerialVersionBasedSerializer<>(new ReferenceSchemaSerializer(), ReferenceSchema.class), index++);
+		kryo.register(SortableAttributeCompoundSchema.class, new SerialVersionBasedSerializer<>(new SortableAttributeCompoundSchemaSerializer(), SortableAttributeCompoundSchema.class), index++);
 		kryo.register(EvolutionMode.class, new EnumNameSerializer<>(), index++);
 		kryo.register(CatalogEvolutionMode.class, new EnumNameSerializer<>(), index++);
 		kryo.register(Cardinality.class, new EnumNameSerializer<>(), index++);
+		kryo.register(OrderDirection.class, new EnumNameSerializer<>(), index++);
+		kryo.register(OrderBehaviour.class, new EnumNameSerializer<>(), index++);
 
 		Assert.isPremiseValid(index < 500, "Index count overflow.");
 	}

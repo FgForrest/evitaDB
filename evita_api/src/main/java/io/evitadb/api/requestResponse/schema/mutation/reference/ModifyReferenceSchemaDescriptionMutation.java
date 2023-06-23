@@ -95,7 +95,8 @@ public class ModifyReferenceSchemaDescriptionMutation
 			referenceSchema.isReferencedGroupTypeManaged(),
 			referenceSchema.isFilterable(),
 			referenceSchema.isFaceted(),
-			referenceSchema.getAttributes()
+			referenceSchema.getAttributes(),
+			referenceSchema.getSortableAttributeCompounds()
 		);
 	}
 

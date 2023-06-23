@@ -32,7 +32,6 @@ import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Collection;
 
 /**
@@ -41,37 +40,12 @@ import java.util.Collection;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface ReferenceSchemaEditor<S extends ReferenceSchemaEditor<S>>
-	extends ReferenceSchemaContract, AttributeProviderSchemaEditor<S, AttributeSchemaContract, AttributeSchemaEditor.AttributeSchemaBuilder> {
-	/**
-	 * Reference is best described by the passed string. Description is expected to be written using
-	 * <a href="https://www.markdownguide.org/basic-syntax/">MarkDown syntax</a>. The description should be targeted
-	 * on client API developers or users of your data store to facilitate their orientation.
-	 *
-	 * @return builder to continue with configuration
-	 */
-	@Nonnull
-	S withDescription(@Nullable String description);
-
-	/**
-	 * Marking reference as deprecated allows you to inform users of your client API that this type of reference is
-	 * planned for removal in the future. You should also describe the reasons behind this decision in the form
-	 * of deprecation notice. Description is expected to be written using
-	 * <a href="https://www.markdownguide.org/basic-syntax/">MarkDown syntax</a>.
-	 *
-	 * @return builder to continue with configuration
-	 */
-	@Nonnull
-	S deprecated(@Nonnull String deprecationNotice);
-
-	/**
-	 * This method should be used carefully only in case some reference were marked as deprecated by mistake.
-	 * Use it with caution, this may really confuse the users of your client API.
-	 *
-	 * @return builder to continue with configuration
-	 */
-	@Nonnull
-	S notDeprecatedAnymore();
+public interface ReferenceSchemaEditor<S extends ReferenceSchemaEditor<S>> extends
+	ReferenceSchemaContract,
+	NamedSchemaWithDeprecationEditor<S>,
+	AttributeProviderSchemaEditor<S, AttributeSchemaContract, AttributeSchemaEditor.AttributeSchemaBuilder>,
+	SortableAttributeCompoundSchemaProviderEditor<S>
+{
 
 	/**
 	 * Specifies that reference of this type will be related to external entity not maintained in Evita.
@@ -97,6 +71,7 @@ public interface ReferenceSchemaEditor<S extends ReferenceSchemaEditor<S>>
 	 * cannot be looked up by reference attributes or relation existence itself, but the data is loaded alongside
 	 * other references and is available by calling {@link SealedEntity#getReferences()} method.
 	 */
+	/* TODO JNO - change this to "indexed" + verify no attribute can be marked as filterable/sortable/compound on non-indexed reference */
 	S filterable();
 
 	/**

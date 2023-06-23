@@ -277,9 +277,9 @@ public class Attributes implements AttributesContract {
 	/**
 	 * Returns attribute value for passed key.
 	 */
-	@Nullable
-	public AttributeValue getAttributeValue(AttributeKey attributeKey) {
-		return this.attributeValues.get(attributeKey);
+	@Nonnull
+	public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
+		return ofNullable(this.attributeValues.get(attributeKey));
 	}
 
 	/**

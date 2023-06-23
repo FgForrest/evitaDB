@@ -27,6 +27,8 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
+import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
@@ -119,12 +121,12 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 				Stream.of(
 						makeMutationIfDifferent(
 							createdVersion, existingVersion,
-							it -> it.getDescription(),
+							NamedSchemaContract::getDescription,
 							newValue -> new ModifyAttributeSchemaDescriptionMutation(name, newValue)
 						),
 						makeMutationIfDifferent(
 							createdVersion, existingVersion,
-							it -> it.getDeprecationNotice(),
+							NamedSchemaWithDeprecationContract::getDeprecationNotice,
 							newValue -> new ModifyAttributeSchemaDeprecationNoticeMutation(name, newValue)
 						),
 						makeMutationIfDifferent(
@@ -214,7 +216,8 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 					),
 				entitySchema.getAssociatedData(),
 				entitySchema.getReferences(),
-				entitySchema.getEvolutionMode()
+				entitySchema.getEvolutionMode(),
+				entitySchema.getSortableAttributeCompounds()
 			);
 		} else if (existingAttributeSchema.equals(newAttributeSchema)) {
 			// the mutation must have been applied previously - return the schema we don't need to alter
@@ -223,7 +226,7 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 			// ups, there is conflict in attribute settings
 			throw new InvalidSchemaMutationException(
 				"The attribute `" + name + "` already exists in entity `" + entitySchema.getName() + "` schema and" +
-					" has different definition. To alter existing attribute schema you need to use different mutations."
+					" it has different definition. To alter existing attribute schema you need to use different mutations."
 			);
 		}
 	}
@@ -263,7 +266,8 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 							AttributeSchemaContract::getName,
 							Function.identity()
 						)
-					)
+					),
+				referenceSchema.getSortableAttributeCompounds()
 			);
 		} else if (existingAttributeSchema.equals(newAttributeSchema)) {
 			// the mutation must have been applied previously - return the schema we don't need to alter
@@ -271,8 +275,9 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 		} else {
 			// ups, there is conflict in attribute settings
 			throw new InvalidSchemaMutationException(
-				"The attribute `" + name + "` already exists in entity `" + referenceSchema.getName() + "` schema and" +
-					" has different definition. To alter existing attribute schema you need to use different mutations."
+				"The attribute `" + name + "` already exists in entity `" + entitySchemaContract.getName() + "`" +
+					" reference `" + referenceSchema.getName() + "` schema and" +
+					" it has different definition. To alter existing attribute schema you need to use different mutations."
 			);
 		}
 	}

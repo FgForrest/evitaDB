@@ -98,7 +98,8 @@ public class SetReferenceSchemaFacetedMutation
 				referenceSchema.isReferencedGroupTypeManaged(),
 				referenceSchema.isFilterable(),
 				faceted,
-				referenceSchema.getAttributes()
+				referenceSchema.getAttributes(),
+				referenceSchema.getSortableAttributeCompounds()
 			);
 		}
 	}

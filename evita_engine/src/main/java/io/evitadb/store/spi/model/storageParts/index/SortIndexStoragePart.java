@@ -26,6 +26,7 @@ package io.evitadb.store.spi.model.storageParts.index;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.store.model.RecordWithCompressedId;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -61,9 +62,9 @@ public class SortIndexStoragePart implements AttributeIndexStoragePart, RecordWi
 	 */
 	@Getter private final AttributeKey attributeKey;
 	/**
-	 * Contains type of the attribute.
+	 * Contains type of the attribute and comparison properties.
 	 */
-	@Getter private final Class<? extends Comparable<?>> type;
+	@Getter private final ComparatorSource[] comparatorBase;
 	/**
 	 * Contains record ids sorted by assigned values. The array is divided in so called record ids block that respects
 	 * order in {@link #sortedRecordsValues}. Record ids within the same block are sorted naturally by their integer id.

@@ -104,7 +104,8 @@ public class SetReferenceSchemaFilterableMutation
 				referenceSchema.isReferencedGroupTypeManaged(),
 				filterable,
 				referenceSchema.isFaceted(),
-				referenceSchema.getAttributes()
+				referenceSchema.getAttributes(),
+				referenceSchema.getSortableAttributeCompounds()
 			);
 		}
 	}

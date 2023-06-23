@@ -850,7 +850,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		sortIndexes.put(
 			attributeKey,
 			new SortIndex(
-				sortIndexCnt.getType(),
+				sortIndexCnt.getComparatorBase(),
 				sortIndexCnt.getAttributeKey().getLocale(),
 				sortIndexCnt.getSortedRecords(),
 				sortIndexCnt.getSortedRecordsValues(),

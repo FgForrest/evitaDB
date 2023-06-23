@@ -98,7 +98,8 @@ public class ModifyReferenceSchemaRelatedEntityGroupMutation
 			referencedGroupTypeManaged,
 			referenceSchema.isFilterable(),
 			referenceSchema.isFaceted(),
-			referenceSchema.getAttributes()
+			referenceSchema.getAttributes(),
+			referenceSchema.getSortableAttributeCompounds()
 		);
 	}
 

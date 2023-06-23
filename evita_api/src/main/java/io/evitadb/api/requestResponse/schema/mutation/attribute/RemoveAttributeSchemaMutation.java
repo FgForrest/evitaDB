@@ -184,7 +184,8 @@ public class RemoveAttributeSchemaMutation implements
 					),
 				entitySchema.getAssociatedData(),
 				entitySchema.getReferences(),
-				entitySchema.getEvolutionMode()
+				entitySchema.getEvolutionMode(),
+				entitySchema.getSortableAttributeCompounds()
 			);
 		}
 	}
@@ -221,7 +222,8 @@ public class RemoveAttributeSchemaMutation implements
 							AttributeSchemaContract::getName,
 							Function.identity()
 						)
-					)
+					),
+				referenceSchema.getSortableAttributeCompounds()
 			);
 		}
 	}

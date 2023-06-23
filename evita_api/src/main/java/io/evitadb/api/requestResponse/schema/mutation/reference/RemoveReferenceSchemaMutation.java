@@ -119,7 +119,8 @@ public class RemoveReferenceSchemaMutation implements ReferenceSchemaMutation, C
 							Function.identity()
 						)
 					),
-				entitySchema.getEvolutionMode()
+				entitySchema.getEvolutionMode(),
+				entitySchema.getSortableAttributeCompounds()
 			);
 		}
 	}

@@ -26,16 +26,23 @@ package io.evitadb.index.mutation;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.Droppable;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaProvider;
+import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.IndexType;
+import io.evitadb.index.mutation.ReferenceIndexMutator.ReferenceAttributeValueSupplier;
 import io.evitadb.store.entity.model.entity.AttributesStoragePart;
 import io.evitadb.store.spi.model.storageParts.accessor.EntityStoragePartAccessor;
 import io.evitadb.utils.Assert;
@@ -43,7 +50,10 @@ import io.evitadb.utils.NumberUtils;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
@@ -51,6 +61,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
 
@@ -68,38 +79,82 @@ public interface AttributeIndexMutator {
 	 */
 	static void executeAttributeUpsert(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull Function<String, AttributeSchemaContract> schemaProvider,
-		@Nonnull Supplier<AttributeValue> existingValueSupplier,
+		@Nonnull Function<String, AttributeSchema> attributeSchemaProvider,
+		@Nonnull Function<String, Stream<SortableAttributeCompoundSchema>> compoundsSchemaProvider,
+		@Nonnull ExistingAttributeValueSupplier existingValueSupplier,
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull Serializable attributeValue,
-		boolean updateGlobalIndex
+		boolean updateGlobalIndex,
+		boolean updateCompounds
 	) {
-		final AttributeSchemaContract attributeDefinition = schemaProvider.apply(attributeKey.getAttributeName());
+		final AttributeSchemaContract attributeDefinition = attributeSchemaProvider.apply(attributeKey.getAttributeName());
 		Assert.notNull(attributeDefinition, "Attribute `" + attributeKey.getAttributeName() + "` not defined in schema!");
 
+		final Object valueToInsert = Objects.requireNonNull(
+			EvitaDataTypes.toTargetType(attributeValue, attributeDefinition.getType(), attributeDefinition.getIndexedDecimalPlaces())
+		);
+
 		if (attributeDefinition.isUnique() || attributeDefinition.isFilterable() || attributeDefinition.isSortable()) {
-			final Object newValue = Objects.requireNonNull(
-				EvitaDataTypes.toTargetType(attributeValue, attributeDefinition.getType(), attributeDefinition.getIndexedDecimalPlaces())
-			);
-			insertValue(executor, entityIndex, attributeDefinition, existingValueSupplier, attributeKey, newValue);
+			final EntitySchema entitySchema = executor.getEntitySchema();
+			final Set<Locale> allowedLocales = entitySchema.getLocales();
+			final Locale locale = attributeKey.getLocale();
+
+			if (attributeDefinition.isUnique()) {
+				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX);
+				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
+				existingValue.ifPresent(theValue -> {
+					entityIndex.removeUniqueAttribute(attributeDefinition, allowedLocales, locale, theValue.getValue(), entityPrimaryKey);
+					if (String.class.equals(attributeDefinition.getType()) && !attributeDefinition.isFilterable()) {
+						// TOBEDONE JNO this should be replaced with RadixTree
+						entityIndex.removeFilterAttribute(attributeDefinition, allowedLocales, locale, theValue.getValue(), entityPrimaryKey);
+					}
+				});
+				entityIndex.insertUniqueAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey);
+				if (String.class.equals(attributeDefinition.getType()) && !attributeDefinition.isFilterable()) {
+					// TOBEDONE JNO this should be replaced with RadixTree
+					entityIndex.insertFilterAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey);
+				}
+			}
+			if (attributeDefinition.isFilterable()) {
+				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX);
+				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
+				existingValue.ifPresent(theValue -> {
+					entityIndex.removeFilterAttribute(attributeDefinition, allowedLocales, locale, theValue.getValue(), entityPrimaryKey);
+				});
+				entityIndex.insertFilterAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey);
+			}
+			if (attributeDefinition.isSortable()) {
+				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX);
+				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
+				existingValue.ifPresent(theValue -> {
+					entityIndex.removeSortAttribute(attributeDefinition, allowedLocales, locale, theValue.getValue(), entityPrimaryKey);
+				});
+				entityIndex.insertSortAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey);
+			}
 
 			if (updateGlobalIndex && attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema && globalAttributeSchema.isUniqueGlobally()) {
 				final CatalogIndex catalogIndex = executor.getCatalogIndex();
-				final Set<Locale> allowedLocales = executor.getEntitySchema().getLocales();
-				final Locale locale = attributeKey.getLocale();
 				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX);
 
-				final AttributeValue existingValue = existingValueSupplier.get();
-				if (existingValue != null) {
+				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
+				existingValue.ifPresent(theValue -> {
 					catalogIndex.removeUniqueAttribute(
-						executor.getEntitySchema(), attributeDefinition, allowedLocales, locale, Objects.requireNonNull(existingValue.getValue()), entityPrimaryKey
+						executor.getEntitySchema(), attributeDefinition, allowedLocales, locale, Objects.requireNonNull(theValue.getValue()), entityPrimaryKey
 					);
-				}
+				});
 				catalogIndex.insertUniqueAttribute(
-					executor.getEntitySchema(), attributeDefinition, allowedLocales, locale, newValue, entityPrimaryKey
+					executor.getEntitySchema(), attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey
 				);
 			}
+		}
+
+		// now update the compounds
+		if (updateCompounds) {
+			updateSortableAttributeCompounds(
+				executor, attributeSchemaProvider, compoundsSchemaProvider, existingValueSupplier,
+				entityIndex, valueToInsert, attributeKey.getLocale(), attributeDefinition.getName()
+			);
 		}
 	}
 
@@ -109,44 +164,76 @@ public interface AttributeIndexMutator {
 	 */
 	static <T extends Serializable & Comparable<T>> void executeAttributeRemoval(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull Function<String, AttributeSchemaContract> schemaProvider,
-		@Nonnull Supplier<AttributeValue> existingValueSupplier,
+		@Nonnull Function<String, AttributeSchema> attributeSchemaProvider,
+		@Nonnull Function<String, Stream<SortableAttributeCompoundSchema>> compoundsSchemaProvider,
+		@Nonnull ExistingAttributeValueSupplier existingValueSupplier,
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull AttributeKey attributeKey,
-		boolean updateGlobalIndex
+		boolean updateGlobalIndex,
+		boolean updateCompounds
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
-		final AttributeSchemaContract attributeDefinition = schemaProvider.apply(attributeKey.getAttributeName());
-		Assert.notNull(attributeDefinition, "Attribute `" + attributeKey.getAttributeName() + "` not defined in schema!");
+		final String attributeName = attributeKey.getAttributeName();
+		final AttributeSchemaContract attributeDefinition = attributeSchemaProvider.apply(attributeName);
+		Assert.notNull(attributeDefinition, "Attribute `" + attributeName + "` not defined in schema!");
 
 		final Set<Locale> allowedLocales = entitySchema.getLocales();
 		final Locale locale = attributeKey.getLocale();
 
-		if (attributeDefinition.isUnique() || attributeDefinition.isFilterable() || attributeDefinition.isSortable()) {
-			final AttributeValue existingValue = existingValueSupplier.get();
-			Assert.notNull(existingValue, "Attribute `" + attributeDefinition.getName() + "` is unexpectedly not found in container for entity `" + entitySchema.getName() + "` record " + executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_INDEX) + "!");
-			@SuppressWarnings("unchecked") final T oldValue = (T) existingValue.getValue();
+		final AtomicReference<T> valueToRemove = new AtomicReference<>();
+		final Supplier<T> valueToRemoveSupplier = () -> valueToRemove.updateAndGet(alreadyKnownOldValue -> {
+			if (alreadyKnownOldValue == null) {
+				final AttributeValue existingValue = existingValueSupplier.getAttributeValue(attributeKey).orElse(null);
+				Assert.notNull(existingValue, "Attribute `" + attributeDefinition.getName() + "` is unexpectedly not found in container for entity `" + entitySchema.getName() + "` record " + executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_INDEX) + "!");
+				//noinspection unchecked
+				return (T) existingValue.getValue();
+			} else {
+				return alreadyKnownOldValue;
+			}
+		});
 
+		if (attributeDefinition.isUnique() || attributeDefinition.isFilterable() || attributeDefinition.isSortable()) {
 			if (attributeDefinition.isUnique()) {
-				entityIndex.removeUniqueAttribute(attributeDefinition, allowedLocales, locale, oldValue, executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX));
+				entityIndex.removeUniqueAttribute(
+					attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
+					executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX)
+				);
 				if (String.class.equals(attributeDefinition.getType()) && !attributeDefinition.isFilterable()) {
 					// TOBEDONE JNO this should be replaced with RadixTree
-					entityIndex.removeFilterAttribute(attributeDefinition, allowedLocales, locale, oldValue, executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX));
+					entityIndex.removeFilterAttribute(
+						attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
+						executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX)
+					);
 				}
 
 				if (updateGlobalIndex && attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema && globalAttributeSchema.isUniqueGlobally()) {
 					final CatalogIndex catalogIndex = executor.getCatalogIndex();
 					catalogIndex.removeUniqueAttribute(
-						executor.getEntitySchema(), attributeDefinition, allowedLocales, locale, Objects.requireNonNull(existingValue.getValue()), executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX)
+						executor.getEntitySchema(), attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
+						executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX)
 					);
 				}
 			}
 			if (attributeDefinition.isFilterable()) {
-				entityIndex.removeFilterAttribute(attributeDefinition, allowedLocales, locale, oldValue, executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX));
+				entityIndex.removeFilterAttribute(
+					attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
+					executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX)
+				);
 			}
 			if (attributeDefinition.isSortable()) {
-				entityIndex.removeSortAttribute(attributeDefinition, allowedLocales, locale, oldValue, executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX));
+				entityIndex.removeSortAttribute(
+					attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
+					executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX)
+				);
 			}
+		}
+
+		// now update the compounds
+		if (updateCompounds) {
+			updateSortableAttributeCompounds(
+				executor, attributeSchemaProvider, compoundsSchemaProvider, existingValueSupplier,
+				entityIndex, null, locale, attributeName
+			);
 		}
 	}
 
@@ -156,120 +243,423 @@ public interface AttributeIndexMutator {
 	 */
 	static <T extends Serializable & Comparable<T>> void executeAttributeDelta(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull Function<String, AttributeSchemaContract> schemaProvider,
-		@Nonnull Supplier<AttributeValue> existingValueSupplier,
-		@Nonnull EntityIndex index,
+		@Nonnull Function<String, AttributeSchema> attributeSchemaProvider,
+		@Nonnull Function<String, Stream<SortableAttributeCompoundSchema>> compoundsSchemaProvider,
+		@Nonnull ExistingAttributeValueSupplier existingValueSupplier,
+		@Nonnull EntityIndex entityIndex,
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull Number delta
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
-		final AttributeSchemaContract attributeDefinition = schemaProvider.apply(attributeKey.getAttributeName());
+		final String attributeName = attributeKey.getAttributeName();
+		final AttributeSchemaContract attributeDefinition = attributeSchemaProvider.apply(attributeName);
 
-		if (attributeDefinition.isUnique() || attributeDefinition.isFilterable() || attributeDefinition.isSortable()) {
-			final Locale locale = attributeKey.getLocale();
-			final Set<Locale> allowedLocales = entitySchema.getLocales();
+		final Set<Locale> allowedLocales = entitySchema.getLocales();
+		final Locale locale = attributeKey.getLocale();
+		final AtomicReference<T> valueToRemove = new AtomicReference<>();
+		final Supplier<T> valueToRemoveSupplier = () -> valueToRemove.updateAndGet(
+			alreadyKnownOldAttributeValue -> {
+				if (alreadyKnownOldAttributeValue == null) {
+					final AttributeValue oldAttributeValue = existingValueSupplier.getAttributeValue(attributeKey).orElse(null);
+					Assert.notNull(oldAttributeValue, "Attribute `" + attributeDefinition.getName() + "` is unexpectedly not found in indexes for entity `" + entitySchema.getName() + "` record " + executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_INDEX) + "!");
+					//noinspection unchecked
+					final T theOldValue = (T) oldAttributeValue.getValue();
+					Assert.isTrue(theOldValue instanceof Number, "Attribute `" + attributeDefinition.getName() + "` in entity `" + entitySchema.getName() + "` is not a number type!");
+					return theOldValue;
+				} else {
+					return alreadyKnownOldAttributeValue;
+				}
+			}
+		);
+		final AtomicReference<T> valueToAdd = new AtomicReference<>();
+		final Supplier<T> valueToUpdateSupplier = () -> valueToAdd.updateAndGet(
+			existingValue -> {
+				if (existingValue == null) {
+					final T oldValue = valueToRemoveSupplier.get();
 
-			final AttributeValue existingValue = existingValueSupplier.get();
-			Assert.notNull(existingValue, "Attribute `" + attributeDefinition.getName() + "` is unexpectedly not found in indexes for entity `" + entitySchema.getName() + "` record " + executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_INDEX) + "!");
-			@SuppressWarnings("unchecked") final T oldValue = (T) existingValue.getValue();
-			Assert.isTrue(oldValue instanceof Number, "Attribute `" + attributeDefinition.getName() + "` in entity `" + entitySchema.getName() + "` is not a number type!");
-			@SuppressWarnings("unchecked") final T result = (T) NumberUtils.sum((Number) oldValue, (Number) EvitaDataTypes.toTargetType(delta, attributeDefinition.getType(), attributeDefinition.getIndexedDecimalPlaces()));
+					//noinspection unchecked
+					return (T) NumberUtils.sum(
+						(Number) oldValue,
+						(Number) EvitaDataTypes.toTargetType(
+							delta,
+							attributeDefinition.getType(),
+							attributeDefinition.getIndexedDecimalPlaces()
+						)
+					);
+				} else {
+					return existingValue;
+				}
+			});
 
-			if (attributeDefinition.isUnique()) {
-				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX);
-				index.removeUniqueAttribute(attributeDefinition, allowedLocales, locale, oldValue, entityPrimaryKey);
-				index.insertUniqueAttribute(attributeDefinition, allowedLocales, locale, result, entityPrimaryKey);
-			}
-			if (attributeDefinition.isFilterable()) {
-				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX);
-				index.removeFilterAttribute(attributeDefinition, allowedLocales, locale, oldValue, entityPrimaryKey);
-				index.insertFilterAttribute(attributeDefinition, allowedLocales, locale, result, entityPrimaryKey);
-			}
-			if (attributeDefinition.isSortable()) {
-				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX);
-				index.removeSortAttribute(attributeDefinition, allowedLocales, locale, oldValue, entityPrimaryKey);
-				index.insertSortAttribute(attributeDefinition, allowedLocales, locale, result, entityPrimaryKey);
-			}
+		if (attributeDefinition.isUnique()) {
+			final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX);
+			entityIndex.removeUniqueAttribute(attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(), entityPrimaryKey);
+			entityIndex.insertUniqueAttribute(attributeDefinition, allowedLocales, locale, valueToUpdateSupplier.get(), entityPrimaryKey);
+		}
+		if (attributeDefinition.isFilterable()) {
+			final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX);
+			entityIndex.removeFilterAttribute(attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(), entityPrimaryKey);
+			entityIndex.insertFilterAttribute(attributeDefinition, allowedLocales, locale, valueToUpdateSupplier.get(), entityPrimaryKey);
+		}
+		if (attributeDefinition.isSortable()) {
+			final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX);
+			entityIndex.removeSortAttribute(attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(), entityPrimaryKey);
+			entityIndex.insertSortAttribute(attributeDefinition, allowedLocales, locale, valueToUpdateSupplier.get(), entityPrimaryKey);
+		}
+		// now update the compounds
+		updateSortableAttributeCompounds(
+			executor, attributeSchemaProvider, compoundsSchemaProvider, existingValueSupplier,
+			entityIndex, valueToUpdateSupplier.get(), locale, attributeName
+		);
+	}
+
+	/**
+	 * Sets up the initial set of sortable attribute compounds for the given entity and `entityIndex`. When the `locale`
+	 * parameter is not null, only the compounds for the given locale are created. Otherwise, all compounds that don't
+	 * contain localized attribute value are created.
+	 *
+	 * The method is called only once for each entity, when the entity is created, a new language for the entity is
+	 * added, or the entity is set up in a brand new reduced index.
+	 */
+	static void insertInitialSuiteOfSortableAttributeCompounds(
+		@Nonnull EntityIndex entityIndex,
+		@Nullable Locale locale,
+		int entityPrimaryKey,
+		@Nonnull EntitySchema entitySchema,
+		@Nullable ReferenceKey referenceKey,
+		@Nonnull EntityStoragePartAccessor entityStoragePartAccessor
+	) {
+		final SortableAttributeCompoundSchemaProvider compoundProvider = ofNullable(referenceKey)
+			.map(it -> (SortableAttributeCompoundSchemaProvider) entitySchema.getReferenceOrThrowException(referenceKey.referenceName()))
+			.orElse(entitySchema);
+
+		final Function<String, AttributeSchema> attributeSchemaProvider = attributeName -> compoundProvider.getAttribute(attributeName)
+			.map(AttributeSchema.class::cast)
+			.orElse(null);
+
+		final EntityAttributeValueSupplier entityAttributeValueSupplier = new EntityAttributeValueSupplier(
+			entityStoragePartAccessor, entitySchema.getName(), entityPrimaryKey
+		);
+
+		final Stream<SortableAttributeCompoundSchema> allCompounds = compoundProvider.getSortableAttributeCompounds()
+			.values()
+			.stream()
+			// we retrieve schemas from EntitySchema, so we can safely cast them here
+			.map(SortableAttributeCompoundSchema.class::cast);
+
+		final Stream<SortableAttributeCompoundSchema> filteredCompounds = locale == null ?
+			allCompounds.filter(it -> !it.isLocalized(attributeSchemaProvider)) :
+			// filter only localized compound schemas
+			allCompounds.filter(it -> it.isLocalized(attributeSchemaProvider));
+
+		filteredCompounds.forEach(
+			it -> insertNewCompound(
+				entityPrimaryKey, entityIndex, it,
+				null, null,
+				locale,
+				attributeSchemaProvider,
+				createAttributeElementToAttributeValueProvider(
+					attributeSchemaProvider,
+					attributeKey -> entityAttributeValueSupplier.getAttributeValue(attributeKey).orElse(null),
+					locale
+				)
+			)
+		);
+	}
+
+	/**
+	 * Removes all sortable attribute compounds for the given entity and `entityIndex`. When the `locale`
+	 * parameter is not null, only the compounds for the given locale are removed. Otherwise, all compounds that don't
+	 * contain localized attribute value are removed.
+	 *
+	 * The method is called only once for each entity, when the entity is removed, a language for the entity is
+	 * discarded, or the entity removed from the index.
+	 */
+	static void removeEntireSuiteOfSortableAttributeCompounds(
+		@Nonnull EntityIndex entityIndex,
+		@Nullable Locale locale,
+		int entityPrimaryKey,
+		@Nonnull EntitySchema entitySchema,
+		@Nullable ReferenceKey referenceKey,
+		@Nonnull EntityStoragePartAccessor entityStoragePartAccessor
+	) {
+		final SortableAttributeCompoundSchemaProvider compoundProvider = ofNullable(referenceKey)
+			.map(it -> (SortableAttributeCompoundSchemaProvider) entitySchema.getReferenceOrThrowException(referenceKey.referenceName()))
+			.orElse(entitySchema);
+
+		final Function<String, AttributeSchema> attributeSchemaProvider = attributeName -> compoundProvider.getAttribute(attributeName)
+			.map(AttributeSchema.class::cast)
+			.orElse(null);
+
+		final ExistingAttributeValueSupplier entityAttributeValueSupplier = ofNullable(referenceKey)
+			.map(
+				refKey -> (ExistingAttributeValueSupplier) new ReferenceAttributeValueSupplier(
+					entityStoragePartAccessor, refKey, entitySchema.getName(), entityPrimaryKey
+				)
+			)
+			.orElseGet(
+				() -> new EntityAttributeValueSupplier(
+					entityStoragePartAccessor, entitySchema.getName(), entityPrimaryKey
+				)
+			);
+		final Stream<SortableAttributeCompoundSchema> allCompounds = compoundProvider.getSortableAttributeCompounds()
+			.values()
+			.stream()
+			// we retrieve schemas from EntitySchema, so we can safely cast them here
+			.map(SortableAttributeCompoundSchema.class::cast);
+
+		final Stream<SortableAttributeCompoundSchema> filteredCompounds = locale == null ?
+			allCompounds.filter(it -> !it.isLocalized(attributeSchemaProvider)) :
+			// filter only localized compound schemas
+			allCompounds.filter(it -> it.isLocalized(attributeSchemaProvider));
+
+		filteredCompounds.forEach(
+				it -> removeOldCompound(
+					entityPrimaryKey, entityIndex, it,
+					locale,
+					createAttributeElementToAttributeValueProvider(
+						attributeSchemaProvider,
+						attributeKey -> entityAttributeValueSupplier.getAttributeValue(attributeKey).orElse(null),
+						locale
+					)
+				)
+			);
+	}
+
+	/**
+	 * Method updates existing sortable attribute compounds that refer to the `updatedAttributeName` attribute.
+	 * The previous compound containing this attribute is removed from the index and new is inserted using the
+	 * `valueToUpdate` parameter as a new value for the attribute compound.
+	 */
+	private static void updateSortableAttributeCompounds(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull Function<String, AttributeSchema> attributeSchemaProvider,
+		@Nonnull Function<String, Stream<SortableAttributeCompoundSchema>> compoundsSchemaProvider,
+		@Nonnull ExistingAttributeValueSupplier existingValueSupplier,
+		@Nonnull EntityIndex entityIndex,
+		@Nullable Object valueToUpdate,
+		@Nullable Locale locale,
+		@Nonnull String updatedAttributeName
+	) {
+		compoundsSchemaProvider.apply(updatedAttributeName)
+			.forEach(
+				compound -> {
+					final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX);
+					final Function<AttributeKey, AttributeValue> existingAttributeValueProvider =
+						it -> existingValueSupplier.getAttributeValue(it).orElse(null);
+
+					boolean isCompoundLocalized = compound.isLocalized(attributeSchemaProvider);
+					if (isCompoundLocalized && locale == null) {
+						// if the compound is localized and the locale is null, it means the global attribute is updated
+						// and we need to update all localized compounds using that global attribute
+						existingValueSupplier
+							.getEntityAttributeLocales()
+							.forEach(
+								attributeLocale -> updateCompound(
+									entityIndex, compound,
+									existingValueSupplier.getEntityAttributeLocales(), attributeLocale, updatedAttributeName, valueToUpdate, entityPrimaryKey, attributeSchemaProvider,
+									existingAttributeValueProvider
+								)
+							);
+					} else {
+						// otherwise we just update the compound with particular locale or global if locale is null
+						updateCompound(
+							entityIndex, compound,
+							existingValueSupplier.getEntityAttributeLocales(), locale, updatedAttributeName, valueToUpdate, entityPrimaryKey, attributeSchemaProvider,
+							existingAttributeValueProvider
+						);
+					}
+				}
+			);
+	}
+
+	/**
+	 * Method updates particular sortable attribute compound that refer to the `updatedAttributeName` attribute.
+	 * The previous compound containing this attribute is removed from the index and new is inserted using the
+	 * `valueToUpdate` parameter as a new value for the attribute compound.
+	 */
+	private static void updateCompound(
+		@Nonnull EntityIndex entityIndex,
+		@Nonnull SortableAttributeCompoundSchema compound,
+		@Nonnull Set<Locale> availableAttributeLocales,
+		@Nullable Locale locale,
+		@Nullable String updatedAttributeName,
+		@Nullable Object valueToUpdate,
+		int entityPrimaryKey,
+		@Nonnull Function<String, AttributeSchema> attributeSchemaProvider,
+		@Nonnull Function<AttributeKey, AttributeValue> existingAttributeValueProvider
+	) {
+		final Function<AttributeElement, AttributeValue> attributeElementValueProvider = createAttributeElementToAttributeValueProvider(
+			attributeSchemaProvider, existingAttributeValueProvider, locale
+		);
+
+		if (locale == null || availableAttributeLocales.contains(locale)) {
+			removeOldCompound(
+				entityPrimaryKey, entityIndex, compound, locale,
+				attributeElementValueProvider
+			);
+
+			insertNewCompound(
+				entityPrimaryKey, entityIndex, compound, updatedAttributeName, valueToUpdate, locale,
+				attributeSchemaProvider, attributeElementValueProvider
+			);
 		}
 	}
 
 	/**
-	 * Inserts or updates value from/to indexes. Arrays of objects are automatically unwrapped and handled as a set of discrete
-	 * values.
+	 * Method calculates new version of the sortable attribute compound and inserts it into the index.
 	 */
-	private static void insertValue(
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull EntityIndex index,
-		@Nonnull AttributeSchemaContract attributeDefinition,
-		@Nonnull Supplier<AttributeValue> existingValueSupplier,
-		@Nonnull AttributeKey attributeKey,
-		@Nonnull Object valueToInsert
+	private static void insertNewCompound(
+		int entityPrimaryKey,
+		@Nonnull EntityIndex entityIndex,
+		@Nonnull SortableAttributeCompoundSchema compound,
+		@Nullable String updatedAttributeName,
+		@Nullable Object valueToUpdate,
+		@Nullable Locale locale,
+		@Nonnull Function<String, AttributeSchema> attributeSchemaProvider,
+		@Nonnull Function<AttributeElement, AttributeValue> attributeElementValueProvider
 	) {
-		final Set<Locale> allowedLocales = executor.getEntitySchema().getLocales();
-		final Locale locale = attributeKey.getLocale();
+		final Object[] newCompoundValues = compound.getAttributeElements()
+			.stream()
+			.map(
+				it -> Objects.equals(it.attributeName(), updatedAttributeName) ?
+					valueToUpdate :
+					ofNullable(attributeElementValueProvider.apply(it))
+						.map(AttributeValue::getValue)
+						.orElse(null)
+			)
+			.toArray();
 
-		if (attributeDefinition.isUnique()) {
-			final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX);
-			final AttributeValue existingValue = existingValueSupplier.get();
-			if (existingValue != null) {
-				index.removeUniqueAttribute(attributeDefinition, allowedLocales, locale, existingValue.getValue(), entityPrimaryKey);
-				if (String.class.equals(attributeDefinition.getType()) && !attributeDefinition.isFilterable()) {
-					// TOBEDONE JNO this should be replaced with RadixTree
-					index.removeFilterAttribute(attributeDefinition, allowedLocales, locale, existingValue.getValue(), entityPrimaryKey);
-				}
-			}
-			index.insertUniqueAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey);
-			if (String.class.equals(attributeDefinition.getType()) && !attributeDefinition.isFilterable()) {
-				// TOBEDONE JNO this should be replaced with RadixTree
-				index.insertFilterAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey);
-			}
-		}
-		if (attributeDefinition.isFilterable()) {
-			final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX);
-			final AttributeValue existingValue = existingValueSupplier.get();
-			if (existingValue != null) {
-				index.removeFilterAttribute(attributeDefinition, allowedLocales, locale, existingValue.getValue(), entityPrimaryKey);
-			}
-			index.insertFilterAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey);
-		}
-		if (attributeDefinition.isSortable()) {
-			final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX);
-			final AttributeValue existingValue = existingValueSupplier.get();
-			if (existingValue != null) {
-				index.removeSortAttribute(attributeDefinition, allowedLocales, locale, existingValue.getValue(), entityPrimaryKey);
-			}
-			index.insertSortAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey);
-		}
+		entityIndex.insertSortAttributeCompound(
+			compound,
+			theAttributeName -> attributeSchemaProvider.apply(theAttributeName).getPlainType(),
+			locale,
+			newCompoundValues, entityPrimaryKey
+		);
+	}
+
+	/**
+	 * Method calculates actual version of the sortable attribute compound and removes it from the index.
+	 */
+	private static void removeOldCompound(
+		int entityPrimaryKey,
+		@Nonnull EntityIndex entityIndex,
+		@Nonnull SortableAttributeCompoundSchema compound,
+		@Nullable Locale locale,
+		@Nonnull Function<AttributeElement, AttributeValue> attributeElementValueProvider
+	) {
+		final Object[] oldCompoundValues = compound.getAttributeElements()
+			.stream()
+			.map(
+				it -> ofNullable(attributeElementValueProvider.apply(it))
+						.map(AttributeValue::getValue)
+						.orElse(null)
+			)
+			.toArray();
+
+		entityIndex.removeSortAttributeCompound(
+			compound, locale, oldCompoundValues, entityPrimaryKey
+		);
+	}
+
+	/**
+	 * Method creates a conversion function that converts {@link AttributeElement} to {@link AttributeValue}
+	 * using `existingAttributeValueProvider` and `locale` parameters.
+	 */
+	@Nonnull
+	private static Function<AttributeElement, AttributeValue> createAttributeElementToAttributeValueProvider(
+		@Nonnull Function<String, AttributeSchema> attributeSchemaProvider,
+		@Nonnull Function<AttributeKey, AttributeValue> existingAttributeValueProvider,
+		@Nullable Locale locale
+	) {
+		return it -> {
+			final AttributeSchemaContract attributeSchema = attributeSchemaProvider.apply(it.attributeName());
+			return existingAttributeValueProvider.apply(
+				attributeSchema.isLocalized() ?
+					new AttributeKey(it.attributeName(), locale) :
+					new AttributeKey(it.attributeName())
+			);
+		};
+	}
+
+	/**
+	 * This auxiliary interface allows to get existing attribute value for particular attribute key and retrieve set
+	 * of available locales for the updated entity.
+	 */
+	interface ExistingAttributeValueSupplier {
+
+		/**
+		 * Returns complete set of locales for the entity attributes.
+		 */
+		@Nonnull
+		Set<Locale> getEntityAttributeLocales();
+
+		/**
+		 * Returns existing attribute value for particular attribute key.
+		 */
+		@Nonnull
+		Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey);
+
 	}
 
 	/**
 	 * This is auxiliary class that allows lazily fetch attribute container from persistent storage and remember it
 	 * for potential future requests.
 	 */
+	@NotThreadSafe
 	@RequiredArgsConstructor
-	class ExistingAttributeAccessor implements Supplier<AttributeValue> {
+	class EntityAttributeValueSupplier implements ExistingAttributeValueSupplier {
+		private final EntityStoragePartAccessor containerAccessor;
 		private final String entityType;
 		private final int entityPrimaryKey;
-		private final EntityIndexLocalMutationExecutor executor;
-		private final AttributeKey affectedAttribute;
-		private AtomicReference<AttributeValue> memoizedValue;
+		private Set<Locale> memoizedLocales;
+		private AttributeKey memoizedKey;
+		@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
+		private Optional<AttributeValue> memoizedValue;
 
+		@Nonnull
 		@Override
-		public AttributeValue get() {
-			if (memoizedValue == null) {
-				final EntityStoragePartAccessor containerAccessor = executor.getContainerAccessor();
-				final AttributesStoragePart currentAttributes = ofNullable(affectedAttribute.getLocale())
+		public Set<Locale> getEntityAttributeLocales() {
+			if (memoizedLocales == null) {
+				this.memoizedLocales = containerAccessor.getEntityStoragePart(
+					entityType, entityPrimaryKey, EntityExistence.MUST_EXIST
+				).getAttributeLocales();
+			}
+			return memoizedLocales;
+		}
+
+		@Nonnull
+		@Override
+		public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
+			if (!Objects.equals(memoizedKey, attributeKey)) {
+				final AttributesStoragePart currentAttributes = ofNullable(attributeKey.getLocale())
 					.map(it -> containerAccessor.getAttributeStoragePart(entityType, entityPrimaryKey, it))
 					.orElseGet(() -> containerAccessor.getAttributeStoragePart(entityType, entityPrimaryKey));
 
-				this.memoizedValue = new AtomicReference<>(
-					Optional.of(currentAttributes)
-						.map(it -> it.findAttribute(affectedAttribute))
-						.filter(Droppable::exists)
-						.orElse(null)
-				);
+				this.memoizedKey = attributeKey;
+				this.memoizedValue = Optional.of(currentAttributes)
+					.map(it -> it.findAttribute(attributeKey))
+					.filter(Droppable::exists);
 			}
-			return memoizedValue.get();
+			return memoizedValue;
+		}
+
+		/**
+		 * Returns stream of all attribute values for the entity.
+		 */
+		public Stream<AttributeValue> getAttributeValues() {
+			return Arrays.stream(
+				containerAccessor.getAttributeStoragePart(entityType, entityPrimaryKey).getAttributes()
+			).filter(Droppable::exists);
+		}
+
+		/**
+		 * Returns stream of all attribute values for the entity in particular locale.
+		 */
+		public Stream<AttributeValue> getAttributeValues(@Nonnull Locale locale) {
+			return Arrays.stream(
+				containerAccessor.getAttributeStoragePart(entityType, entityPrimaryKey, locale).getAttributes()
+			).filter(Droppable::exists);
 		}
 	}
 

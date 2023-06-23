@@ -39,6 +39,7 @@ import io.evitadb.api.query.order.Random;
 import io.evitadb.api.query.order.ReferenceProperty;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.PrefetchRequirementCollector;
@@ -262,6 +263,14 @@ public class OrderByVisitor implements ConstraintVisitor {
 		@Nonnull
 		public AttributeSchemaContract getAttributeSchema(@Nonnull String theAttributeName, @Nonnull AttributeTrait... attributeTraits) {
 			return attributeSchemaAccessor.getAttributeSchema(theAttributeName, attributeTraits);
+		}
+
+		/**
+		 * Returns sortable attribute compound or sortable attribute schema for attribute of passed name.
+		 */
+		@Nonnull
+		public NamedSchemaContract getAttributeSchemaOrSortableAttributeCompound(@Nonnull String theAttributeName) {
+			return attributeSchemaAccessor.getAttributeSchemaOrSortableAttributeCompound(theAttributeName);
 		}
 
 		/**

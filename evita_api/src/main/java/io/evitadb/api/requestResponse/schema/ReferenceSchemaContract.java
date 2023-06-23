@@ -63,7 +63,10 @@ import java.util.function.Function;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface ReferenceSchemaContract extends NamedSchemaWithDeprecationContract, AttributeSchemaProvider<AttributeSchemaContract> {
+public interface ReferenceSchemaContract extends
+	NamedSchemaWithDeprecationContract,
+	SortableAttributeCompoundSchemaProvider
+{
 
 	/**
 	 * Name of the reference is propagated to the client API schemas and distinguish multiple different relations that

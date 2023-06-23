@@ -79,7 +79,8 @@ public interface EntityAttributeSchemaMutation extends AttributeSchemaMutation, 
 					),
 				entitySchema.getAssociatedData(),
 				entitySchema.getReferences(),
-				entitySchema.getEvolutionMode()
+				entitySchema.getEvolutionMode(),
+				entitySchema.getSortableAttributeCompounds()
 			);
 		}
 	}

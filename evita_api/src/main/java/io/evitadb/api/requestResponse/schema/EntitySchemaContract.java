@@ -67,8 +67,12 @@ import java.util.Set;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface EntitySchemaContract
-	extends Versioned, NamedSchemaWithDeprecationContract, ContentComparator<EntitySchemaContract>, AttributeSchemaProvider<AttributeSchemaContract> {
+public interface EntitySchemaContract extends
+	Versioned,
+	NamedSchemaWithDeprecationContract,
+	ContentComparator<EntitySchemaContract>,
+	SortableAttributeCompoundSchemaProvider
+{
 
 	/**
 	 * Returns version of this definition object and gets increased with any entity schema update. Allows to execute

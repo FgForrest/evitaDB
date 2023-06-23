@@ -79,7 +79,8 @@ public interface ReferenceAttributeSchemaMutation extends AttributeSchemaMutatio
 							AttributeSchemaContract::getName,
 							Function.identity()
 						)
-					)
+					),
+				referenceSchema.getSortableAttributeCompounds()
 			);
 		}
 	}

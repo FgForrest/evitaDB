@@ -437,7 +437,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setRollback(boolean value) {
-
+      
       rollback_ = value;
       onChanged();
       return this;
@@ -447,7 +447,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearRollback() {
-
+      
       rollback_ = false;
       onChanged();
       return this;

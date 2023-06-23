@@ -120,7 +120,8 @@ public class RemoveAssociatedDataSchemaMutation
 						)
 					),
 				entitySchema.getReferences(),
-				entitySchema.getEvolutionMode()
+				entitySchema.getEvolutionMode(),
+				entitySchema.getSortableAttributeCompounds()
 			);
 		}
 	}

@@ -24,11 +24,13 @@
 package io.evitadb.api.exception;
 
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.NamingConvention;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 
 /**
@@ -40,15 +42,51 @@ import java.io.Serial;
 public class AttributeAlreadyPresentInEntitySchemaException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = 3705168736892244697L;
 	@Getter private final String catalogName;
-	@Getter private final AttributeSchemaContract existingSchema;
+	@Getter private final AttributeSchemaContract existingAttributeSchema;
+	@Getter private final SortableAttributeCompoundSchemaContract existingAttributeCompoundSchema;
 
 	public AttributeAlreadyPresentInEntitySchemaException(
 		@Nonnull AttributeSchemaContract existingAttribute,
 		@Nonnull AttributeSchemaContract updatedAttribute,
-		@Nonnull NamingConvention convention,
+		@Nullable NamingConvention convention,
 		@Nonnull String conflictingName) {
-		super("Attribute `" + updatedAttribute.getName() + "` and existing attribute `" + existingAttribute.getName() + "` produce the same name `" + conflictingName + "` in `" + convention + "` convention! Please choose different attribute name.");
+		super("Attribute `" + updatedAttribute.getName() + "` and existing attribute `" + existingAttribute.getName() + "` produce the same name `" + conflictingName + "`" + (convention == null ? "" : " in `" + convention + "` convention") + "! Please choose different attribute name.");
 		this.catalogName = null;
-		this.existingSchema = existingAttribute;
+		this.existingAttributeSchema = existingAttribute;
+		this.existingAttributeCompoundSchema = null;
 	}
+
+	public AttributeAlreadyPresentInEntitySchemaException(
+		@Nonnull SortableAttributeCompoundSchemaContract existingAttributeCompound,
+		@Nonnull AttributeSchemaContract updatedAttribute,
+		@Nullable NamingConvention convention,
+		@Nonnull String conflictingName) {
+		super("Attribute `" + updatedAttribute.getName() + "` and existing sortable attribute compound `" + existingAttributeCompound.getName() + "` produce the same name `" + conflictingName + "`" + (convention == null ? "" : " in `" + convention + "` convention") + "! Please choose different attribute name.");
+		this.catalogName = null;
+		this.existingAttributeSchema = null;
+		this.existingAttributeCompoundSchema = existingAttributeCompound;
+	}
+
+	public AttributeAlreadyPresentInEntitySchemaException(
+		@Nonnull AttributeSchemaContract existingAttribute,
+		@Nonnull SortableAttributeCompoundSchemaContract updatedAttributeCompound,
+		@Nullable NamingConvention convention,
+		@Nonnull String conflictingName) {
+		super("Sortable attribute compound `" + updatedAttributeCompound.getName() + "` and existing attribute `" + existingAttribute.getName() + "` produce the same name `" + conflictingName + "`" + (convention == null ? "" : " in `" + convention + "` convention") + "`! Please choose different attribute name.");
+		this.catalogName = null;
+		this.existingAttributeSchema = existingAttribute;
+		this.existingAttributeCompoundSchema = null;
+	}
+
+	public AttributeAlreadyPresentInEntitySchemaException(
+		@Nonnull SortableAttributeCompoundSchemaContract existingAttributeCompound,
+		@Nonnull SortableAttributeCompoundSchemaContract updatedAttributeCompound,
+		@Nullable NamingConvention convention,
+		@Nonnull String conflictingName) {
+		super("Sortable attribute compound `" + updatedAttributeCompound.getName() + "` and existing sortable attribute compound `" + existingAttributeCompound.getName() + "` produce the same name `" + conflictingName + "`" + (convention == null ? "" : " in `" + convention + "` convention") + "! Please choose different attribute name.");
+		this.catalogName = null;
+		this.existingAttributeSchema = null;
+		this.existingAttributeCompoundSchema = existingAttributeCompound;
+	}
+
 }

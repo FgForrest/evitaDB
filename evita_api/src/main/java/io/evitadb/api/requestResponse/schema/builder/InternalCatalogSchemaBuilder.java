@@ -193,7 +193,11 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 		checkSortableTraits(attributeName, attributeSchema);
 
 		// check the names in all naming conventions are unique in the catalog schema
-		checkNamesAreUniqueInAllNamingConventions(this.getAttributes().values(), attributeSchema);
+		checkNamesAreUniqueInAllNamingConventions(
+			this.getAttributes().values(),
+			Collections.emptyList(),
+			attributeSchema
+		);
 
 		if (existingAttribute.map(it -> !it.equals(attributeSchema)).orElse(true)) {
 			this.updatedSchemaDirty = addMutations(

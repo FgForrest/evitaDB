@@ -27,8 +27,12 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.index.attribute.SortIndex;
+import io.evitadb.index.attribute.SortIndex.ComparableArray;
+import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.model.storageParts.index.SortIndexStoragePart;
 import io.evitadb.utils.Assert;
@@ -55,7 +59,14 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
 		output.writeVarLong(uniquePartId, true);
 		output.writeVarInt(keyCompressor.getId(sortIndex.getAttributeKey()), true);
-		kryo.writeClass(output, sortIndex.getType());
+
+		final ComparatorSource[] comparatorBase = sortIndex.getComparatorBase();
+		output.writeVarInt(comparatorBase.length, true);
+		for (final ComparatorSource comparatorSource : comparatorBase) {
+			kryo.writeClass(output, comparatorSource.type());
+			kryo.writeObject(output, comparatorSource.orderDirection());
+			kryo.writeObject(output, comparatorSource.orderBehaviour());
+		}
 
 		final int[] sortedRecords = sortIndex.getSortedRecords();
 		output.writeVarInt(sortedRecords.length, true);
@@ -63,14 +74,31 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 
 		final Comparable<?>[] sortedRecordValues = sortIndex.getSortedRecordsValues();
 		output.writeVarInt(sortedRecordValues.length, true);
-		for (Comparable<?> sortedRecordValue : sortedRecordValues) {
-			kryo.writeObject(output, sortedRecordValue);
+
+		if (comparatorBase.length == 1) {
+			for (Comparable<?> sortedRecordValue : sortedRecordValues) {
+				kryo.writeObject(output, sortedRecordValue);
+			}
+		} else {
+			for (Comparable<?> sortedRecordValue : sortedRecordValues) {
+				final ComparableArray comparableArray = (ComparableArray) sortedRecordValue;
+				for (int i = 0; i < comparatorBase.length; i++) {
+					kryo.writeObjectOrNull(output, comparableArray.array()[i], comparatorBase[i].type());
+				}
+			}
 		}
 
 		final Map<? extends Comparable<?>, Integer> cardinalities = sortIndex.getValueCardinalities();
 		output.writeVarInt(cardinalities.size(), true);
 		for (Entry<? extends Comparable<?>, Integer> entry : cardinalities.entrySet()) {
-			kryo.writeObject(output, entry.getKey());
+			if (comparatorBase.length == 1) {
+				kryo.writeObject(output, entry.getKey());
+			} else {
+				final ComparableArray comparableArray = (ComparableArray) entry.getKey();
+				for (int i = 0; i < comparatorBase.length; i++) {
+					kryo.writeObjectOrNull(output, comparableArray.array()[i], comparatorBase[i].type());
+				}
+			}
 			output.writeVarInt(entry.getValue(), true);
 		}
 	}
@@ -81,7 +109,15 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 		final long uniquePartId = input.readVarLong(true);
 		final AttributeKey attributeKey = keyCompressor.getKeyForId(input.readVarInt(true));
 
-		@SuppressWarnings("unchecked") final Class<? extends Comparable<?>> attributeType = kryo.readClass(input).getType();
+		final int comparatorBaseLength = input.readVarInt(true);
+		final ComparatorSource[] comparatorBase = new ComparatorSource[comparatorBaseLength];
+		for (int i = 0; i < comparatorBaseLength; i++) {
+			comparatorBase[i] = new ComparatorSource(
+				kryo.readClass(input).getType(),
+				kryo.readObject(input, OrderDirection.class),
+				kryo.readObject(input, OrderBehaviour.class)
+			);
+		}
 
 		final int sortedRecordCount = input.readVarInt(true);
 		final int[] sortedRecords = input.readInts(sortedRecordCount);
@@ -89,20 +125,41 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 		final int sortedValuesCount = input.readVarInt(true);
 		final Comparable<?>[] sortedRecordValues = new Comparable[sortedValuesCount];
 		for (int i = 0; i < sortedValuesCount; i++) {
-			sortedRecordValues[i] = kryo.readObject(input, attributeType);
+			if (comparatorBaseLength == 1) {
+				//noinspection unchecked
+				sortedRecordValues[i] = (Comparable<?>) kryo.readObject(input, comparatorBase[0].type());
+			} else {
+				final Comparable<?>[] comparableArray = new Comparable[comparatorBaseLength];
+				for (int j = 0; j < comparatorBase.length; j++) {
+					//noinspection unchecked
+					comparableArray[j] = (Comparable<?>) kryo.readObjectOrNull(input, comparatorBase[j].type());
+				}
+				sortedRecordValues[i] = new ComparableArray(comparableArray);
+			}
 		}
 
 		final int cardinalityCount = input.readVarInt(true);
 		final Map<Comparable<?>, Integer> cardinalities = createHashMap(cardinalityCount);
 		for (int i = 0; i < cardinalityCount; i++) {
-			final Comparable<?> value = kryo.readObject(input, attributeType);
+			final Comparable<?> value;
+			if (comparatorBaseLength == 1) {
+				//noinspection unchecked
+				value = (Comparable<?>) kryo.readObject(input, comparatorBase[0].type());
+			} else {
+				final Comparable<?>[] comparableArray = new Comparable[comparatorBaseLength];
+				for (int j = 0; j < comparatorBase.length; j++) {
+					//noinspection unchecked
+					comparableArray[j] = (Comparable<?>) kryo.readObjectOrNull(input, comparatorBase[j].type());
+				}
+				value = new ComparableArray(comparableArray);
+			}
 			cardinalities.put(
 				value, input.readVarInt(true)
 			);
 		}
 
 		return new SortIndexStoragePart(
-			entityIndexPrimaryKey, attributeKey, attributeType, sortedRecords, sortedRecordValues, cardinalities, uniquePartId
+			entityIndexPrimaryKey, attributeKey, comparatorBase, sortedRecords, sortedRecordValues, cardinalities, uniquePartId
 		);
 	}
 

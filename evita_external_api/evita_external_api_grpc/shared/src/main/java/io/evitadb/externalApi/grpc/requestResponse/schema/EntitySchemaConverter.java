@@ -30,17 +30,22 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcAssociatedDataSchema;
+import io.evitadb.externalApi.grpc.generated.GrpcAttributeElement;
 import io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema;
 import io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema;
 import io.evitadb.externalApi.grpc.generated.GrpcEntitySchema;
 import io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema;
+import io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
@@ -49,11 +54,14 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.*;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -69,8 +77,6 @@ public class EntitySchemaConverter {
 
 	/**
 	 * Creates {@link GrpcEntitySchema} from {@link EntitySchemaContract}.
-	 * @param entitySchema
-	 * @return
 	 */
 	@Nonnull
 	public static GrpcEntitySchema convert(@Nonnull EntitySchemaContract entitySchema) {
@@ -83,6 +89,7 @@ public class EntitySchemaConverter {
 			.addAllLocales(entitySchema.getLocales().stream().map(EvitaDataTypesConverter::toGrpcLocale).toList())
 			.addAllCurrencies(entitySchema.getCurrencies().stream().map(EvitaDataTypesConverter::toGrpcCurrency).toList())
 			.putAllAttributes(toGrpcAttributeSchemas(entitySchema.getAttributes()))
+			.putAllSortableAttributeCompounds(toGrpcSortableAttributeCompoundSchemas(entitySchema.getSortableAttributeCompounds()))
 			.putAllAssociatedData(toGrpcAssociatedDataSchemas(entitySchema.getAssociatedData()))
 			.putAllReferences(toGrpcReferenceSchemas(entitySchema.getReferences()))
 			.addAllEvolutionMode(entitySchema.getEvolutionMode().stream().map(EvitaEnumConverter::toGrpcEvolutionMode).toList())
@@ -145,7 +152,16 @@ public class EntitySchemaConverter {
 			entitySchema.getEvolutionModeList()
 				.stream()
 				.map(EvitaEnumConverter::toEvolutionMode)
-				.collect(Collectors.toSet())
+				.collect(Collectors.toSet()),
+			entitySchema.getSortableAttributeCompoundsMap()
+				.entrySet()
+				.stream()
+				.collect(
+					Collectors.toMap(
+						Entry::getKey,
+						it -> toSortableAttributeCompoundSchema(it.getValue())
+					)
+				)
 		);
 	}
 
@@ -200,6 +216,43 @@ public class EntitySchemaConverter {
 		return builder.build();
 	}
 
+	/**
+	 * From passed map where keys are representing attribute names and values {@link SortableAttributeCompoundSchema}
+	 * will be built a new map where values are converted to {@link GrpcSortableAttributeCompoundSchema}.
+	 *
+	 * @param originalSortableAttributeCompoundSchemas map of {@link SortableAttributeCompoundSchema} to be converted
+	 *                                                 to map of {@link GrpcSortableAttributeCompoundSchema}
+	 * @return map where keys are representing attribute names and values are {@link GrpcSortableAttributeCompoundSchema}
+	 */
+	@Nonnull
+	private static Map<String, GrpcSortableAttributeCompoundSchema> toGrpcSortableAttributeCompoundSchemas(@Nonnull Map<String, SortableAttributeCompoundSchemaContract> originalSortableAttributeCompoundSchemas) {
+		final Map<String, GrpcSortableAttributeCompoundSchema> attributeSchemas = CollectionUtils.createHashMap(originalSortableAttributeCompoundSchemas.size());
+		for (Map.Entry<String, SortableAttributeCompoundSchemaContract> entry : originalSortableAttributeCompoundSchemas.entrySet()) {
+			attributeSchemas.put(entry.getKey(), toGrpcSortableAttributeCompoundSchema(entry.getValue()));
+		}
+		return attributeSchemas;
+	}
+
+	/**
+	 * Converts single {@link SortableAttributeCompoundSchema} to {@link GrpcSortableAttributeCompoundSchema}.
+	 *
+	 * @param attributeSchema instance of {@link SortableAttributeCompoundSchema} to be converted to {@link GrpcSortableAttributeCompoundSchema}
+	 * @return built instance of {@link GrpcSortableAttributeCompoundSchema}
+	 */
+	@Nonnull
+	private static GrpcSortableAttributeCompoundSchema toGrpcSortableAttributeCompoundSchema(@Nonnull SortableAttributeCompoundSchemaContract attributeSchema) {
+		final GrpcSortableAttributeCompoundSchema.Builder builder = GrpcSortableAttributeCompoundSchema.newBuilder()
+			.setName(attributeSchema.getName())
+			.addAllAttributeElements(toGrpcAttributeElement(attributeSchema.getAttributeElements()));
+
+		ofNullable(attributeSchema.getDescription())
+			.ifPresent(it -> builder.setDescription(StringValue.newBuilder().setValue(it).build()));
+		ofNullable(attributeSchema.getDeprecationNotice())
+			.ifPresent(it -> builder.setDeprecationNotice(StringValue.newBuilder().setValue(it).build()));
+
+		return builder.build();
+	}
+	
 	/**
 	 * From passed map where keys are representing associated data names and values {@link AssociatedDataSchema} will be built a new map where values are converted
 	 * to {@link GrpcAssociatedDataSchema}.
@@ -266,13 +319,14 @@ public class EntitySchemaConverter {
 	private static GrpcReferenceSchema toGrpcReferenceSchema(@Nonnull ReferenceSchemaContract referenceSchema) {
 		final GrpcReferenceSchema.Builder builder = GrpcReferenceSchema.newBuilder()
 			.setName(referenceSchema.getName())
-			.setCardinality(EvitaEnumConverter.toGrpcCardinality(referenceSchema.getCardinality()))
+			.setCardinality(toGrpcCardinality(referenceSchema.getCardinality()))
 			.setEntityType(referenceSchema.getReferencedEntityType())
 			.setEntityTypeRelatesToEntity(referenceSchema.isReferencedEntityTypeManaged())
 			.setGroupTypeRelatesToEntity(referenceSchema.isReferencedGroupTypeManaged())
 			.setIndexed(referenceSchema.isFilterable())
 			.setFaceted(referenceSchema.isFaceted())
-			.putAllAttributes(toGrpcAttributeSchemas(referenceSchema.getAttributes()));
+			.putAllAttributes(toGrpcAttributeSchemas(referenceSchema.getAttributes()))
+			.putAllSortableAttributeCompounds(toGrpcSortableAttributeCompoundSchemas(referenceSchema.getSortableAttributeCompounds()));
 
 		if (referenceSchema.getReferencedGroupType() != null) {
 			builder.setGroupType(StringValue.newBuilder().setValue(referenceSchema.getReferencedGroupType()).build());
@@ -358,7 +412,7 @@ public class EntitySchemaConverter {
 				? Collections.emptyMap()
 				: NamingConvention.generate(referenceSchema.getEntityType()),
 			referenceSchema.getEntityTypeRelatesToEntity(),
-			EvitaEnumConverter.toCardinality(referenceSchema.getCardinality()),
+			toCardinality(referenceSchema.getCardinality()),
 			referenceSchema.hasGroupType() ? referenceSchema.getGroupType().getValue() : null,
 			referenceSchema.getGroupTypeRelatesToEntity()
 				? Collections.emptyMap()
@@ -372,7 +426,59 @@ public class EntitySchemaConverter {
 				.collect(Collectors.toMap(
 					Entry::getKey,
 					it -> toAttributeSchema(it.getValue())
-				))
+				)),
+			referenceSchema.getSortableAttributeCompoundsMap()
+				.entrySet()
+				.stream()
+				.collect(
+					Collectors.toMap(
+						Entry::getKey,
+						it -> toSortableAttributeCompoundSchema(it.getValue())
+					)
+				)
 		);
 	}
+
+	/**
+	 * Creates {@link SortableAttributeCompoundSchema} from the {@link GrpcSortableAttributeCompoundSchema}.
+	 */
+	@Nonnull
+	private static SortableAttributeCompoundSchemaContract toSortableAttributeCompoundSchema(@Nonnull GrpcSortableAttributeCompoundSchema sortableAttributeCompound) {
+		return SortableAttributeCompoundSchema._internalBuild(
+			sortableAttributeCompound.getName(),
+			NamingConvention.generate(sortableAttributeCompound.getName()),
+			sortableAttributeCompound.hasDescription() ? sortableAttributeCompound.getDescription().getValue() : null,
+			sortableAttributeCompound.hasDeprecationNotice() ? sortableAttributeCompound.getDeprecationNotice().getValue() : null,
+			toAttributeElement(sortableAttributeCompound.getAttributeElementsList())
+		);
+	}
+
+	/**
+	 * Creates list of {@link GrpcAttributeElement} from the {@link AttributeElement}.
+	 */
+	@Nonnull
+	public static List<GrpcAttributeElement> toGrpcAttributeElement(@Nonnull Collection<AttributeElement> attributeElementsList) {
+		return attributeElementsList
+			.stream()
+			.map(
+				it -> GrpcAttributeElement.newBuilder()
+					.setAttributeName(it.attributeName())
+					.setDirection(toGrpcOrderDirection(it.direction()))
+					.setBehaviour(toGrpcOrderBehaviour(it.behaviour()))
+					.build()
+			)
+			.toList();
+	}
+
+	/**
+	 * Creates list of {@link AttributeElement} from the {@link GrpcAttributeElement}.
+	 */
+	@Nonnull
+	public static List<AttributeElement> toAttributeElement(@Nonnull Collection<GrpcAttributeElement> attributeElementsList) {
+		return attributeElementsList
+			.stream()
+			.map(it -> new AttributeElement(it.getAttributeName(), toOrderDirection(it.getDirection()), toOrderBehaviour(it.getBehaviour())))
+			.toList();
+	}
+
 }

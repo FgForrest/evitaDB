@@ -26,8 +26,7 @@ package io.evitadb.core.query.sort.attribute.translator;
 import io.evitadb.api.query.order.AttributeNatural;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
+import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.OrderByVisitor.ProcessingScope;
@@ -58,7 +57,6 @@ public class AttributeNaturalTranslator
 	@Nonnull
 	@Override
 	public Sorter createSorter(@Nonnull AttributeNatural attributeNatural, @Nonnull OrderByVisitor orderByVisitor) {
-		/* TODO JNO - handle this */
 		final String attributeName = attributeNatural.getAttributeName();
 		final OrderDirection orderDirection = attributeNatural.getOrderDirection();
 		final Sorter lastUsedSorter = orderByVisitor.getLastUsedSorter();
@@ -71,7 +69,7 @@ public class AttributeNaturalTranslator
 		if (orderDirection == ASC) {
 			sortedRecordsSupplier = new AttributeSortedRecordsProviderSupplier(
 				SortIndex::getAscendingOrderRecordsSupplier,
-				() -> processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE),
+				() -> processingScope.getAttributeSchemaOrSortableAttributeCompound(attributeName),
 				orderByVisitor.getIndexForSort(),
 				orderByVisitor, locale
 			);
@@ -83,7 +81,7 @@ public class AttributeNaturalTranslator
 		} else {
 			sortedRecordsSupplier = new AttributeSortedRecordsProviderSupplier(
 				SortIndex::getDescendingOrderRecordsSupplier,
-				() -> processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE),
+				() -> processingScope.getAttributeSchemaOrSortableAttributeCompound(attributeName),
 				orderByVisitor.getIndexForSort(),
 				orderByVisitor, locale
 			);
@@ -110,7 +108,6 @@ public class AttributeNaturalTranslator
 	@Nonnull
 	@Override
 	public ReferenceComparator createComparator(@Nonnull AttributeNatural attributeNatural, @Nonnull ReferenceOrderByVisitor orderByVisitor) {
-		/* TODO JNO - Handle this */
 		final String attributeName = attributeNatural.getAttributeName();
 		final OrderDirection orderDirection = attributeNatural.getOrderDirection();
 		final ReferenceComparator lastUsedComparator = orderByVisitor.getLastUsedComparator();
@@ -138,14 +135,14 @@ public class AttributeNaturalTranslator
 
 	private record AttributeSortedRecordsProviderSupplier(
 		@Nonnull Function<SortIndex, SortedRecordsProvider> extractor,
-		@Nonnull Supplier<AttributeSchemaContract> attributeSchemaSupplier,
+		@Nonnull Supplier<NamedSchemaContract> attributeOrCompoundSchemaSupplier,
 		@Nonnull EntityIndex targetIndex,
 		@Nonnull OrderByVisitor orderByVisitor,
 		@Nonnull Locale locale
 	) implements Supplier<SortedRecordsProvider> {
 		@Override
 		public SortedRecordsProvider get() {
-			final AttributeSchemaContract attributeSchema = attributeSchemaSupplier.get();
+			final NamedSchemaContract attributeSchema = attributeOrCompoundSchemaSupplier.get();
 			final SortIndex sortIndex = targetIndex.getSortIndex(attributeSchema.getName(), locale);
 			return sortIndex == null ? SortedRecordsProvider.EMPTY : extractor.apply(sortIndex);
 		}

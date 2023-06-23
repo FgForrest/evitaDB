@@ -33,7 +33,7 @@ public interface GrpcIntegerNumberRangeArrayOrBuilder extends
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange> 
       getValueList();
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -46,7 +46,7 @@ public interface GrpcIntegerNumberRangeArrayOrBuilder extends
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder> 
       getValueOrBuilderList();
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>

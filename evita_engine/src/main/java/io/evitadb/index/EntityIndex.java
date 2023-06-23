@@ -24,6 +24,7 @@
 package io.evitadb.index;
 
 import io.evitadb.api.requestResponse.data.Versioned;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.EntityCollection;
@@ -41,6 +42,7 @@ import io.evitadb.index.facet.FacetIndexContract;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.hierarchy.HierarchyIndexContract;
 import io.evitadb.index.map.TransactionalMap;
+import io.evitadb.index.mutation.AttributeIndexMutator;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
 import io.evitadb.index.price.PriceSuperIndex;
@@ -48,6 +50,7 @@ import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.store.model.StoragePart;
+import io.evitadb.store.spi.model.storageParts.accessor.EntityStoragePartAccessor;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
@@ -229,9 +232,20 @@ public abstract class EntityIndex implements Index<EntityIndexKey>, PriceIndexCo
 	/**
 	 * Registers new entity primary key to the superset of entity ids of this entity index.
 	 */
-	public boolean insertPrimaryKeyIfMissing(int entityPrimaryKey) {
+	public boolean insertPrimaryKeyIfMissing(int entityPrimaryKey, @Nonnull EntityStoragePartAccessor entityStoragePartAccessor) {
 		final boolean added = entityIds.add(entityPrimaryKey);
 		if (added) {
+			if (indexKey.getType() != EntityIndexType.REFERENCED_ENTITY_TYPE) {
+				AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
+					this,
+					null,
+					entityPrimaryKey,
+					getEntitySchema(),
+					indexKey.getDiscriminator() instanceof ReferenceKey referenceKey ? referenceKey : null,
+					entityStoragePartAccessor
+				);
+			}
+
 			this.dirty.setToTrue();
 		}
 		return added;
@@ -240,9 +254,20 @@ public abstract class EntityIndex implements Index<EntityIndexKey>, PriceIndexCo
 	/**
 	 * Removes existing from the superset of entity ids of this entity index.
 	 */
-	public boolean removePrimaryKey(int entityPrimaryKey) {
+	public boolean removePrimaryKey(int entityPrimaryKey, @Nonnull EntityStoragePartAccessor entityStoragePartAccessor) {
 		final boolean removed = entityIds.remove(entityPrimaryKey);
 		if (removed) {
+			if (indexKey.getType() != EntityIndexType.REFERENCED_ENTITY_TYPE) {
+				AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
+					this,
+					null,
+					entityPrimaryKey,
+					getEntitySchema(),
+					indexKey.getDiscriminator() instanceof ReferenceKey referenceKey ? referenceKey : null,
+					entityStoragePartAccessor
+				);
+			}
+
 			this.dirty.setToTrue();
 		}
 		return removed;
@@ -287,10 +312,10 @@ public abstract class EntityIndex implements Index<EntityIndexKey>, PriceIndexCo
 	}
 
 	/**
-	 * Inserts information that entity with `recordId` has localized attribute / associated data of passed `locale`.
+	 * Inserts information that entity with `entityPrimaryKey` has localized attribute / associated data of passed `locale`.
 	 * If such information is already present no changes are made.
 	 */
-	public void upsertLanguage(@Nonnull Locale locale, int recordId) {
+	public void upsertLanguage(@Nonnull Locale locale, int entityPrimaryKey, @Nonnull EntityStoragePartAccessor entityStoragePartAccessor) {
 		final EntitySchema schema = getEntitySchema();
 		final Set<Locale> allowedLocales = schema.getLocales();
 		isTrue(
@@ -300,9 +325,17 @@ public abstract class EntityIndex implements Index<EntityIndexKey>, PriceIndexCo
 
 		final boolean added = this.entityIdsByLanguage
 			.computeIfAbsent(locale, loc -> new TransactionalBitmap())
-			.add(recordId);
+			.add(entityPrimaryKey);
 
 		if (added) {
+			AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
+				this,
+				locale,
+				entityPrimaryKey,
+				getEntitySchema(),
+				indexKey.getDiscriminator() instanceof ReferenceKey referenceKey ? referenceKey : null,
+				entityStoragePartAccessor
+			);
 			this.dirty.setToTrue();
 		}
 	}
@@ -310,7 +343,7 @@ public abstract class EntityIndex implements Index<EntityIndexKey>, PriceIndexCo
 	/**
 	 * Removed information that entity with `recordId` has no longer any localized attribute / associated data of passed `language`.
 	 */
-	public void removeLanguage(@Nonnull Locale locale, int recordId) {
+	public void removeLanguage(@Nonnull Locale locale, int recordId, @Nonnull EntityStoragePartAccessor entityStoragePartAccessor) {
 		final TransactionalBitmap recordIdsWithLanguage = this.entityIdsByLanguage.get(locale);
 		Assert.isTrue(
 			recordIdsWithLanguage != null && recordIdsWithLanguage.remove(recordId),
@@ -318,6 +351,14 @@ public abstract class EntityIndex implements Index<EntityIndexKey>, PriceIndexCo
 		);
 		if (recordIdsWithLanguage.isEmpty()) {
 			this.entityIdsByLanguage.remove(locale);
+			AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
+				this,
+				locale,
+				recordId,
+				getEntitySchema(),
+				indexKey.getDiscriminator() instanceof ReferenceKey referenceKey ? referenceKey : null,
+				entityStoragePartAccessor
+			);
 			this.dirty.setToTrue();
 			// remove the changes container - the bitmap got removed entirely
 			removeTransactionalMemoryLayerIfExists(recordIdsWithLanguage);

@@ -28,6 +28,7 @@ import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -150,7 +151,6 @@ public class CombinedEntityFilteringFunctionalTest {
 								.withAttribute(ATTRIBUTE_SIZE, IntegerNumberRange[].class, whichIs -> whichIs.filterable())
 								.withAttribute(ATTRIBUTE_CREATED, OffsetDateTime.class, whichIs -> whichIs.filterable().sortable())
 								.withAttribute(ATTRIBUTE_MANUFACTURED, LocalDate.class, whichIs -> whichIs.filterable().sortable())
-								/* TODO JNO - upravit na vícenásobné filtrování */
 								.withAttribute(ATTRIBUTE_COMBINED_PRIORITY, Long.class, whichIs -> whichIs.filterable().sortable())
 								.withAttribute(ATTRIBUTE_TARGET_MARKET, String.class, whichIs -> whichIs.filterable())
 								.withReferenceToEntity(
@@ -356,8 +356,31 @@ public class CombinedEntityFilteringFunctionalTest {
 	@UseDataSet(THREE_HUNDRED_PRODUCTS_WITH_ALL_DATA)
 	@Test
 	void shouldReturnProductsHavingBothPriceAndHierarchyLocationAndReferencedEntity(Evita evita, List<SealedEntity> originalProducts, Hierarchy categoryHierarchy) {
-		final BigDecimal from = new BigDecimal("80");
-		final BigDecimal to = new BigDecimal("150");
+		final Function<SealedEntity, Boolean> isReferencingBrand = sealedEntity ->
+			sealedEntity.getReference(Entities.BRAND, 2).isPresent() ||
+			sealedEntity.getReference(Entities.BRAND, 4).isPresent() ||
+			sealedEntity.getReference(Entities.BRAND, 5).isPresent();
+		final Function<SealedEntity, Boolean> isWithinCategory = sealedEntity -> sealedEntity
+			.getReferences(Entities.CATEGORY)
+			.stream()
+			.anyMatch(category -> {
+				final String categoryId = String.valueOf(category.getReferencedPrimaryKey());
+				// is either category 4
+				return Objects.equals(categoryId, String.valueOf(1)) ||
+					// or has parent category 4
+					categoryHierarchy.getParentItems(categoryId)
+						.stream()
+						.anyMatch(it -> Objects.equals(it.getCode(), String.valueOf(1)));
+			});
+
+		final BigDecimal[] prices = originalProducts.stream()
+			.filter(it -> isReferencingBrand.apply(it) && isWithinCategory.apply(it))
+			.flatMap(it -> it.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).stream())
+			.map(PriceContract::getPriceWithTax)
+			.sorted()
+			.toArray(BigDecimal[]::new);
+		final BigDecimal from = prices[(int) (prices.length * 0.2)];
+		final BigDecimal to = prices[(int) (prices.length * 0.8)];
 
 		evita.queryCatalog(
 			TEST_CATALOG,
@@ -371,7 +394,7 @@ public class CombinedEntityFilteringFunctionalTest {
 								priceInPriceLists(PRICE_LIST_BASIC),
 								priceBetween(from, to),
 								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(1)),
-								referenceHaving(Entities.BRAND, entityPrimaryKeyInSet(1))
+								referenceHaving(Entities.BRAND, entityPrimaryKeyInSet(2, 4, 5))
 							)
 						),
 						require(
@@ -386,20 +409,7 @@ public class CombinedEntityFilteringFunctionalTest {
 					originalProducts,
 					sealedEntity -> {
 						final boolean hasPrice = sealedEntity.hasPriceInInterval(from, to, QueryPriceMode.WITH_TAX, CURRENCY_CZK, null, PRICE_LIST_BASIC);
-						final boolean isReferencingBrand = sealedEntity.getReference(Entities.BRAND, 1).isPresent();
-						final boolean isWithinCategory = sealedEntity
-							.getReferences(Entities.CATEGORY)
-							.stream()
-							.anyMatch(category -> {
-								final String categoryId = String.valueOf(category.getReferencedPrimaryKey());
-								// is either category 4
-								return Objects.equals(categoryId, String.valueOf(1)) ||
-									// or has parent category 4
-									categoryHierarchy.getParentItems(categoryId)
-										.stream()
-										.anyMatch(it -> Objects.equals(it.getCode(), String.valueOf(1)));
-							});
-						return hasPrice && isReferencingBrand && isWithinCategory;
+						return hasPrice && isReferencingBrand.apply(sealedEntity) && isWithinCategory.apply(sealedEntity);
 					},
 					result.getRecordData()
 				);

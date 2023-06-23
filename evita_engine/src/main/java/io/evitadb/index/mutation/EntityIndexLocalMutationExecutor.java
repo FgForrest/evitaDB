@@ -24,7 +24,6 @@
 package io.evitadb.index.mutation;
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
@@ -49,9 +48,10 @@ import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceGro
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
@@ -61,7 +61,8 @@ import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.IndexMaintainer;
 import io.evitadb.index.IndexType;
 import io.evitadb.index.ReferencedTypeEntityIndex;
-import io.evitadb.index.mutation.AttributeIndexMutator.ExistingAttributeAccessor;
+import io.evitadb.index.mutation.AttributeIndexMutator.EntityAttributeValueSupplier;
+import io.evitadb.index.mutation.AttributeIndexMutator.ExistingAttributeValueSupplier;
 import io.evitadb.store.entity.model.entity.PricesStoragePart;
 import io.evitadb.store.entity.model.entity.price.PriceWithInternalIds;
 import io.evitadb.store.spi.model.storageParts.accessor.WritableEntityStorageContainerAccessor;
@@ -79,6 +80,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
+import java.util.stream.Stream;
 
 import static io.evitadb.index.mutation.HierarchyPlacementMutator.removeParent;
 import static io.evitadb.index.mutation.HierarchyPlacementMutator.setParent;
@@ -122,7 +124,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	public void removeEntity(int primaryKey) {
 		final EntityIndex index = getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL));
-		index.removePrimaryKey(primaryKey);
+		index.removePrimaryKey(primaryKey, containerAccessor);
 	}
 
 	@Override
@@ -130,7 +132,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		final EntityIndex index = getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL));
 		final int theEntityPrimaryKey = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX);
 
-		final boolean created = index.insertPrimaryKeyIfMissing(theEntityPrimaryKey);
+		final boolean created = index.insertPrimaryKeyIfMissing(theEntityPrimaryKey, containerAccessor);
 		if (created && schemaAccessor.get().isWithHierarchy()) {
 			setParent(
 				this, index,
@@ -168,15 +170,18 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				);
 			}
 		} else if (localMutation instanceof AttributeMutation attributeMutation) {
-			final ExistingAttributeAccessor existingAttributeAccessor = new ExistingAttributeAccessor(
-				entityType, theEntityPrimaryKey, this, attributeMutation.getAttributeKey()
+			final EntityAttributeValueSupplier existingAttributeAccessor = new EntityAttributeValueSupplier(
+				this.getContainerAccessor(), entityType, theEntityPrimaryKey
 			);
-			final BiConsumer<Boolean, EntityIndex> attributeUpdateApplicator = (updatedGlobalIndex, targetIndex) -> updateAttributes(
+			final EntitySchema entitySchema = getEntitySchema();
+			final BiConsumer<Boolean, EntityIndex> attributeUpdateApplicator = (updateGlobalIndex, targetIndex) -> updateAttributes(
 				attributeMutation,
-				it -> getEntitySchema().getAttribute(it).orElse(null),
+				attributeName -> entitySchema.getAttribute(attributeName).map(AttributeSchema.class::cast).orElse(null),
+				attributeName -> entitySchema.getSortableAttributeCompoundsForAttribute(attributeName).stream().map(SortableAttributeCompoundSchema.class::cast),
 				existingAttributeAccessor,
 				targetIndex,
-				updatedGlobalIndex
+				updateGlobalIndex,
+				true
 			);
 			attributeUpdateApplicator.accept(true, index);
 			ReferenceIndexMutator.executeWithReferenceIndexes(
@@ -267,28 +272,30 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	void updateAttributes(
 		@Nonnull AttributeMutation attributeMutation,
-		@Nonnull Function<String, AttributeSchemaContract> schemaProvider,
-		@Nonnull Supplier<AttributeValue> existingValueSupplier,
+		@Nonnull Function<String, AttributeSchema> attributeSchemaProvider,
+		@Nonnull Function<String, Stream<SortableAttributeCompoundSchema>> compoundSchemaProvider,
+		@Nonnull ExistingAttributeValueSupplier existingValueSupplier,
 		@Nonnull EntityIndex index,
-		boolean updateGlobalIndex
+		boolean updateGlobalIndex,
+		boolean updateCompounds
 	) {
 		final AttributeKey affectedAttribute = attributeMutation.getAttributeKey();
 
 		if (attributeMutation instanceof UpsertAttributeMutation) {
 			final Serializable attributeValue = ((UpsertAttributeMutation) attributeMutation).getAttributeValue();
 			AttributeIndexMutator.executeAttributeUpsert(
-				this, schemaProvider, existingValueSupplier,
-				index, affectedAttribute, attributeValue, updateGlobalIndex
+				this, attributeSchemaProvider, compoundSchemaProvider, existingValueSupplier,
+				index, affectedAttribute, attributeValue, updateGlobalIndex, updateCompounds
 			);
 		} else if (attributeMutation instanceof RemoveAttributeMutation) {
 			AttributeIndexMutator.executeAttributeRemoval(
-				this, schemaProvider, existingValueSupplier,
-				index, affectedAttribute, updateGlobalIndex
+				this, attributeSchemaProvider, compoundSchemaProvider, existingValueSupplier,
+				index, affectedAttribute, updateGlobalIndex, updateCompounds
 			);
 		} else if (attributeMutation instanceof ApplyDeltaAttributeMutation<?> applyDeltaAttributeMutation) {
 			final Number attributeValue = applyDeltaAttributeMutation.getAttributeValue();
 			AttributeIndexMutator.executeAttributeDelta(
-				this, schemaProvider, existingValueSupplier,
+				this, attributeSchemaProvider, compoundSchemaProvider, existingValueSupplier,
 				index, affectedAttribute, attributeValue
 			);
 		} else {

@@ -53,7 +53,7 @@ public interface ReferenceSchemaMutation extends SchemaMutation {
 	 * as its return value. The create operation works with NULL input value and produces non-NULL result, the remove
 	 * operation produces the opposite. Modification operations always accept and produce non-NULL values.
 	 *
-	 * @param entitySchema owner catalog schema that could be used in validations and error messages
+	 * @param entitySchema owner entity schema that could be used in validations and error messages
 	 * @param referenceSchema current version of the schema as an input to mutate
 	 */
 	@Nullable

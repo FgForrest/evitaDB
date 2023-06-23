@@ -108,7 +108,7 @@ public enum GrpcStatisticsType
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(8);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(9);
   }
 
   private static final GrpcStatisticsType[] VALUES = values();
