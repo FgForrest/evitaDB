@@ -37,6 +37,11 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.Modif
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.RemoveEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.*;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
@@ -102,6 +107,16 @@ public interface EntitySchemaMutationAggregateDescriptor {
 	PropertyDescriptor USE_GLOBAL_ATTRIBUTE_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(UseGlobalAttributeSchemaMutationDescriptor.THIS);
 
 	/**
+	 * Sortable attribute compound schema mutations
+	 */
+
+	PropertyDescriptor CREATE_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(CreateSortableAttributeCompoundSchemaMutationDescriptor.THIS);
+	PropertyDescriptor MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_DEPRECATION_NOTICE_MUTATION = PropertyDescriptor.nullableFromObject(ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor.THIS);
+	PropertyDescriptor MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_DESCRIPTION_MUTATION = PropertyDescriptor.nullableFromObject(ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor.THIS);
+	PropertyDescriptor MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_NAME_MUTATION = PropertyDescriptor.nullableFromObject(ModifySortableAttributeCompoundSchemaNameMutationDescriptor.THIS);
+	PropertyDescriptor REMOVE_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(RemoveSortableAttributeCompoundSchemaMutationDescriptor.THIS);
+	
+	/**
 	 * Reference schema mutations
 	 */
 
@@ -115,7 +130,7 @@ public interface EntitySchemaMutationAggregateDescriptor {
 	PropertyDescriptor MODIFY_REFERENCE_SCHEMA_RELATED_ENTITY_MUTATION = PropertyDescriptor.nullableFromObject(ModifyReferenceSchemaRelatedEntityMutationDescriptor.THIS);
 	PropertyDescriptor REMOVE_REFERENCE_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(RemoveReferenceSchemaMutationDescriptor.THIS);
 	PropertyDescriptor SET_REFERENCE_SCHEMA_FACETED_MUTATION = PropertyDescriptor.nullableFromObject(SetReferenceSchemaFacetedMutationDescriptor.THIS);
-	PropertyDescriptor SET_REFERENCE_SCHEMA_FILTERABLE_MUTATION = PropertyDescriptor.nullableFromObject(SetReferenceSchemaIndexedMutationDescriptor.THIS);
+	PropertyDescriptor SET_REFERENCE_SCHEMA_INDEXED_MUTATION = PropertyDescriptor.nullableFromObject(SetReferenceSchemaIndexedMutationDescriptor.THIS);
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("EntitySchemaMutationAggregate")
@@ -160,6 +175,12 @@ public interface EntitySchemaMutationAggregateDescriptor {
 			SET_ATTRIBUTE_SCHEMA_UNIQUE_MUTATION,
 			USE_GLOBAL_ATTRIBUTE_SCHEMA_MUTATION,
 
+			CREATE_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION,
+			MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_DEPRECATION_NOTICE_MUTATION,
+			MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_DESCRIPTION_MUTATION,
+			MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_NAME_MUTATION,
+			REMOVE_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION,
+
 			CREATE_REFERENCE_SCHEMA_MUTATION,
 			MODIFY_REFERENCE_ATTRIBUTE_SCHEMA_MUTATION,
 			MODIFY_REFERENCE_SCHEMA_CARDINALITY_MUTATION,
@@ -170,7 +191,7 @@ public interface EntitySchemaMutationAggregateDescriptor {
 			MODIFY_REFERENCE_SCHEMA_RELATED_ENTITY_MUTATION,
 			REMOVE_REFERENCE_SCHEMA_MUTATION,
 			SET_REFERENCE_SCHEMA_FACETED_MUTATION,
-			SET_REFERENCE_SCHEMA_FILTERABLE_MUTATION
+			SET_REFERENCE_SCHEMA_INDEXED_MUTATION
 		))
 		.build();
 }
