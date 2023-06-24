@@ -2999,103 +2999,6 @@ public class EntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
-	@DisplayName("Should return entities sorted by attribute defined on referenced entity")
-	@UseDataSet(HUNDRED_PRODUCTS)
-	@Test
-	void shouldSortEntitiesAccordingToAttributeOnReferencedEntity(Evita evita, List<SealedEntity> originalProductEntities) {
-		evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				final EvitaResponse<EntityReference> result = session.query(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							referenceHaving(
-								Entities.BRAND,
-								attributeIsNotNull(ATTRIBUTE_MARKET_SHARE)
-							)
-						),
-						orderBy(
-							referenceProperty(
-								Entities.BRAND,
-								attributeNatural(ATTRIBUTE_MARKET_SHARE, DESC)
-							)
-						),
-						require(
-							page(1, Integer.MAX_VALUE),
-							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
-						)
-					),
-					EntityReference.class
-				);
-				assertSortedResultIs(
-					originalProductEntities,
-					result.getRecordData(),
-					sealedEntity -> sealedEntity.getReferences(Entities.BRAND).stream().anyMatch(it -> it.getAttribute(ATTRIBUTE_MARKET_SHARE) != null),
-					(sealedEntityA, sealedEntityB) -> {
-						final BigDecimal marketShareB = sealedEntityB.getReferences(Entities.BRAND).stream().map(it -> (BigDecimal) it.getAttribute(ATTRIBUTE_MARKET_SHARE)).findFirst().orElseThrow(IllegalStateException::new);
-						final BigDecimal marketShareA = sealedEntityA.getReferences(Entities.BRAND).stream().map(it -> (BigDecimal) it.getAttribute(ATTRIBUTE_MARKET_SHARE)).findFirst().orElseThrow(IllegalStateException::new);
-						return marketShareB.compareTo(marketShareA);
-					}
-				);
-				return null;
-			}
-		);
-	}
-
-	@DisplayName("Should return entities sorted by attributes defined on different referenced entities")
-	@UseDataSet(HUNDRED_PRODUCTS)
-	@Test
-	void shouldSortEntitiesAccordingToAttributesOnReferencedEntity(Evita evita, List<SealedEntity> originalProductEntities) {
-		evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				final EvitaResponse<EntityReference> result = session.query(
-					query(
-						collection(Entities.PRODUCT),
-						orderBy(
-							referenceProperty(
-								Entities.BRAND,
-								attributeNatural(ATTRIBUTE_MARKET_SHARE, DESC)
-							),
-							referenceProperty(
-								Entities.STORE,
-								attributeNatural(ATTRIBUTE_CAPACITY)
-							)
-						),
-						require(
-							page(1, Integer.MAX_VALUE),
-							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
-						)
-					),
-					EntityReference.class
-				);
-				assertSortedResultIs(
-					originalProductEntities,
-					result.getRecordData(),
-					sealedEntity -> true,
-					new PredicateWithComparatorTuple(
-						sealedEntity -> sealedEntity.getReferences(Entities.BRAND).stream().anyMatch(it -> it.getAttribute(ATTRIBUTE_MARKET_SHARE) != null),
-						(sealedEntityA, sealedEntityB) -> {
-							final BigDecimal marketShareB = sealedEntityB.getReferences(Entities.BRAND).stream().map(it -> (BigDecimal) it.getAttribute(ATTRIBUTE_MARKET_SHARE)).filter(Objects::nonNull).findFirst().orElseThrow(IllegalStateException::new);
-							final BigDecimal marketShareA = sealedEntityA.getReferences(Entities.BRAND).stream().map(it -> (BigDecimal) it.getAttribute(ATTRIBUTE_MARKET_SHARE)).filter(Objects::nonNull).findFirst().orElseThrow(IllegalStateException::new);
-							return marketShareB.compareTo(marketShareA);
-						}
-					),
-					new PredicateWithComparatorTuple(
-						sealedEntity -> sealedEntity.getReferences(Entities.STORE).stream().anyMatch(it -> it.getAttribute(ATTRIBUTE_CAPACITY) != null),
-						(sealedEntityA, sealedEntityB) -> {
-							final Long capacityA = sealedEntityA.getReferences(Entities.STORE).stream().map(it -> (Long) it.getAttribute(ATTRIBUTE_CAPACITY)).filter(Objects::nonNull).findFirst().orElseThrow(IllegalStateException::new);
-							final Long capacityB = sealedEntityB.getReferences(Entities.STORE).stream().map(it -> (Long) it.getAttribute(ATTRIBUTE_CAPACITY)).filter(Objects::nonNull).findFirst().orElseThrow(IllegalStateException::new);
-							return capacityA.compareTo(capacityB);
-						}
-					)
-				);
-				return null;
-			}
-		);
-	}
-
 	@DisplayName("Should return products sorted by exact order of the attribute in the filter constraint")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -3702,7 +3605,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 			.orElseThrow(() -> new IllegalStateException("Failed to localize `" + attributeName + "` attribute!"));
 	}
 
-	private void assertSortedAndPagedResultIs(List<SealedEntity> originalProductEntities, List<EntityReference> records, Predicate<SealedEntity> predicate, Comparator<SealedEntity> comparator, int skip, int limit) {
+	static void assertSortedAndPagedResultIs(List<SealedEntity> originalProductEntities, List<EntityReference> records, Predicate<SealedEntity> predicate, Comparator<SealedEntity> comparator, int skip, int limit) {
 		assertSortedResultEquals(
 			records.stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList()),
 			originalProductEntities.stream()
@@ -3715,11 +3618,11 @@ public class EntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
-	private void assertSortedResultIs(List<SealedEntity> originalProductEntities, List<EntityReference> records, Predicate<SealedEntity> predicate, Comparator<SealedEntity> comparator) {
+	static void assertSortedResultIs(List<SealedEntity> originalProductEntities, List<EntityReference> records, Predicate<SealedEntity> predicate, Comparator<SealedEntity> comparator) {
 		assertSortedResultIs(originalProductEntities, records, predicate, new PredicateWithComparatorTuple(predicate, comparator));
 	}
 
-	private void assertSortedResultIs(List<SealedEntity> originalProductEntities, List<EntityReference> records, Predicate<SealedEntity> filteringPredicate, PredicateWithComparatorTuple... sortVector) {
+	static void assertSortedResultIs(List<SealedEntity> originalProductEntities, List<EntityReference> records, Predicate<SealedEntity> filteringPredicate, PredicateWithComparatorTuple... sortVector) {
 		final List<Predicate<SealedEntity>> previousPredicateAcc = new ArrayList<>();
 		final List<SealedEntity> expectedSortedRecords = Stream.concat(
 				Arrays.stream(sortVector)

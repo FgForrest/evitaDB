@@ -83,11 +83,7 @@ public class RemoveAttributeSchemaMutation implements
 	@Override
 	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation) {
 		if (existingMutation instanceof AttributeSchemaMutation attributeSchemaMutation && Objects.equals(name, attributeSchemaMutation.getName())) {
-			if (existingMutation instanceof CreateAttributeSchemaMutation || existingMutation instanceof CreateGlobalAttributeSchemaMutation) {
-				return new MutationCombinationResult<>(null);
-			} else {
-				return new MutationCombinationResult<>(null, existingMutation);
-			}
+			return new MutationCombinationResult<>(true, null, this);
 		} else {
 			return null;
 		}

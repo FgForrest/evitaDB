@@ -29,7 +29,7 @@ import org.roaringbitmap.RoaringBitmap;
 import org.roaringbitmap.RoaringBitmapWriter;
 
 /**
- * Verifies methos in{@link RoaringBitmapBackedBitmap}
+ * Verifies methods in{@link RoaringBitmapBackedBitmap}
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

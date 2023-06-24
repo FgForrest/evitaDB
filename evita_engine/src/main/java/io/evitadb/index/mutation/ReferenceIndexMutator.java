@@ -142,15 +142,10 @@ public interface ReferenceIndexMutator {
 			attributeName -> referenceSchema.getSortableAttributeCompoundsForAttribute(attributeName).stream().map(SortableAttributeCompoundSchema.class::cast);
 
 		executor.executeWithDifferentPrimaryKeyToIndex(
-			indexType -> {
-				if (indexType == IndexType.ATTRIBUTE_SORT_INDEX) {
-					// only sort indexes here target primary key of the main entity - we need monotonic row of all entity primary keys for this type
-					return entityPrimaryKey;
-				} else {
-					// all other indexes target referenced entity primary key - we use them for looking up referenced type indexes (type + referenced entity key)
-					return referenceKey.primaryKey();
-				}
-			},
+			// the sort index of reference type index is not maintained, because the entity might reference multiple
+			// entities and the sort index couldn't handle multiple values
+			indexType -> indexType != IndexType.ATTRIBUTE_SORT_INDEX,
+			indexType -> referenceKey.primaryKey(),
 			() -> executor.updateAttributes(
 				attributeMutation,
 				attributeSchemaProvider,

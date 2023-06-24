@@ -194,7 +194,6 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 		} else {
 			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.getReferenceName()).orElse(null);
 			InitialReferenceBuilder.verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, attributeName, attributeValue.getClass());
-			InitialReferenceBuilder.verifySortableAttributeUniqueness(referenceSchema, this.getReferenceName(), attributeName, uniqueAttributePredicate);
 			attributesBuilder.setAttribute(attributeName, attributeValue);
 			return this;
 		}
@@ -228,7 +227,6 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 		} else {
 			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.getReferenceName()).orElse(null);
 			InitialReferenceBuilder.verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, attributeName, attributeValue.getClass(), locale);
-			InitialReferenceBuilder.verifySortableAttributeUniqueness(referenceSchema, this.getReferenceName(), attributeName, uniqueAttributePredicate);
 			attributesBuilder.setAttribute(attributeName, locale, attributeValue);
 			return this;
 		}

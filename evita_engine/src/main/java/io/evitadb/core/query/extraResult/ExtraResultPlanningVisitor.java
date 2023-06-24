@@ -370,12 +370,13 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 			// crete a visitor
 			final OrderByVisitor orderByVisitor = new OrderByVisitor(
 				queryContext,
+				Collections.emptyList(),
 				prefetchRequirementCollector,
 				filteringFormula
 			);
 			// now analyze the filter by in a nested context with exchanged primary entity index
 			return orderByVisitor.executeInContext(
-				entityIndex,
+				new EntityIndex[] {entityIndex},
 				new AttributeSchemaAccessor(queryContext),
 				EntityAttributeExtractor.INSTANCE,
 				() -> {

@@ -78,6 +78,7 @@ import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
 import java.util.stream.Stream;
@@ -94,6 +95,7 @@ import static io.evitadb.utils.Assert.isPremiseValid;
  */
 public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	@Getter private final WritableEntityStorageContainerAccessor containerAccessor;
+	private final LinkedList<Predicate<IndexType>> indexTypeFilter = new LinkedList<>();
 	private final LinkedList<ToIntFunction<IndexType>> entityPrimaryKey = new LinkedList<>();
 	private final IndexMaintainer<CatalogIndexKey, CatalogIndex> catalogIndexCreatingAccessor;
 	private final IndexMaintainer<EntityIndexKey, EntityIndex> entityIndexCreatingAccessor;
@@ -111,6 +113,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull Function<String, EntitySchema> otherEntitiesSchemaAccessor
 	) {
 		this.containerAccessor = containerAccessor;
+		this.indexTypeFilter.add(indexType -> true);
 		this.entityPrimaryKey.add(anyType -> entityPrimaryKey);
 		this.entityIndexCreatingAccessor = entityIndexCreatingAccessor;
 		this.catalogIndexCreatingAccessor = catalogIndexCreatingAccessor;
@@ -249,13 +252,27 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
+	 * Method returns true if primary key should be indexed for certain {@link IndexType} index.
+	 */
+	boolean shouldIndexPrimaryKey(@Nonnull IndexType indexType) {
+		isPremiseValid(!indexTypeFilter.isEmpty(), "Should not ever happen.");
+		return indexTypeFilter.peek().test(indexType);
+	}
+
+	/**
 	 * Method allows overloading default implementation that returns entity primary key for all {@link IndexType} values.
 	 */
-	void executeWithDifferentPrimaryKeyToIndex(@Nonnull ToIntFunction<IndexType> entityPrimaryKeyResolver, @Nonnull Runnable runnable) {
+	void executeWithDifferentPrimaryKeyToIndex(
+		@Nonnull Predicate<IndexType> indexFilter,
+		@Nonnull ToIntFunction<IndexType> entityPrimaryKeyResolver,
+		@Nonnull Runnable runnable
+	) {
 		try {
+			this.indexTypeFilter.push(indexFilter);
 			this.entityPrimaryKey.push(entityPrimaryKeyResolver);
 			runnable.run();
 		} finally {
+			this.indexTypeFilter.pop();
 			this.entityPrimaryKey.pop();
 		}
 	}

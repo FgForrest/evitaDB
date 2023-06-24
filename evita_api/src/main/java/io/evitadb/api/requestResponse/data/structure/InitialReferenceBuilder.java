@@ -38,7 +38,6 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.experimental.Delegate;
 
@@ -98,24 +97,6 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 			.flatMap(it -> it.getAttribute(attributeName))
 			.orElse(null);
 		InitialAttributesBuilder.verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, attributeName, aClass, locale, attributeSchema);
-	}
-
-	static void verifySortableAttributeUniqueness(
-		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull String referenceName,
-		@Nonnull String attributeName,
-		@Nonnull BiPredicate<String, String> uniqueAttributePredicate
-	) {
-		final AttributeSchemaContract attributeSchema = ofNullable(referenceSchema)
-			.flatMap(it -> it.getAttribute(attributeName))
-			.orElse(null);
-		if (attributeSchema != null && attributeSchema.isSortable()) {
-			Assert.isTrue(
-				!uniqueAttributePredicate.test(referenceName, attributeName),
-				"Attribute " + attributeName + " is sortable and only single reference of type " + referenceName + " may use it!" +
-					" In this entity there is already " + attributeName + " present on another reference of this type!"
-			);
-		}
 	}
 
 	public <T extends BiPredicate<String, String> & Serializable> InitialReferenceBuilder(
@@ -212,7 +193,6 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 		} else {
 			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.referenceKey.referenceName()).orElse(null);
 			verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, attributeName, attributeValue.getClass());
-			verifySortableAttributeUniqueness(referenceSchema, this.referenceKey.referenceName(), attributeName, uniqueAttributePredicate);
 			attributesBuilder.setAttribute(attributeName, attributeValue);
 			return this;
 		}
@@ -246,7 +226,6 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 		} else {
 			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.referenceKey.referenceName()).orElse(null);
 			verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, attributeName, attributeValue.getClass(), locale);
-			verifySortableAttributeUniqueness(referenceSchema, this.referenceKey.referenceName(), attributeName, uniqueAttributePredicate);
 			attributesBuilder.setAttribute(attributeName, locale, attributeValue);
 			return this;
 		}

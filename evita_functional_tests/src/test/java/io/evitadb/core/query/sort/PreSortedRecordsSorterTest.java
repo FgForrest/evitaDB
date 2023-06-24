@@ -32,10 +32,8 @@ import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProv
 import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter;
 import io.evitadb.core.query.sort.attribute.translator.AttributeComparator;
 import io.evitadb.core.query.sort.attribute.translator.EntityAttributeExtractor;
+import io.evitadb.core.query.sort.utils.MockSortedRecordsSupplier;
 import io.evitadb.index.bitmap.BaseBitmap;
-import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import io.evitadb.utils.ArrayUtils;
-import lombok.Getter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -85,7 +83,7 @@ class PreSortedRecordsSorterTest {
 		Mockito.when(bitmapQueryContext.getPrefetchedEntities()).thenReturn(null);
 		bitmapSorter = new PreSortedRecordsSorterWithContext(
 			new PreSortedRecordsSorter(
-				() -> new MockSortedRecordsSupplier(7, 2, 4, 1, 3, 8, 5, 9, 6),
+				() -> new SortedRecordsProvider[] {new MockSortedRecordsSupplier(7, 2, 4, 1, 3, 8, 5, 9, 6)},
 				NullThrowingEntityComparator.INSTANCE
 			),
 			bitmapQueryContext
@@ -101,7 +99,7 @@ class PreSortedRecordsSorterTest {
 			.thenAnswer(invocation -> mockEntitiesIndex.get(((Integer) invocation.getArgument(0))));
 		entitySorter = new PreSortedRecordsSorterWithContext(
 			new PreSortedRecordsSorter(
-				() -> SortedRecordsProvider.EMPTY,
+				() -> new SortedRecordsProvider[] {SortedRecordsProvider.EMPTY},
 				TEST_COMPARATOR_FIRST
 			),
 			entityQueryContext
@@ -142,7 +140,7 @@ class PreSortedRecordsSorterTest {
 		Stream.of(bitmapSorter, entitySorter).forEach(tested -> {
 			final Sorter updatedSorter = tested.sorter().andThen(
 				new PreSortedRecordsSorter(
-					() -> new MockSortedRecordsSupplier(13, 0, 12),
+					() -> new SortedRecordsProvider[] {new MockSortedRecordsSupplier(13, 0, 12)},
 					TEST_COMPARATOR_SECOND
 				)
 			);
@@ -166,7 +164,7 @@ class PreSortedRecordsSorterTest {
 		);
 
 		final PreSortedRecordsSorter sorter = new PreSortedRecordsSorter(
-			() -> sortedRecordsSupplier,
+			() -> new SortedRecordsProvider[] {sortedRecordsSupplier},
 			NullThrowingEntityComparator.INSTANCE
 		);
 		final QueryContext queryContext = Mockito.mock(QueryContext.class);
@@ -261,28 +259,6 @@ class PreSortedRecordsSorterTest {
 		@Nonnull PreSortedRecordsSorter sorter,
 		@Nonnull QueryContext context
 	) {
-	}
-
-	private static class MockSortedRecordsSupplier implements SortedRecordsProvider {
-		@Getter private final RoaringBitmapBackedBitmap allRecords;
-		@Getter private final int[] sortedRecordIds;
-		@Getter private final int[] recordPositions;
-
-		public MockSortedRecordsSupplier(int... sortedRecordIds) {
-			this.sortedRecordIds = sortedRecordIds;
-			this.allRecords = new BaseBitmap(sortedRecordIds);
-			this.recordPositions = new int[sortedRecordIds.length];
-			for (int i = 0; i < sortedRecordIds.length; i++) {
-				this.recordPositions[i] = i;
-			}
-			ArrayUtils.sortSecondAlongFirstArray(this.sortedRecordIds, this.recordPositions);
-		}
-
-		@Override
-		public int getRecordCount() {
-			return sortedRecordIds.length;
-		}
-
 	}
 
 	@SuppressWarnings("ComparatorNotSerializable")

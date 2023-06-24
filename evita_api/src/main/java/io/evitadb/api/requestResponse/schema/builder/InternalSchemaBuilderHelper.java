@@ -132,6 +132,7 @@ public interface InternalSchemaBuilderHelper {
 				do {
 					final T[] mutationsToGoThrough = Arrays.copyOf(mutationsToExamine, mutationsToExamine.length);
 					mutationsToExamine = null;
+					boolean discarded = false;
 					for (int i = 0; i < mutationsToGoThrough.length; i++) {
 						T examinedMutation = mutationsToGoThrough[i];
 						final Iterator<T> existingIt = existingMutations.iterator();
@@ -144,6 +145,7 @@ public interface InternalSchemaBuilderHelper {
 								existingMutation, examinedMutation
 							);
 							if (combinationResult != null) {
+								discarded = combinationResult.discarded();
 								// now check the result
 								if (combinationResult.origin() == null) {
 									// or we may find out that the new mutation makes previous mutation obsolete
@@ -171,17 +173,19 @@ public interface InternalSchemaBuilderHelper {
 								}
 							}
 						}
-						// replace all partially obsolete existing mutations outside the loop to avoid ConcurrentModificationException
-						for (MutationReplacement<T> replacement : replacements) {
-							existingMutations.set(replacement.index(), replacement.replaceMutation());
-							schemaUpdated = true;
-						}
-						// clear applied replacements
-						replacements.clear();
-						// and if the new mutation still applies, append it to the end
-						if (examinedMutation != null) {
-							existingMutations.add(examinedMutation);
-							schemaUpdated = true;
+						if (!discarded) {
+							// replace all partially obsolete existing mutations outside the loop to avoid ConcurrentModificationException
+							for (MutationReplacement<T> replacement : replacements) {
+								existingMutations.set(replacement.index(), replacement.replaceMutation());
+								schemaUpdated = true;
+							}
+							// clear applied replacements
+							replacements.clear();
+							// and if the new mutation still applies, append it to the end
+							if (examinedMutation != null) {
+								existingMutations.add(examinedMutation);
+								schemaUpdated = true;
+							}
 						}
 					}
 				} while (mutationsToExamine != null);
@@ -356,6 +360,8 @@ public interface InternalSchemaBuilderHelper {
 	/**
 	 * Record representing the order for changing the existing mutation pipeline with different contents.
 	 *
+	 * @param discarded if set to TRUE it continues to be combining `current` mutation  with other existing mutations,
+	 *                  but finally it discards it and does not append it to the list of mutations
 	 * @param origin represents the new mutation that should be used instead of existing mutation, NULL means that
 	 *                  existing mutation should be discarded without any compensation
 	 * @param current represents the new mutation set that should be appended instead the currently added inserted
@@ -365,15 +371,17 @@ public interface InternalSchemaBuilderHelper {
 	 * @param <T>
 	 */
 	record MutationCombinationResult<T extends SchemaMutation>(
+		boolean discarded,
 		@Nullable T origin,
 		@Nullable T... current
 	) {
 
 		@SafeVarargs
 		public MutationCombinationResult(@Nullable T origin, @Nullable T... current) {
-			this.origin = origin;
-			this.current = current == null || current.length == 0 || current[0] == null ? null : current;
+			this(false, origin, current == null || current.length == 0 || current[0] == null ? null : current);
 		}
+
 	}
+
 
 }

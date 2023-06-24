@@ -64,7 +64,7 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter {
 	/**
 	 * This instance will be used by this sorter to access pre sorted arrays of entities.
 	 */
-	private final Supplier<SortedRecordsProvider> sortedRecordsSupplier;
+	private final Supplier<SortedRecordsProvider[]> sortedRecordsSupplier;
 	/**
 	 * This instance will be used by this sorter in case the {@link QueryContext} contains list of prefetched entities.
 	 * The {@link EntityComparator} will take precedence over {@link #sortedRecordsSupplier}.
@@ -75,7 +75,7 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter {
 	 */
 	private final Sorter unknownRecordIdsSorter;
 
-	public PreSortedRecordsSorter(@Nonnull Supplier<SortedRecordsProvider> sortedRecordsSupplier, @Nonnull EntityComparator comparator) {
+	public PreSortedRecordsSorter(@Nonnull Supplier<SortedRecordsProvider[]> sortedRecordsSupplier, @Nonnull EntityComparator comparator) {
 		this.sortedRecordsSupplier = sortedRecordsSupplier;
 		this.entityComparator = comparator;
 		this.unknownRecordIdsSorter = null;
@@ -105,7 +105,11 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter {
 			return EMPTY_RESULT;
 		} else {
 			if (queryContext.getPrefetchedEntities() == null) {
-				final SortedRecordsProvider sortedRecordsProvider = sortedRecordsSupplier.get();
+				final SortedRecordsProvider[] sortedRecordsProviders = sortedRecordsSupplier.get();
+				/* TODO JNO - this needs to be cached in CacheSupervisor since it's quite costly */
+				final SortedRecordsProvider sortedRecordsProvider = sortedRecordsProviders.length == 1 ?
+					sortedRecordsProviders[0] : new MergedSortedRecordsSupplier(sortedRecordsProviders);
+
 				final MaskResult positions = getMask(sortedRecordsProvider, selectedRecordIds);
 				final SortResult sortPartialResult = fetchSlice(
 					sortedRecordsProvider, selectedRecordIds.size(), positions.mask(), startIndex, endIndex

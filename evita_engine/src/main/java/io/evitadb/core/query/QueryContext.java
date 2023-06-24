@@ -237,7 +237,7 @@ public class QueryContext {
 	 */
 	private final Map<FacetRelationTuple, FilteringFormulaPredicate> facetRelationTuples = new HashMap<>();
 	/**
-	 * Internal flag that singalizes the query context is already within {@link #computingOnce} scope.
+	 * Internal flag that singalizes the query context is already within `computingOnce` scope.
 	 */
 	private boolean computingOnce;
 	/**
@@ -588,14 +588,14 @@ public class QueryContext {
 	/**
 	 * Returns {@link EntityIndex} by its key.
 	 */
-	@Nullable
-	public <S extends IndexKey, T extends Index<S>> T getIndex(@Nonnull S entityIndexKey) {
+	@Nonnull
+	public <S extends IndexKey, T extends Index<S>> Optional<T> getIndex(@Nonnull S entityIndexKey) {
 		if (entityIndexKey instanceof CatalogIndexKey) {
 			//noinspection unchecked
-			return (T) catalog.getCatalogIndex();
+			return ofNullable((T) catalog.getCatalogIndex());
 		} else {
 			//noinspection unchecked
-			return (T) indexes.get(entityIndexKey);
+			return ofNullable((T) indexes.get(entityIndexKey));
 		}
 	}
 
@@ -762,7 +762,7 @@ public class QueryContext {
 	 */
 	@Nonnull
 	public Optional<GlobalEntityIndex> getGlobalEntityIndexIfExists() {
-		return ofNullable(getIndex(GLOBAL_INDEX_KEY));
+		return getIndex(GLOBAL_INDEX_KEY);
 	}
 
 	/**

@@ -46,6 +46,7 @@ import io.evitadb.core.query.PrefetchRequirementCollector;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
+import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.attribute.translator.AttributeExtractor;
 import io.evitadb.core.query.sort.attribute.translator.AttributeNaturalTranslator;
 import io.evitadb.core.query.sort.attribute.translator.AttributeSetExactTranslator;
@@ -69,6 +70,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Deque;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -84,6 +86,7 @@ import static java.util.Optional.ofNullable;
  */
 public class OrderByVisitor implements ConstraintVisitor {
 	private static final Map<Class<? extends OrderConstraint>, OrderingConstraintTranslator<? extends OrderConstraint>> TRANSLATORS;
+	private static final EntityIndex[] EMPTY_INDEX_ARRAY = new EntityIndex[0];
 
 	/* initialize list of all FilterableConstraint handlers once for a lifetime */
 	static {
@@ -103,6 +106,13 @@ public class OrderByVisitor implements ConstraintVisitor {
 	 * Reference to the query context that allows to access entity bodies, indexes, original request and much more.
 	 */
 	@Getter @Delegate private final QueryContext queryContext;
+	/**
+	 * Collection contains all alternative {@link TargetIndexes} sets that might already contain precalculated information
+	 * related to {@link EntityIndex} that can be used to partially resolve input filter although the target index set
+	 * is not used to resolve entire query filter.
+	 */
+	@Getter @Nonnull
+	private final List<TargetIndexes> targetIndexes;
 	/**
 	 * Reference to the collector of requirements for entity prefetch phase.
 	 */
@@ -124,26 +134,31 @@ public class OrderByVisitor implements ConstraintVisitor {
 
 	public OrderByVisitor(
 		@Nonnull QueryContext queryContext,
+		@Nonnull List<TargetIndexes> targetIndexes,
 		@Nonnull PrefetchRequirementCollector prefetchRequirementCollector,
 		@Nonnull Formula filteringFormula
 	) {
 		this(
-			queryContext, prefetchRequirementCollector, filteringFormula,
+			queryContext, targetIndexes, prefetchRequirementCollector, filteringFormula,
 			new AttributeSchemaAccessor(queryContext)
 		);
 	}
 
 	public OrderByVisitor(
 		@Nonnull QueryContext queryContext,
+		@Nonnull List<TargetIndexes> targetIndexes,
 		@Nonnull PrefetchRequirementCollector prefetchRequirementCollector,
 		@Nonnull Formula filteringFormula,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor) {
 		this.queryContext = queryContext;
+		this.targetIndexes = targetIndexes;
 		this.prefetchRequirementCollector = prefetchRequirementCollector;
 		this.filteringFormula = filteringFormula;
 		scope.push(
 			new ProcessingScope(
-				this.queryContext.getGlobalEntityIndexIfExists().orElse(null),
+				this.queryContext.getGlobalEntityIndexIfExists()
+					.map(it -> new EntityIndex[] {it})
+					.orElse(EMPTY_INDEX_ARRAY),
 				attributeSchemaAccessor,
 				EntityAttributeExtractor.INSTANCE
 			)
@@ -171,7 +186,7 @@ public class OrderByVisitor implements ConstraintVisitor {
 	 * Sets different {@link EntityIndex} to be used in scope of lambda.
 	 */
 	public final <T> T executeInContext(
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull EntityIndex[] entityIndex,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nonnull AttributeExtractor attributeSchemaEntityAccessor,
 		@Nonnull Supplier<T> lambda
@@ -205,7 +220,7 @@ public class OrderByVisitor implements ConstraintVisitor {
 	/**
 	 * Returns index which is best suited for supplying {@link SortIndex}.
 	 */
-	public EntityIndex getIndexForSort() {
+	public EntityIndex[] getIndexesForSort() {
 		final ProcessingScope theScope = this.scope.peek();
 		isPremiseValid(theScope != null, "Scope is unexpectedly empty!");
 		return theScope.entityIndex();
@@ -252,7 +267,7 @@ public class OrderByVisitor implements ConstraintVisitor {
 	 * @param attributeEntityAccessor function provides access to the attribute content via {@link EntityContract}
 	 */
 	public record ProcessingScope(
-		@Nullable EntityIndex entityIndex,
+		@Nonnull EntityIndex[] entityIndex,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nonnull AttributeExtractor attributeEntityAccessor
 	) {

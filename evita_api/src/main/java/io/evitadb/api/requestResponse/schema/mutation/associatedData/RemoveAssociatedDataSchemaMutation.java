@@ -77,11 +77,7 @@ public class RemoveAssociatedDataSchemaMutation
 	@Override
 	public MutationCombinationResult<EntitySchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull EntitySchemaContract currentEntitySchema, @Nonnull EntitySchemaMutation existingMutation) {
 		if (existingMutation instanceof AssociatedDataSchemaMutation associatedDataSchemaMutation && Objects.equals(name, associatedDataSchemaMutation.getName())) {
-			if (existingMutation instanceof CreateAssociatedDataSchemaMutation) {
-				return new MutationCombinationResult<>(null);
-			} else {
-				return new MutationCombinationResult<>(null, this);
-			}
+			return new MutationCombinationResult<>(true, null, this);
 		} else {
 			return null;
 		}

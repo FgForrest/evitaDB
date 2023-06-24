@@ -123,7 +123,7 @@ public class QueryPlanner {
 			);
 
 			// create sorter
-			createSorter(context, queryPlanBuilders);
+			createSorter(context, indexSelectionResult.targetIndexes(), queryPlanBuilders);
 
 			// create EvitaResponseExtraResult producers
 			createExtraResultProducers(context, queryPlanBuilders);
@@ -192,7 +192,7 @@ public class QueryPlanner {
 			}
 
 			// create sorter
-			createSorter(context, queryPlanBuilders);
+			createSorter(context, indexSelectionResult.targetIndexes(), queryPlanBuilders);
 
 			// return the preferred plan
 			return preferredPlan.build();
@@ -343,6 +343,7 @@ public class QueryPlanner {
 	 */
 	private static void createSorter(
 		@Nonnull QueryContext queryContext,
+		@Nonnull List<TargetIndexes> targetIndexes,
 		@Nonnull Collection<QueryPlanBuilder> builders
 	) {
 		queryContext.pushStep(QueryPhase.PLANNING_SORT);
@@ -353,7 +354,9 @@ public class QueryPlanner {
 					queryContext.pushStep(QueryPhase.PLANNING_SORT_ALTERNATIVE, builder.getDescription());
 				}
 				try {
-					final OrderByVisitor orderByVisitor = new OrderByVisitor(queryContext, builder, builder.getFilterFormula());
+					final OrderByVisitor orderByVisitor = new OrderByVisitor(
+						queryContext, targetIndexes, builder, builder.getFilterFormula()
+					);
 					ofNullable(queryContext.getOrderBy()).ifPresent(orderByVisitor::visit);
 					builder.appendSorter(orderByVisitor.getSorter());
 				} finally {

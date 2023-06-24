@@ -32,6 +32,8 @@ import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.AttributeExactSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.index.EntityIndex;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -54,13 +56,20 @@ public class AttributeSetExactTranslator implements OrderingConstraintTranslator
 
 		// if prefetch happens we need to prefetch attributes so that the attribute comparator can work
 		orderByVisitor.addRequirementToPrefetch(attributeContentAll());
+
+		final EntityIndex[] indexForSort = orderByVisitor.getIndexesForSort();
+		Assert.isTrue(
+			indexForSort.length == 1,
+			"Expected exactly one index for sorting, but " + indexForSort.length + " were found."
+		);
+
 		@SuppressWarnings("SuspiciousToArrayCall")
 		final AttributeExactSorter sorter = new AttributeExactSorter(
 			attributeName,
 			Arrays.stream(attributeSetExact.getAttributeValues())
 				.map(it -> EvitaDataTypes.toTargetType(it, attributeSchema.getPlainType()))
 				.toArray(Comparable[]::new),
-			orderByVisitor.getIndexForSort().getSortIndex(attributeName, orderByVisitor.getLocale())
+			indexForSort[0].getSortIndex(attributeName, orderByVisitor.getLocale())
 		);
 
 		final Sorter lastUsedSorter = orderByVisitor.getLastUsedSorter();

@@ -127,25 +127,6 @@ public interface CacheSupervisor {
 	);
 
 	/**
-	 * Method tries to find entities by their `primaryKeys` and `requirements` in the cache so that we can avoid physical
-	 * fetch from the persistent datastore.
-	 *
-	 * If some entities are not found in the cache, they are fetched via `entityFetcher` function and {@link CacheRecordAdept}
-	 * is created for it. If there are enough requests targeting those entities, they will eventually propagate to
-	 * the cache.
-	 */
-	/*@Nonnull EntityDecorator[] analyse(
-		@Nonnull EvitaSessionContract evitaSession,
-		@Nonnull int[] primaryKeys,
-		@Nonnull String catalogName,
-		@Nonnull String entityType,
-		@Nonnull OffsetDateTime offsetDateTime,
-		@Nullable EntityFetch entityRequirement,
-		@Nonnull Function<int[], EntityDecorator[]> entityFetcher,
-		@Nonnull UnaryOperator<EntityDecorator> enricher
-	);*/
-
-	/**
 	 * Method tries to find particular entity `primaryKey` and `requirements` in the cache so that we can avoid physical
 	 * fetch from the persistent datastore.
 	 *
@@ -168,29 +149,5 @@ public interface CacheSupervisor {
 		@Nonnull Supplier<BinaryEntity> entityFetcher,
 		@Nonnull UnaryOperator<BinaryEntity> enricher
 	);
-
-	/**
-	 * Method tries to find particular entity `primaryKey` and `requirements` in the cache so that we can avoid physical
-	 * fetch from the persistent datastore.
-	 *
-	 * If the entity is not found in the cache, it is fetched via `entityFetcher` function and {@link CacheRecordAdept}
-	 * is created for it. If there are enough requests targeting this entity, the entity will eventually propagate to
-	 * the cache.
-	 *
-	 * This method is analogous to {@link #analyse(EvitaSessionContract, int, String, String, OffsetDateTime, EntityFetch, Supplier, UnaryOperator)}
-	 * but it handles and returns {@link BinaryEntity} instead.
-	 *
-	 * @see io.evitadb.api.requestResponse.EvitaBinaryEntityResponse
-	 */
-//	@Nonnull
-//	BinaryEntity[] analyse(
-//		@Nonnull EvitaSessionContract evitaSession,
-//		@Nonnull int[] primaryKeys,
-//		@Nonnull String catalogName,
-//		@Nonnull String entityType,
-//		@Nullable EntityFetch entityRequirement,
-//		@Nonnull Function<int[], BinaryEntity[]> entityFetcher,
-//		@Nonnull UnaryOperator<BinaryEntity> enricher
-//	);
 
 }

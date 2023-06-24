@@ -79,11 +79,7 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 	public MutationCombinationResult<EntitySchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull EntitySchemaContract currentEntitySchema, @Nonnull EntitySchemaMutation existingMutation) {
 		final SchemaMutation mutationToExamine = existingMutation instanceof ModifyReferenceSortableAttributeCompoundSchemaMutation wrappingMutation ? wrappingMutation.getSortableAttributeCompoundSchemaMutation() : existingMutation;
 		if (mutationToExamine instanceof SortableAttributeCompoundSchemaMutation compoundSchemaMutation && Objects.equals(name, compoundSchemaMutation.getName())) {
-			if (mutationToExamine instanceof CreateSortableAttributeCompoundSchemaMutation) {
-				return new MutationCombinationResult<>(null);
-			} else {
-				return new MutationCombinationResult<>(null, existingMutation);
-			}
+			return new MutationCombinationResult<>(true, null, this);
 		} else {
 			return null;
 		}

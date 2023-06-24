@@ -40,7 +40,9 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.attribute.SortIndex;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -64,13 +66,15 @@ public class AttributeNaturalTranslator
 		final ProcessingScope processingScope = orderByVisitor.getProcessingScope();
 		final AttributeExtractor attributeSchemaEntityAccessor = processingScope.attributeEntityAccessor();
 
-		final Supplier<SortedRecordsProvider> sortedRecordsSupplier;
+		final Supplier<SortedRecordsProvider[]> sortedRecordsSupplier;
 		final EntityComparator comparator;
+		final EntityIndex[] indexesForSort = orderByVisitor.getIndexesForSort();
+
 		if (orderDirection == ASC) {
 			sortedRecordsSupplier = new AttributeSortedRecordsProviderSupplier(
 				SortIndex::getAscendingOrderRecordsSupplier,
 				() -> processingScope.getAttributeSchemaOrSortableAttributeCompound(attributeName),
-				orderByVisitor.getIndexForSort(),
+				indexesForSort,
 				orderByVisitor, locale
 			);
 			//noinspection unchecked,rawtypes
@@ -82,7 +86,7 @@ public class AttributeNaturalTranslator
 			sortedRecordsSupplier = new AttributeSortedRecordsProviderSupplier(
 				SortIndex::getDescendingOrderRecordsSupplier,
 				() -> processingScope.getAttributeSchemaOrSortableAttributeCompound(attributeName),
-				orderByVisitor.getIndexForSort(),
+				indexesForSort,
 				orderByVisitor, locale
 			);
 			//noinspection unchecked,rawtypes
@@ -136,15 +140,23 @@ public class AttributeNaturalTranslator
 	private record AttributeSortedRecordsProviderSupplier(
 		@Nonnull Function<SortIndex, SortedRecordsProvider> extractor,
 		@Nonnull Supplier<NamedSchemaContract> attributeOrCompoundSchemaSupplier,
-		@Nonnull EntityIndex targetIndex,
+		@Nonnull EntityIndex[] targetIndex,
 		@Nonnull OrderByVisitor orderByVisitor,
 		@Nonnull Locale locale
-	) implements Supplier<SortedRecordsProvider> {
+	) implements Supplier<SortedRecordsProvider[]> {
+		private static final SortedRecordsProvider[] EMPTY_PROVIDERS = {SortedRecordsProvider.EMPTY};
+
 		@Override
-		public SortedRecordsProvider get() {
+		public SortedRecordsProvider[] get() {
 			final NamedSchemaContract attributeSchema = attributeOrCompoundSchemaSupplier.get();
-			final SortIndex sortIndex = targetIndex.getSortIndex(attributeSchema.getName(), locale);
-			return sortIndex == null ? SortedRecordsProvider.EMPTY : extractor.apply(sortIndex);
+			final SortedRecordsProvider[] sortedRecordsProvider = Arrays.stream(targetIndex)
+				.map(it -> it.getSortIndex(attributeSchema.getName(), locale))
+				.filter(Objects::nonNull)
+				.map(extractor)
+				.toArray(SortedRecordsProvider[]::new);
+
+			return sortedRecordsProvider.length == 0 ?
+				EMPTY_PROVIDERS : sortedRecordsProvider;
 		}
 	}
 }

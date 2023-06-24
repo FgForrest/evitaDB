@@ -100,12 +100,12 @@ public interface AttributeIndexMutator {
 			final Set<Locale> allowedLocales = entitySchema.getLocales();
 			final Locale locale = attributeKey.getLocale();
 
-			if (attributeDefinition.isUnique()) {
+			if (attributeDefinition.isUnique() && executor.shouldIndexPrimaryKey(IndexType.ATTRIBUTE_UNIQUE_INDEX)) {
 				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX);
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
 				existingValue.ifPresent(theValue -> {
 					entityIndex.removeUniqueAttribute(attributeDefinition, allowedLocales, locale, theValue.getValue(), entityPrimaryKey);
-					if (String.class.equals(attributeDefinition.getType()) && !attributeDefinition.isFilterable()) {
+					if (String.class.equals(attributeDefinition.getType()) && !attributeDefinition.isFilterable() && executor.shouldIndexPrimaryKey(IndexType.ATTRIBUTE_FILTER_INDEX)) {
 						// TOBEDONE JNO this should be replaced with RadixTree
 						entityIndex.removeFilterAttribute(attributeDefinition, allowedLocales, locale, theValue.getValue(), entityPrimaryKey);
 					}
@@ -116,7 +116,7 @@ public interface AttributeIndexMutator {
 					entityIndex.insertFilterAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey);
 				}
 			}
-			if (attributeDefinition.isFilterable()) {
+			if (attributeDefinition.isFilterable() && executor.shouldIndexPrimaryKey(IndexType.ATTRIBUTE_FILTER_INDEX)) {
 				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX);
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
 				existingValue.ifPresent(theValue -> {
@@ -124,7 +124,7 @@ public interface AttributeIndexMutator {
 				});
 				entityIndex.insertFilterAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey);
 			}
-			if (attributeDefinition.isSortable()) {
+			if (attributeDefinition.isSortable() && executor.shouldIndexPrimaryKey(IndexType.ATTRIBUTE_SORT_INDEX)) {
 				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX);
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
 				existingValue.ifPresent(theValue -> {
@@ -133,7 +133,10 @@ public interface AttributeIndexMutator {
 				entityIndex.insertSortAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey);
 			}
 
-			if (updateGlobalIndex && attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema && globalAttributeSchema.isUniqueGlobally()) {
+			if (updateGlobalIndex && attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
+					globalAttributeSchema.isUniqueGlobally() &&
+					executor.shouldIndexPrimaryKey(IndexType.ATTRIBUTE_UNIQUE_INDEX)
+			) {
 				final CatalogIndex catalogIndex = executor.getCatalogIndex();
 				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX);
 
@@ -193,12 +196,12 @@ public interface AttributeIndexMutator {
 		});
 
 		if (attributeDefinition.isUnique() || attributeDefinition.isFilterable() || attributeDefinition.isSortable()) {
-			if (attributeDefinition.isUnique()) {
+			if (attributeDefinition.isUnique() && executor.shouldIndexPrimaryKey(IndexType.ATTRIBUTE_UNIQUE_INDEX)) {
 				entityIndex.removeUniqueAttribute(
 					attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
 					executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX)
 				);
-				if (String.class.equals(attributeDefinition.getType()) && !attributeDefinition.isFilterable()) {
+				if (String.class.equals(attributeDefinition.getType()) && !attributeDefinition.isFilterable() && executor.shouldIndexPrimaryKey(IndexType.ATTRIBUTE_FILTER_INDEX)) {
 					// TOBEDONE JNO this should be replaced with RadixTree
 					entityIndex.removeFilterAttribute(
 						attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
@@ -206,7 +209,10 @@ public interface AttributeIndexMutator {
 					);
 				}
 
-				if (updateGlobalIndex && attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema && globalAttributeSchema.isUniqueGlobally()) {
+				if (updateGlobalIndex && attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
+					globalAttributeSchema.isUniqueGlobally() &&
+					executor.shouldIndexPrimaryKey(IndexType.ATTRIBUTE_UNIQUE_INDEX)
+				) {
 					final CatalogIndex catalogIndex = executor.getCatalogIndex();
 					catalogIndex.removeUniqueAttribute(
 						executor.getEntitySchema(), attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
@@ -214,13 +220,13 @@ public interface AttributeIndexMutator {
 					);
 				}
 			}
-			if (attributeDefinition.isFilterable()) {
+			if (attributeDefinition.isFilterable() && executor.shouldIndexPrimaryKey(IndexType.ATTRIBUTE_FILTER_INDEX)) {
 				entityIndex.removeFilterAttribute(
 					attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
 					executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX)
 				);
 			}
-			if (attributeDefinition.isSortable()) {
+			if (attributeDefinition.isSortable() && executor.shouldIndexPrimaryKey(IndexType.ATTRIBUTE_SORT_INDEX)) {
 				entityIndex.removeSortAttribute(
 					attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
 					executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX)
@@ -291,17 +297,17 @@ public interface AttributeIndexMutator {
 				}
 			});
 
-		if (attributeDefinition.isUnique()) {
+		if (attributeDefinition.isUnique() && executor.shouldIndexPrimaryKey(IndexType.ATTRIBUTE_UNIQUE_INDEX)) {
 			final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX);
 			entityIndex.removeUniqueAttribute(attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(), entityPrimaryKey);
 			entityIndex.insertUniqueAttribute(attributeDefinition, allowedLocales, locale, valueToUpdateSupplier.get(), entityPrimaryKey);
 		}
-		if (attributeDefinition.isFilterable()) {
+		if (attributeDefinition.isFilterable() && executor.shouldIndexPrimaryKey(IndexType.ATTRIBUTE_FILTER_INDEX)) {
 			final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX);
 			entityIndex.removeFilterAttribute(attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(), entityPrimaryKey);
 			entityIndex.insertFilterAttribute(attributeDefinition, allowedLocales, locale, valueToUpdateSupplier.get(), entityPrimaryKey);
 		}
-		if (attributeDefinition.isSortable()) {
+		if (attributeDefinition.isSortable() && executor.shouldIndexPrimaryKey(IndexType.ATTRIBUTE_SORT_INDEX)) {
 			final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX);
 			entityIndex.removeSortAttribute(attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(), entityPrimaryKey);
 			entityIndex.insertSortAttribute(attributeDefinition, allowedLocales, locale, valueToUpdateSupplier.get(), entityPrimaryKey);
@@ -441,36 +447,38 @@ public interface AttributeIndexMutator {
 		@Nullable Locale locale,
 		@Nonnull String updatedAttributeName
 	) {
-		compoundsSchemaProvider.apply(updatedAttributeName)
-			.forEach(
-				compound -> {
-					final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX);
-					final Function<AttributeKey, AttributeValue> existingAttributeValueProvider =
-						it -> existingValueSupplier.getAttributeValue(it).orElse(null);
+		if (executor.shouldIndexPrimaryKey(IndexType.ATTRIBUTE_SORT_INDEX)) {
+			compoundsSchemaProvider.apply(updatedAttributeName)
+				.forEach(
+					compound -> {
+						final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX);
+						final Function<AttributeKey, AttributeValue> existingAttributeValueProvider =
+							it -> existingValueSupplier.getAttributeValue(it).orElse(null);
 
-					boolean isCompoundLocalized = compound.isLocalized(attributeSchemaProvider);
-					if (isCompoundLocalized && locale == null) {
-						// if the compound is localized and the locale is null, it means the global attribute is updated
-						// and we need to update all localized compounds using that global attribute
-						existingValueSupplier
-							.getEntityAttributeLocales()
-							.forEach(
-								attributeLocale -> updateCompound(
-									entityIndex, compound,
-									existingValueSupplier.getEntityAttributeLocales(), attributeLocale, updatedAttributeName, valueToUpdate, entityPrimaryKey, attributeSchemaProvider,
-									existingAttributeValueProvider
-								)
+						boolean isCompoundLocalized = compound.isLocalized(attributeSchemaProvider);
+						if (isCompoundLocalized && locale == null) {
+							// if the compound is localized and the locale is null, it means the global attribute is updated
+							// and we need to update all localized compounds using that global attribute
+							existingValueSupplier
+								.getEntityAttributeLocales()
+								.forEach(
+									attributeLocale -> updateCompound(
+										entityIndex, compound,
+										existingValueSupplier.getEntityAttributeLocales(), attributeLocale, updatedAttributeName, valueToUpdate, entityPrimaryKey, attributeSchemaProvider,
+										existingAttributeValueProvider
+									)
+								);
+						} else {
+							// otherwise we just update the compound with particular locale or global if locale is null
+							updateCompound(
+								entityIndex, compound,
+								existingValueSupplier.getEntityAttributeLocales(), locale, updatedAttributeName, valueToUpdate, entityPrimaryKey, attributeSchemaProvider,
+								existingAttributeValueProvider
 							);
-					} else {
-						// otherwise we just update the compound with particular locale or global if locale is null
-						updateCompound(
-							entityIndex, compound,
-							existingValueSupplier.getEntityAttributeLocales(), locale, updatedAttributeName, valueToUpdate, entityPrimaryKey, attributeSchemaProvider,
-							existingAttributeValueProvider
-						);
+						}
 					}
-				}
-			);
+				);
+		}
 	}
 
 	/**
