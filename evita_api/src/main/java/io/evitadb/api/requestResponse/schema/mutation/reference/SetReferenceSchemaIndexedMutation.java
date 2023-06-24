@@ -45,7 +45,7 @@ import java.util.Collections;
 import java.util.Optional;
 
 /**
- * Mutation is responsible for setting value to a {@link ReferenceSchemaContract#isFilterable()}
+ * Mutation is responsible for setting value to a {@link ReferenceSchemaContract#isIndexed()}
  * in {@link EntitySchemaContract}.
  * Mutation can be used for altering also the existing {@link ReferenceSchemaContract} alone.
  * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with the same mutation
@@ -58,20 +58,20 @@ import java.util.Optional;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode(callSuper = true)
-public class SetReferenceSchemaFilterableMutation
+public class SetReferenceSchemaIndexedMutation
 	extends AbstractModifyReferenceDataSchemaMutation implements CombinableEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = 6302709513348603359L;
-	@Getter private final boolean filterable;
+	@Getter private final boolean indexed;
 
-	public SetReferenceSchemaFilterableMutation(@Nonnull String name, boolean filterable) {
+	public SetReferenceSchemaIndexedMutation(@Nonnull String name, boolean indexed) {
 		super(name);
-		this.filterable = filterable;
+		this.indexed = indexed;
 	}
 
 	@Nullable
 	@Override
 	public MutationCombinationResult<EntitySchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull EntitySchemaContract currentEntitySchema, @Nonnull EntitySchemaMutation existingMutation) {
-		if (existingMutation instanceof SetReferenceSchemaFilterableMutation theExistingMutation && name.equals(theExistingMutation.getName())) {
+		if (existingMutation instanceof SetReferenceSchemaIndexedMutation theExistingMutation && name.equals(theExistingMutation.getName())) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
@@ -82,11 +82,11 @@ public class SetReferenceSchemaFilterableMutation
 	@Override
 	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
-		if (referenceSchema.isFilterable() == filterable) {
+		if (referenceSchema.isIndexed() == indexed) {
 			// schema is already indexed
 			return referenceSchema;
 		} else {
-			if (!filterable) {
+			if (!indexed) {
 				verifyNoAttributeRequiresIndex(entitySchema, referenceSchema);
 			}
 
@@ -102,7 +102,7 @@ public class SetReferenceSchemaFilterableMutation
 				referenceSchema.getReferencedGroupType(),
 				referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
 				referenceSchema.isReferencedGroupTypeManaged(),
-				filterable,
+				indexed,
 				referenceSchema.isFaceted(),
 				referenceSchema.getAttributes(),
 				referenceSchema.getSortableAttributeCompounds()
@@ -152,6 +152,6 @@ public class SetReferenceSchemaFilterableMutation
 	@Override
 	public String toString() {
 		return "Set entity reference `" + name + "` schema: " +
-			"indexed=" + filterable;
+			"indexed=" + indexed;
 	}
 }

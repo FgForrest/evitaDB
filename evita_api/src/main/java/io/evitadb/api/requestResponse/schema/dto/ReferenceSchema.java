@@ -76,7 +76,7 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 	@Getter @Nullable private final String referencedGroupType;
 	@Nonnull private final Map<NamingConvention, String> groupTypeNameVariants;
 	@Getter private final boolean referencedGroupTypeManaged;
-	@Getter private final boolean filterable;
+	@Getter private final boolean indexed;
 	@Getter private final boolean faceted;
 
 	/**
@@ -260,7 +260,7 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 		@Nullable String referencedGroupType,
 		@Nonnull Map<NamingConvention, String> groupTypeNameVariants,
 		boolean referencedGroupTypeManaged,
-		boolean filterable,
+		boolean indexed,
 		boolean faceted,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
@@ -277,7 +277,7 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 		this.referencedGroupType = referencedGroupType;
 		this.groupTypeNameVariants = Collections.unmodifiableMap(groupTypeNameVariants);
 		this.referencedGroupTypeManaged = referencedGroupTypeManaged;
-		this.filterable = filterable;
+		this.indexed = indexed;
 		this.faceted = faceted;
 		this.attributes = Collections.unmodifiableMap(
 			attributes.entrySet()

@@ -739,7 +739,7 @@ class EvitaApiFunctionalTest {
 						Cardinality.ZERO_OR_MORE,
 						whichIs ->
 							/* we can specify special attributes on relation */
-							whichIs.filterable().withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+							whichIs.indexed().withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
 					)
 					/* for faceted references we can compute "counts" */
 					.withReferenceToEntity(

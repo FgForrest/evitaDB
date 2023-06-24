@@ -63,7 +63,7 @@ public class CreateReferenceSchemaMutationConverter extends ReferenceSchemaMutat
 			inputMutation.getRequiredField(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED),
 			inputMutation.getOptionalField(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE),
 			inputMutation.getOptionalField(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED, false),
-			inputMutation.getOptionalField(CreateReferenceSchemaMutationDescriptor.FILTERABLE, false),
+			inputMutation.getOptionalField(CreateReferenceSchemaMutationDescriptor.INDEXED, false),
 			inputMutation.getOptionalField(CreateReferenceSchemaMutationDescriptor.FACETED, false)
 		);
 	}

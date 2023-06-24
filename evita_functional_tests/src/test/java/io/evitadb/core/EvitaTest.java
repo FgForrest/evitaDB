@@ -312,7 +312,7 @@ class EvitaTest implements EvitaTestSupport {
 				.withoutGeneratedPrimaryKey()
 				.withReferenceTo(
 					Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
-					whichIs -> whichIs.filterable().withAttribute(ATTRIBUTE_NAME, String.class)
+					whichIs -> whichIs.indexed().withAttribute(ATTRIBUTE_NAME, String.class)
 				)
 				.updateVia(session);
 
@@ -384,7 +384,7 @@ class EvitaTest implements EvitaTestSupport {
 				.withoutGeneratedPrimaryKey()
 				.withReferenceTo(
 					Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
-					whichIs -> whichIs.filterable().withAttribute(ATTRIBUTE_NAME, String.class)
+					whichIs -> whichIs.indexed().withAttribute(ATTRIBUTE_NAME, String.class)
 				)
 				.updateVia(session);
 

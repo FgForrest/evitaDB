@@ -82,7 +82,7 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 			output.writeVarInt(entry.getKey().ordinal(), true);
 			output.writeString(entry.getValue());
 		}
-		output.writeBoolean(referenceSchema.isFilterable());
+		output.writeBoolean(referenceSchema.isIndexed());
 		output.writeBoolean(referenceSchema.isFaceted());
 		kryo.writeObject(output, referenceSchema.getAttributes());
 

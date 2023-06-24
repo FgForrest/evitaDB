@@ -115,7 +115,7 @@ public interface EntitySchemaMutationAggregateDescriptor {
 	PropertyDescriptor MODIFY_REFERENCE_SCHEMA_RELATED_ENTITY_MUTATION = PropertyDescriptor.nullableFromObject(ModifyReferenceSchemaRelatedEntityMutationDescriptor.THIS);
 	PropertyDescriptor REMOVE_REFERENCE_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(RemoveReferenceSchemaMutationDescriptor.THIS);
 	PropertyDescriptor SET_REFERENCE_SCHEMA_FACETED_MUTATION = PropertyDescriptor.nullableFromObject(SetReferenceSchemaFacetedMutationDescriptor.THIS);
-	PropertyDescriptor SET_REFERENCE_SCHEMA_FILTERABLE_MUTATION = PropertyDescriptor.nullableFromObject(SetReferenceSchemaFilterableMutationDescriptor.THIS);
+	PropertyDescriptor SET_REFERENCE_SCHEMA_FILTERABLE_MUTATION = PropertyDescriptor.nullableFromObject(SetReferenceSchemaIndexedMutationDescriptor.THIS);
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("EntitySchemaMutationAggregate")

@@ -38,9 +38,9 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaD
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemasDescriptor;
-import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -604,7 +604,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 										kebabCase
 									}
 									referencedGroupTypeManaged
-									filterable
+									indexed
 									faceted
 								}
 								obsoleteBrand {
@@ -667,7 +667,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 								.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE.name(), null)
 								.e(ReferenceSchemaDescriptor.GROUP_TYPE_NAME_VARIANTS.name(), null)
 								.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), brandReferenceSchema.isReferencedGroupTypeManaged())
-								.e(ReferenceSchemaDescriptor.FILTERABLE.name(), brandReferenceSchema.isFilterable())
+								.e(ReferenceSchemaDescriptor.INDEXED.name(), brandReferenceSchema.isIndexed())
 								.e(ReferenceSchemaDescriptor.FACETED.name(), brandReferenceSchema.isFaceted())
 								.build())
 							.e(REFERENCE_OBSOLETE_BRAND, map()

@@ -255,7 +255,7 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 				referenceSchema.getReferencedGroupType(),
 				referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
 				referenceSchema.isReferencedGroupTypeManaged(),
-				referenceSchema.isFilterable(),
+				referenceSchema.isIndexed(),
 				referenceSchema.isFaceted(),
 				Stream.concat(
 						referenceSchema.getAttributes().values().stream(),

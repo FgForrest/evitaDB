@@ -158,7 +158,7 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 				referenceSchema.getReferencedGroupType(),
 				referenceSchema.getGroupTypeNameVariants(entityType -> null),
 				referenceSchema.isReferencedGroupTypeManaged(),
-				referenceSchema.isFilterable(),
+				referenceSchema.isIndexed(),
 				referenceSchema.isFaceted(),
 				referenceSchema.getAttributes(),
 				referenceSchema.getSortableAttributeCompounds()

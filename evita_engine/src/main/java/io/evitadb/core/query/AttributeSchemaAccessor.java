@@ -92,7 +92,7 @@ public class AttributeSchemaAccessor {
 		EvitaInvalidUsageException exception = null;
 		for (AttributeTrait attributeTrait : requiredTrait) {
 			Assert.isTrue(
-				referenceSchema == null || referenceSchema.isFilterable(),
+				referenceSchema == null || referenceSchema.isIndexed(),
 				() -> new ReferenceNotIndexedException(referenceSchema.getName(), entitySchema)
 			);
 			switch (attributeTrait) {

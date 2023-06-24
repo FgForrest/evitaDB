@@ -276,7 +276,7 @@ class EntitySchemaConverterTest {
 		assertEquals(expected.isReferencedEntityTypeManaged(), actual.isReferencedEntityTypeManaged());
 		assertEquals(expected.getReferencedGroupType(), actual.getReferencedGroupType());
 		assertEquals(expected.isReferencedGroupTypeManaged(), actual.isReferencedGroupTypeManaged());
-		assertEquals(expected.isFilterable(), actual.isFilterable());
+		assertEquals(expected.isIndexed(), actual.isIndexed());
 		assertEquals(expected.isFaceted(), actual.isFaceted());
 		assertEquals(expected.getSortableAttributeCompounds(), actual.getSortableAttributeCompounds());
 

@@ -606,7 +606,7 @@ public interface ReferenceIndexMutator {
 	 */
 	private static boolean isIndexed(@Nonnull ReferenceContract reference) {
 		return reference.getReferenceSchema()
-			.map(ReferenceSchemaContract::isFilterable)
+			.map(ReferenceSchemaContract::isIndexed)
 			.orElse(false);
 	}
 

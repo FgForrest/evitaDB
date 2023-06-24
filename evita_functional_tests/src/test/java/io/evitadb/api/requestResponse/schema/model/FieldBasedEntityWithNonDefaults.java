@@ -116,7 +116,7 @@ public class FieldBasedEntityWithNonDefaults {
 	)
 	private PriceContract sellingPrice;
 
-	@Reference(filterable = true)
+	@Reference(indexed = true)
 	private Brand marketingBrand;
 
 	@Reference(
@@ -129,7 +129,7 @@ public class FieldBasedEntityWithNonDefaults {
 		groupEntity = "customBrandGroup",
 		allowEmpty = false,
 		faceted = true,
-		filterable = true
+		indexed = true
 	)
 	private Brand[] licensingBrands;
 

@@ -113,16 +113,17 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 		.type(nullable(Boolean.class))
 		.build();
 
-	PropertyDescriptor FILTERABLE = PropertyDescriptor.builder()
-		.name("filterable")
+	PropertyDescriptor INDEXED = PropertyDescriptor.builder()
+		.name("indexed")
 		.description("""
 			Contains `true` if the index for this reference should be created and maintained allowing to filter by
 			`reference_{reference name}_having` filtering constraints. Index is also required when reference is
 			`faceted`.
 						
-			Do not mark reference as faceted unless you know that you'll need to filter entities by this reference. Each
-			indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed, the entity
-			cannot be looked up by reference attributes or relation existence itself, but the data can be fetched.
+			Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+			Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed, 
+			the entity cannot be looked up by reference attributes or relation existence itself, but the data can be 
+			fetched.
 			""")
 		.type(nonNull(Boolean.class))
 		.build();
@@ -188,7 +189,7 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			REFERENCED_ENTITY_TYPE_MANAGED,
 			REFERENCED_GROUP_TYPE,
 			REFERENCED_GROUP_TYPE_MANAGED,
-			FILTERABLE,
+			INDEXED,
 			FACETED,
 			ENTITY_TYPE_NAME_VARIANTS,
 			GROUP_TYPE_NAME_VARIANTS
@@ -228,7 +229,7 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			REFERENCED_GROUP_TYPE,
 			GROUP_TYPE_NAME_VARIANTS,
 			REFERENCED_GROUP_TYPE_MANAGED,
-			FILTERABLE,
+			INDEXED,
 			FACETED,
 			ALL_ATTRIBUTES
 		))

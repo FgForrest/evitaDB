@@ -207,7 +207,7 @@ public class EntityByReferenceAttributeOrderingFunctionalTest {
 									Cardinality.ZERO_OR_ONE,
 									whichIs ->
 										/* we can specify special attributes on relation */
-										whichIs.filterable()
+										whichIs.indexed()
 											.withAttribute(ATTRIBUTE_BRAND_PRIORITY, Long.class, thatIs -> thatIs.sortable())
 								)
 								.withReferenceToEntity(
@@ -216,7 +216,7 @@ public class EntityByReferenceAttributeOrderingFunctionalTest {
 									Cardinality.ONE_OR_MORE,
 									whichIs ->
 										/* we can specify special attributes on relation */
-										whichIs.filterable()
+										whichIs.indexed()
 											.withAttribute(ATTRIBUTE_STORE_PRIORITY, Long.class, thatIs -> thatIs.sortable())
 								);
 						}

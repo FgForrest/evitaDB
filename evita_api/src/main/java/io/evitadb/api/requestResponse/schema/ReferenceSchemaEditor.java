@@ -66,24 +66,24 @@ public interface ReferenceSchemaEditor<S extends ReferenceSchemaEditor<S>> exten
 	 * Contains TRUE if evitaDB should create and maintain searchable index for this reference allowing to filter by
 	 * {@link ReferenceHaving} filtering constraints. Index is also required when reference is {@link #faceted()}.
 	 *
-	 * Do not mark reference as faceted unless you know that you'll need to filter entities by this reference. Each
-	 * indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed, the entity
-	 * cannot be looked up by reference attributes or relation existence itself, but the data is loaded alongside
-	 * other references and is available by calling {@link SealedEntity#getReferences()} method.
+	 * Do not mark reference as indexed unless you know that you'll need to filter / sort entities by this reference.
+	 * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+	 * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+	 * alongside other references and is available by calling {@link SealedEntity#getReferences()} method.
 	 */
 	/* TODO JNO - change this to "indexed" + verify no attribute can be marked as filterable/sortable/compound on non-indexed reference */
-	S filterable();
+	S indexed();
 
 	/**
 	 * Makes reference as non-faceted. This means reference information will be available on entity when loaded but
 	 * cannot be used in filtering.
 	 */
-	S nonFilterable();
+	S nonIndexed();
 
 	/**
 	 * Makes reference faceted. That means that statistics data for this reference should be maintained and this
 	 * allowing to get {@link FacetStatistics} for this reference or use {@link FacetHaving} filtering query. When
-	 * reference is faceted it is also automatically made {@link #filterable()} as well.
+	 * reference is faceted it is also automatically made {@link #indexed()} as well.
 	 *
 	 * Do not mark reference as faceted unless you know that you'll need to filter entities by this reference. Each
 	 * indexed reference occupies (memory/disk) space in the form of index.

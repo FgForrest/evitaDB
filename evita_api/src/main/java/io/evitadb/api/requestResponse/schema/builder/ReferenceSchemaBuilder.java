@@ -46,7 +46,7 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceS
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaRelatedEntityGroupMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSortableAttributeCompoundSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFilterableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.Assert;
@@ -112,7 +112,7 @@ public final class ReferenceSchemaBuilder
 					entityTypeRelatesToEntity,
 					baseSchema.getReferencedGroupType(),
 					baseSchema.isReferencedGroupTypeManaged(),
-					baseSchema.isFilterable(),
+					baseSchema.isIndexed(),
 					baseSchema.isFaceted()
 				)
 			);
@@ -181,26 +181,26 @@ public final class ReferenceSchemaBuilder
 	}
 
 	@Override
-	public ReferenceSchemaBuilder filterable() {
+	public ReferenceSchemaBuilder indexed() {
 		this.updatedSchemaDirty = addMutations(
 			this.catalogSchema, this.entitySchema, this.mutations,
-			new SetReferenceSchemaFilterableMutation(getName(), true)
+			new SetReferenceSchemaIndexedMutation(getName(), true)
 		);
 		return this;
 	}
 
 	@Override
-	public ReferenceSchemaBuilder nonFilterable() {
+	public ReferenceSchemaBuilder nonIndexed() {
 		this.updatedSchemaDirty = addMutations(
 			this.catalogSchema, this.entitySchema, this.mutations,
-			new SetReferenceSchemaFilterableMutation(getName(), false)
+			new SetReferenceSchemaIndexedMutation(getName(), false)
 		);
 		return this;
 	}
 
 	@Override
 	public ReferenceSchemaBuilder faceted() {
-		if (toInstance().isFilterable()) {
+		if (toInstance().isIndexed()) {
 			this.updatedSchemaDirty = addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
 				new SetReferenceSchemaFacetedMutation(getName(), true)
@@ -208,7 +208,7 @@ public final class ReferenceSchemaBuilder
 		} else {
 			this.updatedSchemaDirty = addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
-				new SetReferenceSchemaFilterableMutation(getName(), true),
+				new SetReferenceSchemaIndexedMutation(getName(), true),
 				new SetReferenceSchemaFacetedMutation(getName(), true)
 			);
 		}

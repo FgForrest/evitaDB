@@ -251,7 +251,7 @@ If the first entity has its primary key, evitaDB expects all entities to have th
 If the first entity has its primary key set to `NULL`, evitaDB will generate primary keys for you and will reject 
 external primary keys. New attribute schemas are implicitly created as `nullable`, `filterable` and non-array data types 
 as `sortable`. This means that the client is immediately able to filter/sort on almost anything, but the database itself 
-will consume a lot of resources. The references will be created as `filterable` but not `faceted`.
+will consume a lot of resources. The references will be created as `indexed` but not `faceted`.
 </Note>
 
 There are several partial lax modes between strict and fully automatic evolution mode - see
@@ -482,10 +482,11 @@ References can have zero or more attributes that apply only to a particular "lin
 [Global attribute](#global-attribute-schema) cannot be used as a reference attribute. Otherwise, the same rules apply 
 for reference attributes as for regular entity attributes.
 
-When another entity references an entity and the reference is marked as *filterable*, the special
+When another entity references an entity and the reference is marked as *indexed*, the special
 <SourceClass>io.evitadb.index.ReducedEntityIndex</SourceClass> is created for each referenced entity. This index will
 hold reduced attribute and price indices of the referencing entity, allowing quick evaluation of
-[`referencedEntityHaving`](../query/filtering/references.md) filter conditions.
+[`referencedEntityHaving`](../query/filtering/references.md) filter conditions and 
+[`referenceProperty`](../query/ordering/reference.md) sorting.
 
 If the reference is marked as *faceted*, the special 
 <SourceClass>evita_engine/src/main/java/io/evitadb/index/facet/FacetReferenceIndex.java</SourceClass> is created for 

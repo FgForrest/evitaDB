@@ -566,7 +566,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 		@Nonnull FilterBy filterBy
 	) {
 		final String referenceName = referenceSchema.getName();
-		isTrue(referenceSchema.isFilterable(), () -> new ReferenceNotIndexedException(referenceName, entitySchema));
+		isTrue(referenceSchema.isIndexed(), () -> new ReferenceNotIndexedException(referenceName, entitySchema));
 
 		final EntityIndex entityIndex = getIndex(
 			entitySchema.getName(),

@@ -516,7 +516,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 
 		return referenceSchemas
 			.stream()
-			.filter(ReferenceSchemaContract::isFilterable)
+			.filter(ReferenceSchemaContract::isIndexed)
 			.flatMap(referenceSchema -> {
 				final FieldFromConstraintDescriptorBuilder<OBJECT_FIELD> fieldBuilder = constraintDescriptor -> buildFieldFromConstraintDescriptor(
 					buildContext.switchToChildContext(new ReferenceDataLocator(

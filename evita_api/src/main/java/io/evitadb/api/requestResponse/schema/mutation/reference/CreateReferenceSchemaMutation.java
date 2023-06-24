@@ -79,7 +79,7 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 	@Getter private final boolean referencedEntityTypeManaged;
 	@Getter @Nullable private final String referencedGroupType;
 	@Getter private final boolean referencedGroupTypeManaged;
-	@Getter private final boolean filterable;
+	@Getter private final boolean indexed;
 	@Getter private final boolean faceted;
 
 	public CreateReferenceSchemaMutation(
@@ -91,7 +91,7 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 		boolean referencedEntityTypeManaged,
 		@Nullable String referencedGroupType,
 		boolean referencedGroupTypeManaged,
-		boolean filterable,
+		boolean indexed,
 		boolean faceted
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.REFERENCE, referencedEntityType);
@@ -103,7 +103,7 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 		this.referencedEntityTypeManaged = referencedEntityTypeManaged;
 		this.referencedGroupType = referencedGroupType;
 		this.referencedGroupTypeManaged = referencedGroupTypeManaged;
-		this.filterable = filterable;
+		this.indexed = indexed;
 		this.faceted = faceted;
 	}
 
@@ -148,8 +148,8 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 							),
 							makeMutationIfDifferent(
 								createdVersion, existingVersion,
-								ReferenceSchemaContract::isFilterable,
-								newValue -> new SetReferenceSchemaFilterableMutation(name, newValue)
+								ReferenceSchemaContract::isIndexed,
+								newValue -> new SetReferenceSchemaIndexedMutation(name, newValue)
 							),
 							makeMutationIfDifferent(
 								createdVersion, existingVersion,
@@ -178,7 +178,7 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 			referencedEntityType, referencedEntityTypeManaged,
 			Optional.ofNullable(cardinality).orElse(Cardinality.ZERO_OR_MORE),
 			referencedGroupType, referencedGroupTypeManaged,
-			filterable, faceted,
+			indexed, faceted,
 			Collections.emptyMap(),
 			Collections.emptyMap()
 		);
@@ -253,7 +253,7 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 			", referencedEntityTypeManaged=" + referencedEntityTypeManaged +
 			", groupType='" + referencedGroupType + '\'' +
 			", referencedGroupTypeManaged=" + referencedGroupTypeManaged +
-			", filterable=" + filterable +
+			", indexed=" + indexed +
 			", faceted=" + faceted;
 	}
 }

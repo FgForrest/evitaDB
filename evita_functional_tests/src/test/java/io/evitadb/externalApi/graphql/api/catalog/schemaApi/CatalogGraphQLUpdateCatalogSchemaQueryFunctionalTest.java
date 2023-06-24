@@ -31,8 +31,6 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
-import io.evitadb.test.tester.GraphQLTester;
-import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -417,7 +415,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 												referencedEntityType: "tag"
 												referencedEntityTypeManaged: false
 												referencedGroupTypeManaged: false
-												filterable: true
+												indexed: true
 												faceted: true
 											}
 										}
@@ -482,7 +480,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 								referencedEntityTypeManaged
 								referencedGroupType
 								referencedGroupTypeManaged
-								filterable
+								indexed
 								faceted
 							}
 						}
@@ -525,7 +523,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 								.e(ReferenceSchemaDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), false)
 								.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE.name(), null)
 								.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), false)
-								.e(ReferenceSchemaDescriptor.FILTERABLE.name(), true)
+								.e(ReferenceSchemaDescriptor.INDEXED.name(), true)
 								.e(ReferenceSchemaDescriptor.FACETED.name(), true)
 								.build())
 							.build())

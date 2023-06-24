@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference;
 
-import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFilterableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
@@ -32,36 +32,35 @@ import java.util.List;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor representing {@link SetReferenceSchemaFilterableMutation}.
+ * Descriptor representing {@link SetReferenceSchemaIndexedMutation}.
  *
  * Note: this descriptor has static structure.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface SetReferenceSchemaFilterableMutationDescriptor extends ReferenceSchemaMutationDescriptor {
+public interface SetReferenceSchemaIndexedMutationDescriptor extends ReferenceSchemaMutationDescriptor {
 
-	PropertyDescriptor FILTERABLE = PropertyDescriptor.builder()
-		.name("filterable")
+	PropertyDescriptor INDEXED = PropertyDescriptor.builder()
+		.name("indexed")
 		.description("""
 			Whether the index for this reference should be created and maintained allowing to filter by
 			`reference_{reference name}_having` filtering constraints. Index is also required when reference is
 			`faceted`.
 			
-			Do not mark reference as faceted unless you know that you'll need to filter entities by this reference. Each
-			indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed, the entity
-			cannot be looked up by reference attributes or relation existence itself, but the data is loaded alongside
-			other references if requested.
+			Do not mark reference as faceted unless you know that you'll need to filter / sort entities by this reference.
+			Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed, 
+			the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded 
+			alongside other references if requested.
 			""")
 		.type(nonNull(Boolean.class))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("SetReferenceSchemaFilterableMutation")
+		.name("SetReferenceSchemaIndexedMutation")
 		.description("""
-			Mutation is responsible for setting value to a `ReferenceSchema.filterable`
-			in `EntitySchema`.
+			Mutation is responsible for setting value to a `ReferenceSchema.indexed` in `EntitySchema`.
 			Mutation can be used for altering also the existing `ReferenceSchema` alone.
 			""")
-		.staticFields(List.of(NAME, FILTERABLE))
+		.staticFields(List.of(NAME, INDEXED))
 		.build();
 }

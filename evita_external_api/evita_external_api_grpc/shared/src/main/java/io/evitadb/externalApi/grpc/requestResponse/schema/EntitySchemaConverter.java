@@ -323,7 +323,7 @@ public class EntitySchemaConverter {
 			.setEntityType(referenceSchema.getReferencedEntityType())
 			.setEntityTypeRelatesToEntity(referenceSchema.isReferencedEntityTypeManaged())
 			.setGroupTypeRelatesToEntity(referenceSchema.isReferencedGroupTypeManaged())
-			.setIndexed(referenceSchema.isFilterable())
+			.setIndexed(referenceSchema.isIndexed())
 			.setFaceted(referenceSchema.isFaceted())
 			.putAllAttributes(toGrpcAttributeSchemas(referenceSchema.getAttributes()))
 			.putAllSortableAttributeCompounds(toGrpcSortableAttributeCompoundSchemas(referenceSchema.getSortableAttributeCompounds()));

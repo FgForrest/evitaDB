@@ -23,12 +23,12 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
-import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFilterableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.SetReferenceSchemaFilterableMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.SetReferenceSchemaIndexedMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -54,23 +54,23 @@ class SetReferenceSchemaFilterableMutationConverterTest {
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
-		final SetReferenceSchemaFilterableMutation expectedMutation = new SetReferenceSchemaFilterableMutation(
+		final SetReferenceSchemaIndexedMutation expectedMutation = new SetReferenceSchemaIndexedMutation(
 			"tags",
 			true
 		);
 
-		final SetReferenceSchemaFilterableMutation convertedMutation1 = converter.convert(
+		final SetReferenceSchemaIndexedMutation convertedMutation1 = converter.convert(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
-				.e(SetReferenceSchemaFilterableMutationDescriptor.FILTERABLE.name(), true)
+				.e(SetReferenceSchemaIndexedMutationDescriptor.INDEXED.name(), true)
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final SetReferenceSchemaFilterableMutation convertedMutation2 = converter.convert(
+		final SetReferenceSchemaIndexedMutation convertedMutation2 = converter.convert(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
-				.e(SetReferenceSchemaFilterableMutationDescriptor.FILTERABLE.name(), "true")
+				.e(SetReferenceSchemaIndexedMutationDescriptor.INDEXED.name(), "true")
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation2);
@@ -82,7 +82,7 @@ class SetReferenceSchemaFilterableMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> converter.convert(
 				map()
-					.e(SetReferenceSchemaFilterableMutationDescriptor.FILTERABLE.name(), true)
+					.e(SetReferenceSchemaIndexedMutationDescriptor.INDEXED.name(), true)
 					.build()
 			)
 		);

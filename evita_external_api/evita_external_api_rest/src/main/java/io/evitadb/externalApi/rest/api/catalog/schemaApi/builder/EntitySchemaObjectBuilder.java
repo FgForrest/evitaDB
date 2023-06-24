@@ -138,7 +138,7 @@ public class EntitySchemaObjectBuilder {
 		buildingContext.registerType(ModifyReferenceSchemaRelatedEntityMutationDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(RemoveReferenceSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(SetReferenceSchemaFacetedMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(SetReferenceSchemaFilterableMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(SetReferenceSchemaIndexedMutationDescriptor.THIS.to(objectBuilderTransformer).build());
 
 		buildingContext.registerType(EntitySchemaMutationAggregateDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(UpdateEntitySchemaRequestDescriptor.THIS.to(objectBuilderTransformer).build());

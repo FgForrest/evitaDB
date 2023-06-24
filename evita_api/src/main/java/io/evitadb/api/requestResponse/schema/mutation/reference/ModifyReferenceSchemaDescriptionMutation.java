@@ -93,7 +93,7 @@ public class ModifyReferenceSchemaDescriptionMutation
 			referenceSchema.getReferencedGroupType(),
 			referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
 			referenceSchema.isReferencedGroupTypeManaged(),
-			referenceSchema.isFilterable(),
+			referenceSchema.isIndexed(),
 			referenceSchema.isFaceted(),
 			referenceSchema.getAttributes(),
 			referenceSchema.getSortableAttributeCompounds()

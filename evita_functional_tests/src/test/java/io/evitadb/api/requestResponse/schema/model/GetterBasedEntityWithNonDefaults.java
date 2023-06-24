@@ -114,7 +114,7 @@ public interface GetterBasedEntityWithNonDefaults {
 	)
 	PriceContract getSellingPrice();
 
-	@Reference(filterable = true)
+	@Reference(indexed = true)
 	Brand getMarketingBrand();
 
 	@Reference(
@@ -127,7 +127,7 @@ public interface GetterBasedEntityWithNonDefaults {
 		groupEntity = "customBrandGroup",
 		allowEmpty = false,
 		faceted = true,
-		filterable = true
+		indexed = true
 	)
 	Brand[] getLicensingBrands();
 

@@ -78,7 +78,7 @@ class CreateReferenceSchemaMutationConverterTest {
 				.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), true)
 				.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE.name(), "tagGroup")
 				.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), true)
-				.e(CreateReferenceSchemaMutationDescriptor.FILTERABLE.name(), true)
+				.e(CreateReferenceSchemaMutationDescriptor.INDEXED.name(), true)
 				.e(CreateReferenceSchemaMutationDescriptor.FACETED.name(), false)
 				.build()
 		);
@@ -94,7 +94,7 @@ class CreateReferenceSchemaMutationConverterTest {
 				.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), "true")
 				.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE.name(), "tagGroup")
 				.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), "true")
-				.e(CreateReferenceSchemaMutationDescriptor.FILTERABLE.name(), "true")
+				.e(CreateReferenceSchemaMutationDescriptor.INDEXED.name(), "true")
 				.e(CreateReferenceSchemaMutationDescriptor.FACETED.name(), "false")
 				.build()
 		);

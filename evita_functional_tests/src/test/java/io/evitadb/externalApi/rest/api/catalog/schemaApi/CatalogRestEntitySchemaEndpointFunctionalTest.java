@@ -35,13 +35,13 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaWithDeprecationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
 import io.evitadb.externalApi.rest.RestProvider;
-import io.evitadb.test.tester.RestTester;
-import io.evitadb.test.tester.RestTester.Request;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
+import io.evitadb.test.tester.RestTester;
+import io.evitadb.test.tester.RestTester.Request;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -496,7 +496,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 								"referencedEntityType": "tag",
 								"referencedEntityTypeManaged": false,
 								"referencedGroupTypeManaged": false,
-								"filterable": true,
+								"indexed": true,
 								"faceted": true
 							}
 						}
@@ -550,7 +550,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 							.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), null)
 							.e(NameVariantsDescriptor.KEBAB_CASE.name(), null))
 						.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), false)
-						.e(ReferenceSchemaDescriptor.FILTERABLE.name(), true)
+						.e(ReferenceSchemaDescriptor.INDEXED.name(), true)
 						.e(ReferenceSchemaDescriptor.FACETED.name(), true)
 						.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), map())
 						.build()

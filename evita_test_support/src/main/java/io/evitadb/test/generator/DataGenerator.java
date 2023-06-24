@@ -1161,7 +1161,7 @@ public class DataGenerator {
 				Cardinality.ZERO_OR_MORE,
 				whichIs ->
 					/* we can specify special attributes on relation */
-					whichIs.filterable()
+					whichIs.indexed()
 						.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class, thatIs -> thatIs.sortable().nullable())
 			)
 			/* for indexed facets we can compute "counts" */
@@ -1169,14 +1169,14 @@ public class DataGenerator {
 				Entities.BRAND,
 				Entities.BRAND,
 				Cardinality.ZERO_OR_ONE,
-				whichIs -> whichIs.filterable().faceted()
+				whichIs -> whichIs.indexed().faceted()
 			)
 			/* facets may be also represented be entities unknown to Evita */
 			.withReferenceToEntity(
 				Entities.STORE,
 				Entities.STORE,
 				Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs.filterable().faceted()
+				whichIs -> whichIs.indexed().faceted()
 			);
 
 		addPossiblyGlobalAttributes(evitaSession, schemaBuilder, ATTRIBUTE_CODE, ATTRIBUTE_URL);

@@ -66,7 +66,7 @@ evita.updateCatalog(
 				Cardinality.ZERO_OR_MORE,
 				whichIs ->
 					/* we can specify special attributes on relation */
-					whichIs.filterable().withAttribute(
+					whichIs.indexed().withAttribute(
 						"categoryPriority", Long.class,
 						thatIs -> thatIs.sortable()
 					)

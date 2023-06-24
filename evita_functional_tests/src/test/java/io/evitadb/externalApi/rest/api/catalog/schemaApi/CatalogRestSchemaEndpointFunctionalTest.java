@@ -291,7 +291,7 @@ abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpointFunct
 				.e(NameVariantsDescriptor.KEBAB_CASE.name(), referenceSchema.getGroupTypeNameVariants(ENTITY_SCHEMA_FETCHER).get(NamingConvention.KEBAB_CASE))
 				.build())
 			.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), referenceSchema.isReferencedGroupTypeManaged())
-			.e(ReferenceSchemaDescriptor.FILTERABLE.name(), referenceSchema.isFilterable())
+			.e(ReferenceSchemaDescriptor.INDEXED.name(), referenceSchema.isIndexed())
 			.e(ReferenceSchemaDescriptor.FACETED.name(), referenceSchema.isFaceted())
 			.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), createLinkedHashMap(referenceSchema.getAttributes().size()));
 

@@ -315,7 +315,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 						Entities.CATEGORY,
 						Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs
-							.filterable()
+							.indexed()
 							.withAttribute(
 								ATTRIBUTE_CATEGORY_PRIORITY,
 								Long.class,
@@ -380,7 +380,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 						Entities.CATEGORY,
 						Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs
-							.filterable()
+							.indexed()
 							.withAttribute(
 								ATTRIBUTE_CATEGORY_PRIORITY,
 								Long.class,
@@ -1791,8 +1791,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 				session
 					.defineEntitySchema(Entities.PRODUCT)
-					.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE, whichIs -> whichIs.filterable())
-					.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE, whichIs -> whichIs.filterable())
+					.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE, whichIs -> whichIs.indexed())
+					.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE, whichIs -> whichIs.indexed())
 					.updateVia(session);
 
 				final String attributeCodeEan = ATTRIBUTE_CODE + StringUtils.capitalize(ATTRIBUTE_EAN);
@@ -1888,7 +1888,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.defineEntitySchema(Entities.PRODUCT)
 					.withReferenceToEntity(
 						Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.filterable()
+						whichIs -> whichIs.indexed()
 							.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.nullable())
 							.withAttribute(ATTRIBUTE_EAN, String.class, thatIs -> thatIs.nullable())
 							.withSortableAttributeCompound(
@@ -1899,7 +1899,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					)
 					.withReferenceToEntity(
 						Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.filterable()
+						whichIs -> whichIs.indexed()
 							.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.nullable())
 							.withAttribute(ATTRIBUTE_EAN, String.class, thatIs -> thatIs.nullable())
 							.withSortableAttributeCompound(
@@ -2006,7 +2006,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.defineEntitySchema(Entities.PRODUCT)
 					.withReferenceToEntity(
 						Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.filterable()
+						whichIs -> whichIs.indexed()
 							.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.nullable())
 							.withAttribute(ATTRIBUTE_EAN, String.class, thatIs -> thatIs.localized().nullable())
 							.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().nullable())
@@ -2018,7 +2018,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					)
 					.withReferenceToEntity(
 						Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.filterable()
+						whichIs -> whichIs.indexed()
 							.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.nullable())
 							.withAttribute(ATTRIBUTE_EAN, String.class, thatIs -> thatIs.localized().nullable())
 							.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().nullable())

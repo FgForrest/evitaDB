@@ -345,7 +345,7 @@ public final class EntitySchema implements EntitySchemaContract {
 				referenceSchemaContract.getReferencedGroupType(),
 				referenceSchemaContract.getGroupTypeNameVariants(entityType -> null),
 				referenceSchemaContract.isReferencedGroupTypeManaged(),
-				referenceSchemaContract.isFilterable(),
+				referenceSchemaContract.isIndexed(),
 				referenceSchemaContract.isFaceted(),
 				referenceSchemaContract.getAttributes(),
 				referenceSchemaContract.getSortableAttributeCompounds()

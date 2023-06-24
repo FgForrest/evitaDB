@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema;
 
 import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.filter.ReferenceHaving;
+import io.evitadb.api.query.order.ReferenceProperty;
 import io.evitadb.api.query.require.FacetSummary;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -177,15 +178,15 @@ public interface ReferenceSchemaContract extends
 
 	/**
 	 * Contains TRUE if the index for this reference should be created and maintained allowing to filter by
-	 * {@link ReferenceHaving} filtering constraints. Index is also required when reference is
-	 * {@link #isFaceted() faceted}.
+	 * {@link ReferenceHaving} filtering and sorted by {@link ReferenceProperty} constraints. Index is also required
+	 * when reference is {@link #isFaceted() faceted}.
 	 *
-	 * Do not mark reference as faceted unless you know that you'll need to filter entities by this reference. Each
-	 * indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed, the entity
-	 * cannot be looked up by reference attributes or relation existence itself, but the data is loaded alongside
-	 * other references and is available by calling {@link SealedEntity#getReferences()} method.
+	 * Do not mark reference as indexed unless you know that you'll need to filter / sort entities by this reference.
+	 * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+	 * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+	 * alongside other references and is available by calling {@link SealedEntity#getReferences()} method.
 	 */
-	boolean isFilterable();
+	boolean isIndexed();
 
 	/**
 	 * Contains TRUE if the statistics data for this reference should be maintained and this allowing to get

@@ -82,14 +82,14 @@ evita.defineCatalog("testCatalog")
 				"brand", "Brand", Cardinality.ZERO_OR_ONE,
 				whichIs -> whichIs
 					.withDescription("Reference to the brand or manufacturer of the product.")
-					.filterable()
+					.indexed()
 					.faceted()
 			)
 			.withReferenceToEntity(
 				"categories", "Category", Cardinality.ZERO_OR_MORE,
 				whichIs -> whichIs
 					.withDescription("Reference to one or more categories the product is listed in.")
-					.filterable()
+					.indexed()
 			)
 	)
 	.updateAndFetchViaNewSession(evita);
