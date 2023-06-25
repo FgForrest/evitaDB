@@ -26,7 +26,9 @@ package io.evitadb.core.query.sort.attribute.translator;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.order.ReferenceProperty;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.indexSelection.IndexSelectionVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
@@ -44,6 +46,8 @@ import javax.annotation.Nonnull;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.Optional;
+
+import static io.evitadb.utils.Assert.isTrue;
 
 /**
  * This implementation of {@link OrderingConstraintTranslator} converts {@link ReferenceProperty} to {@link Sorter}.
@@ -144,15 +148,13 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	@Override
 	public @Nonnull Sorter createSorter(@Nonnull ReferenceProperty orderConstraint, @Nonnull OrderByVisitor orderByVisitor) {
 		final String referenceName = orderConstraint.getReferenceName();
-		final ReferenceSchemaContract referenceSchema = orderByVisitor.isEntityTypeKnown() ?
-			orderByVisitor.getSchema().getReferenceOrThrowException(referenceName) : null;
-		final boolean referencedEntityHierarchical = orderByVisitor.isEntityTypeKnown() &&
-			referenceSchema.isReferencedEntityTypeManaged() &&
+		final EntitySchemaContract entitySchema = orderByVisitor.getSchema();
+		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
+		isTrue(referenceSchema.isIndexed(), () -> new ReferenceNotIndexedException(referenceName, entitySchema));
+		final boolean referencedEntityHierarchical = referenceSchema.isReferencedEntityTypeManaged() &&
 			orderByVisitor.getSchema(referenceSchema.getReferencedEntityType()).isWithHierarchy();
 
-		final EntityIndex[] reducedEntityIndexSet = orderByVisitor.isEntityTypeKnown() ?
-			selectReducedEntityIndexSet(orderByVisitor, referenceName, referenceSchema, referencedEntityHierarchical) :
-			EMPTY_INDEXES;
+		final EntityIndex[] reducedEntityIndexSet = selectReducedEntityIndexSet(orderByVisitor, referenceName, referenceSchema, referencedEntityHierarchical);
 		final EntityIndex[] referenceIndexes = ArrayUtils.isEmpty(reducedEntityIndexSet) ?
 			selectFullEntityIndexSet(orderByVisitor, referenceName, referenceSchema, referencedEntityHierarchical) :
 			reducedEntityIndexSet;

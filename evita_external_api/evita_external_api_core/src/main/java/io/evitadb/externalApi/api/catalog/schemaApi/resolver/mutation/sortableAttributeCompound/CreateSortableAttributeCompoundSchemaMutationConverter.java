@@ -58,7 +58,8 @@ public class CreateSortableAttributeCompoundSchemaMutationConverter extends Sort
 		return new CreateSortableAttributeCompoundSchemaMutation(
 			inputMutation.getRequiredField(SortableAttributeCompoundSchemaMutationDescriptor.NAME),
 			inputMutation.getOptionalField(CreateSortableAttributeCompoundSchemaMutationDescriptor.DESCRIPTION),
-			inputMutation.getOptionalField(CreateSortableAttributeCompoundSchemaMutationDescriptor.DEPRECATION_NOTICE)
+			inputMutation.getOptionalField(CreateSortableAttributeCompoundSchemaMutationDescriptor.DEPRECATION_NOTICE),
+			inputMutation.getRequiredField("attributeElements")
 		);
 	}
 }

@@ -51,6 +51,12 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.Modif
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.RemoveEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.*;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutationDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.model.UpdateEntitySchemaRequestDescriptor;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiObjectTransformer;
@@ -126,6 +132,14 @@ public class EntitySchemaObjectBuilder {
 		buildingContext.registerType(SetAttributeSchemaUniqueMutationDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(UseGlobalAttributeSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(ReferenceAttributeSchemaMutationAggregateDescriptor.THIS.to(objectBuilderTransformer).build());
+
+		// sortable attribute compound schema mutations
+		buildingContext.registerType(CreateSortableAttributeCompoundSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifySortableAttributeCompoundSchemaNameMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(RemoveSortableAttributeCompoundSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ReferenceSortableAttributeCompoundSchemaMutationAggregateDescriptor.THIS.to(objectBuilderTransformer).build());
 
 		// reference schema mutations
 		buildingContext.registerType(CreateReferenceSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());

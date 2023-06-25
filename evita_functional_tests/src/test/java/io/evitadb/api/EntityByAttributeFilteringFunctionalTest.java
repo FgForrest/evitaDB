@@ -539,6 +539,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 			session -> {
 				final EvitaResponse<EntityReference> result = session.query(
 					query(
+						collection(Entities.PRODUCT),
 						filterBy(
 							attributeInSet(ATTRIBUTE_CODE, selectedEntities.stream().map(it -> (String) it.getAttribute(ATTRIBUTE_CODE)).toArray(String[]::new))
 						),

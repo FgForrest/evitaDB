@@ -59,7 +59,7 @@ public interface CreateSortableAttributeCompoundSchemaMutationDescriptor extends
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("CreateAttributeSchemaMutation")
+		.name("CreateSortableAttributeCompoundSchemaMutation")
 		.description("""
 			Mutation is responsible for setting up a new `AttributeSchema` in the `EntitySchema`.
 			Mutation can be used for altering also the existing `AttributeSchema` alone.
