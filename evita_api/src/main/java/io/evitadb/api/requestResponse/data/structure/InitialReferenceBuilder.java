@@ -65,7 +65,6 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 	@Serial private static final long serialVersionUID = 2225492596172273289L;
 
 	private final EntitySchemaContract entitySchema;
-	private final BiPredicate<String, String> uniqueAttributePredicate;
 	@Getter private final ReferenceKey referenceKey;
 	@Getter private final Cardinality referenceCardinality;
 	@Getter private final String referencedEntityType;
@@ -104,14 +103,12 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 		@Nonnull String referenceName,
 		int referencedEntityPrimaryKey,
 		@Nullable Cardinality referenceCardinality,
-		@Nullable String referencedEntityType,
-		@Nonnull T uniqueAttributePredicate
+		@Nullable String referencedEntityType
 	) {
 		this.entitySchema = entitySchema;
 		this.referenceKey = new ReferenceKey(referenceName, referencedEntityPrimaryKey);
 		this.referenceCardinality = referenceCardinality;
 		this.referencedEntityType = referencedEntityType;
-		this.uniqueAttributePredicate = uniqueAttributePredicate;
 		this.groupId = null;
 		this.groupType = null;
 		this.attributesBuilder = new InitialAttributesBuilder(entitySchema, true);

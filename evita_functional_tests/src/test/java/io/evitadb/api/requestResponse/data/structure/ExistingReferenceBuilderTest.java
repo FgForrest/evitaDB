@@ -53,8 +53,7 @@ class ExistingReferenceBuilderTest extends AbstractBuilderTest {
 			"brand",
 			5,
 			Cardinality.ZERO_OR_ONE,
-			"brand",
-			(entityType, attributeName) -> false
+			"brand"
 		)
 			.setAttribute("brandPriority", 154L)
 			.setAttribute("country", Locale.ENGLISH, "Great Britain")
@@ -65,7 +64,7 @@ class ExistingReferenceBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldModifyAttributes() {
-		final ReferenceBuilder builder = new ExistingReferenceBuilder(initialReference, PRODUCT_SCHEMA, (entityType, attributeName) -> false)
+		final ReferenceBuilder builder = new ExistingReferenceBuilder(initialReference, PRODUCT_SCHEMA)
 			.setAttribute("brandPriority", 155L)
 			.removeAttribute("country", Locale.ENGLISH)
 			.setAttribute("newAttribute", "Hi");
@@ -88,7 +87,7 @@ class ExistingReferenceBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldSkipMutationsThatMeansNoChange() {
-		final ReferenceBuilder builder = new ExistingReferenceBuilder(initialReference, PRODUCT_SCHEMA, (entityType, attributeName) -> false)
+		final ReferenceBuilder builder = new ExistingReferenceBuilder(initialReference, PRODUCT_SCHEMA)
 			.setAttribute("brandPriority", 154L)
 			.setAttribute("country", Locale.ENGLISH, "Changed name")
 			.setAttribute("country", Locale.ENGLISH, "Great Britain")
@@ -99,7 +98,7 @@ class ExistingReferenceBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldModifyReferenceGroup() {
-		final ReferenceBuilder builder = new ExistingReferenceBuilder(initialReference, PRODUCT_SCHEMA, (entityType, attributeName) -> false)
+		final ReferenceBuilder builder = new ExistingReferenceBuilder(initialReference, PRODUCT_SCHEMA)
 			.setGroup("newGroup", 77);
 
 		assertEquals(
@@ -117,7 +116,7 @@ class ExistingReferenceBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldRemoveReferenceGroup() {
-		final ReferenceBuilder builder = new ExistingReferenceBuilder(initialReference, PRODUCT_SCHEMA, (entityType, attributeName) -> false)
+		final ReferenceBuilder builder = new ExistingReferenceBuilder(initialReference, PRODUCT_SCHEMA)
 			.removeGroup();
 
 		assertTrue(builder.getGroup().isEmpty());
@@ -129,7 +128,7 @@ class ExistingReferenceBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldReturnOriginalReferenceInstanceWhenNothingHasChanged() {
-		final ReferenceContract reference = new ExistingReferenceBuilder(initialReference, PRODUCT_SCHEMA, (entityType, attributeName) -> false)
+		final ReferenceContract reference = new ExistingReferenceBuilder(initialReference, PRODUCT_SCHEMA)
 			.setAttribute("brandPriority", 154L)
 			.setAttribute("country", Locale.ENGLISH, "Great Britain")
 			.setAttribute("country", Locale.CANADA, "Canada")

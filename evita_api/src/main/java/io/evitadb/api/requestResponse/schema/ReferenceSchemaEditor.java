@@ -71,7 +71,6 @@ public interface ReferenceSchemaEditor<S extends ReferenceSchemaEditor<S>> exten
 	 * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
 	 * alongside other references and is available by calling {@link SealedEntity#getReferences()} method.
 	 */
-	/* TODO JNO - change this to "indexed" + verify no attribute can be marked as filterable/sortable/compound on non-indexed reference */
 	S indexed();
 
 	/**
