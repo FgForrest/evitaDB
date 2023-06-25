@@ -96,7 +96,6 @@
 	  },
 	  {
 		"title": "Filtering",
-		"path": "/query/filtering.md",
 		"children": [
 		  {
 			"title": "Constant",
