@@ -51,6 +51,8 @@ import static org.hamcrest.Matchers.*;
 /**
  * Tests for GraphQL updating entity schema.
  *
+ * TODO LHO - add sortable attribute compound schema test
+ *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends CatalogGraphQLSchemaEndpointFunctionalTest {

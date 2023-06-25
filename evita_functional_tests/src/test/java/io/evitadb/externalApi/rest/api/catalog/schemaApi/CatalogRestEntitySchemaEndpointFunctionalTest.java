@@ -60,6 +60,8 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Functional tests for REST endpoints managing internal evitaDB entity schemas.
  *
+ * TODO LHO - add sortable attribute compound schema test
+ *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEndpointFunctionalTest {
