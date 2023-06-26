@@ -27,13 +27,11 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
-import java.util.Collections;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -103,49 +101,6 @@ public interface SortableAttributeCompoundSchemaMutation extends SchemaMutation 
 				entitySchema.getEvolutionMode(),
 				Stream.concat(
 						entitySchema.getSortableAttributeCompounds().values().stream().filter(it -> !updatedSchema.getName().equals(it.getName())),
-						Stream.of(updatedSchema)
-					)
-					.collect(
-						Collectors.toMap(
-							SortableAttributeCompoundSchemaContract::getName,
-							Function.identity()
-						)
-					)
-			);
-		}
-	}
-
-	/**
-	 * Replaces existing sortable attribute compound schema with updated one but only when those schemas differ.
-	 * Otherwise, the non-changed, original reference schema is returned.
-	 */
-	@Nonnull
-	default ReferenceSchemaContract replaceSortableAttributeCompoundIfDifferent(
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull SortableAttributeCompoundSchemaContract existingSchema,
-		@Nonnull SortableAttributeCompoundSchemaContract updatedSchema
-	) {
-		if (existingSchema.equals(updatedSchema)) {
-			// we don't need to update entity schema - the associated data already contains the requested change
-			return referenceSchema;
-		} else {
-			return ReferenceSchema._internalBuild(
-				referenceSchema.getName(),
-				referenceSchema.getNameVariants(),
-				referenceSchema.getDescription(),
-				referenceSchema.getDeprecationNotice(),
-				referenceSchema.getReferencedEntityType(),
-				referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
-				referenceSchema.isReferencedEntityTypeManaged(),
-				referenceSchema.getCardinality(),
-				referenceSchema.getReferencedGroupType(),
-				referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
-				referenceSchema.isReferencedGroupTypeManaged(),
-				referenceSchema.isIndexed(),
-				referenceSchema.isFaceted(),
-				referenceSchema.getAttributes(),
-				Stream.concat(
-						referenceSchema.getSortableAttributeCompounds().values().stream().filter(it -> !updatedSchema.getName().equals(it.getName())),
 						Stream.of(updatedSchema)
 					)
 					.collect(

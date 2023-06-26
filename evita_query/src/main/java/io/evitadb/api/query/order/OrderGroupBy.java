@@ -30,6 +30,7 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.require.FacetSummary;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -37,7 +38,19 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * TOBEDONE JNO - document me
+ * This `orderByGroup` is container for ordering groups within {@link FacetSummary}. This ordering constraint cannot
+ * be used anywhere else.
+ *
+ * Example:
+ *
+ * ```
+ * facetSummaryOfReference(
+ *    'parameters',
+ *    orderGroupBy(
+ *       attributeNatural('name', OrderDirection.ASC)
+ *    )
+ * )
+ * ```
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */

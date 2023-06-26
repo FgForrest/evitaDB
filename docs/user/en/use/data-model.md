@@ -227,6 +227,12 @@ constraint will match all entities that have at least one period that includes t
 common use case in e-commerce systems).
 </Note>
 
+### Sortable attribute compounds
+
+Sortable attribute compounds are not inserted into an entity, but are automatically created by the database when 
+an entity is inserted and maintain the index for the defined entity / reference attribute values. The attribute 
+compounds can only be used to sort the entities in the same way as the attribute.
+
 ### Associated data
 
 Associated data carry additional data entries that are never used for filtering / sorting but may be needed to be fetched

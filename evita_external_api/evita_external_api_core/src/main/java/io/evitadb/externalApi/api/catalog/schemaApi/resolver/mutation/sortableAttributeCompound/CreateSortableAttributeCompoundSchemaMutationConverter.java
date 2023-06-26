@@ -43,7 +43,8 @@ import java.util.Map;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class CreateSortableAttributeCompoundSchemaMutationConverter extends SortableAttributeCompoundSchemaMutationConverter<CreateSortableAttributeCompoundSchemaMutation> {
+public class CreateSortableAttributeCompoundSchemaMutationConverter
+	extends SortableAttributeCompoundSchemaMutationConverter<CreateSortableAttributeCompoundSchemaMutation> {
 
 	public CreateSortableAttributeCompoundSchemaMutationConverter(@Nonnull MutationObjectParser objectParser,
 	                                                              @Nonnull MutationResolvingExceptionFactory exceptionFactory) {

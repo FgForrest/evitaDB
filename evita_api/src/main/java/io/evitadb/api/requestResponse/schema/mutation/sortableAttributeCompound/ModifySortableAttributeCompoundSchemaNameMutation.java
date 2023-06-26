@@ -34,8 +34,6 @@ import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.SortableAttributeCompoundSchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -62,7 +60,7 @@ import java.io.Serial;
 @Immutable
 @EqualsAndHashCode
 public class ModifySortableAttributeCompoundSchemaNameMutation
-	implements CombinableEntitySchemaMutation, ReferenceSchemaMutation, SortableAttributeCompoundSchemaMutation {
+	implements CombinableEntitySchemaMutation, ReferenceSortableAttributeCompoundSchemaMutation {
 	@Serial private static final long serialVersionUID = -9180398601079510531L;
 	@Nonnull @Getter private final String name;
 	@Getter @Nonnull private final String newName;
