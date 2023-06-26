@@ -51,7 +51,7 @@ import java.util.Arrays;
 public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implements ConditionalSorter {
 	private static final int[] EMPTY_RESULT = new int[0];
 	/**
-	 * TODO JNO - document me;
+	 * Contains the {@link SortedRecordsProvider} implementation with merged pre-sorted records.
 	 */
 	@Getter private final SortedRecordsProvider sortedRecordsProvider;
 	/**
@@ -61,7 +61,7 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 
 	private MergedSortedRecordsSupplier(
 		@Nonnull SortedRecordsProvider sortedRecordsProvider,
-		@Nonnull Sorter unknownRecordIdsSorter
+		@Nullable Sorter unknownRecordIdsSorter
 	) {
 		this.sortedRecordsProvider = sortedRecordsProvider;
 		this.unknownRecordIdsSorter = unknownRecordIdsSorter;
@@ -69,7 +69,7 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 
 	public MergedSortedRecordsSupplier(
 		@Nonnull SortedRecordsProvider[] sortedRecordsProviders,
-		@Nonnull Sorter unknownRecordIdsSorter
+		@Nullable Sorter unknownRecordIdsSorter
 	) {
 		final int expectedMaxLength = Arrays.stream(sortedRecordsProviders)
 			.map(SortedRecordsProvider::getAllRecords)
@@ -152,7 +152,13 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 	 * Maps positions to the record ids in presorted set respecting start and end index.
 	 */
 	@Nonnull
-	private static SortResult fetchSlice(@Nonnull SortedRecordsProvider sortedRecordsProvider, int recordsFound, @Nonnull RoaringBitmap positions, int startIndex, int endIndex) {
+	private static SortResult fetchSlice(
+		@Nonnull SortedRecordsProvider sortedRecordsProvider,
+		int recordsFound,
+		@Nonnull RoaringBitmap positions,
+		int startIndex,
+		int endIndex
+	) {
 		final int[] buffer = new int[512];
 
 		final RoaringBatchIterator batchIterator = positions.getBatchIterator();

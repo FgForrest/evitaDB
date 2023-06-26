@@ -335,6 +335,7 @@ public class QueryPlanner {
 		@Nullable Sorter sorter,
 		@Nonnull QueryContext queryContext
 	) {
+		/* TODO JNO - toto implementovat i pro ExtraResulty */
 		if (sorter == null) {
 			return sorter;
 		} else {

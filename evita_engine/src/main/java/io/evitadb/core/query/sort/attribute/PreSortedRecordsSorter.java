@@ -76,7 +76,7 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	 */
 	private final Sorter unknownRecordIdsSorter;
 	/**
-	 * TODO JNO - document me
+	 * Field contains memoized value of {@link #getSortedRecordsProviders()} method.
 	 */
 	private SortedRecordsProvider[] memoizedSortedRecordsProviders;
 	/**

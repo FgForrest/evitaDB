@@ -24,17 +24,23 @@
 package io.evitadb.core.query.sort;
 
 import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.algebra.Formula;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * TODO JNO - document me
+ * This interface should be implemented by {@link Sorter} implementations that can be used or omitted based on
+ * the condition.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public interface ConditionalSorter extends Sorter {
 
+	/**
+	 * Method returns first applicable (either non-conditional, or conditional with satisfied condition) sorter from
+	 * the chain of sorters.
+	 */
 	@Nullable
 	static Sorter getFirstApplicableSorter(@Nullable Sorter sorter, @Nonnull QueryContext queryContext) {
 		while (sorter instanceof ConditionalSorter conditionalSorter && !conditionalSorter.shouldApply(queryContext)) {
@@ -44,9 +50,8 @@ public interface ConditionalSorter extends Sorter {
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @param queryContext
-	 * @return
+	 * Method must return TRUE in case the sorter {@link #sortAndSlice(QueryContext, Formula, int, int)} should be
+	 * applied on the query result.
 	 */
 	boolean shouldApply(@Nonnull QueryContext queryContext);
 

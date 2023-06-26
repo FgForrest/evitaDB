@@ -40,7 +40,10 @@ import java.util.PrimitiveIterator.OfInt;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * TODO JNO - document me
+ * This sorter requires list of pre-fetched entities in the {@link QueryContext}. If none is present the sorter is
+ * skipped entirely. If pre-fetched entities are present they are sorted by a {@link #entityComparator} that uses
+ * their data. This sorter avoids using pre-sorted indexes, because we speculate that the cardinality of the pre-fetched
+ * entities is low and the sorting will be faster than using the index.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
