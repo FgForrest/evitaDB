@@ -34,7 +34,6 @@ import java.util.List;
  * for schema-based external APIs.
  *
  * Note: this descriptor has static structure.
- * TODO LHO - I'm not sure about this class ...
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */

@@ -81,6 +81,7 @@ public class TestDataGenerator {
 	public static final String ATTRIBUTE_CAPACITY = "capacity";
 	public static final String ATTRIBUTE_DEPRECATED = "deprecated";
 	public static final String SORTABLE_ATTRIBUTE_COMPOUND_CODE_NAME = "codeName";
+	public static final String SORTABLE_ATTRIBUTE_COMPOUND_FOUNDED = "foundedCompound";
 	public static final String ASSOCIATED_DATA_LOCALIZATION = "localization";
 	public static final String REFERENCE_OBSOLETE_BRAND = "obsoleteBrand";
 	public static final String REFERENCE_BRAND_WITH_GROUP = "brandWithGroup";
@@ -212,6 +213,10 @@ public class TestDataGenerator {
 											.filterable())
 										.withAttribute(ATTRIBUTE_MARKET_SHARE, BigDecimal.class, thatIs -> thatIs.filterable().sortable())
 										.withAttribute(ATTRIBUTE_FOUNDED, OffsetDateTime.class, thatIs -> thatIs.filterable().sortable())
+										.withSortableAttributeCompound(
+											SORTABLE_ATTRIBUTE_COMPOUND_FOUNDED,
+											new AttributeElement(ATTRIBUTE_FOUNDED, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+										)
 								)
 								.withReferenceToEntity(
 									Entities.STORE,

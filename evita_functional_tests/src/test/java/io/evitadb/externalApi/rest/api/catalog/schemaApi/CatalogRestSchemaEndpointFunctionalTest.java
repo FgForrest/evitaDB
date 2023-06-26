@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
 import io.evitadb.externalApi.rest.api.resolver.serializer.DataTypeSerializer;
@@ -150,6 +151,7 @@ abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpointFunct
 			.e(EntitySchemaDescriptor.CURRENCIES.name(), entitySchema.getCurrencies().stream().map(Currency::toString).collect(Collectors.toList()))
 			.e(EntitySchemaDescriptor.EVOLUTION_MODE.name(), entitySchema.getEvolutionMode().stream().map(Enum::toString).collect(Collectors.toList()))
 			.e(EntitySchemaDescriptor.ATTRIBUTES.name(), createLinkedHashMap(entitySchema.getAttributes().size()))
+			.e(EntitySchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), createLinkedHashMap(entitySchema.getSortableAttributeCompounds().size()))
 			.e(EntitySchemaDescriptor.ASSOCIATED_DATA.name(), createLinkedHashMap(entitySchema.getAssociatedData().size()))
 			.e(EntitySchemaDescriptor.REFERENCES.name(), createLinkedHashMap(entitySchema.getReferences().size()));
 
@@ -161,6 +163,16 @@ abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpointFunct
 				attributes.put(
 					attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION),
 					attributeSchema instanceof GlobalAttributeSchemaContract ? createGlobalAttributeSchemaDto((GlobalAttributeSchemaContract) attributeSchema) : createAttributeSchemaDto(attributeSchema)
+				);
+			});
+		entitySchema.getSortableAttributeCompounds()
+			.values()
+			.forEach(sortableAttributeCompoundSchema -> {
+				//noinspection unchecked
+				final Map<String, Object> sortableAttributeCompounds = (Map<String, Object>) entitySchemaDto.get(EntitySchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name());
+				sortableAttributeCompounds.put(
+					sortableAttributeCompoundSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION),
+					createSortableAttributeCompoundSchemaDto(sortableAttributeCompoundSchema)
 				);
 			});
 		entitySchema.getAssociatedData()
@@ -237,6 +249,30 @@ abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpointFunct
 	}
 
 	@Nonnull
+	protected static Map<String, Object> createSortableAttributeCompoundSchemaDto(@Nonnull SortableAttributeCompoundSchemaContract sortableAttributeCompoundSchema) {
+		return map()
+			.e(NamedSchemaDescriptor.NAME.name(), sortableAttributeCompoundSchema.getName())
+			.e(NamedSchemaDescriptor.NAME_VARIANTS.name(), map()
+				.e(NameVariantsDescriptor.CAMEL_CASE.name(), sortableAttributeCompoundSchema.getNameVariant(NamingConvention.CAMEL_CASE))
+				.e(NameVariantsDescriptor.PASCAL_CASE.name(), sortableAttributeCompoundSchema.getNameVariant(NamingConvention.PASCAL_CASE))
+				.e(NameVariantsDescriptor.SNAKE_CASE.name(), sortableAttributeCompoundSchema.getNameVariant(NamingConvention.SNAKE_CASE))
+				.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), sortableAttributeCompoundSchema.getNameVariant(NamingConvention.UPPER_SNAKE_CASE))
+				.e(NameVariantsDescriptor.KEBAB_CASE.name(), sortableAttributeCompoundSchema.getNameVariant(NamingConvention.KEBAB_CASE))
+				.build())
+			.e(NamedSchemaDescriptor.DESCRIPTION.name(), sortableAttributeCompoundSchema.getDescription())
+			.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), sortableAttributeCompoundSchema.getDeprecationNotice())
+			.e(SortableAttributeCompoundSchemaDescriptor.ATTRIBUTE_ELEMENTS.name(), sortableAttributeCompoundSchema.getAttributeElements()
+				.stream()
+				.map(it -> map()
+					.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), it.attributeName())
+					.e(AttributeElementDescriptor.DIRECTION.name(), it.direction())
+					.e(AttributeElementDescriptor.BEHAVIOUR.name(), it.behaviour())
+					.build())
+				.toList())
+			.build();
+	}
+
+	@Nonnull
 	protected static Map<String, Object> createAssociatedDataSchemaDto(@Nonnull AssociatedDataSchemaContract associatedDataSchema) {
 		return map()
 			.e(NamedSchemaDescriptor.NAME.name(), associatedDataSchema.getName())
@@ -293,7 +329,8 @@ abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpointFunct
 			.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), referenceSchema.isReferencedGroupTypeManaged())
 			.e(ReferenceSchemaDescriptor.INDEXED.name(), referenceSchema.isIndexed())
 			.e(ReferenceSchemaDescriptor.FACETED.name(), referenceSchema.isFaceted())
-			.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), createLinkedHashMap(referenceSchema.getAttributes().size()));
+			.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), createLinkedHashMap(referenceSchema.getAttributes().size()))
+			.e(ReferenceSchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), createLinkedHashMap(referenceSchema.getSortableAttributeCompounds().size()));
 
 		referenceSchema.getAttributes()
 			.values()
@@ -303,6 +340,17 @@ abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpointFunct
 				attributes.put(
 					attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION),
 					createAttributeSchemaDto(attributeSchema)
+				);
+			});
+
+		referenceSchema.getSortableAttributeCompounds()
+			.values()
+			.forEach(sortableAttributeCompoundSchema -> {
+				//noinspection unchecked
+				final Map<String, Object> sortableAttributeCompounds = (Map<String, Object>) referenceSchemaBuilder.get(ReferenceSchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name());
+				sortableAttributeCompounds.put(
+					sortableAttributeCompoundSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION),
+					createSortableAttributeCompoundSchemaDto(sortableAttributeCompoundSchema)
 				);
 			});
 

@@ -23,13 +23,17 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi;
 
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AssociatedDataSchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.SortableAttributeCompoundSchemaDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -46,12 +50,12 @@ import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ENT
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static org.hamcrest.Matchers.*;
 
 /**
  * Tests for GraphQL updating entity schema.
- *
- * TODO LHO - add sortable attribute compound schema test
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
@@ -228,9 +232,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 				}
 				"""
 			)
-			.executeAndThen()
-			.statusCode(200)
-			.body(ERRORS_PATH, nullValue())
+			.executeAndExpectOkAndThen()
 			.body(
 				UPDATE_EMPTY_SCHEMA_PATH,
 				equalTo(
@@ -268,9 +270,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
                 }
 				"""
 			)
-			.executeAndThen()
-			.statusCode(200)
-			.body(ERRORS_PATH, nullValue())
+			.executeAndExpectOkAndThen()
 			.body(
 				EMPTY_SCHEMA_PATH,
 				equalTo(
@@ -322,9 +322,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 				}
 				"""
 			)
-			.executeAndThen()
-			.statusCode(200)
-			.body(ERRORS_PATH, nullValue())
+			.executeAndExpectOkAndThen()
 			.body(
 				UPDATE_EMPTY_SCHEMA_PATH,
 				equalTo(
@@ -377,6 +375,177 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.body(
 				UPDATE_EMPTY_SCHEMA_PATH + "." + EntitySchemaDescriptor.ALL_ATTRIBUTES.name() + "." + AttributeSchemaDescriptor.NAME.name(),
 				not(containsInRelativeOrder("mySpecialCode"))
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_SCHEMA_CHANGE)
+	@DisplayName("Should change sortable attribute compound schema")
+	void shouldChangeSortableAttributeCompoundSchema(GraphQLTester tester) {
+		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
+
+		// add new sortable attribute compound
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
+			.document(
+				"""
+					mutation {
+						updateEmptySchema (
+							mutations: [
+								{
+									createSortableAttributeCompoundSchemaMutation: {
+										name: "mySpecialCompound"
+										attributeElements: [
+											{
+												attributeName: "code"
+												direction: ASC
+												behaviour: NULLS_LAST
+											},
+											{
+												attributeName: "name"
+												direction: DESC
+												behaviour: NULLS_FIRST
+											}
+										]
+									}
+								}
+							]
+						) {
+							version
+						}
+					}
+					"""
+			)
+			.executeAndExpectOkAndThen()
+			.body(
+				UPDATE_EMPTY_SCHEMA_PATH,
+				equalTo(
+					map()
+						.e(EntitySchemaDescriptor.VERSION.name(), initialEntitySchemaVersion + 1)
+						.build()
+				)
+			);
+
+		// verify that new sortable attribute compound is present
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
+			.document(
+				"""
+					query {
+						getEmptySchema {
+							name
+							version
+							sortableAttributeCompounds {
+								mySpecialCompound {
+									name
+									attributeElements {
+										attributeName
+										direction
+										behaviour
+									}
+								}
+							}
+						}
+					}
+					"""
+			)
+			.executeAndExpectOkAndThen()
+			.body(
+				EMPTY_SCHEMA_PATH,
+				equalTo(
+					map()
+						.e(EntitySchemaDescriptor.NAME.name(), ENTITY_EMPTY)
+						.e(EntitySchemaDescriptor.VERSION.name(), initialEntitySchemaVersion + 1)
+						.e(EntitySchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), map()
+							.e("mySpecialCompound", map()
+								.e(SortableAttributeCompoundSchemaDescriptor.NAME.name(), "mySpecialCompound")
+								.e(SortableAttributeCompoundSchemaDescriptor.ATTRIBUTE_ELEMENTS.name(), List.of(
+									map()
+										.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), ATTRIBUTE_CODE)
+										.e(AttributeElementDescriptor.DIRECTION.name(), OrderDirection.ASC.name())
+										.e(AttributeElementDescriptor.BEHAVIOUR.name(), OrderBehaviour.NULLS_LAST.name())
+										.build(),
+									map()
+										.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), ATTRIBUTE_NAME)
+										.e(AttributeElementDescriptor.DIRECTION.name(), OrderDirection.DESC.name())
+										.e(AttributeElementDescriptor.BEHAVIOUR.name(), OrderBehaviour.NULLS_FIRST.name())
+										.build()
+								))))
+				)
+			);
+
+		// update sortable attribute compound
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
+			.document(
+				"""
+					mutation {
+						updateEmptySchema (
+							mutations: [
+								{
+									modifySortableAttributeCompoundDescriptionMutation: {
+										name: "mySpecialCompound"
+										description: "desc"
+									}
+								}
+							]
+						) {
+							version
+							sortableAttributeCompounds {
+								mySpecialCompound {
+									description
+								}
+							}
+						}
+					}
+					"""
+			)
+			.executeAndExpectOkAndThen()
+			.body(
+				UPDATE_EMPTY_SCHEMA_PATH,
+				equalTo(
+					map()
+						.e(EntitySchemaDescriptor.VERSION.name(), initialEntitySchemaVersion + 2)
+						.e(EntitySchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), map()
+							.e("mySpecialCompound", map()
+								.e(SortableAttributeCompoundSchemaDescriptor.DESCRIPTION.name(), "desc")
+							))
+						.build()
+				)
+			);
+
+		// remove sortable attribute compound
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
+			.document(
+				"""
+					mutation {
+						updateEmptySchema (
+							mutations: [
+								{
+									removeSortableAttributeCompoundMutation: {
+										name: "mySpecialCompound"
+									}
+								}
+							]
+						) {
+							version
+							allSortableAttributeCompounds {
+								name
+							}
+						}
+					}
+					"""
+			)
+			.executeAndExpectOkAndThen()
+			.body(
+				UPDATE_EMPTY_SCHEMA_PATH,
+				equalTo(
+					map()
+						.e(EntitySchemaDescriptor.VERSION.name(), initialEntitySchemaVersion + 3)
+						.e(EntitySchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS.name(), List.of())
+						.build()
+				)
 			);
 	}
 

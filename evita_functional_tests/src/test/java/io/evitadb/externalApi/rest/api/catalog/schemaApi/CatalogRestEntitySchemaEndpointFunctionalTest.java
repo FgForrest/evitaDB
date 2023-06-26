@@ -23,17 +23,12 @@
 
 package io.evitadb.externalApi.rest.api.catalog.schemaApi;
 
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.AssociatedDataSchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaWithDeprecationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
@@ -59,8 +54,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Functional tests for REST endpoints managing internal evitaDB entity schemas.
- *
- * TODO LHO - add sortable attribute compound schema test
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
@@ -213,8 +206,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 					]
 				}
 				""")
-			.executeAndThen()
-			.statusCode(200)
+			.executeAndExpectOkAndThen()
 			.body(EntitySchemaDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 1))
 			.body(
 				"",
@@ -227,8 +219,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/empty/schema")
 			.httpMethod(Request.METHOD_GET)
-			.executeAndThen()
-			.statusCode(200)
+			.executeAndExpectOkAndThen()
 			.body(
 				EntitySchemaDescriptor.ATTRIBUTES.name() + ".mySpecialCode",
 				equalTo(
@@ -277,8 +268,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 					]
 				}
 				""")
-			.executeAndThen()
-			.statusCode(200)
+			.executeAndExpectOkAndThen()
 			.body(EntitySchemaDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 2))
 			.body(
 				EntitySchemaDescriptor.ATTRIBUTES.name() + ".mySpecialCode",
@@ -327,10 +317,177 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 					]
 				}
 				""")
-			.executeAndThen()
-			.statusCode(200)
+			.executeAndExpectOkAndThen()
 			.body(EntitySchemaDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 3))
 			.body(EntitySchemaDescriptor.ATTRIBUTES.name() + ".mySpecialCode", nullValue())
+			.body(
+				"",
+				equalTo(
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+				)
+			);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE)
+	@DisplayName("Should change sortable attribute compound schema")
+	void shouldChangeSortableAttributeCompoundSchema(Evita evita, RestTester tester) {
+		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
+
+		// add new sortable attribute compound
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/empty/schema")
+			.httpMethod(Request.METHOD_PUT)
+			.requestBody("""
+				{
+					"mutations": [
+						{
+							"createSortableAttributeCompoundMutation": {
+								"name": "mySpecialCompound",
+								"attributeElements": [
+									{
+										"attributeName": "code",
+										"direction": "ASC",
+										"behaviour": "NULLS_LAST"
+									},
+									{
+										"attributeName": "name",
+										"direction": "DESC",
+										"behaviour": "NULLS_FIRST"
+									}
+								]
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(EntitySchemaDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 1))
+			.body(
+				"",
+				equalTo(
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+				)
+			);
+
+		// verify that the new sortable attribute compound is present
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/empty/schema")
+			.httpMethod(Request.METHOD_GET)
+			.executeAndExpectOkAndThen()
+			.body(
+				EntitySchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name() + ".mySpecialCompound",
+				equalTo(
+					map()
+						.e(SortableAttributeCompoundSchemaDescriptor.NAME.name(), "mySpecialCompound")
+						.e(NamedSchemaDescriptor.NAME_VARIANTS.name(), map()
+							.e(NameVariantsDescriptor.CAMEL_CASE.name(), "mySpecialCompound")
+							.e(NameVariantsDescriptor.PASCAL_CASE.name(), "MySpecialCompound")
+							.e(NameVariantsDescriptor.SNAKE_CASE.name(), "my_special_compound")
+							.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), "MY_SPECIAL_COMPOUND")
+							.e(NameVariantsDescriptor.KEBAB_CASE.name(), "my-special-compound")
+							.build())
+						.e(NamedSchemaDescriptor.DESCRIPTION.name(), null)
+						.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), null)
+						.e(SortableAttributeCompoundSchemaDescriptor.ATTRIBUTE_ELEMENTS.name(), List.of(
+							map()
+								.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), "code")
+								.e(AttributeElementDescriptor.DIRECTION.name(), OrderDirection.ASC)
+								.e(AttributeElementDescriptor.BEHAVIOUR.name(), OrderBehaviour.NULLS_LAST)
+								.build(),
+							map()
+								.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), "name")
+								.e(AttributeElementDescriptor.DIRECTION.name(), OrderDirection.DESC)
+								.e(AttributeElementDescriptor.BEHAVIOUR.name(), OrderBehaviour.NULLS_FIRST)
+								.build()
+							)
+						)
+						.build()
+				)
+			)
+			.body(
+				"",
+				equalTo(
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+				)
+			);
+
+		// update sortable attribute compound
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/empty/schema")
+			.httpMethod(Request.METHOD_PUT)
+			.requestBody("""
+				{
+					"mutations": [
+						{
+							modifySortableAttributeCompoundDescriptionMutation: {
+								name: "mySpecialCompound",
+								description: "My special compound"
+							}
+						}
+					]
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(EntitySchemaDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 2))
+			.body(
+				EntitySchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name() + ".mySpecialCompound",
+				equalTo(
+					map()
+						.e(SortableAttributeCompoundSchemaDescriptor.NAME.name(), "mySpecialCompound")
+						.e(NamedSchemaDescriptor.NAME_VARIANTS.name(), map()
+							.e(NameVariantsDescriptor.CAMEL_CASE.name(), "mySpecialCompound")
+							.e(NameVariantsDescriptor.PASCAL_CASE.name(), "MySpecialCompound")
+							.e(NameVariantsDescriptor.SNAKE_CASE.name(), "my_special_compound")
+							.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), "MY_SPECIAL_COMPOUND")
+							.e(NameVariantsDescriptor.KEBAB_CASE.name(), "my-special-compound")
+							.build())
+						.e(NamedSchemaDescriptor.DESCRIPTION.name(), "desc")
+						.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), null)
+						.e(SortableAttributeCompoundSchemaDescriptor.ATTRIBUTE_ELEMENTS.name(), List.of(
+								map()
+									.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), "code")
+									.e(AttributeElementDescriptor.DIRECTION.name(), OrderDirection.ASC)
+									.e(AttributeElementDescriptor.BEHAVIOUR.name(), OrderBehaviour.NULLS_LAST)
+									.build(),
+								map()
+									.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), "name")
+									.e(AttributeElementDescriptor.DIRECTION.name(), OrderDirection.DESC)
+									.e(AttributeElementDescriptor.BEHAVIOUR.name(), OrderBehaviour.NULLS_FIRST)
+									.build()
+							)
+						)
+						.build()
+				)
+			)
+			.body(
+				"",
+				equalTo(
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+				)
+			);
+
+		// remove sortable attribute compound
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/empty/schema")
+			.httpMethod(Request.METHOD_PUT)
+			.requestBody("""
+				{
+					"mutations": [
+						{
+							"removeSortableAttributeCompoundMutation": {
+								"name": "mySpecialCompound"
+							}
+						}
+					]
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(EntitySchemaDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 3))
+			.body(
+				EntitySchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name() + ".mySpecialCompound",
+				nullValue()
+			)
 			.body(
 				"",
 				equalTo(

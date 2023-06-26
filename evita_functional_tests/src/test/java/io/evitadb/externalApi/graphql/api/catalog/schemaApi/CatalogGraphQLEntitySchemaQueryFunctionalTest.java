@@ -910,6 +910,95 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return specific sortable attribute compound schema for specific reference schema")
+	void shouldReturnSpecificSortableAttributeCompoundSchemaForSpecificReferenceSchema(Evita evita, GraphQLTester tester) {
+		final EntitySchemaContract productSchema = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntitySchema(Entities.PRODUCT);
+			}
+		).orElseThrow();
+
+		final ReferenceSchemaContract brandReferenceSchema = productSchema.getReference(Entities.BRAND).orElseThrow();
+		final SortableAttributeCompoundSchemaContract foundedCompoundSchema = brandReferenceSchema.getSortableAttributeCompound(SORTABLE_ATTRIBUTE_COMPOUND_FOUNDED).orElseThrow();
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
+			.document(
+				"""
+					query {
+						getProductSchema {
+							references {
+								brand {
+									sortableAttributeCompounds {
+										__typename
+										foundedCompound {
+											__typename
+											name
+											nameVariants {
+												camelCase
+												pascalCase
+												snakeCase
+												upperSnakeCase
+												kebabCase
+											}
+											description
+											deprecationNotice
+											attributeElements {
+												attributeName
+												direction
+												behaviour
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+					"""
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				PRODUCT_SCHEMA_PATH,
+				equalTo(
+					map()
+						.e(EntitySchemaDescriptor.REFERENCES.name(), map()
+							.e("brand", map()
+								.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), map()
+									.e(TYPENAME_FIELD, SortableAttributeCompoundSchemasDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Brand")))
+									.e(ATTRIBUTE_BRAND_VISIBLE_FOR_B2C, map()
+										.e(TYPENAME_FIELD, SortableAttributeCompoundSchemaDescriptor.THIS.name())
+										.e(SortableAttributeCompoundSchemaDescriptor.NAME.name(), foundedCompoundSchema.getName())
+										.e(SortableAttributeCompoundSchemaDescriptor.NAME_VARIANTS.name(), map()
+											.e(NameVariantsDescriptor.CAMEL_CASE.name(), foundedCompoundSchema.getNameVariant(NamingConvention.CAMEL_CASE))
+											.e(NameVariantsDescriptor.PASCAL_CASE.name(), foundedCompoundSchema.getNameVariant(NamingConvention.PASCAL_CASE))
+											.e(NameVariantsDescriptor.SNAKE_CASE.name(), foundedCompoundSchema.getNameVariant(NamingConvention.SNAKE_CASE))
+											.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), foundedCompoundSchema.getNameVariant(NamingConvention.UPPER_SNAKE_CASE))
+											.e(NameVariantsDescriptor.KEBAB_CASE.name(), foundedCompoundSchema.getNameVariant(NamingConvention.KEBAB_CASE))
+											.build())
+										.e(SortableAttributeCompoundSchemaDescriptor.DESCRIPTION.name(), foundedCompoundSchema.getDescription())
+										.e(SortableAttributeCompoundSchemaDescriptor.DEPRECATION_NOTICE.name(), foundedCompoundSchema.getDeprecationNotice())
+										.e(SortableAttributeCompoundSchemaDescriptor.ATTRIBUTE_ELEMENTS.name(), foundedCompoundSchema.getAttributeElements()
+											.stream()
+											.map(it -> map()
+												.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), it.attributeName())
+												.e(AttributeElementDescriptor.DIRECTION.name(), it.direction().name())
+												.e(AttributeElementDescriptor.BEHAVIOUR.name(), it.behaviour().name())
+												.build())
+											.toList())
+										.build())
+									.build())
+								.build())
+							.build())
+						.build()
+				)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return all attribute schemas for specific reference schema")
 	void shouldReturnAllAttributeSchemasForSpecificReferenceSchema(Evita evita, GraphQLTester tester) {
 		final EntitySchemaContract productSchema = evita.queryCatalog(
@@ -920,7 +1009,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 		).orElseThrow();
 
 		final ReferenceSchemaContract brandReferenceSchema = productSchema.getReference(Entities.BRAND).orElseThrow();
-		assertFalse(brandReferenceSchema.getAttributes().isEmpty());
+		assertFalse(brandReferenceSchema.getSortableAttributeCompounds().isEmpty());
 
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/schema")
@@ -930,7 +1019,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 						getProductSchema {
 							references {
 								brand {
-									allAttributes {
+									allSortableAttributeCompounds {
 										__typename
 										name
 									}
@@ -944,11 +1033,11 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_SCHEMA_PATH + "." + EntitySchemaDescriptor.REFERENCES.name() + ".brand." + ReferenceSchemaDescriptor.ALL_ATTRIBUTES.name() + "." + TYPENAME_FIELD,
+				PRODUCT_SCHEMA_PATH + "." + EntitySchemaDescriptor.REFERENCES.name() + ".brand." + ReferenceSchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS.name() + "." + TYPENAME_FIELD,
 				containsInRelativeOrder(AttributeSchemaDescriptor.THIS.name())
 			)
 			.body(
-				PRODUCT_SCHEMA_PATH + "." + EntitySchemaDescriptor.REFERENCES.name() + ".brand." + ReferenceSchemaDescriptor.ALL_ATTRIBUTES.name() + "." + AttributeSchemaDescriptor.NAME.name(),
+				PRODUCT_SCHEMA_PATH + "." + EntitySchemaDescriptor.REFERENCES.name() + ".brand." + ReferenceSchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS.name() + "." + SortableAttributeCompoundSchemaDescriptor.NAME.name(),
 				containsInAnyOrder(brandReferenceSchema.getAttributes().keySet().toArray(String[]::new))
 			);
 	}
@@ -1036,6 +1125,54 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			.body(ERRORS_PATH, nullValue())
 			.body(
 				PRODUCT_SCHEMA_PATH + "." + EntitySchemaDescriptor.ALL_REFERENCES.name() + "." + ReferenceSchemaDescriptor.ALL_ATTRIBUTES.name(),
+				equalTo(referencesWithAttributes)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return all sortable attribute compound schemas for all reference schemas")
+	void shouldReturnAllSortableAttributeCompoundSchemasForAllReferenceSchemas(Evita evita, GraphQLTester tester) {
+		final EntitySchemaContract productSchema = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntitySchema(Entities.PRODUCT);
+			}
+		).orElseThrow();
+		assertFalse(productSchema.getReferences().isEmpty());
+
+		final List<List<Map<String, Object>>> referencesWithAttributes = productSchema.getReferences()
+			.values()
+			.stream()
+			.map(r -> r.getSortableAttributeCompounds().keySet().stream()
+				.map(a -> map()
+					.e(TYPENAME_FIELD, SortableAttributeCompoundSchemaDescriptor.THIS.name())
+					.e(SortableAttributeCompoundSchemaDescriptor.NAME.name(), a)
+					.build())
+				.toList())
+			.collect(Collectors.toList());
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
+			.document(
+				"""
+					query {
+						getProductSchema {
+							allReferences {
+								allSortableAttributeCompounds {
+									__typename
+									name
+								}
+							}
+						}
+					}
+					"""
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				PRODUCT_SCHEMA_PATH + "." + EntitySchemaDescriptor.ALL_REFERENCES.name() + "." + ReferenceSchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS.name(),
 				equalTo(referencesWithAttributes)
 			);
 	}
