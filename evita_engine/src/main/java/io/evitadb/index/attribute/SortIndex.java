@@ -650,17 +650,13 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 * Presorted array supplier. Allows really quickly provide information about record id at certain "presorted" position
 	 * and relatively quickly (much faster than binary search O(log n)) compute position of record with passed id.
 	 */
+	@RequiredArgsConstructor
 	public static class SortedRecordsSupplier implements SortedRecordsProvider, Serializable {
 		@Serial private static final long serialVersionUID = 6606884166778706442L;
-		@Getter private final int[] sortedRecordIds;
-		@Getter private final int[] recordPositions;
-		@Getter private final Bitmap allRecords;
-
-		public SortedRecordsSupplier(int[] sortedRecordIds, Bitmap allRecords, int[] recordPositions) {
-			this.sortedRecordIds = sortedRecordIds;
-			this.allRecords = allRecords;
-			this.recordPositions = recordPositions;
-		}
+		@Getter private final long transactionalId;
+		@Getter @Nonnull private final int[] sortedRecordIds;
+		@Getter @Nonnull private final int[] recordPositions;
+		@Getter @Nonnull private final Bitmap allRecords;
 
 		@Override
 		public int getRecordCount() {

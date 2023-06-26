@@ -35,6 +35,7 @@ import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
+import io.evitadb.core.query.sort.CacheableSortedRecordsProvider;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.array.CompositeLongArray;
 import io.evitadb.utils.StringUtils;
@@ -174,6 +175,8 @@ public class CacheEden {
 					return alterToResultRecordingFormula(recordHash, cachedRecord, hashFunction, inputFormula);
 				} else if (computationalObject instanceof final CacheableEvitaResponseExtraResultComputer<?> inputComputer) {
 					return alterToResultRecordingComputer(recordHash, cachedRecord, hashFunction, inputComputer);
+				} else if (computationalObject instanceof final CacheableSortedRecordsProvider sortedRecordsProvider) {
+					return alterToSortedRecordsProvider(recordHash, cachedRecord, hashFunction, sortedRecordsProvider);
 				} else if (computationalObject instanceof final EntityComputationalObjectAdapter entityWrapper) {
 					return fetchAndCacheEntity(recordHash, cachedRecord, hashFunction, entityWrapper);
 				} else {
@@ -413,6 +416,28 @@ public class CacheEden {
 				);
 			}
 		);
+	}
+
+	/**
+	 * Method will replace the `sortedRecordsProvider` with a clone that captures the result and store it to the eden
+	 * cache for future requests.
+	 */
+	@Nonnull
+	private <S> S alterToSortedRecordsProvider(long recordHash, @Nonnull CachedRecord cachedRecord, @Nonnull LongHashFunction hashFunction, @Nonnull CacheableSortedRecordsProvider sortedRecordsProvider) {
+		final CachePayloadHeader payload = sortedRecordsProvider.toSerializableResult(recordHash, hashFunction);
+		theCache.put(
+			recordHash,
+			new CachedRecord(
+				cachedRecord.getRecordHash(),
+				cachedRecord.getCostToPerformanceRatio(),
+				cachedRecord.getTimesUsed(),
+				cachedRecord.getSizeInBytes(),
+				sortedRecordsProvider.computeTransactionalIdHash(hashFunction),
+				payload
+			)
+		);
+		//noinspection unchecked
+		return (S) sortedRecordsProvider;
 	}
 
 	/**

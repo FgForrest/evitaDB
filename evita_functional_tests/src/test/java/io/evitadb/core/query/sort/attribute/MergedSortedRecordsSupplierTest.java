@@ -50,19 +50,19 @@ class MergedSortedRecordsSupplierTest {
 
 		assertArrayEquals(
 			new int[]{1, 2, 3, 4, 5, 6, 7},
-			result.getAllRecords().stream().toArray()
+			result.get().allRecords().stream().toArray()
 		);
 		assertArrayEquals(
 			new int[]{7, 1, 3, 5, 2, 4, 6},
-			result.getSortedRecordIds()
+			result.get().sortedRecordIds()
 		);
 		assertArrayEquals(
 			new int[]{1, 4, 2, 5, 3, 6, 0},
-			result.getRecordPositions()
+			result.get().recordPositions()
 		);
 		assertArrayEquals(
 			secondCheck.getRecordPositions(),
-			result.getRecordPositions()
+			result.get().recordPositions()
 		);
 	}
 

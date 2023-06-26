@@ -76,7 +76,6 @@ class FormulaCacheVisitorTest {
 
 		final Formula possiblyUpdatedFormula = FormulaCacheVisitor.analyse(
 			Mockito.mock(EvitaSession.class),
-			TEST_CATALOG,
 			SOME_ENTITY,
 			inputFormula,
 			cacheAnteroom
@@ -98,7 +97,6 @@ class FormulaCacheVisitorTest {
 
 		final Formula possiblyUpdatedFormula = FormulaCacheVisitor.analyse(
 			Mockito.mock(EvitaSession.class),
-			TEST_CATALOG,
 			SOME_ENTITY,
 			inputFormula,
 			cacheAnteroom
@@ -140,7 +138,6 @@ class FormulaCacheVisitorTest {
 
 		final Formula possiblyUpdatedFormula = FormulaCacheVisitor.analyse(
 			Mockito.mock(EvitaSession.class),
-			TEST_CATALOG,
 			SOME_ENTITY,
 			inputFormula,
 			cacheAnteroom
@@ -179,7 +176,6 @@ class FormulaCacheVisitorTest {
 
 		final Formula possiblyUpdatedFormula = FormulaCacheVisitor.analyse(
 			Mockito.mock(EvitaSession.class),
-			TEST_CATALOG,
 			SOME_ENTITY,
 			inputFormula,
 			cacheAnteroom
@@ -204,13 +200,13 @@ class FormulaCacheVisitorTest {
 		);
 
 		final EvitaSession evitaSession = Mockito.mock(EvitaSession.class);
-		final Formula possiblyUpdatedFormula = FormulaCacheVisitor.analyse(evitaSession, TEST_CATALOG, SOME_ENTITY, inputFormula, cacheAnteroom);
+		final Formula possiblyUpdatedFormula = FormulaCacheVisitor.analyse(evitaSession, SOME_ENTITY, inputFormula, cacheAnteroom);
 
 		// compute the instrumented formula
 		possiblyUpdatedFormula.compute();
 
 		for (int i = 0; i < MINIMAL_USAGE_THRESHOLD + 10; i++) {
-			FormulaCacheVisitor.analyse(evitaSession, TEST_CATALOG, SOME_ENTITY, inputFormula, cacheAnteroom);
+			FormulaCacheVisitor.analyse(evitaSession, SOME_ENTITY, inputFormula, cacheAnteroom);
 		}
 
 		final CacheRecordAdept cacheAdept = cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula);
@@ -218,7 +214,7 @@ class FormulaCacheVisitorTest {
 		assertEquals(3, cacheAdept.getSpaceToPerformanceRatio(MINIMAL_USAGE_THRESHOLD));
 
 		for (int i = 0; i < 100; i++) {
-			FormulaCacheVisitor.analyse(evitaSession, TEST_CATALOG, SOME_ENTITY, inputFormula, cacheAnteroom);
+			FormulaCacheVisitor.analyse(evitaSession, SOME_ENTITY, inputFormula, cacheAnteroom);
 		}
 
 		assertEquals(32, cacheAdept.getSpaceToPerformanceRatio(MINIMAL_USAGE_THRESHOLD));

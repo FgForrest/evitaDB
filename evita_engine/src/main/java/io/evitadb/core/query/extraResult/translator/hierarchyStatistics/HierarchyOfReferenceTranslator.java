@@ -94,7 +94,9 @@ public class HierarchyOfReferenceTranslator
 			final Sorter sorter = hierarchyOfReference.getOrderBy()
 				.map(
 					it -> extraResultPlanner.createSorter(
-						it, globalIndex,
+						it,
+						globalIndex,
+						entityType,
 						() -> "Hierarchy statistics of `" + entitySchema.getName() + "`: " + it
 					)
 				)

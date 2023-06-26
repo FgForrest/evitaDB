@@ -31,7 +31,6 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.Serializable;
 import java.util.Deque;
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -43,7 +42,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * usage is being tracked and evaluated.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
- * @see CacheAnteroom#register(EvitaSessionContract, String, Serializable, Formula, FormulaCacheVisitor) for more details
+ * @see CacheAnteroom#register(EvitaSessionContract, String, Formula, FormulaCacheVisitor)  for more details
  */
 public class FormulaCacheVisitor extends FormulaCloner {
 
@@ -51,17 +50,30 @@ public class FormulaCacheVisitor extends FormulaCloner {
 	 * Preferred way of invoking this visitor. Accepts formula (tree) and produces clone that may contain already
 	 * cached results.
 	 *
-	 * @see CacheAnteroom#register(EvitaSessionContract, String, Serializable, Formula, FormulaCacheVisitor) for more details
+	 * @see CacheAnteroom#register(EvitaSessionContract, String, Formula, FormulaCacheVisitor)  for more details
 	 */
 	@Nonnull
-	public static Formula analyse(@Nonnull EvitaSessionContract evitaSession, @Nonnull String catalogName, @Nonnull String entityType, @Nonnull Formula formulaToAnalyse, @Nonnull CacheAnteroom cacheAnteroom) {
-		final FormulaCacheVisitor visitor = new FormulaCacheVisitor(evitaSession, catalogName, entityType, cacheAnteroom);
+	public static Formula analyse(
+		@Nonnull EvitaSessionContract evitaSession,
+		@Nonnull String entityType,
+		@Nonnull Formula formulaToAnalyse,
+		@Nonnull CacheAnteroom cacheAnteroom
+	) {
+		final FormulaCacheVisitor visitor = new FormulaCacheVisitor(
+			evitaSession,
+			entityType,
+			cacheAnteroom
+		);
 		formulaToAnalyse.accept(visitor);
 		return visitor.getResultClone();
 	}
 
-	private FormulaCacheVisitor(@Nonnull EvitaSessionContract EvitaSessionContract, @Nonnull String catalogName, @Nonnull String entityType, @Nonnull CacheAnteroom cacheAnteroom) {
-		super((self, formula) -> cacheAnteroom.register(EvitaSessionContract, catalogName, entityType, formula, (FormulaCacheVisitor) self));
+	private FormulaCacheVisitor(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull String entityType,
+		@Nonnull CacheAnteroom cacheAnteroom
+	) {
+		super((self, formula) -> cacheAnteroom.register(session, entityType, formula, (FormulaCacheVisitor) self));
 	}
 
 	/**

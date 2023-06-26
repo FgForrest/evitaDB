@@ -30,6 +30,8 @@ import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
+import io.evitadb.core.query.sort.CacheableSortedRecordsProvider;
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -56,7 +58,6 @@ public class NoCacheSupervisor implements CacheSupervisor {
 	@Override
 	public <T extends Formula> T analyse(
 		@Nullable EvitaSessionContract evitaSession,
-		@Nonnull String catalogName,
 		@Nonnull String entityType,
 		@Nonnull T filterFormula
 	) {
@@ -69,7 +70,6 @@ public class NoCacheSupervisor implements CacheSupervisor {
 	@Override
 	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(
 		@Nullable EvitaSessionContract evitaSession,
-		@Nonnull String catalogName,
 		@Nonnull String entityType,
 		@Nonnull T extraResultComputer
 	) {
@@ -79,10 +79,20 @@ public class NoCacheSupervisor implements CacheSupervisor {
 
 	@Nonnull
 	@Override
+	public SortedRecordsProvider analyse(
+		@Nonnull EvitaSessionContract evitaSession,
+		@Nonnull String entityType,
+		@Nonnull CacheableSortedRecordsProvider sortedRecordsProvider
+	) {
+		// just compute the sorted records provider and return it
+		return sortedRecordsProvider.get();
+	}
+
+	@Nonnull
+	@Override
 	public Optional<EntityDecorator> analyse(
 		@Nonnull EvitaSessionContract evitaSession,
 		int primaryKey,
-		@Nonnull String catalogName,
 		@Nonnull String entityType,
 		@Nonnull OffsetDateTime offsetDateTime,
 		@Nullable EntityFetch entityRequirement,
@@ -97,7 +107,6 @@ public class NoCacheSupervisor implements CacheSupervisor {
 	public Optional<BinaryEntity> analyse(
 		@Nonnull EvitaSessionContract evitaSession,
 		int primaryKey,
-		@Nonnull String catalogName,
 		@Nonnull String entityType,
 		@Nullable EntityFetch entityRequirement,
 		@Nonnull Supplier<BinaryEntity> entityFetcher,

@@ -328,7 +328,6 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		final Optional<BinaryEntity> entity = cacheSupervisor.analyse(
 			session,
 			primaryKey,
-			getCatalog().getName(),
 			getSchema().getName(),
 			evitaRequest.getEntityRequirement(),
 			() -> doWithPersistenceService(
@@ -687,7 +686,6 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		return cacheSupervisor.analyse(
 			session,
 			primaryKey,
-			getCatalog().getName(),
 			getSchema().getName(),
 			evitaRequest.getAlignedNow(),
 			evitaRequest.getEntityRequirement(),

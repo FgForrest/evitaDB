@@ -38,6 +38,8 @@ import io.evitadb.core.query.algebra.price.termination.PriceTerminationFormula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
+import io.evitadb.core.query.sort.CacheableSortedRecordsProvider;
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.scheduling.Scheduler;
 import io.evitadb.utils.CollectionUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -156,7 +158,6 @@ public class CacheAnteroom {
 	@Nonnull
 	public Formula register(
 		@Nonnull EvitaSessionContract evitaSession,
-		@Nonnull String catalogName,
 		@Nonnull String entityType,
 		@Nonnull Formula formula,
 		@Nonnull FormulaCacheVisitor formulaVisitor
@@ -164,6 +165,7 @@ public class CacheAnteroom {
 		if (formula instanceof final CacheableFormula inputFormula &&
 			(formula instanceof CacheablePriceFormula || !formulaVisitor.isWithin(NonCacheableFormulaScope.class))) {
 			if (formula.getEstimatedCost() >= minimalComplexityThreshold) {
+				final String catalogName = evitaSession.getCatalogName();
 				final long formulaHash = computeDataStructureHash(catalogName, entityType, inputFormula);
 				final Formula cachedFormula = cacheEden.getCachedRecord(evitaSession, catalogName, entityType, inputFormula, Formula.class, formulaHash);
 				return cachedFormula != null ?
@@ -187,11 +189,11 @@ public class CacheAnteroom {
 	@Nonnull
 	public <U> EvitaResponseExtraResultComputer<?> register(
 		@Nonnull EvitaSessionContract evitaSession,
-		@Nonnull String catalogName,
 		@Nonnull String entityType,
 		@Nonnull CacheableEvitaResponseExtraResultComputer<U> computer
 	) {
 		if (computer.getEstimatedCost() > minimalComplexityThreshold) {
+			final String catalogName = evitaSession.getCatalogName();
 			final long recordHash = computeDataStructureHash(catalogName, entityType, computer);
 			final EvitaResponseExtraResultComputer<?> cachedResult = cacheEden.getCachedRecord(
 				evitaSession, catalogName, entityType, computer, EvitaResponseExtraResultComputer.class, recordHash
@@ -200,6 +202,32 @@ public class CacheAnteroom {
 				recordUsageAndReturnInstrumentedCopyIfNotYetSeen(computer, recordHash) : cachedResult;
 		} else {
 			return computer;
+		}
+	}
+
+	/**
+	 * Method examines `sortedRecordsProvider`, whether the computation seems expensive and whether sortedRecordsProvider claims that it
+	 * supports caching of its results. If so, it's checked for existing cached result in {@link CacheEden} and return
+	 * it immediately. If no cached result is found it registers the formula to {@link #cacheAdepts} and returns a clone
+	 * that records the detailed information on first computation.
+	 */
+	@SuppressWarnings("ClassEscapesDefinedScope")
+	@Nonnull
+	public SortedRecordsProvider register(
+		@Nonnull EvitaSessionContract evitaSession,
+		@Nonnull String entityType,
+		@Nonnull CacheableSortedRecordsProvider sortedRecordsProvider
+	) {
+		if (sortedRecordsProvider.getEstimatedCost() > minimalComplexityThreshold) {
+			final String catalogName = evitaSession.getCatalogName();
+			final long recordHash = computeDataStructureHash(catalogName, entityType, sortedRecordsProvider);
+			final SortedRecordsProvider cachedResult = cacheEden.getCachedRecord(
+				evitaSession, catalogName, entityType, sortedRecordsProvider, SortedRecordsProvider.class, recordHash
+			);
+			return cachedResult == null ?
+				recordUsageAndReturnInstrumentedCopyIfNotYetSeen(sortedRecordsProvider, recordHash) : cachedResult;
+		} else {
+			return sortedRecordsProvider.get();
 		}
 	}
 
@@ -214,7 +242,6 @@ public class CacheAnteroom {
 	public EntityDecorator register(
 		@Nonnull EvitaSessionContract evitaSession,
 		int entityPrimaryKey,
-		@Nonnull String catalogName,
 		@Nonnull String entityType,
 		@Nonnull OffsetDateTime alignedNow,
 		@Nullable EntityFetch entityRequirement,
@@ -222,6 +249,7 @@ public class CacheAnteroom {
 		@Nonnull UnaryOperator<EntityDecorator> enricher
 	) {
 		final LongHashFunction hashFunction = CacheSupervisor.createHashFunction();
+		final String catalogName = evitaSession.getCatalogName();
 		final long recordHash = hashFunction.hashLongs(
 			new long[]{
 				hashFunction.hashChars(catalogName),
@@ -278,7 +306,7 @@ public class CacheAnteroom {
 	 * and registers the entity request to {@link #cacheAdepts} along with the information about its size. The cache
 	 * adept information is then used to evaluate the worthiness of keeping this entity in cache.
 	 *
-	 * The method is analogous to {@link #register(EvitaSessionContract, int, String, String, OffsetDateTime, EntityFetch, Supplier, UnaryOperator)}
+	 * The method is analogous to {@link #register(EvitaSessionContract, int, String, OffsetDateTime, EntityFetch, Supplier, UnaryOperator)}
 	 * but it returns {@link BinaryEntity} instead.
 	 *
 	 * @see io.evitadb.api.requestResponse.EvitaBinaryEntityResponse
@@ -287,12 +315,12 @@ public class CacheAnteroom {
 	public BinaryEntity register(
 		@Nonnull EvitaSessionContract evitaSession,
 		int entityPrimaryKey,
-		@Nonnull String catalogName,
 		@Nonnull Serializable entityType,
 		@Nullable EntityFetch entityRequirement,
 		@Nonnull Supplier<BinaryEntity> entityFetcher
 	) {
 		final LongHashFunction hashFunction = CacheSupervisor.createHashFunction();
+		final String catalogName = evitaSession.getCatalogName();
 		final long recordHash = hashFunction.hashLongs(
 			new long[]{
 				hashFunction.hashChars(catalogName),
@@ -410,7 +438,12 @@ public class CacheAnteroom {
 	 * so, the {@link #evaluateAssociatesAsynchronously()} process is executed.
 	 */
 	@Nonnull
-	private Formula recordUsageAndReturnInstrumentedCopyIfNotYetSeen(@Nonnull FormulaCacheVisitor formulaVisitor, @Nonnull CacheableFormula inputFormula, long formulaHash) {
+	private Formula recordUsageAndReturnInstrumentedCopyIfNotYetSeen(
+		@Nonnull FormulaCacheVisitor formulaVisitor,
+		@Nonnull CacheableFormula inputFormula,
+		long formulaHash
+	) {
+		/* TOBEDONE JNO - the cache adept is not registered?! */
 		final ConcurrentHashMap<Long, CacheRecordAdept> currentCacheAdepts = this.cacheAdepts.get();
 		final CacheRecordAdept cacheFormulaAdept = currentCacheAdepts.get(formulaHash);
 		if (cacheFormulaAdept == null) {
@@ -443,7 +476,11 @@ public class CacheAnteroom {
 	 * so, the {@link #evaluateAssociatesAsynchronously()} process is executed.
 	 */
 	@Nonnull
-	private CacheableEvitaResponseExtraResultComputer<?> recordUsageAndReturnInstrumentedCopyIfNotYetSeen(@Nonnull CacheableEvitaResponseExtraResultComputer<?> extraResult, long extraResultHash) {
+	private CacheableEvitaResponseExtraResultComputer<?> recordUsageAndReturnInstrumentedCopyIfNotYetSeen(
+		@Nonnull CacheableEvitaResponseExtraResultComputer<?> extraResult,
+		long extraResultHash
+	) {
+		/* TOBEDONE JNO - the cache adept is not registered?! */
 		final ConcurrentHashMap<Long, CacheRecordAdept> currentCacheAdepts = this.cacheAdepts.get();
 		final CacheRecordAdept cacheRecordAdept = currentCacheAdepts.get(extraResultHash);
 		if (cacheRecordAdept == null) {
@@ -457,6 +494,30 @@ public class CacheAnteroom {
 		} else {
 			cacheRecordAdept.used();
 			return extraResult;
+		}
+	}
+
+	/**
+	 * Method will check whether the `extraResult` is already registered in {@link #cacheAdepts} and if so, it's immediately
+	 * returned. If not - new clone is created and {@link #recordDataOnComputationCompletion(long, int, long)}
+	 * is introduced to it so that critical information are filled in on first result computation.
+	 *
+	 * If new cache adept is created it's checked whether the number of adepts exceeds {@link #maxRecordCount} and if
+	 * so, the {@link #evaluateAssociatesAsynchronously()} process is executed.
+	 */
+	@Nonnull
+	private SortedRecordsProvider recordUsageAndReturnInstrumentedCopyIfNotYetSeen(
+		@Nonnull CacheableSortedRecordsProvider cacheableSortedRecordsProvider,
+		long extraResultHash
+	) {
+		/* TOBEDONE JNO - the cache adept is not registered?! */
+		final ConcurrentHashMap<Long, CacheRecordAdept> currentCacheAdepts = this.cacheAdepts.get();
+		final CacheRecordAdept cacheRecordAdept = currentCacheAdepts.get(extraResultHash);
+		if (cacheRecordAdept == null) {
+			return cacheableSortedRecordsProvider.get();
+		} else {
+			cacheRecordAdept.used();
+			return cacheableSortedRecordsProvider.get();
 		}
 	}
 
