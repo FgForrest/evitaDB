@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.store.dataType.serializer.HeterogeneousMapSerializer;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
@@ -120,7 +121,7 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 		final int sortableAttributeCompoundsCount = input.readVarInt(true);
 		final Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds = CollectionUtils.createHashMap(sortableAttributeCompoundsCount);
 		for (int i = 0; i < sortableAttributeCompoundsCount; i++) {
-			final SortableAttributeCompoundSchemaContract compoundSchemaContract = kryo.readObject(input, SortableAttributeCompoundSchemaContract.class);
+			final SortableAttributeCompoundSchema compoundSchemaContract = kryo.readObject(input, SortableAttributeCompoundSchema.class);
 			sortableAttributeCompounds.put(
 				compoundSchemaContract.getName(),
 				compoundSchemaContract

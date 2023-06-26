@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
@@ -148,7 +149,7 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 		final int sortableAttributeCompoundsCount = input.readVarInt(true);
 		final Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds = CollectionUtils.createHashMap(sortableAttributeCompoundsCount);
 		for (int i = 0; i < sortableAttributeCompoundsCount; i++) {
-			final SortableAttributeCompoundSchemaContract sortableCompoundSchema = kryo.readObject(input, SortableAttributeCompoundSchemaContract.class);
+			final SortableAttributeCompoundSchema sortableCompoundSchema = kryo.readObject(input, SortableAttributeCompoundSchema.class);
 			sortableAttributeCompounds.put(
 				sortableCompoundSchema.getName(),
 				sortableCompoundSchema

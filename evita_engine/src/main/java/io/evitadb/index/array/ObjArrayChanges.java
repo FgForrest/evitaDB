@@ -128,7 +128,7 @@ public class ObjArrayChanges<T extends Comparable<T>> {
 				return -1;
 			}
 			// if found in original array - return actual position
-			if (this.delegate[i].compareTo(recordId) == 0 && !replaceOriginal) {
+			if (comparator.compare(this.delegate[i], recordId) == 0 && !replaceOriginal) {
 				// value found in original array
 				return index;
 			}
