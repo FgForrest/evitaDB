@@ -29,6 +29,8 @@ examples and guides.</p>
   <a href="https://github.com/FgForrest/evitaDB/" title="GitHub"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/github.png" width="50px"/></a>
   &nbsp;
   <a href="https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x9d1149b0c74e939dd766c7a93de3cdccf660797f" title="PGP public key"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/fingerprint-scan.png" width="50px"/></a>
+
+  <a href="https://jmh.morethan.io/?gist=abc12461f21d1cc66a541417edcb6ba7&topBar=Evita%20DB%20Latest%20performance%20results" title="Latest performance results"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/statistics.png" width="50px"/></a>
 </p>
 
 evitaDB is a specialized database with easy-to-use API for e-commerce systems. It is a low-latency NoSQL in-memory engine 
