@@ -37,6 +37,7 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 
@@ -49,7 +50,7 @@ public class AttributeSetExactTranslator implements OrderingConstraintTranslator
 
 	@Nonnull
 	@Override
-	public Sorter createSorter(@Nonnull AttributeSetExact attributeSetExact, @Nonnull OrderByVisitor orderByVisitor) {
+	public Stream<Sorter> createSorter(@Nonnull AttributeSetExact attributeSetExact, @Nonnull OrderByVisitor orderByVisitor) {
 		final String attributeName = attributeSetExact.getAttributeName();
 		final ProcessingScope processingScope = orderByVisitor.getProcessingScope();
 		final AttributeSchemaContract attributeSchema = processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE);
@@ -63,21 +64,16 @@ public class AttributeSetExactTranslator implements OrderingConstraintTranslator
 			"Expected exactly one index for sorting, but " + indexForSort.length + " were found."
 		);
 
-		@SuppressWarnings("SuspiciousToArrayCall")
-		final AttributeExactSorter sorter = new AttributeExactSorter(
-			attributeName,
-			Arrays.stream(attributeSetExact.getAttributeValues())
-				.map(it -> EvitaDataTypes.toTargetType(it, attributeSchema.getPlainType()))
-				.toArray(Comparable[]::new),
-			indexForSort[0].getSortIndex(attributeName, orderByVisitor.getLocale())
+		//noinspection SuspiciousToArrayCall
+		return Stream.of(
+			new AttributeExactSorter(
+				attributeName,
+				Arrays.stream(attributeSetExact.getAttributeValues())
+					.map(it -> EvitaDataTypes.toTargetType(it, attributeSchema.getPlainType()))
+					.toArray(Comparable[]::new),
+				indexForSort[0].getSortIndex(attributeName, orderByVisitor.getLocale())
+			)
 		);
-
-		final Sorter lastUsedSorter = orderByVisitor.getLastUsedSorter();
-		if (lastUsedSorter == null) {
-			return sorter;
-		} else {
-			return lastUsedSorter.andThen(sorter);
-		}
 	}
 
 }

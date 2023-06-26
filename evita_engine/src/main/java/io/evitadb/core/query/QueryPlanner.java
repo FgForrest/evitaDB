@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.cache.payload.CachePayloadHeader;
 import io.evitadb.core.exception.InconsistentResultsException;
 import io.evitadb.core.query.algebra.AbstractFormula;
@@ -43,6 +44,8 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.IndexSelectionResult;
 import io.evitadb.core.query.indexSelection.IndexSelectionVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.core.query.sort.CacheableSorter;
+import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.CatalogIndex;
@@ -62,11 +65,12 @@ import net.openhft.hashing.LongHashFunction;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
 
@@ -118,15 +122,15 @@ public class QueryPlanner {
 
 			// create filtering formula and pick the formula with the least estimated costs
 			// this should be pretty fast - no computation is done yet
-			final List<QueryPlanBuilder> queryPlanBuilders = createFilterFormula(
+			List<QueryPlanBuilder> queryPlanBuilders = createFilterFormula(
 				context, indexSelectionResult
 			);
 
 			// create sorter
-			createSorter(context, indexSelectionResult.targetIndexes(), queryPlanBuilders);
+			queryPlanBuilders = createSorter(context, indexSelectionResult.targetIndexes(), queryPlanBuilders);
 
 			// create EvitaResponseExtraResult producers
-			createExtraResultProducers(context, queryPlanBuilders);
+			queryPlanBuilders = createExtraResultProducers(context, queryPlanBuilders);
 
 			// verify there is at least one plan
 			Assert.isPremiseValid(!queryPlanBuilders.isEmpty(), "Unexpectedly no query plan was created!");
@@ -322,6 +326,64 @@ public class QueryPlanner {
 	}
 
 	/**
+	 * Method creates a copy of the original sorter with all the cacheable sorter part implementations replaces with
+	 * their cacheable variant.
+	 */
+	@Nullable
+	private static Sorter replaceSorterWithCachedVariant(
+		@Nullable Sorter sorter,
+		@Nonnull QueryContext queryContext
+	) {
+		if (sorter == null) {
+			return sorter;
+		} else {
+			final LongHashFunction hashFunction = CacheSupervisor.createHashFunction();
+			final List<Sorter> sorters = new LinkedList<>();
+			boolean cacheableVariantFound = false;
+			Sorter nextSorter = sorter;
+			do {
+				if (nextSorter instanceof final CacheableSorter cacheableSorter) {
+					if (cacheableSorter instanceof ConditionalSorter conditionalSorter) {
+						if (conditionalSorter.shouldApply(queryContext)) {
+							sorters.add(
+								cacheableSorter.toSerializableResult(
+									cacheableSorter.computeHash(hashFunction),
+									hashFunction
+								)
+							);
+							cacheableVariantFound = true;
+						} else {
+							sorters.add(cacheableSorter);
+						}
+					} else {
+						sorters.add(
+							cacheableSorter.toSerializableResult(
+								cacheableSorter.computeHash(hashFunction),
+								hashFunction
+							)
+						);
+						cacheableVariantFound = true;
+					}
+				} else {
+					sorters.add(nextSorter);
+				}
+				nextSorter = nextSorter.getNextSorter();
+			} while (nextSorter != null);
+
+			if (cacheableVariantFound) {
+				Sorter replacedSorter = null;
+				for (Sorter theSorter : sorters) {
+					replacedSorter = replacedSorter == null ?
+						theSorter : theSorter.andThen(replacedSorter);
+				}
+				return replacedSorter;
+			} else {
+				return sorter;
+			}
+		}
+	}
+
+	/**
 	 * The method returns {@link PrefetchFormulaVisitor} in case the passed `targetIndex` represents
 	 * {@link GlobalEntityIndex} o {@link CatalogIndex}. In case of narrowed indexes some query may be omitted -
 	 * due the implicit lack of certain entities in such index - this would then must be taken into an account in
@@ -341,10 +403,10 @@ public class QueryPlanner {
 	 * and slices appropriate part of the result to respect limit/offset requirements from the query. No sorting/slicing
 	 * is done in this method, only the instance of {@link Sorter} capable of doing it is created and returned.
 	 */
-	private static void createSorter(
+	private static List<QueryPlanBuilder> createSorter(
 		@Nonnull QueryContext queryContext,
 		@Nonnull List<TargetIndexes> targetIndexes,
-		@Nonnull Collection<QueryPlanBuilder> builders
+		@Nonnull List<QueryPlanBuilder> builders
 	) {
 		queryContext.pushStep(QueryPhase.PLANNING_SORT);
 		try {
@@ -358,12 +420,42 @@ public class QueryPlanner {
 						queryContext, targetIndexes, builder, builder.getFilterFormula()
 					);
 					ofNullable(queryContext.getOrderBy()).ifPresent(orderByVisitor::visit);
-					builder.appendSorter(orderByVisitor.getSorter());
+					// in case of debug cached variant tree or the entity is not known, we cannot use cache here
+					// and we need to retain original non-cached sorter
+					final Sorter sorter = orderByVisitor.getSorter();
+					builder.appendSorter(sorter);
 				} finally {
 					if (multipleAlternatives) {
 						queryContext.popStep();
 					}
 				}
+			}
+			if (queryContext.isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES)) {
+				// create copy of each builder with cacheable variants of the sorter
+				return builders.stream()
+					.flatMap(builder -> {
+						final Sorter sorter = builder.getSorter();
+						final Sorter replacedSorter = replaceSorterWithCachedVariant(
+							sorter,
+							queryContext
+						);
+						if (sorter != null && replacedSorter != sorter) {
+							return Stream.of(
+								builder,
+								new QueryPlanBuilder(
+									queryContext, builder.getFilterFormula(),
+									builder.getTargetIndexes(),
+									builder.getPrefetchFormulaVisitor(),
+									replacedSorter
+								)
+							);
+						} else {
+							return Stream.of(builder);
+						}
+					})
+					.collect(Collectors.toList());
+			} else {
+				return builders;
 			}
 		} finally {
 			queryContext.popStep();
@@ -376,9 +468,9 @@ public class QueryPlanner {
 	 * account (which is a great advantage comparing to computation in multiple requests as needed in other database
 	 * solutions).
 	 */
-	private static void createExtraResultProducers(
+	private static List<QueryPlanBuilder> createExtraResultProducers(
 		@Nonnull QueryContext queryContext,
-		@Nonnull Collection<QueryPlanBuilder> builders
+		@Nonnull List<QueryPlanBuilder> builders
 	) {
 		if (queryContext.getRequire() != null) {
 			queryContext.pushStep(QueryPhase.PLANNING_EXTRA_RESULT_FABRICATION);
@@ -408,6 +500,7 @@ public class QueryPlanner {
 				queryContext.popStep();
 			}
 		}
+		return builders;
 	}
 
 	/**

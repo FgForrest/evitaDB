@@ -46,6 +46,7 @@ import javax.annotation.Nonnull;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import static io.evitadb.utils.Assert.isTrue;
 
@@ -145,8 +146,9 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		);
 	}
 
+	@Nonnull
 	@Override
-	public @Nonnull Sorter createSorter(@Nonnull ReferenceProperty orderConstraint, @Nonnull OrderByVisitor orderByVisitor) {
+	public Stream<Sorter> createSorter(@Nonnull ReferenceProperty orderConstraint, @Nonnull OrderByVisitor orderByVisitor) {
 		final String referenceName = orderConstraint.getReferenceName();
 		final EntitySchemaContract entitySchema = orderByVisitor.getSchema();
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
@@ -159,7 +161,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 			selectFullEntityIndexSet(orderByVisitor, referenceName, referenceSchema, referencedEntityHierarchical) :
 			reducedEntityIndexSet;
 
-		return orderByVisitor.executeInContext(
+		orderByVisitor.executeInContext(
 			referenceIndexes,
 			referenceSchema.getReferencedEntityType(),
 			orderByVisitor.getProcessingScope().withReferenceSchemaAccessor(referenceName),
@@ -168,9 +170,11 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 				for (OrderConstraint innerConstraint : orderConstraint.getChildren()) {
 					innerConstraint.accept(orderByVisitor);
 				}
-				return orderByVisitor.getLastUsedSorter();
+				return null;
 			}
 		);
+
+		return Stream.empty();
 	}
 
 }

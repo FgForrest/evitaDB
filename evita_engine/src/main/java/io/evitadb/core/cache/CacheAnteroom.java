@@ -38,8 +38,8 @@ import io.evitadb.core.query.algebra.price.termination.PriceTerminationFormula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
-import io.evitadb.core.query.sort.CacheableSortedRecordsProvider;
-import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
+import io.evitadb.core.query.sort.CacheableSorter;
+import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.scheduling.Scheduler;
 import io.evitadb.utils.CollectionUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -206,28 +206,28 @@ public class CacheAnteroom {
 	}
 
 	/**
-	 * Method examines `sortedRecordsProvider`, whether the computation seems expensive and whether sortedRecordsProvider claims that it
+	 * Method examines `cacheableSorter`, whether the computation seems expensive and whether cacheableSorter claims that it
 	 * supports caching of its results. If so, it's checked for existing cached result in {@link CacheEden} and return
 	 * it immediately. If no cached result is found it registers the formula to {@link #cacheAdepts} and returns a clone
 	 * that records the detailed information on first computation.
 	 */
 	@SuppressWarnings("ClassEscapesDefinedScope")
 	@Nonnull
-	public SortedRecordsProvider register(
+	public Sorter register(
 		@Nonnull EvitaSessionContract evitaSession,
 		@Nonnull String entityType,
-		@Nonnull CacheableSortedRecordsProvider sortedRecordsProvider
+		@Nonnull CacheableSorter cacheableSorter
 	) {
-		if (sortedRecordsProvider.getEstimatedCost() > minimalComplexityThreshold) {
+		if (cacheableSorter.getEstimatedCost() > minimalComplexityThreshold) {
 			final String catalogName = evitaSession.getCatalogName();
-			final long recordHash = computeDataStructureHash(catalogName, entityType, sortedRecordsProvider);
-			final SortedRecordsProvider cachedResult = cacheEden.getCachedRecord(
-				evitaSession, catalogName, entityType, sortedRecordsProvider, SortedRecordsProvider.class, recordHash
+			final long recordHash = computeDataStructureHash(catalogName, entityType, cacheableSorter);
+			final Sorter cachedResult = cacheEden.getCachedRecord(
+				evitaSession, catalogName, entityType, cacheableSorter, Sorter.class, recordHash
 			);
 			return cachedResult == null ?
-				recordUsageAndReturnInstrumentedCopyIfNotYetSeen(sortedRecordsProvider, recordHash) : cachedResult;
+				recordUsageAndReturnInstrumentedCopyIfNotYetSeen(cacheableSorter, recordHash) : cachedResult;
 		} else {
-			return sortedRecordsProvider.get();
+			return cacheableSorter;
 		}
 	}
 
@@ -506,18 +506,24 @@ public class CacheAnteroom {
 	 * so, the {@link #evaluateAssociatesAsynchronously()} process is executed.
 	 */
 	@Nonnull
-	private SortedRecordsProvider recordUsageAndReturnInstrumentedCopyIfNotYetSeen(
-		@Nonnull CacheableSortedRecordsProvider cacheableSortedRecordsProvider,
+	private Sorter recordUsageAndReturnInstrumentedCopyIfNotYetSeen(
+		@Nonnull CacheableSorter cacheableSorter,
 		long extraResultHash
 	) {
 		/* TOBEDONE JNO - the cache adept is not registered?! */
 		final ConcurrentHashMap<Long, CacheRecordAdept> currentCacheAdepts = this.cacheAdepts.get();
 		final CacheRecordAdept cacheRecordAdept = currentCacheAdepts.get(extraResultHash);
 		if (cacheRecordAdept == null) {
-			return cacheableSortedRecordsProvider.get();
+			return cacheableSorter.getCloneWithComputationCallback(
+				self -> recordDataOnComputationCompletion(
+					extraResultHash,
+					self.getSerializableResultSizeEstimate(),
+					self.getCostToPerformanceRatio()
+				)
+			);
 		} else {
 			cacheRecordAdept.used();
-			return cacheableSortedRecordsProvider.get();
+			return cacheableSorter;
 		}
 	}
 

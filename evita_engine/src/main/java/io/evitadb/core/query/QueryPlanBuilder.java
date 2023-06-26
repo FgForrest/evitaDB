@@ -76,7 +76,7 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	 * Collection of {@link ExtraResultProducer} that compute additional results requested in response.
 	 */
 	@Nonnull
-	private Collection<ExtraResultProducer> extraResultProducers = Collections.emptyList();
+	@Getter private Collection<ExtraResultProducer> extraResultProducers = Collections.emptyList();
 
 	/**
 	 * Returns empty query plan.
@@ -88,6 +88,36 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 			"None", EmptyFormula.INSTANCE, null,
 			NoSorter.INSTANCE, Collections.emptyList()
 		);
+	}
+
+	public QueryPlanBuilder(
+		@Nonnull QueryContext queryContext,
+		@Nonnull Formula filterFormula,
+		@Nonnull TargetIndexes targetIndexes,
+		@Nonnull PrefetchFormulaVisitor prefetchFormulaVisitor,
+		@Nonnull Sorter replacedSorter
+	) {
+		this.queryContext = queryContext;
+		this.filterFormula = filterFormula;
+		this.targetIndexes = targetIndexes;
+		this.prefetchFormulaVisitor = prefetchFormulaVisitor;
+		this.sorter = replacedSorter;
+	}
+
+	public QueryPlanBuilder(
+		@Nonnull QueryContext queryContext,
+		@Nonnull Formula filterFormula,
+		@Nonnull TargetIndexes targetIndexes,
+		@Nonnull PrefetchFormulaVisitor prefetchFormulaVisitor,
+		@Nonnull Sorter replacedSorter,
+		@Nonnull Collection<ExtraResultProducer> extraResultProducers
+	) {
+		this.queryContext = queryContext;
+		this.filterFormula = filterFormula;
+		this.targetIndexes = targetIndexes;
+		this.prefetchFormulaVisitor = prefetchFormulaVisitor;
+		this.sorter = replacedSorter;
+		this.extraResultProducers = extraResultProducers;
 	}
 
 	@Override

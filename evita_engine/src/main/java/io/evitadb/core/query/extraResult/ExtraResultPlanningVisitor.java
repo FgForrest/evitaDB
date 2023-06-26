@@ -387,7 +387,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 					}
 					// create a deferred sorter that will log the execution time to query telemetry
 					return new DeferredSorter(
-						orderByVisitor.getLastUsedSorter(),
+						orderByVisitor.getSorter(),
 						sorter -> {
 							try {
 								queryContext.pushStep(QueryPhase.EXECUTION_SORT_AND_SLICE, stepDescriptionSupplier);

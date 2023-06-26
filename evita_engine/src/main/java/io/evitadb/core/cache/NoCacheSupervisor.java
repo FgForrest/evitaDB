@@ -30,8 +30,8 @@ import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
-import io.evitadb.core.query.sort.CacheableSortedRecordsProvider;
-import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
+import io.evitadb.core.query.sort.CacheableSorter;
+import io.evitadb.core.query.sort.Sorter;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -79,13 +79,13 @@ public class NoCacheSupervisor implements CacheSupervisor {
 
 	@Nonnull
 	@Override
-	public SortedRecordsProvider analyse(
+	public Sorter analyse(
 		@Nonnull EvitaSessionContract evitaSession,
 		@Nonnull String entityType,
-		@Nonnull CacheableSortedRecordsProvider sortedRecordsProvider
+		@Nonnull CacheableSorter sortedRecordsProvider
 	) {
 		// just compute the sorted records provider and return it
-		return sortedRecordsProvider.get();
+		return sortedRecordsProvider;
 	}
 
 	@Nonnull

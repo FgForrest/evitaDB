@@ -21,28 +21,33 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.sort.random.translator;
+package io.evitadb.core.query.sort;
 
-import io.evitadb.api.query.order.Random;
-import io.evitadb.core.query.sort.OrderByVisitor;
-import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.query.sort.random.RandomSorter;
-import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
+import io.evitadb.core.query.QueryContext;
 
 import javax.annotation.Nonnull;
-import java.util.stream.Stream;
+import javax.annotation.Nullable;
 
 /**
- * This implementation of {@link OrderingConstraintTranslator} converts {@link Random} to {@link Sorter}.
+ * TODO JNO - document me
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class RandomTranslator implements OrderingConstraintTranslator<Random> {
+public interface ConditionalSorter extends Sorter {
 
-	@Nonnull
-	@Override
-	public Stream<Sorter> createSorter(@Nonnull Random random, @Nonnull OrderByVisitor orderByVisitor) {
-		return Stream.of(new RandomSorter());
+	@Nullable
+	static Sorter getFirstApplicableSorter(@Nullable Sorter sorter, @Nonnull QueryContext queryContext) {
+		while (sorter instanceof ConditionalSorter conditionalSorter && !conditionalSorter.shouldApply(queryContext)) {
+			sorter = conditionalSorter.getNextSorter();
+		}
+		return sorter;
 	}
+
+	/**
+	 * TODO JNO - document me
+	 * @param queryContext
+	 * @return
+	 */
+	boolean shouldApply(@Nonnull QueryContext queryContext);
 
 }

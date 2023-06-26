@@ -58,7 +58,10 @@ public class DeferredSorter implements Sorter {
 	@Nonnull
 	@Override
 	public int[] sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex) {
-		return executionWrapper.apply(() -> sorter.sortAndSlice(queryContext, input, startIndex, endIndex));
+		return executionWrapper.apply(
+			() -> ConditionalSorter.getFirstApplicableSorter(sorter, queryContext)
+				.sortAndSlice(queryContext, input, startIndex, endIndex)
+		);
 	}
 
 }

@@ -34,6 +34,7 @@ import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter;
+import io.evitadb.core.query.sort.attribute.PrefetchedRecordsSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
 import io.evitadb.index.EntityIndex;
@@ -45,6 +46,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.order.OrderDirection.ASC;
 
@@ -58,10 +60,9 @@ public class AttributeNaturalTranslator
 
 	@Nonnull
 	@Override
-	public Sorter createSorter(@Nonnull AttributeNatural attributeNatural, @Nonnull OrderByVisitor orderByVisitor) {
+	public Stream<Sorter> createSorter(@Nonnull AttributeNatural attributeNatural, @Nonnull OrderByVisitor orderByVisitor) {
 		final String attributeName = attributeNatural.getAttributeName();
 		final OrderDirection orderDirection = attributeNatural.getOrderDirection();
-		final Sorter lastUsedSorter = orderByVisitor.getLastUsedSorter();
 		final Locale locale = orderByVisitor.getLocale();
 		final ProcessingScope processingScope = orderByVisitor.getProcessingScope();
 		final AttributeExtractor attributeSchemaEntityAccessor = processingScope.attributeEntityAccessor();
@@ -98,15 +99,12 @@ public class AttributeNaturalTranslator
 
 		// if prefetch happens we need to prefetch attributes so that the attribute comparator can work
 		orderByVisitor.addRequirementToPrefetch(attributeSchemaEntityAccessor.getRequirements());
-		final PreSortedRecordsSorter sorter = new PreSortedRecordsSorter(
-			processingScope.entityType(), sortedRecordsSupplier, comparator
+		return Stream.of(
+			new PrefetchedRecordsSorter(comparator),
+			new PreSortedRecordsSorter(
+				processingScope.entityType(), sortedRecordsSupplier
+			)
 		);
-
-		if (lastUsedSorter == null) {
-			return sorter;
-		} else {
-			return lastUsedSorter.andThen(sorter);
-		}
 	}
 
 	@Nonnull

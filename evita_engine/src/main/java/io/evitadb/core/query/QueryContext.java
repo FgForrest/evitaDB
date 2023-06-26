@@ -65,6 +65,7 @@ import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.translator.facet.producer.FilteringFormulaPredicate;
+import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.exception.EvitaInternalError;
@@ -831,6 +832,7 @@ public class QueryContext {
 	@Nonnull
 	public DataChunk<Integer> createDataChunk(int totalRecordCount, @Nonnull Formula filteringFormula, @Nonnull Sorter sorter) {
 		final int firstRecordOffset = evitaRequest.getFirstRecordOffset(totalRecordCount);
+		sorter = ConditionalSorter.getFirstApplicableSorter(sorter, this);
 		return evitaRequest.createDataChunk(
 			totalRecordCount,
 			Arrays.stream(

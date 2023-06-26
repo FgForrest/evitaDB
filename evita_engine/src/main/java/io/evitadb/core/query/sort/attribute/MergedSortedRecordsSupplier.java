@@ -23,22 +23,24 @@
 
 package io.evitadb.core.query.sort.attribute;
 
-import io.evitadb.core.query.sort.CacheableSortedRecordsProvider;
+import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
-import io.evitadb.core.query.sort.attribute.cache.FlattenedMergedSortedRecordsProvider;
-import io.evitadb.index.attribute.SortIndex.SortedRecordsSupplier;
+import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.ArrayUtils;
-import lombok.RequiredArgsConstructor;
-import net.openhft.hashing.LongHashFunction;
+import lombok.Getter;
+import org.roaringbitmap.BatchIterator;
+import org.roaringbitmap.RoaringBatchIterator;
 import org.roaringbitmap.RoaringBitmap;
+import org.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
-import java.util.function.Function;
-import java.util.stream.LongStream;
-import java.util.stream.Stream;
 
 /**
  * Implementation of the {@link SortedRecordsProvider} that merges multiple instances into a one discarding
@@ -46,137 +48,194 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@RequiredArgsConstructor
-public class MergedSortedRecordsSupplier implements CacheableSortedRecordsProvider {
-	private static final long CLASS_ID = 795011057191754417L;
-	private final @Nonnull SortedRecordsProvider[] sortedRecordsProviders;
+public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implements ConditionalSorter {
+	private static final int[] EMPTY_RESULT = new int[0];
 	/**
-	 * Contains memoized value of {@link #computeHash(LongHashFunction)} method.
+	 * TODO JNO - document me;
 	 */
-	private Long memoizedHash;
+	@Getter private final SortedRecordsProvider sortedRecordsProvider;
 	/**
-	 * Contains memoized value of {@link #gatherTransactionalIds()} method.
+	 * This sorter instance will be used for sorting entities, that cannot be sorted by this sorter.
 	 */
-	private long[] memoizedTransactionalIds;
-	/**
-	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
-	 */
-	private Long memoizedTransactionalIdHash;
-	/**
-	 * Contains memoized value of {@link #get()} method.
-	 */
-	private MergedSortedRecordsProvider memoizedResult;
+	private final Sorter unknownRecordIdsSorter;
 
-	@Override
-	public long computeHash(@Nonnull LongHashFunction hashFunction) {
-		if (memoizedHash == null) {
-			memoizedHash = hashFunction.hashLongs(
-				Stream.of(
-						LongStream.of(CLASS_ID),
-						LongStream.of(
-							Arrays.stream(sortedRecordsProviders)
-								.filter(SortedRecordsSupplier.class::isInstance)
-								.map(SortedRecordsSupplier.class::cast)
-								.mapToLong(SortedRecordsSupplier::getTransactionalId)
-								.toArray()
-						)
-					)
-					.flatMapToLong(Function.identity())
-					.toArray()
-			);
-		}
-		return memoizedHash;
+	private MergedSortedRecordsSupplier(
+		@Nonnull SortedRecordsProvider sortedRecordsProvider,
+		@Nonnull Sorter unknownRecordIdsSorter
+	) {
+		this.sortedRecordsProvider = sortedRecordsProvider;
+		this.unknownRecordIdsSorter = unknownRecordIdsSorter;
 	}
 
-	@Override
-	public long computeTransactionalIdHash(@Nonnull LongHashFunction hashFunction) {
-		if (memoizedTransactionalIdHash == null) {
-			memoizedTransactionalIdHash = hashFunction.hashLongs(gatherTransactionalIds());
+	public MergedSortedRecordsSupplier(
+		@Nonnull SortedRecordsProvider[] sortedRecordsProviders,
+		@Nonnull Sorter unknownRecordIdsSorter
+	) {
+		final int expectedMaxLength = Arrays.stream(sortedRecordsProviders)
+			.map(SortedRecordsProvider::getAllRecords)
+			.mapToInt(Bitmap::size).sum();
+		final RoaringBitmap mergedAllRecords = new RoaringBitmap();
+		final int[] mergedSortedRecordIds = new int[expectedMaxLength];
+		final int[] mergedRecordPositions = new int[expectedMaxLength];
+		int writePeak = -1;
+
+		for (final SortedRecordsProvider sortedRecordsProvider : sortedRecordsProviders) {
+			final int[] instanceSortedRecordIds = sortedRecordsProvider.getSortedRecordIds();
+			for (int instanceSortedRecordId : instanceSortedRecordIds) {
+				if (mergedAllRecords.checkedAdd(instanceSortedRecordId)) {
+					writePeak++;
+					mergedSortedRecordIds[writePeak] = instanceSortedRecordId;
+					mergedRecordPositions[writePeak] = writePeak;
+				}
+			}
 		}
-		return memoizedTransactionalIdHash;
+		final BaseBitmap allRecords = new BaseBitmap(mergedAllRecords);
+		final int[] sortedRecordIds = Arrays.copyOfRange(mergedSortedRecordIds, 0, writePeak + 1);
+		final int[] recordPositions = Arrays.copyOfRange(mergedRecordPositions, 0, writePeak + 1);
+		ArrayUtils.sortSecondAlongFirstArray(
+			sortedRecordIds,
+			recordPositions
+		);
+		this.sortedRecordsProvider = new MergedSortedRecordsProvider(
+			allRecords, sortedRecordIds, recordPositions
+		);
+		this.unknownRecordIdsSorter = unknownRecordIdsSorter;
 	}
 
 	@Nonnull
 	@Override
-	public long[] gatherTransactionalIds() {
-		if (memoizedTransactionalIds == null) {
-			memoizedTransactionalIds = Arrays.stream(sortedRecordsProviders)
-				.filter(SortedRecordsSupplier.class::isInstance)
-				.map(SortedRecordsSupplier.class::cast)
-				.mapToLong(SortedRecordsSupplier::getTransactionalId)
-				.toArray();
-		}
-		return memoizedTransactionalIds;
-	}
-
-	@Override
-	public long getEstimatedCost() {
-		return get().getRecordCount() * getOperationCost();
-	}
-
-	@Override
-	public long getCost() {
-		return getEstimatedCost();
-	}
-
-	@Override
-	public long getOperationCost() {
-		return 19687L;
-	}
-
-	@Override
-	public long getCostToPerformanceRatio() {
-		return getCost() / (get().getRecordCount() * getOperationCost());
-	}
-
-	@Override
-	public FlattenedMergedSortedRecordsProvider toSerializableResult(long extraResultHash, @Nonnull LongHashFunction hashFunction) {
-		return new FlattenedMergedSortedRecordsProvider(
-			computeHash(hashFunction),
-			computeTransactionalIdHash(hashFunction),
-			gatherTransactionalIds(),
-			get()
+	public Sorter andThen(Sorter sorterForUnknownRecords) {
+		return new MergedSortedRecordsSupplier(
+			sortedRecordsProvider, sorterForUnknownRecords
 		);
 	}
 
+	@Nullable
 	@Override
-	public int getSerializableResultSizeEstimate() {
-		return FlattenedMergedSortedRecordsProvider.estimateSize(gatherTransactionalIds(), get());
+	public Sorter getNextSorter() {
+		return unknownRecordIdsSorter;
 	}
 
 	@Override
-	public MergedSortedRecordsProvider get() {
-		if (memoizedResult == null) {
-			final int expectedMaxLength = Arrays.stream(sortedRecordsProviders)
-				.map(SortedRecordsProvider::getAllRecords)
-				.mapToInt(Bitmap::size).sum();
-			final RoaringBitmap mergedAllRecords = new RoaringBitmap();
-			final int[] mergedSortedRecordIds = new int[expectedMaxLength];
-			final int[] mergedRecordPositions = new int[expectedMaxLength];
-			int writePeak = -1;
+	public boolean shouldApply(@Nonnull QueryContext queryContext) {
+		return queryContext.getPrefetchedEntities() == null;
+	}
 
-			for (final SortedRecordsProvider sortedRecordsProvider : sortedRecordsProviders) {
-				final int[] instanceSortedRecordIds = sortedRecordsProvider.getSortedRecordIds();
-				for (int instanceSortedRecordId : instanceSortedRecordIds) {
-					if (mergedAllRecords.checkedAdd(instanceSortedRecordId)) {
-						writePeak++;
-						mergedSortedRecordIds[writePeak] = instanceSortedRecordId;
-						mergedRecordPositions[writePeak] = writePeak;
-					}
-				}
-			}
-			final BaseBitmap allRecords = new BaseBitmap(mergedAllRecords);
-			final int[] sortedRecordIds = Arrays.copyOfRange(mergedSortedRecordIds, 0, writePeak + 1);
-			final int[] recordPositions = Arrays.copyOfRange(mergedRecordPositions, 0, writePeak + 1);
-			ArrayUtils.sortSecondAlongFirstArray(
-				sortedRecordIds,
-				recordPositions
+	@Nonnull
+	@Override
+	public int[] sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex) {
+		final Bitmap selectedRecordIds = input.compute();
+		if (selectedRecordIds.isEmpty()) {
+			return EMPTY_RESULT;
+		} else {
+			final MaskResult positions = getMask(sortedRecordsProvider, selectedRecordIds);
+			final SortResult sortPartialResult = fetchSlice(
+				sortedRecordsProvider, selectedRecordIds.size(), positions.mask(), startIndex, endIndex
 			);
-			memoizedResult = new MergedSortedRecordsProvider(
-				allRecords, sortedRecordIds, recordPositions
+			return returnResultAppendingUnknown(
+				queryContext, sortPartialResult,
+				positions.notFoundRecords(), unknownRecordIdsSorter,
+				startIndex, endIndex
 			);
 		}
-		return memoizedResult;
+	}
+
+	/**
+	 * Maps positions to the record ids in presorted set respecting start and end index.
+	 */
+	@Nonnull
+	private static SortResult fetchSlice(@Nonnull SortedRecordsProvider sortedRecordsProvider, int recordsFound, @Nonnull RoaringBitmap positions, int startIndex, int endIndex) {
+		final int[] buffer = new int[512];
+
+		final RoaringBatchIterator batchIterator = positions.getBatchIterator();
+		final int[] preSortedRecordIds = sortedRecordsProvider.getSortedRecordIds();
+		final int length = Math.min(endIndex - startIndex, recordsFound);
+		if (length < 0) {
+			throw new IndexOutOfBoundsException("Index: " + startIndex + ", Size: " + sortedRecordsProvider.getRecordCount());
+		}
+		final int[] sortedResult = new int[length];
+		int inputPeak = 0;
+		int previousInputPeak;
+		int outputPeak = 0;
+		while (batchIterator.hasNext()) {
+			final int read = batchIterator.nextBatch(buffer);
+			if (read == 0) {
+				// no more results break early
+				break;
+			}
+			previousInputPeak = inputPeak;
+			inputPeak += read;
+			// skip previous pages quickly
+			if (inputPeak >= startIndex) {
+				// copy records for page
+				for (int i = startIndex - previousInputPeak; i < read && i < (endIndex - previousInputPeak); i++) {
+					sortedResult[outputPeak++] = preSortedRecordIds[buffer[i]];
+				}
+				startIndex = inputPeak;
+			}
+			// finish - page was read
+			if (inputPeak >= endIndex) {
+				break;
+			}
+		}
+		return new SortResult(sortedResult, outputPeak);
+	}
+
+	/**
+	 * Returns mask of the positions in the presorted array that matched the computational result
+	 * Mask also contains record ids not found in presorted record index.
+	 */
+	private MaskResult getMask(@Nonnull SortedRecordsProvider sortedRecordsProvider, @Nonnull Bitmap selectedRecordIds) {
+		final int[] bufferA = new int[512];
+		final int[] bufferB = new int[512];
+
+		final int selectedRecordCount = selectedRecordIds.size();
+		final Bitmap unsortedRecordIds = sortedRecordsProvider.getAllRecords();
+		final int[] recordPositions = sortedRecordsProvider.getRecordPositions();
+
+		final RoaringBitmapWriter<RoaringBitmap> mask = RoaringBitmapBackedBitmap.buildWriter();
+		final RoaringBitmapWriter<RoaringBitmap> notFound = RoaringBitmapBackedBitmap.buildWriter();
+
+		final BatchIterator unsortedRecordIdsIt = RoaringBitmapBackedBitmap.getRoaringBitmap(unsortedRecordIds).getBatchIterator();
+		final BatchIterator selectedRecordIdsIt = RoaringBitmapBackedBitmap.getRoaringBitmap(selectedRecordIds).getBatchIterator();
+
+		int matchesFound = 0;
+		int peakA = -1;
+		int limitA = -1;
+		int peakB = -1;
+		int limitB = -1;
+		int accA = 1;
+		do {
+			if (peakA == limitA && limitA != 0) {
+				accA += limitA;
+				limitA = unsortedRecordIdsIt.nextBatch(bufferA);
+				peakA = 0;
+			}
+			if (peakB == limitB) {
+				limitB = selectedRecordIdsIt.nextBatch(bufferB);
+				peakB = 0;
+			}
+			if (peakA < limitA && bufferA[peakA] == bufferB[peakB]) {
+				mask.add(recordPositions[accA + peakA]);
+				matchesFound++;
+				peakB++;
+				peakA++;
+			} else if (peakB < limitB && (peakA >= limitA || bufferA[peakA] > bufferB[peakB])) {
+				notFound.add(bufferB[peakB]);
+				peakB++;
+			} else {
+				peakA++;
+			}
+		} while (matchesFound < selectedRecordCount && limitB > 0);
+
+		return new MaskResult(mask.get(), notFound.get());
+	}
+
+	/**
+	 * @param mask            IntegerBitmap of positions of record ids in presorted set.
+	 * @param notFoundRecords IntegerBitmap of record ids not found in presorted set at all.
+	 */
+	private record MaskResult(@Nonnull RoaringBitmap mask, @Nonnull RoaringBitmap notFoundRecords) {
 	}
 
 }

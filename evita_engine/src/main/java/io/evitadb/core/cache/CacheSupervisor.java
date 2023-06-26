@@ -33,8 +33,8 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
-import io.evitadb.core.query.sort.CacheableSortedRecordsProvider;
-import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
+import io.evitadb.core.query.sort.CacheableSorter;
+import io.evitadb.core.query.sort.Sorter;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
@@ -114,10 +114,10 @@ public interface CacheSupervisor {
 	 * without really computing the result.
 	 */
 	@Nonnull
-	SortedRecordsProvider analyse(
+	Sorter analyse(
 		@Nonnull EvitaSessionContract evitaSession,
 		@Nonnull String entityType,
-		@Nonnull CacheableSortedRecordsProvider sortedRecordsProvider
+		@Nonnull CacheableSorter sortedRecordsProvider
 	);
 
 	/**

@@ -26,7 +26,9 @@ package io.evitadb.core.query.sort.attribute.cache;
 import io.evitadb.core.cache.payload.CachePayloadHeader;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
-import io.evitadb.core.query.sort.attribute.MergedSortedRecordsProvider;
+import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.core.query.sort.attribute.MergedSortedRecordsSupplier;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import lombok.experimental.Delegate;
 import net.openhft.hashing.LongHashFunction;
@@ -39,33 +41,34 @@ import java.io.Serial;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class FlattenedMergedSortedRecordsProvider extends CachePayloadHeader implements TransactionalDataRelatedStructure, SortedRecordsProvider {
+public class FlattenedMergedSortedRecordsProvider extends CachePayloadHeader implements TransactionalDataRelatedStructure, Sorter {
 	@Serial private static final long serialVersionUID = -5791516455145494887L;
 	/**
 	 * Contains originally created sorted records provider.
 	 */
-	@Delegate private final MergedSortedRecordsProvider sortedRecordsProvider;
+	@Delegate private final MergedSortedRecordsSupplier sortedRecordsSupplier;
 
 	/**
 	 * Method returns gross estimation of the in-memory size of this instance. The estimation is expected not to be
 	 * a precise one. Please use constants from {@link MemoryMeasuringConstants} for size computation.
 	 */
-	public static int estimateSize(@Nonnull long[] transactionalIds, @Nonnull MergedSortedRecordsProvider sortedRecordsProvider) {
+	public static int estimateSize(@Nonnull long[] transactionalIds, @Nonnull MergedSortedRecordsSupplier sortedRecordsSupplier) {
+		final SortedRecordsProvider sortedRecordsProvider = sortedRecordsSupplier.getSortedRecordsProvider();
 		return 2 * MemoryMeasuringConstants.LONG_SIZE +
 			CachePayloadHeader.estimateSize(transactionalIds) +
-			MemoryMeasuringConstants.computeArraySize(sortedRecordsProvider.recordPositions()) +
-			MemoryMeasuringConstants.computeArraySize(sortedRecordsProvider.sortedRecordIds()) +
-			sortedRecordsProvider.allRecords().getRoaringBitmap().serializedSizeInBytes();
+			MemoryMeasuringConstants.computeArraySize(sortedRecordsProvider.getRecordPositions()) +
+			MemoryMeasuringConstants.computeArraySize(sortedRecordsProvider.getSortedRecordIds()) +
+			RoaringBitmapBackedBitmap.getRoaringBitmap(sortedRecordsProvider.getAllRecords()).serializedSizeInBytes();
 	}
 
 	public FlattenedMergedSortedRecordsProvider(
 		long recordHash,
 		long transactionalIdHash,
 		@Nonnull long[] transactionalIds,
-		@Nonnull MergedSortedRecordsProvider sortedRecordsProvider
+		@Nonnull MergedSortedRecordsSupplier sortedRecordsSupplier
 	) {
 		super(recordHash, transactionalIdHash, transactionalIds);
-		this.sortedRecordsProvider = sortedRecordsProvider;
+		this.sortedRecordsSupplier = sortedRecordsSupplier;
 	}
 
 	@Override

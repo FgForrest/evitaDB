@@ -25,12 +25,15 @@ package io.evitadb.core.query.sort;
 
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.core.cache.payload.CachePayloadHeader;
+import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -39,14 +42,14 @@ import java.util.function.Supplier;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface CacheableSortedRecordsProvider extends TransactionalDataRelatedStructure, Supplier<SortedRecordsProvider> {
+public interface CacheableSorter extends TransactionalDataRelatedStructure, Sorter {
 
 	/**
 	 * Method is responsible for creating object containing all crucial information this implementation is computing.
 	 * The created {@link CachePayloadHeader} must be 100% interchangeable with this instance in terms of query evaluation.
 	 * It must keep the result of {@link Supplier<SortedRecordsProvider>} method and must implement this interface.
 	 */
-	<U extends CachePayloadHeader & SortedRecordsProvider> U toSerializableResult(long extraResultHash, @Nonnull LongHashFunction hashFunction);
+	<U extends CachePayloadHeader & Sorter> U toSerializableResult(long extraResultHash, @Nonnull LongHashFunction hashFunction);
 
 	/**
 	 * Method returns gross estimation of the in-memory size of {@link #toSerializableResult(long, LongHashFunction)}
@@ -54,5 +57,12 @@ public interface CacheableSortedRecordsProvider extends TransactionalDataRelated
 	 * for size computation.
 	 */
 	int getSerializableResultSizeEstimate();
+
+	/**
+	 * Returns copy of this computer with same configuration but new method handle that references callback that
+	 * will be called when {@link #sortAndSlice(QueryContext, Formula, int, int)}  method is first executed and memoized result is available.
+	 */
+	@Nonnull
+	CacheableSorter getCloneWithComputationCallback(@Nonnull Consumer<CacheableSorter> selfOperator);
 
 }
