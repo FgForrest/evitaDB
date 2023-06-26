@@ -515,6 +515,11 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 			ReferenceSchemaDescriptor.ALL_ATTRIBUTES,
 			new AllAttributeSchemasDataFetcher()
 		);
+		buildingContext.registerDataFetcher(
+			ReferenceSchemaDescriptor.THIS_GENERIC,
+			ReferenceSchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS,
+			new AllSortableAttributeCompoundSchemasDataFetcher()
+		);
 
 		return ReferenceSchemaDescriptor.THIS_GENERIC
 			.to(objectBuilderTransformer)

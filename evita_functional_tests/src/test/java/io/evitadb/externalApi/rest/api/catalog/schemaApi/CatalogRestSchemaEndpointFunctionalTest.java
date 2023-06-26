@@ -265,8 +265,8 @@ abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpointFunct
 				.stream()
 				.map(it -> map()
 					.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), it.attributeName())
-					.e(AttributeElementDescriptor.DIRECTION.name(), it.direction())
-					.e(AttributeElementDescriptor.BEHAVIOUR.name(), it.behaviour())
+					.e(AttributeElementDescriptor.DIRECTION.name(), it.direction().name())
+					.e(AttributeElementDescriptor.BEHAVIOUR.name(), it.behaviour().name())
 					.build())
 				.toList())
 			.build();

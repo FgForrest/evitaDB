@@ -342,7 +342,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 				{
 					"mutations": [
 						{
-							"createSortableAttributeCompoundMutation": {
+							"createSortableAttributeCompoundSchemaMutation": {
 								"name": "mySpecialCompound",
 								"attributeElements": [
 									{
@@ -358,7 +358,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 								]
 							}
 						}
-					}
+					]
 				}
 				""")
 			.executeAndExpectOkAndThen()
@@ -392,13 +392,13 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						.e(SortableAttributeCompoundSchemaDescriptor.ATTRIBUTE_ELEMENTS.name(), List.of(
 							map()
 								.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), "code")
-								.e(AttributeElementDescriptor.DIRECTION.name(), OrderDirection.ASC)
-								.e(AttributeElementDescriptor.BEHAVIOUR.name(), OrderBehaviour.NULLS_LAST)
+								.e(AttributeElementDescriptor.DIRECTION.name(), OrderDirection.ASC.name())
+								.e(AttributeElementDescriptor.BEHAVIOUR.name(), OrderBehaviour.NULLS_LAST.name())
 								.build(),
 							map()
 								.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), "name")
-								.e(AttributeElementDescriptor.DIRECTION.name(), OrderDirection.DESC)
-								.e(AttributeElementDescriptor.BEHAVIOUR.name(), OrderBehaviour.NULLS_FIRST)
+								.e(AttributeElementDescriptor.DIRECTION.name(), OrderDirection.DESC.name())
+								.e(AttributeElementDescriptor.BEHAVIOUR.name(), OrderBehaviour.NULLS_FIRST.name())
 								.build()
 							)
 						)
@@ -420,9 +420,9 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 				{
 					"mutations": [
 						{
-							modifySortableAttributeCompoundDescriptionMutation: {
-								name: "mySpecialCompound",
-								description: "My special compound"
+							"modifySortableAttributeCompoundSchemaDescriptionMutation": {
+								"name": "mySpecialCompound",
+								"description": "desc"
 							}
 						}
 					]
@@ -447,13 +447,13 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						.e(SortableAttributeCompoundSchemaDescriptor.ATTRIBUTE_ELEMENTS.name(), List.of(
 								map()
 									.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), "code")
-									.e(AttributeElementDescriptor.DIRECTION.name(), OrderDirection.ASC)
-									.e(AttributeElementDescriptor.BEHAVIOUR.name(), OrderBehaviour.NULLS_LAST)
+									.e(AttributeElementDescriptor.DIRECTION.name(), OrderDirection.ASC.name())
+									.e(AttributeElementDescriptor.BEHAVIOUR.name(), OrderBehaviour.NULLS_LAST.name())
 									.build(),
 								map()
 									.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), "name")
-									.e(AttributeElementDescriptor.DIRECTION.name(), OrderDirection.DESC)
-									.e(AttributeElementDescriptor.BEHAVIOUR.name(), OrderBehaviour.NULLS_FIRST)
+									.e(AttributeElementDescriptor.DIRECTION.name(), OrderDirection.DESC.name())
+									.e(AttributeElementDescriptor.BEHAVIOUR.name(), OrderBehaviour.NULLS_FIRST.name())
 									.build()
 							)
 						)
@@ -475,7 +475,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 				{
 					"mutations": [
 						{
-							"removeSortableAttributeCompoundMutation": {
+							"removeSortableAttributeCompoundSchemaMutation": {
 								"name": "mySpecialCompound"
 							}
 						}
@@ -712,6 +712,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						.e(ReferenceSchemaDescriptor.INDEXED.name(), true)
 						.e(ReferenceSchemaDescriptor.FACETED.name(), true)
 						.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), map())
+						.e(ReferenceSchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), map())
 						.build()
 				)
 			)

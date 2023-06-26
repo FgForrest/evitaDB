@@ -452,7 +452,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 									attributeElements {
 										attributeName
 										direction
-										behavior
+										behaviour
 									}
 								}
 							}
@@ -470,6 +470,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 						.e(EntitySchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), map()
 							.e(TYPENAME_FIELD, SortableAttributeCompoundSchemasDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 							.e(SORTABLE_ATTRIBUTE_COMPOUND_CODE_NAME, map()
+								.e(TYPENAME_FIELD, SortableAttributeCompoundSchemaDescriptor.THIS.name())
 								.e(SortableAttributeCompoundSchemaDescriptor.NAME.name(), codeNameSchema.getName())
 								.e(SortableAttributeCompoundSchemaDescriptor.NAME_VARIANTS.name(), map()
 									.e(NameVariantsDescriptor.CAMEL_CASE.name(), codeNameSchema.getNameVariant(NamingConvention.CAMEL_CASE))
@@ -920,7 +921,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 		).orElseThrow();
 
 		final ReferenceSchemaContract brandReferenceSchema = productSchema.getReference(Entities.BRAND).orElseThrow();
-		final SortableAttributeCompoundSchemaContract foundedCompoundSchema = brandReferenceSchema.getSortableAttributeCompound(SORTABLE_ATTRIBUTE_COMPOUND_FOUNDED).orElseThrow();
+		final SortableAttributeCompoundSchemaContract foundedMarketShareSchema = brandReferenceSchema.getSortableAttributeCompound(SORTABLE_ATTRIBUTE_COMPOUND_FOUNDED_MARKET_SHARE).orElseThrow();
 
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/schema")
@@ -932,7 +933,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 								brand {
 									sortableAttributeCompounds {
 										__typename
-										foundedCompound {
+										foundedMarketShare {
 											__typename
 											name
 											nameVariants {
@@ -966,21 +967,21 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 					map()
 						.e(EntitySchemaDescriptor.REFERENCES.name(), map()
 							.e("brand", map()
-								.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), map()
+								.e(ReferenceSchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), map()
 									.e(TYPENAME_FIELD, SortableAttributeCompoundSchemasDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Brand")))
-									.e(ATTRIBUTE_BRAND_VISIBLE_FOR_B2C, map()
+									.e(SORTABLE_ATTRIBUTE_COMPOUND_FOUNDED_MARKET_SHARE, map()
 										.e(TYPENAME_FIELD, SortableAttributeCompoundSchemaDescriptor.THIS.name())
-										.e(SortableAttributeCompoundSchemaDescriptor.NAME.name(), foundedCompoundSchema.getName())
+										.e(SortableAttributeCompoundSchemaDescriptor.NAME.name(), foundedMarketShareSchema.getName())
 										.e(SortableAttributeCompoundSchemaDescriptor.NAME_VARIANTS.name(), map()
-											.e(NameVariantsDescriptor.CAMEL_CASE.name(), foundedCompoundSchema.getNameVariant(NamingConvention.CAMEL_CASE))
-											.e(NameVariantsDescriptor.PASCAL_CASE.name(), foundedCompoundSchema.getNameVariant(NamingConvention.PASCAL_CASE))
-											.e(NameVariantsDescriptor.SNAKE_CASE.name(), foundedCompoundSchema.getNameVariant(NamingConvention.SNAKE_CASE))
-											.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), foundedCompoundSchema.getNameVariant(NamingConvention.UPPER_SNAKE_CASE))
-											.e(NameVariantsDescriptor.KEBAB_CASE.name(), foundedCompoundSchema.getNameVariant(NamingConvention.KEBAB_CASE))
+											.e(NameVariantsDescriptor.CAMEL_CASE.name(), foundedMarketShareSchema.getNameVariant(NamingConvention.CAMEL_CASE))
+											.e(NameVariantsDescriptor.PASCAL_CASE.name(), foundedMarketShareSchema.getNameVariant(NamingConvention.PASCAL_CASE))
+											.e(NameVariantsDescriptor.SNAKE_CASE.name(), foundedMarketShareSchema.getNameVariant(NamingConvention.SNAKE_CASE))
+											.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), foundedMarketShareSchema.getNameVariant(NamingConvention.UPPER_SNAKE_CASE))
+											.e(NameVariantsDescriptor.KEBAB_CASE.name(), foundedMarketShareSchema.getNameVariant(NamingConvention.KEBAB_CASE))
 											.build())
-										.e(SortableAttributeCompoundSchemaDescriptor.DESCRIPTION.name(), foundedCompoundSchema.getDescription())
-										.e(SortableAttributeCompoundSchemaDescriptor.DEPRECATION_NOTICE.name(), foundedCompoundSchema.getDeprecationNotice())
-										.e(SortableAttributeCompoundSchemaDescriptor.ATTRIBUTE_ELEMENTS.name(), foundedCompoundSchema.getAttributeElements()
+										.e(SortableAttributeCompoundSchemaDescriptor.DESCRIPTION.name(), foundedMarketShareSchema.getDescription())
+										.e(SortableAttributeCompoundSchemaDescriptor.DEPRECATION_NOTICE.name(), foundedMarketShareSchema.getDeprecationNotice())
+										.e(SortableAttributeCompoundSchemaDescriptor.ATTRIBUTE_ELEMENTS.name(), foundedMarketShareSchema.getAttributeElements()
 											.stream()
 											.map(it -> map()
 												.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), it.attributeName())
@@ -1034,11 +1035,11 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			.body(ERRORS_PATH, nullValue())
 			.body(
 				PRODUCT_SCHEMA_PATH + "." + EntitySchemaDescriptor.REFERENCES.name() + ".brand." + ReferenceSchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS.name() + "." + TYPENAME_FIELD,
-				containsInRelativeOrder(AttributeSchemaDescriptor.THIS.name())
+				containsInRelativeOrder(SortableAttributeCompoundSchemaDescriptor.THIS.name())
 			)
 			.body(
 				PRODUCT_SCHEMA_PATH + "." + EntitySchemaDescriptor.REFERENCES.name() + ".brand." + ReferenceSchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS.name() + "." + SortableAttributeCompoundSchemaDescriptor.NAME.name(),
-				containsInAnyOrder(brandReferenceSchema.getAttributes().keySet().toArray(String[]::new))
+				containsInAnyOrder(brandReferenceSchema.getSortableAttributeCompounds().keySet().toArray(String[]::new))
 			);
 	}
 
@@ -1141,7 +1142,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 		).orElseThrow();
 		assertFalse(productSchema.getReferences().isEmpty());
 
-		final List<List<Map<String, Object>>> referencesWithAttributes = productSchema.getReferences()
+		final List<List<Map<String, Object>>> referencesWithCompounds = productSchema.getReferences()
 			.values()
 			.stream()
 			.map(r -> r.getSortableAttributeCompounds().keySet().stream()
@@ -1173,7 +1174,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			.body(ERRORS_PATH, nullValue())
 			.body(
 				PRODUCT_SCHEMA_PATH + "." + EntitySchemaDescriptor.ALL_REFERENCES.name() + "." + ReferenceSchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS.name(),
-				equalTo(referencesWithAttributes)
+				equalTo(referencesWithCompounds)
 			);
 	}
 

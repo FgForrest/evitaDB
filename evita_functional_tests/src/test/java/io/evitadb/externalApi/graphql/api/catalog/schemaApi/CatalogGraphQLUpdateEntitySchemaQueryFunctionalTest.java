@@ -471,6 +471,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 										.e(AttributeElementDescriptor.BEHAVIOUR.name(), OrderBehaviour.NULLS_FIRST.name())
 										.build()
 								))))
+						.build()
 				)
 			);
 
@@ -483,7 +484,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 						updateEmptySchema (
 							mutations: [
 								{
-									modifySortableAttributeCompoundDescriptionMutation: {
+									modifySortableAttributeCompoundSchemaDescriptionMutation: {
 										name: "mySpecialCompound"
 										description: "desc"
 									}

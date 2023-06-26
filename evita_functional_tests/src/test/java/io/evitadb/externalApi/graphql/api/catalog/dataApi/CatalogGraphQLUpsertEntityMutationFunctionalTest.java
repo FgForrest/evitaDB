@@ -758,9 +758,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 					""",
 				entity.getPrimaryKey()
 			)
-			.executeAndThen()
-			.statusCode(200)
-			.body(ERRORS_PATH, nullValue())
+			.executeAndExpectOkAndThen()
 			.body(UPSERT_PRODUCT_PATH + ".store", equalTo(expectedBody));
 
 		tester.test(TEST_CATALOG)

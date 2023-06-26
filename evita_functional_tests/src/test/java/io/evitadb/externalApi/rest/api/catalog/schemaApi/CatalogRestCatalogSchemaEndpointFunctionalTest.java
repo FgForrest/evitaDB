@@ -322,6 +322,7 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 						.e(EntitySchemaDescriptor.CURRENCIES.name(), List.of())
 						.e(EntitySchemaDescriptor.EVOLUTION_MODE.name(), Arrays.stream(EvolutionMode.values()).map(Enum::toString).collect(Collectors.toList()))
 						.e(EntitySchemaDescriptor.ATTRIBUTES.name(), map())
+						.e(EntitySchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), map())
 						.e(EntitySchemaDescriptor.ASSOCIATED_DATA.name(), map())
 						.e(EntitySchemaDescriptor.REFERENCES.name(), map())
 						.build()
