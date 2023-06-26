@@ -41,7 +41,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDescriptor {
+public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDescriptor, SortableAttributeCompoundsSchemaProviderDescriptor {
 
 	PropertyDescriptor CARDINALITY = PropertyDescriptor.builder()
 		.name("cardinality")
@@ -231,7 +231,8 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			REFERENCED_GROUP_TYPE_MANAGED,
 			INDEXED,
 			FACETED,
-			ALL_ATTRIBUTES
+			ALL_ATTRIBUTES,
+			ALL_SORTABLE_ATTRIBUTE_COMPOUNDS
 		))
 		.build();
 }

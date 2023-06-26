@@ -23,15 +23,20 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound;
 
+import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.SortableAttributeCompoundSchemaMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Map;
 
 import static io.evitadb.test.builder.MapBuilder.map;
@@ -40,7 +45,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Tests for {@link CreateSortableAttributeCompoundSchemaMutationConverter}
- * TODO LHO - update attribute elements here
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
@@ -58,7 +62,9 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 		final CreateSortableAttributeCompoundSchemaMutation expectedMutation = new CreateSortableAttributeCompoundSchemaMutation(
 			"code",
 			"desc",
-			"depr"
+			"depr",
+			new AttributeElement("a", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
+			new AttributeElement("b", OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
 		);
 
 		final CreateSortableAttributeCompoundSchemaMutation convertedMutation1 = converter.convert(
@@ -66,6 +72,18 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 				.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
 				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
+				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.ATTRIBUTE_ELEMENTS.name(), List.of(
+					map()
+						.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), "a")
+						.e(AttributeElementDescriptor.DIRECTION.name(), "ASC")
+						.e(AttributeElementDescriptor.BEHAVIOUR.name(), "NULLS_FIRST")
+						.build(),
+					map()
+						.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), "b")
+						.e(AttributeElementDescriptor.DIRECTION.name(), "DESC")
+						.e(AttributeElementDescriptor.BEHAVIOUR.name(), "NULLS_LAST")
+						.build()
+				))
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation1);
@@ -75,6 +93,18 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 				.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
 				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
+				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.ATTRIBUTE_ELEMENTS.name(), List.of(
+					map()
+						.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), "a")
+						.e(AttributeElementDescriptor.DIRECTION.name(), OrderDirection.ASC)
+						.e(AttributeElementDescriptor.BEHAVIOUR.name(), OrderBehaviour.NULLS_FIRST)
+						.build(),
+					map()
+						.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), "b")
+						.e(AttributeElementDescriptor.DIRECTION.name(), OrderDirection.DESC)
+						.e(AttributeElementDescriptor.BEHAVIOUR.name(), OrderBehaviour.NULLS_LAST)
+						.build()
+				))
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation2);
@@ -84,12 +114,20 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 		final CreateSortableAttributeCompoundSchemaMutation expectedMutation = new CreateSortableAttributeCompoundSchemaMutation(
 			"code",
 			null,
-			null
+			null,
+			new AttributeElement("a", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST)
 		);
 
 		final CreateSortableAttributeCompoundSchemaMutation convertedMutation1 = converter.convert(
 			map()
 				.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
+				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.ATTRIBUTE_ELEMENTS.name(), List.of(
+					map()
+						.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), "a")
+						.e(AttributeElementDescriptor.DIRECTION.name(), "ASC")
+						.e(AttributeElementDescriptor.BEHAVIOUR.name(), "NULLS_FIRST")
+						.build()
+				))
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation1);
@@ -101,6 +139,13 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> converter.convert(
 				map()
+					.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.ATTRIBUTE_ELEMENTS.name(), List.of(
+						map()
+							.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), "a")
+							.e(AttributeElementDescriptor.DIRECTION.name(), "ASC")
+							.e(AttributeElementDescriptor.BEHAVIOUR.name(), "NULLS_FIRST")
+							.build()
+					))
 					.build()
 			)
 		);

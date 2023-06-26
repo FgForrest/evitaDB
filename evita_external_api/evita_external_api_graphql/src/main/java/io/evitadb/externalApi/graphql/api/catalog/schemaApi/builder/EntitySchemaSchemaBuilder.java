@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.CreateAssociatedDataSchemaMutationDescriptor;
@@ -49,6 +50,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.Modif
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.RemoveEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.*;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor;
@@ -91,6 +93,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		final GraphQLObjectType globalAttributeSchemaObject = buildGlobalAttributeSchemaObject();
 		buildingContext.registerType(globalAttributeSchemaObject);
 		buildingContext.registerType(buildAttributeSchemaUnion(attributeSchemaObject, globalAttributeSchemaObject));
+		buildingContext.registerType(SortableAttributeCompoundSchemaDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(buildAssociatedDataSchemaObject());
 		buildingContext.registerType(buildGenericReferenceSchemaObject());
 
@@ -137,6 +140,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		buildingContext.registerType(ReferenceAttributeSchemaMutationAggregateDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 
 		// attribute schema mutations
+		buildingContext.registerType(AttributeElementDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(CreateSortableAttributeCompoundSchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
@@ -208,6 +212,23 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 			objectName,
 			EntitySchemaDescriptor.ALL_ATTRIBUTES,
 			new AllAttributeSchemasDataFetcher()
+		);
+
+		if (!entitySchema.getSortableAttributeCompounds().isEmpty()) {
+			buildingContext.registerFieldToObject(
+				objectName,
+				schemaObjectBuilder,
+				buildSortableAttributeCompoundSchemasField(entitySchema)
+			);
+		}
+
+		schemaObjectBuilder.field(EntitySchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS
+			.to(fieldBuilderTransformer)
+			.type(nonNull(list(nonNull(typeRef(SortableAttributeCompoundSchemaDescriptor.THIS.name()))))));
+		buildingContext.registerDataFetcher(
+			objectName,
+			EntitySchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS,
+			new AllSortableAttributeCompoundSchemasDataFetcher()
 		);
 
 		if (!entitySchema.getAssociatedData().isEmpty()) {
@@ -349,6 +370,58 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		return new BuiltFieldDescriptor(
 			attributeSchemaField,
 			new AttributeSchemaDataFetcher(attributeSchema.getName())
+		);
+	}
+
+	/*
+	    Sortable attribute compounds
+	 */
+
+	@Nonnull
+	private BuiltFieldDescriptor buildSortableAttributeCompoundSchemasField(@Nonnull EntitySchemaContract entitySchema) {
+		final GraphQLObjectType object = buildSortableAttributeCompoundSchemasObject(entitySchema);
+
+		final GraphQLFieldDefinition field = EntitySchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS
+			.to(fieldBuilderTransformer)
+			.type(nonNull(object))
+			.build();
+
+		return new BuiltFieldDescriptor(field, new SortableAttributeCompoundSchemasDataFetcher());
+	}
+
+	@Nonnull
+	private GraphQLObjectType buildSortableAttributeCompoundSchemasObject(@Nonnull EntitySchemaContract entitySchema) {
+		final String objectName = SortableAttributeCompoundSchemasDescriptor.THIS.name(entitySchema);
+
+		final GraphQLObjectType.Builder attributeSchemasObjectBuilder = newObject()
+			.name(objectName)
+			.description(AttributeSchemasDescriptor.THIS.description());
+
+		entitySchema.getSortableAttributeCompounds()
+			.values()
+			.forEach(sortableAttributeCompoundSchema ->
+				buildingContext.registerFieldToObject(
+					objectName,
+					attributeSchemasObjectBuilder,
+					buildSortableAttributeCompoundSchemaField(sortableAttributeCompoundSchema)
+				)
+			);
+
+		return attributeSchemasObjectBuilder.build();
+	}
+
+	@Nonnull
+	private static BuiltFieldDescriptor buildSortableAttributeCompoundSchemaField(@Nonnull SortableAttributeCompoundSchemaContract sortableAttributeCompoundSchema) {
+		final GraphQLFieldDefinition field = newFieldDefinition()
+			.name(sortableAttributeCompoundSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
+			.description(sortableAttributeCompoundSchema.getDescription())
+			.deprecate(sortableAttributeCompoundSchema.getDeprecationNotice())
+			.type(nonNull(typeRef(SortableAttributeCompoundSchemaDescriptor.THIS.name())))
+			.build();
+
+		return new BuiltFieldDescriptor(
+			field,
+			new SortableAttributeCompoundSchemaDataFetcher(sortableAttributeCompoundSchema.getName())
 		);
 	}
 
@@ -509,7 +582,8 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		final GraphQLObjectType.Builder referenceSchemaObjectBuilder = ReferenceSchemaDescriptor.THIS_SPECIFIC
 			.to(objectBuilderTransformer)
 			.name(objectName)
-			.field(ReferenceSchemaDescriptor.ALL_ATTRIBUTES.to(fieldBuilderTransformer));
+			.field(ReferenceSchemaDescriptor.ALL_ATTRIBUTES.to(fieldBuilderTransformer))
+			.field(ReferenceSchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS.to(fieldBuilderTransformer));
 
 		buildingContext.registerDataFetcher(
 			objectName,
@@ -533,6 +607,19 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 			objectName,
 			ReferenceSchemaDescriptor.ALL_ATTRIBUTES,
 			new AllAttributeSchemasDataFetcher()
+		);
+
+		if (!referenceSchema.getAttributes().isEmpty()) {
+			buildingContext.registerFieldToObject(
+				objectName,
+				referenceSchemaObjectBuilder,
+				buildReferenceSortableAttributeCompoundSchemasField(entitySchema, referenceSchema)
+			);
+		}
+		buildingContext.registerDataFetcher(
+			objectName,
+			ReferenceSchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS,
+			new AllSortableAttributeCompoundSchemasDataFetcher()
 		);
 
 		return referenceSchemaObjectBuilder.build();
@@ -577,6 +664,44 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 			);
 
 		return attributeSchemasObjectBuilder.build();
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildReferenceSortableAttributeCompoundSchemasField(@Nonnull EntitySchemaContract entitySchema,
+	                                                                                 @Nonnull ReferenceSchemaContract referenceSchema) {
+		final GraphQLObjectType object = buildReferenceSortableAttributeCompoundSchemasObject(
+			entitySchema,
+			referenceSchema
+		);
+
+		final GraphQLFieldDefinition field = ReferenceSchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS
+			.to(fieldBuilderTransformer)
+			.type(nonNull(object))
+			.build();
+
+		return new BuiltFieldDescriptor(field, new SortableAttributeCompoundSchemasDataFetcher());
+	}
+
+	@Nonnull
+	private GraphQLObjectType buildReferenceSortableAttributeCompoundSchemasObject(@Nonnull EntitySchemaContract entitySchema,
+	                                                                               @Nonnull ReferenceSchemaContract referenceSchema) {
+		final String objectName = SortableAttributeCompoundSchemasDescriptor.THIS.name(entitySchema, referenceSchema);
+
+		final GraphQLObjectType.Builder objectBuilder =  SortableAttributeCompoundSchemasDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.name(objectName);
+
+		referenceSchema.getSortableAttributeCompounds()
+			.values()
+			.forEach(sortableAttributeCompoundSchema ->
+				buildingContext.registerFieldToObject(
+					objectName,
+					objectBuilder,
+					buildSortableAttributeCompoundSchemaField(sortableAttributeCompoundSchema)
+				)
+			);
+
+		return objectBuilder.build();
 	}
 
 	/*

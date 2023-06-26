@@ -24,11 +24,12 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound;
 
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutation;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import java.util.List;
-
+import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
+import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
@@ -57,6 +58,13 @@ public interface CreateSortableAttributeCompoundSchemaMutationDescriptor extends
 			""")
 		.type(nullable(String.class))
 		.build();
+	PropertyDescriptor ATTRIBUTE_ELEMENTS = PropertyDescriptor.builder()
+		.name("attributeElements")
+		.description("""
+			Defines list of individual elements forming this compound.
+			""")
+		.type(nonNullListRef(AttributeElementDescriptor.THIS))
+		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("CreateSortableAttributeCompoundSchemaMutation")
@@ -64,13 +72,9 @@ public interface CreateSortableAttributeCompoundSchemaMutationDescriptor extends
 			Mutation is responsible for setting up a new `AttributeSchema` in the `EntitySchema`.
 			Mutation can be used for altering also the existing `AttributeSchema` alone.
 			""")
-		.staticFields(List.of(
-			NAME,
-			DESCRIPTION,
-			DEPRECATION_NOTICE
-		))
+		.staticField(NAME)
+		.staticField(DESCRIPTION)
+		.staticField(DEPRECATION_NOTICE)
+		.staticField(ATTRIBUTE_ELEMENTS)
 		.build();
-
-	/* TODO LHO - add attribute elements here */
-
 }
