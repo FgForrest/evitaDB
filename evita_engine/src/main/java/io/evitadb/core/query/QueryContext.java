@@ -800,7 +800,7 @@ public class QueryContext {
 	@Nonnull
 	public Formula analyse(@Nonnull Formula formula) {
 		return ofNullable(evitaRequest.getEntityType())
-			.map(it -> cacheSupervisor.analyse(evitaSession, evitaSession.getCatalogName(), it, formula))
+			.map(it -> cacheSupervisor.analyse(evitaSession, it, formula))
 			.orElse(formula);
 	}
 
@@ -811,7 +811,7 @@ public class QueryContext {
 	@Nonnull
 	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(@Nonnull T computer) {
 		return ofNullable(evitaRequest.getEntityType())
-			.map(it -> cacheSupervisor.analyse(evitaSession, evitaSession.getCatalogName(), it, computer))
+			.map(it -> cacheSupervisor.analyse(evitaSession, it, computer))
 			.orElse(computer);
 	}
 
@@ -821,7 +821,7 @@ public class QueryContext {
 	 */
 	@Nonnull
 	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(@Nonnull String entityType, @Nonnull T computer) {
-		return cacheSupervisor.analyse(evitaSession, evitaSession.getCatalogName(), entityType, computer);
+		return cacheSupervisor.analyse(evitaSession, entityType, computer);
 	}
 
 	/**

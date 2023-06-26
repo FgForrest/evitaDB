@@ -159,6 +159,8 @@ public class OrderByVisitor implements ConstraintVisitor {
 				this.queryContext.getGlobalEntityIndexIfExists()
 					.map(it -> new EntityIndex[] {it})
 					.orElse(EMPTY_INDEX_ARRAY),
+				this.queryContext.isEntityTypeKnown() ?
+					this.queryContext.getSchema().getName() : null,
 				attributeSchemaAccessor,
 				EntityAttributeExtractor.INSTANCE
 			)
@@ -187,6 +189,7 @@ public class OrderByVisitor implements ConstraintVisitor {
 	 */
 	public final <T> T executeInContext(
 		@Nonnull EntityIndex[] entityIndex,
+		@Nullable String entityType,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nonnull AttributeExtractor attributeSchemaEntityAccessor,
 		@Nonnull Supplier<T> lambda
@@ -195,6 +198,7 @@ public class OrderByVisitor implements ConstraintVisitor {
 			this.scope.push(
 				new ProcessingScope(
 					entityIndex,
+					entityType,
 					attributeSchemaAccessor,
 					attributeSchemaEntityAccessor
 				)
@@ -262,12 +266,14 @@ public class OrderByVisitor implements ConstraintVisitor {
 	 * implementations to exchange indexes that are being used, suppressing certain query evaluation or accessing
 	 * attribute schema information.
 	 *
-	 * @param entityIndex             Contains index, that should be used for accessing {@link SortIndex}.
+	 * @param entityIndex             contains index, that should be used for accessing {@link SortIndex}.
+	 * @param entityType              contains entity type the context refers to
 	 * @param attributeSchemaAccessor consumer verifies prerequisites in attribute schema via {@link AttributeSchemaContract}
 	 * @param attributeEntityAccessor function provides access to the attribute content via {@link EntityContract}
 	 */
 	public record ProcessingScope(
 		@Nonnull EntityIndex[] entityIndex,
+		@Nullable String entityType,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nonnull AttributeExtractor attributeEntityAccessor
 	) {

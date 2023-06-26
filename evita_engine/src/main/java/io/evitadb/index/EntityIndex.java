@@ -333,9 +333,19 @@ public abstract class EntityIndex implements Index<EntityIndexKey>, PriceIndexCo
 				locale,
 				entityPrimaryKey,
 				getEntitySchema(),
-				indexKey.getDiscriminator() instanceof ReferenceKey referenceKey ? referenceKey : null,
+				null,
 				entityStoragePartAccessor
 			);
+			if (indexKey.getDiscriminator() instanceof ReferenceKey referenceKey) {
+				AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
+					this,
+					locale,
+					entityPrimaryKey,
+					getEntitySchema(),
+					referenceKey,
+					entityStoragePartAccessor
+				);
+			}
 			this.dirty.setToTrue();
 		}
 	}
@@ -356,9 +366,19 @@ public abstract class EntityIndex implements Index<EntityIndexKey>, PriceIndexCo
 				locale,
 				recordId,
 				getEntitySchema(),
-				indexKey.getDiscriminator() instanceof ReferenceKey referenceKey ? referenceKey : null,
+				null,
 				entityStoragePartAccessor
 			);
+			if (indexKey.getDiscriminator() instanceof ReferenceKey referenceKey) {
+				AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
+					this,
+					locale,
+					recordId,
+					getEntitySchema(),
+					referenceKey,
+					entityStoragePartAccessor
+				);
+			}
 			this.dirty.setToTrue();
 			// remove the changes container - the bitmap got removed entirely
 			removeTransactionalMemoryLayerIfExists(recordIdsWithLanguage);

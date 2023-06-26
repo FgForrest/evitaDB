@@ -42,7 +42,6 @@ import java.util.stream.IntStream;
 
 import static io.evitadb.core.cache.CacheEden.COOL_ENOUGH;
 import static io.evitadb.core.cache.FormulaCacheVisitorTest.toConstantFormula;
-import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -99,7 +98,7 @@ class CacheAnteroomTest {
 		for (int i = 0; i < 1000; i++) {
 			final int formulaIndex = RANDOM.nextInt(inputFormulas.length);
 			final CacheableFormula inputFormula = inputFormulas[formulaIndex];
-			final Formula theFormula = FormulaCacheVisitor.analyse(evitaSession, TEST_CATALOG, SOME_ENTITY, inputFormula, cacheAnteroom);
+			final Formula theFormula = FormulaCacheVisitor.analyse(evitaSession, SOME_ENTITY, inputFormula, cacheAnteroom);
 			assertEquals(inputFormula.compute(), theFormula.compute());
 			if (theFormula instanceof FlattenedFormula) {
 				cacheHits.merge(formulaIndex, 1, Integer::sum);
@@ -117,7 +116,7 @@ class CacheAnteroomTest {
 			for (int i = 0; i < 1000; i++) {
 				final int formulaIndex = RANDOM.nextInt(inputFormulas.length / 2);
 				final CacheableFormula inputFormula = inputFormulas[formulaIndex];
-				final Formula theFormula = FormulaCacheVisitor.analyse(evitaSession, TEST_CATALOG, SOME_ENTITY, inputFormula, cacheAnteroom);
+				final Formula theFormula = FormulaCacheVisitor.analyse(evitaSession, SOME_ENTITY, inputFormula, cacheAnteroom);
 				assertEquals(inputFormula.compute(), theFormula.compute());
 				if (theFormula instanceof FlattenedFormula) {
 					cacheHits.merge(formulaIndex, 1, Integer::sum);

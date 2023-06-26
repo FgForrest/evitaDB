@@ -62,6 +62,10 @@ import java.util.function.Supplier;
 public class PreSortedRecordsSorter extends AbstractRecordsSorter {
 	private static final int[] EMPTY_RESULT = new int[0];
 	/**
+	 * This is the type of entity that is being sorted.
+	 */
+	private final String entityType;
+	/**
 	 * This instance will be used by this sorter to access pre sorted arrays of entities.
 	 */
 	private final Supplier<SortedRecordsProvider[]> sortedRecordsSupplier;
@@ -75,7 +79,12 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter {
 	 */
 	private final Sorter unknownRecordIdsSorter;
 
-	public PreSortedRecordsSorter(@Nonnull Supplier<SortedRecordsProvider[]> sortedRecordsSupplier, @Nonnull EntityComparator comparator) {
+	public PreSortedRecordsSorter(
+		@Nonnull String entityType,
+		@Nonnull Supplier<SortedRecordsProvider[]> sortedRecordsSupplier,
+		@Nonnull EntityComparator comparator
+	) {
+		this.entityType = entityType;
 		this.sortedRecordsSupplier = sortedRecordsSupplier;
 		this.entityComparator = comparator;
 		this.unknownRecordIdsSorter = null;
@@ -85,6 +94,7 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter {
 	@Override
 	public Sorter andThen(Sorter sorterForUnknownRecords) {
 		return new PreSortedRecordsSorter(
+			entityType,
 			sortedRecordsSupplier,
 			entityComparator,
 			sorterForUnknownRecords
@@ -106,9 +116,13 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter {
 		} else {
 			if (queryContext.getPrefetchedEntities() == null) {
 				final SortedRecordsProvider[] sortedRecordsProviders = sortedRecordsSupplier.get();
-				/* TODO JNO - this needs to be cached in CacheSupervisor since it's quite costly */
 				final SortedRecordsProvider sortedRecordsProvider = sortedRecordsProviders.length == 1 ?
-					sortedRecordsProviders[0] : new MergedSortedRecordsSupplier(sortedRecordsProviders);
+					sortedRecordsProviders[0] :
+					queryContext.getCacheSupervisor().analyse(
+						queryContext.getEvitaSession(),
+						entityType,
+						new MergedSortedRecordsSupplier(sortedRecordsProviders)
+					);
 
 				final MaskResult positions = getMask(sortedRecordsProvider, selectedRecordIds);
 				final SortResult sortPartialResult = fetchSlice(

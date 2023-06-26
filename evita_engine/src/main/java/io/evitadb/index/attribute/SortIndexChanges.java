@@ -91,9 +91,10 @@ public class SortIndexChanges implements Serializable {
 	public SortedRecordsSupplier getAscendingOrderRecordsSupplier() {
 		return ofNullable(this.recordIdToPositions).orElseGet(() -> {
 			this.recordIdToPositions = new SortedRecordsSupplier(
+				this.sortIndex.sortedRecords.getId(),
 				this.sortIndex.sortedRecords.getArray(),
-				this.sortIndex.sortedRecords.getRecordIds(),
-				this.sortIndex.sortedRecords.getPositions()
+				this.sortIndex.sortedRecords.getPositions(),
+				this.sortIndex.sortedRecords.getRecordIds()
 			);
 			return this.recordIdToPositions;
 		});
@@ -107,9 +108,10 @@ public class SortIndexChanges implements Serializable {
 	public SortedRecordsSupplier getDescendingOrderRecordsSupplier() {
 		return ofNullable(this.recordIdToPositionsReversed).orElseGet(() -> {
 			this.recordIdToPositionsReversed = new SortedRecordsSupplier(
+				this.sortIndex.getId(),
 				ArrayUtils.reverse(this.sortIndex.sortedRecords.getArray()),
-				this.sortIndex.sortedRecords.getRecordIds(),
-				invert(this.sortIndex.sortedRecords.getPositions())
+				invert(this.sortIndex.sortedRecords.getPositions()),
+				this.sortIndex.sortedRecords.getRecordIds()
 			);
 			return this.recordIdToPositionsReversed;
 		});

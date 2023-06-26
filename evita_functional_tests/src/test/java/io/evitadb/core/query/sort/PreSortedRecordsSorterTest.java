@@ -63,6 +63,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class PreSortedRecordsSorterTest {
+	private static final String ENTITY_TYPE = "product";
 	private static final String ATTRIBUTE_NAME_FIRST = "first";
 	private static final String ATTRIBUTE_NAME_SECOND = "second";
 
@@ -83,6 +84,7 @@ class PreSortedRecordsSorterTest {
 		Mockito.when(bitmapQueryContext.getPrefetchedEntities()).thenReturn(null);
 		bitmapSorter = new PreSortedRecordsSorterWithContext(
 			new PreSortedRecordsSorter(
+				ENTITY_TYPE,
 				() -> new SortedRecordsProvider[] {new MockSortedRecordsSupplier(7, 2, 4, 1, 3, 8, 5, 9, 6)},
 				NullThrowingEntityComparator.INSTANCE
 			),
@@ -99,6 +101,7 @@ class PreSortedRecordsSorterTest {
 			.thenAnswer(invocation -> mockEntitiesIndex.get(((Integer) invocation.getArgument(0))));
 		entitySorter = new PreSortedRecordsSorterWithContext(
 			new PreSortedRecordsSorter(
+				ENTITY_TYPE,
 				() -> new SortedRecordsProvider[] {SortedRecordsProvider.EMPTY},
 				TEST_COMPARATOR_FIRST
 			),
@@ -140,6 +143,7 @@ class PreSortedRecordsSorterTest {
 		Stream.of(bitmapSorter, entitySorter).forEach(tested -> {
 			final Sorter updatedSorter = tested.sorter().andThen(
 				new PreSortedRecordsSorter(
+					ENTITY_TYPE,
 					() -> new SortedRecordsProvider[] {new MockSortedRecordsSupplier(13, 0, 12)},
 					TEST_COMPARATOR_SECOND
 				)
@@ -164,6 +168,7 @@ class PreSortedRecordsSorterTest {
 		);
 
 		final PreSortedRecordsSorter sorter = new PreSortedRecordsSorter(
+			ENTITY_TYPE,
 			() -> new SortedRecordsProvider[] {sortedRecordsSupplier},
 			NullThrowingEntityComparator.INSTANCE
 		);

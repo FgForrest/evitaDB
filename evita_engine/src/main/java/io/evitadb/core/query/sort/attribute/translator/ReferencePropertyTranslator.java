@@ -161,6 +161,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 
 		return orderByVisitor.executeInContext(
 			referenceIndexes,
+			referenceSchema.getReferencedEntityType(),
 			orderByVisitor.getProcessingScope().withReferenceSchemaAccessor(referenceName),
 			new EntityReferenceAttributeExtractor(referenceName),
 			() -> {

@@ -360,6 +360,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	public Sorter createSorter(
 		@Nonnull ConstraintContainer<OrderConstraint> orderBy,
 		@Nonnull EntityIndex entityIndex,
+		@Nonnull String entityType,
 		@Nonnull Supplier<String> stepDescriptionSupplier
 	) {
 		try {
@@ -377,6 +378,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 			// now analyze the filter by in a nested context with exchanged primary entity index
 			return orderByVisitor.executeInContext(
 				new EntityIndex[] {entityIndex},
+				entityType,
 				new AttributeSchemaAccessor(queryContext),
 				EntityAttributeExtractor.INSTANCE,
 				() -> {

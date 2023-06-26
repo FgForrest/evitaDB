@@ -31,6 +31,8 @@ import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
+import io.evitadb.core.query.sort.CacheableSortedRecordsProvider;
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.scheduling.Scheduler;
 
 import javax.annotation.Nonnull;
@@ -82,7 +84,6 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 	@Override
 	public <T extends Formula> T analyse(
 		@Nonnull EvitaSessionContract evitaSession,
-		@Nonnull String catalogName,
 		@Nonnull String entityType,
 		@Nonnull T filterFormula
 	) {
@@ -90,7 +91,7 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 		// that effectively exclude the formula caches from being used
 		if (evitaSession.isReadOnly()) {
 			//noinspection unchecked
-			return (T) FormulaCacheVisitor.analyse(evitaSession, catalogName, entityType, filterFormula, this.cacheAnteroom);
+			return (T) FormulaCacheVisitor.analyse(evitaSession, entityType, filterFormula, this.cacheAnteroom);
 		} else {
 			return filterFormula;
 		}
@@ -101,7 +102,6 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 	@Override
 	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(
 		@Nonnull EvitaSessionContract evitaSession,
-		@Nonnull String catalogName,
 		@Nonnull String entityType,
 		@Nonnull T extraResultComputer
 	) {
@@ -109,19 +109,37 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 		// that effectively exclude the formula caches from being used
 		if (evitaSession.isReadOnly()) {
 			//noinspection unchecked
-			return (EvitaResponseExtraResultComputer<U>) this.cacheAnteroom.register(evitaSession, catalogName, entityType, extraResultComputer);
+			return (EvitaResponseExtraResultComputer<U>) this.cacheAnteroom.register(
+				evitaSession, entityType, extraResultComputer
+			);
 		} else {
 			return extraResultComputer;
 		}
 	}
 
+	@Nonnull
+	@Override
+	public SortedRecordsProvider analyse(
+		@Nonnull EvitaSessionContract evitaSession,
+		@Nonnull String entityType,
+		@Nonnull CacheableSortedRecordsProvider sortedRecordsProvider
+	) {
+		// we use cache only for Evita read only sessions, write session might already contain client specific modifications
+		// that effectively exclude the formula caches from being used
+		if (evitaSession.isReadOnly()) {
+			return this.cacheAnteroom.register(
+				evitaSession, entityType, sortedRecordsProvider
+			);
+		} else {
+			return sortedRecordsProvider.get();
+		}
+	}
 
 	@Nonnull
 	@Override
 	public Optional<EntityDecorator> analyse(
 		@Nonnull EvitaSessionContract evitaSession,
 		int primaryKey,
-		@Nonnull String catalogName,
 		@Nonnull String entityType,
 		@Nonnull OffsetDateTime offsetDateTime,
 		@Nullable EntityFetch entityRequirement,
@@ -131,7 +149,7 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 		// we use cache only for Evita read only sessions, write session might already contain client specific modifications
 		// that effectively exclude the formula caches from being used
 		if (evitaSession.isReadOnly()) {
-			return ofNullable(this.cacheAnteroom.register(evitaSession, primaryKey, catalogName, entityType, offsetDateTime, entityRequirement, entityFetcher, enricher));
+			return ofNullable(this.cacheAnteroom.register(evitaSession, primaryKey, entityType, offsetDateTime, entityRequirement, entityFetcher, enricher));
 		} else {
 			return ofNullable(entityFetcher.get());
 		}
@@ -142,7 +160,6 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 	public Optional<BinaryEntity> analyse(
 		@Nonnull EvitaSessionContract evitaSession,
 		int primaryKey,
-		@Nonnull String catalogName,
 		@Nonnull String entityType,
 		@Nullable EntityFetch entityRequirement,
 		@Nonnull Supplier<BinaryEntity> entityFetcher,
@@ -151,7 +168,7 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 		// we use cache only for Evita read only sessions, write session might already contain client specific modifications
 		// that effectively exclude the formula caches from being used
 		if (evitaSession.isReadOnly()) {
-			return ofNullable(this.cacheAnteroom.register(evitaSession, primaryKey, catalogName, entityType, entityRequirement, entityFetcher));
+			return ofNullable(this.cacheAnteroom.register(evitaSession, primaryKey, entityType, entityRequirement, entityFetcher));
 		} else {
 			return ofNullable(entityFetcher.get());
 		}
