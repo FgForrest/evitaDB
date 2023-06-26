@@ -27,8 +27,8 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.descriptor.annotation.Child;
-import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -47,7 +47,7 @@ import java.io.Serializable;
  *
  * Entities with same (equal) values must not be subject to secondary ordering rules and may be sorted randomly within
  * the scope of entities with the same value (this is subject to change, currently this behaviour differs from the one
- * used by relational databases - but might be more performant).
+ * used by relational databases - but is way faster).
  *
  * Example:
  *
