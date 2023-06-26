@@ -83,6 +83,7 @@ public class EntitySchemaObjectBuilder {
 	public void buildCommonTypes() {
 		buildingContext.registerType(AttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(GlobalAttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(AttributeElementDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(SortableAttributeCompoundSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(AssociatedDataSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
 
@@ -129,7 +130,6 @@ public class EntitySchemaObjectBuilder {
 		buildingContext.registerType(ReferenceAttributeSchemaMutationAggregateDescriptor.THIS.to(objectBuilderTransformer).build());
 
 		// sortable attribute compound schema mutations
-		buildingContext.registerType(AttributeElementDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(CreateSortableAttributeCompoundSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor.THIS.to(objectBuilderTransformer).build());
@@ -305,14 +305,18 @@ public class EntitySchemaObjectBuilder {
 	@Nonnull
 	private OpenApiTypeReference buildReferenceSchemaObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                        @Nonnull ReferenceSchemaContract referenceSchema) {
-		final OpenApiObject referenceSchemaObject = ReferenceSchemaDescriptor.THIS_SPECIFIC
+		final OpenApiObject.Builder referenceSchemaObjectBuilder = ReferenceSchemaDescriptor.THIS_SPECIFIC
 			.to(objectBuilderTransformer)
-			.name(ReferenceSchemaDescriptor.THIS_SPECIFIC.name(entitySchema, referenceSchema))
-			.property(buildReferencedAttributeSchemasProperty(entitySchema, referenceSchema))
-			.property(buildReferencedSortableAttributeCompoundSchemasProperty(entitySchema, referenceSchema))
-			.build();
+			.name(ReferenceSchemaDescriptor.THIS_SPECIFIC.name(entitySchema, referenceSchema));
 
-		return buildingContext.registerType(referenceSchemaObject);
+		if (!referenceSchema.getAttributes().isEmpty()) {
+			referenceSchemaObjectBuilder.property(buildReferencedAttributeSchemasProperty(entitySchema, referenceSchema));
+		}
+		if (!referenceSchema.getSortableAttributeCompounds().isEmpty()) {
+			referenceSchemaObjectBuilder.property(buildReferencedSortableAttributeCompoundSchemasProperty(entitySchema, referenceSchema));
+		}
+
+		return buildingContext.registerType(referenceSchemaObjectBuilder.build());
 	}
 
 	@Nonnull

@@ -43,7 +43,7 @@ public interface ModifyReferenceSortableAttributeCompoundSchemaMutationDescripto
 	PropertyDescriptor SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION = PropertyDescriptor.builder()
 		.name("sortableAttributeCompoundSchemaMutation")
 		.description("""
-            Nested attribute schema mutation that mutates reference sortable attribute compounds of targeted reference.
+            Nested sortable attribute compound schema mutation that mutates reference sortable attribute compounds of targeted reference.
 			""")
 		.type(nonNullRef(ReferenceAttributeSchemaMutationAggregateDescriptor.THIS))
 		.build();

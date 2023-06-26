@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
-import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSortableAttributeCompoundSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
@@ -41,11 +41,11 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Implementation of {@link SchemaMutationConverter} for resolving {@link ModifyReferenceAttributeSchemaMutation}.
+ * Implementation of {@link SchemaMutationConverter} for resolving {@link ModifyReferenceSortableAttributeCompoundSchemaMutation}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ModifyReferenceSortableAttributeCompoundSchemaMutationConverter extends ReferenceSchemaMutationConverter<ModifyReferenceAttributeSchemaMutation> {
+public class ModifyReferenceSortableAttributeCompoundSchemaMutationConverter extends ReferenceSchemaMutationConverter<ModifyReferenceSortableAttributeCompoundSchemaMutation> {
 
 	@Nonnull
 	private final ReferenceSortableAttributeCompoundSchemaMutationAggregateConverter sortableAttributeCompoundSchemaMutationAggregateConverter;
@@ -64,7 +64,7 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutationConverter ext
 
 	@Nonnull
 	@Override
-	protected ModifyReferenceAttributeSchemaMutation convert(@Nonnull InputMutation inputMutation) {
+	protected ModifyReferenceSortableAttributeCompoundSchemaMutation convert(@Nonnull InputMutation inputMutation) {
 		final Map<String, Object> inputAttributeSchemaMutation = Optional.of(inputMutation.getRequiredField(ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor.SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION.name()))
 			.map(m -> {
 				Assert.isTrue(
@@ -81,7 +81,7 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutationConverter ext
 			() -> getExceptionFactory().createInvalidArgumentException("Field `" + ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor.SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION.name() + "` in mutation `" + getMutationName() + "` is required and is expected to have exactly one mutation")
 		);
 
-		return new ModifyReferenceAttributeSchemaMutation(
+		return new ModifyReferenceSortableAttributeCompoundSchemaMutation(
 			inputMutation.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
 			sortableAttributeCompoundSchemaMutations.get(0)
 		);

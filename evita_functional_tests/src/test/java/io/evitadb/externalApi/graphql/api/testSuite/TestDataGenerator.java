@@ -25,11 +25,14 @@ package io.evitadb.externalApi.graphql.api.testSuite;
 
 import com.github.javafaker.Faker;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.Evita;
@@ -52,10 +55,7 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_PRIORITY;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_QUANTITY;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
+import static io.evitadb.test.generator.DataGenerator.*;
 
 /**
  * Generates artificial Evita data for GraphQL functional testing.
@@ -80,6 +80,7 @@ public class TestDataGenerator {
 	public static final String ATTRIBUTE_FOUNDED = "founded";
 	public static final String ATTRIBUTE_CAPACITY = "capacity";
 	public static final String ATTRIBUTE_DEPRECATED = "deprecated";
+	public static final String SORTABLE_ATTRIBUTE_COMPOUND_CODE_NAME = "codeName";
 	public static final String ASSOCIATED_DATA_LOCALIZATION = "localization";
 	public static final String REFERENCE_OBSOLETE_BRAND = "obsoleteBrand";
 	public static final String REFERENCE_BRAND_WITH_GROUP = "brandWithGroup";
@@ -192,6 +193,11 @@ public class TestDataGenerator {
 								.withAttribute(ATTRIBUTE_DEPRECATED, String.class, whichIs -> whichIs
 									.deprecated("This is deprecated.")
 									.nullable())
+								.withSortableAttributeCompound(
+									SORTABLE_ATTRIBUTE_COMPOUND_CODE_NAME,
+									new AttributeElement(ATTRIBUTE_CODE, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+									new AttributeElement(ATTRIBUTE_NAME, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+								)
 								.withAssociatedData(ASSOCIATED_DATA_LOCALIZATION, Localization.class, whichIs -> whichIs
 									.withDescription("This is a description")
 									.nullable())

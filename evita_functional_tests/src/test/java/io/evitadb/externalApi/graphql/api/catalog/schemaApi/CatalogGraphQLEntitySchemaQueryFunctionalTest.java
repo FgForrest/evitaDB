@@ -28,16 +28,9 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.AssociatedDataSchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.AssociatedDataSchemasDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemasDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemasDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.tester.GraphQLTester;
@@ -419,6 +412,132 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			)
 			.body(
 				PRODUCT_SCHEMA_PATH + "." + EntitySchemaDescriptor.ALL_ATTRIBUTES.name(),
+				equalTo(expectedBody)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return specific sortable attribute compound schema")
+	void shouldReturnSpecificSortableAttributeCompoundSchema(Evita evita, GraphQLTester tester) {
+		final EntitySchemaContract productSchema = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntitySchema(Entities.PRODUCT);
+			}
+		).orElseThrow();
+
+		final SortableAttributeCompoundSchemaContract codeNameSchema = productSchema.getSortableAttributeCompound(SORTABLE_ATTRIBUTE_COMPOUND_CODE_NAME).orElseThrow();
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
+			.document(
+				"""
+					query {
+						getProductSchema {
+							sortableAttributeCompounds {
+								__typename
+								codeName {
+									__typename
+									name
+									nameVariants {
+										camelCase
+										pascalCase
+										snakeCase
+										upperSnakeCase
+										kebabCase
+									}
+									description
+									deprecationNotice
+									attributeElements {
+										attributeName
+										direction
+										behavior
+									}
+								}
+							}
+						}
+					}
+					"""
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				PRODUCT_SCHEMA_PATH,
+				equalTo(
+					map()
+						.e(EntitySchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), map()
+							.e(TYPENAME_FIELD, SortableAttributeCompoundSchemasDescriptor.THIS.name(createEmptyEntitySchema("Product")))
+							.e(SORTABLE_ATTRIBUTE_COMPOUND_CODE_NAME, map()
+								.e(SortableAttributeCompoundSchemaDescriptor.NAME.name(), codeNameSchema.getName())
+								.e(SortableAttributeCompoundSchemaDescriptor.NAME_VARIANTS.name(), map()
+									.e(NameVariantsDescriptor.CAMEL_CASE.name(), codeNameSchema.getNameVariant(NamingConvention.CAMEL_CASE))
+									.e(NameVariantsDescriptor.PASCAL_CASE.name(), codeNameSchema.getNameVariant(NamingConvention.PASCAL_CASE))
+									.e(NameVariantsDescriptor.SNAKE_CASE.name(), codeNameSchema.getNameVariant(NamingConvention.SNAKE_CASE))
+									.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), codeNameSchema.getNameVariant(NamingConvention.UPPER_SNAKE_CASE))
+									.e(NameVariantsDescriptor.KEBAB_CASE.name(), codeNameSchema.getNameVariant(NamingConvention.KEBAB_CASE))
+									.build())
+								.e(SortableAttributeCompoundSchemaDescriptor.DESCRIPTION.name(), codeNameSchema.getDescription())
+								.e(SortableAttributeCompoundSchemaDescriptor.DEPRECATION_NOTICE.name(), codeNameSchema.getDeprecationNotice())
+								.e(SortableAttributeCompoundSchemaDescriptor.ATTRIBUTE_ELEMENTS.name(), codeNameSchema.getAttributeElements()
+									.stream()
+									.map(it -> map()
+										.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), it.attributeName())
+										.e(AttributeElementDescriptor.DIRECTION.name(), it.direction().name())
+										.e(AttributeElementDescriptor.BEHAVIOUR.name(), it.behaviour().name())
+										.build())
+									.toList())
+								.build()))
+						.build()
+				)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return all sortable attribute compound schemas")
+	void shouldReturnAllSortableAttributeCompoundSchemas(Evita evita, GraphQLTester tester) {
+		final EntitySchemaContract productSchema = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntitySchema(Entities.PRODUCT);
+			}
+		).orElseThrow();
+		assertFalse(productSchema.getSortableAttributeCompounds().isEmpty());
+
+		final List<Map<String, Object>> expectedBody = productSchema.getSortableAttributeCompounds()
+			.values()
+			.stream()
+			.map(it -> map()
+				.e(TYPENAME_FIELD, SortableAttributeCompoundSchemaDescriptor.THIS.name())
+				.e(SortableAttributeCompoundSchemaDescriptor.NAME.name(), it.getName())
+				.build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
+			.document(
+				"""
+					query {
+						getProductSchema {
+							allSortableAttributeCompounds {
+								__typename
+								name
+							}
+						}
+					}
+					"""
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				PRODUCT_SCHEMA_PATH + "." + EntitySchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS.name() + "." + TYPENAME_FIELD,
+				containsInRelativeOrder(SortableAttributeCompoundSchemaDescriptor.THIS.name())
+			)
+			.body(
+				PRODUCT_SCHEMA_PATH + "." + EntitySchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS.name(),
 				equalTo(expectedBody)
 			);
 	}

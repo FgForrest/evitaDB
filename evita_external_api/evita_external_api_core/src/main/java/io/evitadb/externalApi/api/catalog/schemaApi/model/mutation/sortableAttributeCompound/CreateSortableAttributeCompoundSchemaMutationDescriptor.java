@@ -63,7 +63,7 @@ public interface CreateSortableAttributeCompoundSchemaMutationDescriptor extends
 		.description("""
 			Defines list of individual elements forming this compound.
 			""")
-		.type(nonNullListRef(AttributeElementDescriptor.THIS))
+		.type(nonNullListRef(AttributeElementDescriptor.THIS_INPUT))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()

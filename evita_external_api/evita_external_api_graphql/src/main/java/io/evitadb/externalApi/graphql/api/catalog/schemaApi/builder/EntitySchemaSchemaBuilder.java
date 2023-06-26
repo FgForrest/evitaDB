@@ -93,7 +93,8 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		final GraphQLObjectType globalAttributeSchemaObject = buildGlobalAttributeSchemaObject();
 		buildingContext.registerType(globalAttributeSchemaObject);
 		buildingContext.registerType(buildAttributeSchemaUnion(attributeSchemaObject, globalAttributeSchemaObject));
-		buildingContext.registerType(SortableAttributeCompoundSchemaDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(AttributeElementDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(SortableAttributeCompoundSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(buildAssociatedDataSchemaObject());
 		buildingContext.registerType(buildGenericReferenceSchemaObject());
 
@@ -140,7 +141,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		buildingContext.registerType(ReferenceAttributeSchemaMutationAggregateDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 
 		// attribute schema mutations
-		buildingContext.registerType(AttributeElementDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(AttributeElementDescriptor.THIS_INPUT.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(CreateSortableAttributeCompoundSchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
@@ -393,21 +394,21 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 	private GraphQLObjectType buildSortableAttributeCompoundSchemasObject(@Nonnull EntitySchemaContract entitySchema) {
 		final String objectName = SortableAttributeCompoundSchemasDescriptor.THIS.name(entitySchema);
 
-		final GraphQLObjectType.Builder attributeSchemasObjectBuilder = newObject()
+		final GraphQLObjectType.Builder objectBuilder = newObject()
 			.name(objectName)
-			.description(AttributeSchemasDescriptor.THIS.description());
+			.description(SortableAttributeCompoundSchemasDescriptor.THIS.description());
 
 		entitySchema.getSortableAttributeCompounds()
 			.values()
 			.forEach(sortableAttributeCompoundSchema ->
 				buildingContext.registerFieldToObject(
 					objectName,
-					attributeSchemasObjectBuilder,
+					objectBuilder,
 					buildSortableAttributeCompoundSchemaField(sortableAttributeCompoundSchema)
 				)
 			);
 
-		return attributeSchemasObjectBuilder.build();
+		return objectBuilder.build();
 	}
 
 	@Nonnull
@@ -609,7 +610,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 			new AllAttributeSchemasDataFetcher()
 		);
 
-		if (!referenceSchema.getAttributes().isEmpty()) {
+		if (!referenceSchema.getSortableAttributeCompounds().isEmpty()) {
 			buildingContext.registerFieldToObject(
 				objectName,
 				referenceSchemaObjectBuilder,
