@@ -59,7 +59,7 @@ import java.util.Optional;
 @EqualsAndHashCode(callSuper = true)
 public class ModifyReferenceSortableAttributeCompoundSchemaMutation extends AbstractModifyReferenceDataSchemaMutation
 	implements CombinableEntitySchemaMutation {
-	@Serial private static final long serialVersionUID = -5779012919587623154L;
+	@Serial private static final long serialVersionUID = -1439568976069672739L;
 	@Nonnull @Getter private final ReferenceSchemaMutation sortableAttributeCompoundSchemaMutation;
 
 	public ModifyReferenceSortableAttributeCompoundSchemaMutation(@Nonnull String name, @Nonnull ReferenceSchemaMutation sortableAttributeCompoundSchemaMutation) {
@@ -73,8 +73,8 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutation extends Abst
 	public MutationCombinationResult<EntitySchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull EntitySchemaContract currentEntitySchema, @Nonnull EntitySchemaMutation existingMutation) {
 		if (existingMutation instanceof ModifyReferenceSortableAttributeCompoundSchemaMutation theExistingMutation && name.equals(theExistingMutation.getName())
 				&& sortableAttributeCompoundSchemaMutation.getName().equals(theExistingMutation.getSortableAttributeCompoundSchemaMutation().getName())) {
-			if (sortableAttributeCompoundSchemaMutation instanceof CombinableEntitySchemaMutation combinableMutation) {
-				final MutationCombinationResult<EntitySchemaMutation> result = combinableMutation.combineWith(
+			if (sortableAttributeCompoundSchemaMutation instanceof CombinableEntitySchemaMutation combinableSortableAttributeCompoundCombinationMutation) {
+				final MutationCombinationResult<EntitySchemaMutation> result = combinableSortableAttributeCompoundCombinationMutation.combineWith(
 					currentCatalogSchema, currentEntitySchema, (EntitySchemaMutation) theExistingMutation.getSortableAttributeCompoundSchemaMutation()
 				);
 				if (result == null) {
@@ -83,7 +83,7 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutation extends Abst
 					final EntitySchemaMutation origin;
 					if (result.origin() == null) {
 						origin = null;
-					} else if (result.origin() == combinableMutation) {
+					} else if (result.origin() == combinableSortableAttributeCompoundCombinationMutation) {
 						origin = theExistingMutation;
 					} else {
 						origin = new ModifyReferenceSortableAttributeCompoundSchemaMutation(name, (ReferenceSchemaMutation) result.origin());

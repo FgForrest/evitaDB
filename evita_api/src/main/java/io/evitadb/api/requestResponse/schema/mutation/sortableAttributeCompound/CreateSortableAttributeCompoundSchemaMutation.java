@@ -37,8 +37,6 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.SortableAttributeCompoundSchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -70,7 +68,7 @@ import java.util.stream.Stream;
 @Immutable
 @EqualsAndHashCode
 public class CreateSortableAttributeCompoundSchemaMutation
-	implements CombinableEntitySchemaMutation, ReferenceSchemaMutation, SortableAttributeCompoundSchemaMutation {
+	implements CombinableEntitySchemaMutation, ReferenceSortableAttributeCompoundSchemaMutation {
 
 	@Serial private static final long serialVersionUID = 5667962046673510848L;
 	@Getter @Nonnull private final String name;
