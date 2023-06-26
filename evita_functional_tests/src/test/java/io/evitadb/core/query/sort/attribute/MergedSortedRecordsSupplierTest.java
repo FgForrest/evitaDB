@@ -43,26 +43,27 @@ class MergedSortedRecordsSupplierTest {
 				new MockSortedRecordsSupplier(7, 1, 3),
 				new MockSortedRecordsSupplier(5, 1, 2),
 				new MockSortedRecordsSupplier(1, 7, 4, 6)
-			}
+			},
+			null
 		);
 
 		final MockSortedRecordsSupplier secondCheck = new MockSortedRecordsSupplier(7, 1, 3, 5, 2, 4, 6);
 
 		assertArrayEquals(
 			new int[]{1, 2, 3, 4, 5, 6, 7},
-			result.get().allRecords().stream().toArray()
+			result.getSortedRecordsProvider().getAllRecords().stream().toArray()
 		);
 		assertArrayEquals(
 			new int[]{7, 1, 3, 5, 2, 4, 6},
-			result.get().sortedRecordIds()
+			result.getSortedRecordsProvider().getSortedRecordIds()
 		);
 		assertArrayEquals(
 			new int[]{1, 4, 2, 5, 3, 6, 0},
-			result.get().recordPositions()
+			result.getSortedRecordsProvider().getRecordPositions()
 		);
 		assertArrayEquals(
 			secondCheck.getRecordPositions(),
-			result.get().recordPositions()
+			result.getSortedRecordsProvider().getRecordPositions()
 		);
 	}
 

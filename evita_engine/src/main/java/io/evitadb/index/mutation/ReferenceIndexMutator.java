@@ -263,7 +263,7 @@ public interface ReferenceIndexMutator {
 			targetIndex.upsertLanguage(locale, entityPrimaryKey, containerAccessor);
 		}
 
-		indexAllCompounds(executor, targetIndex, entityPrimaryKey, entityCnt);
+		indexAllCompounds(executor, targetIndex, entityPrimaryKey);
 		indexAllAttributes(executor, targetIndex, entityType, entityPrimaryKey, entityCnt);
 		indexAllPrices(executor, targetIndex, entityType, entityPrimaryKey);
 	}
@@ -331,8 +331,7 @@ public interface ReferenceIndexMutator {
 	private static void indexAllCompounds(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex targetIndex,
-		int entityPrimaryKey,
-		@Nonnull EntityBodyStoragePart entityCnt
+		int entityPrimaryKey
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
 		final EntityStoragePartAccessor containerAccessor = executor.getContainerAccessor();
@@ -340,12 +339,6 @@ public interface ReferenceIndexMutator {
 		AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
 			targetIndex, null, entityPrimaryKey, entitySchema, null, containerAccessor
 		);
-
-		for (Locale locale : entityCnt.getLocales()) {
-			AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
-				targetIndex, locale, entityPrimaryKey, entitySchema, null, containerAccessor
-			);
-		}
 	}
 
 	/**
@@ -419,7 +412,7 @@ public interface ReferenceIndexMutator {
 
 		removeAllAttributes(executor, targetIndex, entityType, entityPrimaryKey);
 		removeAllPrices(executor, targetIndex, entityType, entityPrimaryKey);
-		removeAllCompounds(executor, targetIndex, entityPrimaryKey, entityCnt);
+		removeAllCompounds(executor, targetIndex, entityPrimaryKey);
 
 		// if target index is empty, remove it completely
 		if (targetIndex.isEmpty()) {
@@ -522,8 +515,7 @@ public interface ReferenceIndexMutator {
 	private static void removeAllCompounds(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex targetIndex,
-		int entityPrimaryKey,
-		@Nonnull EntityBodyStoragePart entityCnt
+		int entityPrimaryKey
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
 		final EntityStoragePartAccessor containerAccessor = executor.getContainerAccessor();
@@ -531,12 +523,6 @@ public interface ReferenceIndexMutator {
 		AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
 			targetIndex, null, entityPrimaryKey, entitySchema, null, containerAccessor
 		);
-
-		for (Locale locale : entityCnt.getLocales()) {
-			AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
-				targetIndex, locale, entityPrimaryKey, entitySchema, null, containerAccessor
-			);
-		}
 	}
 
 	/**

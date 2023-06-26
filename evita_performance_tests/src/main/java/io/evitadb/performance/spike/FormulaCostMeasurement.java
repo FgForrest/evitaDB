@@ -272,7 +272,7 @@ public class FormulaCostMeasurement {
 		final MergedSortedRecordsSupplier testedFormula = new MergedSortedRecordsSupplier(
 			sortedRecordProvidersSet.getProviders()
 		);
-		blackhole.consume(testedFormula.get());
+		blackhole.consume(testedFormula.getSortedRecordsProvider());
 	}
 
 }
