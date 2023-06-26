@@ -103,7 +103,7 @@ class PreSortedRecordsSorterTest {
 
 		final int[] actual = updatedSorter.sortAndSlice(bitmapSorter.context(), makeFormula(0, 1, 2, 3, 4, 12, 13), 0, 100);
 		assertArrayEquals(
-			new int[]{2, 4, 1, 3, 0, 12, 13},
+			new int[]{2, 4, 1, 3, 13, 0, 12},
 			actual
 		);
 	}

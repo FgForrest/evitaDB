@@ -95,8 +95,10 @@ class FormulaCacheVisitorTest {
 			toConstantFormula(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 		);
 
+		final EvitaSession evitaSession = Mockito.mock(EvitaSession.class);
+		Mockito.when(evitaSession.getCatalogName()).thenReturn(TEST_CATALOG);
 		final Formula possiblyUpdatedFormula = FormulaCacheVisitor.analyse(
-			Mockito.mock(EvitaSession.class),
+			evitaSession,
 			SOME_ENTITY,
 			inputFormula,
 			cacheAnteroom
@@ -136,8 +138,10 @@ class FormulaCacheVisitorTest {
 			)
 		);
 
+		final EvitaSession evitaSession = Mockito.mock(EvitaSession.class);
+		Mockito.when(evitaSession.getCatalogName()).thenReturn(TEST_CATALOG);
 		final Formula possiblyUpdatedFormula = FormulaCacheVisitor.analyse(
-			Mockito.mock(EvitaSession.class),
+			evitaSession,
 			SOME_ENTITY,
 			inputFormula,
 			cacheAnteroom
@@ -174,8 +178,10 @@ class FormulaCacheVisitorTest {
 			)
 		);
 
+		final EvitaSession evitaSession = Mockito.mock(EvitaSession.class);
+		Mockito.when(evitaSession.getCatalogName()).thenReturn(TEST_CATALOG);
 		final Formula possiblyUpdatedFormula = FormulaCacheVisitor.analyse(
-			Mockito.mock(EvitaSession.class),
+			evitaSession,
 			SOME_ENTITY,
 			inputFormula,
 			cacheAnteroom
@@ -200,6 +206,8 @@ class FormulaCacheVisitorTest {
 		);
 
 		final EvitaSession evitaSession = Mockito.mock(EvitaSession.class);
+		Mockito.when(evitaSession.getCatalogName()).thenReturn(TEST_CATALOG);
+
 		final Formula possiblyUpdatedFormula = FormulaCacheVisitor.analyse(evitaSession, SOME_ENTITY, inputFormula, cacheAnteroom);
 
 		// compute the instrumented formula

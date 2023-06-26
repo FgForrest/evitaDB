@@ -110,6 +110,14 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 		);
 	}
 
+	@Nonnull
+	@Override
+	public Sorter cloneInstance() {
+		return new MergedSortedRecordsSupplier(
+			sortedRecordsProvider, null
+		);
+	}
+
 	@Nullable
 	@Override
 	public Sorter getNextSorter() {

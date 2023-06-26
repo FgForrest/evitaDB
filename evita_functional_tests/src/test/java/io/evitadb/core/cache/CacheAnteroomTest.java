@@ -29,6 +29,7 @@ import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.scheduling.Scheduler;
+import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -93,6 +94,7 @@ class CacheAnteroomTest {
 	@Test
 	void shouldPropagateHotSpotsToCache() {
 		final EvitaSession evitaSession = Mockito.mock(EvitaSession.class);
+		Mockito.when(evitaSession.getCatalogName()).thenReturn(TestConstants.TEST_CATALOG);
 
 		final Map<Integer, Integer> cacheHits = new HashMap<>();
 		for (int i = 0; i < 1000; i++) {

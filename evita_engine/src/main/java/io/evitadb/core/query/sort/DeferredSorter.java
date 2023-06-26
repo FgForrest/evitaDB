@@ -49,6 +49,12 @@ public class DeferredSorter implements Sorter {
 		return new DeferredSorter(sorter.andThen(sorterForUnknownRecords), executionWrapper);
 	}
 
+	@Nonnull
+	@Override
+	public Sorter cloneInstance() {
+		return new DeferredSorter(sorter.cloneInstance(), executionWrapper);
+	}
+
 	@Nullable
 	@Override
 	public Sorter getNextSorter() {

@@ -117,6 +117,17 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 		);
 	}
 
+	@Nonnull
+	@Override
+	public Sorter cloneInstance() {
+		return new PreSortedRecordsSorter(
+			computationCallback,
+			entityType,
+			sortedRecordsSupplier,
+			null
+		);
+	}
+
 	@Nullable
 	@Override
 	public Sorter getNextSorter() {

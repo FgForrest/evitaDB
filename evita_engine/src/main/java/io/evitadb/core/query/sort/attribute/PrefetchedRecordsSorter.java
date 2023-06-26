@@ -54,7 +54,7 @@ public class PrefetchedRecordsSorter extends AbstractRecordsSorter implements Co
 	 */
 	private final EntityComparator entityComparator;
 
-	private PrefetchedRecordsSorter(Sorter unknownRecordIdsSorter, EntityComparator entityComparator) {
+	private PrefetchedRecordsSorter(EntityComparator entityComparator, Sorter unknownRecordIdsSorter) {
 		this.unknownRecordIdsSorter = unknownRecordIdsSorter;
 		this.entityComparator = entityComparator;
 	}
@@ -68,7 +68,15 @@ public class PrefetchedRecordsSorter extends AbstractRecordsSorter implements Co
 	@Override
 	public Sorter andThen(Sorter sorterForUnknownRecords) {
 		return new PrefetchedRecordsSorter(
-			sorterForUnknownRecords, entityComparator
+			entityComparator, sorterForUnknownRecords
+		);
+	}
+
+	@Nonnull
+	@Override
+	public Sorter cloneInstance() {
+		return new PrefetchedRecordsSorter(
+			entityComparator, null
 		);
 	}
 

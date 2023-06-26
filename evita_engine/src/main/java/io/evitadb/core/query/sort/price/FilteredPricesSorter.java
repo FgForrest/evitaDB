@@ -121,6 +121,16 @@ public class FilteredPricesSorter implements Sorter {
 		);
 	}
 
+	@Nonnull
+	@Override
+	public Sorter cloneInstance() {
+		return new FilteredPricesSorter(
+			filteredPriceRecordAccessors,
+			priceRecordComparator,
+			null
+		);
+	}
+
 	@Nullable
 	@Override
 	public Sorter getNextSorter() {

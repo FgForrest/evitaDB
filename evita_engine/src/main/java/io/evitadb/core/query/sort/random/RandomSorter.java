@@ -49,6 +49,12 @@ public class RandomSorter implements Sorter {
 		throw new UnsupportedOperationException("Random sorter cannot be chained!");
 	}
 
+	@Nonnull
+	@Override
+	public Sorter cloneInstance() {
+		return this;
+	}
+
 	@Nullable
 	@Override
 	public Sorter getNextSorter() {

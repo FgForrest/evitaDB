@@ -65,6 +65,7 @@ import net.openhft.hashing.LongHashFunction;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Function;
@@ -338,7 +339,7 @@ public class QueryPlanner {
 			return sorter;
 		} else {
 			final LongHashFunction hashFunction = CacheSupervisor.createHashFunction();
-			final List<Sorter> sorters = new LinkedList<>();
+			final LinkedList<Sorter> sorters = new LinkedList<>();
 			boolean cacheableVariantFound = false;
 			Sorter nextSorter = sorter;
 			do {
@@ -353,7 +354,7 @@ public class QueryPlanner {
 							);
 							cacheableVariantFound = true;
 						} else {
-							sorters.add(cacheableSorter);
+							sorters.add(cacheableSorter.cloneInstance());
 						}
 					} else {
 						sorters.add(
@@ -365,14 +366,16 @@ public class QueryPlanner {
 						cacheableVariantFound = true;
 					}
 				} else {
-					sorters.add(nextSorter);
+					sorters.add(nextSorter.cloneInstance());
 				}
 				nextSorter = nextSorter.getNextSorter();
 			} while (nextSorter != null);
 
 			if (cacheableVariantFound) {
 				Sorter replacedSorter = null;
-				for (Sorter theSorter : sorters) {
+				final Iterator<Sorter> it = sorters.descendingIterator();
+				while (it.hasNext()) {
+					final Sorter theSorter = it.next();
 					replacedSorter = replacedSorter == null ?
 						theSorter : theSorter.andThen(replacedSorter);
 				}
