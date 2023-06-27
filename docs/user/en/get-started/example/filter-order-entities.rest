@@ -1,0 +1,20 @@
+POST /rest/test-catalog/product/list
+
+{
+  "filterBy": {
+    "attributeNameStartsWith": "A"
+  },
+  "orderBy": {
+    "attributeNameNatural": "ASC"
+  },
+  "require": {
+    "entityFetch": {
+      "attributeContentAll": true,
+      "hierarchyContent": {},
+      "associatedDataContentAll": true,
+      "priceContentAll": true,
+      "referenceContentAll": true,
+      "dataInLocales": []
+    }
+  }
+}

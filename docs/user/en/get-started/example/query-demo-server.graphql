@@ -2,6 +2,7 @@ query {
 	listBrand(
 		filterBy: {
 			attributeNameStartsWith: "A"
+			entityLocaleEquals: en
 		}
 		orderBy: {
 			attributeNameNatural: ASC

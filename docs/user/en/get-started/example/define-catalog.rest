@@ -1,0 +1,5 @@
+POST /rest/system/catalogs
+
+{
+  "name": "testCatalog"
+}
