@@ -105,9 +105,6 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 					map()
 						.e(EntityDescriptor.PRIMARY_KEY.name(), 11)
 						.e(EntityDescriptor.TYPE.name(), "empty")
-						.e(EntityDescriptor.LOCALES.name(), Collections.emptyList())
-						.e(EntityDescriptor.ALL_LOCALES.name(), Collections.emptyList())
-						.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 						.build()
 				)
 			);
@@ -134,9 +131,6 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 					map()
 						.e(EntityDescriptor.PRIMARY_KEY.name(), 110)
 						.e(EntityDescriptor.TYPE.name(), "emptyWithoutPk")
-						.e(EntityDescriptor.LOCALES.name(), Collections.emptyList())
-						.e(EntityDescriptor.ALL_LOCALES.name(), Collections.emptyList())
-						.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 						.build()
 				)
 			);
@@ -163,9 +157,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 					map()
 						.e(EntityDescriptor.PRIMARY_KEY.name(), 10)
 						.e(EntityDescriptor.TYPE.name(), "PRODUCT")
-						.e(EntityDescriptor.LOCALES.name(), Collections.emptyList())
 						.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-						.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 						.build()
 				)
 			);
@@ -217,7 +209,6 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 			.e(EntityDescriptor.LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag()))
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 			.e(EntityDescriptor.ATTRIBUTES.name(), map()
 				.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
 					.e(ATTRIBUTE_QUANTITY, ((BigDecimal) entity.getAttribute(ATTRIBUTE_QUANTITY)).add(BigDecimal.TEN).toString())
@@ -310,7 +301,6 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 			.e(EntityDescriptor.LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag()))
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 			.e(EntityDescriptor.ASSOCIATED_DATA.name(), map()
 				.e(SectionedAssociatedDataDescriptor.LOCALIZED.name(), map()
 					.e(CZECH_LOCALE.toLanguageTag(), map()
@@ -429,9 +419,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		final Map<String, Object> expectedBodyWithHierarchicalPlacement = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.CATEGORY)
-			.e(EntityDescriptor.LOCALES.name(), List.of())
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 			.e(RestEntityDescriptor.PARENT.name(), parent + 10)
 			.build();
 
@@ -464,9 +452,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		final Map<String, Object> expectedBodyAfterRemoving = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.CATEGORY)
-			.e(EntityDescriptor.LOCALES.name(), List.of())
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 			.build();
 
 		tester.test(TEST_CATALOG)
@@ -506,7 +492,6 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		final Map<String, Object> expectedBodyWithNewPrice = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-			.e(EntityDescriptor.LOCALES.name(), List.of())
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.NONE.name())
 			.e(EntityDescriptor.PRICES.name(), List.of(
@@ -584,7 +569,6 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		final Map<String, Object> expectedBodyWithoutNewPrice = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-			.e(EntityDescriptor.LOCALES.name(), List.of())
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.NONE.name())
 			.build();
@@ -654,9 +638,8 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		final Map<String, Object> expectedBody = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-			.e(EntityDescriptor.LOCALES.name(), List.of())
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), "SUM")
+			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.SUM.name())
 			.e(EntityDescriptor.PRICES.name(), List.of(
 				map()
 					.e(PriceDescriptor.PRICE_ID.name(), 9)
