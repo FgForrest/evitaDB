@@ -34,7 +34,6 @@ import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
 import io.evitadb.store.entity.model.entity.price.MinimalPriceInternalIdContainer;
 import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 import io.evitadb.store.spi.model.storageParts.accessor.WritableEntityStorageContainerAccessor;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -50,13 +49,13 @@ import java.util.Objects;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class MockStorageContainerAccessor implements WritableEntityStorageContainerAccessor {
-	@Getter private final Map<Locale, AttributesStoragePart> localizedAttributesStorageContainer = new HashMap<>();
-	@Getter private final Map<AssociatedDataKey, AssociatedDataStoragePart> associatedDataStorageContainer = new HashMap<>();
-	@Getter private EntityBodyStoragePart entityStorageContainer;
-	@Getter private AttributesStoragePart attributesStorageContainer;
-	@Getter private ReferencesStoragePart referencesStorageContainer;
-	@Getter private PricesStoragePart pricesStorageContainer;
-	@Getter private Map<PriceKey, Integer> assignedInternalPriceIdIndex;
+	private final Map<Locale, AttributesStoragePart> localizedAttributesStorageContainer = new HashMap<>();
+	private final Map<AssociatedDataKey, AssociatedDataStoragePart> associatedDataStorageContainer = new HashMap<>();
+	private EntityBodyStoragePart entityStorageContainer;
+	private AttributesStoragePart attributesStorageContainer;
+	private ReferencesStoragePart referencesStorageContainer;
+	private PricesStoragePart pricesStorageContainer;
+	private Map<PriceKey, Integer> assignedInternalPriceIdIndex;
 
 	@Override
 	public void registerAssignedPriceId(@Nonnull String entityType, int entityPrimaryKey, @Nonnull PriceKey priceKey, @Nullable Integer innerRecordId, @Nonnull PriceInternalIdContainer priceId) {

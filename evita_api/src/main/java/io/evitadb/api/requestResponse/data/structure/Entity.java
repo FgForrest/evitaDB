@@ -679,7 +679,7 @@ public class Entity implements SealedEntity {
 		@Nonnull AttributeMutation attributeMutation
 	) {
 		final AttributeValue existingAttributeValue = possibleEntity
-			.map(it -> it.getAttributeValue(attributeMutation.getAttributeKey()))
+			.flatMap(it -> it.getAttributeValue(attributeMutation.getAttributeKey()))
 			.orElse(null);
 		ofNullable(
 			returnIfChanged(
@@ -882,8 +882,8 @@ public class Entity implements SealedEntity {
 		return attributes.getAttributeLocales();
 	}
 
-	@Nullable
-	public AttributeValue getAttributeValue(@Nonnull AttributeKey attributeKey) {
+	@Nonnull
+	public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
 		return attributes.getAttributeValue(attributeKey);
 	}
 

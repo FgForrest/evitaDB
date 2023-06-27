@@ -27,6 +27,8 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
@@ -39,6 +41,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -50,6 +53,7 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.api.requestResponse.schema.dto.EntitySchema._internalGenerateNameVariantIndex;
 import static io.evitadb.api.requestResponse.schema.dto.EntitySchema.toAttributeSchema;
+import static io.evitadb.api.requestResponse.schema.dto.EntitySchema.toSortableAttributeCompoundSchema;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -72,8 +76,22 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 	@Getter @Nullable private final String referencedGroupType;
 	@Nonnull private final Map<NamingConvention, String> groupTypeNameVariants;
 	@Getter private final boolean referencedGroupTypeManaged;
-	@Getter private final boolean filterable;
+	@Getter private final boolean indexed;
 	@Getter private final boolean faceted;
+
+	/**
+	 * Contains index of all {@link SortableAttributeCompoundSchema} that could be used as sortable attribute compounds
+	 * of reference of this type.
+	 */
+	@Nonnull private final Map<String, SortableAttributeCompoundSchema> sortableAttributeCompounds;
+	/**
+	 * Index of attribute names that allows to quickly lookup sortable attribute compound schemas by name in specific
+	 * naming convention. Key is the name in specific name convention, value is array of size {@link NamingConvention#values()}
+	 * where reference to {@link SortableAttributeCompoundSchema} is placed on index of naming convention that matches
+	 * the key.
+	 */
+	private final Map<String, SortableAttributeCompoundSchema[]> sortableAttributeCompoundNameIndex;
+
 	/**
 	 * Contains index of all {@link AttributeSchema} that could be used as attributes of entity of this type.
 	 */
@@ -88,6 +106,11 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 	 * Contains all definitions of the attributes that return false in method {@link AttributeSchema#isNullable()}.
 	 */
 	@Getter @Nonnull private final Collection<AttributeSchema> nonNullableAttributes;
+	/**
+	 * Index contains collections of sortable attribute compounds that reference the attribute with the name equal
+	 * to a key of this index.
+	 */
+	@Nonnull private final Map<String, Collection<SortableAttributeCompoundSchemaContract>> attributeToSortableAttributeCompoundIndex;
 
 	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of ReferenceSchema from
@@ -95,6 +118,7 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 	 *
 	 * Do not use this method from in the client code!
 	 */
+	@Nonnull
 	public static ReferenceSchema _internalBuild(
 		@Nonnull String name,
 		@Nonnull String entityType,
@@ -113,8 +137,6 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 			Assert.isTrue(indexed, "When reference is marked as faceted, it needs also to be indexed.");
 		}
 
-		//we need to wrap even empty map to the unmodifiable wrapper in order to unify type for Kryo serialization
-		//noinspection RedundantUnmodifiable
 		return new ReferenceSchema(
 			name, NamingConvention.generate(name),
 			null, null, cardinality,
@@ -127,7 +149,8 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 			groupTypeRelatesToEntity,
 			indexed,
 			faceted,
-			Collections.unmodifiableMap(Collections.emptyMap())
+			Collections.emptyMap(),
+			Collections.emptyMap()
 		);
 	}
 
@@ -137,6 +160,7 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 	 *
 	 * Do not use this method from in the client code!
 	 */
+	@Nonnull
 	public static ReferenceSchema _internalBuild(
 		@Nonnull String name,
 		@Nullable String description,
@@ -148,7 +172,8 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 		boolean groupTypeRelatesToEntity,
 		boolean indexed,
 		boolean faceted,
-		@Nonnull Map<String, AttributeSchemaContract> attributes
+		@Nonnull Map<String, AttributeSchemaContract> attributes,
+		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, entityType);
 		if (groupType != null) {
@@ -158,7 +183,6 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 			Assert.isTrue(indexed, "When reference is marked as faceted, it needs also to be indexed.");
 		}
 
-		//we need to wrap even empty map to the unmodifiable wrapper in order to unify type for Kryo serialization
 		return new ReferenceSchema(
 			name, NamingConvention.generate(name),
 			description, deprecationNotice, cardinality,
@@ -171,7 +195,8 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 			groupTypeRelatesToEntity,
 			indexed,
 			faceted,
-			Collections.unmodifiableMap(attributes)
+			attributes,
+			sortableAttributeCompounds
 		);
 	}
 
@@ -181,6 +206,7 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 	 *
 	 * Do not use this method from in the client code!
 	 */
+	@Nonnull
 	public static ReferenceSchema _internalBuild(
 		@Nonnull String name,
 		@Nonnull Map<NamingConvention, String> nameVariants,
@@ -195,7 +221,8 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 		boolean groupTypeRelatesToEntity,
 		boolean indexed,
 		boolean faceted,
-		@Nonnull Map<String, AttributeSchemaContract> attributes
+		@Nonnull Map<String, AttributeSchemaContract> attributes,
+		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, entityType);
 		if (groupType != null) {
@@ -205,7 +232,6 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 			Assert.isTrue(indexed, "When reference is marked as faceted, it needs also to be indexed.");
 		}
 
-		//we need to wrap even empty map to the unmodifiable wrapper in order to unify type for Kryo serialization
 		return new ReferenceSchema(
 			name, nameVariants,
 			description, deprecationNotice, cardinality,
@@ -217,7 +243,8 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 			groupTypeRelatesToEntity,
 			indexed,
 			faceted,
-			Collections.unmodifiableMap(attributes)
+			attributes,
+			sortableAttributeCompounds
 		);
 	}
 
@@ -233,32 +260,35 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 		@Nullable String referencedGroupType,
 		@Nonnull Map<NamingConvention, String> groupTypeNameVariants,
 		boolean referencedGroupTypeManaged,
-		boolean filterable,
+		boolean indexed,
 		boolean faceted,
-		@Nonnull Map<String, AttributeSchemaContract> attributes
+		@Nonnull Map<String, AttributeSchemaContract> attributes,
+		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, referencedEntityType);
 		this.name = name;
-		this.nameVariants = nameVariants;
+		this.nameVariants = Collections.unmodifiableMap(nameVariants);
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
 		this.cardinality = cardinality;
 		this.referencedEntityType = referencedEntityType;
-		this.entityTypeNameVariants = entityTypeNameVariants;
+		this.entityTypeNameVariants = Collections.unmodifiableMap(entityTypeNameVariants);
 		this.referencedEntityTypeManaged = referencedEntityTypeManaged;
 		this.referencedGroupType = referencedGroupType;
-		this.groupTypeNameVariants = groupTypeNameVariants;
+		this.groupTypeNameVariants = Collections.unmodifiableMap(groupTypeNameVariants);
 		this.referencedGroupTypeManaged = referencedGroupTypeManaged;
-		this.filterable = filterable;
+		this.indexed = indexed;
 		this.faceted = faceted;
-		this.attributes = attributes.entrySet()
-			.stream()
-			.collect(
-				Collectors.toMap(
-					Entry::getKey,
-					it -> toAttributeSchema(it.getValue())
+		this.attributes = Collections.unmodifiableMap(
+			attributes.entrySet()
+				.stream()
+				.collect(
+					Collectors.toMap(
+						Entry::getKey,
+						it -> toAttributeSchema(it.getValue())
+					)
 				)
-			);
+		);
 		this.attributeNameIndex = _internalGenerateNameVariantIndex(
 			this.attributes.values(), AttributeSchemaContract::getNameVariants
 		);
@@ -267,6 +297,32 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 			.stream()
 			.filter(it -> !it.isNullable())
 			.toList();
+		this.sortableAttributeCompounds = Collections.unmodifiableMap(
+			sortableAttributeCompounds.entrySet()
+				.stream()
+				.collect(
+					Collectors.toMap(
+						Entry::getKey,
+						it -> toSortableAttributeCompoundSchema(it.getValue())
+					)
+				)
+		);
+		this.sortableAttributeCompoundNameIndex = _internalGenerateNameVariantIndex(
+			this.sortableAttributeCompounds.values(), SortableAttributeCompoundSchemaContract::getNameVariants
+		);
+		this.attributeToSortableAttributeCompoundIndex = this.sortableAttributeCompounds
+			.values()
+			.stream()
+			.flatMap(it -> it.getAttributeElements().stream().map(attribute -> new AttributeToCompound(attribute, it)))
+			.collect(
+				Collectors.groupingBy(
+					rec -> rec.attribute().attributeName(),
+					Collectors.mapping(
+						AttributeToCompound::compoundSchema,
+						Collectors.toCollection(ArrayList::new)
+					)
+				)
+			);
 	}
 
 	@Override
@@ -323,11 +379,55 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 	@Nonnull
 	@Override
 	public Map<String, AttributeSchemaContract> getAttributes() {
-		// we need EntitySchema to provide access to provide access to internal representations - i.e. whoever has
+		// we need EntitySchema to provide access to internal representations - i.e. whoever has
 		// reference to EntitySchema should have access to other internal schema representations as well
 		// unfortunately, the Generics in Java is just stupid, and we cannot provide subtype at the place of supertype
 		// collection, so we have to work around that issue using generics stripping
 		//noinspection unchecked,rawtypes
 		return (Map)this.attributes;
 	}
+
+	@Nonnull
+	@Override
+	public Map<String, SortableAttributeCompoundSchemaContract> getSortableAttributeCompounds() {
+		// we need EntitySchema to provide access to internal representations - i.e. whoever has
+		// reference to EntitySchema should have access to other internal schema representations as well
+		// unfortunately, the Generics in Java is just stupid, and we cannot provide subtype at the place of supertype
+		// collection, so we have to work around that issue using generics stripping
+		//noinspection unchecked,rawtypes
+		return (Map)this.sortableAttributeCompounds;
+	}
+
+	@Nonnull
+	@Override
+	public Optional<SortableAttributeCompoundSchemaContract> getSortableAttributeCompound(@Nonnull String name) {
+		return ofNullable(sortableAttributeCompounds.get(name));
+	}
+
+	@Nonnull
+	@Override
+	public Optional<SortableAttributeCompoundSchemaContract> getSortableAttributeCompoundByName(@Nonnull String name, @Nonnull NamingConvention namingConvention) {
+		return ofNullable(sortableAttributeCompoundNameIndex.get(name))
+			.map(it -> it[namingConvention.ordinal()]);
+	}
+
+	@Nonnull
+	@Override
+	public Collection<SortableAttributeCompoundSchemaContract> getSortableAttributeCompoundsForAttribute(@Nonnull String attributeName) {
+		return ofNullable(attributeToSortableAttributeCompoundIndex.get(attributeName))
+			.orElse(Collections.emptyList());
+	}
+
+	/**
+	 * Helper DTO to envelope relation between {@link AttributeElement} and {@link SortableAttributeCompoundSchemaContract}.
+	 *
+	 * @param attribute {@link SortableAttributeCompoundSchemaContract#getAttributeElements()} item
+	 * @param compoundSchema {@link SortableAttributeCompoundSchemaContract} enveloping compound
+	 */
+	private record AttributeToCompound(
+		@Nonnull AttributeElement attribute,
+		@Nonnull SortableAttributeCompoundSchema compoundSchema
+	) {
+	}
+
 }

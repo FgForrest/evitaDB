@@ -252,6 +252,13 @@ public class ReferenceDecorator implements ReferenceContract {
 
 	@Nonnull
 	@Override
+	public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
+		return delegate.getAttributeValue(attributeKey)
+			.filter(attributePredicate);
+	}
+
+	@Nonnull
+	@Override
 	public Collection<AttributeValue> getAttributeValues() {
 		if (filteredAttributes == null) {
 			filteredAttributes = delegate.getAttributeValues()

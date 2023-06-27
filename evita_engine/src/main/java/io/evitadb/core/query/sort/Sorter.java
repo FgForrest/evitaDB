@@ -39,6 +39,12 @@ import javax.annotation.Nullable;
 public interface Sorter {
 
 	/**
+	 * Creates clone of this sorter instance.
+	 */
+	@Nonnull
+	Sorter cloneInstance();
+
+	/**
 	 * Method allows creating combined sorter from this instance and passed instance.
 	 * Creates new sorter that first sorts by this instance order and for rest records, that cannot be sorted by this
 	 * sorter, the passed sorter will be used.

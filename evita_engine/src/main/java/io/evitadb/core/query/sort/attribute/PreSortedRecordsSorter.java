@@ -23,28 +23,26 @@
 
 package io.evitadb.core.query.sort.attribute;
 
-import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.sort.EntityComparator;
+import io.evitadb.core.query.sort.CacheableSorter;
+import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.core.query.sort.attribute.cache.FlattenedMergedSortedRecordsProvider;
+import io.evitadb.index.attribute.SortIndex.SortedRecordsSupplier;
 import lombok.RequiredArgsConstructor;
-import org.roaringbitmap.BatchIterator;
-import org.roaringbitmap.RoaringBatchIterator;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.PrimitiveIterator.OfInt;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Arrays;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.LongStream;
+import java.util.stream.Stream;
 
 /**
  * This sorter sorts {@link AbstractFormula#compute()} result according to {@link SortedRecordsProvider} that contains information
@@ -59,25 +57,52 @@ import java.util.function.Supplier;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @RequiredArgsConstructor
-public class PreSortedRecordsSorter extends AbstractRecordsSorter {
-	private static final int[] EMPTY_RESULT = new int[0];
+public class PreSortedRecordsSorter extends AbstractRecordsSorter implements CacheableSorter, ConditionalSorter {
+	private static final long CLASS_ID = 795011057191754417L;
+	/**
+	 * This callback will be called when this sorter is computed.
+	 */
+	private final Consumer<CacheableSorter> computationCallback;
+	/**
+	 * This is the type of entity that is being sorted.
+	 */
+	private final String entityType;
 	/**
 	 * This instance will be used by this sorter to access pre sorted arrays of entities.
 	 */
-	private final Supplier<SortedRecordsProvider> sortedRecordsSupplier;
-	/**
-	 * This instance will be used by this sorter in case the {@link QueryContext} contains list of prefetched entities.
-	 * The {@link EntityComparator} will take precedence over {@link #sortedRecordsSupplier}.
-	 */
-	private final EntityComparator entityComparator;
+	private final Supplier<SortedRecordsProvider[]> sortedRecordsSupplier;
 	/**
 	 * This sorter instance will be used for sorting entities, that cannot be sorted by this sorter.
 	 */
 	private final Sorter unknownRecordIdsSorter;
+	/**
+	 * Field contains memoized value of {@link #getSortedRecordsProviders()} method.
+	 */
+	private SortedRecordsProvider[] memoizedSortedRecordsProviders;
+	/**
+	 * Contains memoized value of {@link #computeHash(LongHashFunction)} method.
+	 */
+	private Long memoizedHash;
+	/**
+	 * Contains memoized value of {@link #gatherTransactionalIds()} method.
+	 */
+	private long[] memoizedTransactionalIds;
+	/**
+	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
+	 */
+	private Long memoizedTransactionalIdHash;
+	/**
+	 * Contains memoized value of {@link #getSortedRecordsProviders()} method.
+	 */
+	private MergedSortedRecordsSupplier memoizedResult;
 
-	public PreSortedRecordsSorter(@Nonnull Supplier<SortedRecordsProvider> sortedRecordsSupplier, @Nonnull EntityComparator comparator) {
+	public PreSortedRecordsSorter(
+		@Nonnull String entityType,
+		@Nonnull Supplier<SortedRecordsProvider[]> sortedRecordsSupplier
+	) {
+		this.computationCallback = null;
+		this.entityType = entityType;
 		this.sortedRecordsSupplier = sortedRecordsSupplier;
-		this.entityComparator = comparator;
 		this.unknownRecordIdsSorter = null;
 	}
 
@@ -85,9 +110,21 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter {
 	@Override
 	public Sorter andThen(Sorter sorterForUnknownRecords) {
 		return new PreSortedRecordsSorter(
+			computationCallback,
+			entityType,
 			sortedRecordsSupplier,
-			entityComparator,
 			sorterForUnknownRecords
+		);
+	}
+
+	@Nonnull
+	@Override
+	public Sorter cloneInstance() {
+		return new PreSortedRecordsSorter(
+			computationCallback,
+			entityType,
+			sortedRecordsSupplier,
+			null
 		);
 	}
 
@@ -97,157 +134,128 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter {
 		return unknownRecordIdsSorter;
 	}
 
+	@Override
+	public long computeHash(@Nonnull LongHashFunction hashFunction) {
+		if (memoizedHash == null) {
+			memoizedHash = hashFunction.hashLongs(
+				Stream.of(
+						LongStream.of(CLASS_ID),
+						LongStream.of(
+							Arrays.stream(getSortedRecordsProviders())
+								.filter(SortedRecordsSupplier.class::isInstance)
+								.map(SortedRecordsSupplier.class::cast)
+								.mapToLong(SortedRecordsSupplier::getTransactionalId)
+								.toArray()
+						)
+					)
+					.flatMapToLong(Function.identity())
+					.toArray()
+			);
+		}
+		return memoizedHash;
+	}
+
+	private SortedRecordsProvider[] getSortedRecordsProviders() {
+		if (memoizedSortedRecordsProviders == null) {
+			memoizedSortedRecordsProviders = sortedRecordsSupplier.get();
+		}
+		return memoizedSortedRecordsProviders;
+	}
+
+	@Override
+	public long computeTransactionalIdHash(@Nonnull LongHashFunction hashFunction) {
+		if (memoizedTransactionalIdHash == null) {
+			memoizedTransactionalIdHash = hashFunction.hashLongs(gatherTransactionalIds());
+		}
+		return memoizedTransactionalIdHash;
+	}
+
+	@Nonnull
+	@Override
+	public long[] gatherTransactionalIds() {
+		if (memoizedTransactionalIds == null) {
+			memoizedTransactionalIds = Arrays.stream(getSortedRecordsProviders())
+				.filter(SortedRecordsSupplier.class::isInstance)
+				.map(SortedRecordsSupplier.class::cast)
+				.mapToLong(SortedRecordsSupplier::getTransactionalId)
+				.toArray();
+		}
+		return memoizedTransactionalIds;
+	}
+
+	@Override
+	public long getEstimatedCost() {
+		return Arrays.stream(getSortedRecordsProviders())
+			.mapToInt(SortedRecordsProvider::getRecordCount)
+			.sum() * getOperationCost();
+	}
+
+	@Override
+	public long getCost() {
+		return getEstimatedCost();
+	}
+
+	@Override
+	public long getOperationCost() {
+		return 19687L;
+	}
+
+	@Override
+	public long getCostToPerformanceRatio() {
+		return getEstimatedCost();
+	}
+
+	@Override
+	public FlattenedMergedSortedRecordsProvider toSerializableResult(long extraResultHash, @Nonnull LongHashFunction hashFunction) {
+		return new FlattenedMergedSortedRecordsProvider(
+			computeHash(hashFunction),
+			computeTransactionalIdHash(hashFunction),
+			gatherTransactionalIds(),
+			getMemoizedResult()
+		);
+	}
+
+	@Override
+	public int getSerializableResultSizeEstimate() {
+		return FlattenedMergedSortedRecordsProvider.estimateSize(
+			gatherTransactionalIds(),
+			getMemoizedResult()
+		);
+	}
+
+	@Override
+	public boolean shouldApply(@Nonnull QueryContext queryContext) {
+		return queryContext.getPrefetchedEntities() == null;
+	}
+
 	@Nonnull
 	@Override
 	public int[] sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex) {
-		final Bitmap selectedRecordIds = input.compute();
-		if (selectedRecordIds.isEmpty()) {
-			return EMPTY_RESULT;
-		} else {
-			if (queryContext.getPrefetchedEntities() == null) {
-				final SortedRecordsProvider sortedRecordsProvider = sortedRecordsSupplier.get();
-				final MaskResult positions = getMask(sortedRecordsProvider, selectedRecordIds);
-				final SortResult sortPartialResult = fetchSlice(
-					sortedRecordsProvider, selectedRecordIds.size(), positions.mask(), startIndex, endIndex
-				);
-				return returnResultAppendingUnknown(
-					queryContext, sortPartialResult,
-					positions.notFoundRecords(), unknownRecordIdsSorter,
-					startIndex, endIndex
-				);
-			} else {
-				final OfInt it = selectedRecordIds.iterator();
-				final List<EntityContract> entities = new ArrayList<>(selectedRecordIds.size());
-				while (it.hasNext()) {
-					int id = it.next();
-					entities.add(queryContext.translateToEntity(id));
-				}
-
-				entities.sort(entityComparator);
-
-				int notFoundRecordsCnt = 0;
-				final RoaringBitmap notFoundRecords = new RoaringBitmap();
-				for (EntityContract entityContract : entityComparator.getNonSortedEntities()) {
-					if (notFoundRecords.checkedAdd(queryContext.translateEntity(entityContract))) {
-						notFoundRecordsCnt++;
-					}
-				}
-
-				final AtomicInteger index = new AtomicInteger();
-				final int[] result = new int[selectedRecordIds.size()];
-				entities.subList(0, selectedRecordIds.size() - notFoundRecordsCnt)
-					.stream()
-					.skip(startIndex)
-					.limit((long) endIndex - startIndex)
-					.mapToInt(queryContext::translateEntity)
-					.forEach(pk -> result[index.getAndIncrement()] = pk);
-
-				return returnResultAppendingUnknown(
-					queryContext,
-					new SortResult(result, index.get()),
-					notFoundRecords, unknownRecordIdsSorter,
-					startIndex, endIndex
-				);
-			}
-		}
+		return getMemoizedResult().sortAndSlice(queryContext, input, startIndex, endIndex);
 	}
 
-	/**
-	 * Maps positions to the record ids in presorted set respecting start and end index.
-	 */
 	@Nonnull
-	private static SortResult fetchSlice(@Nonnull SortedRecordsProvider sortedRecordsProvider, int recordsFound, @Nonnull RoaringBitmap positions, int startIndex, int endIndex) {
-		final int[] buffer = new int[512];
+	@Override
+	public CacheableSorter getCloneWithComputationCallback(@Nonnull Consumer<CacheableSorter> selfOperator) {
+		return new PreSortedRecordsSorter(
+			selfOperator,
+			entityType,
+			sortedRecordsSupplier,
+			unknownRecordIdsSorter
+		);
+	}
 
-		final RoaringBatchIterator batchIterator = positions.getBatchIterator();
-		final int[] preSortedRecordIds = sortedRecordsProvider.getSortedRecordIds();
-		final int length = Math.min(endIndex - startIndex, recordsFound);
-		if (length < 0) {
-			throw new IndexOutOfBoundsException("Index: " + startIndex + ", Size: " + sortedRecordsProvider.getRecordCount());
-		}
-		final int[] sortedResult = new int[length];
-		int inputPeak = 0;
-		int previousInputPeak;
-		int outputPeak = 0;
-		while (batchIterator.hasNext()) {
-			final int read = batchIterator.nextBatch(buffer);
-			if (read == 0) {
-				// no more results break early
-				break;
-			}
-			previousInputPeak = inputPeak;
-			inputPeak += read;
-			// skip previous pages quickly
-			if (inputPeak >= startIndex) {
-				// copy records for page
-				for (int i = startIndex - previousInputPeak; i < read && i < (endIndex - previousInputPeak); i++) {
-					sortedResult[outputPeak++] = preSortedRecordIds[buffer[i]];
-				}
-				startIndex = inputPeak;
-			}
-			// finish - page was read
-			if (inputPeak >= endIndex) {
-				break;
+	@Nonnull
+	public MergedSortedRecordsSupplier getMemoizedResult() {
+		if (memoizedResult == null) {
+			memoizedResult = new MergedSortedRecordsSupplier(
+				getSortedRecordsProviders(),
+				unknownRecordIdsSorter
+			);
+			if (computationCallback != null) {
+				computationCallback.accept(this);
 			}
 		}
-		return new SortResult(sortedResult, outputPeak);
+		return memoizedResult;
 	}
-
-	/**
-	 * Returns mask of the positions in the presorted array that matched the computational result
-	 * Mask also contains record ids not found in presorted record index.
-	 */
-	private MaskResult getMask(@Nonnull SortedRecordsProvider sortedRecordsProvider, @Nonnull Bitmap selectedRecordIds) {
-		final int[] bufferA = new int[512];
-		final int[] bufferB = new int[512];
-
-		final int selectedRecordCount = selectedRecordIds.size();
-		final Bitmap unsortedRecordIds = sortedRecordsProvider.getAllRecords();
-		final int[] recordPositions = sortedRecordsProvider.getRecordPositions();
-
-		final RoaringBitmapWriter<RoaringBitmap> mask = RoaringBitmapBackedBitmap.buildWriter();
-		final RoaringBitmapWriter<RoaringBitmap> notFound = RoaringBitmapBackedBitmap.buildWriter();
-
-		final BatchIterator unsortedRecordIdsIt = RoaringBitmapBackedBitmap.getRoaringBitmap(unsortedRecordIds).getBatchIterator();
-		final BatchIterator selectedRecordIdsIt = RoaringBitmapBackedBitmap.getRoaringBitmap(selectedRecordIds).getBatchIterator();
-
-		int matchesFound = 0;
-		int peakA = -1;
-		int limitA = -1;
-		int peakB = -1;
-		int limitB = -1;
-		int accA = 1;
-		do {
-			if (peakA == limitA && limitA != 0) {
-				accA += limitA;
-				limitA = unsortedRecordIdsIt.nextBatch(bufferA);
-				peakA = 0;
-			}
-			if (peakB == limitB) {
-				limitB = selectedRecordIdsIt.nextBatch(bufferB);
-				peakB = 0;
-			}
-			if (peakA < limitA && bufferA[peakA] == bufferB[peakB]) {
-				mask.add(recordPositions[accA + peakA]);
-				matchesFound++;
-				peakB++;
-				peakA++;
-			} else if (peakB < limitB && (peakA >= limitA || bufferA[peakA] > bufferB[peakB])) {
-				notFound.add(bufferB[peakB]);
-				peakB++;
-			} else {
-				peakA++;
-			}
-		} while (matchesFound < selectedRecordCount && limitB > 0);
-
-		return new MaskResult(mask.get(), notFound.get());
-	}
-
-	/**
-	 * @param mask            IntegerBitmap of positions of record ids in presorted set.
-	 * @param notFoundRecords IntegerBitmap of record ids not found in presorted set at all.
-	 */
-	private record MaskResult(@Nonnull RoaringBitmap mask, @Nonnull RoaringBitmap notFoundRecords) {
-	}
-
 }

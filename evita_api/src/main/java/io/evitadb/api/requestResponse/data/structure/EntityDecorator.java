@@ -28,7 +28,6 @@ import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.PriceContract;
@@ -654,6 +653,13 @@ public class EntityDecorator implements SealedEntity {
 			.stream()
 			.map(AttributeValue::getKey)
 			.collect(Collectors.toSet());
+	}
+
+	@Nonnull
+	@Override
+	public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
+		return delegate.getAttributeValue(attributeKey)
+			.filter(attributePredicate);
 	}
 
 	@Nonnull

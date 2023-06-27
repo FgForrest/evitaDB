@@ -1,0 +1,16 @@
+{
+  queryProduct(
+    orderBy: {
+      random: true
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+        }
+      }
+    }
+  }
+}

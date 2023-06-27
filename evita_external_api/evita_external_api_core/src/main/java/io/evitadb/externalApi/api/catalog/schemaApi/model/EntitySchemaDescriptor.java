@@ -45,7 +45,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface EntitySchemaDescriptor extends VersionedDescriptor, NamedSchemaWithDeprecationDescriptor {
+public interface EntitySchemaDescriptor extends VersionedDescriptor, NamedSchemaWithDeprecationDescriptor, SortableAttributeCompoundsSchemaProviderDescriptor {
 
 	PropertyDescriptor WITH_GENERATED_PRIMARY_KEY = PropertyDescriptor.builder()
 		.name("withGeneratedPrimaryKey")
@@ -284,6 +284,7 @@ public interface EntitySchemaDescriptor extends VersionedDescriptor, NamedSchema
 			CURRENCIES,
 			EVOLUTION_MODE,
 			ALL_ATTRIBUTES,
+			ALL_SORTABLE_ATTRIBUTE_COMPOUNDS,
 			ALL_ASSOCIATED_DATA,
 			ALL_REFERENCES
 		))

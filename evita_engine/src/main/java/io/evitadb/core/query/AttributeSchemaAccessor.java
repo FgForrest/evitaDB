@@ -29,7 +29,10 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaProvider;
 import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
@@ -89,7 +92,7 @@ public class AttributeSchemaAccessor {
 		EvitaInvalidUsageException exception = null;
 		for (AttributeTrait attributeTrait : requiredTrait) {
 			Assert.isTrue(
-				referenceSchema == null || referenceSchema.isFilterable(),
+				referenceSchema == null || referenceSchema.isIndexed(),
 				() -> new ReferenceNotIndexedException(referenceSchema.getName(), entitySchema)
 			);
 			switch (attributeTrait) {
@@ -181,6 +184,69 @@ public class AttributeSchemaAccessor {
 		}
 		return verifyAndReturn(
 			attributeName, attributeSchema, catalogSchema, entitySchema, referenceSchema, requiredTrait
+		);
+	}
+
+	/**
+	 * Returns {@link AttributeSchemaContract} or {@link SortableAttributeCompoundSchemaContract} of particular
+	 * `attributeName` or throws exception. This method looks for the attributes in internal {@link #entitySchema} and
+	 * doesn't allow provisioning of the schema from outside.
+	 *
+	 * @param attributeName name of the looked up attribute
+	 * @return attribute schema
+	 * @throws AttributeNotFoundException      when attribute is not found
+	 * @throws AttributeNotSortableException   when sortable traits are requested but the attribute does not
+	 */
+	@Nonnull
+	public NamedSchemaContract getAttributeSchemaOrSortableAttributeCompound(@Nonnull String attributeName) {
+		if (entitySchema != null) {
+			return getAttributeSchemaOrSortableAttributeCompound(this.entitySchema, attributeName);
+		} else {
+			return verifyAndReturn(
+				attributeName, catalogSchema.getAttribute(attributeName).orElse(null),
+				catalogSchema, null, null, new AttributeTrait[] {AttributeTrait.SORTABLE}
+			);
+		}
+	}
+
+	/**
+	 * Returns {@link AttributeSchemaContract} or {@link SortableAttributeCompoundSchemaContract} of particular
+	 * `attributeName` or throws exception.
+	 *
+	 * @param entitySchema  the entity schema that should be used for attribute lookup
+	 * @param attributeName name of the looked up attribute
+	 * @return attribute schema
+	 * @throws AttributeNotFoundException      when attribute is not found
+	 * @throws AttributeNotSortableException   when sortable traits are requested but the attribute does not
+	 */
+	@Nonnull
+	public NamedSchemaContract getAttributeSchemaOrSortableAttributeCompound(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull String attributeName
+	) {
+		final ReferenceSchemaContract referenceSchema = ofNullable(referenceSchemaAccessor)
+			.map(it -> it.apply(entitySchema))
+			.orElse(null);
+		final SortableAttributeCompoundSchemaContract compoundSchema = ofNullable((SortableAttributeCompoundSchemaProvider) referenceSchema)
+			.orElse(entitySchema)
+			.getSortableAttributeCompound(attributeName).orElse(null);
+
+		if (compoundSchema != null) {
+			return compoundSchema;
+		}
+
+		final AttributeSchemaContract resultSchema;
+		final Optional<GlobalAttributeSchemaContract> globalAttributeSchema = catalogSchema.getAttribute(attributeName);
+		if (globalAttributeSchema.isPresent()) {
+			resultSchema = globalAttributeSchema.get();
+		} else {
+			resultSchema = ofNullable((AttributeSchemaProvider<AttributeSchemaContract>) referenceSchema)
+				.orElse(entitySchema)
+				.getAttribute(attributeName).orElse(null);
+		}
+		return verifyAndReturn(
+			attributeName, resultSchema, catalogSchema, entitySchema, referenceSchema,
+			new AttributeTrait[] {AttributeTrait.SORTABLE}
 		);
 	}
 

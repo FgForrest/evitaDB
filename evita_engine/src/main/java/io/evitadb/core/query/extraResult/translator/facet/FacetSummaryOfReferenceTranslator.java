@@ -179,6 +179,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		return extraResultPlanner.createSorter(
 			orderBy,
 			extraResultPlanner.getGlobalEntityIndex(referenceSchema.getReferencedEntityType()),
+			referenceSchema.getReferencedEntityType(),
 			() -> "Facet summary `" + referenceSchema.getName() + "` facet ordering: " + orderBy
 		);
 	}
@@ -197,6 +198,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		return extraResultPlanner.createSorter(
 			orderBy,
 			extraResultPlanner.getGlobalEntityIndex(referenceSchema.getReferencedGroupType()),
+			referenceSchema.getReferencedGroupType(),
 			() -> "Facet summary `" + referenceSchema.getName() + "` group ordering: " + orderBy
 		);
 	}

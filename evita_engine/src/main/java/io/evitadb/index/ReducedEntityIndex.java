@@ -151,4 +151,8 @@ public class ReducedEntityIndex extends EntityIndex implements VoidTransactionMe
 		this.priceIndex.removeLayer(transactionalLayer);
 	}
 
+	@Override
+	public String toString() {
+		return "ReducedEntityIndex: " + getIndexKey();
+	}
 }

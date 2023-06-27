@@ -213,7 +213,7 @@ public class GrpcAssertions {
 				assertEquals(expectedReferenceSchema.getReferencedGroupType(), actualReferenceSchema.getGroupType().getValue());
 			}
 			assertEquals(expectedReferenceSchema.isReferencedGroupTypeManaged(), actualReferenceSchema.getGroupTypeRelatesToEntity());
-			assertEquals(expectedReferenceSchema.isFilterable(), actualReferenceSchema.getIndexed());
+			assertEquals(expectedReferenceSchema.isIndexed(), actualReferenceSchema.getIndexed());
 			assertEquals(expectedReferenceSchema.isFaceted(), actualReferenceSchema.getFaceted());
 			assertAttributes(expectedReferenceSchema.getAttributes(), actualReferenceSchema.getAttributesMap());
 		}

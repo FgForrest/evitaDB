@@ -92,7 +92,8 @@ public class ModifyEntitySchemaDeprecationNoticeMutation implements CombinableEn
 				entitySchema.getAttributes(),
 				entitySchema.getAssociatedData(),
 				entitySchema.getReferences(),
-				entitySchema.getEvolutionMode()
+				entitySchema.getEvolutionMode(),
+				entitySchema.getSortableAttributeCompounds()
 			);
 		}
 	}

@@ -30,6 +30,7 @@ import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Comparator;
 import java.util.OptionalInt;
 
 /**
@@ -392,4 +393,12 @@ public interface HierarchyIndexContract {
 	 * Method returns true if hierarchy index contains no data.
 	 */
 	boolean isHierarchyIndexEmpty();
+
+	/**
+	 * Method return comparator that orders hierarchy entity primary keys by the depth-first-search order of their
+	 * hierarchical tree.
+	 */
+	@Nonnull
+	Comparator<Integer> getHierarchyComparator();
+
 }

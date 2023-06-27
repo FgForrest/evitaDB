@@ -27,7 +27,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 
@@ -46,10 +46,10 @@ public abstract class AttributeMutationConverter<M extends AttributeMutation> ex
 	}
 
 	@Nonnull
-	protected AttributeKey resolveAttributeKey(@Nonnull InputMutation inputMutation) {
+	protected AttributeKey resolveAttributeKey(@Nonnull Input input) {
 		return new AttributeKey(
-			inputMutation.getRequiredField(AttributeMutationDescriptor.NAME),
-			inputMutation.getOptionalField(AttributeMutationDescriptor.LOCALE)
+			input.getRequiredField(AttributeMutationDescriptor.NAME),
+			input.getOptionalField(AttributeMutationDescriptor.LOCALE)
 		);
 	}
 }

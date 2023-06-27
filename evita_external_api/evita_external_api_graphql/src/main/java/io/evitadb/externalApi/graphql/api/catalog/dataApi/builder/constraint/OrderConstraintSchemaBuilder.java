@@ -78,15 +78,6 @@ public class OrderConstraintSchemaBuilder extends GraphQLConstraintSchemaBuilder
 		return "OrderContainer";
 	}
 
-	@Override
-	protected boolean isChildrenUnique(@Nonnull ChildParameterDescriptor childParameter) {
-		// We don't want list of wrapper container because in "order" constraints there are no generic conjunction
-		// containers (and also there is currently no need to support that). Essentially, we want order constraints
-		// with children to act as if they were `ChildParameterDescriptor#uniqueChildren` as, although they are
-		// originally not, in case of GraphQL where classifiers are in keys those fields are in fact unique children.
-		return true;
-	}
-
 	@Nonnull
 	@Override
 	protected Predicate<AttributeSchemaContract> getAttributeSchemaFilter() {

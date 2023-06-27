@@ -786,8 +786,8 @@ public class ClassSchemaAnalyzer {
 			if (!reference.deprecated().isBlank()) {
 				whichIs.deprecated(reference.deprecated());
 			}
-			if (reference.filterable()) {
-				whichIs.filterable();
+			if (reference.indexed()) {
+				whichIs.indexed();
 			}
 			if (reference.faceted()) {
 				whichIs.faceted();

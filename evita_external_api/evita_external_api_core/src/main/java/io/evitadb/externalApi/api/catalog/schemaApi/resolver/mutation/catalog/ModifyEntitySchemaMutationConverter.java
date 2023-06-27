@@ -25,7 +25,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog;
 
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaMutationDescriptor;
@@ -61,8 +61,8 @@ public class ModifyEntitySchemaMutationConverter extends CatalogSchemaMutationCo
 
 	@Nonnull
 	@Override
-	protected ModifyEntitySchemaMutation convert(@Nonnull InputMutation inputMutation) {
-		final List<Object> inputEntitySchemaMutations = Optional.of(inputMutation.getRequiredField(ModifyEntitySchemaMutationDescriptor.SCHEMA_MUTATIONS.name()))
+	protected ModifyEntitySchemaMutation convert(@Nonnull Input input) {
+		final List<Object> inputEntitySchemaMutations = Optional.of(input.getRequiredField(ModifyEntitySchemaMutationDescriptor.SCHEMA_MUTATIONS.name()))
 			.map(m -> {
 				Assert.isTrue(
 					m instanceof List<?>,
@@ -77,7 +77,7 @@ public class ModifyEntitySchemaMutationConverter extends CatalogSchemaMutationCo
 			.toArray(EntitySchemaMutation[]::new);
 
 		return new ModifyEntitySchemaMutation(
-			inputMutation.getRequiredField(ModifyEntitySchemaMutationDescriptor.ENTITY_TYPE),
+			input.getRequiredField(ModifyEntitySchemaMutationDescriptor.ENTITY_TYPE),
 			entitySchemaMutations
 		);
 	}

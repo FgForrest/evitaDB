@@ -49,6 +49,12 @@ public class NoSorter implements Sorter {
 		throw new UnsupportedOperationException("NoSorter cannot be chained!");
 	}
 
+	@Nonnull
+	@Override
+	public Sorter cloneInstance() {
+		return this;
+	}
+
 	@Nullable
 	@Override
 	public Sorter getNextSorter() {

@@ -46,7 +46,6 @@ import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
-import io.evitadb.dataType.Multiple;
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.utils.ReflectionLookup;
@@ -740,7 +739,7 @@ class EvitaApiFunctionalTest {
 						Cardinality.ZERO_OR_MORE,
 						whichIs ->
 							/* we can specify special attributes on relation */
-							whichIs.filterable().withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+							whichIs.indexed().withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
 					)
 					/* for faceted references we can compute "counts" */
 					.withReferenceToEntity(
@@ -1430,7 +1429,6 @@ class EvitaApiFunctionalTest {
 		newProduct.setAttribute("height", (short) 86);
 		newProduct.setAttribute("waterConsumption", new BigDecimal("9.5"));
 		newProduct.setAttribute("energyConsumption", 64L);
-		newProduct.setAttribute("ageSort", new Multiple(2018, 5));
 		newProduct.setAttribute("producedTime", LocalTime.of(17, 45, 11));
 		newProduct.setAttribute("producedDate", LocalDate.of(2021, 2, 1));
 		newProduct.setAttribute("qaPassed", LocalDateTime.of(2021, 2, 2, 0, 15, 45));

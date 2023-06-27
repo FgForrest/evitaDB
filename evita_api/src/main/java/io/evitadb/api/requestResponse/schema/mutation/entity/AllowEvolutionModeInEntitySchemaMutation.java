@@ -126,7 +126,8 @@ public class AllowEvolutionModeInEntitySchemaMutation implements CombinableEntit
 						entitySchema.getEvolutionMode().stream(),
 						Arrays.stream(evolutionModes)
 					)
-					.collect(Collectors.toSet())
+					.collect(Collectors.toSet()),
+				entitySchema.getSortableAttributeCompounds()
 			);
 		}
 	}

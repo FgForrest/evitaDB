@@ -30,7 +30,9 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
@@ -81,7 +83,7 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 			output.writeVarInt(entry.getKey().ordinal(), true);
 			output.writeString(entry.getValue());
 		}
-		output.writeBoolean(referenceSchema.isFilterable());
+		output.writeBoolean(referenceSchema.isIndexed());
 		output.writeBoolean(referenceSchema.isFaceted());
 		kryo.writeObject(output, referenceSchema.getAttributes());
 
@@ -97,6 +99,13 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 		} else {
 			output.writeBoolean(false);
 		}
+
+		final Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds = referenceSchema.getSortableAttributeCompounds();
+		output.writeVarInt(sortableAttributeCompounds.size(), true);
+		for (SortableAttributeCompoundSchemaContract sortableAttributeCompound : sortableAttributeCompounds.values()) {
+			kryo.writeObject(output, sortableAttributeCompound);
+		}
+
 	}
 
 	@Override
@@ -136,12 +145,23 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 		@SuppressWarnings("unchecked") final Map<String, AttributeSchemaContract> attributes = kryo.readObject(input, Map.class);
 		final String description = input.readBoolean() ? input.readString() : null;
 		final String deprecationNotice = input.readBoolean() ? input.readString() : null;
+
+		final int sortableAttributeCompoundsCount = input.readVarInt(true);
+		final Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds = CollectionUtils.createHashMap(sortableAttributeCompoundsCount);
+		for (int i = 0; i < sortableAttributeCompoundsCount; i++) {
+			final SortableAttributeCompoundSchema sortableCompoundSchema = kryo.readObject(input, SortableAttributeCompoundSchema.class);
+			sortableAttributeCompounds.put(
+				sortableCompoundSchema.getName(),
+				sortableCompoundSchema
+			);
+		}
+
 		return ReferenceSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
 			entityType, entityTypeNameVariants, entityTypeRelatesToEntity,
 			cardinality,
 			groupType, groupTypeNameVariants, groupTypeRelatesToEntity,
-			indexed, faceted, attributes
+			indexed, faceted, attributes, sortableAttributeCompounds
 		);
 	}
 

@@ -114,6 +114,11 @@ class ConstraintProcessorTest {
 		));
 		assertEquals(2, descriptors2.size());
 
+		final Set<ConstraintDescriptor> descriptors5 = new ConstraintProcessor().process(Set.of(
+			ConstraintWithSameConditionWithAndWithoutClassifier.class
+		));
+		assertEquals(2, descriptors5.size());
+
 		final Set<ConstraintDescriptor> descriptors3 = new ConstraintProcessor().process(Set.of(
 			ConstraintWithSameConditionAndDifferentFullNamesOrClassifiersA.class,
 			ConstraintWithSameConditionAndDifferentFullNamesOrClassifiersB.class
@@ -160,8 +165,7 @@ class ConstraintProcessorTest {
 						true,
 						false
 					)
-				),
-				null
+				)
 			)
 		);
 	}
@@ -179,8 +183,7 @@ class ConstraintProcessorTest {
 			null,
 			new ConstraintCreator(
 				ConstraintWithConstructorAndFactoryMethod.class.getMethod("def"),
-				List.of(),
-				null
+				List.of()
 			)
 		);
 	}
@@ -208,8 +211,7 @@ class ConstraintProcessorTest {
 						Set.of(),
 						Set.of()
 					)
-				),
-				null
+				)
 			)
 		);
 	}
@@ -238,8 +240,7 @@ class ConstraintProcessorTest {
 						true,
 						false
 					)
-				),
-				null
+				)
 			)
 		);
 	}
@@ -261,7 +262,7 @@ class ConstraintProcessorTest {
 					new ClassifierParameterDescriptor("referenceName"),
 					new ValueParameterDescriptor(
 						"ofParent",
-						Integer.class,
+						FilterConstraint.class,
 						true,
 						false
 					),
@@ -274,8 +275,7 @@ class ConstraintProcessorTest {
 						Set.of(),
 						Set.of()
 					)
-				),
-				null
+				)
 			)
 		);
 	}
@@ -296,7 +296,7 @@ class ConstraintProcessorTest {
 				List.of(
 					new ValueParameterDescriptor(
 						"ofParent",
-						Integer.class,
+						FilterConstraint.class,
 						true,
 						false
 					),
@@ -568,6 +568,28 @@ class ConstraintProcessorTest {
 
 		@Creator(implicitClassifier = "primaryKey")
 		public ConstraintWithSameConditionWithClassifier() {
+		}
+
+		@Nonnull
+		@Override
+		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+			return null;
+		}
+	}
+
+	@ConstraintDefinition(
+		name = "something",
+		shortDescription = "This is a constraint."
+	)
+	private static class ConstraintWithSameConditionWithAndWithoutClassifier extends AbstractAttributeFilterConstraintLeaf {
+
+		@Creator()
+		public ConstraintWithSameConditionWithAndWithoutClassifier() {
+		}
+
+
+		@Creator
+		public ConstraintWithSameConditionWithAndWithoutClassifier(@Nonnull @Classifier String key) {
 		}
 
 		@Nonnull

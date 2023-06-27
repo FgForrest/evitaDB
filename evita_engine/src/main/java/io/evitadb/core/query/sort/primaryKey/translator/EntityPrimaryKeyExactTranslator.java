@@ -30,6 +30,7 @@ import io.evitadb.core.query.sort.primaryKey.ExactSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 
 import javax.annotation.Nonnull;
+import java.util.stream.Stream;
 
 /**
  * This implementation of {@link OrderingConstraintTranslator} converts {@link EntityPrimaryKeyExact} to {@link Sorter}.
@@ -40,15 +41,8 @@ public class EntityPrimaryKeyExactTranslator implements OrderingConstraintTransl
 
 	@Nonnull
 	@Override
-	public Sorter createSorter(@Nonnull EntityPrimaryKeyExact entityPrimaryKeyExact, @Nonnull OrderByVisitor orderByVisitor) {
-		final Sorter lastUsedSorter = orderByVisitor.getLastUsedSorter();
-		if (lastUsedSorter == null) {
-			return new ExactSorter(entityPrimaryKeyExact.getPrimaryKeys());
-		} else {
-			return lastUsedSorter.andThen(
-				new ExactSorter(entityPrimaryKeyExact.getPrimaryKeys())
-			);
-		}
+	public Stream<Sorter> createSorter(@Nonnull EntityPrimaryKeyExact entityPrimaryKeyExact, @Nonnull OrderByVisitor orderByVisitor) {
+		return Stream.of(new ExactSorter(entityPrimaryKeyExact.getPrimaryKeys()));
 	}
 
 }

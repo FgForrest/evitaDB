@@ -66,7 +66,7 @@ public abstract class MutationConverter<M extends Mutation> {
 	@Nonnull
 	public M convert(@Nullable Object rawInputMutationObject) {
 		final Object inputMutationObject = objectParser.parse(rawInputMutationObject);
-		return convert(new InputMutation(getMutationName(), inputMutationObject, exceptionFactory));
+		return convert(new Input(getMutationName(), inputMutationObject, exceptionFactory));
 	}
 
 	/**
@@ -74,6 +74,6 @@ public abstract class MutationConverter<M extends Mutation> {
 	 * resolver.
 	 */
 	@Nonnull
-	protected abstract M convert(@Nonnull InputMutation inputMutation);
+	protected abstract M convert(@Nonnull Input input);
 
 }

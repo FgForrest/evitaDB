@@ -97,31 +97,33 @@ public interface PriceIndexMutator {
 		@Nonnull PriceInnerRecordHandling innerRecordHandling,
 		@Nonnull BiFunction<PriceKey, Integer, PriceInternalIdContainer> internalIdSupplier
 	) {
-		final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.PRICE_INDEX);
-		final int indexedPricePlaces = executor.getEntitySchema().getIndexedPricePlaces();
-		// remove former price first
-		if (formerPrice != null && formerPrice.exists() && formerPrice.isSellable()) {
-			entityIndex.priceRemove(
-				entityPrimaryKey,
-				Objects.requireNonNull(formerPrice.getInternalPriceId()),
-				priceKey, innerRecordHandling, formerPrice.getInnerRecordId(),
-				formerPrice.getValidity(),
-				convertToInt(formerPrice.getPriceWithoutTax(), indexedPricePlaces),
-				convertToInt(formerPrice.getPriceWithTax(), indexedPricePlaces)
-			);
-		}
-		// now insert new price
-		if (sellable) {
-			final PriceInternalIdContainer internalPriceIds = internalIdSupplier.apply(priceKey, innerRecordId);
-			final PriceInternalIdContainer priceId = entityIndex.addPrice(
-				entityPrimaryKey,
-				internalPriceIds.getInternalPriceId(),
-				priceKey, innerRecordHandling, innerRecordId,
-				validity,
-				convertToInt(priceWithoutTax, indexedPricePlaces),
-				convertToInt(priceWithTax, indexedPricePlaces)
-			);
-			executor.getContainerAccessor().registerAssignedPriceId(entityType, entityPrimaryKey, priceKey, innerRecordId, priceId);
+		if (executor.shouldIndexPrimaryKey(IndexType.PRICE_INDEX)) {
+			final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.PRICE_INDEX);
+			final int indexedPricePlaces = executor.getEntitySchema().getIndexedPricePlaces();
+			// remove former price first
+			if (formerPrice != null && formerPrice.exists() && formerPrice.isSellable()) {
+				entityIndex.priceRemove(
+					entityPrimaryKey,
+					Objects.requireNonNull(formerPrice.getInternalPriceId()),
+					priceKey, innerRecordHandling, formerPrice.getInnerRecordId(),
+					formerPrice.getValidity(),
+					convertToInt(formerPrice.getPriceWithoutTax(), indexedPricePlaces),
+					convertToInt(formerPrice.getPriceWithTax(), indexedPricePlaces)
+				);
+			}
+			// now insert new price
+			if (sellable) {
+				final PriceInternalIdContainer internalPriceIds = internalIdSupplier.apply(priceKey, innerRecordId);
+				final PriceInternalIdContainer priceId = entityIndex.addPrice(
+					entityPrimaryKey,
+					internalPriceIds.getInternalPriceId(),
+					priceKey, innerRecordHandling, innerRecordId,
+					validity,
+					convertToInt(priceWithoutTax, indexedPricePlaces),
+					convertToInt(priceWithTax, indexedPricePlaces)
+				);
+				executor.getContainerAccessor().registerAssignedPriceId(entityType, entityPrimaryKey, priceKey, innerRecordId, priceId);
+			}
 		}
 	}
 
@@ -134,12 +136,14 @@ public interface PriceIndexMutator {
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull PriceKey priceKey
 	) {
-		final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.PRICE_INDEX);
-		final PricesStoragePart entityFormerPrices = executor.getContainerAccessor().getPriceStoragePart(entityType, entityPrimaryKey);
-		final PriceWithInternalIds formerPrice = entityFormerPrices.getPriceByKey(priceKey);
-		final PriceInnerRecordHandling innerRecordHandling = entityFormerPrices.getPriceInnerRecordHandling();
+		if (executor.shouldIndexPrimaryKey(IndexType.PRICE_INDEX)) {
+			final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.PRICE_INDEX);
+			final PricesStoragePart entityFormerPrices = executor.getContainerAccessor().getPriceStoragePart(entityType, entityPrimaryKey);
+			final PriceWithInternalIds formerPrice = entityFormerPrices.getPriceByKey(priceKey);
+			final PriceInnerRecordHandling innerRecordHandling = entityFormerPrices.getPriceInnerRecordHandling();
 
-		priceRemove(executor, entityIndex, priceKey, formerPrice, innerRecordHandling);
+			priceRemove(executor, entityIndex, priceKey, formerPrice, innerRecordHandling);
+		}
 	}
 
 	/**
@@ -152,24 +156,26 @@ public interface PriceIndexMutator {
 		@Nullable PriceWithInternalIds formerPrice,
 		@Nonnull PriceInnerRecordHandling innerRecordHandling) {
 
-		final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.PRICE_INDEX);
-		final int indexedPricePlaces = executor.getEntitySchema().getIndexedPricePlaces();
+		if (executor.shouldIndexPrimaryKey(IndexType.PRICE_INDEX)) {
+			final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.PRICE_INDEX);
+			final int indexedPricePlaces = executor.getEntitySchema().getIndexedPricePlaces();
 
-		if (formerPrice != null) {
-			if (formerPrice.exists() && formerPrice.isSellable()) {
-				entityIndex.priceRemove(
-					entityPrimaryKey,
-					Objects.requireNonNull(formerPrice.getInternalPriceId()),
-					priceKey,
-					innerRecordHandling,
-					formerPrice.getInnerRecordId(),
-					formerPrice.getValidity(),
-					convertToInt(formerPrice.getPriceWithoutTax(), indexedPricePlaces),
-					convertToInt(formerPrice.getPriceWithTax(), indexedPricePlaces)
-				);
+			if (formerPrice != null) {
+				if (formerPrice.exists() && formerPrice.isSellable()) {
+					entityIndex.priceRemove(
+						entityPrimaryKey,
+						Objects.requireNonNull(formerPrice.getInternalPriceId()),
+						priceKey,
+						innerRecordHandling,
+						formerPrice.getInnerRecordId(),
+						formerPrice.getValidity(),
+						convertToInt(formerPrice.getPriceWithoutTax(), indexedPricePlaces),
+						convertToInt(formerPrice.getPriceWithTax(), indexedPricePlaces)
+					);
+				}
+			} else {
+				throw new EvitaInvalidUsageException("Price " + priceKey + " doesn't exist and cannot be removed!");
 			}
-		} else {
-			throw new EvitaInvalidUsageException("Price " + priceKey + " doesn't exist and cannot be removed!");
 		}
 	}
 

@@ -30,6 +30,7 @@ import io.evitadb.core.query.sort.random.RandomSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 
 import javax.annotation.Nonnull;
+import java.util.stream.Stream;
 
 /**
  * This implementation of {@link OrderingConstraintTranslator} converts {@link Random} to {@link Sorter}.
@@ -40,15 +41,8 @@ public class RandomTranslator implements OrderingConstraintTranslator<Random> {
 
 	@Nonnull
 	@Override
-	public Sorter createSorter(@Nonnull Random random, @Nonnull OrderByVisitor orderByVisitor) {
-		final Sorter lastUsedSorter = orderByVisitor.getLastUsedSorter();
-		if (lastUsedSorter == null) {
-			return new RandomSorter();
-		} else {
-			return lastUsedSorter.andThen(
-				new RandomSorter()
-			);
-		}
+	public Stream<Sorter> createSorter(@Nonnull Random random, @Nonnull OrderByVisitor orderByVisitor) {
+		return Stream.of(new RandomSorter());
 	}
 
 }

@@ -25,7 +25,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference
 
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ReferenceAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ModifyReferenceAttributeSchemaMutationDescriptor;
@@ -63,8 +63,8 @@ public class ModifyReferenceAttributeSchemaMutationConverter extends ReferenceSc
 
 	@Nonnull
 	@Override
-	protected ModifyReferenceAttributeSchemaMutation convert(@Nonnull InputMutation inputMutation) {
-		final Map<String, Object> inputAttributeSchemaMutation = Optional.of(inputMutation.getRequiredField(ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION.name()))
+	protected ModifyReferenceAttributeSchemaMutation convert(@Nonnull Input input) {
+		final Map<String, Object> inputAttributeSchemaMutation = Optional.of(input.getRequiredField(ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION.name()))
 			.map(m -> {
 				Assert.isTrue(
 					m instanceof Map<?, ?>,
@@ -81,7 +81,7 @@ public class ModifyReferenceAttributeSchemaMutationConverter extends ReferenceSc
 		);
 
 		return new ModifyReferenceAttributeSchemaMutation(
-			inputMutation.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
+			input.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
 			attributeSchemaMutations.get(0)
 		);
 	}

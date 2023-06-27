@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.entity;
 
 import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaDescriptionMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.ModifyEntitySchemaDescriptionMutationDescriptor;
@@ -52,9 +52,9 @@ public class ModifyEntitySchemaDescriptionMutationConverter extends EntitySchema
 
 	@Nonnull
 	@Override
-	protected ModifyEntitySchemaDescriptionMutation convert(@Nonnull InputMutation inputMutation) {
+	protected ModifyEntitySchemaDescriptionMutation convert(@Nonnull Input input) {
 		return new ModifyEntitySchemaDescriptionMutation(
-			inputMutation.getOptionalField(ModifyEntitySchemaDescriptionMutationDescriptor.DESCRIPTION)
+			input.getOptionalField(ModifyEntitySchemaDescriptionMutationDescriptor.DESCRIPTION)
 		);
 	}
 }

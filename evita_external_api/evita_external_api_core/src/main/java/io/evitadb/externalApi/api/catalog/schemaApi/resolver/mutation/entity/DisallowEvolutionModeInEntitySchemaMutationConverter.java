@@ -25,7 +25,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.entity;
 
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowEvolutionModeInEntitySchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.DisallowEvolutionModeInEntitySchemaMutationDescriptor;
@@ -53,9 +53,9 @@ public class DisallowEvolutionModeInEntitySchemaMutationConverter extends Entity
 
 	@Nonnull
 	@Override
-	protected DisallowEvolutionModeInEntitySchemaMutation convert(@Nonnull InputMutation inputMutation) {
+	protected DisallowEvolutionModeInEntitySchemaMutation convert(@Nonnull Input input) {
 		return new DisallowEvolutionModeInEntitySchemaMutation(
-			(EvolutionMode[]) inputMutation.getRequiredField(DisallowEvolutionModeInEntitySchemaMutationDescriptor.EVOLUTION_MODES)
+			(EvolutionMode[]) input.getRequiredField(DisallowEvolutionModeInEntitySchemaMutationDescriptor.EVOLUTION_MODES)
 		);
 	}
 }

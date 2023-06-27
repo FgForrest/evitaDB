@@ -109,14 +109,14 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey> imp
 					referenceKey.referenceName(),
 					referencedEntityType,
 					referenceCardinality,
-					ReferenceSchemaEditor::filterable
+					ReferenceSchemaEditor::indexed
 				);
 			} else {
 				entitySchemaBuilder.withReferenceToEntity(
 					referenceKey.referenceName(),
 					referencedEntityType,
 					referenceCardinality,
-					ReferenceSchemaEditor::filterable
+					ReferenceSchemaEditor::indexed
 				);
 			}
 		} else {

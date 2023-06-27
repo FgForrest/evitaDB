@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -32,11 +33,17 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaProvider;
+import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AssociatedDataSchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.SortableAttributeCompoundSchemaDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.resolver.serializer.DataTypeSerializer;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
@@ -86,6 +93,7 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		rootNode.set(EntitySchemaDescriptor.EVOLUTION_MODE.name(), objectJsonSerializer.serializeCollection(entitySchema.getEvolutionMode().stream().map(EvolutionMode::name).toList()));
 
 		rootNode.set(EntitySchemaDescriptor.ATTRIBUTES.name(), serializeAttributeSchemas(entitySchema));
+		rootNode.set(EntitySchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), serializeSortableAttributeCompoundSchemas(entitySchema));
 		rootNode.set(EntitySchemaDescriptor.ASSOCIATED_DATA.name(), serializeAssociatedDataSchemas(entitySchema));
 		rootNode.set(EntitySchemaDescriptor.REFERENCES.name(), serializeReferenceSchemas(entitySchemaFetcher, entitySchema));
 
@@ -132,6 +140,46 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		attributeSchemaNode.put(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), attributeSchema.getIndexedDecimalPlaces());
 
 		return attributeSchemaNode;
+	}
+
+	@Nonnull
+	private ObjectNode serializeSortableAttributeCompoundSchemas(@Nonnull SortableAttributeCompoundSchemaProvider provider) {
+		final Collection<SortableAttributeCompoundSchemaContract> schemas = provider.getSortableAttributeCompounds().values();
+
+		final ObjectNode attributeSchemasMap = objectJsonSerializer.objectNode();
+		if (!schemas.isEmpty()) {
+			schemas.forEach(attributeSchema -> attributeSchemasMap.set(
+				attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION),
+				serializeSortableAttributeCompoundSchema(attributeSchema)
+			));
+		}
+
+		return attributeSchemasMap;
+	}
+
+	@Nonnull
+	private ObjectNode serializeSortableAttributeCompoundSchema(@Nonnull SortableAttributeCompoundSchemaContract sortableAttributeCompoundSchema) {
+		final ObjectNode schemaNode = objectJsonSerializer.objectNode();
+		schemaNode.put(SortableAttributeCompoundSchemaDescriptor.NAME.name(), sortableAttributeCompoundSchema.getName());
+		schemaNode.set(SortableAttributeCompoundSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(sortableAttributeCompoundSchema.getNameVariants()));
+		schemaNode.put(SortableAttributeCompoundSchemaDescriptor.DESCRIPTION.name(), sortableAttributeCompoundSchema.getDescription());
+		schemaNode.put(SortableAttributeCompoundSchemaDescriptor.DEPRECATION_NOTICE.name(), sortableAttributeCompoundSchema.getDeprecationNotice());
+
+		final ArrayNode sortableAttributeCompoundArray = objectJsonSerializer.arrayNode();
+		sortableAttributeCompoundSchema.getAttributeElements()
+			.forEach(it -> sortableAttributeCompoundArray.add(serializeAttributeElement(it)));
+		schemaNode.putIfAbsent(SortableAttributeCompoundSchemaDescriptor.ATTRIBUTE_ELEMENTS.name(), sortableAttributeCompoundArray);
+
+		return schemaNode;
+	}
+
+	@Nonnull
+	private ObjectNode serializeAttributeElement(@Nonnull AttributeElement attributeElement) {
+		final ObjectNode attributeElementNode = objectJsonSerializer.objectNode();
+		attributeElementNode.put(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), attributeElement.attributeName());
+		attributeElementNode.put(AttributeElementDescriptor.DIRECTION.name(), attributeElement.direction().name());
+		attributeElementNode.put(AttributeElementDescriptor.BEHAVIOUR.name(), attributeElement.behaviour().name());
+		return attributeElementNode;
 	}
 
 	@Nonnull
@@ -194,10 +242,11 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		referenceSchemaNode.put(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE.name(), referenceSchema.getReferencedGroupType());
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.GROUP_TYPE_NAME_VARIANTS.name(), serializeNameVariants(referenceSchema.getGroupTypeNameVariants(entitySchemaFetcher)));
 		referenceSchemaNode.put(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), referenceSchema.isReferencedGroupTypeManaged());
-		referenceSchemaNode.put(ReferenceSchemaDescriptor.FILTERABLE.name(), referenceSchema.isFilterable());
+		referenceSchemaNode.put(ReferenceSchemaDescriptor.INDEXED.name(), referenceSchema.isIndexed());
 		referenceSchemaNode.put(ReferenceSchemaDescriptor.FACETED.name(), referenceSchema.isFaceted());
 
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.ATTRIBUTES.name(), serializeAttributeSchemas(referenceSchema));
+		referenceSchemaNode.set(ReferenceSchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), serializeSortableAttributeCompoundSchemas(referenceSchema));
 
 		return referenceSchemaNode;
 	}

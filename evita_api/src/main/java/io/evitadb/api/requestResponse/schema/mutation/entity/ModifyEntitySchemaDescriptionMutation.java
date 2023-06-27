@@ -92,7 +92,8 @@ public class ModifyEntitySchemaDescriptionMutation implements CombinableEntitySc
 				entitySchema.getAttributes(),
 				entitySchema.getAssociatedData(),
 				entitySchema.getReferences(),
-				entitySchema.getEvolutionMode()
+				entitySchema.getEvolutionMode(),
+				entitySchema.getSortableAttributeCompounds()
 			);
 		}
 	}

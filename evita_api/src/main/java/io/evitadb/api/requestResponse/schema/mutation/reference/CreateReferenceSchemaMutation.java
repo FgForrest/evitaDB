@@ -27,6 +27,8 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
+import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -77,7 +79,7 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 	@Getter private final boolean referencedEntityTypeManaged;
 	@Getter @Nullable private final String referencedGroupType;
 	@Getter private final boolean referencedGroupTypeManaged;
-	@Getter private final boolean filterable;
+	@Getter private final boolean indexed;
 	@Getter private final boolean faceted;
 
 	public CreateReferenceSchemaMutation(
@@ -89,7 +91,7 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 		boolean referencedEntityTypeManaged,
 		@Nullable String referencedGroupType,
 		boolean referencedGroupTypeManaged,
-		boolean filterable,
+		boolean indexed,
 		boolean faceted
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.REFERENCE, referencedEntityType);
@@ -101,7 +103,7 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 		this.referencedEntityTypeManaged = referencedEntityTypeManaged;
 		this.referencedGroupType = referencedGroupType;
 		this.referencedGroupTypeManaged = referencedGroupTypeManaged;
-		this.filterable = filterable;
+		this.indexed = indexed;
 		this.faceted = faceted;
 	}
 
@@ -121,12 +123,12 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 						Stream.of(
 							makeMutationIfDifferent(
 								createdVersion, existingVersion,
-								it -> it.getDescription(),
+								NamedSchemaContract::getDescription,
 								newValue -> new ModifyReferenceSchemaDescriptionMutation(name, newValue)
 							),
 							makeMutationIfDifferent(
 								createdVersion, existingVersion,
-								it -> it.getDeprecationNotice(),
+								NamedSchemaWithDeprecationContract::getDeprecationNotice,
 								newValue -> new ModifyReferenceSchemaDeprecationNoticeMutation(name, newValue)
 							),
 							makeMutationIfDifferent(
@@ -146,8 +148,8 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 							),
 							makeMutationIfDifferent(
 								createdVersion, existingVersion,
-								ReferenceSchemaContract::isFilterable,
-								newValue -> new SetReferenceSchemaFilterableMutation(name, newValue)
+								ReferenceSchemaContract::isIndexed,
+								newValue -> new SetReferenceSchemaIndexedMutation(name, newValue)
 							),
 							makeMutationIfDifferent(
 								createdVersion, existingVersion,
@@ -176,7 +178,8 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 			referencedEntityType, referencedEntityTypeManaged,
 			Optional.ofNullable(cardinality).orElse(Cardinality.ZERO_OR_MORE),
 			referencedGroupType, referencedGroupTypeManaged,
-			filterable, faceted,
+			indexed, faceted,
+			Collections.emptyMap(),
 			Collections.emptyMap()
 		);
 	}
@@ -212,7 +215,8 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 							Function.identity()
 						)
 					),
-				entitySchema.getEvolutionMode()
+				entitySchema.getEvolutionMode(),
+				entitySchema.getSortableAttributeCompounds()
 			);
 		} else if (existingReferenceSchema.get().equals(newReferenceSchema)) {
 			// the mutation must have been applied previously - return the schema we don't need to alter
@@ -227,7 +231,7 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 	}
 
 	@Nullable
-	private <T> EntitySchemaMutation makeMutationIfDifferent(
+	private static <T> EntitySchemaMutation makeMutationIfDifferent(
 		@Nonnull ReferenceSchemaContract createdVersion,
 		@Nonnull ReferenceSchemaContract existingVersion,
 		@Nonnull Function<ReferenceSchemaContract, T> propertyRetriever,
@@ -249,7 +253,7 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 			", referencedEntityTypeManaged=" + referencedEntityTypeManaged +
 			", groupType='" + referencedGroupType + '\'' +
 			", referencedGroupTypeManaged=" + referencedGroupTypeManaged +
-			", filterable=" + filterable +
+			", indexed=" + indexed +
 			", faceted=" + faceted;
 	}
 }

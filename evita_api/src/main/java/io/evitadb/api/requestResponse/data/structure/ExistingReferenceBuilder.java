@@ -63,8 +63,6 @@ import static java.util.Optional.ofNullable;
 public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable {
 	@Serial private static final long serialVersionUID = 4611697377656713570L;
 
-
-	private final BiPredicate<String, String> uniqueAttributePredicate;
 	@Getter private final ReferenceContract baseReference;
 	@Getter private final EntitySchemaContract entitySchema;
 	@Delegate(types = AttributesContract.class)
@@ -73,12 +71,10 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 
 	public <T extends BiPredicate<String, String> & Serializable> ExistingReferenceBuilder(
 		@Nonnull ReferenceContract baseReference,
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull T uniqueAttributePredicate
+		@Nonnull EntitySchemaContract entitySchema
 	) {
 		this.baseReference = baseReference;
 		this.entitySchema = entitySchema;
-		this.uniqueAttributePredicate = uniqueAttributePredicate;
 		this.attributesBuilder = new ExistingAttributesBuilder(
 			entitySchema, baseReference.getAttributeValues(), true
 		);
@@ -194,7 +190,6 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 		} else {
 			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.getReferenceName()).orElse(null);
 			InitialReferenceBuilder.verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, attributeName, attributeValue.getClass());
-			InitialReferenceBuilder.verifySortableAttributeUniqueness(referenceSchema, this.getReferenceName(), attributeName, uniqueAttributePredicate);
 			attributesBuilder.setAttribute(attributeName, attributeValue);
 			return this;
 		}
@@ -228,7 +223,6 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 		} else {
 			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.getReferenceName()).orElse(null);
 			InitialReferenceBuilder.verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, attributeName, attributeValue.getClass(), locale);
-			InitialReferenceBuilder.verifySortableAttributeUniqueness(referenceSchema, this.getReferenceName(), attributeName, uniqueAttributePredicate);
 			attributesBuilder.setAttribute(attributeName, locale, attributeValue);
 			return this;
 		}

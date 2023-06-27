@@ -130,7 +130,8 @@ public class DisallowEvolutionModeInEntitySchemaMutation implements CombinableEn
 				entitySchema.getEvolutionMode()
 					.stream()
 					.filter(it -> !this.evolutionModes.contains(it))
-					.collect(Collectors.toSet())
+					.collect(Collectors.toSet()),
+				entitySchema.getSortableAttributeCompounds()
 			);
 		}
 	}

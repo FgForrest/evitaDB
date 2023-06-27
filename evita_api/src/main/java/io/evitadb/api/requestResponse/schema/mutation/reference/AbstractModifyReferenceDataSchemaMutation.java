@@ -91,7 +91,8 @@ abstract class AbstractModifyReferenceDataSchemaMutation implements EntitySchema
 							Function.identity()
 						)
 					),
-				entitySchema.getEvolutionMode()
+				entitySchema.getEvolutionMode(),
+				entitySchema.getSortableAttributeCompounds()
 			);
 		}
 	}

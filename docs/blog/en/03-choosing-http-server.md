@@ -1,8 +1,8 @@
 ---
 title: Choosing HTTP server for evitaDB
 perex: We plan to provide several ways to communicate with evitaDB clients. For that we needed some universal HTTP server that would serve at least most of the requests.
-date: '2022-01-12'
-author: 'Lukáš Hornych'
+date: '2022-06-17'
+author: 'Lukáš Hornych, Jan Novotný'
 motive: assets/images/03-choosing-http-server.png
 ---
 
@@ -17,13 +17,179 @@ HTTP server, library or framework that would serve as a common foundation for al
 
 <NoteTitle toggles="false">
 
-##### The article updated as of April 2023
+##### The article updated as of June 2023
 </NoteTitle>
 
 Thanks to Francesco Nigro's from RedHat comments in [Issue #1](https://github.com/FgForrest/HttpServerEvaluationTest/issues/1)
-(thanks!) we updated the versions of all tested web servers to the latest versions, fixed the problem in the Netty performance 
-test implementation that erroneously closed an HTTP connection in every iteration, and re-measured all tests, isolating 
-the CPU for JMH tests and measuring the web server instance.
+(thanks!) we updated:
+
+- updated the versions of all tested web servers to the latest versions,
+- fixed the problem in the Netty performance test implementation that erroneously closed an HTTP connection in every iteration,
+- enforced the HTTP protocol version to 1.1, so that the servers that allow upgrading to HTTP/2 version don't have an advantage,
+- changed the performance test behavior to use a separate HTTP client for each JMH thread
+
+... and re-measured all tests with only a single web server running in parallel.
+
+<Table caption="Throughput results (ops/s - higher is better).">
+  <Thead>
+    <Tr>
+      <Th>Server, library or framework</Th>
+      <Th>JMH Score (ops/s)</Th>
+      <Th>Min JMH Score (ops/s)</Th>
+      <Th>Max JMH Score (ops/s)</Th>
+    </Tr>
+  </Thead>
+  <Tbody>
+    <Tr>
+      <Td>Netty</Td>
+      <Td>32310</Td>
+      <Td>31372</Td>
+      <Td>33248</Td>
+    </Tr>
+    <Tr>
+      <Td>microhttp</Td>
+      <Td>31344</Td>
+      <Td>30597</Td>
+      <Td>32092</Td>
+    </Tr>
+    <Tr>
+      <Td>Vert.x</Td>
+      <Td>30463</Td>
+      <Td>28915</Td>
+      <Td>32010</Td>
+    </Tr>
+    <Tr>
+      <Td>Javalin</Td>
+      <Td>26649</Td>
+      <Td>24502</Td>
+      <Td>28796</Td>
+    </Tr>
+    <Tr>
+      <Td>Undertow</Td>
+      <Td>25214</Td>
+      <Td>22444</Td>
+      <Td>27985</Td>
+    </Tr>
+    <Tr>
+      <Td>Micronaut</Td>
+      <Td>22169</Td>
+      <Td>19626</Td>
+      <Td>24712</Td>
+    </Tr>
+    <Tr>
+      <Td>Quarkus</Td>
+      <Td>21269</Td>
+      <Td>19650</Td>
+      <Td>22887</Td>
+    </Tr>
+    <Tr>
+      <Td>Spring Boot WebFlux</Td>
+      <Td>20016</Td>
+      <Td>18677</Td>
+      <Td>21355</Td>
+    </Tr>
+    <Tr>
+      <Td>Spring Boot MVC</Td>
+      <Td>15550</Td>
+      <Td>15059</Td>
+      <Td>16041</Td>
+    </Tr>
+    <Tr>
+      <Td>Quarkus (in native mode)</Td>
+      <Td>15433</Td>
+      <Td>14516</Td>
+      <Td>16351</Td>
+    </Tr>
+    <Tr>
+      <Td>NanoHTTPD</Td>
+      <Td>9400</Td>
+      <Td>9068</Td>
+      <Td>9733</Td>
+    </Tr>
+  </Tbody>
+</Table>
+
+<Table caption="Average time results (us/op - smaller is better).">
+  <Thead>
+    <Tr>
+      <Th>Server, library or framework</Th>
+      <Th>JMH Score (us/op)</Th>
+      <Th>Min JMH Score (us/op)</Th>
+      <Th>Max JMH Score (us/op)</Th>
+    </Tr>
+  </Thead>
+  <Tbody>
+    <Tr>
+      <Td>Microhttp</Td>
+      <Td>193</Td>
+      <Td>184</Td>
+      <Td>202</Td>
+    </Tr>
+    <Tr>
+      <Td>Vert.x</Td>
+      <Td>198</Td>
+      <Td>194</Td>
+      <Td>201</Td>
+    </Tr>
+    <Tr>
+      <Td>Netty</Td>
+      <Td>198</Td>
+      <Td>182</Td>
+      <Td>215</Td>
+    </Tr>
+    <Tr>
+      <Td>Javalin</Td>
+      <Td>229</Td>
+      <Td>225</Td>
+      <Td>233</Td>
+    </Tr>
+    <Tr>
+      <Td>Undertow</Td>
+      <Td>253</Td>
+      <Td>232</Td>
+      <Td>274</Td>
+    </Tr>
+    <Tr>
+      <Td>Micronaut</Td>
+      <Td>283</Td>
+      <Td>262</Td>
+      <Td>304</Td>
+    </Tr>
+    <Tr>
+      <Td>Quarkus</Td>
+      <Td>287</Td>
+      <Td>264</Td>
+      <Td>309</Td>
+    </Tr>
+    <Tr>
+      <Td>Spring Boot WebFlux</Td>
+      <Td>306</Td>
+      <Td>281</Td>
+      <Td>331</Td>
+    </Tr>
+    <Tr>
+      <Td>Spring Boot MVC</Td>
+      <Td>385</Td>
+      <Td>378</Td>
+      <Td>392</Td>
+    </Tr>
+    <Tr>
+      <Td>Quarkus (in native mode)</Td>
+      <Td>391</Td>
+      <Td>369</Td>
+      <Td>412</Td>
+    </Tr>
+    <Tr>
+      <Td>NanoHTTPD</Td>
+      <Td>646</Td>
+      <Td>635</Td>
+      <Td>657</Td>
+    </Tr>
+  </Tbody>
+</Table>
+
+We're still using the Undertow server, even though it's no longer one of the fastest. We hope it will change its 
+internal implementation to a Netty server as [promised for version 3.x](https://undertow.io/blog/2019/04/15/Undertow-3.html).
 
 </Note>
 
@@ -35,7 +201,7 @@ probability of “magic” behavior and unexpected surprises. Another important 
 foundation into the existing evitaDB codebase without needing to adjust the whole running and building processes of
 evitaDB to the chosen solution because in future there, may be other ways to communicate with users. An advantage to all of
 these requirements would be a simple and straightforward API for handling HTTP requests and errors. This means that there
-wouldn’t be any unnecessary low level HTTP communication work involved, if not explicitly needed by some specific
+wouldn't be any unnecessary low level HTTP communication work involved, if not explicitly needed by some specific
 use-cases. Last but not least, it would be nice to have at least partial built-in support for handling WebSockets for
 future specific use-cases. Finally, a server or library that is publicly known to work or being tested with GraalVM or
 having direct GraalVM support is a plus.

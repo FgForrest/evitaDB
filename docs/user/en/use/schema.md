@@ -251,7 +251,7 @@ If the first entity has its primary key, evitaDB expects all entities to have th
 If the first entity has its primary key set to `NULL`, evitaDB will generate primary keys for you and will reject 
 external primary keys. New attribute schemas are implicitly created as `nullable`, `filterable` and non-array data types 
 as `sortable`. This means that the client is immediately able to filter/sort on almost anything, but the database itself 
-will consume a lot of resources. The references will be created as `filterable` but not `faceted`.
+will consume a lot of resources. The references will be created as `indexed` but not `faceted`.
 </Note>
 
 There are several partial lax modes between strict and fully automatic evolution mode - see
@@ -436,6 +436,48 @@ part of filter or sort conditions.
 If number cannot be converted to a compact form (for example, it has more digits in the fractional part than expected),
 an exception is thrown and the entity update is refused.
 
+### Sortable attribute compounds
+
+Sortable attribute compound is a virtual attribute composed of the values of several other attributes, which can only be 
+used for sorting. evitaDB requires a previously prepared sort index to be able to sort entities. This fact makes sorting 
+much faster than ad-hoc sorting by attribute value. Also, the sorting mechanism of evitaDB is somewhat different from 
+what you might be used to. If you sort entities by two attributes in an `orderBy` clause of the query, evitaDB sorts 
+them first by the first attribute (if present) and then by the second (but only those where the first attribute is 
+missing). If two entities have the same value of the first attribute, they are not sorted by the second attribute, but 
+by the primary key (in ascending order). If we want to use fast "pre-sorted" indexes, there is no other way to do it,
+because the secondary order would not be known until a query time.
+
+This default sorting behavior by multiple attributes is not always desirable, so evitaDB allows you to define a sortable 
+attribute compound, which is a virtual attribute composed of the values of several other attributes. evitaDB also allows 
+you to specify the order of the "pre-sorting" behavior (ascending/descending) for each of these attributes, and also 
+the behavior for NULL values (first/last) if the attribute is completely missing in the entity. The sortable attribute 
+compound is then used in the `orderBy` clause of the query instead of specifying the multiple individual attributes to 
+achieve the expected sorting behavior while maintaining the speed of the "pre-sorted" indexes.
+
+Sortable attribute compound schema can be made *deprecated*, which will be propagated to generated web API documentation.
+
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### List of mutations related to sortable attribute compound
+</NoteTitle>
+
+Within `ModifyEntitySchemaMutation` you can use mutation:
+
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/sortableAttributeCompound/CreateSortableAttributeCompoundSchemaMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/sortableAttributeCompound/RemoveSortableAttributeCompoundSchemaMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/sortableAttributeCompound/ModifySortableAttributeCompoundSchemaNameMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/sortableAttributeCompound/ModifySortableAttributeCompoundSchemaDescriptionMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/sortableAttributeCompound/ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.java</SourceClass>**
+
+<LanguageSpecific to="java">
+The sortable attribute compound schema is described by:
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/SortableAttributeCompoundSchemaContract.java</SourceClass>
+</LanguageSpecific>
+
+</Note>
+
 ### Associated data
 
 An entity type may have zero or more associated data. The system is designed for the situation when an entity has 
@@ -482,10 +524,11 @@ References can have zero or more attributes that apply only to a particular "lin
 [Global attribute](#global-attribute-schema) cannot be used as a reference attribute. Otherwise, the same rules apply 
 for reference attributes as for regular entity attributes.
 
-When another entity references an entity and the reference is marked as *filterable*, the special
+When another entity references an entity and the reference is marked as *indexed*, the special
 <SourceClass>io.evitadb.index.ReducedEntityIndex</SourceClass> is created for each referenced entity. This index will
 hold reduced attribute and price indices of the referencing entity, allowing quick evaluation of
-[`referencedEntityHaving`](../query/filtering/references.md) filter conditions.
+[`referencedEntityHaving`](../query/filtering/references.md) filter conditions and 
+[`referenceProperty`](../query/ordering/reference.md) sorting.
 
 If the reference is marked as *faceted*, the special 
 <SourceClass>evita_engine/src/main/java/io/evitadb/index/facet/FacetReferenceIndex.java</SourceClass> is created for 

@@ -114,8 +114,7 @@ class ConstraintDescriptorTest {
 	private static ConstraintCreator createCreator(@Nonnull ParameterDescriptor... parameters) throws NoSuchMethodException {
 		return new ConstraintCreator(
 			And.class.getConstructor(FilterConstraint[].class),
-			List.of(parameters),
-			null
+			List.of(parameters)
 		);
 	}
 }

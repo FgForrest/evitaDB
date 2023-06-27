@@ -111,7 +111,7 @@ public record RecordBasedEntityWithNonDefaults(
 	)
 	PriceContract sellingPrice,
 
-	@Reference(filterable = true)
+	@Reference(indexed = true)
 	Brand marketingBrand,
 
 	@Reference(
@@ -124,7 +124,7 @@ public record RecordBasedEntityWithNonDefaults(
 		groupEntity = "customBrandGroup",
 		allowEmpty = false,
 		faceted = true,
-		filterable = true
+		indexed = true
 	)
 	Brand[] licensingBrands
 ) {

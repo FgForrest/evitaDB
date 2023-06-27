@@ -200,7 +200,7 @@ For more information, see the [write API description](../use/api/write-data.md#u
 
 You can delete entity by is primary key:
 
-<SourceCodeTabs requires="/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/create-small-dataset.java">
+<SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/create-small-dataset.java">
 [Example of deleting entity by PK](/docs/user/en/get-started/example/delete-entity-by-pk.java)
 </SourceCodeTabs>
 
@@ -212,7 +212,7 @@ Or, you can issue a query that removes all the entities that match the query:
 
 When you delete a hierarchical entity, you can choose whether or not to delete it with all of its child entities:
 
-<SourceCodeTabs requires="/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/create-small-dataset.java">
+<SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/create-small-dataset.java">
 [Example of deleting hierarchical entity](/docs/user/en/get-started/example/delete-hierarchical-entity.java)
 </SourceCodeTabs>
 

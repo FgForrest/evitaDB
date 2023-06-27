@@ -33,12 +33,30 @@ function help {
     [ "$rc" = "" ] || exit "$rc"
 }
 
+function _trap_exit() {
+    set +x
+    
+    echo
+    if [ -n "$GH_ACTION" ] && [ "$GH_ACTION" == "1" ]; then
+        date -Is
+        echo "Run in GH Action - clean Kubernetes cluster"
+        curl -s -L \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GITHUB_TOKEN"\
+            https://api.github.com/repos/FgForrest/evitaDB/dispatches \
+            -d '{"event_type": "clean-webhook"}'
+
+    else
+        echo "Run on local"
+    fi
+}
+
 ## interactive shell for debug'n'tuning
 [ "$1" != "bash" ] || exec bash "$@"
 
 ## args
 EXTRA_JAVA_OPTS="${1:-}"
-BENCHMARK_SELECTOR="${2:-.*}"
 SHARED_GIST='abc12461f21d1cc66a541417edcb6ba7'
 RESULT_JSON=latest-performance-results.json
 # DO_CLUSTER_NODE_SLUG="mock"
@@ -46,6 +64,8 @@ RESULT_JSON=latest-performance-results.json
 PROCESSOR=$(lscpu | awk -F': +' '/Model name/ {model=$2} /Core\(s\) per socket/ {core=$2} /Thread\(s\) per core/ {thread=$2} /^CPU\(s\)/ {cpu=$2} /Architecture/ {arch=$2} END {printf "Processor: %s (%s * %s = %s CPU), architecture: %s\n", model, core, thread, cpu, arch}')
 
 [ -n "$JMH_ARGS" ] || JMH_ARGS="-i 2 -wi 1 -f 1"
+
+[ -n "$BENCHMARK_SELECTOR" ] || BENCHMARK_SELECTOR="${2:-.*}"
 
 now="$(date -Is)"
 new_filename="$(echo "$now" | sed 's/[-:]/_/g' | sed 's/\+/_/g' | sed 's/T/-/')"
@@ -65,7 +85,14 @@ echo
 lscpu
 echo
 
-wget https://evitadb.io/download/performance_test_datasets.zip
+trap _trap_exit EXIT
+
+echo "Download datasets for performance..."
+
+[ -n "$DATASET" ] || DATASET="https://evitadb.io/download/performance_test_datasets.zip"
+
+wget -q "$DATASET" -O performance_test_datasets.zip
+echo "Unzip datasets for performance..."
 unzip -d /evita-data performance_test_datasets.zip
 rm performance_test_datasets.zip
 
@@ -85,6 +112,8 @@ java \
         $JMH_ARGS -rf json -rff $RESULT_JSON \
         -jvmArgs "$EXTRA_JAVA_OPTS $BENCHMARK_JAVA_OPTS -DdataFolder=/data -DevitaData=/evita-data/data"
 
+set +x
+
 ## public gist
 cp $RESULT_JSON "$new_filename".json
 gh gist create -d "Evita performance results: $BENCHMARK_SELECTOR - $now (node: $DO_CLUSTER_NODE_SLUG, $PROCESSOR)" --public "$new_filename".json
@@ -101,7 +130,6 @@ git config user.name "Novoj"
 git commit -a -m "Updated results from $now"
 git push "https://$GITHUB_TOKEN:x-oauth-basic@gist.github.com/evita-db/$SHARED_GIST"
 
-set +x
 CHILL_OUT_SEC=90
 echo
 echo "Let the cluster chill-out after benchmark: $CHILL_OUT_SEC sec"

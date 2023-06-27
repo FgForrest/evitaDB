@@ -1,0 +1,17 @@
+{
+  queryProduct(
+    orderBy: {
+      attributeOrderedQuantityNatural: DESC
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+          orderedQuantity
+        }
+      }
+    }
+  }
+}

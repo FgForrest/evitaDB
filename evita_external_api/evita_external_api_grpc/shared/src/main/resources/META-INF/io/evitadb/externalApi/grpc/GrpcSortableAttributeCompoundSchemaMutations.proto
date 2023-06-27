@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+
+import "GrpcEvitaDataTypes.proto";
+import "GrpcEnums.proto";
+import "GrpcEntitySchema.proto";
+import "google/protobuf/wrappers.proto";
+
+message GrpcCreateSortableAttributeCompoundSchemaMutation {
+  string name = 1;
+  google.protobuf.StringValue description = 2;
+  google.protobuf.StringValue deprecationNotice = 3;
+  repeated GrpcAttributeElement attributeElements = 4;
+}
+
+message GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation {
+  string name = 1;
+  google.protobuf.StringValue deprecationNotice = 2;
+}
+
+message GrpcModifySortableAttributeCompoundSchemaDescriptionMutation {
+  string name = 1;
+  google.protobuf.StringValue description = 2;
+}
+
+message GrpcModifySortableAttributeCompoundSchemaNameMutation {
+  string name = 1;
+  string newName = 2;
+}
+
+message GrpcRemoveSortableAttributeCompoundSchemaMutation {
+  string name = 1;
+}
+
+message GrpcSortableAttributeCompoundSchemaMutation {
+  oneof mutation {
+    GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 1;
+    GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 2;
+    GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 3;
+    GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 4;
+    GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 5;
+  }
+}

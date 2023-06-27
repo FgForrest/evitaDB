@@ -77,7 +77,8 @@ public class PriceHistogramTranslator implements RequireConstraintTranslator<Pri
 			filteredPriceRecordAccessors,
 			filteredPricesSorter
 				.map(FilteredPricesSorter::getPriceRecordsLookupResult)
-				.orElse(null)
+				.orElse(null),
+			extraResultPlanner.getExtraResultCacheAccessor()
 		);
 	}
 
