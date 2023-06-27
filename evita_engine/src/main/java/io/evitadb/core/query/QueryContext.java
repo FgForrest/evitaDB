@@ -62,8 +62,8 @@ import io.evitadb.core.EntityCollection;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
-import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
-import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
+import io.evitadb.core.query.extraResult.CacheSupervisorExtraResultAccessor;
+import io.evitadb.core.query.extraResult.ExtraResultCacheAccessor;
 import io.evitadb.core.query.extraResult.translator.facet.producer.FilteringFormulaPredicate;
 import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.Sorter;
@@ -177,6 +177,12 @@ public class QueryContext {
 	 */
 	@Getter
 	private final boolean prefetchPossible;
+	/**
+	 * Provides access to the default extra result computer logic that allows to store or withdraw extra results
+	 * from cache.
+	 */
+	@Nonnull @Getter
+	private final ExtraResultCacheAccessor extraResultCacheAccessor = new CacheSupervisorExtraResultAccessor(this);
 	/**
 	 * Contains list of prefetched entities if they were considered worthwhile to prefetch -
 	 * see {@link SelectionFormula} for more information.
@@ -803,26 +809,6 @@ public class QueryContext {
 		return ofNullable(evitaRequest.getEntityType())
 			.map(it -> cacheSupervisor.analyse(evitaSession, it, formula))
 			.orElse(formula);
-	}
-
-	/**
-	 * Analyzes the input formula for cacheable / cached formulas and replaces them with appropriate counterparts (only
-	 * if cache is enabled).
-	 */
-	@Nonnull
-	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(@Nonnull T computer) {
-		return ofNullable(evitaRequest.getEntityType())
-			.map(it -> cacheSupervisor.analyse(evitaSession, it, computer))
-			.orElse(computer);
-	}
-
-	/**
-	 * Analyzes the input formula for cacheable / cached formulas and replaces them with appropriate counterparts (only
-	 * if cache is enabled).
-	 */
-	@Nonnull
-	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(@Nonnull String entityType, @Nonnull T computer) {
-		return cacheSupervisor.analyse(evitaSession, entityType, computer);
 	}
 
 	/**

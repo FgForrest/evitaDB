@@ -38,6 +38,9 @@ import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.debug.CacheableVariantsGeneratingVisitor;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula.PrefetchFormulaVisitor;
+import io.evitadb.core.query.extraResult.CacheDisabledExtraResultAccessor;
+import io.evitadb.core.query.extraResult.CacheTranslatingExtraResultAccessor;
+import io.evitadb.core.query.extraResult.CacheableExtraResultProducer;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.filter.FilterByVisitor;
@@ -335,7 +338,6 @@ public class QueryPlanner {
 		@Nullable Sorter sorter,
 		@Nonnull QueryContext queryContext
 	) {
-		/* TODO JNO - toto implementovat i pro ExtraResulty */
 		if (sorter == null) {
 			return sorter;
 		} else {
@@ -499,6 +501,52 @@ public class QueryPlanner {
 							queryContext.popStep();
 						}
 					}
+				}
+
+				if (queryContext.isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES)) {
+					// create copy of each builder with cacheable variants of the sorter
+					return builders.stream()
+						.flatMap(
+							builder -> {
+								if (builder.getExtraResultProducers().stream().noneMatch(CacheableExtraResultProducer.class::isInstance)) {
+									return Stream.of(builder);
+								} else {
+									return Stream.of(
+										builder,
+										new QueryPlanBuilder(
+											queryContext,
+											builder.getFilterFormula(),
+											builder.getTargetIndexes(),
+											builder.getPrefetchFormulaVisitor(),
+											builder.getSorter(),
+											builder.getExtraResultProducers()
+												.stream()
+												.map(
+													it -> it instanceof CacheableExtraResultProducer cacheableExtraResultProducer ?
+														cacheableExtraResultProducer.cloneInstance(CacheDisabledExtraResultAccessor.INSTANCE)
+														: it
+												)
+												.toList()
+										),
+										new QueryPlanBuilder(
+											queryContext,
+											builder.getFilterFormula(),
+											builder.getTargetIndexes(),
+											builder.getPrefetchFormulaVisitor(),
+											builder.getSorter(),
+											builder.getExtraResultProducers()
+												.stream()
+												.map(
+													it -> it instanceof CacheableExtraResultProducer cacheableExtraResultProducer ?
+														cacheableExtraResultProducer.cloneInstance(CacheTranslatingExtraResultAccessor.INSTANCE)
+														: it
+												)
+												.toList()
+										)
+									);
+								}
+							})
+						.collect(Collectors.toList());
 				}
 			} finally {
 				queryContext.popStep();
