@@ -28,15 +28,13 @@ import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.
 import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.FieldObjectListMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.SortableAttributeCompoundSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Implementation of {@link SchemaMutationConverter} for resolving {@link CreateSortableAttributeCompoundSchemaMutation}.
@@ -60,34 +58,19 @@ public class CreateSortableAttributeCompoundSchemaMutationConverter
 	@Nonnull
 	@Override
 	protected CreateSortableAttributeCompoundSchemaMutation convert(@Nonnull InputMutation inputMutation) {
-		/* TODO LHO - add attributeElements here */
 		final AttributeElement[] attributeElements = inputMutation.getRequiredField(
 			CreateSortableAttributeCompoundSchemaMutationDescriptor.ATTRIBUTE_ELEMENTS.name(),
-			rawField -> {
-				Assert.isTrue(
-					rawField instanceof List<?>,
-					() -> getExceptionFactory().createInvalidArgumentException("Field `" + CreateSortableAttributeCompoundSchemaMutationDescriptor.ATTRIBUTE_ELEMENTS.name() + "` of mutation `" + getMutationName() + "` is expected to be an array.")
-				);
-				//noinspection unchecked
-				final List<Object> rawElements = (List<Object>) rawField;
-				return rawElements.stream()
-					.map(rawElement -> {
-						Assert.isTrue(
-							rawElement instanceof Map<?,?>,
-							() -> getExceptionFactory().createInvalidArgumentException("Item in field `" + CreateSortableAttributeCompoundSchemaMutationDescriptor.ATTRIBUTE_ELEMENTS.name() + "` of mutation `" + getMutationName() + "` is expected to be an object.")
-						);
-						//noinspection unchecked
-						final Map<String, Object> element = (Map<String, Object>) rawElement;
-
-						final InputMutation elementInput = new InputMutation(getMutationName(), element, getExceptionFactory());
-						return new AttributeElement(
-							elementInput.getRequiredField(AttributeElementDescriptor.ATTRIBUTE_NAME),
-							elementInput.getRequiredField(AttributeElementDescriptor.DIRECTION),
-							elementInput.getRequiredField(AttributeElementDescriptor.BEHAVIOUR)
-						);
-					})
-					.toArray(AttributeElement[]::new);
-			}
+			new FieldObjectListMapper<>(
+				getMutationName(),
+				getExceptionFactory(),
+				CreateSortableAttributeCompoundSchemaMutationDescriptor.ATTRIBUTE_ELEMENTS,
+				AttributeElement.class,
+				input -> new AttributeElement(
+					input.getRequiredField(AttributeElementDescriptor.ATTRIBUTE_NAME),
+					input.getRequiredField(AttributeElementDescriptor.DIRECTION),
+					input.getRequiredField(AttributeElementDescriptor.BEHAVIOUR)
+				)
+			)
 		);
 
 		return new CreateSortableAttributeCompoundSchemaMutation(
@@ -97,4 +80,5 @@ public class CreateSortableAttributeCompoundSchemaMutationConverter
 			attributeElements
 		);
 	}
+
 }

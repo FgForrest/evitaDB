@@ -34,6 +34,7 @@ import io.evitadb.dataType.data.JsonToComplexDataObjectConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.UpsertAssociatedDataMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.FieldObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
@@ -41,7 +42,6 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
-import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -96,17 +96,21 @@ public class UpsertAssociatedDataMutationConverter extends AssociatedDataMutatio
 		final Class<? extends Serializable> targetDataType = valueType != null ? valueType : associatedDataSchema.get().getType();
 
 		if (targetDataType.equals(ComplexDataObject.class)) {
-			final Object rawValue = inputMutation.getRequiredField(UpsertAssociatedDataMutationDescriptor.VALUE.name());
-			Assert.isTrue(
-				rawValue instanceof Map<?,?>,
-				() -> getExceptionFactory().createInvalidArgumentException("Field `" + UpsertAssociatedDataMutationDescriptor.VALUE.name() + "` of mutation `" + getMutationName() + "` is expected to be an object.")
+			targetValue = inputMutation.getRequiredField(
+				UpsertAssociatedDataMutationDescriptor.VALUE.name(),
+				new FieldObjectMapper<>(
+					getMutationName(),
+					getExceptionFactory(),
+					UpsertAssociatedDataMutationDescriptor.VALUE,
+					input -> {
+						try {
+							return jsonToComplexDataObjectConverter.fromMap(input.getRequiredValue());
+						} catch (JsonProcessingException e) {
+							throw getExceptionFactory().createInvalidArgumentException("Could not parse input JSON.");
+						}
+					}
+				)
 			);
-			try {
-				//noinspection unchecked
-				targetValue = jsonToComplexDataObjectConverter.fromMap((Map<String, Object>) rawValue);
-			} catch (JsonProcessingException e) {
-				throw getExceptionFactory().createInvalidArgumentException("Could not parse input JSON.");
-			}
 		} else {
 			targetValue = inputMutation.getRequiredField(UpsertAssociatedDataMutationDescriptor.VALUE.name(), targetDataType);
 		}
