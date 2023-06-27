@@ -1,17 +1,17 @@
 {
   queryProduct(
-    filterBy: {
-      entityLocaleEquals: cs
-    },
     orderBy: {
-      attributeNameNatural: ASC
+      attributeEanNatural: ASC,
+      attributeCatalogNumberNatural: DESC
     }
   ) {
     recordPage {
       data {
         primaryKey
         attributes {
-          name
+          code
+          ean
+          catalogNumber
         }
       }
     }

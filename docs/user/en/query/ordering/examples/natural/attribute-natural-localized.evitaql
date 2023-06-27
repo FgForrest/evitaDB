@@ -1,7 +1,7 @@
 query(
     collection('Product'),
     filterBy(
-        entityLocaleEquals('cs-CZ')
+        entityLocaleEquals('cs')
     ),
     orderBy(
         attributeNatural('name', ASC)

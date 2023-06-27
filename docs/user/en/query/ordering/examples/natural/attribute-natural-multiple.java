@@ -4,15 +4,13 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 		return session.querySealedEntity(
 			query(
 				collection("Product"),
-				filterBy(
-					entityLocaleEquals(Locale.forLanguageTag("cs"))
-				),
 				orderBy(
-					attributeNatural("name", ASC)
+					attributeNatural("ean", ASC),
+					attributeNatural("catalogNumber", DESC)
 				),
 				require(
 					entityFetch(
-						attributeContent("name")
+						attributeContent("code", "ean", "catalogNumber")
 					)
 				)
 			)
