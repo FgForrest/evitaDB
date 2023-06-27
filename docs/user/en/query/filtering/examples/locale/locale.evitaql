@@ -5,7 +5,7 @@ query(
             'categories',
             attributeEquals('code', 'vouchers-for-shareholders')
         ),
-        entityLocaleEquals('en-US')
+        entityLocaleEquals('en')
     ),
     require(
        entityFetch(

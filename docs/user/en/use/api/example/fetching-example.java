@@ -1,13 +1,13 @@
-final EvitaResponse<SealedEntity> response = evita.queryCatalog(
+final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 	"evita",
 	session -> {
-		return session.query(
+		return session.querySealedEntity(
 			query(
 				collection("Product"),
 				filterBy(
 					and(
 						entityPrimaryKeyInSet(1),
-						entityLocaleEquals(Locale.ENGLISH),
+						entityLocaleEquals(Locale.forLanguageTag("en")),
 						priceInPriceLists("basic"),
 						priceInCurrency(Currency.getInstance("CZK"))
 					)
@@ -20,8 +20,7 @@ final EvitaResponse<SealedEntity> response = evita.queryCatalog(
 						referenceContent("brand")
 					)
 				)
-			),
-			SealedEntity.class
+			)
 		);
 	}
 );

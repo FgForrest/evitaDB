@@ -100,13 +100,13 @@ import java.util.Arrays;
 public class PriceInPriceLists extends AbstractFilterConstraintLeaf implements PriceConstraint<FilterConstraint>, IndexUsingConstraint {
 	@Serial private static final long serialVersionUID = 7018968762648494243L;
 
-	private PriceInPriceLists(@Nonnull Serializable... priceListName) {
-		super(priceListName);
+	private PriceInPriceLists(@Nonnull Serializable... priceLists) {
+		super(priceLists);
 	}
 
 	@Creator
-	public PriceInPriceLists(@Nonnull @Value String... priceListName) {
-		super(priceListName);
+	public PriceInPriceLists(@Nonnull @Value String... priceLists) {
+		super(priceLists);
 	}
 
 	/**

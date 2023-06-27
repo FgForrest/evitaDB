@@ -6,7 +6,7 @@
           attributeCodeEquals: "vouchers-for-shareholders"
         }
       },
-      entityLocaleEquals: en_US
+      entityLocaleEquals: en
     }
   ) {
     recordPage {

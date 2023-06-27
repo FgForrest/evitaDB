@@ -131,7 +131,8 @@ public class PriceContent extends AbstractRequireConstraintLeaf
 
 	@Override
 	public boolean isArgumentImplicitForSuffix(@Nonnull Serializable argument) {
-		return argument instanceof PriceContentMode && getFetchMode() != PriceContentMode.NONE;
+		return argument instanceof PriceContentMode &&
+			getFetchMode() != PriceContentMode.NONE;
 	}
 
 	@Nonnull

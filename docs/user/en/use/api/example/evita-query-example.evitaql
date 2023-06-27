@@ -6,13 +6,13 @@ query(
             'categories',
             attributeEquals('url', '/local-food')
          ),
-         entityLocaleEquals('cs-CZ'),
+         entityLocaleEquals('cs'),
          priceValidInNow(),
          priceInCurrency('CZK'),
          priceInPriceLists('vip', 'loyal-customer', 'regular-prices'),
          userFilter(
             facetHaving(
-               'parameter',
+               'parameterValues',
                entityHaving(
                   attributeInSet('code', 'gluten-free', 'original-recipe')
                )
