@@ -995,10 +995,6 @@ public class EntityDecorator implements SealedEntity {
 			filteredReferences = delegate.getReferences()
 				.stream()
 				.filter(referencePredicate)
-				.sorted(
-					Comparator.comparing(ReferenceContract::getReferenceName)
-						.thenComparingInt(ReferenceContract::getReferencedPrimaryKey)
-				)
 				.map(
 					it -> new ReferenceDecorator(
 						it, referencePredicate.getAttributePredicate()

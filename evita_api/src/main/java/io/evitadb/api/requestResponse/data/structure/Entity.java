@@ -67,6 +67,7 @@ import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.Getter;
@@ -741,14 +742,20 @@ public class Entity implements SealedEntity {
 		this.schema = schema;
 		this.primaryKey = primaryKey;
 		this.parent = parent;
-		this.references = references
-			.stream()
-			.collect(
-				Collectors.toUnmodifiableMap(
-					ReferenceContract::getReferenceKey,
-					Function.identity()
+		this.references = Collections.unmodifiableMap(
+			references
+				.stream()
+				.collect(
+					Collectors.toMap(
+						ReferenceContract::getReferenceKey,
+						Function.identity(),
+						(o, o2) -> {
+							throw new EvitaInvalidUsageException("Sanity check: " + o + ", " + o2);
+						},
+						LinkedHashMap::new
+					)
 				)
-			);
+		);
 		this.attributes = attributes;
 		this.associatedData = associatedData;
 		this.prices = prices;
