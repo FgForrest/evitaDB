@@ -1,14 +1,25 @@
 query(
     collection('Product'),
     filterBy(
-        entityLocaleEquals('cs-CZ')
+        referenceHaving(
+            'brand',
+            entityHaving(
+                attributeEquals('code','sony')
+            )
+        )
     ),
     orderBy(
-        attributeNatural('name', ASC)
+        referenceProperty(
+            'brand',
+            attributeNatural('orderInBrand', ASC)
+        )
     ),
     require(
         entityFetch(
-            attributeContent('name')
+            attributeContent('code'),
+            referenceContent(
+                'brand'
+            )
         )
     )
 )

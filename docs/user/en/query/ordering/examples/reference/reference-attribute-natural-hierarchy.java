@@ -5,14 +5,21 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 			query(
 				collection("Product"),
 				filterBy(
-					entityLocaleEquals(Locale.forLanguageTag("cs"))
+					hierarchyWithin(
+						"categories",
+						attributeEquals("code", "accessories")
+					)
 				),
 				orderBy(
-					attributeNatural("name", ASC)
+					referenceProperty(
+						"categories",
+						attributeNatural("orderInCategory", ASC)
+					)
 				),
 				require(
 					entityFetch(
-						attributeContent("name")
+						attributeContent("code"),
+						referenceContent("categories")
 					)
 				)
 			)

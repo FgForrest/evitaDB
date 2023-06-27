@@ -315,7 +315,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
-			getRootDirectory().resolve("docs/user/en/query/ordering/random.md")
+			getRootDirectory().resolve("docs/user/en/query/ordering/natural.md")
 		).stream();
 	}
 
@@ -330,7 +330,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
 		return this.createTests(
-			getRootDirectory().resolve("docs/user/en/query/ordering/random.md"),
+			getRootDirectory().resolve("docs/user/en/query/ordering/reference.md"),
 			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.GRAPHQL
 		).stream();
 	}

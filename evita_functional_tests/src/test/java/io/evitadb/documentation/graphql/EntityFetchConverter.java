@@ -26,6 +26,7 @@ package io.evitadb.documentation.graphql;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
@@ -56,8 +57,9 @@ public class EntityFetchConverter {
 			return;
 		}
 
-		Assert.isPremiseValid(entityFetch.getChildrenCount() == 1, "Currently only attributeContent constraint is supported");
-		final AttributeContent attributeContent = QueryUtils.findConstraint(entityFetch, AttributeContent.class);
+		/* TODO LHO - add support for references */
+		//Assert.isPremiseValid(entityFetch.getChildrenCount() == 1, "Currently only attributeContent constraint is supported");
+		final AttributeContent attributeContent = QueryUtils.findConstraint(entityFetch, AttributeContent.class, SeparateEntityContentRequireContainer.class);
 		if (attributeContent != null) {
 			final String[] attributeNames = attributeContent.getAttributeNames();
 			Assert.isPremiseValid(attributeNames.length > 0, "Fetching all attributes is not supported by GraphQL.");

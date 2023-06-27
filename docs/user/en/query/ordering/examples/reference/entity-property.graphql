@@ -1,17 +1,14 @@
 {
   queryProduct(
     filterBy: {
-      entityLocaleEquals: cs
-    },
-    orderBy: {
-      attributeNameNatural: ASC
+      attributeCodeEquals: "garmin-vivoactive-4"
     }
   ) {
     recordPage {
       data {
         primaryKey
         attributes {
-          name
+          code
         }
       }
     }

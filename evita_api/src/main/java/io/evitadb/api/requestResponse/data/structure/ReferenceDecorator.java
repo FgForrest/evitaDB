@@ -96,6 +96,19 @@ public class ReferenceDecorator implements ReferenceContract {
 	 */
 	private Set<Locale> attributeLocales;
 
+	public ReferenceDecorator(@Nonnull ReferenceContract delegate, @Nonnull ReferenceAttributeValueSerializablePredicate attributePredicate) {
+		if (delegate instanceof ReferenceDecorator referenceDecorator) {
+			this.delegate = referenceDecorator.delegate;
+			this.referencedEntity = referenceDecorator.referencedEntity;
+			this.referencedGroupEntity = referenceDecorator.referencedGroupEntity;
+		} else {
+			this.delegate = delegate;
+			this.referencedEntity = null;
+			this.referencedGroupEntity = null;
+		}
+		this.attributePredicate = attributePredicate;
+	}
+
 	@Override
 	public boolean isDropped() {
 		return delegate.isDropped();
