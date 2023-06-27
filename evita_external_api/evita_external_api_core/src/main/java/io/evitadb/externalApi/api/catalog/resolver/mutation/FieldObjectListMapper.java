@@ -63,7 +63,7 @@ public class FieldObjectListMapper<T extends Serializable> implements Function<O
 	/**
 	 * Maps raw item object to target object.
 	 */
-	@Nonnull private final Function<InputMutation, T> objectMapper;
+	@Nonnull private final Function<Input, T> objectMapper;
 
 	@SuppressWarnings("unchecked")
 	@Override
@@ -82,7 +82,7 @@ public class FieldObjectListMapper<T extends Serializable> implements Function<O
 				);
 
 				final Map<String, Object> element = (Map<String, Object>) rawElement;
-				return objectMapper.apply(new InputMutation(mutationName, element, exceptionFactory));
+				return objectMapper.apply(new Input(mutationName, element, exceptionFactory));
 			})
 			.toArray(size -> (T[]) Array.newInstance(objectType, size));
 	}

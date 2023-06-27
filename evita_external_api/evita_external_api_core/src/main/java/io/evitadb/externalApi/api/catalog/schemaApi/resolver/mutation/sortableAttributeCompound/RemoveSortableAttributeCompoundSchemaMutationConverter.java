@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound;
 
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutationDescriptor;
@@ -53,9 +53,9 @@ public class RemoveSortableAttributeCompoundSchemaMutationConverter extends Sort
 
 	@Nonnull
 	@Override
-	protected RemoveSortableAttributeCompoundSchemaMutation convert(@Nonnull InputMutation inputMutation) {
+	protected RemoveSortableAttributeCompoundSchemaMutation convert(@Nonnull Input input) {
 		return new RemoveSortableAttributeCompoundSchemaMutation(
-			inputMutation.getRequiredField(SortableAttributeCompoundSchemaMutationDescriptor.NAME)
+			input.getRequiredField(SortableAttributeCompoundSchemaMutationDescriptor.NAME)
 		);
 	}
 }

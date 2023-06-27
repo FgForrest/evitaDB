@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
@@ -54,10 +54,10 @@ public class SetReferenceSchemaFilterableMutationConverter extends ReferenceSche
 
 	@Nonnull
 	@Override
-	protected SetReferenceSchemaIndexedMutation convert(@Nonnull InputMutation inputMutation) {
+	protected SetReferenceSchemaIndexedMutation convert(@Nonnull Input input) {
 		return new SetReferenceSchemaIndexedMutation(
-			inputMutation.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
-			inputMutation.getRequiredField(SetReferenceSchemaIndexedMutationDescriptor.INDEXED)
+			input.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
+			input.getRequiredField(SetReferenceSchemaIndexedMutationDescriptor.INDEXED)
 
 		);
 	}

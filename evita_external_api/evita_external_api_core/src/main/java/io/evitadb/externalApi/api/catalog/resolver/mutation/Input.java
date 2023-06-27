@@ -54,7 +54,7 @@ import java.util.function.Function;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class InputMutation {
+public class Input {
 
 	@Nonnull
 	private final String mutationName;

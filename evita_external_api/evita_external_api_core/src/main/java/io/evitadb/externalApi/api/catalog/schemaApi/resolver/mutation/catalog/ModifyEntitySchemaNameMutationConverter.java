@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog;
 
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaNameMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaNameMutationDescriptor;
@@ -52,11 +52,11 @@ public class ModifyEntitySchemaNameMutationConverter extends CatalogSchemaMutati
 
 	@Nonnull
 	@Override
-	protected ModifyEntitySchemaNameMutation convert(@Nonnull InputMutation inputMutation) {
+	protected ModifyEntitySchemaNameMutation convert(@Nonnull Input input) {
 		return new ModifyEntitySchemaNameMutation(
-			inputMutation.getRequiredField(ModifyEntitySchemaNameMutationDescriptor.NAME),
-			inputMutation.getRequiredField(ModifyEntitySchemaNameMutationDescriptor.NEW_NAME),
-			inputMutation.getRequiredField(ModifyEntitySchemaNameMutationDescriptor.OVERWRITE_TARGET)
+			input.getRequiredField(ModifyEntitySchemaNameMutationDescriptor.NAME),
+			input.getRequiredField(ModifyEntitySchemaNameMutationDescriptor.NEW_NAME),
+			input.getRequiredField(ModifyEntitySchemaNameMutationDescriptor.OVERWRITE_TARGET)
 		);
 	}
 }

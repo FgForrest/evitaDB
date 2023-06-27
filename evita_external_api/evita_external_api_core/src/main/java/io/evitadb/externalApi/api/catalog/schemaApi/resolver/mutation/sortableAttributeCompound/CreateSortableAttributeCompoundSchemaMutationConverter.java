@@ -25,7 +25,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableA
 
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.FieldObjectListMapper;
@@ -57,26 +57,26 @@ public class CreateSortableAttributeCompoundSchemaMutationConverter
 
 	@Nonnull
 	@Override
-	protected CreateSortableAttributeCompoundSchemaMutation convert(@Nonnull InputMutation inputMutation) {
-		final AttributeElement[] attributeElements = inputMutation.getRequiredField(
+	protected CreateSortableAttributeCompoundSchemaMutation convert(@Nonnull Input input) {
+		final AttributeElement[] attributeElements = input.getRequiredField(
 			CreateSortableAttributeCompoundSchemaMutationDescriptor.ATTRIBUTE_ELEMENTS.name(),
 			new FieldObjectListMapper<>(
 				getMutationName(),
 				getExceptionFactory(),
 				CreateSortableAttributeCompoundSchemaMutationDescriptor.ATTRIBUTE_ELEMENTS,
 				AttributeElement.class,
-				input -> new AttributeElement(
-					input.getRequiredField(AttributeElementDescriptor.ATTRIBUTE_NAME),
-					input.getRequiredField(AttributeElementDescriptor.DIRECTION),
-					input.getRequiredField(AttributeElementDescriptor.BEHAVIOUR)
+				nestedInput -> new AttributeElement(
+					nestedInput.getRequiredField(AttributeElementDescriptor.ATTRIBUTE_NAME),
+					nestedInput.getRequiredField(AttributeElementDescriptor.DIRECTION),
+					nestedInput.getRequiredField(AttributeElementDescriptor.BEHAVIOUR)
 				)
 			)
 		);
 
 		return new CreateSortableAttributeCompoundSchemaMutation(
-			inputMutation.getRequiredField(SortableAttributeCompoundSchemaMutationDescriptor.NAME),
-			inputMutation.getOptionalField(CreateSortableAttributeCompoundSchemaMutationDescriptor.DESCRIPTION),
-			inputMutation.getOptionalField(CreateSortableAttributeCompoundSchemaMutationDescriptor.DEPRECATION_NOTICE),
+			input.getRequiredField(SortableAttributeCompoundSchemaMutationDescriptor.NAME),
+			input.getOptionalField(CreateSortableAttributeCompoundSchemaMutationDescriptor.DESCRIPTION),
+			input.getOptionalField(CreateSortableAttributeCompoundSchemaMutationDescriptor.DEPRECATION_NOTICE),
 			attributeElements
 		);
 	}

@@ -26,7 +26,7 @@ package io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.reference;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.RemoveReferenceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 
@@ -52,7 +52,7 @@ public class RemoveReferenceMutationConverter extends ReferenceMutationConverter
 
 	@Nonnull
 	@Override
-	protected RemoveReferenceMutation convert(@Nonnull InputMutation inputMutation) {
-		return new RemoveReferenceMutation(resolveReferenceKey(inputMutation));
+	protected RemoveReferenceMutation convert(@Nonnull Input input) {
+		return new RemoveReferenceMutation(resolveReferenceKey(input));
 	}
 }

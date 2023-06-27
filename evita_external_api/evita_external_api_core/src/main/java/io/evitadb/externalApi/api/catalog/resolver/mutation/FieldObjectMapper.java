@@ -57,7 +57,7 @@ public class FieldObjectMapper<T extends Serializable> implements Function<Objec
 	/**
 	 * Maps raw object to target object.
 	 */
-	@Nonnull private final Function<InputMutation, T> objectMapper;
+	@Nonnull private final Function<Input, T> objectMapper;
 
 	@SuppressWarnings("unchecked")
 	@Override
@@ -68,6 +68,6 @@ public class FieldObjectMapper<T extends Serializable> implements Function<Objec
 		);
 
 		final Map<String, Object> element = (Map<String, Object>) rawField;
-		return objectMapper.apply(new InputMutation(mutationName, element, exceptionFactory));
+		return objectMapper.apply(new Input(mutationName, element, exceptionFactory));
 	}
 }

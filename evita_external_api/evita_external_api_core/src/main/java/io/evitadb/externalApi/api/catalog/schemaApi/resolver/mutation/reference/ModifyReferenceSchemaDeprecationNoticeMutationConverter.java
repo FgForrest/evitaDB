@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaDeprecationNoticeMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ModifyReferenceSchemaDeprecationNoticeMutationDescriptor;
@@ -53,10 +53,10 @@ public class ModifyReferenceSchemaDeprecationNoticeMutationConverter extends Ref
 
 	@Nonnull
 	@Override
-	protected ModifyReferenceSchemaDeprecationNoticeMutation convert(@Nonnull InputMutation inputMutation) {
+	protected ModifyReferenceSchemaDeprecationNoticeMutation convert(@Nonnull Input input) {
 		return new ModifyReferenceSchemaDeprecationNoticeMutation(
-			inputMutation.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
-			inputMutation.getOptionalField(ModifyReferenceSchemaDeprecationNoticeMutationDescriptor.DEPRECATION_NOTICE)
+			input.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
+			input.getOptionalField(ModifyReferenceSchemaDeprecationNoticeMutationDescriptor.DEPRECATION_NOTICE)
 		);
 	}
 }

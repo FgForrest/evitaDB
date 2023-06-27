@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound;
 
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor;
@@ -53,10 +53,10 @@ public class ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationConve
 
 	@Nonnull
 	@Override
-	protected ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation convert(@Nonnull InputMutation inputMutation) {
+	protected ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation convert(@Nonnull Input input) {
 		return new ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation(
-			inputMutation.getRequiredField(SortableAttributeCompoundSchemaMutationDescriptor.NAME),
-			inputMutation.getOptionalField(ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor.DEPRECATION_NOTICE)
+			input.getRequiredField(SortableAttributeCompoundSchemaMutationDescriptor.NAME),
+			input.getOptionalField(ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor.DEPRECATION_NOTICE)
 		);
 	}
 }

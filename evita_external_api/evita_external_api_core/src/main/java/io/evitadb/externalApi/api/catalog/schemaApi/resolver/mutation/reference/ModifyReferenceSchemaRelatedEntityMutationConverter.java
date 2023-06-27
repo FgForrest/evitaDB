@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaRelatedEntityMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ModifyReferenceSchemaRelatedEntityMutationDescriptor;
@@ -53,11 +53,11 @@ public class ModifyReferenceSchemaRelatedEntityMutationConverter extends Referen
 
 	@Nonnull
 	@Override
-	protected ModifyReferenceSchemaRelatedEntityMutation convert(@Nonnull InputMutation inputMutation) {
+	protected ModifyReferenceSchemaRelatedEntityMutation convert(@Nonnull Input input) {
 		return new ModifyReferenceSchemaRelatedEntityMutation(
-			inputMutation.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
-			inputMutation.getRequiredField(ModifyReferenceSchemaRelatedEntityMutationDescriptor.REFERENCED_ENTITY_TYPE),
-			inputMutation.getRequiredField(ModifyReferenceSchemaRelatedEntityMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED)
+			input.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
+			input.getRequiredField(ModifyReferenceSchemaRelatedEntityMutationDescriptor.REFERENCED_ENTITY_TYPE),
+			input.getRequiredField(ModifyReferenceSchemaRelatedEntityMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED)
 		);
 	}
 }

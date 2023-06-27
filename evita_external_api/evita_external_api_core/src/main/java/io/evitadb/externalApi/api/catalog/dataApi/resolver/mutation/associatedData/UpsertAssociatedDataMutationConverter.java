@@ -35,7 +35,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.FieldObjectMapper;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.utils.Assert;
@@ -73,10 +73,10 @@ public class UpsertAssociatedDataMutationConverter extends AssociatedDataMutatio
 
 	@Nonnull
 	@Override
-	protected UpsertAssociatedDataMutation convert(@Nonnull InputMutation inputMutation) {
-		final AssociatedDataKey associatedDataKey = resolveAssociatedDataKey(inputMutation);
+	protected UpsertAssociatedDataMutation convert(@Nonnull Input input) {
+		final AssociatedDataKey associatedDataKey = resolveAssociatedDataKey(input);
 
-		final Class<? extends Serializable> valueType = inputMutation.getOptionalField(
+		final Class<? extends Serializable> valueType = input.getOptionalField(
 			UpsertAssociatedDataMutationDescriptor.VALUE_TYPE.name(),
 			new ValueTypeMapper(getExceptionFactory(), UpsertAssociatedDataMutationDescriptor.VALUE_TYPE)
 		);
@@ -96,15 +96,15 @@ public class UpsertAssociatedDataMutationConverter extends AssociatedDataMutatio
 		final Class<? extends Serializable> targetDataType = valueType != null ? valueType : associatedDataSchema.get().getType();
 
 		if (targetDataType.equals(ComplexDataObject.class)) {
-			targetValue = inputMutation.getRequiredField(
+			targetValue = input.getRequiredField(
 				UpsertAssociatedDataMutationDescriptor.VALUE.name(),
 				new FieldObjectMapper<>(
 					getMutationName(),
 					getExceptionFactory(),
 					UpsertAssociatedDataMutationDescriptor.VALUE,
-					input -> {
+					nestedInput -> {
 						try {
-							return jsonToComplexDataObjectConverter.fromMap(input.getRequiredValue());
+							return jsonToComplexDataObjectConverter.fromMap(nestedInput.getRequiredValue());
 						} catch (JsonProcessingException e) {
 							throw getExceptionFactory().createInvalidArgumentException("Could not parse input JSON.");
 						}
@@ -112,7 +112,7 @@ public class UpsertAssociatedDataMutationConverter extends AssociatedDataMutatio
 				)
 			);
 		} else {
-			targetValue = inputMutation.getRequiredField(UpsertAssociatedDataMutationDescriptor.VALUE.name(), targetDataType);
+			targetValue = input.getRequiredField(UpsertAssociatedDataMutationDescriptor.VALUE.name(), targetDataType);
 		}
 
 		return new UpsertAssociatedDataMutation(associatedDataKey, targetValue);

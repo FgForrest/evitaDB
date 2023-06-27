@@ -25,7 +25,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSortableAttributeCompoundSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ModifyReferenceAttributeSchemaMutationDescriptor;
@@ -64,8 +64,8 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutationConverter ext
 
 	@Nonnull
 	@Override
-	protected ModifyReferenceSortableAttributeCompoundSchemaMutation convert(@Nonnull InputMutation inputMutation) {
-		final Map<String, Object> inputAttributeSchemaMutation = Optional.of(inputMutation.getRequiredField(ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor.SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION.name()))
+	protected ModifyReferenceSortableAttributeCompoundSchemaMutation convert(@Nonnull Input input) {
+		final Map<String, Object> inputAttributeSchemaMutation = Optional.of(input.getRequiredField(ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor.SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION.name()))
 			.map(m -> {
 				Assert.isTrue(
 					m instanceof Map<?, ?>,
@@ -82,7 +82,7 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutationConverter ext
 		);
 
 		return new ModifyReferenceSortableAttributeCompoundSchemaMutation(
-			inputMutation.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
+			input.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
 			sortableAttributeCompoundSchemaMutations.get(0)
 		);
 	}
