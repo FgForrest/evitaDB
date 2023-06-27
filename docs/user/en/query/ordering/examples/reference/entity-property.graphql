@@ -1,0 +1,16 @@
+{
+  queryProduct(
+    filterBy: {
+      attributeCodeEquals: "garmin-vivoactive-4"
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+        }
+      }
+    }
+  }
+}

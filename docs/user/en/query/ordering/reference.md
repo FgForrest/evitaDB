@@ -47,7 +47,7 @@ Sorting by reference attribute is not as common as sorting by entity attributes,
 that are in a particular category or have a particular brand specifically by the priority/order for that particular
 relationship.
 
-To sort products related to a "Sony" brand by the `priority` attribute set on the reference, you need to issue the
+To sort products related to a "Sony" brand by the `orderInBrand` attribute set on the reference, you need to issue the
 following query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
@@ -94,32 +94,32 @@ the reference with the lowest primary key of the referenced entity, while also h
 used for ordering.
 
 Let's extend our previous example so that it returns products that refer not only to the brand "Sony", but also to the 
-brand "Samsung":
+brand "Google":
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
-[List of "Sony" or "Samsung" products ordered by priority](/docs/user/en/query/ordering/examples/reference/reference-attribute-natural-multiple.evitaql)
+[List of "Sony" or "Google" products ordered by priority](/docs/user/en/query/ordering/examples/reference/reference-attribute-natural-multiple.evitaql)
 </SourceCodeTabs>
 
 <Note type="info">
 
 <NoteTitle toggles="true">
 
-##### List of "Sony" or "Samsung" products ordered by priority
+##### List of "Sony" or "Google" products ordered by priority
 </NoteTitle>
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude>[List of "Sony" or "Samsung" products ordered by priority](/docs/user/en/query/ordering/examples/reference/reference-attribute-natural-multiple.evitaql.md)</MDInclude>
+<MDInclude>[List of "Sony" or "Google" products ordered by priority](/docs/user/en/query/ordering/examples/reference/reference-attribute-natural-multiple.evitaql.md)</MDInclude>
 
 </LanguageSpecific>
 
 <LanguageSpecific to="graphql">
 
-<MDInclude>[List of "Sony" or "Samsung" products ordered by priority](/docs/user/en/query/ordering/examples/reference/reference-attribute-natural-multiple.graphql.json.md)</MDInclude>
+<MDInclude>[List of "Sony" or "Google" products ordered by priority](/docs/user/en/query/ordering/examples/reference/reference-attribute-natural-multiple.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
-The result will contain first products referring to a "Samsung" brand which has the lowest primary key, and then products
+The result will contain first products referring to a "Google" brand which has the lowest primary key, and then products
 referring to a "Sony" brand. The order of products within each group will be determined by the `orderInBrand` attribute.
 
 </Note>
@@ -162,7 +162,7 @@ by the `orderInCategory` attribute on the reference to the category:
 </LanguageSpecific>
 
 The result will first contain products directly related to the "Accessories" category, ordered by `orderInCategory` in 
-descending order, then products "Christmas electronics" (which is the first child of the "Accessories" category with 
+ascending order, then products "Christmas electronics" (which is the first child of the "Accessories" category with 
 the least primary key), then "Smart wearable" (which has no directly related products), then "Bands" (which is the first 
 child of the "Smart wearable" category), and so on. The order follows the order of the categories in the following 
 image:
@@ -206,7 +206,7 @@ by, for example, the `priority` or `name` attribute of the `Parameter` entity. L
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="data[0]">[Get product with parameters ordered by their priority](/docs/user/en/query/ordering/examples/reference/entity-property.evitaql.json.md)</MDInclude>
+<MDInclude sourceVariable="recordData.0">[Get product with parameters ordered by their priority](/docs/user/en/query/ordering/examples/reference/entity-property.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 

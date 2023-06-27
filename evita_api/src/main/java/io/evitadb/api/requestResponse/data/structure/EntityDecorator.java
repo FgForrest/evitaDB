@@ -1001,8 +1001,7 @@ public class EntityDecorator implements SealedEntity {
 				)
 				.map(
 					it -> new ReferenceDecorator(
-						it, null, null,
-						referencePredicate.getAttributePredicate()
+						it, referencePredicate.getAttributePredicate()
 					)
 				)
 				.collect(
