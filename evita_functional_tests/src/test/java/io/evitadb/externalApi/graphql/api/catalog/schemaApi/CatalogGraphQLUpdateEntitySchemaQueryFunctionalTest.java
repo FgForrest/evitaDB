@@ -524,7 +524,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 						updateEmptySchema (
 							mutations: [
 								{
-									removeSortableAttributeCompoundMutation: {
+									removeSortableAttributeCompoundSchemaMutation: {
 										name: "mySpecialCompound"
 									}
 								}
