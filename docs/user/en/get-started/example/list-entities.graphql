@@ -1,9 +1,13 @@
 query {
-  listProduct {
+  listProduct(
+    filterBy: {
+      entityLocaleEquals: en
+    }
+  ) {
     primaryKey
     type
     allLocales
-    attributes(locale: en) {
+    attributes {
       name
       catalogCode
       stockQuantity

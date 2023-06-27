@@ -1,0 +1,515 @@
+PUT /rest/test-catalog/brand/1
+
+{
+  "entityExistence": "MUST_NOT_EXIST"
+  "mutations": [
+    {
+      "upsertAttributeMutation": {
+        "name": "name"
+        "value": "Lenovo"
+      }
+    }
+  ]
+}
+
+PUT /rest/test-catalog/brand/2
+
+{
+  "entityExistence": "MUST_NOT_EXIST"
+  "mutations": [
+    {
+      "upsertAttributeMutation": {
+        "name": "name"
+        "value": "Acer"
+      }
+    }
+  ]
+}
+
+PUT /rest/test-catalog/brand/3
+
+{
+  "entityExistence": "MUST_NOT_EXIST"
+  "mutations": [
+    {
+      "upsertAttributeMutation": {
+        "name": "name"
+        "value": "ASUS"
+      }
+    }
+  ]
+}
+
+PUT /rest/test-catalog/category/1
+
+{
+  "entityExistence": "MUST_NOT_EXIST"
+  "mutations": [
+    {
+      "upsertAttributeMutation": {
+        "name": "name"
+        "locale": "en"
+        "value": "Electronics"
+      }
+    },
+    {
+      "upsertAttributeMutation": {
+        "name": "name"
+        "locale": "de"
+        "value": "Elektronik"
+      }
+    }
+  ]
+}
+
+PUT /rest/test-catalog/category/2
+
+{
+  "entityExistence": "MUST_NOT_EXIST"
+  "mutations": [
+    {
+      "upsertAttributeMutation": {
+        "name": "name"
+        "locale": "en"
+        "value": "Components"
+      }
+    },
+    {
+      "upsertAttributeMutation": {
+        "name": "name"
+        "locale": "de"
+        "value": "Komponenten"
+      }
+    }
+  ]
+}
+
+PUT /rest/test-catalog/category/3
+
+{
+  "entityExistence": "MUST_NOT_EXIST"
+  "mutations": [
+    {
+      "upsertAttributeMutation": {
+        "name": "name"
+        "locale": "en"
+        "value": "Portable computer"
+      }
+    },
+    {
+      "upsertAttributeMutation": {
+        "name": "name"
+        "locale": "de"
+        "value": "Tragbarer Computer"
+      }
+    }
+  ]
+}
+
+PUT /rest/test-catalog/product
+
+{
+  "entityExistence": "MUST_NOT_EXIST"
+  "mutations": [
+    {
+      "upsertAttributeMutation": {
+        "name": "name"
+        "locale": "en"
+        "value": "Lenovo ThinkPad UltraSlim USB DVD Burner"
+      }
+    },
+    {
+      "upsertAttributeMutation": {
+        "name": "name"
+        "locale": "de"
+        "value": "Lenovo ThinkPad UltraSlim USB-DVD-Brenner"
+      }
+    },
+    {
+      "upsertAttributeMutation": {
+        "name": "catalogCode"
+        "value": "4XA0E97775"
+      }
+    },
+    {
+      "upsertAttributeMutation": {
+        "name": "stockQuantity"
+        "value": 3
+      }
+    },
+    {
+      "upsertAssociatedDataMutation": {
+        "name": "gallery"
+        "value": [
+          ""https"://cdn.alza.cz/ImgW.ashx?fd=f4&cd=NT442p2i&i=1.jpg",
+          ""https"://cdn.alza.cz/ImgW.ashx?fd=FotoAddOrig&cd=NT442p2i-02&i=1.jpg"
+        ]
+      }
+    },
+    {
+      "upsertPriceMutation": {
+        "priceId": 1
+        "priceList": "basic"
+        "currency": "EUR"
+        "priceWithoutTax": "63.93"
+        "taxRate": "22"
+        "priceWithTax": "78"
+        "sellable": true
+      }
+    },
+    {
+      "upsertPriceMutation": {
+        "priceId": 2
+        "priceList": "basic"
+        "currency": "USD"
+        "priceWithoutTax": "68.03"
+        "taxRate": "22"
+        "priceWithTax": "83"
+        "sellable": true
+      }
+    },
+    {
+      "insertReferenceMutation": {
+        "name": "brand"
+        "referencedEntityType": "Brand"
+        "cardinality": "ZERO_OR_ONE"
+        "primaryKey": 1
+      }
+    },
+    {
+      "insertReferenceMutation": {
+        "name": "categories"
+        "referencedEntityType": "Category"
+        "cardinality": "ZERO_OR_MORE"
+        "primaryKey": 2
+      }
+    }
+  ]
+}
+
+PUT /rest/test-catalog/product
+
+{
+  "entityExistence": "MUST_NOT_EXIST"
+  "mutations": [
+    {
+      "upsertAttributeMutation": {
+        "name": "name"
+        "locale": "en"
+        "value": "ASUS SDRW-08U7M-U black + 2× M-Disk"
+      }
+    },
+    {
+      "upsertAttributeMutation": {
+        "name": "name"
+        "locale": "de"
+        "value": "ASUS SDRW-08U7M-U schwarz + 2× M-Disk"
+      }
+    },
+    {
+      "upsertAttributeMutation": {
+        "name": "catalogCode"
+        "value": "90DD01X0-M29000"
+      }
+    },
+    {
+      "upsertAttributeMutation": {
+        "name": "stockQuantity"
+        "value": 1
+      }
+    },
+    {
+      "upsertAssociatedDataMutation": {
+        "name": "gallery"
+        "value": [
+          ""https"://cdn.alza.cz/ImgW.ashx?fd=f4&cd=GM382c8d&i=1.jpg",
+          ""https"://cdn.alza.cz/ImgW.ashx?fd=FotoAddOrig&cd=GM382c8d-02&i=1.jpg",
+          ""https"://cdn.alza.cz/ImgW.ashx?fd=FotoAddOrig&cd=GM382c8d-03&i=1.jpg",
+          ""https"://cdn.alza.cz/ImgW.ashx?fd=FotoAddOrig&cd=GM382c8d-04&i=1.jpg"
+        ]
+      }
+    },
+    {
+      "upsertPriceMutation": {
+        "priceId": 1
+        "priceList": "basic"
+        "currency": "EUR"
+        "priceWithoutTax": "27.87"
+        "taxRate": "22"
+        "priceWithTax": "34"
+        "sellable": true
+      }
+    },
+    {
+      "upsertPriceMutation": {
+        "priceId": 2
+        "priceList": "basic"
+        "currency": "USD"
+        "priceWithoutTax": "29.5"
+        "taxRate": "22"
+        "priceWithTax": "36"
+        "sellable": true
+      }
+    },
+    {
+      "insertReferenceMutation": {
+        "name": "brand"
+        "referencedEntityType": "Brand"
+        "cardinality": "ZERO_OR_ONE"
+        "primaryKey": 3
+      }
+    },
+    {
+      "insertReferenceMutation": {
+        "name": "categories"
+        "referencedEntityType": "Category"
+        "cardinality": "ZERO_OR_MORE"
+        "primaryKey": 2
+      }
+    }
+  ]
+}
+
+PUT /rest/test-catalog/product
+
+{
+  "entityExistence": "MUST_NOT_EXIST"
+  "mutations": [
+    {
+      "upsertAttributeMutation": {
+        "name": "name"
+        "locale": "en"
+        "value": "Lenovo Legion 5 15ITH6H Phantom Blue/Shadow Black(3 years warranty)"
+      }
+    },
+    {
+      "upsertAttributeMutation": {
+        "name": "name"
+        "locale": "de"
+        "value": "Lenovo Legion 5 15ITH6H Phantom Blau/Schatten Schwarz(3 Jahre Garantie)"
+      }
+    },
+    {
+      "upsertAttributeMutation": {
+        "name": "catalogCode"
+        "value": "82JH00KYCK"
+      }
+    },
+    {
+      "upsertAttributeMutation": {
+        "name": "stockQuantity"
+        "value": 8
+      }
+    },
+    {
+      "upsertAssociatedDataMutation": {
+        "name": "gallery"
+        "value": [
+          ""https"://cdn.alza.cz/ImgW.ashx?fd=f4&cd=NT379t71j3b&i=1.jpg",
+          ""https"://cdn.alza.cz/ImgW.ashx?fd=FotoAddOrig&cd=NT379t71j3b-01&i=1.jpg",
+          ""https"://cdn.alza.cz/ImgW.ashx?fd=FotoAddOrig&cd=NT379t71j3b-06&i=1.jpg"
+        ]
+      }
+    },
+    {
+      "upsertPriceMutation": {
+        "priceId": 1
+        "priceList": "basic"
+        "currency": "EUR"
+        "priceWithoutTax": "1040.16"
+        "taxRate": "22"
+        "priceWithTax": "1269"
+        "sellable": true
+      }
+    },
+    {
+      "upsertPriceMutation": {
+        "priceId": 2
+        "priceList": "basic"
+        "currency": "USD"
+        "priceWithoutTax": "1097.54"
+        "taxRate": "22"
+        "priceWithTax": "1339"
+        "sellable": true
+      }
+    },
+    {
+      "insertReferenceMutation": {
+        "name": "brand"
+        "referencedEntityType": "Brand"
+        "cardinality": "ZERO_OR_ONE"
+        "primaryKey": 1
+      }
+    },
+    {
+      "insertReferenceMutation": {
+        "name": "categories"
+        "referencedEntityType": "Category"
+        "cardinality": "ZERO_OR_MORE"
+        "primaryKey": 3
+      }
+    }
+  ]
+}
+
+PUT /rest/test-catalog/product
+
+{
+  "entityExistence": "MUST_NOT_EXIST"
+  "mutations": [
+    {
+      "upsertAttributeMutation": {
+        "name": "name"
+        "locale": "en"
+        "value": "Acer Nitro 5 Shale Black"
+      }
+    },
+    {
+      "upsertAttributeMutation": {
+        "name": "name"
+        "locale": "de"
+        "value": "Acer Nitro 5 Shale Schwarz"
+      }
+    },
+    {
+      "upsertAttributeMutation": {
+        "name": "catalogCode"
+        "value": "NH.QEKEC.002"
+      }
+    },
+    {
+      "upsertAttributeMutation": {
+        "name": "stockQuantity"
+        "value": 6
+      }
+    },
+    {
+      "upsertAssociatedDataMutation": {
+        "name": "gallery"
+        "value": [
+          ""https"://cdn.alza.cz/ImgW.ashx?fd=f4&cd=NC108c7i05a8b&i=1.jpg",
+          ""https"://cdn.alza.cz/ImgW.ashx?fd=FotoAddOrig&cd=NC108c7i05a8b-01&i=1.jpg"
+        ]
+      }
+    },
+    {
+      "upsertPriceMutation": {
+        "priceId": 1
+        "priceList": "basic"
+        "currency": "EUR"
+        "priceWithoutTax": "627.05"
+        "taxRate": "22"
+        "priceWithTax": "765"
+        "sellable": true
+      }
+    },
+    {
+      "upsertPriceMutation": {
+        "priceId": 2
+        "priceList": "basic"
+        "currency": "USD"
+        "priceWithoutTax": "654.92"
+        "taxRate": "22"
+        "priceWithTax": "799"
+        "sellable": true
+      }
+    },
+    {
+      "insertReferenceMutation": {
+        "name": "brand"
+        "referencedEntityType": "Brand"
+        "cardinality": "ZERO_OR_ONE"
+        "primaryKey": 2
+      }
+    },
+    {
+      "insertReferenceMutation": {
+        "name": "categories"
+        "referencedEntityType": "Category"
+        "cardinality": "ZERO_OR_MORE"
+        "primaryKey": 3
+      }
+    }
+  ]
+}
+
+PUT /rest/test-catalog/product
+
+{
+  "entityExistence": "MUST_NOT_EXIST"
+  "mutations": [
+    {
+      "upsertAttributeMutation": {
+        "name": "name"
+        "locale": "en"
+        "value": "ASUS Vivobook 16 X1605EA-MB044W Indie Black"
+      }
+    },
+    {
+      "upsertAttributeMutation": {
+        "name": "name"
+        "locale": "de"
+        "value": "ASUS Vivobook 16 X1605EA-MB044W Indie Schwarz"
+      }
+    },
+    {
+      "upsertAttributeMutation": {
+        "name": "catalogCode"
+        "value": "X1605EA-MB044W"
+      }
+    },
+    {
+      "upsertAttributeMutation": {
+        "name": "stockQuantity"
+        "value": 1
+      }
+    },
+    {
+      "upsertAssociatedDataMutation": {
+        "name": "gallery"
+        "value": [
+          ""https"://cdn.alza.cz/ImgW.ashx?fd=f4&cd=NA579p8e0&i=1.jpg",
+          ""https"://cdn.alza.cz/ImgW.ashx?fd=FotoAddOrig&cd=NA579p8e0-04&i=1.jpg"
+        ]
+      }
+    },
+    {
+      "upsertPriceMutation": {
+        "priceId": 1
+        "priceList": "basic"
+        "currency": "EUR"
+        "priceWithoutTax": "345.9"
+        "taxRate": "22"
+        "priceWithTax": "422"
+        "sellable": true
+      }
+    },
+    {
+      "upsertPriceMutation": {
+        "priceId": 2
+        "priceList": "basic"
+        "currency": "USD"
+        "priceWithoutTax": "365.57"
+        "taxRate": "22"
+        "priceWithTax": "446"
+        "sellable": true
+      }
+    },
+    {
+      "insertReferenceMutation": {
+        "name": "brand"
+        "referencedEntityType": "Brand"
+        "cardinality": "ZERO_OR_ONE"
+        "primaryKey": 3
+      }
+    },
+    {
+      "insertReferenceMutation": {
+        "name": "categories"
+        "referencedEntityType": "Category"
+        "cardinality": "ZERO_OR_MORE"
+        "primaryKey": 3
+      }
+    }
+  ]
+}

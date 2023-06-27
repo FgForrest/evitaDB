@@ -1,0 +1,13 @@
+PUT /rest/test-catalog/brands/1
+
+{
+  "entityExistence": "MUST_NOT_EXIST"
+  "mutations": [
+    {
+      "upsertAttributeMutation": {
+        "name": "name"
+        "value": "Lenovo"
+      }
+    }
+  ]
+}

@@ -71,6 +71,27 @@ a tree, product is enabled to have prices:
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+## Define a new catalog with a schema
+
+Now you can use the [system API](/docs/user/en/use/connectors/rest.md#rest-api-instances) to create a new empty catalog:
+
+<SourceCodeTabs requires="ignoreTest">
+[Example of creating empty catalog](/docs/user/en/get-started/example/define-catalog.rest)
+</SourceCodeTabs>
+
+and fill it with new predefined schemas for multiple collections: `Brand`, `Category` and `Product` by
+modifying its schema via the [catalog schema API](/docs/user/en/use/connectors/rest.md#rest-api-instances). Each collection
+contains some attributes (either localized or non-localized), category is marked as a hierarchical entity that forms
+a tree, product is enabled to have prices:
+
+<SourceCodeTabs requires="ignoreTest">
+[Example of creating empty catalog](/docs/user/en/get-started/example/define-schema-for-catalog.rest)
+</SourceCodeTabs>
+
+</LanguageSpecific>
+
 <LanguageSpecific to="java">
 
 ## Open session to catalog and insert your first entity
@@ -119,8 +140,33 @@ as mentioned above.
 </SourceCodeTabs>
 
 </LanguageSpecific>
+<LanguageSpecific to="rest">
 
-<LanguageSpecific to="java,graphql">
+## Open session to catalog and insert your first entity
+
+Once the catalog is created and the schema is known, you can insert a first entity to the catalog via the
+[catalog data API](/docs/user/en/use/connectors/rest.md#rest-api-instances):
+
+<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+[Example of inserting an entity](/docs/user/en/get-started/example/create-first-entity.rest)
+</SourceCodeTabs>
+
+The session is implicitly opened for the scope of a single REST request and is also automatically closed when the
+request is processed. Depending on the type of the request, evitaDB either creates
+a read-only session (for queries) or a read-write session (for mutations).
+Differentiating between read-write and read-only sessions allows evitaDB to optimize query processing and distribute
+the load in the cluster.
+
+Let's see how you can retrieve the entity you just created in another read-only session via the same catalog data API
+as mentioned above.
+
+<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+[Example of reading an entity by primary key](/docs/user/en/get-started/example/read-entity-by-pk.rest)
+</SourceCodeTabs>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="java,graphql,rest">
 
 ## Create a small dataset
 
@@ -135,7 +181,7 @@ have in the relational database. The example shows how to define attributes, ass
 
 </LanguageSpecific>
 
-<LanguageSpecific to="java,graphql">
+<LanguageSpecific to="java,graphql,rest">
 
 ## List existing entities
 
@@ -193,6 +239,22 @@ that mutate already existing data.
 For more information, see the [write API description](../use/api/write-data.md#upsert).
 
 </LanguageSpecific>
+<LanguageSpecific to="rest">
+
+## Update any of existing entities
+
+Updating an entity is similar to creating a new entity:
+
+<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+[Example of listing entities](/docs/user/en/get-started/example/update-entity.rest)
+</SourceCodeTabs>
+
+The main difference is that you must pass a primary key of an existing entity to modify and specify only those mutations
+that mutate already existing data.
+
+For more information, see the [write API description](../use/api/write-data.md#upsert).
+
+</LanguageSpecific>
 
 <LanguageSpecific to="java">
 
@@ -200,7 +262,7 @@ For more information, see the [write API description](../use/api/write-data.md#u
 
 You can delete entity by is primary key:
 
-<SourceCodeTabs requires="/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/create-small-dataset.java">
+<SourceCodeTabs requires="/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
 [Example of deleting entity by PK](/docs/user/en/get-started/example/delete-entity-by-pk.java)
 </SourceCodeTabs>
 
@@ -233,10 +295,30 @@ would use to insert, update or retrieve entities:
 For more complex examples and explanations, see the [write API chapter](../use/api/write-data.md#removal).
 
 </LanguageSpecific>
+<LanguageSpecific to="rest">
 
-<LanguageSpecific to="evitaql,rest,csharp">
+## Delete any of existing entities
 
-Creating new catalog in other APIs than Java and GraphQL is being prepared.
+You can delete entity by is primary key:
+
+<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+[Example of deleting entity by PK](/docs/user/en/get-started/example/delete-entity-by-pk.rest)
+</SourceCodeTabs>
+
+Or, you can issue a query that removes all the entities that match the query using the same catalog data API that you
+would use to insert, update or retrieve entities:
+
+<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+[Example of deleting entity by query](/docs/user/en/get-started/example/delete-entity-by-query.rest)
+</SourceCodeTabs>
+
+For more complex examples and explanations, see the [write API chapter](../use/api/write-data.md#removal).
+
+</LanguageSpecific>
+
+<LanguageSpecific to="evitaql,csharp">
+
+Creating new catalog in other APIs than Java, GraphQL and REST is being prepared.
 
 </LanguageSpecific>
 

@@ -201,7 +201,17 @@ If you need more hints for querying the data, try [the query API chapter](../use
 
 <LanguageSpecific to="rest">
 
-## Try querying the REST endpoint in your favourite IDE
+## Connect to the REST API
+
+Open your [REST client](../use/connectors/rest.md#recommended-ides) of choice and enter
+the basic URL of the catalog data API of our demo catalog `https://demo.evitadb.io:5555/rest/evita`.
+
+After that you can send REST requests to different variants of that URL and try any of the REST queries described in
+[the reference documentation](../query/basics.md):
+
+<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+[Query the demo server](/docs/user/en/get-started/example/query-demo-server.rest)
+</SourceCodeTabs>
 
 <Note type="info">
 
@@ -213,6 +223,7 @@ If you need more hints for querying the data, try [the query API chapter](../use
 
 For complete instructions on setting up a REST client, see [the REST drivers chapter](../use/connectors/rest.md).
 If you need more hints for querying the data, try [the query API chapter](../use/query-api.md).
+
 </Note>
 
 </LanguageSpecific>
