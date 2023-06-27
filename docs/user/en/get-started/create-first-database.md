@@ -55,7 +55,7 @@ a tree, product is enabled to have prices:
 Now you can use the [system API](/docs/user/en/use/connectors/graphql.md#graphql-api-instances) via the URL
 `https://your-server:5555/gql/system` to create a new empty catalog:
 
-<SourceCodeTabs requires="ignoreTest">
+<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
 [Example of creating empty catalog](/docs/user/en/get-started/example/define-catalog.graphql)
 </SourceCodeTabs>
 
@@ -65,7 +65,7 @@ modifying its schema via the [catalog schema API](/docs/user/en/use/connectors/g
 contains some attributes (either localized or non-localized), category is marked as a hierarchical entity that forms
 a tree, product is enabled to have prices:
 
-<SourceCodeTabs requires="ignoreTest">
+<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
 [Example of creating empty catalog](/docs/user/en/get-started/example/define-schema-for-catalog.graphql)
 </SourceCodeTabs>
 
@@ -75,18 +75,20 @@ a tree, product is enabled to have prices:
 
 ## Define a new catalog with a schema
 
-Now you can use the [system API](/docs/user/en/use/connectors/rest.md#rest-api-instances) to create a new empty catalog:
+Now you can use the [system API](/docs/user/en/use/connectors/rest.md#rest-api-instances) via the URL
+`https://your-server:5555/rest/system/catalogs` to create a new empty catalog:
 
-<SourceCodeTabs requires="ignoreTest">
+<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
 [Example of creating empty catalog](/docs/user/en/get-started/example/define-catalog.rest)
 </SourceCodeTabs>
 
 and fill it with new predefined schemas for multiple collections: `Brand`, `Category` and `Product` by
-modifying its schema via the [catalog schema API](/docs/user/en/use/connectors/rest.md#rest-api-instances). Each collection
+modifying its schema via the [catalog schema API](/docs/user/en/use/connectors/rest.md#rest-api-instances) at URL
+`https://your-server:5555/rest/test-catalog/schema`. Each collection
 contains some attributes (either localized or non-localized), category is marked as a hierarchical entity that forms
 a tree, product is enabled to have prices:
 
-<SourceCodeTabs requires="ignoreTest">
+<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
 [Example of creating empty catalog](/docs/user/en/get-started/example/define-schema-for-catalog.rest)
 </SourceCodeTabs>
 
@@ -145,7 +147,8 @@ as mentioned above.
 ## Open session to catalog and insert your first entity
 
 Once the catalog is created and the schema is known, you can insert a first entity to the catalog via the
-[catalog data API](/docs/user/en/use/connectors/rest.md#rest-api-instances):
+[catalog data API](/docs/user/en/use/connectors/rest.md#rest-api-instances) at the URL
+`https://your-server:5555/rest/test-catalog/brand`:
 
 <SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
 [Example of inserting an entity](/docs/user/en/get-started/example/create-first-entity.rest)
