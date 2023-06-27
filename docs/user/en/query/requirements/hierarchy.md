@@ -80,7 +80,7 @@ returns menu items that contain direct children of the *Audio* category and its 
 Both menu components are stored in the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass>
 extra result data structure and are available under the labels that correspond to those used in request constraints.
 
-<LanguageSpecific to="java">
+<LanguageSpecific to="evitaql,java">
 
 <MDInclude sourceVariable="extraResults.Hierarchy.selfHierarchy">[Output with multiple menu parts](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-data-structure-association.java.json.md)</MDInclude>
 
