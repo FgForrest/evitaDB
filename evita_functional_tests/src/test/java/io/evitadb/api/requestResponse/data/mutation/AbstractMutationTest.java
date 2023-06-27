@@ -61,7 +61,8 @@ public abstract class AbstractMutationTest {
 				true, true
 			)
 		),
-		EnumSet.allOf(EvolutionMode.class)
+		EnumSet.allOf(EvolutionMode.class),
+		Collections.emptyMap()
 	);
 	protected final Map<String, EntitySchema> entitySchemas = Collections.singletonMap(
 		productSchema.getName(), productSchema

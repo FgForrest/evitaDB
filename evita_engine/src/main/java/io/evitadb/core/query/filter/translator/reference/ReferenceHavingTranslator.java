@@ -69,7 +69,7 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 		final EntitySchemaContract entitySchema = filterByVisitor.getProcessingScope().getEntitySchema();
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName)
 			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, entitySchema));
-		isTrue(referenceSchema.isFilterable(), () -> new ReferenceNotIndexedException(referenceName, entitySchema));
+		isTrue(referenceSchema.isIndexed(), () -> new ReferenceNotIndexedException(referenceName, entitySchema));
 
 		final List<EntityIndex> referencedEntityIndexes = getTargetIndexes(
 			filterByVisitor, referenceHaving

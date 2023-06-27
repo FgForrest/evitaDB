@@ -26,8 +26,7 @@ package io.evitadb.core.query.sort.attribute.translator;
 import io.evitadb.api.query.order.AttributeNatural;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
+import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.OrderByVisitor.ProcessingScope;
@@ -35,15 +34,19 @@ import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter;
+import io.evitadb.core.query.sort.attribute.PrefetchedRecordsSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.attribute.SortIndex;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.order.OrderDirection.ASC;
 
@@ -57,21 +60,22 @@ public class AttributeNaturalTranslator
 
 	@Nonnull
 	@Override
-	public Sorter createSorter(@Nonnull AttributeNatural attributeNatural, @Nonnull OrderByVisitor orderByVisitor) {
+	public Stream<Sorter> createSorter(@Nonnull AttributeNatural attributeNatural, @Nonnull OrderByVisitor orderByVisitor) {
 		final String attributeName = attributeNatural.getAttributeName();
 		final OrderDirection orderDirection = attributeNatural.getOrderDirection();
-		final Sorter lastUsedSorter = orderByVisitor.getLastUsedSorter();
 		final Locale locale = orderByVisitor.getLocale();
 		final ProcessingScope processingScope = orderByVisitor.getProcessingScope();
 		final AttributeExtractor attributeSchemaEntityAccessor = processingScope.attributeEntityAccessor();
 
-		final Supplier<SortedRecordsProvider> sortedRecordsSupplier;
+		final Supplier<SortedRecordsProvider[]> sortedRecordsSupplier;
 		final EntityComparator comparator;
+		final EntityIndex[] indexesForSort = orderByVisitor.getIndexesForSort();
+
 		if (orderDirection == ASC) {
 			sortedRecordsSupplier = new AttributeSortedRecordsProviderSupplier(
 				SortIndex::getAscendingOrderRecordsSupplier,
-				() -> processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE),
-				orderByVisitor.getIndexForSort(),
+				() -> processingScope.getAttributeSchemaOrSortableAttributeCompound(attributeName),
+				indexesForSort,
 				orderByVisitor, locale
 			);
 			//noinspection unchecked,rawtypes
@@ -82,8 +86,8 @@ public class AttributeNaturalTranslator
 		} else {
 			sortedRecordsSupplier = new AttributeSortedRecordsProviderSupplier(
 				SortIndex::getDescendingOrderRecordsSupplier,
-				() -> processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE),
-				orderByVisitor.getIndexForSort(),
+				() -> processingScope.getAttributeSchemaOrSortableAttributeCompound(attributeName),
+				indexesForSort,
 				orderByVisitor, locale
 			);
 			//noinspection unchecked,rawtypes
@@ -95,15 +99,12 @@ public class AttributeNaturalTranslator
 
 		// if prefetch happens we need to prefetch attributes so that the attribute comparator can work
 		orderByVisitor.addRequirementToPrefetch(attributeSchemaEntityAccessor.getRequirements());
-		final PreSortedRecordsSorter sorter = new PreSortedRecordsSorter(
-			sortedRecordsSupplier, comparator
+		return Stream.of(
+			new PrefetchedRecordsSorter(comparator),
+			new PreSortedRecordsSorter(
+				processingScope.entityType(), sortedRecordsSupplier
+			)
 		);
-
-		if (lastUsedSorter == null) {
-			return sorter;
-		} else {
-			return lastUsedSorter.andThen(sorter);
-		}
 	}
 
 	@Nonnull
@@ -136,16 +137,24 @@ public class AttributeNaturalTranslator
 
 	private record AttributeSortedRecordsProviderSupplier(
 		@Nonnull Function<SortIndex, SortedRecordsProvider> extractor,
-		@Nonnull Supplier<AttributeSchemaContract> attributeSchemaSupplier,
-		@Nonnull EntityIndex targetIndex,
+		@Nonnull Supplier<NamedSchemaContract> attributeOrCompoundSchemaSupplier,
+		@Nonnull EntityIndex[] targetIndex,
 		@Nonnull OrderByVisitor orderByVisitor,
 		@Nonnull Locale locale
-	) implements Supplier<SortedRecordsProvider> {
+	) implements Supplier<SortedRecordsProvider[]> {
+		private static final SortedRecordsProvider[] EMPTY_PROVIDERS = {SortedRecordsProvider.EMPTY};
+
 		@Override
-		public SortedRecordsProvider get() {
-			final AttributeSchemaContract attributeSchema = attributeSchemaSupplier.get();
-			final SortIndex sortIndex = targetIndex.getSortIndex(attributeSchema.getName(), locale);
-			return sortIndex == null ? SortedRecordsProvider.EMPTY : extractor.apply(sortIndex);
+		public SortedRecordsProvider[] get() {
+			final NamedSchemaContract attributeSchema = attributeOrCompoundSchemaSupplier.get();
+			final SortedRecordsProvider[] sortedRecordsProvider = Arrays.stream(targetIndex)
+				.map(it -> it.getSortIndex(attributeSchema.getName(), locale))
+				.filter(Objects::nonNull)
+				.map(extractor)
+				.toArray(SortedRecordsProvider[]::new);
+
+			return sortedRecordsProvider.length == 0 ?
+				EMPTY_PROVIDERS : sortedRecordsProvider;
 		}
 	}
 }

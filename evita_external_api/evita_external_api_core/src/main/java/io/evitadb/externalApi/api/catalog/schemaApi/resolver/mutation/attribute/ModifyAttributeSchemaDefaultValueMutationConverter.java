@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDefaultValueMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
@@ -54,10 +54,10 @@ public class ModifyAttributeSchemaDefaultValueMutationConverter extends Attribut
 
 	@Nonnull
 	@Override
-	protected ModifyAttributeSchemaDefaultValueMutation convert(@Nonnull InputMutation inputMutation) {
+	protected ModifyAttributeSchemaDefaultValueMutation convert(@Nonnull Input input) {
 		return new ModifyAttributeSchemaDefaultValueMutation(
-			inputMutation.getRequiredField(AttributeSchemaMutationDescriptor.NAME),
-			inputMutation.getOptionalField(ModifyAttributeSchemaDefaultValueMutationDescriptor.DEFAULT_VALUE.name(), Serializable.class)
+			input.getRequiredField(AttributeSchemaMutationDescriptor.NAME),
+			input.getOptionalField(ModifyAttributeSchemaDefaultValueMutationDescriptor.DEFAULT_VALUE.name(), Serializable.class)
 		);
 	}
 }

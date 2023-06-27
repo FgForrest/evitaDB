@@ -26,7 +26,7 @@ package io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.price;
 import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.SetPriceInnerRecordHandlingMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 
@@ -52,9 +52,9 @@ public class SetPriceInnerRecordHandlingMutationConverter extends LocalMutationC
 
 	@Nonnull
 	@Override
-	protected SetPriceInnerRecordHandlingMutation convert(@Nonnull InputMutation inputMutation) {
+	protected SetPriceInnerRecordHandlingMutation convert(@Nonnull Input input) {
 		return new SetPriceInnerRecordHandlingMutation(
-			inputMutation.getRequiredField(SetPriceInnerRecordHandlingMutationDescriptor.PRICE_INNER_RECORD_HANDLING)
+			input.getRequiredField(SetPriceInnerRecordHandlingMutationDescriptor.PRICE_INNER_RECORD_HANDLING)
 		);
 	}
 }

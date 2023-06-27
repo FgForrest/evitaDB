@@ -105,7 +105,7 @@ public interface GrpcEntitySchemaOrBuilder extends
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 9;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale> 
       getLocalesList();
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 9;</code>
@@ -118,7 +118,7 @@ public interface GrpcEntitySchemaOrBuilder extends
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 9;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
       getLocalesOrBuilderList();
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 9;</code>
@@ -129,7 +129,7 @@ public interface GrpcEntitySchemaOrBuilder extends
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 10;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCurrency>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCurrency> 
       getCurrenciesList();
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 10;</code>
@@ -142,7 +142,7 @@ public interface GrpcEntitySchemaOrBuilder extends
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 10;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> 
       getCurrenciesOrBuilderList();
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 10;</code>
@@ -280,4 +280,38 @@ public interface GrpcEntitySchemaOrBuilder extends
    * @return The enum numeric value on the wire of evolutionMode at the given index.
    */
   int getEvolutionModeValue(int index);
+
+  /**
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 15;</code>
+   */
+  int getSortableAttributeCompoundsCount();
+  /**
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 15;</code>
+   */
+  boolean containsSortableAttributeCompounds(
+      java.lang.String key);
+  /**
+   * Use {@link #getSortableAttributeCompoundsMap()} instead.
+   */
+  @java.lang.Deprecated
+  java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema>
+  getSortableAttributeCompounds();
+  /**
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 15;</code>
+   */
+  java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema>
+  getSortableAttributeCompoundsMap();
+  /**
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 15;</code>
+   */
+
+  io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema getSortableAttributeCompoundsOrDefault(
+      java.lang.String key,
+      io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaultValue);
+  /**
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 15;</code>
+   */
+
+  io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema getSortableAttributeCompoundsOrThrow(
+      java.lang.String key);
 }

@@ -191,7 +191,8 @@ public class CreateAssociatedDataSchemaMutation
 						)
 					),
 				entitySchema.getReferences(),
-				entitySchema.getEvolutionMode()
+				entitySchema.getEvolutionMode(),
+				entitySchema.getSortableAttributeCompounds()
 			);
 		} else if (existingAssociatedDataSchema.get().equals(newAssociatedDataSchema)) {
 			// the mutation must have been applied previously - return the schema we don't need to alter

@@ -26,7 +26,7 @@ package io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.entity;
 import io.evitadb.api.requestResponse.data.mutation.entity.SetParentMutation;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetParentMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 
@@ -52,8 +52,8 @@ public class SetParentMutationConverter extends LocalMutationConverter<SetParent
 
 	@Nonnull
 	@Override
-	protected SetParentMutation convert(@Nonnull InputMutation inputMutation) {
-		final Integer parentPrimaryKey = inputMutation.getRequiredField(SetParentMutationDescriptor.PARENT_PRIMARY_KEY);
+	protected SetParentMutation convert(@Nonnull Input input) {
+		final Integer parentPrimaryKey = input.getRequiredField(SetParentMutationDescriptor.PARENT_PRIMARY_KEY);
 		return new SetParentMutation(parentPrimaryKey);
 	}
 }

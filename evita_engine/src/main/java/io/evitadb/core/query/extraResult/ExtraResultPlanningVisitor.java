@@ -360,6 +360,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	public Sorter createSorter(
 		@Nonnull ConstraintContainer<OrderConstraint> orderBy,
 		@Nonnull EntityIndex entityIndex,
+		@Nonnull String entityType,
 		@Nonnull Supplier<String> stepDescriptionSupplier
 	) {
 		try {
@@ -370,12 +371,14 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 			// crete a visitor
 			final OrderByVisitor orderByVisitor = new OrderByVisitor(
 				queryContext,
+				Collections.emptyList(),
 				prefetchRequirementCollector,
 				filteringFormula
 			);
 			// now analyze the filter by in a nested context with exchanged primary entity index
 			return orderByVisitor.executeInContext(
-				entityIndex,
+				new EntityIndex[] {entityIndex},
+				entityType,
 				new AttributeSchemaAccessor(queryContext),
 				EntityAttributeExtractor.INSTANCE,
 				() -> {
@@ -384,7 +387,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 					}
 					// create a deferred sorter that will log the execution time to query telemetry
 					return new DeferredSorter(
-						orderByVisitor.getLastUsedSorter(),
+						orderByVisitor.getSorter(),
 						sorter -> {
 							try {
 								queryContext.pushStep(QueryPhase.EXECUTION_SORT_AND_SLICE, stepDescriptionSupplier);

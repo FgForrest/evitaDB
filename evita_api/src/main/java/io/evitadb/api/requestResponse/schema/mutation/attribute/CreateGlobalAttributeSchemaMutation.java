@@ -27,6 +27,8 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
+import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
@@ -121,12 +123,12 @@ public class CreateGlobalAttributeSchemaMutation
 				Stream.of(
 						makeMutationIfDifferent(
 							createdVersion, existingVersion,
-							it -> it.getDescription(),
+							NamedSchemaContract::getDescription,
 							newValue -> new ModifyAttributeSchemaDescriptionMutation(name, newValue)
 						),
 						makeMutationIfDifferent(
 							createdVersion, existingVersion,
-							it -> it.getDeprecationNotice(),
+							NamedSchemaWithDeprecationContract::getDeprecationNotice,
 							newValue -> new ModifyAttributeSchemaDeprecationNoticeMutation( name, newValue)
 						),
 						makeMutationIfDifferent(

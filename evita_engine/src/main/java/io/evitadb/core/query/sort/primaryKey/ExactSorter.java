@@ -73,6 +73,15 @@ public class ExactSorter implements Sorter {
 		);
 	}
 
+	@Nonnull
+	@Override
+	public Sorter cloneInstance() {
+		return new ExactSorter(
+			exactOrder,
+			null
+		);
+	}
+
 	@Nullable
 	@Override
 	public Sorter getNextSorter() {

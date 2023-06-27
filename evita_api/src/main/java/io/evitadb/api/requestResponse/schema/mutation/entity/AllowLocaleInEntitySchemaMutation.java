@@ -126,7 +126,8 @@ public class AllowLocaleInEntitySchemaMutation implements CombinableEntitySchema
 				entitySchema.getAttributes(),
 				entitySchema.getAssociatedData(),
 				entitySchema.getReferences(),
-				entitySchema.getEvolutionMode()
+				entitySchema.getEvolutionMode(),
+				entitySchema.getSortableAttributeCompounds()
 			);
 		}
 	}

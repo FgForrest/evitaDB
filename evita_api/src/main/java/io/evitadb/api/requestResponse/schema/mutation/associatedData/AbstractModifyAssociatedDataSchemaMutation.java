@@ -91,7 +91,8 @@ abstract class AbstractModifyAssociatedDataSchemaMutation implements EntitySchem
 						)
 					),
 				entitySchema.getReferences(),
-				entitySchema.getEvolutionMode()
+				entitySchema.getEvolutionMode(),
+				entitySchema.getSortableAttributeCompounds()
 			);
 		}
 	}

@@ -38,7 +38,6 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.experimental.Delegate;
 
@@ -66,7 +65,6 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 	@Serial private static final long serialVersionUID = 2225492596172273289L;
 
 	private final EntitySchemaContract entitySchema;
-	private final BiPredicate<String, String> uniqueAttributePredicate;
 	@Getter private final ReferenceKey referenceKey;
 	@Getter private final Cardinality referenceCardinality;
 	@Getter private final String referencedEntityType;
@@ -100,37 +98,17 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 		InitialAttributesBuilder.verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, attributeName, aClass, locale, attributeSchema);
 	}
 
-	static void verifySortableAttributeUniqueness(
-		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull String referenceName,
-		@Nonnull String attributeName,
-		@Nonnull BiPredicate<String, String> uniqueAttributePredicate
-	) {
-		final AttributeSchemaContract attributeSchema = ofNullable(referenceSchema)
-			.flatMap(it -> it.getAttribute(attributeName))
-			.orElse(null);
-		if (attributeSchema != null && attributeSchema.isSortable()) {
-			Assert.isTrue(
-				!uniqueAttributePredicate.test(referenceName, attributeName),
-				"Attribute " + attributeName + " is sortable and only single reference of type " + referenceName + " may use it!" +
-					" In this entity there is already " + attributeName + " present on another reference of this type!"
-			);
-		}
-	}
-
 	public <T extends BiPredicate<String, String> & Serializable> InitialReferenceBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull String referenceName,
 		int referencedEntityPrimaryKey,
 		@Nullable Cardinality referenceCardinality,
-		@Nullable String referencedEntityType,
-		@Nonnull T uniqueAttributePredicate
+		@Nullable String referencedEntityType
 	) {
 		this.entitySchema = entitySchema;
 		this.referenceKey = new ReferenceKey(referenceName, referencedEntityPrimaryKey);
 		this.referenceCardinality = referenceCardinality;
 		this.referencedEntityType = referencedEntityType;
-		this.uniqueAttributePredicate = uniqueAttributePredicate;
 		this.groupId = null;
 		this.groupType = null;
 		this.attributesBuilder = new InitialAttributesBuilder(entitySchema, true);
@@ -212,7 +190,6 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 		} else {
 			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.referenceKey.referenceName()).orElse(null);
 			verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, attributeName, attributeValue.getClass());
-			verifySortableAttributeUniqueness(referenceSchema, this.referenceKey.referenceName(), attributeName, uniqueAttributePredicate);
 			attributesBuilder.setAttribute(attributeName, attributeValue);
 			return this;
 		}
@@ -246,7 +223,6 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 		} else {
 			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.referenceKey.referenceName()).orElse(null);
 			verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, attributeName, attributeValue.getClass(), locale);
-			verifySortableAttributeUniqueness(referenceSchema, this.referenceKey.referenceName(), attributeName, uniqueAttributePredicate);
 			attributesBuilder.setAttribute(attributeName, locale, attributeValue);
 			return this;
 		}

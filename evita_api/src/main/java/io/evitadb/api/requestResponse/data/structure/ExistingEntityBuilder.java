@@ -28,7 +28,6 @@ import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.Droppable;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
@@ -92,7 +91,6 @@ import static java.util.Optional.ofNullable;
  */
 public class ExistingEntityBuilder implements EntityBuilder {
 	@Serial private static final long serialVersionUID = -1422927537304173188L;
-	private final ReferenceUniqueAttributeCheck referenceUniqueAttributeCheck = new ReferenceUniqueAttributeCheck();
 
 	/**
 	 * This predicate filters out non-fetched locales.
@@ -499,11 +497,11 @@ public class ExistingEntityBuilder implements EntityBuilder {
 		final EntitySchemaContract schema = getSchema();
 		final Optional<ReferenceContract> existingReference = ofNullable(baseEntity.getReference(referenceKey));
 		final ReferenceBuilder referenceBuilder = existingReference
-			.map(it -> (ReferenceBuilder) new ExistingReferenceBuilder(it, schema, referenceUniqueAttributeCheck))
+			.map(it -> (ReferenceBuilder) new ExistingReferenceBuilder(it, schema))
 			.filter(referencePredicate)
 			.orElseGet(
 				() -> new InitialReferenceBuilder(
-					schema, referenceName, referencedPrimaryKey, cardinality, referencedEntityType, referenceUniqueAttributeCheck
+					schema, referenceName, referencedPrimaryKey, cardinality, referencedEntityType
 				)
 			);
 		ofNullable(whichIs).ifPresent(it -> it.accept(referenceBuilder));

@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.entity;
 
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithPriceMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.SetEntitySchemaWithPriceMutationDescriptor;
@@ -52,10 +52,10 @@ public class SetEntitySchemaWithPriceMutationConverter extends EntitySchemaMutat
 
 	@Nonnull
 	@Override
-	protected SetEntitySchemaWithPriceMutation convert(@Nonnull InputMutation inputMutation) {
+	protected SetEntitySchemaWithPriceMutation convert(@Nonnull Input input) {
 		return new SetEntitySchemaWithPriceMutation(
-			inputMutation.getRequiredField(SetEntitySchemaWithPriceMutationDescriptor.WITH_PRICE),
-			inputMutation.getRequiredField(SetEntitySchemaWithPriceMutationDescriptor.INDEXED_PRICE_PLACES)
+			input.getRequiredField(SetEntitySchemaWithPriceMutationDescriptor.WITH_PRICE),
+			input.getRequiredField(SetEntitySchemaWithPriceMutationDescriptor.INDEXED_PRICE_PLACES)
 		);
 	}
 }

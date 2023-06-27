@@ -218,13 +218,6 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	}
 
 	/**
-	 * Determines if children constraints are unique.
-	 */
-	protected boolean isChildrenUnique(@Nonnull ChildParameterDescriptor childParameter) {
-		return childParameter.uniqueChildren();
-	}
-
-	/**
 	 * Returns predicate filtering allowed child constraints restricted by globally allowed and forbidden constraints.
 	 */
 	@Nonnull
@@ -523,7 +516,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 
 		return referenceSchemas
 			.stream()
-			.filter(ReferenceSchemaContract::isFilterable)
+			.filter(ReferenceSchemaContract::isIndexed)
 			.flatMap(referenceSchema -> {
 				final FieldFromConstraintDescriptorBuilder<OBJECT_FIELD> fieldBuilder = constraintDescriptor -> buildFieldFromConstraintDescriptor(
 					buildContext.switchToChildContext(new ReferenceDataLocator(

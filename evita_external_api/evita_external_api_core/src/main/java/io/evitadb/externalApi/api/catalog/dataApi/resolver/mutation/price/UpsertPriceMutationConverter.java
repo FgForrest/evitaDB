@@ -26,7 +26,7 @@ package io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.price;
 import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.UpsertPriceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 
@@ -52,15 +52,15 @@ public class UpsertPriceMutationConverter extends PriceMutationConverter<UpsertP
 
 	@Nonnull
 	@Override
-	protected UpsertPriceMutation convert(@Nonnull InputMutation inputMutation) {
+	protected UpsertPriceMutation convert(@Nonnull Input input) {
 		return new UpsertPriceMutation(
-			resolvePriceKey(inputMutation),
-			inputMutation.getOptionalField(UpsertPriceMutationDescriptor.INNER_RECORD_ID),
-			inputMutation.getRequiredField(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX),
-			inputMutation.getRequiredField(UpsertPriceMutationDescriptor.TAX_RATE),
-			inputMutation.getRequiredField(UpsertPriceMutationDescriptor.PRICE_WITH_TAX),
-			inputMutation.getOptionalField(UpsertPriceMutationDescriptor.VALIDITY),
-			inputMutation.getRequiredField(UpsertPriceMutationDescriptor.SELLABLE)
+			resolvePriceKey(input),
+			input.getOptionalField(UpsertPriceMutationDescriptor.INNER_RECORD_ID),
+			input.getRequiredField(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX),
+			input.getRequiredField(UpsertPriceMutationDescriptor.TAX_RATE),
+			input.getRequiredField(UpsertPriceMutationDescriptor.PRICE_WITH_TAX),
+			input.getOptionalField(UpsertPriceMutationDescriptor.VALIDITY),
+			input.getRequiredField(UpsertPriceMutationDescriptor.SELLABLE)
 		);
 	}
 }

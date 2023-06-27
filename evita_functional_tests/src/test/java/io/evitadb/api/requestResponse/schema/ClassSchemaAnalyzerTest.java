@@ -954,7 +954,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		assertEquals(groupEntityType, referenceSchema.getReferencedGroupType());
 		assertEquals(groupTypeRelatesToEntity, referenceSchema.isReferencedGroupTypeManaged());
 		assertEquals(faceted, referenceSchema.isFaceted(), "Attribute `" + name + "` is expected to be " +  (faceted ? "" : "not") + " faceted, but it " + (faceted ? "is not" : "is") + ".");
-		assertEquals(indexed, referenceSchema.isFilterable(), "Attribute `" + name + "` is expected to be " +  (indexed ? "" : "not") + " indexed, but it " + (indexed ? "is not" : "is") + ".");
+		assertEquals(indexed, referenceSchema.isIndexed(), "Attribute `" + name + "` is expected to be " +  (indexed ? "" : "not") + " indexed, but it " + (indexed ? "is not" : "is") + ".");
 	}
 
 	private void assertEvolutionMode(

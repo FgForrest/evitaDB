@@ -23,32 +23,32 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference;
 
-import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFilterableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
 
 /**
- * Converts between {@link SetReferenceSchemaFilterableMutation} and {@link GrpcSetReferenceSchemaFilterableMutation} in both directions.
+ * Converts between {@link SetReferenceSchemaIndexedMutation} and {@link GrpcSetReferenceSchemaFilterableMutation} in both directions.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class SetReferenceSchemaFilterableMutationConverter implements SchemaMutationConverter<SetReferenceSchemaFilterableMutation, GrpcSetReferenceSchemaFilterableMutation> {
+public class SetReferenceSchemaFilterableMutationConverter implements SchemaMutationConverter<SetReferenceSchemaIndexedMutation, GrpcSetReferenceSchemaFilterableMutation> {
 
 	@Nonnull
-	public SetReferenceSchemaFilterableMutation convert(@Nonnull GrpcSetReferenceSchemaFilterableMutation mutation) {
-		return new SetReferenceSchemaFilterableMutation(
+	public SetReferenceSchemaIndexedMutation convert(@Nonnull GrpcSetReferenceSchemaFilterableMutation mutation) {
+		return new SetReferenceSchemaIndexedMutation(
 			mutation.getName(),
 			mutation.getFilterable()
 		);
 	}
 
 	@Nonnull
-	public GrpcSetReferenceSchemaFilterableMutation convert(@Nonnull SetReferenceSchemaFilterableMutation mutation) {
+	public GrpcSetReferenceSchemaFilterableMutation convert(@Nonnull SetReferenceSchemaIndexedMutation mutation) {
 		return GrpcSetReferenceSchemaFilterableMutation.newBuilder()
 			.setName(mutation.getName())
-			.setFilterable(mutation.isFilterable())
+			.setFilterable(mutation.isIndexed())
 			.build();
 	}
 }

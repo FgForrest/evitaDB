@@ -42,7 +42,6 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceBlockingStub;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor;
-import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
@@ -250,8 +249,6 @@ public class EvitaClient implements EvitaContract {
 		}
 		final EvitaClientSession evitaClientSession = new EvitaClientSession(
 			this.reflectionLookup,
-			// todo jno tady se mohou míchat sessiony v lambdě getEntitySchema uvnitř catalog schema
-//			new EvitaEntitySchemaCache(traits.catalogName()),
 			this.entitySchemaCache.computeIfAbsent(
 				traits.catalogName(),
 				EvitaEntitySchemaCache::new

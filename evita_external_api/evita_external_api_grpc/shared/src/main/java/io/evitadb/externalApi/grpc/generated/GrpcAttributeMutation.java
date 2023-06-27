@@ -799,7 +799,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation applyDeltaAttributeMutation = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutationOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutationOrBuilder> 
         getApplyDeltaAttributeMutationFieldBuilder() {
       if (applyDeltaAttributeMutationBuilder_ == null) {
         if (!(mutationCase_ == 1)) {
@@ -940,7 +940,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation upsertAttributeMutation = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutationOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutationOrBuilder> 
         getUpsertAttributeMutationFieldBuilder() {
       if (upsertAttributeMutationBuilder_ == null) {
         if (!(mutationCase_ == 2)) {
@@ -1081,7 +1081,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation removeAttributeMutation = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutationOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutationOrBuilder> 
         getRemoveAttributeMutationFieldBuilder() {
       if (removeAttributeMutationBuilder_ == null) {
         if (!(mutationCase_ == 3)) {

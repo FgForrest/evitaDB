@@ -682,7 +682,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder getEntityReferenceBuilder() {
-
+      
       onChanged();
       return getEntityReferenceFieldBuilder().getBuilder();
     }
@@ -701,7 +701,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> 
         getEntityReferenceFieldBuilder() {
       if (entityReferenceBuilder_ == null) {
         entityReferenceBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -801,7 +801,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntity = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder getSealedEntityBuilder() {
-
+      
       onChanged();
       return getSealedEntityFieldBuilder().getBuilder();
     }
@@ -820,7 +820,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntity = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
         getSealedEntityFieldBuilder() {
       if (sealedEntityBuilder_ == null) {
         sealedEntityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -920,7 +920,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntity = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder getBinaryEntityBuilder() {
-
+      
       onChanged();
       return getBinaryEntityFieldBuilder().getBuilder();
     }
@@ -939,7 +939,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntity = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder> 
         getBinaryEntityFieldBuilder() {
       if (binaryEntityBuilder_ == null) {
         binaryEntityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

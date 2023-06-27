@@ -471,7 +471,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setAlreadyOpenedBefore(boolean value) {
-
+      
       alreadyOpenedBefore_ = value;
       onChanged();
       return this;
@@ -481,7 +481,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearAlreadyOpenedBefore() {
-
+      
       alreadyOpenedBefore_ = false;
       onChanged();
       return this;
@@ -502,7 +502,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setTransactionId(long value) {
-
+      
       transactionId_ = value;
       onChanged();
       return this;
@@ -512,7 +512,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearTransactionId() {
-
+      
       transactionId_ = 0L;
       onChanged();
       return this;

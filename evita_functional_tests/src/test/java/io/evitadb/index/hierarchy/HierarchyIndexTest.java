@@ -39,16 +39,9 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
+import org.roaringbitmap.RoaringBitmap;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -103,6 +96,27 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		assertArrayEquals(
 			new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12},
 			nodeIds.getArray()
+		);
+	}
+
+	@Test
+	void shouldCreateDepthFirstComparator() {
+		final StringBuilder nodeIds = new StringBuilder("|");
+		final RoaringBitmap allIds = new RoaringBitmap();
+		hierarchyIndex.traverseHierarchy(
+			(node, level, distance, childrenTraverser) -> {
+				nodeIds.append(node.entityPrimaryKey()).append("|");
+				allIds.add(node.entityPrimaryKey());
+				childrenTraverser.run();
+			}
+		);
+
+		assertEquals(
+			nodeIds.toString(),
+			"|" + allIds.stream()
+				.boxed()
+				.sorted(hierarchyIndex.getHierarchyComparator()).map(Objects::toString)
+				.collect(Collectors.joining("|")) + "|"
 		);
 	}
 

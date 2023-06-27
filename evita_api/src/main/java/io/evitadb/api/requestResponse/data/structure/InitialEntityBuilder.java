@@ -87,7 +87,6 @@ import static java.util.Optional.ofNullable;
  */
 public class InitialEntityBuilder implements EntityBuilder {
 	@Serial private static final long serialVersionUID = -3674623071115207036L;
-	private final ReferenceUniqueAttributeCheck referenceUniqueAttributeCheck = new ReferenceUniqueAttributeCheck();
 
 	private final String type;
 	private final EntitySchemaContract schema;
@@ -416,7 +415,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 
 	@Override
 	public EntityBuilder setReference(@Nonnull String referenceName, @Nonnull String referencedEntityType, @Nonnull Cardinality cardinality, int referencedPrimaryKey, @Nullable Consumer<ReferenceBuilder> whichIs) {
-		final InitialReferenceBuilder builder = new InitialReferenceBuilder(this.schema, referenceName, referencedPrimaryKey, cardinality, referencedEntityType, referenceUniqueAttributeCheck);
+		final InitialReferenceBuilder builder = new InitialReferenceBuilder(this.schema, referenceName, referencedPrimaryKey, cardinality, referencedEntityType);
 		ofNullable(whichIs).ifPresent(it -> it.accept(builder));
 		final Reference reference = builder.build();
 		references.put(new ReferenceKey(referenceName, referencedPrimaryKey), reference);

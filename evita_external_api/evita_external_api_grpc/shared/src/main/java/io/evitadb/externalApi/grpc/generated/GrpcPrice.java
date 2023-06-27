@@ -226,7 +226,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       priceList_ = s;
@@ -242,7 +242,7 @@ private static final long serialVersionUID = 0L;
       getPriceListBytes() {
     java.lang.Object ref = priceList_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       priceList_ = b;
@@ -979,7 +979,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setPriceId(int value) {
-
+      
       priceId_ = value;
       onChanged();
       return this;
@@ -989,7 +989,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearPriceId() {
-
+      
       priceId_ = 0;
       onChanged();
       return this;
@@ -1020,7 +1020,7 @@ private static final long serialVersionUID = 0L;
         getPriceListBytes() {
       java.lang.Object ref = priceList_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         priceList_ = b;
@@ -1039,7 +1039,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-
+  
       priceList_ = value;
       onChanged();
       return this;
@@ -1049,7 +1049,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearPriceList() {
-
+      
       priceList_ = getDefaultInstance().getPriceList();
       onChanged();
       return this;
@@ -1065,7 +1065,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-
+      
       priceList_ = value;
       onChanged();
       return this;
@@ -1158,7 +1158,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder getCurrencyBuilder() {
-
+      
       onChanged();
       return getCurrencyFieldBuilder().getBuilder();
     }
@@ -1177,7 +1177,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> 
         getCurrencyFieldBuilder() {
       if (currencyBuilder_ == null) {
         currencyBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1277,7 +1277,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value innerRecordId = 4;</code>
      */
     public com.google.protobuf.Int32Value.Builder getInnerRecordIdBuilder() {
-
+      
       onChanged();
       return getInnerRecordIdFieldBuilder().getBuilder();
     }
@@ -1296,7 +1296,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value innerRecordId = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
         getInnerRecordIdFieldBuilder() {
       if (innerRecordIdBuilder_ == null) {
         innerRecordIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1396,7 +1396,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithoutTax = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder getPriceWithoutTaxBuilder() {
-
+      
       onChanged();
       return getPriceWithoutTaxFieldBuilder().getBuilder();
     }
@@ -1415,7 +1415,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithoutTax = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
         getPriceWithoutTaxFieldBuilder() {
       if (priceWithoutTaxBuilder_ == null) {
         priceWithoutTaxBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1515,7 +1515,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder getTaxRateBuilder() {
-
+      
       onChanged();
       return getTaxRateFieldBuilder().getBuilder();
     }
@@ -1534,7 +1534,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
         getTaxRateFieldBuilder() {
       if (taxRateBuilder_ == null) {
         taxRateBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1634,7 +1634,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder getPriceWithTaxBuilder() {
-
+      
       onChanged();
       return getPriceWithTaxFieldBuilder().getBuilder();
     }
@@ -1653,7 +1653,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
         getPriceWithTaxFieldBuilder() {
       if (priceWithTaxBuilder_ == null) {
         priceWithTaxBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1753,7 +1753,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange validity = 8;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.Builder getValidityBuilder() {
-
+      
       onChanged();
       return getValidityFieldBuilder().getBuilder();
     }
@@ -1772,7 +1772,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange validity = 8;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeOrBuilder> 
         getValidityFieldBuilder() {
       if (validityBuilder_ == null) {
         validityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1800,7 +1800,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setSellable(boolean value) {
-
+      
       sellable_ = value;
       onChanged();
       return this;
@@ -1810,7 +1810,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearSellable() {
-
+      
       sellable_ = false;
       onChanged();
       return this;
@@ -1831,7 +1831,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setVersion(int value) {
-
+      
       version_ = value;
       onChanged();
       return this;
@@ -1841,7 +1841,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearVersion() {
-
+      
       version_ = 0;
       onChanged();
       return this;

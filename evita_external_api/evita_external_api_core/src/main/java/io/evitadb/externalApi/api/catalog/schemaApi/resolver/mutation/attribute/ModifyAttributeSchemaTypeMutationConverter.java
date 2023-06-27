@@ -25,7 +25,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute
 
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaTypeMutation;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
@@ -54,14 +54,14 @@ public class ModifyAttributeSchemaTypeMutationConverter extends AttributeSchemaM
 
 	@Nonnull
 	@Override
-	protected ModifyAttributeSchemaTypeMutation convert(@Nonnull InputMutation inputMutation) {
+	protected ModifyAttributeSchemaTypeMutation convert(@Nonnull Input input) {
 		return new ModifyAttributeSchemaTypeMutation(
-			inputMutation.getRequiredField(AttributeSchemaMutationDescriptor.NAME),
-			inputMutation.getRequiredField(
+			input.getRequiredField(AttributeSchemaMutationDescriptor.NAME),
+			input.getRequiredField(
 				ModifyAttributeSchemaTypeMutationDescriptor.TYPE.name(),
 				new ValueTypeMapper(getExceptionFactory(), ModifyAttributeSchemaTypeMutationDescriptor.TYPE)
 			),
-			inputMutation.getRequiredField(ModifyAttributeSchemaTypeMutationDescriptor.INDEXED_DECIMAL_PLACES)
+			input.getRequiredField(ModifyAttributeSchemaTypeMutationDescriptor.INDEXED_DECIMAL_PLACES)
 		);
 	}
 }

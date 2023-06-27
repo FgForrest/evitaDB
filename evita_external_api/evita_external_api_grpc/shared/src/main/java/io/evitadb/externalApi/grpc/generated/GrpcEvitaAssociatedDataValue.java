@@ -228,7 +228,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       if (valueCase_ == 2) {
@@ -248,7 +248,7 @@ private static final long serialVersionUID = 0L;
       ref = value_;
     }
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       if (valueCase_ == 2) {
@@ -805,7 +805,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEvitaValue, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder, io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcEvitaValue, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder, io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder> 
         getPrimitiveValueFieldBuilder() {
       if (primitiveValueBuilder_ == null) {
         if (!(valueCase_ == 1)) {
@@ -865,7 +865,7 @@ private static final long serialVersionUID = 0L;
         ref = value_;
       }
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         if (valueCase_ == 2) {
@@ -1007,7 +1007,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value version = 3;</code>
      */
     public com.google.protobuf.Int32Value.Builder getVersionBuilder() {
-
+      
       onChanged();
       return getVersionFieldBuilder().getBuilder();
     }
@@ -1026,7 +1026,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value version = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
         getVersionFieldBuilder() {
       if (versionBuilder_ == null) {
         versionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

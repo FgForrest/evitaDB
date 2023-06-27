@@ -26,7 +26,7 @@ package io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.reference;
 import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.SetReferenceGroupMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 
@@ -52,11 +52,11 @@ public class SetReferenceGroupMutationConverter extends ReferenceMutationConvert
 
 	@Nonnull
 	@Override
-	protected SetReferenceGroupMutation convert(@Nonnull InputMutation inputMutation) {
+	protected SetReferenceGroupMutation convert(@Nonnull Input input) {
 		return new SetReferenceGroupMutation(
-			resolveReferenceKey(inputMutation),
-			inputMutation.getOptionalField(SetReferenceGroupMutationDescriptor.GROUP_TYPE),
-			inputMutation.getRequiredField(SetReferenceGroupMutationDescriptor.GROUP_PRIMARY_KEY)
+			resolveReferenceKey(input),
+			input.getOptionalField(SetReferenceGroupMutationDescriptor.GROUP_TYPE),
+			input.getRequiredField(SetReferenceGroupMutationDescriptor.GROUP_PRIMARY_KEY)
 		);
 	}
 }

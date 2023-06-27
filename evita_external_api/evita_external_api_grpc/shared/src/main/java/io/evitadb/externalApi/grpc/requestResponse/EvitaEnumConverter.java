@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.grpc.generated.*;
 import lombok.AccessLevel;
@@ -132,6 +133,24 @@ public class EvitaEnumConverter {
 		return switch (orderDirection) {
 			case ASC -> GrpcOrderDirection.ASC;
 			case DESC -> GrpcOrderDirection.DESC;
+		};
+	}
+
+	@Nonnull
+	public static OrderBehaviour toOrderBehaviour(@Nonnull GrpcOrderBehaviour grpcOrderBehaviour) {
+		return switch (grpcOrderBehaviour.getNumber()) {
+			case 0 -> OrderBehaviour.NULLS_FIRST;
+			case 1 -> OrderBehaviour.NULLS_LAST;
+			default ->
+				throw new EvitaInternalError("Unrecognized remote order behaviour: " + grpcOrderBehaviour);
+		};
+	}
+
+	@Nonnull
+	public static GrpcOrderBehaviour toGrpcOrderBehaviour(@Nonnull OrderBehaviour orderBehaviour) {
+		return switch (orderBehaviour) {
+			case NULLS_FIRST -> GrpcOrderBehaviour.NULLS_FIRST;
+			case NULLS_LAST -> GrpcOrderBehaviour.NULLS_LAST;
 		};
 	}
 

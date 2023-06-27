@@ -22,6 +22,7 @@ message GrpcEntitySchema {
   map<string, GrpcAssociatedDataSchema> associatedData = 12;
   map<string, GrpcReferenceSchema> references = 13;
   repeated GrpcEvolutionMode evolutionMode = 14;
+  map<string, GrpcSortableAttributeCompoundSchema> sortableAttributeCompounds = 15;
 }
 
 message GrpcAttributeSchema {
@@ -61,4 +62,18 @@ message GrpcReferenceSchema {
   bool indexed = 9;
   bool faceted = 10;
   map<string, GrpcAttributeSchema> attributes = 11;
+  map<string, GrpcSortableAttributeCompoundSchema> sortableAttributeCompounds = 12;
+}
+
+message GrpcSortableAttributeCompoundSchema {
+  string name = 1;
+  google.protobuf.StringValue description = 2;
+  google.protobuf.StringValue deprecationNotice = 3;
+  repeated GrpcAttributeElement attributeElements = 4;
+}
+
+message GrpcAttributeElement {
+  string attributeName = 1;
+  GrpcOrderDirection direction = 2;
+  GrpcOrderBehaviour behaviour = 3;
 }

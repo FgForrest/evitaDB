@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.ReferenceAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.attribute.ReferenceAttributeMutationAggregateConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.utils.Assert;
@@ -65,9 +65,9 @@ public class ReferenceAttributeMutationConverter extends ReferenceMutationConver
 
 	@Nonnull
 	@Override
-	protected ReferenceAttributeMutation convert(@Nonnull InputMutation inputMutation) {
-		final ReferenceKey referenceKey = resolveReferenceKey(inputMutation);
-		final Map<String, Object> inputAttributeMutation = Optional.of(inputMutation.getRequiredField(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name()))
+	protected ReferenceAttributeMutation convert(@Nonnull Input input) {
+		final ReferenceKey referenceKey = resolveReferenceKey(input);
+		final Map<String, Object> inputAttributeMutation = Optional.of(input.getRequiredField(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name()))
 			.map(m -> {
 				Assert.isTrue(
 					m instanceof Map<?, ?>,

@@ -68,7 +68,7 @@ public interface ReferenceAttributeSchemaMutation extends AttributeSchemaMutatio
 				referenceSchema.getReferencedGroupType(),
 				referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
 				referenceSchema.isReferencedGroupTypeManaged(),
-				referenceSchema.isFilterable(),
+				referenceSchema.isIndexed(),
 				referenceSchema.isFaceted(),
 				Stream.concat(
 						referenceSchema.getAttributes().values().stream().filter(it -> !updatedAttributeSchema.getName().equals(it.getName())),
@@ -79,7 +79,8 @@ public interface ReferenceAttributeSchemaMutation extends AttributeSchemaMutatio
 							AttributeSchemaContract::getName,
 							Function.identity()
 						)
-					)
+					),
+				referenceSchema.getSortableAttributeCompounds()
 			);
 		}
 	}

@@ -45,7 +45,6 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -59,8 +58,6 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * This visitor examines {@link Query#getFilterBy()} query and tries to construct multiple {@link TargetIndexes}
@@ -82,7 +79,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 
 	public IndexSelectionVisitor(@Nonnull QueryContext queryContext) {
 		this.queryContext = queryContext;
-		final Optional<EntityIndex> entityIndex = ofNullable(queryContext.getIndex(new EntityIndexKey(EntityIndexType.GLOBAL)));
+		final Optional<EntityIndex> entityIndex = queryContext.getIndex(new EntityIndexKey(EntityIndexType.GLOBAL));
 		if (entityIndex.isPresent()) {
 			final EntityIndex eix = entityIndex.get();
 			this.targetIndexes.add(
@@ -92,7 +89,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 				)
 			);
 		} else {
-			ofNullable((CatalogIndex) queryContext.getIndex(CatalogIndexKey.INSTANCE))
+			queryContext.getIndex(CatalogIndexKey.INSTANCE)
 				.ifPresent(it -> this.targetIndexes.add(
 						new TargetIndexes(
 							it.getIndexKey().toString(),
@@ -161,14 +158,14 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					final Bitmap requestedHierarchyNodes = requestedHierarchyNodesFormula.compute();
 					final List<EntityIndex> theTargetIndexes = new ArrayList<>(requestedHierarchyNodes.size());
 					for (Integer hierarchyEntityId : requestedHierarchyNodes) {
-						ofNullable(
-							(EntityIndex) queryContext.getIndex(
-								new EntityIndexKey(
-									EntityIndexType.REFERENCED_HIERARCHY_NODE,
-									new ReferenceKey(filteredHierarchyReferenceName, hierarchyEntityId)
-								)
+						queryContext.getIndex(
+							new EntityIndexKey(
+								EntityIndexType.REFERENCED_HIERARCHY_NODE,
+								new ReferenceKey(filteredHierarchyReferenceName, hierarchyEntityId)
 							)
-						).ifPresent(theTargetIndexes::add);
+						)
+							.map(EntityIndex.class::cast)
+							.ifPresent(theTargetIndexes::add);
 					}
 					// add indexes as potential target indexes
 					this.targetIndexes.add(

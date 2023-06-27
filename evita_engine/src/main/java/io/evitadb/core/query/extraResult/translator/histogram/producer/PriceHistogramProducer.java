@@ -34,6 +34,8 @@ import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordsLookupResult;
 import io.evitadb.core.query.algebra.price.termination.PriceTerminationFormula;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
+import io.evitadb.core.query.extraResult.CacheableExtraResultProducer;
+import io.evitadb.core.query.extraResult.ExtraResultCacheAccessor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
@@ -54,7 +56,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class PriceHistogramProducer implements ExtraResultProducer {
+public class PriceHistogramProducer implements CacheableExtraResultProducer {
 	/**
 	 * Bucket count contains desired count of histogram columns=buckets. Output histogram bucket count must never exceed
 	 * this value, but might be optimized to lower count when there are big gaps between columns.
@@ -79,6 +81,12 @@ public class PriceHistogramProducer implements ExtraResultProducer {
 	 * We can reuse already computed data in this producer and save precious ticks.
 	 */
 	@Nullable private final FilteredPriceRecordsLookupResult priceRecordsLookupResult;
+	/**
+	 * Provides access to the default extra result computer logic that allows to store or withdraw extra results
+	 * from cache.
+	 */
+	@Nonnull private final ExtraResultCacheAccessor extraResultCacheAccessor;
+
 
 	@Nullable
 	@Override
@@ -114,7 +122,8 @@ public class PriceHistogramProducer implements ExtraResultProducer {
 			}
 		);
 
-		final HistogramContract optimalHistogram = queryContext.analyse(
+		final HistogramContract optimalHistogram = extraResultCacheAccessor.analyse(
+			queryContext.getSchema().getName(),
 			new PriceHistogramComputer(
 				bucketCount,
 				queryContext.getSchema().getIndexedPricePlaces(),
@@ -132,4 +141,11 @@ public class PriceHistogramProducer implements ExtraResultProducer {
 		}
 	}
 
+	@Nonnull
+	@Override
+	public ExtraResultProducer cloneInstance(@Nonnull ExtraResultCacheAccessor cacheAccessor) {
+		return new PriceHistogramProducer(
+			bucketCount, queryContext, filteringFormula, filteredPriceRecordAccessors, priceRecordsLookupResult, cacheAccessor
+		);
+	}
 }

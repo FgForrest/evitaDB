@@ -83,9 +83,10 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 			// if there was no producer ready, create new one
 			if (attributeHistogramProducer == null) {
 				attributeHistogramProducer = new AttributeHistogramProducer(
-					schema.getName(), extraResultPlanner.getQueryContext(),
+					schema.getName(),
 					bucketCount,
-					extraResultPlanner.getFilteringFormula()
+					extraResultPlanner.getFilteringFormula(),
+					extraResultPlanner.getExtraResultCacheAccessor()
 				);
 			}
 
@@ -108,7 +109,7 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 	}
 
 	@Nonnull
-	private AttributeSchemaContract getAttributeSchema(@Nonnull EntitySchemaContract schema, @Nonnull String attributeName) {
+	private static AttributeSchemaContract getAttributeSchema(@Nonnull EntitySchemaContract schema, @Nonnull String attributeName) {
 		final AttributeSchemaContract attributeSchema = schema.getAttribute(attributeName)
 			.orElseThrow(() -> new AttributeNotFoundException(attributeName, schema));
 		Assert.isTrue(

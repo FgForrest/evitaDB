@@ -34,13 +34,13 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaWithDeprecationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.VersionedDescriptor;
 import io.evitadb.externalApi.rest.RestProvider;
-import io.evitadb.test.tester.RestTester;
-import io.evitadb.test.tester.RestTester.Request;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
+import io.evitadb.test.tester.RestTester;
+import io.evitadb.test.tester.RestTester.Request;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -322,6 +322,7 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 						.e(EntitySchemaDescriptor.CURRENCIES.name(), List.of())
 						.e(EntitySchemaDescriptor.EVOLUTION_MODE.name(), Arrays.stream(EvolutionMode.values()).map(Enum::toString).collect(Collectors.toList()))
 						.e(EntitySchemaDescriptor.ATTRIBUTES.name(), map())
+						.e(EntitySchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), map())
 						.e(EntitySchemaDescriptor.ASSOCIATED_DATA.name(), map())
 						.e(EntitySchemaDescriptor.REFERENCES.name(), map())
 						.build()
@@ -374,7 +375,7 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 											"referencedEntityType": "tag",
 											"referencedEntityTypeManaged": false,
 											"referencedGroupTypeManaged": false,
-											"filterable": true,
+											"indexed": true,
 											"faceted": true
 										}
 									}

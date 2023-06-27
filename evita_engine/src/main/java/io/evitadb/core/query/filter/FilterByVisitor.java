@@ -86,7 +86,6 @@ import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexKey;
-import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndex;
@@ -567,7 +566,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 		@Nonnull FilterBy filterBy
 	) {
 		final String referenceName = referenceSchema.getName();
-		isTrue(referenceSchema.isFilterable(), () -> new ReferenceNotIndexedException(referenceName, entitySchema));
+		isTrue(referenceSchema.isIndexed(), () -> new ReferenceNotIndexedException(referenceName, entitySchema));
 
 		final EntityIndex entityIndex = getIndex(
 			entitySchema.getName(),
@@ -589,24 +588,6 @@ public class FilterByVisitor implements ConstraintVisitor {
 				filterBy.accept(this);
 				return getFormulaAndClear();
 			}
-		);
-	}
-
-	/**
-	 * Returns the special index for passed {@link ReferenceSchemaContract#getName() reference name} that contains
-	 * index of referenced entity ids instead of the primary entity primary keys.
-	 *
-	 * @param entitySchema    to be used in error message
-	 * @param referenceSchema {@link ReferenceSchemaContract} to identify the reference
-	 * @return the index
-	 */
-	@Nonnull
-	public ReferencedTypeEntityIndex getReferencedEntityTypeIndex(@Nonnull EntitySchemaContract entitySchema, @Nonnull ReferenceSchemaContract referenceSchema) {
-		final String referenceName = referenceSchema.getName();
-		isTrue(referenceSchema.isFilterable(), () -> new ReferenceNotIndexedException(referenceName, entitySchema));
-
-		return Objects.requireNonNull(
-			this.queryContext.getIndex(new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, referenceName))
 		);
 	}
 
@@ -789,12 +770,12 @@ public class FilterByVisitor implements ConstraintVisitor {
 		@Nonnull AttributeSchemaContract attributeDefinition,
 		@Nonnull Function<GlobalUniqueIndex, Formula> formulaFunction
 	) {
-		final CatalogIndex catalogIndex = getIndex(CatalogIndexKey.INSTANCE);
+		final Optional<CatalogIndex> catalogIndex = getIndex(CatalogIndexKey.INSTANCE);
 		final String attributeName = attributeDefinition.getName();
-		if (catalogIndex == null) {
+		if (catalogIndex.isEmpty()) {
 			throw new EntityCollectionRequiredException("filter by attribute `" + attributeName + "`");
 		} else {
-			final GlobalUniqueIndex globalUniqueIndex = catalogIndex.getGlobalUniqueIndex(attributeName);
+			final GlobalUniqueIndex globalUniqueIndex = catalogIndex.get().getGlobalUniqueIndex(attributeName);
 			if (globalUniqueIndex == null) {
 				return EmptyFormula.INSTANCE;
 			}

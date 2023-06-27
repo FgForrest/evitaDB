@@ -42,17 +42,11 @@ import java.util.function.Consumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface CatalogSchemaEditor<S extends CatalogSchemaEditor<S>>
-	extends CatalogSchemaContract, AttributeProviderSchemaEditor<S, GlobalAttributeSchemaContract, GlobalAttributeSchemaEditor.GlobalAttributeSchemaBuilder> {
-	/**
-	 * Catalog contents is best described by the passed string. Description is expected to be written using
-	 * <a href="https://www.markdownguide.org/basic-syntax/">MarkDown syntax</a>. The description should be targeted
-	 * on client API developers or users of your data store to facilitate their orientation.
-	 *
-	 * @return builder to continue with configuration
-	 */
-	@Nonnull
-	S withDescription(@Nullable String description);
+public interface CatalogSchemaEditor<S extends CatalogSchemaEditor<S>> extends
+	CatalogSchemaContract,
+	NamedSchemaEditor<S>,
+	AttributeProviderSchemaEditor<S, GlobalAttributeSchemaContract, GlobalAttributeSchemaEditor.GlobalAttributeSchemaBuilder>
+{
 
 	/**
 	 * Sets strict verification mode for this catalog. No entity of the unknown entity type will be allowed to be

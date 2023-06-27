@@ -39,6 +39,11 @@ import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associated
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.entity.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference.*;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutationConverter;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationConverter;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutationConverter;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutationConverter;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutationConverter;
 import lombok.AccessLevel;
 import lombok.Getter;
 
@@ -102,6 +107,13 @@ public class EntitySchemaMutationAggregateConverter extends MutationAggregateCon
 		this.resolvers.put(SET_ATTRIBUTE_SCHEMA_UNIQUE_MUTATION.name(), new SetAttributeSchemaUniqueMutationConverter(objectParser, exceptionFactory));
 		this.resolvers.put(USE_GLOBAL_ATTRIBUTE_SCHEMA_MUTATION.name(), new UseGlobalAttributeSchemaMutationConverter(objectParser, exceptionFactory));
 
+		// sortable attribute compounds schema mutations
+		this.resolvers.put(CREATE_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION.name(), new CreateSortableAttributeCompoundSchemaMutationConverter(objectParser, exceptionFactory));
+		this.resolvers.put(MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_DEPRECATION_NOTICE_MUTATION.name(), new ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationConverter(objectParser, exceptionFactory));
+		this.resolvers.put(MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_DESCRIPTION_MUTATION.name(), new ModifySortableAttributeCompoundSchemaDescriptionMutationConverter(objectParser, exceptionFactory));
+		this.resolvers.put(MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_NAME_MUTATION.name(), new ModifySortableAttributeCompoundSchemaNameMutationConverter(objectParser, exceptionFactory));
+		this.resolvers.put(REMOVE_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION.name(), new RemoveSortableAttributeCompoundSchemaMutationConverter(objectParser, exceptionFactory));
+
 		// reference schema mutations
 		this.resolvers.put(CREATE_REFERENCE_SCHEMA_MUTATION.name(), new CreateReferenceSchemaMutationConverter(objectParser, exceptionFactory));
 		this.resolvers.put(MODIFY_REFERENCE_ATTRIBUTE_SCHEMA_MUTATION.name(), new ModifyReferenceAttributeSchemaMutationConverter(objectParser, exceptionFactory));
@@ -113,7 +125,7 @@ public class EntitySchemaMutationAggregateConverter extends MutationAggregateCon
 		this.resolvers.put(MODIFY_REFERENCE_SCHEMA_RELATED_ENTITY_MUTATION.name(), new ModifyReferenceSchemaRelatedEntityMutationConverter(objectParser, exceptionFactory));
 		this.resolvers.put(REMOVE_REFERENCE_SCHEMA_MUTATION.name(), new RemoveReferenceSchemaMutationConverter(objectParser, exceptionFactory));
 		this.resolvers.put(SET_REFERENCE_SCHEMA_FACETED_MUTATION.name(), new SetReferenceSchemaFacetedMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(SET_REFERENCE_SCHEMA_FILTERABLE_MUTATION.name(), new SetReferenceSchemaFilterableMutationConverter(objectParser, exceptionFactory));
+		this.resolvers.put(SET_REFERENCE_SCHEMA_INDEXED_MUTATION.name(), new SetReferenceSchemaFilterableMutationConverter(objectParser, exceptionFactory));
 	}
 
 	@Nonnull

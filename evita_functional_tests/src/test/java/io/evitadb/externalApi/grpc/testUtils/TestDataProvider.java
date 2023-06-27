@@ -179,7 +179,7 @@ public class TestDataProvider {
 									Cardinality.ZERO_OR_MORE,
 									whichIs ->
 										/* we can specify special attributes on relation */
-										whichIs.filterable()
+										whichIs.indexed()
 											.withAttribute(
 												"categoryPriority", Long.class,
 												thatIs -> thatIs.sortable(() -> false).nullable()

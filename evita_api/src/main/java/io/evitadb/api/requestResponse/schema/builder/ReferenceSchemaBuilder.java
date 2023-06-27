@@ -23,7 +23,9 @@
 
 package io.evitadb.api.requestResponse.schema.builder;
 
+import io.evitadb.api.exception.AttributeAlreadyPresentInEntitySchemaException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.exception.SortableAttributeCompoundSchemaException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -31,16 +33,21 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaDeprecationNoticeMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaRelatedEntityGroupMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSortableAttributeCompoundSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFilterableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
+import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.experimental.Delegate;
@@ -49,12 +56,15 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 
+import static io.evitadb.utils.Assert.isTrue;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -102,7 +112,7 @@ public final class ReferenceSchemaBuilder
 					entityTypeRelatesToEntity,
 					baseSchema.getReferencedGroupType(),
 					baseSchema.isReferencedGroupTypeManaged(),
-					baseSchema.isFilterable(),
+					baseSchema.isIndexed(),
 					baseSchema.isFaceted()
 				)
 			);
@@ -171,26 +181,26 @@ public final class ReferenceSchemaBuilder
 	}
 
 	@Override
-	public ReferenceSchemaBuilder filterable() {
+	public ReferenceSchemaBuilder indexed() {
 		this.updatedSchemaDirty = addMutations(
 			this.catalogSchema, this.entitySchema, this.mutations,
-			new SetReferenceSchemaFilterableMutation(getName(), true)
+			new SetReferenceSchemaIndexedMutation(getName(), true)
 		);
 		return this;
 	}
 
 	@Override
-	public ReferenceSchemaBuilder nonFilterable() {
+	public ReferenceSchemaBuilder nonIndexed() {
 		this.updatedSchemaDirty = addMutations(
 			this.catalogSchema, this.entitySchema, this.mutations,
-			new SetReferenceSchemaFilterableMutation(getName(), false)
+			new SetReferenceSchemaIndexedMutation(getName(), false)
 		);
 		return this;
 	}
 
 	@Override
 	public ReferenceSchemaBuilder faceted() {
-		if (toInstance().isFilterable()) {
+		if (toInstance().isIndexed()) {
 			this.updatedSchemaDirty = addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
 				new SetReferenceSchemaFacetedMutation(getName(), true)
@@ -198,7 +208,7 @@ public final class ReferenceSchemaBuilder
 		} else {
 			this.updatedSchemaDirty = addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
-				new SetReferenceSchemaFilterableMutation(getName(), true),
+				new SetReferenceSchemaIndexedMutation(getName(), true),
 				new SetReferenceSchemaFacetedMutation(getName(), true)
 			);
 		}
@@ -247,7 +257,11 @@ public final class ReferenceSchemaBuilder
 		checkSortableTraits(attributeName, attributeSchema);
 
 		// check the names in all naming conventions are unique in the catalog schema
-		checkNamesAreUniqueInAllNamingConventions(this.getAttributes().values(), attributeSchema);
+		checkNamesAreUniqueInAllNamingConventions(
+			this.getAttributes().values(),
+			this.getSortableAttributeCompounds().values(),
+			attributeSchema
+		);
 
 		if (existingAttribute.map(it -> !it.equals(attributeSchema)).orElse(true)) {
 			this.updatedSchemaDirty = addMutations(
@@ -265,9 +279,112 @@ public final class ReferenceSchemaBuilder
 	@Override
 	@Nonnull
 	public ReferenceSchemaBuilder withoutAttribute(@Nonnull String attributeName) {
+		checkSortableAttributeCompoundsWithoutAttribute(
+			attributeName, this.getSortableAttributeCompounds().values()
+		);
 		this.updatedSchemaDirty = addMutations(
 			this.catalogSchema, this.entitySchema, this.mutations,
-			new RemoveAttributeSchemaMutation(attributeName)
+			new ModifyReferenceAttributeSchemaMutation(
+				this.getName(),
+				new RemoveAttributeSchemaMutation(attributeName)
+			)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceSchemaBuilder withSortableAttributeCompound(
+		@Nonnull String name,
+		@Nonnull AttributeElement... attributeElements
+	) {
+		return withSortableAttributeCompound(
+			name, attributeElements, null
+		);
+	}
+
+	@Override
+	public ReferenceSchemaBuilder withSortableAttributeCompound(
+		@Nonnull String name,
+		@Nonnull AttributeElement[] attributeElements,
+		@Nullable Consumer<SortableAttributeCompoundSchemaBuilder> whichIs
+	) {
+		final Optional<SortableAttributeCompoundSchemaContract> existingCompound = getSortableAttributeCompound(name);
+		final SortableAttributeCompoundSchemaBuilder builder = new SortableAttributeCompoundSchemaBuilder(
+			catalogSchema,
+			entitySchema,
+			this,
+			this.baseSchema.getSortableAttributeCompound(name).orElse(null),
+			name,
+			Arrays.asList(attributeElements),
+			Collections.emptyList(),
+			true
+		);
+		final SortableAttributeCompoundSchemaBuilder schemaBuilder =
+			existingCompound
+				.map(it -> {
+					Assert.isTrue(
+						it.getAttributeElements().equals(Arrays.asList(attributeElements)),
+						() -> new AttributeAlreadyPresentInEntitySchemaException(
+							it, builder.toInstance(), null, name
+						)
+					);
+					return builder;
+				})
+				.orElse(builder);
+
+		ofNullable(whichIs).ifPresent(it -> it.accept(schemaBuilder));
+		final SortableAttributeCompoundSchemaContract compoundSchema = schemaBuilder.toInstance();
+		isTrue(
+			compoundSchema.getAttributeElements().size() > 1,
+			() -> new SortableAttributeCompoundSchemaException(
+				"Sortable attribute compound requires more than one attribute element!",
+				compoundSchema
+			)
+		);
+		isTrue(
+			compoundSchema.getAttributeElements().size() ==
+				compoundSchema.getAttributeElements()
+					.stream()
+					.map(AttributeElement::attributeName)
+					.distinct()
+					.count(),
+			() -> new SortableAttributeCompoundSchemaException(
+				"Attribute names of elements in sortable attribute compound must be unique!",
+				compoundSchema
+			)
+		);
+		checkSortableTraits(name, compoundSchema, this.getAttributes());
+
+		// check the names in all naming conventions are unique in the catalog schema
+		checkNamesAreUniqueInAllNamingConventions(
+			this.getAttributes().values(),
+			this.getSortableAttributeCompounds().values(),
+			compoundSchema
+		);
+
+		if (existingCompound.map(it -> !it.equals(compoundSchema)).orElse(true)) {
+			this.updatedSchemaDirty = addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				schemaBuilder
+					.toReferenceMutation(getName())
+					.stream()
+					.map(it -> (EntitySchemaMutation) it)
+					.toArray(EntitySchemaMutation[]::new)
+			);
+		}
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceSchemaBuilder withoutSortableAttributeCompound(@Nonnull String name) {
+		this.updatedSchemaDirty = addMutations(
+			this.catalogSchema, this.entitySchema, this.mutations,
+			new ModifyReferenceSortableAttributeCompoundSchemaMutation(
+				this.getName(),
+				new RemoveSortableAttributeCompoundSchemaMutation(name)
+			)
 		);
 		return this;
 	}

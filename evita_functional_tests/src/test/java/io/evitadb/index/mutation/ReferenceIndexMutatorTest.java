@@ -56,7 +56,6 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 	private static final String ATTRIBUTE_CHAR_ARRAY = "charArray";
 	private final EntityIndex entityIndex = new GlobalEntityIndex(1, new EntityIndexKey(EntityIndexType.GLOBAL), () -> productSchema);
 	private final ReferencedTypeEntityIndex referenceTypesIndex = new ReferencedTypeEntityIndex(1, new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Entities.BRAND), () -> productSchema);
-	private final EntityIndex referenceIndex = new GlobalEntityIndex(2, new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, 1), () -> productSchema);
 
 	@Override
 	protected void alterCatalogSchema(CatalogSchemaEditor.CatalogSchemaBuilder schema) {
@@ -79,13 +78,15 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 
 	@Test
 	void shouldInsertNewReference() {
+		final ReferenceKey referenceKey = new ReferenceKey(Entities.BRAND, 10);
 		final InsertReferenceMutation referenceMutation = new InsertReferenceMutation(
-			new ReferenceKey(Entities.BRAND, 10),
+			referenceKey,
 			Cardinality.ZERO_OR_ONE,
 			Entities.BRAND
 		);
+		final EntityIndex referenceIndex = new GlobalEntityIndex(2, new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, referenceKey), () -> productSchema);
 		referenceInsert(
-			1, ENTITY_NAME, executor, entityIndex, referenceTypesIndex, referenceIndex, new ReferenceKey(Entities.BRAND, 10)
+			1, ENTITY_NAME, executor, entityIndex, referenceTypesIndex, referenceIndex, referenceKey
 		);
 		assertArrayEquals(new int[]{10}, referenceTypesIndex.getAllPrimaryKeys().getArray());
 		assertArrayEquals(new int[]{1}, referenceIndex.getAllPrimaryKeys().getArray());
@@ -94,6 +95,7 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 	@Test
 	void shouldIndexAttributes() {
 		final ReferenceKey referenceKey = new ReferenceKey(Entities.BRAND, 10);
+		final EntityIndex referenceIndex = new GlobalEntityIndex(2, new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, referenceKey), () -> productSchema);
 		referenceInsert(
 			1, ENTITY_NAME, executor, entityIndex, referenceTypesIndex, referenceIndex, referenceKey
 		);

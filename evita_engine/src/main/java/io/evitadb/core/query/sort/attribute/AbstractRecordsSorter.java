@@ -25,6 +25,7 @@ package io.evitadb.core.query.sort.attribute;
 
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.utils.SortUtils;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -54,6 +55,7 @@ abstract class AbstractRecordsSorter implements Sorter {
 		int startIndex,
 		int endIndex
 	) {
+		unknownRecordIdsSorter = ConditionalSorter.getFirstApplicableSorter(unknownRecordIdsSorter, queryContext);
 		final int[] sortedResult = sortPartialResult.result();
 		final int sortedResultPeak = sortPartialResult.peak();
 		final int finalResultPeak;

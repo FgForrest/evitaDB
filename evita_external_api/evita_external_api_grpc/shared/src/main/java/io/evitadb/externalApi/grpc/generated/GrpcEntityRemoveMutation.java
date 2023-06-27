@@ -127,7 +127,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       entityType_ = s;
@@ -143,7 +143,7 @@ private static final long serialVersionUID = 0L;
       getEntityTypeBytes() {
     java.lang.Object ref = entityType_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       entityType_ = b;
@@ -508,7 +508,7 @@ private static final long serialVersionUID = 0L;
         getEntityTypeBytes() {
       java.lang.Object ref = entityType_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         entityType_ = b;
@@ -527,7 +527,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-
+  
       entityType_ = value;
       onChanged();
       return this;
@@ -537,7 +537,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearEntityType() {
-
+      
       entityType_ = getDefaultInstance().getEntityType();
       onChanged();
       return this;
@@ -553,7 +553,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-
+      
       entityType_ = value;
       onChanged();
       return this;
@@ -574,7 +574,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setEntityPrimaryKey(int value) {
-
+      
       entityPrimaryKey_ = value;
       onChanged();
       return this;
@@ -584,7 +584,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearEntityPrimaryKey() {
-
+      
       entityPrimaryKey_ = 0;
       onChanged();
       return this;

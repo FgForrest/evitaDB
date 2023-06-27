@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associatedData;
 
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.AssociatedDataSchemaMutationDescriptor;
@@ -53,10 +53,10 @@ public class SetAssociatedDataSchemaLocalizedMutationConverter extends Associate
 
 	@Nonnull
 	@Override
-	protected SetAssociatedDataSchemaLocalizedMutation convert(@Nonnull InputMutation inputMutation) {
+	protected SetAssociatedDataSchemaLocalizedMutation convert(@Nonnull Input input) {
 		return new SetAssociatedDataSchemaLocalizedMutation(
-			inputMutation.getRequiredField(AssociatedDataSchemaMutationDescriptor.NAME),
-			inputMutation.getRequiredField(SetAssociatedDataSchemaLocalizedMutationDescriptor.LOCALIZED)
+			input.getRequiredField(AssociatedDataSchemaMutationDescriptor.NAME),
+			input.getRequiredField(SetAssociatedDataSchemaLocalizedMutationDescriptor.LOCALIZED)
 		);
 	}
 }

@@ -121,9 +121,7 @@ public class CatalogGraphQLDeleteEntityMutationsFunctionalTest extends CatalogGr
 	                }
 					"""
 			)
-			.executeAndThen()
-			.statusCode(200)
-			.body(ERRORS_PATH, nullValue())
+			.executeAndExpectOkAndThen()
 			.body(DELETE_PRODUCT_PATH, equalTo(expectedBody));
 
 		assertProductDeleted(entitiesToDelete.get(0).getPrimaryKey(), tester);

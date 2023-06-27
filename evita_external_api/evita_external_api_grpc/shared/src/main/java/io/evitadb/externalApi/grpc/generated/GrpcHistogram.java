@@ -691,7 +691,7 @@ private static final long serialVersionUID = 0L;
        * @return This builder for chaining.
        */
       public Builder setIndex(int value) {
-
+        
         index_ = value;
         onChanged();
         return this;
@@ -701,7 +701,7 @@ private static final long serialVersionUID = 0L;
        * @return This builder for chaining.
        */
       public Builder clearIndex() {
-
+        
         index_ = 0;
         onChanged();
         return this;
@@ -794,7 +794,7 @@ private static final long serialVersionUID = 0L;
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal threshold = 2;</code>
        */
       public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder getThresholdBuilder() {
-
+        
         onChanged();
         return getThresholdFieldBuilder().getBuilder();
       }
@@ -813,7 +813,7 @@ private static final long serialVersionUID = 0L;
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal threshold = 2;</code>
        */
       private com.google.protobuf.SingleFieldBuilderV3<
-          io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
+          io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
           getThresholdFieldBuilder() {
         if (thresholdBuilder_ == null) {
           thresholdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -841,7 +841,7 @@ private static final long serialVersionUID = 0L;
        * @return This builder for chaining.
        */
       public Builder setOccurrences(int value) {
-
+        
         occurrences_ = value;
         onChanged();
         return this;
@@ -851,7 +851,7 @@ private static final long serialVersionUID = 0L;
        * @return This builder for chaining.
        */
       public Builder clearOccurrences() {
-
+        
         occurrences_ = 0;
         onChanged();
         return this;
@@ -985,7 +985,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder> 
       getBucketsOrBuilderList() {
     return buckets_;
   }
@@ -1393,7 +1393,7 @@ private static final long serialVersionUID = 0L;
             bucketsBuilder_ = null;
             buckets_ = other.buckets_;
             bitField0_ = (bitField0_ & ~0x00000001);
-            bucketsBuilder_ =
+            bucketsBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getBucketsFieldBuilder() : null;
           } else {
@@ -1518,7 +1518,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal min = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder getMinBuilder() {
-
+      
       onChanged();
       return getMinFieldBuilder().getBuilder();
     }
@@ -1537,7 +1537,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal min = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
         getMinFieldBuilder() {
       if (minBuilder_ == null) {
         minBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1637,7 +1637,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder getMaxBuilder() {
-
+      
       onChanged();
       return getMaxFieldBuilder().getBuilder();
     }
@@ -1656,7 +1656,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
         getMaxFieldBuilder() {
       if (maxBuilder_ == null) {
         maxBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1684,7 +1684,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setOverallCount(int value) {
-
+      
       overallCount_ = value;
       onChanged();
       return this;
@@ -1694,7 +1694,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearOverallCount() {
-
+      
       overallCount_ = 0;
       onChanged();
       return this;
@@ -1895,7 +1895,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder> 
          getBucketsOrBuilderList() {
       if (bucketsBuilder_ != null) {
         return bucketsBuilder_.getMessageOrBuilderList();
@@ -1921,12 +1921,12 @@ private static final long serialVersionUID = 0L;
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder> 
          getBucketsBuilderList() {
       return getBucketsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder> 
         getBucketsFieldBuilder() {
       if (bucketsBuilder_ == null) {
         bucketsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

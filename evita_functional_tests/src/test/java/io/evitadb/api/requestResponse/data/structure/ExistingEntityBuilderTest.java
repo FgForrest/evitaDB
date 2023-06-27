@@ -193,25 +193,6 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
-	void shouldFailToAddMultipleSortableAttributesToSingleReferencedType() {
-		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
-			CATALOG_SCHEMA,
-			EntitySchema._internalBuild("product")
-		)
-			.withReferenceTo(
-				BRAND_TYPE,
-				"brand",
-				Cardinality.ZERO_OR_ONE,
-				whichIs -> whichIs.filterable().withAttribute(SORTABLE_ATTRIBUTE, String.class, AttributeSchemaEditor::sortable)
-			)
-			.toInstance();
-
-		final ExistingEntityBuilder existingEntityBuilder = new ExistingEntityBuilder(new InitialEntityBuilder(schema).toInstance());
-		existingEntityBuilder.setReference(BRAND_TYPE, BRAND_TYPE, Cardinality.ZERO_OR_ONE, 1, thatIs -> thatIs.setAttribute(SORTABLE_ATTRIBUTE, "abc"));
-		assertThrows(IllegalArgumentException.class, () -> existingEntityBuilder.setReference(BRAND_TYPE, 3, thatIs -> thatIs.setAttribute(SORTABLE_ATTRIBUTE, "def")));
-	}
-
-	@Test
 	void shouldReturnOriginalEntityInstanceWhenNothingHasChanged() {
 		final Entity newEntity = new ExistingEntityBuilder(initialEntity)
 			.setParent(5)
