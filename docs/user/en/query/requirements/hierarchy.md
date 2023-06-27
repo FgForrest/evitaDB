@@ -88,7 +88,7 @@ extra result data structure and are available under the labels that correspond t
 
 <LanguageSpecific to="graphql">
 
-<MDInclude>[Output with multiple menu parts](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-data-structure-association.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryCategory.extraResults.hierarchy.self">[Output with multiple menu parts](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-data-structure-association.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -270,7 +270,7 @@ The computed result of the *megaMenu* looks like this:
 
 <LanguageSpecific to="graphql">
 
-<MDInclude>[Example of using `hierarchyWithin` and `fromRoot` in a single query](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-from-root.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.hierarchy.categories.megaMenu">[Example of using `hierarchyWithin` and `fromRoot` in a single query](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-from-root.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -363,7 +363,7 @@ The computed result both of the *sideMenu1* and *sideMenu2* looks like this:
 
 <LanguageSpecific to="graphql">
 
-<MDInclude>[Example of using `hierarchyWithin` and `fromNode` in a single query](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-from-node.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.hierarchy.categories">[Example of using `hierarchyWithin` and `fromNode` in a single query](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-from-node.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -448,7 +448,7 @@ The computed result *subcategories* looks like this:
 
 <LanguageSpecific to="graphql">
 
-<MDInclude>[Example of using `children` requirement](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-children.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.hierarchy.categories.subcategories">[Example of using `children` requirement](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-children.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -535,7 +535,7 @@ The computed result *parentAxis* looks like this:
 
 <LanguageSpecific to="graphql">
 
-<MDInclude>[Example of using `parents` requirement](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-parents.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.hierarchy.categories.parentAxis">[Example of using `parents` requirement](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-parents.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -565,7 +565,7 @@ The computed result *parentAxis* with siblings now looks like this:
 
 <LanguageSpecific to="graphql">
 
-<MDInclude>[Example of using `parents` requirement](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-parents-siblings.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.hierarchy.categories.parentAxis">[Example of using `parents` requirement](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-parents-siblings.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -677,7 +677,7 @@ The computed result *audioSiblings* looks like this:
 
 <LanguageSpecific to="graphql">
 
-<MDInclude>[Example of using `siblings` requirement](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-siblings.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.hierarchy.categories.audioSiblings">[Example of using `siblings` requirement](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-siblings.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -704,7 +704,7 @@ The computed result *audioSiblings* with their direct children looks like this (
 
 <LanguageSpecific to="graphql">
 
-<MDInclude>[Example of using `siblings` subtree requirement](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-siblings-with-subtree.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.hierarchy.categories.audioSiblings">[Example of using `siblings` subtree requirement](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-siblings-with-subtree.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -795,7 +795,7 @@ Which returns following output:
 
 <LanguageSpecific to="graphql">
 
-<MDInclude>[Direct children](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-direct-children.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.hierarchy.categories.subcategories">[Direct children](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-direct-children.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -823,7 +823,7 @@ That returns simply:
 
 <LanguageSpecific to="graphql">
 
-<MDInclude>[Direct parent](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-parent.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.hierarchy.categories.parent">[Direct parent](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-parent.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -881,7 +881,7 @@ Which returns:
 
 <LanguageSpecific to="graphql">
 
-<MDInclude>[Top 2 level of categories](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-level.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.hierarchy.categories.megaMenu">[Top 2 level of categories](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-level.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -909,7 +909,7 @@ category up to level two.
 
 <LanguageSpecific to="graphql">
 
-<MDInclude>[Parents up to level 2](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-level-parent.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.hierarchy.categories.parents">[Parents up to level 2](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-level-parent.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -967,7 +967,7 @@ The computed result *subMenu* looks like this (visualized in JSON format):
 
 <LanguageSpecific to="graphql">
 
-<MDInclude>[Example of using `node` requirement](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-node.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.hierarchy.categories.subMenu">[Example of using `node` requirement](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-node.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
