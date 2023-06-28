@@ -85,7 +85,7 @@ public class HierarchyContent extends AbstractRequireConstraintContainer impleme
 		super(entityFetch);
 	}
 
-	@Creator
+	@Creator(silentImplicitClassifier = true)
 	public HierarchyContent(@Nullable @Child HierarchyStopAt stopAt, @Nullable @Child EntityFetch entityFetch) {
 		super(
 			NO_ARGS,
