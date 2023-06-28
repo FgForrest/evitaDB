@@ -10,12 +10,16 @@ on:
       - evita*/**/pom.xml
       - docker/**.*
       - .github/**.*
-  pull_request:
+  pull_request_target:
     branches: [ "dev" ]            # also trap pull requests to dev branch
     paths:                         # but react only to changes in code or pipeline definition
       - evita*/**/*.java
       - evita*/**/pom.xml
       - .github/**.*
+
+permissions:
+  contents: read
+  checks: write
 
 concurrency:
   group: ${{ github.head_ref || github.ref_name }}  # for the same branch (dev or PR)

@@ -9,11 +9,15 @@ on:
       - .github/workflows/ci-dev-documentation.yml
       - docs/user/**.*
 
-  pull_request:
+  pull_request_target:
     branches: [ "dev" ]            # also trap pull requests to dev branch
     paths:                         # but react only to changes in code or pipeline definition
       - .github/workflows/ci-dev-documentation.yml
       - docs/user/**.*
+
+permissions:
+  contents: read
+  checks: write
 
 concurrency:
   group: ${{ format('{0}_documentation', github.head_ref || github.ref_name) }}  # for the same branch (dev or PR)
