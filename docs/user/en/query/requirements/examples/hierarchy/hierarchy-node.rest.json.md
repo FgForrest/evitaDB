@@ -5,7 +5,7 @@
       "primaryKey" : 66468,
       "type" : "Category",
       "allLocales" : [
-        "en-US"
+        "en"
       ],
       "attributes" : {
         "global" : {
@@ -20,7 +20,7 @@
           "type" : "Category",
           "parent" : 66468,
           "allLocales" : [
-            "en-US"
+            "en"
           ],
           "attributes" : {
             "global" : {
@@ -35,7 +35,7 @@
           "type" : "Category",
           "parent" : 66468,
           "allLocales" : [
-            "en-US"
+            "en"
           ],
           "attributes" : {
             "global" : {
@@ -50,7 +50,7 @@
               "type" : "Category",
               "parent" : 66481,
               "allLocales" : [
-                "en-US"
+                "en"
               ],
               "attributes" : {
                 "global" : {
@@ -65,7 +65,7 @@
               "type" : "Category",
               "parent" : 66481,
               "allLocales" : [
-                "en-US"
+                "en"
               ],
               "attributes" : {
                 "global" : {
@@ -80,7 +80,7 @@
               "type" : "Category",
               "parent" : 66481,
               "allLocales" : [
-                "en-US"
+                "en"
               ],
               "attributes" : {
                 "global" : {
@@ -97,7 +97,7 @@
           "type" : "Category",
           "parent" : 66468,
           "allLocales" : [
-            "en-US"
+            "en"
           ],
           "attributes" : {
             "global" : {
@@ -112,7 +112,7 @@
               "type" : "Category",
               "parent" : 66482,
               "allLocales" : [
-                "en-US"
+                "en"
               ],
               "attributes" : {
                 "global" : {
@@ -127,7 +127,7 @@
               "type" : "Category",
               "parent" : 66482,
               "allLocales" : [
-                "en-US"
+                "en"
               ],
               "attributes" : {
                 "global" : {
@@ -142,7 +142,7 @@
               "type" : "Category",
               "parent" : 66482,
               "allLocales" : [
-                "en-US"
+                "en"
               ],
               "attributes" : {
                 "global" : {
@@ -157,7 +157,7 @@
               "type" : "Category",
               "parent" : 66482,
               "allLocales" : [
-                "en-US"
+                "en"
               ],
               "attributes" : {
                 "global" : {
@@ -174,7 +174,7 @@
           "type" : "Category",
           "parent" : 66468,
           "allLocales" : [
-            "en-US"
+            "en"
           ],
           "attributes" : {
             "global" : {
@@ -189,7 +189,7 @@
           "type" : "Category",
           "parent" : 66468,
           "allLocales" : [
-            "en-US"
+            "en"
           ],
           "attributes" : {
             "global" : {
@@ -204,7 +204,7 @@
               "type" : "Category",
               "parent" : 66484,
               "allLocales" : [
-                "en-US"
+                "en"
               ],
               "attributes" : {
                 "global" : {
@@ -221,7 +221,7 @@
           "type" : "Category",
           "parent" : 66468,
           "allLocales" : [
-            "en-US"
+            "en"
           ],
           "attributes" : {
             "global" : {

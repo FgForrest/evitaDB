@@ -6,7 +6,7 @@
         "primaryKey" : 108531,
         "type" : "Product",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
