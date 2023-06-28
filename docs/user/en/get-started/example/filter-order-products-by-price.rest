@@ -2,18 +2,17 @@ POST /rest/test-catalog/product/list
 
 {
   "filterBy": {
-    "priceInPriceLists": ["basic"]
-    "priceInCurrency": "EUR"
-    "priceBetween": ["300", null]
+    "priceInPriceLists": ["basic"],
+    "priceInCurrency": "EUR",
+    "priceBetween": ["300", null],
     "entityLocaleEquals": "en"
-  }
+  },
   "orderBy": {
     "priceNatural": "ASC"
   },
   "require": {
     "entityFetch": {
       "attributeContentAll": true,
-      "hierarchyContent": {},
       "associatedDataContentAll": true,
       "priceContentAll": true,
       "referenceContentAll": true,
