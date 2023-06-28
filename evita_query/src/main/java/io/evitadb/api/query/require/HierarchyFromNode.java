@@ -26,6 +26,7 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
@@ -37,6 +38,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Optional;
 
 import static java.util.Optional.empty;
@@ -115,6 +117,7 @@ public class HierarchyFromNode extends AbstractRequireConstraintContainer implem
 	 * Contains filtering condition that allows to find a pivot node that should be used as a root for enclosing
 	 * hierarchy constraint container.
 	 */
+	@AliasForParameter("node")
 	@Nonnull
 	public HierarchyNode getFromNode() {
 		for (RequireConstraint constraint : getChildren()) {
@@ -162,6 +165,15 @@ public class HierarchyFromNode extends AbstractRequireConstraintContainer implem
 			}
 		}
 		return empty();
+	}
+
+	@AliasForParameter("requirements")
+	@Nonnull
+	public HierarchyOutputRequireConstraint[] getOutputRequirements() {
+		return Arrays.stream(getChildren())
+			.filter(it -> HierarchyOutputRequireConstraint.class.isAssignableFrom(it.getClass()))
+			.map(HierarchyOutputRequireConstraint.class::cast)
+			.toArray(HierarchyOutputRequireConstraint[]::new);
 	}
 
 	@Override

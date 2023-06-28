@@ -1,0 +1,7 @@
+DELETE /rest/test-catalog/brand
+
+{
+  "filterBy": {
+    "entityPrimaryKeyInSet": [1, 2]
+  }
+}

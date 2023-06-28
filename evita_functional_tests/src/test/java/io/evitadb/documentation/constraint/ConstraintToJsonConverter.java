@@ -100,7 +100,7 @@ public abstract class ConstraintToJsonConverter {
 	 * @return converted constraint with its possible children
 	 */
 	@Nonnull
-	public Optional<JsonConstraint> convert(@Nonnull DataLocator rootDataLocator, @Nonnull Constraint<?> constraint) {
+	public Optional<JsonConstraint> convert(@Nonnull DataLocator rootDataLocator, @Nullable Constraint<?> constraint) {
 		return convert(
 			new ConstraintToJsonConvertContext(rootDataLocator),
 			constraint
@@ -120,7 +120,7 @@ public abstract class ConstraintToJsonConverter {
 	@Nonnull
 	public Optional<JsonConstraint> convert(@Nonnull DataLocator parentDataLocator,
 	                                        @Nonnull DataLocator dataLocator,
-	                                        @Nonnull Constraint<?> constraint) {
+	                                        @Nullable Constraint<?> constraint) {
 		return convert(
 			new ConstraintToJsonConvertContext(parentDataLocator, dataLocator),
 			constraint
@@ -135,7 +135,10 @@ public abstract class ConstraintToJsonConverter {
 	 * @return converted constraint with its possible children
 	 */
 	@Nonnull
-	protected Optional<JsonConstraint> convert(@Nonnull ConstraintToJsonConvertContext convertContext, @Nonnull Constraint<?> constraint) {
+	protected Optional<JsonConstraint> convert(@Nonnull ConstraintToJsonConvertContext convertContext, @Nullable Constraint<?> constraint) {
+		if (constraint == null) {
+			return Optional.empty();
+		}
 		//noinspection unchecked
 		if (!constraintPredicate.test((Class<? extends Constraint<?>>) constraint.getClass())) {
 			return Optional.empty();
@@ -143,7 +146,7 @@ public abstract class ConstraintToJsonConverter {
 
 		final ParsedConstraintDescriptor parsedConstraintDescriptor = constraintDescriptorResolver.resolve(convertContext, constraint);
 		final ConstraintToJsonConvertContext innerConvertContext = convertContext.switchToChildContext(parsedConstraintDescriptor.innerDataLocator());
-		return Optional.of(constructConstraint(innerConvertContext, parsedConstraintDescriptor, constraint));
+		return constructConstraint(innerConvertContext, parsedConstraintDescriptor, constraint);
 	}
 
 
@@ -168,7 +171,7 @@ public abstract class ConstraintToJsonConverter {
 	 * @return constructed constraint
 	 */
 	@Nonnull
-	private JsonConstraint constructConstraint(@Nonnull ConstraintToJsonConvertContext convertContext,
+	private Optional<JsonConstraint> constructConstraint(@Nonnull ConstraintToJsonConvertContext convertContext,
 	                                           @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
 	                                           @Nonnull Constraint<?> constraint) {
 		final String constraintKey = constraintKeyBuilder.build(
@@ -181,7 +184,7 @@ public abstract class ConstraintToJsonConverter {
 		final ConstraintValueStructure valueStructure = ConstraintProcessingUtils.getValueStructureForConstraintCreator(creator);
 		final JsonNode constraintValue = switch (valueStructure) {
 			case NONE -> convertNoneStructure();
-			case PRIMITIVE -> convertValueParameter(constraint, creator.valueParameters().get(0));
+			case PRIMITIVE -> convertValueParameter(constraint, creator.valueParameters().get(0)).orElse(null);
 			case WRAPPER_RANGE -> convertWrapperRangeStructure(constraint, creator.valueParameters());
 			case CHILD -> convertChildParameter(
 					convertContext,
@@ -201,13 +204,16 @@ public abstract class ConstraintToJsonConverter {
 			default -> throw new IllegalStateException("Unknown constraint structure.");
 		};
 
-		return new JsonConstraint(constraintKey, constraintValue);
+		if (constraintValue == null) {
+			return Optional.empty();
+		}
+		return Optional.of(new JsonConstraint(constraintKey, constraintValue));
 	}
 
 	@Nonnull
-	private JsonNode convertValueParameter(@Nonnull Constraint<?> constraint, @Nonnull ValueParameterDescriptor parameterDescriptor) {
-		final Object parameterValue = parameterValueResolver.resolveParameterValue(constraint, parameterDescriptor);
-		return objectJsonSerializer.serializeObject(parameterValue);
+	private Optional<JsonNode> convertValueParameter(@Nonnull Constraint<?> constraint, @Nonnull ValueParameterDescriptor parameterDescriptor) {
+		return parameterValueResolver.resolveParameterValue(constraint, parameterDescriptor)
+			.map(objectJsonSerializer::serializeObject);
 	}
 
 	@Nonnull
@@ -219,21 +225,21 @@ public abstract class ConstraintToJsonConverter {
 		final ConstraintToJsonConvertContext childConvertContext = convertContext.switchToChildContext(childDataLocator);
 		final Class<?> childParameterType = parameterDescriptor.type();
 
-		final Object parameterValue = parameterValueResolver.resolveParameterValue(constraint, parameterDescriptor);
+		final Optional<?> parameterValue = parameterValueResolver.resolveParameterValue(constraint, parameterDescriptor);
 
 		if (!childParameterType.isArray() && !ClassUtils.isAbstract(childParameterType)) {
-			if (parameterValue == null) {
-				return Optional.of(jsonNodeFactory.nullNode());
+			if (parameterValue.isEmpty()) {
+				return Optional.empty();
 			}
-			return convert(childConvertContext, (Constraint<?>) parameterValue)
+			return convert(childConvertContext, (Constraint<?>) parameterValue.get())
 				.map(JsonConstraint::value);
 		}
 		if (childParameterType.isArray()) {
-			if (parameterValue == null) {
+			if (parameterValue.isEmpty()) {
 				return Optional.of(jsonNodeFactory.arrayNode());
 			}
 
-			final Stream<? extends Constraint<?>> children = Arrays.stream((Object[]) parameterValue)
+			final Stream<? extends Constraint<?>> children = Arrays.stream((Object[]) parameterValue.get())
 				.map(it -> (Constraint<?>) it);
 
 			if (isChildrenUnique(parameterDescriptor)) {
@@ -288,10 +294,10 @@ public abstract class ConstraintToJsonConverter {
 				return Optional.of(jsonChildren);
 			}
 		} else {
-			if (parameterValue == null) {
-				return Optional.of(jsonNodeFactory.nullNode());
+			if (parameterValue.isEmpty()) {
+				return Optional.empty();
 			}
-			final Constraint<?> child = (Constraint<?>) parameterValue;
+			final Constraint<?> child = (Constraint<?>) parameterValue.get();
 
 			final ObjectNode wrapperContainer = jsonNodeFactory.objectNode();
 			convert(childDataLocator, child)
@@ -308,8 +314,8 @@ public abstract class ConstraintToJsonConverter {
 		final DataLocator childDataLocator = resolveChildDataLocator(convertContext, parsedConstraintDescriptor, parameterDescriptor.domain());
 		final ConstraintToJsonConvertContext childConvertContext = convertContext.switchToChildContext(childDataLocator);
 
-		final Constraint<?> additionalChild = (Constraint<?>) parameterValueResolver.resolveParameterValue(constraint, parameterDescriptor);
-		return convert(childConvertContext, additionalChild);
+		return parameterValueResolver.resolveParameterValue(constraint, parameterDescriptor)
+			.flatMap(it -> convert(childConvertContext, (Constraint<?>) it));
 	}
 
 	@Nonnull
@@ -333,8 +339,8 @@ public abstract class ConstraintToJsonConverter {
 		);
 
 		final ArrayNode wrapperRange = jsonNodeFactory.arrayNode();
-		wrapperRange.add(convertValueParameter(constraint, fromParameter));
-		wrapperRange.add(convertValueParameter(constraint, toParameter));
+		wrapperRange.add(convertValueParameter(constraint, fromParameter).orElse(null));
+		wrapperRange.add(convertValueParameter(constraint, toParameter).orElse(null));
 		return wrapperRange;
 	}
 
@@ -348,7 +354,8 @@ public abstract class ConstraintToJsonConverter {
 		final ObjectNode wrapperObject = jsonNodeFactory.objectNode();
 
 		valueParameterDescriptors.forEach(valueParameterDescriptor ->
-			wrapperObject.putIfAbsent(valueParameterDescriptor.name(), convertValueParameter(constraint, valueParameterDescriptor)));
+			convertValueParameter(constraint, valueParameterDescriptor)
+				.ifPresent(it -> wrapperObject.putIfAbsent(valueParameterDescriptor.name(), it)));
 
 		childParameterDescriptors.forEach(childParameterDescriptor ->
 			convertChildParameter(convertContext, constraint, parsedConstraintDescriptor, childParameterDescriptor)

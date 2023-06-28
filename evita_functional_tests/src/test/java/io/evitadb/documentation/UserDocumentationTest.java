@@ -29,6 +29,8 @@ import io.evitadb.documentation.graphql.GraphQLExecutable;
 import io.evitadb.documentation.graphql.GraphQLTestContextFactory;
 import io.evitadb.documentation.java.JavaExecutable;
 import io.evitadb.documentation.java.JavaTestContextFactory;
+import io.evitadb.documentation.rest.RestExecutable;
+import io.evitadb.documentation.rest.RestTestContextFactory;
 import io.evitadb.test.EvitaTestSupport;
 import jdk.jshell.JShell;
 import lombok.Getter;
@@ -110,7 +112,6 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		NOT_TESTED_LANGUAGES.add("Gradle");
 		NOT_TESTED_LANGUAGES.add("shell");
 		NOT_TESTED_LANGUAGES.add("json");
-		NOT_TESTED_LANGUAGES.add("rest");
 		NOT_TESTED_LANGUAGES.add("yaml");
 		NOT_TESTED_LANGUAGES.add("plain");
 	}
@@ -245,6 +246,16 @@ public class UserDocumentationTest implements EvitaTestSupport {
 					createSnippets
 				);
 			}
+			case "rest" -> {
+				return new RestExecutable(
+					contextAccessor.get(RestTestContextFactory.class),
+					sourceContent,
+					rootPath,
+					resource,
+					outputSnippet,
+					createSnippets
+				);
+			}
 			default -> {
 				throw new UnsupportedOperationException("Unsupported file format: " + sourceFormat);
 			}
@@ -330,8 +341,8 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
 		return this.createTests(
-			getRootDirectory().resolve("docs/user/en/use/api/query-data.md"),
-			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.GRAPHQL
+			getRootDirectory().resolve("docs/user/en/query/requirements/hierarchy.md"),
+			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.GRAPHQL, CreateSnippets.REST
 		).stream();
 	}
 
@@ -501,7 +512,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 */
 	public enum CreateSnippets {
 
-		JAVA, MARKDOWN, GRAPHQL
+		JAVA, MARKDOWN, GRAPHQL, REST
 
 	}
 

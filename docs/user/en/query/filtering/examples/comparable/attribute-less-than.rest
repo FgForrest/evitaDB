@@ -1,0 +1,15 @@
+POST /rest/evita/product/query
+
+{
+  "filterBy" : {
+    "attributeBatteryCapacityLessThan" : "125"
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code",
+        "battery-capacity"
+      ]
+    }
+  }
+}

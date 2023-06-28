@@ -267,7 +267,6 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 			.e(EntityDescriptor.LOCALES.name(), entityLocales)
 			.e(EntityDescriptor.ALL_LOCALES.name(), entity.getAllLocales().stream().map(Locale::toLanguageTag).toList())
-			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 			.e(EntityDescriptor.ASSOCIATED_DATA.name(), associatedData)
 			.build();
 	}
@@ -370,8 +369,7 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 
 
 		final MapBuilder referenceBuilder = map()
-			.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), reference.getReferencedPrimaryKey())
-			.e(ReferenceDescriptor.ATTRIBUTES.name(), convertAttributesIntoMap(reference));
+			.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), reference.getReferencedPrimaryKey());
 
 		if (withReferencedEntityBody) {
 			final MapBuilder referenceAttributesBuilder = map()
@@ -379,12 +377,12 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 				.e(EntityDescriptor.TYPE.name(), reference.getReferencedEntityType());
 			if (withLocales) {
 				referenceAttributesBuilder
-					.e(EntityDescriptor.LOCALES.name(), List.of())
-					.e(EntityDescriptor.ALL_LOCALES.name(), Arrays.asList(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-					.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name());
+					.e(EntityDescriptor.ALL_LOCALES.name(), Arrays.asList(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()));
 			}
 			referenceBuilder.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), referenceAttributesBuilder);
 		}
+
+		referenceBuilder.e(ReferenceDescriptor.ATTRIBUTES.name(), convertAttributesIntoMap(reference));
 
 		return referenceBuilder;
 	}
@@ -405,10 +403,14 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 			.e(EntityDescriptor.TYPE.name(), entityClassifier.getType());
 
 		if (entityClassifier instanceof EntityContract entity) {
-			dto
-				.e(EntityDescriptor.LOCALES.name(), Arrays.stream(expectedLocales).map(Locale::toLanguageTag).toList())
-				.e(EntityDescriptor.ALL_LOCALES.name(), entity.getAllLocales().stream().map(Locale::toLanguageTag).toList())
-				.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name()); // default state, may be overridden
+			final List<String> locales = Arrays.stream(expectedLocales).map(Locale::toLanguageTag).toList();
+			if (!locales.isEmpty()) {
+				dto.e(EntityDescriptor.LOCALES.name(), locales);
+			}
+			final List<String> allLocales = entity.getAllLocales().stream().map(Locale::toLanguageTag).toList();
+			if (!allLocales.isEmpty()) {
+				dto.e(EntityDescriptor.ALL_LOCALES.name(), allLocales);
+			}
 		}
 
 		return dto;
@@ -425,10 +427,15 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 		hierarchicalEntity.getParentEntity()
 			.ifPresent(parent -> dto.e(RestEntityDescriptor.PARENT_ENTITY.name(), createParentEntityDto(parent, withBody)));
 
-		dto
-			.e(EntityDescriptor.LOCALES.name(), Arrays.stream(expectedLocales).map(Locale::toLanguageTag).toList())
-			.e(EntityDescriptor.ALL_LOCALES.name(), hierarchicalEntity.getAllLocales().stream().map(Locale::toLanguageTag).toList())
-			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name()); // default state, may be overridden
+
+		final List<String> locales = Arrays.stream(expectedLocales).map(Locale::toLanguageTag).toList();
+		if (!locales.isEmpty()) {
+			dto.e(EntityDescriptor.LOCALES.name(), locales);
+		}
+		final List<String> allLocales = hierarchicalEntity.getAllLocales().stream().map(Locale::toLanguageTag).toList();
+		if (!allLocales.isEmpty()) {
+			dto.e(EntityDescriptor.ALL_LOCALES.name(), allLocales);
+		}
 
 		return dto;
 	}
@@ -449,9 +456,7 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 		if (withBody) {
 			final SealedEntity entity = (SealedEntity) entityClassifier;
 			dto
-				.e(EntityDescriptor.LOCALES.name(), List.of())
 				.e(EntityDescriptor.ALL_LOCALES.name(), entity.getAllLocales().stream().map(Locale::toLanguageTag).toList())
-				.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 				.e(RestEntityDescriptor.ATTRIBUTES.name(), map()
 					.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
 						.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))));
@@ -468,9 +473,7 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 		return map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), entity.getType())
-			.e(EntityDescriptor.LOCALES.name(), List.of())
 			.e(EntityDescriptor.ALL_LOCALES.name(), entity.getAllLocales().stream().map(Locale::toLanguageTag).toList())
-			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name()) // default state, may be overridden
 			.e(StringUtils.toCamelCase(referenceName), entity.getReferences(referenceName)
 				.stream()
 				.map(it -> {

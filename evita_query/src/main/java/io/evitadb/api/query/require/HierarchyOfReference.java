@@ -208,7 +208,18 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer
 	}
 
 	/**
-	 * Returns name of the reference this hierarchy query relates to.
+	 * Returns name of the reference this hierarchy query relates to. If there are multiple references, the {@link #getReferenceNames()}
+	 * must be used.
+	 */
+	@Nonnull
+	public String getReferenceName() {
+		final String[] referenceNames = getReferenceNames();
+		Assert.isTrue(referenceNames.length == 1, "There are multiple reference names, cannot get only one.");
+		return referenceNames[0];
+	}
+
+	/**
+	 * Returns all names of the references this hierarchy query relates to.
 	 */
 	@Nonnull
 	public String[] getReferenceNames() {

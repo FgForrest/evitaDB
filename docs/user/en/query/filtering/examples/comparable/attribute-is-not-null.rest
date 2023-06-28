@@ -1,0 +1,15 @@
+POST /rest/evita/product/query
+
+{
+  "filterBy" : {
+    "attributeCatalogNumberIs" : "NOT_NULL"
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code",
+        "catalogNumber"
+      ]
+    }
+  }
+}

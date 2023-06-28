@@ -1,0 +1,14 @@
+POST /rest/evita/product/query
+
+{
+  "filterBy" : {
+    "attributeCodeContains" : "epix"
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ]
+    }
+  }
+}

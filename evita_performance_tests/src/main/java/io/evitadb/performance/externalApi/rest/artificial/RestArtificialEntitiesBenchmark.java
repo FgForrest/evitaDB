@@ -56,7 +56,7 @@ public abstract class RestArtificialEntitiesBenchmark {
 	@Threads(Threads.MAX)
 	public void singleEntityRead(RestArtificialFullDatabaseBenchmarkState benchmarkState, RestArtificialSingleReadState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getResource(), state.getRequestBody())
+			benchmarkState.getSession().call(state.getMethod(), state.getResource(), state.getRequestBody())
 		);
 	}
 
@@ -76,7 +76,7 @@ public abstract class RestArtificialEntitiesBenchmark {
 	@Threads(Threads.MAX)
 	public void paginatedEntityRead(RestArtificialFullDatabaseBenchmarkState benchmarkState, RestArtificialPageReadState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getResource(), state.getRequestBody())
+			benchmarkState.getSession().call(state.getMethod(), state.getResource(), state.getRequestBody())
 		);
 	}
 
@@ -96,7 +96,7 @@ public abstract class RestArtificialEntitiesBenchmark {
 	@Threads(Threads.MAX)
 	public void attributeFiltering(RestArtificialAttributeBenchmarkState benchmarkState, RestArtificialAttributeFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getResource(), state.getRequestBody())
+			benchmarkState.getSession().call(state.getMethod(), state.getResource(), state.getRequestBody())
 		);
 	}
 
@@ -117,7 +117,7 @@ public abstract class RestArtificialEntitiesBenchmark {
 	@Threads(Threads.MAX)
 	public void attributeAndHierarchyFiltering(RestArtificialAttributeBenchmarkState benchmarkState, RestArtificialAttributeAndHierarchyFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getResource(), state.getRequestBody())
+			benchmarkState.getSession().call(state.getMethod(), state.getResource(), state.getRequestBody())
 		);
 	}
 
@@ -138,7 +138,7 @@ public abstract class RestArtificialEntitiesBenchmark {
 	@Threads(Threads.MAX)
 	public void attributeHistogramComputation(RestArtificialAttributeBenchmarkState benchmarkState, RestArtificialAttributeHistogramState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getResource(), state.getRequestBody())
+			benchmarkState.getSession().call(state.getMethod(), state.getResource(), state.getRequestBody())
 		);
 	}
 
@@ -158,7 +158,7 @@ public abstract class RestArtificialEntitiesBenchmark {
 	@Threads(Threads.MAX)
 	public void priceFiltering(RestArtificialPriceBenchmarkState benchmarkState, RestArtificialPriceFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getResource(), state.getRequestBody())
+			benchmarkState.getSession().call(state.getMethod(), state.getResource(), state.getRequestBody())
 		);
 	}
 
@@ -178,7 +178,7 @@ public abstract class RestArtificialEntitiesBenchmark {
 	@Threads(Threads.MAX)
 	public void priceAndHierarchyFiltering(RestArtificialPriceBenchmarkState benchmarkState, RestArtificialPriceAndHierarchyFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getResource(), state.getRequestBody())
+			benchmarkState.getSession().call(state.getMethod(), state.getResource(), state.getRequestBody())
 		);
 	}
 
@@ -199,7 +199,7 @@ public abstract class RestArtificialEntitiesBenchmark {
 	@Threads(Threads.MAX)
 	public void priceHistogramComputation(RestArtificialPriceBenchmarkState benchmarkState, RestArtificialPriceHistogramState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getResource(), state.getRequestBody())
+			benchmarkState.getSession().call(state.getMethod(), state.getResource(), state.getRequestBody())
 		);
 	}
 
@@ -219,7 +219,7 @@ public abstract class RestArtificialEntitiesBenchmark {
 	@Threads(Threads.MAX)
 	public void facetFiltering(RestArtificialFacetBenchmarkState benchmarkState, RestArtificialFacetFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getResource(), state.getRequestBody())
+			benchmarkState.getSession().call(state.getMethod(), state.getResource(), state.getRequestBody())
 		);
 	}
 
@@ -239,7 +239,7 @@ public abstract class RestArtificialEntitiesBenchmark {
 	@Threads(Threads.MAX)
 	public void facetAndHierarchyFiltering(RestArtificialFacetBenchmarkState benchmarkState, RestArtificialFacetAndHierarchyFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getResource(), state.getRequestBody())
+			benchmarkState.getSession().call(state.getMethod(), state.getResource(), state.getRequestBody())
 		);
 	}
 
@@ -261,7 +261,7 @@ public abstract class RestArtificialEntitiesBenchmark {
 	@Threads(Threads.MAX)
 	public void facetFilteringAndSummarizingCount(RestArtificialFacetBenchmarkState benchmarkState, RestArtificialFacetFilteringAndSummarizingCountState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getResource(), state.getRequestBody())
+			benchmarkState.getSession().call(state.getMethod(), state.getResource(), state.getRequestBody())
 		);
 	}
 
@@ -283,7 +283,7 @@ public abstract class RestArtificialEntitiesBenchmark {
 	@Threads(Threads.MAX)
 	public void facetAndHierarchyFilteringAndSummarizingCount(RestArtificialFacetBenchmarkState benchmarkState, RestArtificialFacetAndHierarchyFilteringAndSummarizingCountState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getResource(), state.getRequestBody())
+			benchmarkState.getSession().call(state.getMethod(), state.getResource(), state.getRequestBody())
 		);
 	}
 
@@ -305,7 +305,7 @@ public abstract class RestArtificialEntitiesBenchmark {
 	@Threads(Threads.MAX)
 	public void facetAndHierarchyFilteringAndSummarizingImpact(RestArtificialFacetBenchmarkState benchmarkState, RestArtificialFacetAndHierarchyFilteringAndSummarizingImpactState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getResource(), state.getRequestBody())
+			benchmarkState.getSession().call(state.getMethod(), state.getResource(), state.getRequestBody())
 		);
 	}
 
@@ -326,7 +326,7 @@ public abstract class RestArtificialEntitiesBenchmark {
 	@Threads(Threads.MAX)
 	public void hierarchyStatisticsComputation(RestArtificialHierarchyBenchmarkState benchmarkState, RestArtificialHierarchyStatisticsComputationState state, Blackhole blackhole) {
 		blackhole.consume(
-			benchmarkState.getSession().call(state.getResource(), state.getRequestBody())
+			benchmarkState.getSession().call(state.getMethod(), state.getResource(), state.getRequestBody())
 		);
 	}
 

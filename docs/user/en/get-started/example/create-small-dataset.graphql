@@ -1,6 +1,6 @@
 mutation {
   brand1: upsertBrand(
-    primaryKey: 1
+    primaryKey: 2
     entityExistence: MUST_NOT_EXIST
     mutations: [
       {
@@ -15,7 +15,7 @@ mutation {
   }
 
   brand2: upsertBrand(
-    primaryKey: 2
+    primaryKey: 3
     entityExistence: MUST_NOT_EXIST
     mutations: [
       {
@@ -30,7 +30,7 @@ mutation {
   },
 
   brand3: upsertBrand(
-    primaryKey: 3
+    primaryKey: 4
     entityExistence: MUST_NOT_EXIST
     mutations: [
       {
@@ -178,7 +178,7 @@ mutation {
           name: "brand"
           referencedEntityType: "Brand"
           cardinality: ZERO_OR_ONE
-          primaryKey: 1
+          primaryKey: 2
         }
       },
       {
@@ -261,7 +261,7 @@ mutation {
           name: "brand"
           referencedEntityType: "Brand"
           cardinality: ZERO_OR_ONE
-          primaryKey: 3
+          primaryKey: 4
         }
       },
       {
@@ -343,7 +343,7 @@ mutation {
           name: "brand"
           referencedEntityType: "Brand"
           cardinality: ZERO_OR_ONE
-          primaryKey: 1
+          primaryKey: 2
         }
       },
       {
@@ -424,7 +424,7 @@ mutation {
           name: "brand"
           referencedEntityType: "Brand"
           cardinality: ZERO_OR_ONE
-          primaryKey: 2
+          primaryKey: 3
         }
       },
       {
@@ -505,7 +505,7 @@ mutation {
           name: "brand"
           referencedEntityType: "Brand"
           cardinality: ZERO_OR_ONE
-          primaryKey: 3
+          primaryKey: 4
         }
       },
       {

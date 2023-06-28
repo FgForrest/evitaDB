@@ -70,13 +70,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * The implementation of the EvitaQL source code dynamic test verifying single EvitaQL example from the documentation.
- * EvitaQL needs to be successfully parsed, executed via {@link EvitaClient} against our demo server and its result
+ * The implementation of the GraphQL source code dynamic test verifying single GraphQL example from the documentation.
+ * GraphQL needs to be successfully parsed, executed via {@link GraphQLClient} against our demo server and its result
  * must match the previously frozen content in the MarkDown table of the same name.
  *
- * The executor can also generate {@link CreateSnippets#JAVA} and {@link CreateSnippets#MARKDOWN} if requested. This
- * feature is used when the documentation is written to avoid unnecessary work of translating the EvitaQL to Java
- * source code (which is straightforward) and getting the result in MarkDown format.
+ * The executor can also generate {@link CreateSnippets#MARKDOWN} if requested. This
+ * feature is used for getting the result in MarkDown format.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
