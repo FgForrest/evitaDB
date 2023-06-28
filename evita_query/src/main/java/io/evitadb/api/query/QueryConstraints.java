@@ -1769,7 +1769,7 @@ public interface QueryConstraints {
 	 * Entities with same (equal) values must not be subject to secondary ordering rules and may be sorted randomly within
 	 * the scope of entities with the same value (this is subject to change, currently this behaviour differs from the one
 	 * used by relational databases - but is way faster).
-	 * 
+	 *
 	 * Example:
 	 *
 	 * ```
@@ -1791,9 +1791,9 @@ public interface QueryConstraints {
 	/**
 	 * This `orderByGroup` is container for ordering groups within {@link FacetSummary}. This ordering constraint cannot
 	 * be used anywhere else.
-	 * 
+	 *
 	 * Example:
-	 * 
+	 *
 	 * ```
 	 * facetSummaryOfReference(
 	 *    'parameters',
@@ -1936,7 +1936,7 @@ public interface QueryConstraints {
 	 *
 	 * To sort products related to a "Sony" brand by the `priority` attribute set on the reference, you need to use the
 	 * following constraint:
-	 * 
+	 *
 	 * Example:
 	 *
 	 * ```
@@ -1945,38 +1945,38 @@ public interface QueryConstraints {
 	 *    attributeNatural('brandPriority', DESC)
 	 * )
 	 * ```
-	 * 
+	 *
 	 * **The `referenceProperty` is implicit in requirement `referenceContent`**
-	 * 
+	 *
 	 * In the `orderBy` clause within the {@link io.evitadb.api.query.require.ReferenceContent} requirement,
 	 * the `referenceProperty` constraint is implicit and must not be repeated. All attribute order constraints
 	 * in `referenceContent` automatically refer to the reference attributes, unless the {@link EntityProperty}
 	 * container is used there.
-	 * 
+	 *
 	 * The example is based on a simple one-to-zero-or-one reference (a product can have at most one reference to a brand
 	 * entity). The response will only return the products that have a reference to the "Sony" brand, all of which contain the
 	 * `orderInBrand` attribute (since it's marked as a non-nullable attribute). Because the example is so simple, the returned
 	 * result can be anticipated.
-	 * 
+	 *
 	 * ## Behaviour of zero or one to many references ordering
-	 * 
+	 *
 	 * The situation is more complicated when the reference is one-to-many. What is the expected result of a query that
 	 * involves ordering by a property on a reference attribute? Is it wise to allow such ordering query in this case?
-	 * 
+	 *
 	 * We decided to allow it and bind it with the following rules:
-	 * 
+	 *
 	 * ### Non-hierarchical entity
-	 * 
+	 *
 	 * If the referenced entity is **non-hierarchical**, and the returned entity references multiple entities, only
 	 * the reference with the lowest primary key of the referenced entity, while also having the order property set, will be
 	 * used for ordering.
-	 * 
+	 *
 	 * ### Hierarchical entity
-	 * 
+	 *
 	 * If the referenced entity is **hierarchical** and the returned entity references multiple entities, the reference used
 	 * for ordering is the one that contains the order property and is the closest hierarchy node to the root of the filtered
 	 * hierarchy node.
-	 * 
+	 *
 	 * It sounds complicated, but it's really quite simple. If you list products of a certain category and at the same time
 	 * order them by a property "priority" set on the reference to the category, the first products will be those directly
 	 * related to the category, ordered by "priority", followed by the products of the first child category, and so on,
@@ -1997,7 +1997,7 @@ public interface QueryConstraints {
 	 *
 	 * In other words, if the `Product` entity has multiple references to `Parameter` entities, you can sort those references
 	 * by, for example, the `priority` or `name` attribute of the `Parameter` entity.
-	 * 
+	 *
 	 * Example:
 	 *
 	 * ```
@@ -2023,23 +2023,23 @@ public interface QueryConstraints {
 	 * {@link OrderDirection#ASC}).
 	 *
 	 * Ordering is executed by natural order of the {@link Comparable} type.
-	 * 
+	 *
 	 * Example:
 	 *
 	 * ```
 	 * attributeNatural('married')
 	 * attributeNatural('age', ASC)
 	 * ```
-	 * 
+	 *
 	 * If you want to sort products by their name, which is a localized attribute, you need to specify the {@link EntityLocaleEquals}
 	 * constraint in the {@link FilterBy} part of the query. The correct {@link java.text.Collator} is used to
 	 * order the localized attribute string, so that the order is consistent with the national customs of the language.
-	 * 
+	 *
 	 * The sorting mechanism of evitaDB is somewhat different from what you might be used to. If you sort entities by two
 	 * attributes in an `orderBy` clause of the query, evitaDB sorts them first by the first attribute (if present) and then
 	 * by the second (but only those where the first attribute is missing). If two entities have the same value of the first
 	 * attribute, they are not sorted by the second attribute, but by the primary key (in ascending order).
-	 * 
+	 *
 	 * If we want to use fast "pre-sorted" indexes, there is no other way to do it, because the secondary order would not be
 	 * known until a query time. If you want to sort by multiple attributes in the conventional way, you need to define the
 	 * sortable attribute compound in advance and use its name instead of the default attribute name. The sortable attribute
@@ -2058,23 +2058,23 @@ public interface QueryConstraints {
 	 * {@link OrderDirection#ASC}).
 	 *
 	 * Ordering is executed by natural order of the {@link Comparable} type.
-	 * 
+	 *
 	 * Example:
 	 *
 	 * ```
 	 * attributeNatural('married')
 	 * attributeNatural('age', ASC)
 	 * ```
-	 * 
+	 *
 	 * If you want to sort products by their name, which is a localized attribute, you need to specify the {@link EntityLocaleEquals}
 	 * constraint in the {@link FilterBy} part of the query. The correct {@link java.text.Collator} is used to
 	 * order the localized attribute string, so that the order is consistent with the national customs of the language.
-	 * 
+	 *
 	 * The sorting mechanism of evitaDB is somewhat different from what you might be used to. If you sort entities by two
 	 * attributes in an `orderBy` clause of the query, evitaDB sorts them first by the first attribute (if present) and then
 	 * by the second (but only those where the first attribute is missing). If two entities have the same value of the first
 	 * attribute, they are not sorted by the second attribute, but by the primary key (in ascending order).
-	 * 
+	 *
 	 * If we want to use fast "pre-sorted" indexes, there is no other way to do it, because the secondary order would not be
 	 * known until a query time. If you want to sort by multiple attributes in the conventional way, you need to define the
 	 * sortable attribute compound in advance and use its name instead of the default attribute name. The sortable attribute
@@ -2125,7 +2125,7 @@ public interface QueryConstraints {
 	 * Random ordering is useful in situations where you want to present the end user with the unique entity listing every
 	 * time he/she accesses it. The constraint makes the order of the entities in the result random and does not take any
 	 * arguments.
-	 * 
+	 *
 	 * Example:
 	 *
 	 * ```
