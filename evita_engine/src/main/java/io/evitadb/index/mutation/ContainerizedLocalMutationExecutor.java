@@ -75,6 +75,7 @@ import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 import io.evitadb.store.model.EntityStoragePart;
 import io.evitadb.store.model.RecordWithCompressedId;
 import io.evitadb.store.spi.model.storageParts.accessor.AbstractEntityStorageContainerAccessor;
+import io.evitadb.store.spi.model.storageParts.accessor.EntityStoragePartAccessor;
 import io.evitadb.store.spi.model.storageParts.accessor.WritableEntityStorageContainerAccessor;
 import io.evitadb.utils.Assert;
 
@@ -357,7 +358,6 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * Method processes all mutations that targets entity attributes - e.g. {@link AttributeMutation} and updates
 	 * information about entity language accordingly.
 	 */
-	@SuppressWarnings("StatementWithEmptyBody")
 	void recomputeLanguageOnAttributeUpdate(@Nonnull AttributeMutation attributeMutation) {
 		final AttributeKey affectedAttribute = attributeMutation.getAttributeKey();
 
@@ -367,7 +367,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 					final EntityBodyStoragePart entityStoragePart = getEntityStoragePart(entityType, entityPrimaryKey, EntityExistence.MUST_EXIST);
 					final OperationResult operationResult = entityStoragePart.addAttributeLocale(locale);
 					if (operationResult.operationChangedSetOfLocales()) {
-						upsertEntityLanguage(entityStoragePart, locale);
+						upsertEntityLanguage(entityStoragePart, this, locale);
 					}
 				});
 		} else if (attributeMutation instanceof RemoveAttributeMutation) {
@@ -380,7 +380,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 						final EntityBodyStoragePart entityStoragePart = getEntityStoragePart(entityType, entityPrimaryKey, EntityExistence.MUST_EXIST);
 						final OperationResult operationResult = entityStoragePart.removeAttributeLocale(locale);
 						if (operationResult.operationChangedSetOfLocales()) {
-							removeEntityLanguage(entityStoragePart, locale);
+							removeEntityLanguage(entityStoragePart, this, locale);
 						}
 					}
 				});
@@ -783,13 +783,13 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			final EntityBodyStoragePart entityStoragePart = getEntityStoragePart(entityType, entityPrimaryKey, EntityExistence.MUST_EXIST);
 			if (operationResult.operationChangedSetOfLocales()) {
 				Assert.isPremiseValid(associatedDataKey.getLocale() != null, "Locale must not be null!");
-				upsertEntityLanguage(entityStoragePart, associatedDataKey.getLocale());
+				upsertEntityLanguage(entityStoragePart, this, associatedDataKey.getLocale());
 			}
 		} else {
 			final EntityBodyStoragePart entityStoragePart = getEntityStoragePart(entityType, entityPrimaryKey, EntityExistence.MUST_EXIST);
 			if (operationResult.operationChangedSetOfLocales()) {
 				Assert.isPremiseValid(associatedDataKey.getLocale() != null, "Locale must not be null!");
-				removeEntityLanguage(entityStoragePart, associatedDataKey.getLocale());
+				removeEntityLanguage(entityStoragePart, this, associatedDataKey.getLocale());
 			}
 		}
 	}
@@ -894,7 +894,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 				final EntityBodyStoragePart entityStoragePart = getEntityStoragePart(entityType, entityPrimaryKey, EntityExistence.MUST_EXIST);
 				final OperationResult operationResult = entityStoragePart.removeAttributeLocale(locale);
 				if (operationResult.operationChangedSetOfLocales()) {
-					removeEntityLanguage(entityStoragePart, locale);
+					removeEntityLanguage(entityStoragePart, this, locale);
 				}
 			}
 		});
@@ -903,23 +903,31 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	/**
 	 * Method inserts language for entity if entity lacks information about used language.
 	 */
-	private void upsertEntityLanguage(@Nonnull EntityBodyStoragePart entityStoragePart, @Nonnull Locale locale) {
+	private void upsertEntityLanguage(
+		@Nonnull EntityBodyStoragePart entityStoragePart,
+		@Nonnull EntityStoragePartAccessor entityStoragePartAccessor,
+		@Nonnull Locale locale
+	) {
 		if (entityStoragePart.getLocales().contains(locale)) {
 			this.entityIndexCreatingAccessor.getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL))
-				.upsertLanguage(locale, entityPrimaryKey);
-			applyOnReducedIndexes(index -> index.upsertLanguage(locale, entityPrimaryKey));
+				.upsertLanguage(locale, entityPrimaryKey, entityStoragePartAccessor);
+			applyOnReducedIndexes(index -> index.upsertLanguage(locale, entityPrimaryKey, entityStoragePartAccessor));
 		}
 	}
 
 	/**
 	 * Method removes language for entity.
 	 */
-	private void removeEntityLanguage(@Nonnull EntityBodyStoragePart entityStoragePart, @Nonnull Locale locale) {
+	private void removeEntityLanguage(
+		@Nonnull EntityBodyStoragePart entityStoragePart,
+		@Nonnull EntityStoragePartAccessor entityStoragePartAccessor,
+		@Nonnull Locale locale
+	) {
 		if (!entityStoragePart.getLocales().contains(locale)) {
 			// locale was removed entirely - remove the information from index
 			this.entityIndexCreatingAccessor.getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL))
-				.removeLanguage(locale, entityPrimaryKey);
-			applyOnReducedIndexes(index -> index.removeLanguage(locale, entityPrimaryKey));
+				.removeLanguage(locale, entityPrimaryKey, entityStoragePartAccessor);
+			applyOnReducedIndexes(index -> index.removeLanguage(locale, entityPrimaryKey, entityStoragePartAccessor));
 		}
 	}
 

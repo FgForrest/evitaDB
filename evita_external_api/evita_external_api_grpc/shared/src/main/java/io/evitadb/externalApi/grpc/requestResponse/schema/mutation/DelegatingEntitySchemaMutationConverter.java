@@ -119,7 +119,7 @@ public class DelegatingEntitySchemaMutationConverter implements SchemaMutationCo
 		TO_GRPC_CONVERTERS.put(ModifyReferenceSchemaRelatedEntityMutation.class, new ToGrpc((b, m) -> b.setModifyReferenceSchemaRelatedEntityMutation((GrpcModifyReferenceSchemaRelatedEntityMutation) m), new ModifyReferenceSchemaRelatedEntityMutationConverter()));
 		TO_GRPC_CONVERTERS.put(RemoveReferenceSchemaMutation.class, new ToGrpc((b, m) -> b.setRemoveReferenceSchemaMutation((GrpcRemoveReferenceSchemaMutation) m), new RemoveReferenceSchemaMutationConverter()));
 		TO_GRPC_CONVERTERS.put(SetReferenceSchemaFacetedMutation.class, new ToGrpc((b, m) -> b.setSetReferenceSchemaFacetedMutation((GrpcSetReferenceSchemaFacetedMutation) m), new SetReferenceSchemaFacetedMutationConverter()));
-		TO_GRPC_CONVERTERS.put(SetReferenceSchemaFilterableMutation.class, new ToGrpc((b, m) -> b.setSetReferenceSchemaIndexedMutation((GrpcSetReferenceSchemaFilterableMutation) m), new SetReferenceSchemaFilterableMutationConverter()));
+		TO_GRPC_CONVERTERS.put(SetReferenceSchemaIndexedMutation.class, new ToGrpc((b, m) -> b.setSetReferenceSchemaIndexedMutation((GrpcSetReferenceSchemaFilterableMutation) m), new SetReferenceSchemaFilterableMutationConverter()));
 
 		TO_JAVA_CONVERTERS = createHashMap(50);
 		// associated data schema mutations

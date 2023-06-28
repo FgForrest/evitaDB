@@ -27,7 +27,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.ReferenceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 
@@ -46,10 +46,10 @@ abstract class ReferenceMutationConverter<M extends ReferenceMutation<?>> extend
 	}
 
 	@Nonnull
-	protected ReferenceKey resolveReferenceKey(@Nonnull InputMutation inputMutation) {
+	protected ReferenceKey resolveReferenceKey(@Nonnull Input input) {
 		return new ReferenceKey(
-			inputMutation.getRequiredField(ReferenceMutationDescriptor.NAME),
-			inputMutation.getRequiredField(ReferenceMutationDescriptor.PRIMARY_KEY)
+			input.getRequiredField(ReferenceMutationDescriptor.NAME),
+			input.getRequiredField(ReferenceMutationDescriptor.PRIMARY_KEY)
 		);
 	}
 }

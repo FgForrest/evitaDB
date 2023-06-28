@@ -31,6 +31,9 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
 
+import java.util.Arrays;
+import java.util.Comparator;
+
 /**
  * This {@link Serializer} implementation reads/writes {@link ReferencesStoragePart} from/to binary format.
  *
@@ -44,6 +47,13 @@ public class ReferencesStoragePartSerializer extends Serializer<ReferencesStorag
 
 		final ReferenceContract[] references = object.getReferences();
 		output.writeVarInt(references.length, true);
+		// we need to sort the references here in order to allow LinkedHashMap in Entity/EntityDecorator implementation
+		// and still have deterministic tests
+		Arrays.sort(
+			references,
+			Comparator.comparing(ReferenceContract::getReferenceName)
+				.thenComparingInt(ReferenceContract::getReferencedPrimaryKey)
+		);
 		for (ReferenceContract reference : references) {
 			kryo.writeObject(output, reference);
 		}

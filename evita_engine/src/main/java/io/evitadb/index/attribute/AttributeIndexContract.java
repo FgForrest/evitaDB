@@ -26,6 +26,7 @@ package io.evitadb.index.attribute;
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.store.model.StoragePart;
 
 import javax.annotation.Nonnull;
@@ -33,6 +34,7 @@ import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * AttributeIndexContract describes the API of {@link AttributeIndex} that maintains data structures for fast accessing
@@ -102,8 +104,37 @@ public interface AttributeIndexContract {
 	 * @throws IllegalArgumentException when passed value doesn't match the filterable value associated with the record key
 	 */
 	void removeSortAttribute(
-		@Nonnull AttributeSchemaContract attributeSchema, @Nonnull Set<Locale> allowedLocales, @Nullable Locale locale,
-		@Nonnull Object value, int recordId
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Object value,
+		int recordId
+	);
+
+	/**
+	 * Method inserts new sortable attribute compound to the index. Compound is an array of existing attribute values
+	 * that are sorted according to {@link SortableAttributeCompoundSchemaContract#getAttributeElements()} descriptor.
+	 */
+	void insertSortAttributeCompound(
+		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
+		@Nonnull Function<String, Class<?>> attributeTypeProvider,
+		@Nullable Locale locale,
+		@Nonnull Object[] value,
+		int recordId
+	);
+
+	/**
+	 * Method removes existing sortable attribute compound from the index. Compound is an array of existing attribute
+	 * values that are sorted according to {@link SortableAttributeCompoundSchemaContract#getAttributeElements()}
+	 * descriptor.
+	 *
+	 * @throws IllegalArgumentException when passed value doesn't match the value associated with the record key
+	 */
+	void removeSortAttributeCompound(
+		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
+		@Nullable Locale locale,
+		@Nonnull Object[] value,
+		int recordId
 	);
 
 	/**

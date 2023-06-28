@@ -31,7 +31,9 @@ import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.store.dataType.serializer.HeterogeneousMapSerializer;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
@@ -83,6 +85,12 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 		} else {
 			output.writeBoolean(false);
 		}
+
+		final Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds = entitySchema.getSortableAttributeCompounds();
+		output.writeVarInt(sortableAttributeCompounds.size(), true);
+		for (SortableAttributeCompoundSchemaContract sortableAttributeCompound : sortableAttributeCompounds.values()) {
+			kryo.writeObject(output, sortableAttributeCompound);
+		}
 	}
 
 	@Override
@@ -109,6 +117,17 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 		@SuppressWarnings("unchecked") final Set<EvolutionMode> evolutionMode = kryo.readObject(input, Set.class);
 		final String description = input.readBoolean() ? input.readString() : null;
 		final String deprecationNotice = input.readBoolean() ? input.readString() : null;
+
+		final int sortableAttributeCompoundsCount = input.readVarInt(true);
+		final Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds = CollectionUtils.createHashMap(sortableAttributeCompoundsCount);
+		for (int i = 0; i < sortableAttributeCompoundsCount; i++) {
+			final SortableAttributeCompoundSchema compoundSchemaContract = kryo.readObject(input, SortableAttributeCompoundSchema.class);
+			sortableAttributeCompounds.put(
+				compoundSchemaContract.getName(),
+				compoundSchemaContract
+			);
+		}
+
 		return EntitySchema._internalBuild(
 			version,
 			entityName, nameVariants, description, deprecationNotice,
@@ -119,7 +138,8 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 			attributeSchema,
 			associatedDataSchema,
 			referenceSchema,
-			evolutionMode
+			evolutionMode,
+			sortableAttributeCompounds
 		);
 	}
 

@@ -23,28 +23,35 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema;
 
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
@@ -150,10 +157,38 @@ class EntitySchemaConverterTest {
 							Long[].class,
 							false
 						)
+					),
+					Map.of(
+						"compound1",
+						SortableAttributeCompoundSchema._internalBuild(
+							"compound1", "This is compound 1", null,
+							Arrays.asList(
+								new AttributeElement("code", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
+								new AttributeElement("name", OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
+							)
+						),
+						"compound2",
+						SortableAttributeCompoundSchema._internalBuild(
+							"compound2", "This is compound 2", null,
+							Arrays.asList(
+								new AttributeElement("name", OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
+								new AttributeElement("age", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST)
+							)
+						)
 					)
 				)
 			),
-			Set.of(EvolutionMode.ADDING_ASSOCIATED_DATA, EvolutionMode.ADDING_ATTRIBUTES)
+			Set.of(EvolutionMode.ADDING_ASSOCIATED_DATA, EvolutionMode.ADDING_ATTRIBUTES),
+			Map.of(
+				"compound1",
+				SortableAttributeCompoundSchema._internalBuild(
+					"compound1", "This is compound 1", null,
+					Arrays.asList(
+						new AttributeElement("code", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
+						new AttributeElement("name", OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
+					)
+				)
+			)
 		);
 	}
 
@@ -171,10 +206,15 @@ class EntitySchemaConverterTest {
 		assertEquals(expected.getLocales(), actual.getLocales());
 		assertEquals(expected.getCurrencies(), actual.getCurrencies());
 		assertEquals(expected.getEvolutionMode(), actual.getEvolutionMode());
+		assertEquals(expected.getSortableAttributeCompounds(), actual.getSortableAttributeCompounds());
 
 		assertEquals(expected.getAttributes().size(), actual.getAttributes().size());
 		expected.getAttributes().forEach((attributeName, attribute) ->
 			assertAttributeSchema(attribute, actual.getAttribute(attributeName).orElseThrow()));
+
+		assertEquals(expected.getSortableAttributeCompounds().size(), actual.getSortableAttributeCompounds().size());
+		expected.getSortableAttributeCompounds().forEach((compoundName, compound) ->
+			assertSortableAttributeCompoundSchema(compound, actual.getSortableAttributeCompound(compoundName).orElseThrow()));
 
 		assertEquals(expected.getAssociatedData().size(), actual.getAssociatedData().size());
 		expected.getAssociatedData().forEach((associatedDataName, associatedData) ->
@@ -206,6 +246,16 @@ class EntitySchemaConverterTest {
 		assertEquals(expected.getIndexedDecimalPlaces(), actual.getIndexedDecimalPlaces());
 	}
 
+	private static void assertSortableAttributeCompoundSchema(@Nonnull SortableAttributeCompoundSchemaContract expected, @Nonnull SortableAttributeCompoundSchemaContract actual) {
+		assertEquals(expected.getClass(), actual.getClass());
+
+		assertEquals(expected.getName(), actual.getName());
+		assertEquals(expected.getDescription(), actual.getDescription());
+		assertEquals(expected.getNameVariants(), actual.getNameVariants());
+		assertEquals(expected.getDeprecationNotice(), actual.getDeprecationNotice());
+		assertArrayEquals(expected.getAttributeElements().toArray(), actual.getAttributeElements().toArray());
+	}
+
 	private static void assertAssociatedDataSchema(@Nonnull AssociatedDataSchemaContract expected, @Nonnull AssociatedDataSchemaContract actual) {
 		assertEquals(expected.getName(), actual.getName());
 		assertEquals(expected.getDescription(), actual.getDescription());
@@ -226,8 +276,9 @@ class EntitySchemaConverterTest {
 		assertEquals(expected.isReferencedEntityTypeManaged(), actual.isReferencedEntityTypeManaged());
 		assertEquals(expected.getReferencedGroupType(), actual.getReferencedGroupType());
 		assertEquals(expected.isReferencedGroupTypeManaged(), actual.isReferencedGroupTypeManaged());
-		assertEquals(expected.isFilterable(), actual.isFilterable());
+		assertEquals(expected.isIndexed(), actual.isIndexed());
 		assertEquals(expected.isFaceted(), actual.isFaceted());
+		assertEquals(expected.getSortableAttributeCompounds(), actual.getSortableAttributeCompounds());
 
 		assertEquals(expected.getAttributes().size(), actual.getAttributes().size());
 		expected.getAttributes().forEach((attributeName, attribute) ->

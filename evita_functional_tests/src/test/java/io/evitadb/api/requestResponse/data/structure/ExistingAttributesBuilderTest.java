@@ -85,7 +85,7 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 		final Attributes newVersion = builder.build();
 
 		assertEquals(Integer.valueOf(10), newVersion.getAttribute("int"));
-		assertEquals(2L, newVersion.getAttributeValue(new AttributeKey("int")).getVersion());
+		assertEquals(2L, newVersion.getAttributeValue(new AttributeKey("int")).orElseThrow().getVersion());
 		assertEquals(Integer.valueOf(1), initialAttributes.getAttribute("int"));
 	}
 
@@ -132,7 +132,7 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 		final Attributes newVersion = builder.build();
 
 		assertEquals(Integer.valueOf(1), newVersion.getAttribute("int"));
-		final AttributeValue attributeValue = newVersion.getAttributeValue(new AttributeKey("int"));
+		final AttributeValue attributeValue = newVersion.getAttributeValue(new AttributeKey("int")).orElseThrow();
 		assertEquals(2L, attributeValue.getVersion());
 		assertTrue(attributeValue.isDropped());
 
@@ -146,17 +146,17 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 
 		assertNull(builder.getAttribute("greetings", Locale.GERMAN));
 		assertEquals("Hello", builder.getAttribute("greetings", Locale.ENGLISH));
-		assertEquals(1L, initialAttributes.getAttributeValue(new AttributeKey("greetings", Locale.GERMAN)).getVersion());
-		assertEquals(1L, initialAttributes.getAttributeValue(new AttributeKey("greetings", Locale.ENGLISH)).getVersion());
+		assertEquals(1L, initialAttributes.getAttributeValue(new AttributeKey("greetings", Locale.GERMAN)).orElseThrow().getVersion());
+		assertEquals(1L, initialAttributes.getAttributeValue(new AttributeKey("greetings", Locale.ENGLISH)).orElseThrow().getVersion());
 
 		final Attributes newVersion = builder.build();
 
 		assertEquals("Tschüss", newVersion.getAttribute("greetings", Locale.GERMAN));
-		final AttributeValue germanGreeting = newVersion.getAttributeValue(new AttributeKey("greetings", Locale.GERMAN));
+		final AttributeValue germanGreeting = newVersion.getAttributeValue(new AttributeKey("greetings", Locale.GERMAN)).orElseThrow();
 		assertEquals(2L, germanGreeting.getVersion());
 		assertTrue(germanGreeting.isDropped());
 
-		final AttributeValue englishGreeting = newVersion.getAttributeValue(new AttributeKey("greetings", Locale.ENGLISH));
+		final AttributeValue englishGreeting = newVersion.getAttributeValue(new AttributeKey("greetings", Locale.ENGLISH)).orElseThrow();
 		assertEquals("Hello", newVersion.getAttribute("greetings", Locale.ENGLISH));
 		assertEquals(1L, englishGreeting.getVersion());
 		assertFalse(englishGreeting.isDropped());
@@ -262,9 +262,9 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 
 		assertEquals(2, newAttrs.getAttributeKeys().size());
 		assertEquals("Hello", newAttrs.getAttribute("string"));
-		assertEquals(2, newAttrs.getAttributeValue(new AttributeKey("string")).getVersion());
+		assertEquals(2, newAttrs.getAttributeValue(new AttributeKey("string")).orElseThrow().getVersion());
 		assertEquals(Integer.valueOf(7), newAttrs.getAttribute("int", Locale.ENGLISH));
-		assertEquals(2, newAttrs.getAttributeValue(new AttributeKey("int", Locale.ENGLISH)).getVersion());
+		assertEquals(2, newAttrs.getAttributeValue(new AttributeKey("int", Locale.ENGLISH)).orElseThrow().getVersion());
 		assertNull(newAttrs.getAttribute("int", Locale.GERMAN));
 	}
 

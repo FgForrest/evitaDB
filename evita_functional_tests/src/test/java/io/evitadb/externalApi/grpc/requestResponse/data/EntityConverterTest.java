@@ -23,16 +23,20 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.data;
 
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity;
 import io.evitadb.externalApi.grpc.generated.GrpcPrice;
@@ -45,6 +49,7 @@ import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.Map;
@@ -130,7 +135,17 @@ class EntityConverterTest {
 				"test1", ReferenceSchema._internalBuild("test1", Entities.PARAMETER, true, Cardinality.ZERO_OR_MORE, Entities.PARAMETER_GROUP, false, true, true),
 				"test2", ReferenceSchema._internalBuild("test2", Entities.CATEGORY, false, Cardinality.ONE_OR_MORE, null, false, true, true)
 			),
-			Set.of(EvolutionMode.ADDING_ASSOCIATED_DATA, EvolutionMode.ADDING_ATTRIBUTES)
+			Set.of(EvolutionMode.ADDING_ASSOCIATED_DATA, EvolutionMode.ADDING_ATTRIBUTES),
+			Map.of(
+				"compoundAttribute",
+				SortableAttributeCompoundSchema._internalBuild(
+					"compoundAttribute", "This is compound attribute", null,
+					Arrays.asList(
+						new AttributeElement("test1", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
+						new AttributeElement("test2", OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
+					)
+				)
+			)
 		);
 	}
 }

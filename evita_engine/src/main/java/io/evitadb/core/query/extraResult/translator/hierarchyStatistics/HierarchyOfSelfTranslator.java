@@ -78,7 +78,9 @@ public class HierarchyOfSelfTranslator
 		final Sorter sorter = hierarchyOfSelf.getOrderBy()
 			.map(
 				it -> extraResultPlanner.createSorter(
-					it, globalIndex,
+					it,
+					globalIndex,
+					queriedEntityType,
 					() -> "Hierarchy statistics of `" + entitySchema.getName() + "`: " + it
 				)
 			)

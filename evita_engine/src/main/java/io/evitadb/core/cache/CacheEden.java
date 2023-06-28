@@ -35,6 +35,7 @@ import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
+import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.array.CompositeLongArray;
 import io.evitadb.utils.StringUtils;
@@ -174,6 +175,8 @@ public class CacheEden {
 					return alterToResultRecordingFormula(recordHash, cachedRecord, hashFunction, inputFormula);
 				} else if (computationalObject instanceof final CacheableEvitaResponseExtraResultComputer<?> inputComputer) {
 					return alterToResultRecordingComputer(recordHash, cachedRecord, hashFunction, inputComputer);
+				} else if (computationalObject instanceof final CacheableSorter sortedRecordsProvider) {
+					return alterToSortedRecordsProvider(recordHash, cachedRecord, hashFunction, sortedRecordsProvider);
 				} else if (computationalObject instanceof final EntityComputationalObjectAdapter entityWrapper) {
 					return fetchAndCacheEntity(recordHash, cachedRecord, hashFunction, entityWrapper);
 				} else {
@@ -395,7 +398,7 @@ public class CacheEden {
 	 */
 	@Nonnull
 	private <S> S alterToResultRecordingComputer(long recordHash, @Nonnull CachedRecord cachedRecord, @Nonnull LongHashFunction hashFunction, @Nonnull CacheableEvitaResponseExtraResultComputer<?> inputComputer) {
-		// otherwise, clone input formula and add logic, that will store the computed result to the cache
+		// otherwise, clone input computer and add logic, that will store the computed result to the cache
 		//noinspection unchecked
 		return (S) inputComputer.getCloneWithComputationCallback(
 			cacheableFormula -> {
@@ -408,6 +411,32 @@ public class CacheEden {
 						cachedRecord.getTimesUsed(),
 						cachedRecord.getSizeInBytes(),
 						inputComputer.computeTransactionalIdHash(hashFunction),
+						payload
+					)
+				);
+			}
+		);
+	}
+
+	/**
+	 * Method will replace the `sorter` with a clone that captures the result and store it to the eden
+	 * cache for future requests.
+	 */
+	@Nonnull
+	private <S> S alterToSortedRecordsProvider(long recordHash, @Nonnull CachedRecord cachedRecord, @Nonnull LongHashFunction hashFunction, @Nonnull CacheableSorter sorter) {
+		// otherwise, clone input computer and add logic, that will store the computed result to the cache
+		//noinspection unchecked
+		return (S) sorter.getCloneWithComputationCallback(
+			cacheableFormula -> {
+				final CachePayloadHeader payload = sorter.toSerializableResult(recordHash, hashFunction);
+				theCache.put(
+					recordHash,
+					new CachedRecord(
+						cachedRecord.getRecordHash(),
+						cachedRecord.getCostToPerformanceRatio(),
+						cachedRecord.getTimesUsed(),
+						cachedRecord.getSizeInBytes(),
+						sorter.computeTransactionalIdHash(hashFunction),
 						payload
 					)
 				);

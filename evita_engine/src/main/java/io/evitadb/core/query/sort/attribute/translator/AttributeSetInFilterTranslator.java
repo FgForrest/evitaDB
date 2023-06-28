@@ -35,10 +35,12 @@ import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.AttributeExactSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.index.EntityIndex;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 
@@ -51,7 +53,7 @@ public class AttributeSetInFilterTranslator implements OrderingConstraintTransla
 
 	@Nonnull
 	@Override
-	public Sorter createSorter(@Nonnull AttributeSetInFilter attributeSetInFilter, @Nonnull OrderByVisitor orderByVisitor) {
+	public Stream<Sorter> createSorter(@Nonnull AttributeSetInFilter attributeSetInFilter, @Nonnull OrderByVisitor orderByVisitor) {
 		final String attributeName = attributeSetInFilter.getAttributeName();
 		final ProcessingScope processingScope = orderByVisitor.getProcessingScope();
 		final AttributeSchemaContract attributeSchema = processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE);
@@ -69,21 +71,23 @@ public class AttributeSetInFilterTranslator implements OrderingConstraintTransla
 
 		// if prefetch happens we need to prefetch attributes so that the attribute comparator can work
 		orderByVisitor.addRequirementToPrefetch(attributeContentAll());
-		@SuppressWarnings("SuspiciousToArrayCall")
-		final AttributeExactSorter sorter = new AttributeExactSorter(
-			attributeName,
-			Arrays.stream(attributeInSet.getAttributeValues())
-				.map(it -> EvitaDataTypes.toTargetType(it, attributeSchema.getPlainType()))
-				.toArray(Comparable[]::new),
-			orderByVisitor.getIndexForSort().getSortIndex(attributeName, orderByVisitor.getLocale())
+		final EntityIndex[] indexForSort = orderByVisitor.getIndexesForSort();
+
+		Assert.isTrue(
+			indexForSort.length == 1,
+			"Expected exactly one index for sorting, but " + indexForSort.length + " were found."
 		);
 
-		final Sorter lastUsedSorter = orderByVisitor.getLastUsedSorter();
-		if (lastUsedSorter == null) {
-			return sorter;
-		} else {
-			return lastUsedSorter.andThen(sorter);
-		}
+		//noinspection SuspiciousToArrayCall
+		return Stream.of(
+			new AttributeExactSorter(
+				attributeName,
+				Arrays.stream(attributeInSet.getAttributeValues())
+					.map(it -> EvitaDataTypes.toTargetType(it, attributeSchema.getPlainType()))
+					.toArray(Comparable[]::new),
+				indexForSort[0].getSortIndex(attributeName, orderByVisitor.getLocale())
+			)
+		);
 	}
 
 }

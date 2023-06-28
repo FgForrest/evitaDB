@@ -175,7 +175,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       entityType_ = s;
@@ -191,7 +191,7 @@ private static final long serialVersionUID = 0L;
       getEntityTypeBytes() {
     java.lang.Object ref = entityType_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       entityType_ = b;
@@ -794,7 +794,7 @@ private static final long serialVersionUID = 0L;
         getEntityTypeBytes() {
       java.lang.Object ref = entityType_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         entityType_ = b;
@@ -813,7 +813,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-
+  
       entityType_ = value;
       onChanged();
       return this;
@@ -823,7 +823,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearEntityType() {
-
+      
       entityType_ = getDefaultInstance().getEntityType();
       onChanged();
       return this;
@@ -839,7 +839,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-
+      
       entityType_ = value;
       onChanged();
       return this;
@@ -860,7 +860,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setPrimaryKey(int value) {
-
+      
       primaryKey_ = value;
       onChanged();
       return this;
@@ -870,7 +870,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearPrimaryKey() {
-
+      
       primaryKey_ = 0;
       onChanged();
       return this;
@@ -891,7 +891,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setSchemaVersion(int value) {
-
+      
       schemaVersion_ = value;
       onChanged();
       return this;
@@ -901,7 +901,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearSchemaVersion() {
-
+      
       schemaVersion_ = 0;
       onChanged();
       return this;
@@ -925,7 +925,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-
+  
       entityStoragePart_ = value;
       onChanged();
       return this;
@@ -935,7 +935,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearEntityStoragePart() {
-
+      
       entityStoragePart_ = getDefaultInstance().getEntityStoragePart();
       onChanged();
       return this;
@@ -1129,7 +1129,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-
+  
       priceStoragePart_ = value;
       onChanged();
       return this;
@@ -1139,7 +1139,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearPriceStoragePart() {
-
+      
       priceStoragePart_ = getDefaultInstance().getPriceStoragePart();
       onChanged();
       return this;
@@ -1163,7 +1163,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-
+  
       referenceStoragePart_ = value;
       onChanged();
       return this;
@@ -1173,7 +1173,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearReferenceStoragePart() {
-
+      
       referenceStoragePart_ = getDefaultInstance().getReferenceStoragePart();
       onChanged();
       return this;

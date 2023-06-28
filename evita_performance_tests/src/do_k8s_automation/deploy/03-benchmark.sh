@@ -55,51 +55,15 @@ function run_jobs {
             | sed -e "s/__BENCHMARK_REQ_CPU__/${BENCHMARK_K8S_REQUEST_CPU:-0}/g" \
             | sed -e "s/__BENCHMARK_LIM_CPU__/${BENCHMARK_K8S_LIMIT_CPU:-0}/g" \
             | sed -e "s/__ARG_EXTRA_JAVA_OPTS__/${EXTRA_JAVA_OPTS}/g" \
+            | sed -e "s|__BENCH_IMAGE__|${BENCH_IMAGE:-evitadb/evitadb:benchmark}|g" \
             > k8s.yml
 
         ## run job
         banner "START: $IMG"
-        kubectl apply -f k8s.yml
+        kubectl apply -f k8s.yml; rc="$?"
         ## get container limits
         kubectl get jobs --selector=job-name=${K8S_JOB_NAME} -o jsonpath-as-json="{.items[*].spec.template.spec.containers[*]['name','resources','args']}" || :
-
-        ## wait
-        banner "WAIT: $IMG"
-        TL=0
-        while [ "1" = "1" ]; do
-            kubectl wait --timeout=10s --for=condition=complete "job/${K8S_JOB_NAME}" >/dev/null 2>&1 && { rc=0; break; } || :
-            kubectl wait --timeout=0s  --for=condition=failed   "job/${K8S_JOB_NAME}" >/dev/null 2>&1 && { rc=1; break; } || :
-
-            set +x ## do not log the progress loop
-            TN="$(date '+%s')"
-            if [[ "$(( TN - TL ))" -ge 300 ]]; then
-                TL="$TN"
-                separator "progress"
-                kubectl get "job/${K8S_JOB_NAME}" || { rc=1; break; }
-                for POD in $(kubectl get pods --selector=job-name=${K8S_JOB_NAME} --output=jsonpath='{.items[*].metadata.name}'); do
-                    kubectl get "pod/$POD" || { rc=1; break; }
-                    kubectl logs "$POD" --tail=10 || { rc=1; break; }
-                done
-            fi
-        done
-        banner "FINISHED: RC=$rc - $IMG" ## with set -x
-        kubectl get events --sort-by=.metadata.creationTimestamp || :
-
-        ## get logs
-        banner "LOGS: $IMG"
-        kubectl get "job/${K8S_JOB_NAME}" || :
-        for POD in $(kubectl get pods --selector=job-name=${K8S_JOB_NAME} --output=jsonpath='{.items[*].metadata.name}'); do
-            kubectl get "pod/$POD" || :
-            kubectl logs "$POD" || :
-        done
-
-        ## fail early
-        if [ "$rc" = "0" ]; then
-            echo "Job finished"
-        else
-            echo "Job failed"
-            break
-        fi
+        
     done
 
     return "$rc"
@@ -124,6 +88,10 @@ kubectl create configmap benchmark \
     \
     "--from-literal=JMH_ARGS=$JMH_ARGS" \
     "--from-literal=BENCHMARK_SELECTOR=$BENCHMARK_SELECTOR" \
+    \
+    "--from-literal=DATASET=$DATASET" \
+    \
+    "--from-literal=GH_ACTION=$GH_ACTION"
     ## end
 
 ## secret values
@@ -138,7 +106,7 @@ kill_jobs
 banner "RUN JOBS: $IMAGES"
 run_jobs; rc="$?"
 
-banner "CLEANUP"
-kubectl delete secret/benchmark
+# banner "CLEANUP"
+# kubectl delete secret/benchmark
 
 exit "$rc"

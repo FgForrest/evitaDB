@@ -41,6 +41,7 @@ import io.evitadb.core.query.algebra.price.termination.SumPriceTerminationFormul
 import io.evitadb.core.query.algebra.price.translate.PriceIdToEntityIdTranslateFormula;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.AttributeHistogramComputer;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramComputer;
+import io.evitadb.core.query.sort.attribute.MergedSortedRecordsSupplier;
 import io.evitadb.index.histogram.suppliers.HistogramBitmapSupplier;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.performance.spike.mock.BucketsRecordState;
@@ -49,13 +50,18 @@ import io.evitadb.performance.spike.mock.InnerRecordIdsWithPriceRecordsRecordSta
 import io.evitadb.performance.spike.mock.IntegerBitmapState;
 import io.evitadb.performance.spike.mock.PriceBucketRecordState;
 import io.evitadb.performance.spike.mock.PriceIdsWithPriceRecordsRecordState;
+import io.evitadb.performance.spike.mock.SortedRecordProvidersSetState;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.Threads;
+import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 import java.util.Currency;
+import java.util.concurrent.TimeUnit;
 
 /**
  * This spike test tries to test how fast are formulas.
@@ -78,6 +84,7 @@ import java.util.Currency;
  * FormulaCostMeasurement.priceIdContainer                        thrpt    2      483.873          ops/s
  * FormulaCostMeasurement.priceIdToEntityIdTranslate              thrpt    2      283.536          ops/s
  * FormulaCostMeasurement.sumPriceTermination                     thrpt    2       55.321          ops/s
+ * FormulaCostMeasurement.mergedSortedRecordsSupplier             thrpt    2       50.794          ops/s
  *
  * Benchmark                                                       Mode  Cnt        Score   Error  Units
  * FormulaCostMeasurement.roaringBitmapWithRandomFar              thrpt    2      374.028          ops/s
@@ -87,6 +94,11 @@ import java.util.Currency;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@BenchmarkMode(Mode.Throughput)
+@Threads(1)
+@Warmup(iterations = 2)
+@Fork(1)
+@Measurement(iterations = 2, time = 1, timeUnit = TimeUnit.MINUTES)
 public class FormulaCostMeasurement {
 
 	public static void main(String[] args) throws Exception {
@@ -94,8 +106,6 @@ public class FormulaCostMeasurement {
 	}
 
 	@Benchmark
-	@Threads(1)
-	@BenchmarkMode({Mode.Throughput})
 	public void andFormulaInteger(IntegerBitmapState bitmapDataSet, Blackhole blackhole) {
 		blackhole.consume(
 			new AndFormula(
@@ -107,12 +117,10 @@ public class FormulaCostMeasurement {
 	}
 
 	@Benchmark
-	@Threads(1)
-	@BenchmarkMode({Mode.Throughput})
 	public void orFormulaInteger(IntegerBitmapState bitmapDataSet, Blackhole blackhole) {
 		blackhole.consume(
 			new OrFormula(
-				new long[] {1L},
+				new long[]{1L},
 				bitmapDataSet.getBitmapA(),
 				bitmapDataSet.getBitmapB()
 			).compute()
@@ -120,8 +128,6 @@ public class FormulaCostMeasurement {
 	}
 
 	@Benchmark
-	@Threads(1)
-	@BenchmarkMode({Mode.Throughput})
 	public void notFormulaInteger(IntegerBitmapState bitmapDataSet, Blackhole blackhole) {
 		blackhole.consume(
 			new NotFormula(
@@ -132,8 +138,6 @@ public class FormulaCostMeasurement {
 	}
 
 	@Benchmark
-	@Threads(1)
-	@BenchmarkMode({Mode.Throughput})
 	public void joinFormula(IntegerBitmapState bitmapDataSet, Blackhole blackhole) {
 		blackhole.consume(
 			new JoinFormula(
@@ -145,8 +149,6 @@ public class FormulaCostMeasurement {
 	}
 
 	@Benchmark
-	@Threads(1)
-	@BenchmarkMode({Mode.Throughput})
 	public void disentangleFormula(IntegerBitmapState bitmapDataSet, Blackhole blackhole) {
 		blackhole.consume(
 			new DisentangleFormula(
@@ -157,8 +159,6 @@ public class FormulaCostMeasurement {
 	}
 
 	@Benchmark
-	@Threads(1)
-	@BenchmarkMode({Mode.Throughput})
 	public void priceIdContainer(PriceIdsWithPriceRecordsRecordState priceDataSet, Blackhole blackhole) {
 		final PriceIdContainerFormula testedFormula = new PriceIdContainerFormula(
 			priceDataSet.getPriceIndex(),
@@ -169,8 +169,6 @@ public class FormulaCostMeasurement {
 	}
 
 	@Benchmark
-	@Threads(1)
-	@BenchmarkMode({Mode.Throughput})
 	public void priceIdToEntityIdTranslate(PriceIdsWithPriceRecordsRecordState priceDataSet, Blackhole blackhole) {
 		final PriceIdToEntityIdTranslateFormula testedFormula = new PriceIdToEntityIdTranslateFormula(priceDataSet.getPriceIdsFormula());
 		blackhole.consume(testedFormula.compute());
@@ -178,8 +176,6 @@ public class FormulaCostMeasurement {
 	}
 
 	@Benchmark
-	@Threads(1)
-	@BenchmarkMode({Mode.Throughput})
 	public void plainPriceTermination(EntityIdsWithPriceRecordsRecordState priceDataSet, Blackhole blackhole) {
 		final PlainPriceTerminationFormula testedFormula = new PlainPriceTerminationFormula(
 			new PriceHandlingContainerFormula(
@@ -194,8 +190,6 @@ public class FormulaCostMeasurement {
 	}
 
 	@Benchmark
-	@Threads(1)
-	@BenchmarkMode({Mode.Throughput})
 	public void plainPriceTerminationWithPriceFilter(EntityIdsWithPriceRecordsRecordState priceDataSet, Blackhole blackhole) {
 		final PlainPriceTerminationFormulaWithPriceFilter testedFormula = new PlainPriceTerminationFormulaWithPriceFilter(
 			new PriceHandlingContainerFormula(
@@ -211,8 +205,6 @@ public class FormulaCostMeasurement {
 	}
 
 	@Benchmark
-	@Threads(1)
-	@BenchmarkMode({Mode.Throughput})
 	public void firstVariantPriceTermination(InnerRecordIdsWithPriceRecordsRecordState priceDataSet, Blackhole blackhole) {
 		final FirstVariantPriceTerminationFormula testedFormula = new FirstVariantPriceTerminationFormula(
 			new PriceHandlingContainerFormula(
@@ -229,8 +221,6 @@ public class FormulaCostMeasurement {
 	}
 
 	@Benchmark
-	@Threads(1)
-	@BenchmarkMode({Mode.Throughput})
 	public void sumPriceTermination(InnerRecordIdsWithPriceRecordsRecordState priceDataSet, Blackhole blackhole) {
 		final SumPriceTerminationFormula testedFormula = new SumPriceTerminationFormula(
 			new PriceHandlingContainerFormula(
@@ -247,8 +237,6 @@ public class FormulaCostMeasurement {
 	}
 
 	@Benchmark
-	@Threads(1)
-	@BenchmarkMode({Mode.Throughput})
 	public void histogramBitmapSupplier(BucketsRecordState bucketDataSet, Blackhole blackhole) {
 		final HistogramBitmapSupplier<Integer> testedFormula = new HistogramBitmapSupplier<>(
 			bucketDataSet.getBuckets()
@@ -257,8 +245,6 @@ public class FormulaCostMeasurement {
 	}
 
 	@Benchmark
-	@Threads(1)
-	@BenchmarkMode({Mode.Throughput})
 	public void attributeHistogramComputer(BucketsRecordState bucketDataSet, Blackhole blackhole) {
 		final AttributeHistogramComputer testedFormula = new AttributeHistogramComputer(
 			"test histogram",
@@ -270,8 +256,6 @@ public class FormulaCostMeasurement {
 	}
 
 	@Benchmark
-	@Threads(1)
-	@BenchmarkMode({Mode.Throughput})
 	public void priceHistogramComputer(PriceBucketRecordState bucketDataSet, Blackhole blackhole) {
 		final PriceHistogramComputer testedFormula = new PriceHistogramComputer(
 			40, 2, QueryPriceMode.WITH_TAX,
@@ -281,6 +265,14 @@ public class FormulaCostMeasurement {
 			null
 		);
 		blackhole.consume(testedFormula.compute());
+	}
+
+	@Benchmark
+	public void mergedSortedRecordsSupplier(SortedRecordProvidersSetState sortedRecordProvidersSet, Blackhole blackhole) {
+		final MergedSortedRecordsSupplier testedFormula = new MergedSortedRecordsSupplier(
+			sortedRecordProvidersSet.getProviders(), null
+		);
+		blackhole.consume(testedFormula.getSortedRecordsProvider());
 	}
 
 }

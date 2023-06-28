@@ -118,12 +118,15 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 			final QueryContext queryContext = filterByVisitor.getQueryContext();
 			return FormulaFactory.or(
 				StreamSupport.stream(hierarchyNodesFormula.compute().spliterator(), false)
-					.map(hierarchyNodeId -> (EntityIndex) queryContext.getIndex(
-						new EntityIndexKey(
-							EntityIndexType.REFERENCED_HIERARCHY_NODE,
-							new ReferenceKey(referenceName, hierarchyNodeId)
-						)
-					))
+					.map(
+						hierarchyNodeId -> queryContext.getIndex(
+							new EntityIndexKey(
+								EntityIndexType.REFERENCED_HIERARCHY_NODE,
+								new ReferenceKey(referenceName, hierarchyNodeId)
+							)
+						).orElse(null)
+					)
+					.map(EntityIndex.class::cast)
 					.filter(Objects::nonNull)
 					.map(EntityIndex::getAllPrimaryKeysFormula)
 					.toArray(Formula[]::new)

@@ -173,14 +173,14 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 		} else if (localMutation instanceof RemoveAttributeMutation removeAttributeMutation) {
 			final AttributeKey attributeKey = removeAttributeMutation.getAttributeKey();
 			verifyAttributeExists(attributeKey);
-			if (this.baseAttributes.getAttributeValue(attributeKey) == null) {
+			if (this.baseAttributes.getAttributeValue(attributeKey).isEmpty()) {
 				this.attributeMutations.remove(attributeKey);
 			} else {
 				this.attributeMutations.put(attributeKey, removeAttributeMutation);
 			}
 		} else if (localMutation instanceof ApplyDeltaAttributeMutation<?> applyDeltaAttributeMutation) {
 			final AttributeKey attributeKey = applyDeltaAttributeMutation.getAttributeKey();
-			final AttributeValue attributeValue = ofNullable(this.baseAttributes.getAttributeValue(attributeKey))
+			final AttributeValue attributeValue = this.baseAttributes.getAttributeValue(attributeKey)
 				.map(
 					it -> ofNullable(this.attributeMutations.get(attributeKey))
 						.map(x -> x.mutateLocal(entitySchema, it))
@@ -422,6 +422,12 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 			.collect(Collectors.toSet());
 	}
 
+	@Nonnull
+	@Override
+	public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
+		return getAttributeValueInternal(attributeKey);
+	}
+
 	/**
 	 * Builds attribute list based on registered mutations and previous state.
 	 */
@@ -511,7 +517,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	 */
 	private void verifyAttributeExists(AttributeKey attributeKey) {
 		Assert.isTrue(
-			baseAttributes.getAttributeValue(attributeKey) != null || attributeMutations.get(attributeKey) instanceof UpsertAttributeMutation,
+			baseAttributes.getAttributeValue(attributeKey).isPresent() || attributeMutations.get(attributeKey) instanceof UpsertAttributeMutation,
 			"Attribute `" + attributeKey + "` doesn't exist!"
 		);
 	}

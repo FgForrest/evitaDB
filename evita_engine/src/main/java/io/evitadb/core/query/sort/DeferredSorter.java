@@ -49,6 +49,12 @@ public class DeferredSorter implements Sorter {
 		return new DeferredSorter(sorter.andThen(sorterForUnknownRecords), executionWrapper);
 	}
 
+	@Nonnull
+	@Override
+	public Sorter cloneInstance() {
+		return new DeferredSorter(sorter.cloneInstance(), executionWrapper);
+	}
+
 	@Nullable
 	@Override
 	public Sorter getNextSorter() {
@@ -58,7 +64,10 @@ public class DeferredSorter implements Sorter {
 	@Nonnull
 	@Override
 	public int[] sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex) {
-		return executionWrapper.apply(() -> sorter.sortAndSlice(queryContext, input, startIndex, endIndex));
+		return executionWrapper.apply(
+			() -> ConditionalSorter.getFirstApplicableSorter(sorter, queryContext)
+				.sortAndSlice(queryContext, input, startIndex, endIndex)
+		);
 	}
 
 }

@@ -1,0 +1,25 @@
+query(
+    collection('Product'),
+    filterBy(
+        referenceHaving(
+            'brand',
+            entityHaving(
+                attributeEquals('code','sony')
+            )
+        )
+    ),
+    orderBy(
+        referenceProperty(
+            'brand',
+            attributeNatural('orderInBrand', ASC)
+        )
+    ),
+    require(
+        entityFetch(
+            attributeContent('code'),
+            referenceContent(
+                'brand'
+            )
+        )
+    )
+)

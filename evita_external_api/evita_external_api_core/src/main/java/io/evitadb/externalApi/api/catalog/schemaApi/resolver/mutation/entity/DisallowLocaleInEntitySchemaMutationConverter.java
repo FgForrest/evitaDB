@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.entity;
 
 import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowLocaleInEntitySchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.DisallowLocaleInEntitySchemaMutationDescriptor;
@@ -53,9 +53,9 @@ public class DisallowLocaleInEntitySchemaMutationConverter extends EntitySchemaM
 
 	@Nonnull
 	@Override
-	protected DisallowLocaleInEntitySchemaMutation convert(@Nonnull InputMutation inputMutation) {
+	protected DisallowLocaleInEntitySchemaMutation convert(@Nonnull Input input) {
 		return new DisallowLocaleInEntitySchemaMutation(
-			(Locale[]) inputMutation.getRequiredField(DisallowLocaleInEntitySchemaMutationDescriptor.LOCALES)
+			(Locale[]) input.getRequiredField(DisallowLocaleInEntitySchemaMutationDescriptor.LOCALES)
 		);
 	}
 }

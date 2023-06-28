@@ -161,8 +161,12 @@ public class EntityConverter {
 				entitySchema,
 				grpcReference.getVersion(),
 				grpcReference.getReferenceName(),
-				grpcReference.getReferencedEntityReference().getPrimaryKey(),
-				grpcReference.getReferencedEntityReference().getEntityType(),
+				grpcReference.hasReferencedEntityReference() ?
+					grpcReference.getReferencedEntityReference().getPrimaryKey() :
+					grpcReference.getReferencedEntity().getPrimaryKey(),
+				grpcReference.hasReferencedEntityReference() ?
+					grpcReference.getReferencedEntityReference().getEntityType() :
+					grpcReference.getReferencedEntity().getEntityType(),
 				EvitaEnumConverter.toCardinality(grpcReference.getReferenceCardinality()),
 				grpcReference.hasGroupReferencedEntity() ?
 					new GroupEntityReference(

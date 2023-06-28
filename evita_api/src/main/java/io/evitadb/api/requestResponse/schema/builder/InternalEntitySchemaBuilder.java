@@ -25,10 +25,13 @@ package io.evitadb.api.requestResponse.schema.builder;
 
 import io.evitadb.api.exception.AssociatedDataAlreadyPresentInEntitySchemaException;
 import io.evitadb.api.exception.AttributeAlreadyPresentInCatalogSchemaException;
+import io.evitadb.api.exception.AttributeAlreadyPresentInEntitySchemaException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.ReferenceAlreadyPresentInEntitySchemaException;
+import io.evitadb.api.exception.SortableAttributeCompoundSchemaException;
 import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.RemoveAssociatedDataSchemaMutation;
@@ -37,9 +40,10 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.UseGlobalAttribu
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.*;
 import io.evitadb.api.requestResponse.schema.mutation.reference.RemoveReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.experimental.Delegate;
@@ -48,6 +52,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Currency;
@@ -59,6 +64,7 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static io.evitadb.utils.Assert.isTrue;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -319,14 +325,14 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 		final AttributeSchemaBuilder attributeSchemaBuilder =
 			existingAttribute
 				.map(it -> {
-					Assert.isTrue(
+					final AttributeSchemaBuilder builder = new AttributeSchemaBuilder(baseSchema, it);
+					isTrue(
 						ofType.equals(it.getType()),
-						() -> new InvalidSchemaMutationException(
-							"Attribute " + attributeName + " has already assigned type " + it.getType() +
-								", cannot change this type to: " + ofType + "!"
+						() -> new AttributeAlreadyPresentInEntitySchemaException(
+							it, builder.toInstance(), null, attributeName
 						)
 					);
-					return new AttributeSchemaBuilder(baseSchema, it);
+					return builder;
 				})
 				.orElseGet(() -> new AttributeSchemaBuilder(baseSchema, attributeName, ofType));
 
@@ -335,7 +341,11 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 		checkSortableTraits(attributeName, attributeSchema);
 
 		// check the names in all naming conventions are unique in the catalog schema
-		checkNamesAreUniqueInAllNamingConventions(this.getAttributes().values(), attributeSchema);
+		checkNamesAreUniqueInAllNamingConventions(
+			this.getAttributes().values(),
+			this.getSortableAttributeCompounds().values(),
+			attributeSchema
+		);
 
 		if (existingAttribute.map(it -> !it.equals(attributeSchema)).orElse(true)) {
 			this.updatedSchemaDirty = addMutations(
@@ -349,9 +359,106 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Override
 	@Nonnull
 	public EntitySchemaBuilder withoutAttribute(@Nonnull String attributeName) {
+		checkSortableAttributeCompoundsWithoutAttribute(
+			attributeName, this.getSortableAttributeCompounds().values()
+		);
 		this.updatedSchemaDirty = addMutations(
 			this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
 			new RemoveAttributeSchemaMutation(attributeName)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntitySchemaBuilder withSortableAttributeCompound(
+		@Nonnull String name,
+		@Nonnull AttributeElement... attributeElements
+	) {
+		return withSortableAttributeCompound(
+			name, attributeElements, null
+		);
+	}
+
+	@Override
+	public EntitySchemaBuilder withSortableAttributeCompound(
+		@Nonnull String name,
+		@Nonnull AttributeElement[] attributeElements,
+		@Nullable Consumer<SortableAttributeCompoundSchemaBuilder> whichIs
+	) {
+		final Optional<SortableAttributeCompoundSchemaContract> existingCompound = getSortableAttributeCompound(name);
+		final CatalogSchemaContract catalogSchema = this.catalogSchemaAccessor.get();
+		final SortableAttributeCompoundSchemaBuilder builder = new SortableAttributeCompoundSchemaBuilder(
+			catalogSchema,
+			this,
+			null,
+			existingCompound.orElse(null),
+			name,
+			Arrays.asList(attributeElements),
+			Collections.emptyList(),
+			true
+		);
+		final SortableAttributeCompoundSchemaBuilder schemaBuilder =
+			existingCompound
+				.map(it -> {
+					isTrue(
+						it.getAttributeElements().equals(Arrays.asList(attributeElements)),
+						() -> new AttributeAlreadyPresentInEntitySchemaException(
+							it, builder.toInstance(), null, name
+						)
+					);
+					return builder;
+				})
+				.orElse(builder);
+
+		ofNullable(whichIs).ifPresent(it -> it.accept(schemaBuilder));
+		final SortableAttributeCompoundSchemaContract compoundSchema = schemaBuilder.toInstance();
+		isTrue(
+			compoundSchema.getAttributeElements().size() > 1,
+			() -> new SortableAttributeCompoundSchemaException(
+				"Sortable attribute compound requires more than one attribute element!",
+				compoundSchema
+			)
+		);
+		isTrue(
+			compoundSchema.getAttributeElements().size() ==
+				compoundSchema.getAttributeElements()
+					.stream()
+					.map(AttributeElement::attributeName)
+					.distinct()
+					.count(),
+			() -> new SortableAttributeCompoundSchemaException(
+				"Attribute names of elements in sortable attribute compound must be unique!",
+				compoundSchema
+			)
+		);
+		checkSortableTraits(name, compoundSchema, this.getAttributes());
+
+		// check the names in all naming conventions are unique in the catalog schema
+		checkNamesAreUniqueInAllNamingConventions(
+			this.getAttributes().values(),
+			this.getSortableAttributeCompounds().values(),
+			compoundSchema
+		);
+
+		this.updatedSchemaDirty = addMutations(
+			catalogSchema, this, this.mutations,
+			new CreateSortableAttributeCompoundSchemaMutation(
+				compoundSchema.getName(),
+				compoundSchema.getDescription(),
+				compoundSchema.getDeprecationNotice(),
+				attributeElements
+			)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntitySchemaBuilder withoutSortableAttributeCompound(@Nonnull String name) {
+		this.updatedSchemaDirty = addMutations(
+			this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+			new RemoveSortableAttributeCompoundSchemaMutation(name)
 		);
 		return this;
 	}
@@ -373,7 +480,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 		final CatalogSchemaContract catalogSchema = catalogSchemaAccessor.get();
 		final AssociatedDataSchemaBuilder associatedDataSchemaBuilder = existingAssociatedData
 			.map(it -> {
-				Assert.isTrue(
+				isTrue(
 					ofType.equals(it.getType()),
 					() -> new InvalidSchemaMutationException(
 						"Associated data " + dataName + " has already assigned type " + it.getType() +
@@ -568,7 +675,8 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	 * DTO for passing the identified conflict in attribute names for certain naming convention.
 	 */
 	record AttributeNamingConventionConflict(
-		@Nonnull AttributeSchemaContract conflictingSchema,
+		@Nullable AttributeSchemaContract conflictingAttributeSchema,
+		@Nullable SortableAttributeCompoundSchemaContract conflictingCompoundSchema,
 		@Nonnull NamingConvention convention,
 		@Nonnull String conflictingName
 	) {

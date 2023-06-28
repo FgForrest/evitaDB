@@ -151,7 +151,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       priceList_ = s;
@@ -167,7 +167,7 @@ private static final long serialVersionUID = 0L;
       getPriceListBytes() {
     java.lang.Object ref = priceList_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       priceList_ = b;
@@ -567,7 +567,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setPriceId(int value) {
-
+      
       priceId_ = value;
       onChanged();
       return this;
@@ -577,7 +577,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearPriceId() {
-
+      
       priceId_ = 0;
       onChanged();
       return this;
@@ -608,7 +608,7 @@ private static final long serialVersionUID = 0L;
         getPriceListBytes() {
       java.lang.Object ref = priceList_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         priceList_ = b;
@@ -627,7 +627,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-
+  
       priceList_ = value;
       onChanged();
       return this;
@@ -637,7 +637,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearPriceList() {
-
+      
       priceList_ = getDefaultInstance().getPriceList();
       onChanged();
       return this;
@@ -653,7 +653,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-
+      
       priceList_ = value;
       onChanged();
       return this;
@@ -746,7 +746,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder getCurrencyBuilder() {
-
+      
       onChanged();
       return getCurrencyFieldBuilder().getBuilder();
     }
@@ -765,7 +765,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> 
         getCurrencyFieldBuilder() {
       if (currencyBuilder_ == null) {
         currencyBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

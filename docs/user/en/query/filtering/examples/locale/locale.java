@@ -9,7 +9,7 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 						"categories",
 						attributeEquals("code", "vouchers-for-shareholders")
 					),
-					entityLocaleEquals(Locale.forLanguageTag("en-US"))
+					entityLocaleEquals(Locale.forLanguageTag("en"))
 				),
 				require(
 					entityFetch(

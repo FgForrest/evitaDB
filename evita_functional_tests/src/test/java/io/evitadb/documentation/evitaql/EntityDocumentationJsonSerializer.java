@@ -246,6 +246,7 @@ public class EntityDocumentationJsonSerializer extends JsonSerializer<EntityCont
 			gen.writeFieldName(referenceName);
 			gen.writeStartArray();
 			for (ReferenceContract reference : references) {
+				gen.writeStartObject();
 				reference.getGroup()
 					.ifPresent(group -> wrap(() -> gen.writeNumberField("group", group.getPrimaryKey())));
 				reference.getGroupEntity()
@@ -255,6 +256,7 @@ public class EntityDocumentationJsonSerializer extends JsonSerializer<EntityCont
 				reference.getReferencedEntity()
 					.ifPresent(group -> wrap(() -> gen.writeObjectField("referencedEntity", group)));
 				writeAttributes(gen, reference);
+				gen.writeEndObject();
 			}
 			gen.writeEndArray();
 		});

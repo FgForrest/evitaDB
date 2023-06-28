@@ -96,7 +96,8 @@ public class ModifyEntitySchemaNameMutation implements LocalCatalogSchemaMutatio
 				entitySchema.getAttributes(),
 				entitySchema.getAssociatedData(),
 				entitySchema.getReferences(),
-				entitySchema.getEvolutionMode()
+				entitySchema.getEvolutionMode(),
+				entitySchema.getSortableAttributeCompounds()
 			);
 		}
 	}

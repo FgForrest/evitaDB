@@ -3,7 +3,7 @@ query(
     filterBy(
         and(
             entityPrimaryKeyInSet(1),
-            entityLocaleEquals('en-US'),
+            entityLocaleEquals('en'),
             priceInPriceLists('basic'),
             priceInCurrency('CZK')
         )

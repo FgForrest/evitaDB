@@ -77,7 +77,7 @@ public abstract class MutationAggregateConverter<M extends Mutation, R extends M
 	@Nonnull
 	public List<M> convert(@Nullable Object rawInputMutationObject) {
 		final Object inputMutationObject = objectParser.parse(rawInputMutationObject);
-		return convert(new InputMutation(getMutationAggregateName(), inputMutationObject, exceptionFactory));
+		return convert(new Input(getMutationAggregateName(), inputMutationObject, exceptionFactory));
 	}
 
 	/**
@@ -85,10 +85,10 @@ public abstract class MutationAggregateConverter<M extends Mutation, R extends M
 	 * resolver.
 	 */
 	@Nonnull
-	protected List<M> convert(@Nonnull InputMutation inputMutation) {
+	protected List<M> convert(@Nonnull Input input) {
 		final List<M> mutations = new LinkedList<>();
 
-		final Map<String, Object> mutationAggregate = Optional.of(inputMutation.getRequiredValue())
+		final Map<String, Object> mutationAggregate = Optional.of(input.getRequiredValue())
 			.map(m -> {
 				Assert.isTrue(
 					m instanceof Map<?, ?>,

@@ -25,7 +25,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associate
 
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.AssociatedDataSchemaMutationDescriptor;
@@ -54,17 +54,17 @@ public class CreateAssociatedDataSchemaMutationConverter extends AssociatedDataS
 
 	@Nonnull
 	@Override
-	protected CreateAssociatedDataSchemaMutation convert(@Nonnull InputMutation inputMutation) {
+	protected CreateAssociatedDataSchemaMutation convert(@Nonnull Input input) {
 		return new CreateAssociatedDataSchemaMutation(
-			inputMutation.getRequiredField(AssociatedDataSchemaMutationDescriptor.NAME),
-			inputMutation.getOptionalField(CreateAssociatedDataSchemaMutationDescriptor.DESCRIPTION),
-			inputMutation.getOptionalField(CreateAssociatedDataSchemaMutationDescriptor.DEPRECATION_NOTICE),
-			inputMutation.getRequiredField(
+			input.getRequiredField(AssociatedDataSchemaMutationDescriptor.NAME),
+			input.getOptionalField(CreateAssociatedDataSchemaMutationDescriptor.DESCRIPTION),
+			input.getOptionalField(CreateAssociatedDataSchemaMutationDescriptor.DEPRECATION_NOTICE),
+			input.getRequiredField(
 				CreateAssociatedDataSchemaMutationDescriptor.TYPE.name(),
 				new ValueTypeMapper(getExceptionFactory(), CreateAssociatedDataSchemaMutationDescriptor.TYPE)
 			),
-			inputMutation.getOptionalField(CreateAssociatedDataSchemaMutationDescriptor.LOCALIZED, false),
-			inputMutation.getOptionalField(CreateAssociatedDataSchemaMutationDescriptor.NULLABLE, false)
+			input.getOptionalField(CreateAssociatedDataSchemaMutationDescriptor.LOCALIZED, false),
+			input.getOptionalField(CreateAssociatedDataSchemaMutationDescriptor.NULLABLE, false)
 		);
 	}
 }

@@ -88,6 +88,14 @@ public interface MemoryMeasuringConstants {
 	}
 
 	/**
+	 * Computes size of the array.
+	 */
+	static int computeArraySize(@Nonnull int[] array) {
+		return MemoryMeasuringConstants.ARRAY_BASE_SIZE + array.length * MemoryMeasuringConstants.REFERENCE_SIZE +
+			array.length * MemoryMeasuringConstants.INT_SIZE;
+	}
+
+	/**
 	 * Source: <a href="https://medium.com/metrosystemsro/java-memory-footprint-part-2-8791679178e2">for the base size</a>
 	 * and <a href="https://github.com/DimitrisAndreou/memory-measurer/blob/master/ElementCostInDataStructures.txt">for element size</a>.
 	 */

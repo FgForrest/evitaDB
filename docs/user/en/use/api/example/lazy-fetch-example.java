@@ -6,7 +6,7 @@ evita.queryCatalog(
 				collection("Product"),
 				filterBy(
 					and(
-						entityLocaleEquals(Locale.US),
+						entityLocaleEquals(Locale.ENGLISH),
 						priceInPriceLists("basic"),
 						priceInCurrency(Currency.getInstance("CZK"))
 					)

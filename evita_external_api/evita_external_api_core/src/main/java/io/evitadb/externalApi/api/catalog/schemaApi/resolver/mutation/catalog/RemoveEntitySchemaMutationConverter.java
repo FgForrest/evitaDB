@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog;
 
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveEntitySchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.RemoveEntitySchemaMutationDescriptor;
@@ -52,9 +52,9 @@ public class RemoveEntitySchemaMutationConverter extends CatalogSchemaMutationCo
 
 	@Nonnull
 	@Override
-	protected RemoveEntitySchemaMutation convert(@Nonnull InputMutation inputMutation) {
+	protected RemoveEntitySchemaMutation convert(@Nonnull Input input) {
 		return new RemoveEntitySchemaMutation(
-			inputMutation.getRequiredField(RemoveEntitySchemaMutationDescriptor.NAME)
+			input.getRequiredField(RemoveEntitySchemaMutationDescriptor.NAME)
 		);
 	}
 }

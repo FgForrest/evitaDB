@@ -96,9 +96,10 @@ public class SetReferenceSchemaFacetedMutation
 				referenceSchema.getReferencedGroupType(),
 				referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
 				referenceSchema.isReferencedGroupTypeManaged(),
-				referenceSchema.isFilterable(),
+				referenceSchema.isIndexed(),
 				faceted,
-				referenceSchema.getAttributes()
+				referenceSchema.getAttributes(),
+				referenceSchema.getSortableAttributeCompounds()
 			);
 		}
 	}

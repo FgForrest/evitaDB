@@ -281,7 +281,7 @@ public class EntityFetchingFunctionalTest {
 						builder -> {
 							builder.withReferenceToEntity(
 								Entities.STORE, Entities.STORE, Cardinality.EXACTLY_ONE,
-								thatIs -> thatIs.filterable().withGroupTypeRelatedToEntity(Entities.CATEGORY)
+								thatIs -> thatIs.indexed().withGroupTypeRelatedToEntity(Entities.CATEGORY)
 							).updateVia(session);
 							return builder.toInstance();
 						}
@@ -317,7 +317,7 @@ public class EntityFetchingFunctionalTest {
 							builder
 								.withReferenceToEntity(
 									Entities.PARAMETER, Entities.PARAMETER, Cardinality.ONE_OR_MORE,
-									thatIs -> thatIs.filterable()
+									thatIs -> thatIs.indexed()
 										.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class, whichIs -> whichIs.filterable())
 								)
 								.withReferenceToEntity(Entities.PRICE_LIST, Entities.PRICE_LIST, Cardinality.ZERO_OR_MORE)
@@ -326,7 +326,7 @@ public class EntityFetchingFunctionalTest {
 									Entities.BRAND,
 									Cardinality.ZERO_OR_ONE,
 									whichIs -> whichIs.
-										filterable()
+										indexed()
 										.faceted()
 										.withGroupTypeRelatedToEntity(Entities.STORE)
 								)

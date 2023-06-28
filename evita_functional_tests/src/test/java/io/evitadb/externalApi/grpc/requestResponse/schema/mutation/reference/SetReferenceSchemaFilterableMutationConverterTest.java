@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference;
 
-import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFilterableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -40,7 +40,7 @@ class SetReferenceSchemaFilterableMutationConverterTest {
 
 	@Test
 	void shouldConvertMutation() {
-		final SetReferenceSchemaFilterableMutation mutation1 = new SetReferenceSchemaFilterableMutation(
+		final SetReferenceSchemaIndexedMutation mutation1 = new SetReferenceSchemaIndexedMutation(
 			"tags", true
 		);
 		assertEquals(mutation1, converter.convert(converter.convert(mutation1)));

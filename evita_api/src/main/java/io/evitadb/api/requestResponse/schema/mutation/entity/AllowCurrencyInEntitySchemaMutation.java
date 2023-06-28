@@ -126,7 +126,8 @@ public class AllowCurrencyInEntitySchemaMutation implements CombinableEntitySche
 				entitySchema.getAttributes(),
 				entitySchema.getAssociatedData(),
 				entitySchema.getReferences(),
-				entitySchema.getEvolutionMode()
+				entitySchema.getEvolutionMode(),
+				entitySchema.getSortableAttributeCompounds()
 			);
 		}
 	}

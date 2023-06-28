@@ -31,25 +31,42 @@ import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
+import io.evitadb.api.query.filter.EntityLocaleEquals;
+import io.evitadb.api.query.filter.FilterBy;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * Sorts returned entities by values in attribute with name passed in the first argument
- * and optionally order direction in second. First argument must be of {@link String} type. Second argument must be one of
- * {@link OrderDirection} enum otherwise {@link OrderDirection#ASC} is the default.
+ * The constraint allows output entities to be sorted by their attributes in their natural order (numeric, alphabetical,
+ * temporal). It requires specification of a single attribute and the direction of the ordering (default ordering is
+ * {@link OrderDirection#ASC}).
  *
- * Ordering is executed by natural order of the {@link Comparable}
- * type.
+ * Ordering is executed by natural order of the {@link Comparable} type.
  *
  * Example:
  *
  * ```
- * attribute('married')
- * attribute('age', ASC)
+ * attributeNatural('married')
+ * attributeNatural('age', ASC)
  * ```
+ *
+ * If you want to sort products by their name, which is a localized attribute, you need to specify the {@link EntityLocaleEquals}
+ * constraint in the {@link FilterBy} part of the query. The correct {@link java.text.Collator} is used to
+ * order the localized attribute string, so that the order is consistent with the national customs of the language.
+ *
+ * The sorting mechanism of evitaDB is somewhat different from what you might be used to. If you sort entities by two
+ * attributes in an `orderBy` clause of the query, evitaDB sorts them first by the first attribute (if present) and then
+ * by the second (but only those where the first attribute is missing). If two entities have the same value of the first
+ * attribute, they are not sorted by the second attribute, but by the primary key (in ascending order).
+ *
+ * If we want to use fast "pre-sorted" indexes, there is no other way to do it, because the secondary order would not be
+ * known until a query time. If you want to sort by multiple attributes in the conventional way, you need to define the
+ * sortable attribute compound in advance and use its name instead of the default attribute name. The sortable attribute
+ * compound will cover multiple attributes and prepares a special sort index for this particular combination of
+ * attributes, respecting the predefined order and NULL values behaviour. In the query, you can then use the compound
+ * name instead of the default attribute name and achieve the expected results.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
@@ -73,8 +90,7 @@ public class AttributeNatural extends AbstractOrderConstraintLeaf implements Att
     }
 
     @Creator
-    public AttributeNatural(@Nonnull @Classifier String attributeName,
-                            @Nonnull @Value OrderDirection orderDirection) {
+    public AttributeNatural(@Nonnull @Classifier String attributeName, @Nonnull @Value OrderDirection orderDirection) {
         super(attributeName, orderDirection);
     }
 
@@ -86,6 +102,7 @@ public class AttributeNatural extends AbstractOrderConstraintLeaf implements Att
     /**
      * Returns attribute name that needs to be examined.
      */
+    @Nonnull
     public String getAttributeName() {
         return (String) getArguments()[0];
     }

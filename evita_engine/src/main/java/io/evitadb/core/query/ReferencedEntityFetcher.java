@@ -422,6 +422,11 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		} else if (filterBy == null) {
 			// we may allow all referenced entity ids
 			validityMappingOptional.ifPresent(it -> it.restrictTo(new BaseBitmap(allReferencedEntityIds)));
+			initNestedQueryComparator(
+				entityNestedQueryComparator,
+				referenceSchema.getReferencedEntityType(),
+				queryContext
+			);
 			return allReferencedEntityIds;
 		} else {
 			final FilterByVisitor theFilterByVisitor = getFilterByVisitor(queryContext, filterByVisitor);
@@ -519,19 +524,32 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			suppressedConstraints
 		);
 
+		initNestedQueryComparator(
+			entityNestedQueryComparator,
+			referenceSchema.getReferencedEntityType(),
+			filterByVisitor.getQueryContext()
+		);
+
+		return filterFormula;
+	}
+
+	private static void initNestedQueryComparator(
+		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
+		@Nonnull String entityType,
+		@Nonnull QueryContext queryContext
+	) {
 		// in case there is ordering specified and no nested query filter constraint, we need to handle ordering here
 		if (entityNestedQueryComparator != null && !entityNestedQueryComparator.isInitialized()) {
 			initializeComparatorFromGlobalIndex(
-				filterByVisitor.getEntityCollectionOrThrowException(
-					referenceSchema.getReferencedEntityType(), "order references"
+				queryContext.getEntityCollectionOrThrowException(
+					entityType,
+					"order references"
 				),
 				entityNestedQueryComparator,
-				filterByVisitor.getEvitaRequest(),
-				filterByVisitor.getEvitaSession()
+				queryContext.getEvitaRequest(),
+				queryContext.getEvitaSession()
 			);
 		}
-
-		return filterFormula;
 	}
 
 	/**

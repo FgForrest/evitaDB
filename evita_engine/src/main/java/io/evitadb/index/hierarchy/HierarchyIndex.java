@@ -127,6 +127,10 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	 * Contains cached result of {@link #getAllHierarchyNodesFormula()} call.
 	 */
 	private Formula memoizedAllNodeFormula;
+	/**
+	 * Contains cached result of {@link #getHierarchyComparator()} call.
+	 */
+	private Comparator<Integer> hierarchyComparator;
 
 	public HierarchyIndex() {
 		this.dirty = new TransactionalBoolean();
@@ -192,7 +196,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 			}
 		}
 		if (!isTransactionAvailable()) {
-			this.memoizedAllNodeFormula = null;
+			resetMemoizedValues();
 		}
 	}
 
@@ -202,7 +206,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		Assert.notNull(removedNode, "No hierarchy was set for entity with primary key " + entityPrimaryKey + "!");
 		this.dirty.setToTrue();
 		if (!isTransactionAvailable()) {
-			this.memoizedAllNodeFormula = null;
+			resetMemoizedValues();
 		}
 	}
 
@@ -538,6 +542,20 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	@Override
 	public boolean isHierarchyIndexEmpty() {
 		return this.itemIndex.isEmpty();
+	}
+
+	@Nonnull
+	@Override
+	public Comparator<Integer> getHierarchyComparator() {
+		// if there is transaction open, and there are changes in the hierarchy data, we can't use the cache
+		if (isTransactionAvailable() && this.dirty.isTrue()) {
+			return createHierarchyComparator();
+		} else {
+			if (hierarchyComparator == null) {
+				hierarchyComparator = createHierarchyComparator();
+			}
+			return hierarchyComparator;
+		}
 	}
 
 	/**
@@ -952,6 +970,47 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	}
 
 	/**
+	 * Creates a comparator that compares hierarchy entity primary keys according to their position in the hierarchy
+	 * depth first search order.
+	 */
+	@Nonnull
+	private Comparator<Integer> createHierarchyComparator() {
+		final ListingHierarchyVisitor visitor = new ListingHierarchyVisitor();
+		traverseHierarchy(visitor);
+		final int[] depthFirstOrder = visitor.getNodes();
+		final int[] order = new int[depthFirstOrder.length];
+		for(int i = 0; i < depthFirstOrder.length; i++) {
+			order[i] = i;
+		}
+		ArrayUtils.sortSecondAlongFirstArray(depthFirstOrder, order);
+		final int[] sortedDepthFirstOrder = new int[depthFirstOrder.length];
+		System.arraycopy(depthFirstOrder, 0, sortedDepthFirstOrder, 0, depthFirstOrder.length);
+		Arrays.sort(sortedDepthFirstOrder);
+
+		return (o1, o2) -> {
+			final int index1 = Arrays.binarySearch(sortedDepthFirstOrder, o1);
+			final int index2 = Arrays.binarySearch(sortedDepthFirstOrder, o2);
+			if (index1 < 0 && index2 < 0) {
+				return 0;
+			} else if (index1 < 0) {
+				return 1;
+			} else if (index2 < 0) {
+				return -1;
+			} else {
+				return Integer.compare(order[index1], order[index2]);
+			}
+		};
+	}
+
+	/**
+	 * Method resets all memoized values.
+	 */
+	private void resetMemoizedValues() {
+		this.memoizedAllNodeFormula = null;
+		this.hierarchyComparator = null;
+	}
+
+	/**
 	 * Interface allows to define a factory function accepting multiple placement information and create a traverser
 	 * logic from it.
 	 */
@@ -966,4 +1025,18 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 
 	}
 
+	private class ListingHierarchyVisitor implements HierarchyVisitor {
+		private final int[] nodes = new int[HierarchyIndex.this.getHierarchySize()];
+		private int index = 0;
+
+		public int[] getNodes() {
+			return nodes;
+		}
+
+		@Override
+		public void visit(@Nonnull HierarchyNode node, int level, int distance, @Nonnull Runnable traverser) {
+			nodes[index++] = node.entityPrimaryKey();
+			traverser.run();
+		}
+	}
 }

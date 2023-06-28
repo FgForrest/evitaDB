@@ -96,9 +96,10 @@ public class ModifyReferenceSchemaRelatedEntityGroupMutation
 			referencedGroupType,
 			referencedGroupTypeManaged || referencedGroupType == null ? Collections.emptyMap() : NamingConvention.generate(referencedGroupType),
 			referencedGroupTypeManaged,
-			referenceSchema.isFilterable(),
+			referenceSchema.isIndexed(),
 			referenceSchema.isFaceted(),
-			referenceSchema.getAttributes()
+			referenceSchema.getAttributes(),
+			referenceSchema.getSortableAttributeCompounds()
 		);
 	}
 
