@@ -59,9 +59,9 @@ public interface QueryConstraints {
 	/**
 	 * Each query must specify collection. This mandatory {@link Serializable} query controls what collection
 	 * the query will be applied on.
-	 *
+	 * 
 	 * Sample of the header is:
-	 *
+	 * 
 	 * ```
 	 * collection('category')
 	 * ```
@@ -78,9 +78,9 @@ public interface QueryConstraints {
 	/**
 	 * This `filterBy` is container for filtering constraints. It is mandatory container when any filtering is to be used.
 	 * This container allows only one children container with the filtering condition.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * filterBy(
 	 *     and(
@@ -109,7 +109,7 @@ public interface QueryConstraints {
 	/**
 	 * The `and` container represents a <a href="https://en.wikipedia.org/wiki/Logical_conjunction">logical conjunction</a>,
 	 * that is demonstrated on following table:
-	 *
+	 * 
 	 * <table>
 	 *     <thead>
 	 *         <tr>
@@ -141,9 +141,9 @@ public interface QueryConstraints {
 	 *         </tr>
 	 *     </tbody>
 	 * </table>
-	 *
+	 * 
 	 * The following query:
-	 *
+	 * 
 	 * <pre>
 	 * query(
 	 *     collection('Product'),
@@ -156,7 +156,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 *
+	 * 
 	 * ... returns a single result - product with entity primary key 106742, which is the only one that all three
 	 * `entityPrimaryKeyInSet` constraints have in common.
 	*/
@@ -171,7 +171,7 @@ public interface QueryConstraints {
 	/**
 	 * The `and` container represents a <a href="https://en.wikipedia.org/wiki/Logical_conjunction">logical conjunction</a>,
 	 * that is demonstrated on following table:
-	 *
+	 * 
 	 * <table>
 	 *     <thead>
 	 *         <tr>
@@ -203,9 +203,9 @@ public interface QueryConstraints {
 	 *         </tr>
 	 *     </tbody>
 	 * </table>
-	 *
+	 * 
 	 * The following query:
-	 *
+	 * 
 	 * <pre>
 	 * query(
 	 *     collection('Product'),
@@ -218,7 +218,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 *
+	 * 
 	 * ... returns four results representing a combination of all primary keys used in the `entityPrimaryKeyInSet`
 	 * constraints.
 	*/
@@ -233,7 +233,7 @@ public interface QueryConstraints {
 	/**
 	 * The `not` container represents a <a href="https://en.wikipedia.org/wiki/Negation">logical negation</a>, that is
 	 * demonstrated on following table:
-	 *
+	 * 
 	 * <table>
 	 *     <thead>
 	 *         <tr>
@@ -252,9 +252,9 @@ public interface QueryConstraints {
 	 *         </tr>
 	 *     </tbody>
 	 * </table>
-	 *
+	 * 
 	 * The following query:
-	 *
+	 * 
 	 * <pre>
 	 * query(
 	 *     collection('Product'),
@@ -265,10 +265,10 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 *
+	 * 
 	 * ... returns thousands of results excluding the entities with primary keys mentioned in `entityPrimaryKeyInSet`
 	 * constraint. Because this situation is hard to visualize - let's narrow our super set to only a few entities:
-	 *
+	 * 
 	 * <pre>
 	 * query(
 	 *     collection('Product'),
@@ -280,7 +280,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 *
+	 * 
 	 * ... which returns only three products that were not excluded by the following `not` constraint.
 	*/
 	@Nullable
@@ -291,18 +291,18 @@ public interface QueryConstraints {
 	/**
 	 * This `referenceAttribute` container is filtering query that filters returned entities by their reference
 	 * attributes that must match the inner condition.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * referenceHavingAttribute(
 	 * 'CATEGORY',
 	 * eq('code', 'KITCHENWARE')
 	 * )
 	 * ```
-	 *
+	 * 
 	 * or
-	 *
+	 * 
 	 * ```
 	 * referenceHavingAttribute(
 	 * 'CATEGORY',
@@ -312,7 +312,7 @@ public interface QueryConstraints {
 	 * )
 	 * )
 	 * ```
-	 *
+	 * 
 	 * TOBEDONE JNO - consider renaming to `referenceMatching`
 	*/
 	@Nullable
@@ -325,20 +325,20 @@ public interface QueryConstraints {
 	 * except [priceInPriceLists](#price-in-price-lists),
 	 * [language](#language), [priceInCurrency](#price-in-currency), [priceValidInTime](#price-valid-in-time),
 	 * [with hierarchy](#within-hierarchy).
-	 *
+	 * 
 	 * These constraints should react to the settings defined by the end user and must be isolated from the base filter so
 	 * that [facetSummary](#facet-summary) logic can distinguish base filtering query for a facet summary computation.
 	 * Facet summary must define so-called baseline count - i.e. count of the entities that match system constraints but no
 	 * optional constraints defined by the user has been applied yet on them. This baseline is also used
 	 * for [facet statistics](#facet-statistics) computation.
-	 *
+	 * 
 	 * This query might be used even without [facetSummary](#facet-summary) - when the result facet counts are not
 	 * required but still we want the facets use for filtering.
-	 *
+	 * 
 	 * Only single `userFilter` query can be used in the query.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * userFilter(
 	 * greaterThanEq('memory', 8),
@@ -346,9 +346,9 @@ public interface QueryConstraints {
 	 * facet('parameter', 4, 15)
 	 * )
 	 * ```
-	 *
+	 * 
 	 * Even more complex queries are supported (although it is hard to make up some real life example for such):
-	 *
+	 * 
 	 * ```
 	 * filterBy(
 	 * and(
@@ -376,28 +376,28 @@ public interface QueryConstraints {
 	 * facetGroupDisjunction('parameterType', 4),
 	 * negatedFacets('parameterType', 8),
 	 * )
-	 *
+	 * 
 	 * ```
-	 *
+	 * 
 	 * User filter envelopes the part of the query that is affected by user selection and that is optional. All constraints
 	 * outside user filter are considered mandatory and must never be altered by [facet summary](#facet-summary) computational
 	 * logic.
-	 *
+	 * 
 	 * Base count of the facets are computed for query having `userFilter` container contents stripped off. The "what-if"
 	 * counts requested by [impact argument](#facet-summary) are computed from the query including `userFilter` creating
 	 * multiple sub-queries checking the result for each additional facet selection.
-	 *
+	 * 
 	 * [Facet](#facet) filtering constraints must be direct children of the `userFilter` container. Their relationship is by
 	 * default as follows: facets of the same type within same group are combined by conjunction (OR), facets of different
 	 * types / groups are combined by disjunction (AND). This default behaviour can be controlled exactly by using any of
 	 * following require constraints:
-	 *
+	 * 
 	 * - [facet groups conjunction](#facet-groups-conjunction) - changes relationship between facets in the same group
 	 * - [facet groups disjunction](#facet-groups-disjunction) - changes relationship between facet groups
-	 *
+	 * 
 	 * All constraints placed directly inside `userFilter` are combined with by conjunction (AND). Other than `facet` filtering
 	 * constraints (as seen in example) may represent user conditions in non-faceted inputs, such as interval inputs.
-	 *
+	 * 
 	 * ***Note:** this query might be a subject to change and affects advanced searching queries such as exclusion facet
 	 * groups (i.e. facet in group are not represented as multi-select/checkboxes but as exlusive select/radio) or conditional
 	 * filters (which can be used to apply a certain filter only if it would produce non-empty result, this is good for
@@ -417,38 +417,38 @@ public interface QueryConstraints {
 	 * second and third argument may be any of {@link Comparable} type.
 	 * Type of the attribute value and second argument must be convertible one to another otherwise `between` function
 	 * returns false.
-	 *
+	 * 
 	 * Function returns true if value in a filterable attribute of such a name is greater than or equal to value in second argument
 	 * and lesser than or equal to value in third argument.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * between('age', 20, 25)
 	 * ```
-	 *
+	 * 
 	 * Function supports attribute arrays and when attribute is of array type `between` returns true if *any of attribute* values
 	 * is between the passed interval the value in the query. If we have the attribute `amount` with value `[1, 9]` all
 	 * these constraints will match:
-	 *
+	 * 
 	 * ```
 	 * between('amount', 0, 50)
 	 * between('amount', 0, 5)
 	 * between('amount', 8, 10)
 	 * ```
-	 *
+	 * 
 	 * If attribute is of `Range` type `between` query behaves like overlap - it returns true if examined range and
 	 * any of the attribute ranges (see previous paragraph about array types) share anything in common. All of following
 	 * constraints return true when we have the attribute `validity` with following `NumberRange` values: `[[2,5],[8,10]]`:
-	 *
+	 * 
 	 * ```
 	 * between(`validity`, 0, 3)
 	 * between(`validity`, 0, 100)
 	 * between(`validity`, 9, 10)
 	 * ```
-	 *
+	 * 
 	 * ... but these constraints will return false:
-	 *
+	 * 
 	 * ```
 	 * between(`validity`, 11, 15)
 	 * between(`validity`, 0, 1)
@@ -467,20 +467,20 @@ public interface QueryConstraints {
 	/**
 	 * This `contains` is query that searches value of the attribute with name passed in first argument for presence of the
 	 * {@link String} value passed in the second argument.
-	 *
+	 * 
 	 * Function returns true if attribute value contains secondary argument (starting with any position). Function is case
 	 * sensitive and comparison is executed using `UTF-8` encoding (Java native).
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * contains('code', 'eve')
 	 * ```
-	 *
+	 * 
 	 * Function supports attribute arrays and when attribute is of array type `contains` returns true if *any of attribute* values
 	 * contains the value in the query. If we have the attribute `code` with value `['cat','mouse','dog']` all these constraints will
 	 * match:
-	 *
+	 * 
 	 * ```
 	 * contains('code','mou')
 	 * contains('code','o')
@@ -494,21 +494,21 @@ public interface QueryConstraints {
 	/**
 	 * This `startsWith` is query that searches value of the attribute with name passed in first argument for presence of the
 	 * {@link String} value passed in the second argument.
-	 *
+	 * 
 	 * Function returns true if attribute value contains secondary argument (from first position). InSet other words attribute
 	 * value starts with string passed in second argument. Function is case sensitive and comparison is executed using `UTF-8`
 	 * encoding (Java native).
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * startsWith('code', 'vid')
 	 * ```
-	 *
+	 * 
 	 * Function supports attribute arrays and when attribute is of array type `startsWith` returns true if *any of attribute* values
 	 * starts with the value in the query. If we have the attribute `code` with value `['cat','mouse','dog']` all these
 	 * constraints will match:
-	 *
+	 * 
 	 * ```
 	 * contains('code','mou')
 	 * contains('code','do')
@@ -522,21 +522,21 @@ public interface QueryConstraints {
 	/**
 	 * This `endsWith` is query that searches value of the attribute with name passed in first argument for presence of the
 	 * {@link String} value passed in the second argument.
-	 *
+	 * 
 	 * Function returns true if attribute value contains secondary argument (using reverse lookup from last position).
 	 * InSet other words attribute value ends with string passed in second argument. Function is case sensitive and comparison
 	 * is executed using `UTF-8` encoding (Java native).
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * endsWith('code', 'ida')
 	 * ```
-	 *
+	 * 
 	 * Function supports attribute arrays and when attribute is of array type `endsWith` returns true if *any of attribute* values
 	 * ends with the value in the query. If we have the attribute `code` with value `['cat','mouse','dog']` all these
 	 * constraints will match:
-	 *
+	 * 
 	 * ```
 	 * contains('code','at')
 	 * contains('code','og')
@@ -552,19 +552,19 @@ public interface QueryConstraints {
 	 * in the second argument. First argument must be {@link String}, second argument may be any of {@link Comparable} type.
 	 * Type of the attribute value and second argument must be convertible one to another otherwise `equals` function
 	 * returns false.
-	 *
+	 * 
 	 * Function returns true if both values are equal.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * equals('code', 'abc')
 	 * ```
-	 *
+	 * 
 	 * Function supports attribute arrays and when attribute is of array type `equals` returns true if *any of attribute* values
 	 * equals the value in the query. If we have the attribute `code` with value `['A','B','C']` all these constraints will
 	 * match:
-	 *
+	 * 
 	 * ```
 	 * equals('code','A')
 	 * equals('code','B')
@@ -582,18 +582,18 @@ public interface QueryConstraints {
 	 * second argument may be any of {@link Comparable} type.
 	 * Type of the attribute value and second argument must be convertible one to another otherwise `lessThan` function
 	 * returns false.
-	 *
+	 * 
 	 * Function returns true if value in a filterable attribute of such a name is lesser than value in second argument.
-	 *
+	 * 
 	 * Function currently doesn't support attribute arrays and when attribute is of array type. Query returns error when this
 	 * query is used in combination with array type attribute. This may however change in the future.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * lessThan('age', 20)
 	 * ```
-	 *
+	 * 
 	 * TOBEDONE JNO - rename to "lesserThan"
 	*/
 	@Nullable
@@ -607,15 +607,15 @@ public interface QueryConstraints {
 	 * second argument may be any of {@link Comparable} type.
 	 * Type of the attribute value and second argument must be convertible one to another otherwise `lessThanEquals` function
 	 * returns false.
-	 *
+	 * 
 	 * Function returns true if value in a filterable attribute of such a name is lesser than value in second argument or
 	 * equal.
-	 *
+	 * 
 	 * Function currently doesn't support attribute arrays and when attribute is of array type. Query returns error when this
 	 * query is used in combination with array type attribute. This may however change in the future.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * lessThanEquals('age', 20)
 	 * ```
@@ -631,14 +631,14 @@ public interface QueryConstraints {
 	 * second argument may be any of {@link Comparable} type.
 	 * Type of the attribute value and second argument must be convertible one to another otherwise `greaterThan` function
 	 * returns false.
-	 *
+	 * 
 	 * Function returns true if value in a filterable attribute of such a name is greater than value in second argument.
-	 *
+	 * 
 	 * Function currently doesn't support attribute arrays and when attribute is of array type. Query returns error when this
 	 * query is used in combination with array type attribute. This may however change in the future.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * greaterThan('age', 20)
 	 * ```
@@ -654,15 +654,15 @@ public interface QueryConstraints {
 	 * second argument may be any of {@link Comparable} type.
 	 * Type of the attribute value and second argument must be convertible one to another otherwise `greaterThanEquals` function
 	 * returns false.
-	 *
+	 * 
 	 * Function returns true if value in a filterable attribute of such a name is greater than value in second argument or
 	 * equal.
-	 *
+	 * 
 	 * Function currently doesn't support attribute arrays and when attribute is of array type. Query returns error when this
 	 * query is used in combination with array type attribute. This may however change in the future.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * greaterThanEquals('age', 20)
 	 * ```
@@ -675,37 +675,37 @@ public interface QueryConstraints {
 	/**
 	 * This `priceInPriceLists` is query accepts one or more [Integer](https://docs.oracle.com/javase/8/docs/api/java/lang/Integer.html)
 	 * arguments that represents primary keys of price lists.
-	 *
+	 * 
 	 * Function returns true if entity has at least one price in any of specified price lists. This function is also affected by
 	 * [priceInCurrency](#price-in-currency) function that limits the examined prices as well. The order of the price lists
 	 * passed in the argument is crucial, because it defines the priority of the price lists. Let's have a product with
 	 * following prices:
-	 *
+	 * 
 	 * | priceList       | currency | priceWithTax |
 	 * |-----------------|----------|--------------|
 	 * | basic           | EUR      | 999.99       |
 	 * | registered_user | EUR      | 979.00       |
 	 * | b2c_discount    | EUR      | 929.00       |
 	 * | b2b_discount    | EUR      | 869.00       |
-	 *
+	 * 
 	 * If query contains:
-	 *
+	 * 
 	 * `and(
 	 *     priceInCurrency('EUR'),
 	 *     priceInPriceLists('basic', 'b2b_discount'),
 	 *     priceBetween(800.0, 900.0)
 	 * )`
-	 *
+	 * 
 	 * The product will not be found - because query engine will use first defined price for the price lists in defined order.
 	 * It's in our case the price `999.99`, which is not in the defined price interval 800 € - 900 €. If the price lists in
 	 * arguments gets switched to `priceInPriceLists('b2b_discount', 'basic')`, the product will be returned, because the first
 	 * price is now from `b2b_discount` price list - 869 € and this price is within defined interval.
-	 *
+	 * 
 	 * This query affect also the prices accessible in returned entities. By default, (unless [prices](#prices) requirement
 	 * has ALL mode used), returned entities will contain only prices from specified price lists. In other words if entity has
 	 * two prices - one from price list `1` and second from price list `2` and `priceInPriceLists(1)` is used in the query
 	 * returned entity would have only first price fetched along with it.
-	 *
+	 * 
 	 * The non-sellable prices are not taken into an account in the search - for example if the product has only non-sellable
 	 * price it will never be returned when {@link PriceInPriceLists} query or any other price query is used in the
 	 * query. Non-sellable prices behaves like they don't exist. These non-sellable prices still remain accessible for reading
@@ -713,12 +713,12 @@ public interface QueryConstraints {
 	 * reserved for non-sellable prices you may still use it in {@link PriceInPriceLists} query. It won't affect the set
 	 * of returned entities, but it will ensure you can access those non-sellable prices on entities even when
 	 * {@link PriceContentMode#RESPECTING_FILTER} is used in {@link PriceContent} requirement is used.
-	 *
+	 * 
 	 * Only single `priceInPriceLists` query can be used in the query. Constraint must be defined when other price related
 	 * constraints are used in the query.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * priceInPriceLists(1, 5, 6)
 	 * ```
@@ -735,18 +735,18 @@ public interface QueryConstraints {
 	 * This `priceInCurrency` is query accepts single {@link String}
 	 * argument that represents [currency](https://en.wikipedia.org/wiki/ISO_4217) in ISO 4217 code or direct {@link Currency}
 	 * instance.
-	 *
+	 * 
 	 * Function returns true if entity has at least one price with specified currency. This function is also affected by
 	 * {@link PriceInPriceLists} function that limits the examined prices as well. When this query
 	 * is used in the query returned entities will contain only prices matching specified locale. In other words if entity has
 	 * two prices: USD and CZK and `priceInCurrency('CZK')` is used in query returned entity would have only Czech crown prices
 	 * fetched along with it.
-	 *
+	 * 
 	 * Only single `priceInCurrency` query can be used in the query. Constraint must be defined when other price related
 	 * constraints are used in the query.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * priceInCurrency('USD')
 	 * ```
@@ -760,18 +760,18 @@ public interface QueryConstraints {
 	 * This `priceInCurrency` is query accepts single {@link String}
 	 * argument that represents [currency](https://en.wikipedia.org/wiki/ISO_4217) in ISO 4217 code or direct {@link Currency}
 	 * instance.
-	 *
+	 * 
 	 * Function returns true if entity has at least one price with specified currency. This function is also affected by
 	 * {@link PriceInPriceLists} function that limits the examined prices as well. When this query
 	 * is used in the query returned entities will contain only prices matching specified locale. In other words if entity has
 	 * two prices: USD and CZK and `priceInCurrency('CZK')` is used in query returned entity would have only Czech crown prices
 	 * fetched along with it.
-	 *
+	 * 
 	 * Only single `priceInCurrency` query can be used in the query. Constraint must be defined when other price related
 	 * constraints are used in the query.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * priceInCurrency('USD')
 	 * ```
@@ -787,18 +787,18 @@ public interface QueryConstraints {
 	 * type of entity with [hierarchical placement](../model/entity_model.md#hierarchical-placement) in second argument. There
 	 * are also optional third and fourth arguments - see optional arguments {@link HierarchyDirectRelation}, {@link HierarchyExcludingRoot}
 	 * and {@link HierarchyExcluding}.
-	 *
+	 * 
 	 * Constraint can also have only one numeric argument representing primary key of [Integer](https://docs.oracle.com/javase/8/docs/api/java/lang/Integer.html)
 	 * the very same entity type in case this entity has [hierarchical placement](../model/entity_model.md#hierarchical-placement)
 	 * defined. This format of the query may be used for example for returning category sub-tree (where we want to return
 	 * category entities and also query them by their own hierarchy placement).
-	 *
+	 * 
 	 * Function returns true if entity has at least one [reference](../model/entity_model.md#references) that relates to specified entity
 	 * type and entity either directly or relates to any other entity of the same type with [hierarchical placement](../model/entity_model.md#hierarchical-placement)
 	 * subordinate to the directly related entity placement (in other words is present in its sub-tree).
-	 *
+	 * 
 	 * Let's have following hierarchical tree of categories (primary keys are in brackets):
-	 *
+	 * 
 	 * - TV (1)
 	 * - Crt (2)
 	 * - LCD (3)
@@ -806,21 +806,21 @@ public interface QueryConstraints {
 	 * - small (5)
 	 * - Plasma (6)
 	 * - Fridges (7)
-	 *
+	 * 
 	 * When query `withinHierarchy('category', 1)` is used in a query targeting product entities only products that
 	 * relates directly to categories: `TV`, `Crt`, `LCD`, `big`, `small` and `Plasma` will be returned. Products in `Fridges`
 	 * will be omitted because they are not in a sub-tree of `TV` hierarchy.
-	 *
+	 * 
 	 * Only single `withinHierarchy` query can be used in the query.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * withinHierarchy('category', 4)
 	 * ```
-	 *
+	 * 
 	 * If you want to query the entity that you're querying on you can also omit entity type specification. See example:
-	 *
+	 * 
 	 * ```
 	 * query(
 	 * entities('CATEGORY'),
@@ -829,12 +829,12 @@ public interface QueryConstraints {
 	 * )
 	 * )
 	 * ```
-	 *
+	 * 
 	 * This query will return all categories that belong to the sub-tree of category with primary key equal to 5.
-	 *
+	 * 
 	 * If you want to list all entities from the root level you need to use different query - `withinRootHierarchy` that
 	 * has the same notation but doesn't specify the id of the root level entity:
-	 *
+	 * 
 	 * ```
 	 * query(
 	 * entities('CATEGORY'),
@@ -843,11 +843,11 @@ public interface QueryConstraints {
 	 * )
 	 * )
 	 * ```
-	 *
+	 * 
 	 * This query will return all categories within `CATEGORY` entity.
-	 *
+	 * 
 	 * You may use this query to list entities that refers to the hierarchical entities:
-	 *
+	 * 
 	 * ```
 	 * query(
 	 * entities('PRODUCT'),
@@ -856,10 +856,10 @@ public interface QueryConstraints {
 	 * )
 	 * )
 	 * ```
-	 *
+	 * 
 	 * This query returns all products that are attached to any category. Although, this query doesn't make much sense it starts
 	 * to be useful when combined with additional inner constraints described in following paragraphs.
-	 *
+	 * 
 	 * You can use additional sub constraints in `withinHierarchy` query: {@link HierarchyDirectRelation}, {@link HierarchyExcludingRoot}
 	 * and {@link HierarchyExcluding}
 	*/
@@ -880,18 +880,18 @@ public interface QueryConstraints {
 	 * type of entity with [hierarchical placement](../model/entity_model.md#hierarchical-placement) in second argument. There
 	 * are also optional third and fourth arguments - see optional arguments {@link HierarchyDirectRelation}, {@link HierarchyExcludingRoot}
 	 * and {@link HierarchyExcluding}.
-	 *
+	 * 
 	 * Constraint can also have only one numeric argument representing primary key of [Integer](https://docs.oracle.com/javase/8/docs/api/java/lang/Integer.html)
 	 * the very same entity type in case this entity has [hierarchical placement](../model/entity_model.md#hierarchical-placement)
 	 * defined. This format of the query may be used for example for returning category sub-tree (where we want to return
 	 * category entities and also query them by their own hierarchy placement).
-	 *
+	 * 
 	 * Function returns true if entity has at least one [reference](../model/entity_model.md#references) that relates to specified entity
 	 * type and entity either directly or relates to any other entity of the same type with [hierarchical placement](../model/entity_model.md#hierarchical-placement)
 	 * subordinate to the directly related entity placement (in other words is present in its sub-tree).
-	 *
+	 * 
 	 * Let's have following hierarchical tree of categories (primary keys are in brackets):
-	 *
+	 * 
 	 * - TV (1)
 	 * - Crt (2)
 	 * - LCD (3)
@@ -899,21 +899,21 @@ public interface QueryConstraints {
 	 * - small (5)
 	 * - Plasma (6)
 	 * - Fridges (7)
-	 *
+	 * 
 	 * When query `withinHierarchy('category', 1)` is used in a query targeting product entities only products that
 	 * relates directly to categories: `TV`, `Crt`, `LCD`, `big`, `small` and `Plasma` will be returned. Products in `Fridges`
 	 * will be omitted because they are not in a sub-tree of `TV` hierarchy.
-	 *
+	 * 
 	 * Only single `withinHierarchy` query can be used in the query.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * withinHierarchy('category', 4)
 	 * ```
-	 *
+	 * 
 	 * If you want to query the entity that you're querying on you can also omit entity type specification. See example:
-	 *
+	 * 
 	 * ```
 	 * query(
 	 * entities('CATEGORY'),
@@ -922,12 +922,12 @@ public interface QueryConstraints {
 	 * )
 	 * )
 	 * ```
-	 *
+	 * 
 	 * This query will return all categories that belong to the sub-tree of category with primary key equal to 5.
-	 *
+	 * 
 	 * If you want to list all entities from the root level you need to use different query - `withinRootHierarchy` that
 	 * has the same notation but doesn't specify the id of the root level entity:
-	 *
+	 * 
 	 * ```
 	 * query(
 	 * entities('CATEGORY'),
@@ -936,11 +936,11 @@ public interface QueryConstraints {
 	 * )
 	 * )
 	 * ```
-	 *
+	 * 
 	 * This query will return all categories within `CATEGORY` entity.
-	 *
+	 * 
 	 * You may use this query to list entities that refers to the hierarchical entities:
-	 *
+	 * 
 	 * ```
 	 * query(
 	 * entities('PRODUCT'),
@@ -949,10 +949,10 @@ public interface QueryConstraints {
 	 * )
 	 * )
 	 * ```
-	 *
+	 * 
 	 * This query returns all products that are attached to any category. Although, this query doesn't make much sense it starts
 	 * to be useful when combined with additional inner constraints described in following paragraphs.
-	 *
+	 * 
 	 * You can use additional sub constraints in `withinHierarchy` query: {@link HierarchyDirectRelation}, {@link HierarchyExcludingRoot}
 	 * and {@link HierarchyExcluding}
 	*/
@@ -971,13 +971,13 @@ public interface QueryConstraints {
 	 * This `withinRootHierarchy` query accepts [Serializable](https://docs.oracle.com/javase/8/docs/api/java/io/Serializable.html)
 	 * entity type in first argument. There are also optional second and third arguments - see optional arguments {@link HierarchyDirectRelation},
 	 * and {@link HierarchyExcluding}.
-	 *
+	 * 
 	 * Function returns true if entity has at least one [reference](../model/entity_model.md#references) that relates to specified entity
 	 * type and entity either directly or relates to any other entity of the same type with [hierarchical placement](../model/entity_model.md#hierarchical-placement)
 	 * subordinate to the directly related entity placement (in other words is present in its sub-tree).
-	 *
+	 * 
 	 * Let's have following hierarchical tree of categories (primary keys are in brackets):
-	 *
+	 * 
 	 * - TV (1)
 	 * - Crt (2)
 	 * - LCD (3)
@@ -985,20 +985,20 @@ public interface QueryConstraints {
 	 * - small (5)
 	 * - Plasma (6)
 	 * - Fridges (7)
-	 *
+	 * 
 	 * When query `withinRootHierarchy('category')` is used in a query targeting product entities all products that
 	 * relates to any of categories will be returned.
-	 *
+	 * 
 	 * Only single `withinRootHierarchy` query can be used in the query.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * withinRootHierarchy('category')
 	 * ```
-	 *
+	 * 
 	 * If you want to query the entity that you're querying on you can also omit entity type specification. See example:
-	 *
+	 * 
 	 * ```
 	 * query(
 	 * entities('CATEGORY'),
@@ -1007,11 +1007,11 @@ public interface QueryConstraints {
 	 * )
 	 * )
 	 * ```
-	 *
+	 * 
 	 * This query will return all categories within `CATEGORY` entity.
-	 *
+	 * 
 	 * You may use this query to list entities that refers to the hierarchical entities:
-	 *
+	 * 
 	 * ```
 	 * query(
 	 * entities('PRODUCT'),
@@ -1020,7 +1020,7 @@ public interface QueryConstraints {
 	 * )
 	 * )
 	 * ```
-	 *
+	 * 
 	 * This query returns all products that are attached to any category.
 	*/
 	@Nonnull
@@ -1032,13 +1032,13 @@ public interface QueryConstraints {
 	 * This `withinRootHierarchy` query accepts [Serializable](https://docs.oracle.com/javase/8/docs/api/java/io/Serializable.html)
 	 * entity type in first argument. There are also optional second and third arguments - see optional arguments {@link HierarchyDirectRelation},
 	 * and {@link HierarchyExcluding}.
-	 *
+	 * 
 	 * Function returns true if entity has at least one [reference](../model/entity_model.md#references) that relates to specified entity
 	 * type and entity either directly or relates to any other entity of the same type with [hierarchical placement](../model/entity_model.md#hierarchical-placement)
 	 * subordinate to the directly related entity placement (in other words is present in its sub-tree).
-	 *
+	 * 
 	 * Let's have following hierarchical tree of categories (primary keys are in brackets):
-	 *
+	 * 
 	 * - TV (1)
 	 * - Crt (2)
 	 * - LCD (3)
@@ -1046,20 +1046,20 @@ public interface QueryConstraints {
 	 * - small (5)
 	 * - Plasma (6)
 	 * - Fridges (7)
-	 *
+	 * 
 	 * When query `withinRootHierarchy('category')` is used in a query targeting product entities all products that
 	 * relates to any of categories will be returned.
-	 *
+	 * 
 	 * Only single `withinRootHierarchy` query can be used in the query.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * withinRootHierarchy('category')
 	 * ```
-	 *
+	 * 
 	 * If you want to query the entity that you're querying on you can also omit entity type specification. See example:
-	 *
+	 * 
 	 * ```
 	 * query(
 	 * entities('CATEGORY'),
@@ -1068,11 +1068,11 @@ public interface QueryConstraints {
 	 * )
 	 * )
 	 * ```
-	 *
+	 * 
 	 * This query will return all categories within `CATEGORY` entity.
-	 *
+	 * 
 	 * You may use this query to list entities that refers to the hierarchical entities:
-	 *
+	 * 
 	 * ```
 	 * query(
 	 * entities('PRODUCT'),
@@ -1081,7 +1081,7 @@ public interface QueryConstraints {
 	 * )
 	 * )
 	 * ```
-	 *
+	 * 
 	 * This query returns all products that are attached to any category.
 	*/
 	@Nonnull
@@ -1103,13 +1103,13 @@ public interface QueryConstraints {
 	/**
 	 * If you use {@link HierarchyExcludingRoot} sub-query in {@link HierarchyWithin} parent, you can specify one or more
 	 * Integer primary keys of the underlying entities which hierarchical subtree should be excluded from examination.
-	 *
+	 * 
 	 * Exclusion arguments allows excluding certain parts of the hierarchy tree from examination. This feature is used in
 	 * environments where certain sub-trees can be made "invisible" and should not be accessible to users, although they are
 	 * still part of the database.
-	 *
+	 * 
 	 * Let's have following hierarchical tree of categories (primary keys are in brackets):
-	 *
+	 * 
 	 * - TV (1)
 	 * - Crt (2)
 	 * - LCD (3)
@@ -1117,7 +1117,7 @@ public interface QueryConstraints {
 	 * - small (5)
 	 * - Plasma (6)
 	 * - Fridges (7)
-	 *
+	 * 
 	 * When query `withinHierarchy('category', 1, excluding(3))` is used in a query targeting product entities,
 	 * only products that relate directly to categories: `TV`, `Crt` and `Plasma` will be returned. Products in `Fridges` will
 	 * be omitted because they are not in a sub-tree of `TV` hierarchy and products in `LCD` sub-tree will be omitted because
@@ -1135,16 +1135,16 @@ public interface QueryConstraints {
 	 * This query can be used only as sub query of `withinHierarchy` or `withinRootHierarchy`.
 	 * If you use `directRelation` sub-query fetching products related to category - only products that are directly
 	 * related to that category will be returned in the response.
-	 *
+	 * 
 	 * Let's have the following category tree:
-	 *
+	 * 
 	 * - TV (1)
 	 *     - Crt (2)
 	 *     - LCD (3)
 	 *        - AMOLED (4)
-	 *
+	 * 
 	 * These categories are related by following products:
-	 *
+	 * 
 	 * - TV (1):
 	 *     - Product Philips 32"
 	 *     - Product Samsung 24"
@@ -1156,9 +1156,9 @@ public interface QueryConstraints {
 	 *         - Product LG 28"
 	 *         - AMOLED (4):
 	 *             - Product Samsung 32"
-	 *
+	 * 
 	 * When using this query:
-	 *
+	 * 
 	 * ```
 	 * query(
 	 *    entities('PRODUCT'),
@@ -1167,11 +1167,11 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * ```
-	 *
+	 * 
 	 * All products will be returned.
-	 *
+	 * 
 	 * When this query is used:
-	 *
+	 * 
 	 * ```
 	 * query(
 	 *    entities('PRODUCT'),
@@ -1180,13 +1180,13 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * ```
-	 *
+	 * 
 	 * Only products directly related to TV category will be returned - i.e.: Philips 32" and Samsung 24". Products related
 	 * to sub-categories of TV category will be omitted.
-	 *
+	 * 
 	 * You can also use this hint to browse the hierarchy of the entity itself - to fetch subcategories of category.
 	 * If you use this query:
-	 *
+	 * 
 	 * ```
 	 * query(
 	 *    entities('CATEGORY'),
@@ -1195,10 +1195,10 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * ```
-	 *
+	 * 
 	 * All categories under the category subtree of `TV (1)` will be listed (this means categories `TV`, `Crt`, `LCD`, `AMOLED`).
 	 * If you use this query:
-	 *
+	 * 
 	 * ```
 	 * query(
 	 *    entities('CATEGORY'),
@@ -1207,10 +1207,10 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * ```
-	 *
+	 * 
 	 * Only direct sub-categories of category `TV (1)` will be listed (this means categories `Crt` and `LCD`).
 	 * You can also use this hint with query `withinRootHierarchy`:
-	 *
+	 * 
 	 * ```
 	 * query(
 	 *    entities('CATEGORY'),
@@ -1219,11 +1219,11 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * ```
-	 *
+	 * 
 	 * All categories in entire tree will be listed.
-	 *
+	 * 
 	 * When using this query:
-	 *
+	 * 
 	 * ```
 	 * query(
 	 *    entities('CATEGORY'),
@@ -1232,9 +1232,9 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * ```
-	 *
+	 * 
 	 * Which would return only category `TV (1)`.
-	 *
+	 * 
 	 * As you can see {@link HierarchyExcludingRoot} and {@link HierarchyDirectRelation} are mutually exclusive.
 	*/
 	@Nonnull
@@ -1246,15 +1246,15 @@ public interface QueryConstraints {
 	 * If you use `excludingRoot` sub-query in `withinHierarchy` parent, response will contain only children of the
 	 * entity specified in `withinHierarchy` or entities related to those children entities - if the `withinHierarchy` targets
 	 * different entity types.
-	 *
+	 * 
 	 * Let's have following category tree:
-	 *
+	 * 
 	 * - TV (1)
 	 *     - Crt (2)
 	 *     - LCD (3)
-	 *
+	 * 
 	 * These categories are related by following products:
-	 *
+	 * 
 	 * - TV (1):
 	 *     - Product Philips 32"
 	 *     - Product Samsung 24"
@@ -1264,9 +1264,9 @@ public interface QueryConstraints {
 	 *     - LCD (3):
 	 *         - Product BenQ 32"
 	 *         - Product LG 28"
-	 *
+	 * 
 	 * When using this query:
-	 *
+	 * 
 	 * ```
 	 * query(
 	 *    entities('PRODUCT'),
@@ -1275,10 +1275,10 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * ```
-	 *
+	 * 
 	 * All products will be returned.
 	 * When this query is used:
-	 *
+	 * 
 	 * ```
 	 * query(
 	 *    entities('PRODUCT'),
@@ -1287,10 +1287,10 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * ```
-	 *
+	 * 
 	 * Only products related to sub-categories of the TV category will be returned - i.e.: Ilyiama 15", Panasonic 17" and
 	 * BenQ 32", LG 28". The products related directly to TV category will not be returned.
-	 *
+	 * 
 	 * As you can see {@link HierarchyExcludingRoot} and {@link HierarchyDirectRelation} are mutually exclusive.
 	*/
 	@Nonnull
@@ -1300,22 +1300,22 @@ public interface QueryConstraints {
 
 	/**
 	 * This `language` is query accepts single {@link Locale} argument.
-	 *
+	 * 
 	 * Function returns true if entity has at least one localized attribute or associated data that  targets specified locale.
-	 *
+	 * 
 	 * If require part of the query doesn't contain {@link DataInLocales} requirement that
 	 * would specify the requested data localization, this filtering query implicitly sets requirement to the passed
 	 * language argument. In other words if entity has two localizations: `en-US` and `cs-CZ` and `language('cs-CZ')` is
 	 * used in query, returned entity would have only Czech localization of attributes and associated data fetched along
 	 * with it (and also attributes that are locale agnostic).
-	 *
+	 * 
 	 * If query contains no language query filtering logic is applied only on "global" (i.e. language agnostic)
 	 * attributes.
-	 *
+	 * 
 	 * Only single `language` query can be used in the query.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * language('en-US')
 	 * ```
@@ -1340,21 +1340,21 @@ public interface QueryConstraints {
 	 * and time passed in the second argument. First argument must be {@link String}, second argument must be {@link OffsetDateTime}
 	 * type. If second argument is not passed - current date and time (now) is used.
 	 * Type of the attribute value must implement [Range](classes/range_interface.md) interface.
-	 *
+	 * 
 	 * Function returns true if second argument is greater than or equal to range start (from), and is lesser than
 	 * or equal to range end (to).
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * inRange('valid', 2020-07-30T20:37:50+00:00)
 	 * inRange('age', 18)
 	 * ```
-	 *
+	 * 
 	 * Function supports attribute arrays and when attribute is of array type `inRange` returns true if *any of attribute* values
 	 * has range, that envelopes the passed value the value in the query. If we have the attribute `age` with value
 	 * `[[18, 25],[60,65]]` all these constraints will match:
-	 *
+	 * 
 	 * ```
 	 * inRange('age', 18)
 	 * inRange('age', 24)
@@ -1371,21 +1371,21 @@ public interface QueryConstraints {
 	 * and time passed in the second argument. First argument must be {@link String}, second argument must be {@link OffsetDateTime}
 	 * type. If second argument is not passed - current date and time (now) is used.
 	 * Type of the attribute value must implement [Range](classes/range_interface.md) interface.
-	 *
+	 * 
 	 * Function returns true if second argument is greater than or equal to range start (from), and is lesser than
 	 * or equal to range end (to).
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * inRange('valid', 2020-07-30T20:37:50+00:00)
 	 * inRange('age', 18)
 	 * ```
-	 *
+	 * 
 	 * Function supports attribute arrays and when attribute is of array type `inRange` returns true if *any of attribute* values
 	 * has range, that envelopes the passed value the value in the query. If we have the attribute `age` with value
 	 * `[[18, 25],[60,65]]` all these constraints will match:
-	 *
+	 * 
 	 * ```
 	 * inRange('age', 18)
 	 * inRange('age', 24)
@@ -1402,21 +1402,21 @@ public interface QueryConstraints {
 	 * and time passed in the second argument. First argument must be {@link String}, second argument must be {@link OffsetDateTime}
 	 * type. If second argument is not passed - current date and time (now) is used.
 	 * Type of the attribute value must implement [Range](classes/range_interface.md) interface.
-	 *
+	 * 
 	 * Function returns true if second argument is greater than or equal to range start (from), and is lesser than
 	 * or equal to range end (to).
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * inRange('valid', 2020-07-30T20:37:50+00:00)
 	 * inRange('age', 18)
 	 * ```
-	 *
+	 * 
 	 * Function supports attribute arrays and when attribute is of array type `inRange` returns true if *any of attribute* values
 	 * has range, that envelopes the passed value the value in the query. If we have the attribute `age` with value
 	 * `[[18, 25],[60,65]]` all these constraints will match:
-	 *
+	 * 
 	 * ```
 	 * inRange('age', 18)
 	 * inRange('age', 24)
@@ -1434,19 +1434,19 @@ public interface QueryConstraints {
 	 * additional arguments may be any of {@link Comparable} type.
 	 * Type of the attribute value and additional arguments must be convertible one to another otherwise `in` function
 	 * skips value comparison and ultimately returns false.
-	 *
+	 * 
 	 * Function returns true if attribute value is equal to at least one of additional values.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * inSet('level', 1, 2, 3)
 	 * ```
-	 *
+	 * 
 	 * Function supports attribute arrays and when attribute is of array type `inSet` returns true if *any of attribute* values
 	 * equals the value in the query. If we have the attribute `code` with value `['A','B','C']` all these constraints will
 	 * match:
-	 *
+	 * 
 	 * ```
 	 * inSet('code','A','D')
 	 * inSet('code','A', 'B')
@@ -1477,19 +1477,19 @@ public interface QueryConstraints {
 	 * in the second argument. First argument must be {@link String}, second argument may be any of {@link Comparable} type.
 	 * Type of the attribute value and second argument must be convertible one to another otherwise `equals` function
 	 * returns false.
-	 *
+	 * 
 	 * Function returns true if both values are equal.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * equals('code', 'abc')
 	 * ```
-	 *
+	 * 
 	 * Function supports attribute arrays and when attribute is of array type `equals` returns true if *any of attribute* values
 	 * equals the value in the query. If we have the attribute `code` with value `['A','B','C']` all these constraints will
 	 * match:
-	 *
+	 * 
 	 * ```
 	 * equals('code','A')
 	 * equals('code','B')
@@ -1506,19 +1506,19 @@ public interface QueryConstraints {
 	 * in the second argument. First argument must be {@link String}, second argument may be any of {@link Comparable} type.
 	 * Type of the attribute value and second argument must be convertible one to another otherwise `equals` function
 	 * returns false.
-	 *
+	 * 
 	 * Function returns true if both values are equal.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * equals('code', 'abc')
 	 * ```
-	 *
+	 * 
 	 * Function supports attribute arrays and when attribute is of array type `equals` returns true if *any of attribute* values
 	 * equals the value in the query. If we have the attribute `code` with value `['A','B','C']` all these constraints will
 	 * match:
-	 *
+	 * 
 	 * ```
 	 * equals('code','A')
 	 * equals('code','B')
@@ -1534,18 +1534,18 @@ public interface QueryConstraints {
 	 * This `attributeIs` is query that checks attribute for "special" value or constant that cannot be compared through
 	 * {@link Comparable} of attribute with name passed in first argument.
 	 * First argument must be {@link String}. Second is one of the {@link AttributeSpecialValue special values}:
-	 *
+	 * 
 	 * - NULL
 	 * - NOT_NULL
-	 *
+	 * 
 	 * Function returns true if attribute has (explicitly or implicitly) passed special value.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * attributeIs('visible', NULL)
 	 * ```
-	 *
+	 * 
 	 * Function supports attribute arrays in the same way as plain values.
 	*/
 	@Nullable
@@ -1560,18 +1560,18 @@ public interface QueryConstraints {
 	 * This `attributeIs` is query that checks attribute for "special" value or constant that cannot be compared through
 	 * {@link Comparable} of attribute with name passed in first argument.
 	 * First argument must be {@link String}. Second is one of the {@link AttributeSpecialValue special values}:
-	 *
+	 * 
 	 * - NULL
 	 * - NOT_NULL
-	 *
+	 * 
 	 * Function returns true if attribute has (explicitly or implicitly) passed special value.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * attributeIs('visible', NULL)
 	 * ```
-	 *
+	 * 
 	 * Function supports attribute arrays in the same way as plain values.
 	*/
 	@Nonnull
@@ -1583,18 +1583,18 @@ public interface QueryConstraints {
 	 * This `attributeIs` is query that checks attribute for "special" value or constant that cannot be compared through
 	 * {@link Comparable} of attribute with name passed in first argument.
 	 * First argument must be {@link String}. Second is one of the {@link AttributeSpecialValue special values}:
-	 *
+	 * 
 	 * - NULL
 	 * - NOT_NULL
-	 *
+	 * 
 	 * Function returns true if attribute has (explicitly or implicitly) passed special value.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * attributeIs('visible', NULL)
 	 * ```
-	 *
+	 * 
 	 * Function supports attribute arrays in the same way as plain values.
 	*/
 	@Nonnull
@@ -1605,21 +1605,21 @@ public interface QueryConstraints {
 	/**
 	 * This `priceBetween` query accepts two {@link BigDecimal} arguments that represents lower and higher price
 	 * bounds (inclusive).
-	 *
+	 * 
 	 * Function returns true if entity has sellable price in most prioritized price list according to {@link PriceInPriceLists}
 	 * query greater than or equal to passed lower bound and lesser than or equal to passed higher bound. This function
 	 * is also affected by other price related constraints such as {@link PriceInCurrency} functions that limits the examined
 	 * prices as well.
-	 *
+	 * 
 	 * Most prioritized price term relates to [price computation algorithm](price_computation.md) described in special article.
-	 *
+	 * 
 	 * By default, price with tax is used for filtering, you can change this by using {@link PriceType} require query.
 	 * Non-sellable prices doesn't participate in the filtering at all.
-	 *
+	 * 
 	 * Only single `priceBetween` query can be used in the query.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * priceBetween(150.25, 220.0)
 	 * ```
@@ -1637,18 +1637,18 @@ public interface QueryConstraints {
 	 * This `priceValidIn` is query accepts single {@link OffsetDateTime}
 	 * argument that represents the moment in time for which entity price must be valid.
 	 * If argument is not passed - current date and time (now) is used.
-	 *
+	 * 
 	 * Function returns true if entity has at least one price which validity start (valid from) is lesser or equal to passed
 	 * date and time and validity end (valid to) is greater or equal to passed date and time. This function is also affected by
 	 * {@link PriceInCurrency} and {@link PriceInPriceLists} functions that limits the examined prices as well.
 	 * When this query is used in the query returned entities will contain only prices which validity settings match
 	 * specified date and time.
-	 *
+	 * 
 	 * Only single `priceValidIn` query can be used in the query. Validity of the prices will not be taken into an account
 	 * when `priceValidIn` is not used in the query.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * priceValidIn(2020-07-30T20:37:50+00:00)
 	 * ```
@@ -1662,18 +1662,18 @@ public interface QueryConstraints {
 	 * This `priceValidIn` is query accepts single {@link OffsetDateTime}
 	 * argument that represents the moment in time for which entity price must be valid.
 	 * If argument is not passed - current date and time (now) is used.
-	 *
+	 * 
 	 * Function returns true if entity has at least one price which validity start (valid from) is lesser or equal to passed
 	 * date and time and validity end (valid to) is greater or equal to passed date and time. This function is also affected by
 	 * {@link PriceInCurrency} and {@link PriceInPriceLists} functions that limits the examined prices as well.
 	 * When this query is used in the query returned entities will contain only prices which validity settings match
 	 * specified date and time.
-	 *
+	 * 
 	 * Only single `priceValidIn` query can be used in the query. Validity of the prices will not be taken into an account
 	 * when `priceValidIn` is not used in the query.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * priceValidIn(2020-07-30T20:37:50+00:00)
 	 * ```
@@ -1689,13 +1689,13 @@ public interface QueryConstraints {
 	 * additional [Integer](https://docs.oracle.com/javase/8/docs/api/java/lang/Integer.html)
 	 * arguments that represents [facets](../model/entity_model.md#facets) that entity is required to have in order to match
 	 * this query.
-	 *
+	 * 
 	 * Function returns true if entity has a facet for specified entity type and matches passed primary keys in additional
 	 * arguments. By matching we mean, that entity has to have any of its facet (with particular type) primary keys equal to at
 	 * least one primary key specified in additional arguments.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * query(
 	 * entities('product'),
@@ -1707,20 +1707,20 @@ public interface QueryConstraints {
 	 * )
 	 * )
 	 * ```
-	 *
+	 * 
 	 * Constraint may be used only in [user filter](#user-filter) container. By default, facets of the same type within same
 	 * group are combined by conjunction (OR), facets of different types / groups are combined by disjunction (AND). This
 	 * default behaviour can be controlled exactly by using any of following require constraints:
-	 *
+	 * 
 	 * - [facet groups conjunction](#facet-groups-conjunction) - changes relationship between facets in the same group
 	 * - [facet groups disjunction](#facet-groups-disjunction) - changes relationship between facet groups
-	 *
+	 * 
 	 * ***Note:** you may ask why facet relation is specified by [require](#require) and not directly part of
 	 * the [filter](#filter)
 	 * body. The reason is simple - facet relation in certain group is usually specified system-wide and doesn't change in time
 	 * frequently. This means that it could be easily cached and passing this information in an extra require simplifies query
 	 * construction process.*
-	 *
+	 * 
 	 * *Another reason is that we need to know relationships among facet groups even for types/groups that hasn't yet been
 	 * selected by the user in order to be able to compute [facet summary](#facet-summary) output.*
 	*/
@@ -1732,14 +1732,14 @@ public interface QueryConstraints {
 	/**
 	 * This `primaryKey` is query that accepts set of {@link Integer}
 	 * that represents primary keys of the entities that should be returned.
-	 *
+	 * 
 	 * Function returns true if entity primary key is part of the passed set of integers.
 	 * This form of entity lookup function is the fastest one.
-	 *
+	 * 
 	 * Only single `primaryKey` query can be used in the query.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * primaryKey(1, 2, 3)
 	 * ```
@@ -1759,19 +1759,19 @@ public interface QueryConstraints {
 	/**
 	 * This `orderBy` is container for ordering. It is mandatory container when any ordering is to be used. Ordering
 	 * process is as follows:
-	 *
+	 * 
 	 * - first ordering evaluated, entities missing requested attribute value are excluded to intermediate bucket
 	 * - next ordering is evaluated using entities present in an intermediate bucket, entities missing requested attribute
 	 *   are excluded to new intermediate bucket
 	 * - second step is repeated until all orderings are processed
 	 * - content of the last intermediate bucket is appended to the result ordered by the primary key in ascending order
-	 *
+	 * 
 	 * Entities with same (equal) values must not be subject to secondary ordering rules and may be sorted randomly within
 	 * the scope of entities with the same value (this is subject to change, currently this behaviour differs from the one
 	 * used by relational databases - but might be more performant).
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * orderBy(
 	 *     ascending('code'),
@@ -1803,9 +1803,9 @@ public interface QueryConstraints {
 	 * The constraint allows to sort output entities by primary key values in the exact order that was used for filtering
 	 * them. The constraint requires presence of exactly one {@link EntityPrimaryKeyInSet} constraint in filter part of
 	 * the query. It uses {@link EntityPrimaryKeyInSet#getPrimaryKeys()} array for sorting the output of the query.
-	 *
+	 * 
 	 * Example usage:
-	 *
+	 * 
 	 * <pre>
 	 * query(
 	 *    filterBy(
@@ -1816,7 +1816,7 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * </pre>
-	 *
+	 * 
 	 * The example will return the selected entities (if present) in the exact order that was used for array filtering them.
 	 * The ordering constraint is particularly useful when you have sorted set of entity primary keys from an external
 	 * system which needs to be maintained (for example, it represents a relevancy of those entities).
@@ -1829,9 +1829,9 @@ public interface QueryConstraints {
 	/**
 	 * The constraint allows to sort output entities by primary key values in the exact order that is specified in
 	 * the arguments of this constraint.
-	 *
+	 * 
 	 * Example usage:
-	 *
+	 * 
 	 * <pre>
 	 * query(
 	 *    filterBy(
@@ -1842,7 +1842,7 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * </pre>
-	 *
+	 * 
 	 * The example will return the selected entities (if present) in the exact order that is stated in the argument of
 	 * this ordering constraint. If there are entities, whose primary keys are not present in the argument, then they
 	 * will be present at the end of the output in ascending order of their primary keys (or they will be sorted by
@@ -1861,9 +1861,9 @@ public interface QueryConstraints {
 	 * them. The constraint requires presence of exactly one {@link AttributeInSet} constraint in filter part of the query
 	 * that relates to the attribute with the same name as is used in the first argument of this constraint.
 	 * It uses {@link AttributeInSet#getAttributeValues()} array for sorting the output of the query.
-	 *
+	 * 
 	 * Example usage:
-	 *
+	 * 
 	 * <pre>
 	 * query(
 	 *    filterBy(
@@ -1874,7 +1874,7 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * </pre>
-	 *
+	 * 
 	 * The example will return the selected entities (if present) in the exact order of their attribute `code` that was used
 	 * for array filtering them. The ordering constraint is particularly useful when you have sorted set of attribute values
 	 * from an external system which needs to be maintained (for example, it represents a relevancy of those entities).
@@ -1890,9 +1890,9 @@ public interface QueryConstraints {
 	/**
 	 * The constraint allows output entities to be sorted by attribute values in the exact order specified in the 2nd through
 	 * Nth arguments of this constraint.
-	 *
+	 * 
 	 * Example usage:
-	 *
+	 * 
 	 * <pre>
 	 * query(
 	 *    filterBy(
@@ -1903,7 +1903,7 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * </pre>
-	 *
+	 * 
 	 * The example will return the selected entities (if present) in the exact order of their `code` attributes that is
 	 * stated in the second to Nth argument of this ordering constraint. If there are entities, that have not the attribute
 	 * `code` , then they will be present at the end of the output in ascending order of their primary keys (or they will be
@@ -1920,18 +1920,18 @@ public interface QueryConstraints {
 	/**
 	 * This `referenceAttribute` container is ordering that sorts returned entities by reference attributes. Ordering is
 	 * specified by inner constraints. Price related orderings cannot be used here, because references don't posses of prices.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * referenceAttribute(
 	 * 'CATEGORY',
 	 * ascending('categoryPriority')
 	 * )
 	 * ```
-	 *
+	 * 
 	 * or
-	 *
+	 * 
 	 * ```
 	 * referenceAttribute(
 	 * 'CATEGORY',
@@ -1951,18 +1951,18 @@ public interface QueryConstraints {
 	/**
 	 * This `referenceAttribute` container is ordering that sorts returned entities by reference attributes. Ordering is
 	 * specified by inner constraints. Price related orderings cannot be used here, because references don't posses of prices.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * referenceAttribute(
 	 * 'CATEGORY',
 	 * ascending('categoryPriority')
 	 * )
 	 * ```
-	 *
+	 * 
 	 * or
-	 *
+	 * 
 	 * ```
 	 * referenceAttribute(
 	 * 'CATEGORY',
@@ -1983,12 +1983,12 @@ public interface QueryConstraints {
 	 * Sorts returned entities by values in attribute with name passed in the first argument
 	 * and optionally order direction in second. First argument must be of {@link String} type. Second argument must be one of
 	 * {@link OrderDirection} enum otherwise {@link OrderDirection#ASC} is the default.
-	 *
+	 * 
 	 * Ordering is executed by natural order of the {@link Comparable}
 	 * type.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * attribute('married')
 	 * attribute('age', ASC)
@@ -2003,12 +2003,12 @@ public interface QueryConstraints {
 	 * Sorts returned entities by values in attribute with name passed in the first argument
 	 * and optionally order direction in second. First argument must be of {@link String} type. Second argument must be one of
 	 * {@link OrderDirection} enum otherwise {@link OrderDirection#ASC} is the default.
-	 *
+	 * 
 	 * Ordering is executed by natural order of the {@link Comparable}
 	 * type.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * attribute('married')
 	 * attribute('age', ASC)
@@ -2023,9 +2023,9 @@ public interface QueryConstraints {
 	 * This `price` is ordering that sorts returned entities by most priority price in defined order direction in the first
 	 * optional argument.
 	 * Most priority price relates to [price computation algorithm](price_computation.md) described in special article.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * price()
 	 * price(DESC)
@@ -2040,9 +2040,9 @@ public interface QueryConstraints {
 	 * This `price` is ordering that sorts returned entities by most priority price in defined order direction in the first
 	 * optional argument.
 	 * Most priority price relates to [price computation algorithm](price_computation.md) described in special article.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * price()
 	 * price(DESC)
@@ -2055,9 +2055,9 @@ public interface QueryConstraints {
 
 	/**
 	 * This `random` is ordering that sorts returned entities in random order.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * random()
 	 * ```
@@ -2074,9 +2074,9 @@ public interface QueryConstraints {
 	/**
 	 * This `require` is container for listing all additional requirements for th equery. It is mandatory container when
 	 * any requirement query is to be used.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * require(
 	 *     page(1, 2),
@@ -2098,17 +2098,17 @@ public interface QueryConstraints {
 	 * there is fixed size area dedicated to the histogram visualisation and there is no sense to return histogram with
 	 * so many buckets (columns) that wouldn't be possible to render. For example - if there is 200px size for the histogram
 	 * and we want to dedicate 10px for one column, it's wise to ask for 20 buckets.
-	 *
+	 * 
 	 * It accepts one or more {@link String} arguments as second, third (and so on) argument that specify filterable attribute
 	 * name for which [histograms](https://en.wikipedia.org/wiki/Histogram) should be computed. Attribute must contain only
 	 * numeric values in order to compute histogram data.
-	 *
+	 * 
 	 * When this requirement is used an additional object {@link java.util.Map} is
 	 * stored to result. Key of this map is {@link String} of attribute
 	 * name and value is the {@link AttributeHistogram}.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * attributeHistogram(20, 'width', 'height')
 	 * ```
@@ -2127,12 +2127,12 @@ public interface QueryConstraints {
 	 * there is fixed size area dedicated to the histogram visualisation and there is no sense to return histogram with
 	 * so many buckets (columns) that wouldn't be possible to render. For example - if there is 200px size for the histogram
 	 * and we want to dedicate 10px for one column, it's wise to ask for 20 buckets.
-	 *
+	 * 
 	 * When this requirement is used an additional object {@link io.evitadb.api.requestResponse.extraResult.Histogram} is stored to the result.
 	 * Histogram contains statistics on price layout in the query result.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * priceHistogram(20)
 	 * ```
@@ -2146,12 +2146,12 @@ public interface QueryConstraints {
 	 * This `facetGroupsConjunction` require allows specifying inter-facet relation inside facet groups of certain primary ids.
 	 * First mandatory argument specifies entity type of the facet group, secondary argument allows to define one more facet
 	 * group ids which inner facets should be considered conjunctive.
-	 *
+	 * 
 	 * This require constraint changes default behaviour stating that all facets inside same facet group are combined by OR
 	 * relation (eg. disjunction). Constraint has sense only when [facet](#facet) constraint is part of the query.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * <pre>
 	 * query(
 	 *    entities('product'),
@@ -2166,27 +2166,27 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * </pre>
-	 *
+	 * 
 	 * This statement means, that facets in `parameterType` groups `1`, `8`, `15` will be joined with boolean AND relation when
 	 * selected.
-	 *
+	 * 
 	 * Let's have this facet/group situation:
-	 *
+	 * 
 	 * Color `parameterType` (group id: 1):
-	 *
+	 * 
 	 * - blue (facet id: 11)
 	 * - red (facet id: 12)
-	 *
+	 * 
 	 * Size `parameterType` (group id: 2):
-	 *
+	 * 
 	 * - small (facet id: 21)
 	 * - large (facet id: 22)
-	 *
+	 * 
 	 * Flags `tag` (group id: 3):
-	 *
+	 * 
 	 * - action products (facet id: 31)
 	 * - new products (facet id: 32)
-	 *
+	 * 
 	 * When user selects facets: blue (11), red (12) by default relation would be: get all entities that have facet blue(11) OR
 	 * facet red(12). If require `facetGroupsConjunction('parameterType', 1)` is passed in the query filtering condition will
 	 * be composed as: blue(11) AND red(12)
@@ -2203,12 +2203,12 @@ public interface QueryConstraints {
 	 * This `facetGroupsDisjunction` require constraint allows specifying facet relation among different facet groups of certain
 	 * primary ids. First mandatory argument specifies entity type of the facet group, secondary argument allows to define one
 	 * more facet group ids that should be considered disjunctive.
-	 *
+	 * 
 	 * This require constraint changes default behaviour stating that facets between two different facet groups are combined by
 	 * AND relation and changes it to the disjunction relation instead.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * <pre>
 	 * query(
 	 *    entities('product'),
@@ -2223,27 +2223,27 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * </pre>
-	 *
+	 * 
 	 * This statement means, that facets in `parameterType` facet groups `1`, `2` will be joined with the rest of the query by
 	 * boolean OR relation when selected.
-	 *
+	 * 
 	 * Let's have this facet/group situation:
-	 *
+	 * 
 	 * Color `parameterType` (group id: 1):
-	 *
+	 * 
 	 * - blue (facet id: 11)
 	 * - red (facet id: 12)
-	 *
+	 * 
 	 * Size `parameterType` (group id: 2):
-	 *
+	 * 
 	 * - small (facet id: 21)
 	 * - large (facet id: 22)
-	 *
+	 * 
 	 * Flags `tag` (group id: 3):
-	 *
+	 * 
 	 * - action products (facet id: 31)
 	 * - new products (facet id: 32)
-	 *
+	 * 
 	 * When user selects facets: blue (11), large (22), new products (31) - the default meaning would be: get all entities that
 	 * have facet blue as well as facet large and action products tag (AND). If require `facetGroupsDisjunction('tag', 3)`
 	 * is passed in the query, filtering condition will be composed as: (`blue(11)` AND `large(22)`) OR `new products(31)`
@@ -2261,13 +2261,13 @@ public interface QueryConstraints {
 	 * groups results in omitting all entities that have requested facet in query result. First mandatory argument specifies
 	 * entity type of the facet group, secondary argument allows to define one more facet group ids that should be considered
 	 * negative.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * facetGroupsNegation('parameterType', 1, 8, 15)
 	 * ```
-	 *
+	 * 
 	 * This statement means, that facets in 'parameterType' groups `1`, `8`, `15` will be joined with boolean AND NOT relation
 	 * when selected.
 	*/
@@ -2285,26 +2285,26 @@ public interface QueryConstraints {
 	 * argument that specifies type of hierarchical entity that this entity relates to. Additional arguments allow passing
 	 * requirements for fetching the referenced entity contents so that there are no other requests to the evitaDB necessary
 	 * and all data are fetched in single query.
-	 *
+	 * 
 	 * When this require query is used an additional object is stored to result index:
-	 *
+	 * 
 	 * - **HierarchyStatistics**
 	 * this object is organized in the tree structure that reflects the hierarchy of the entities of desired type that are
 	 * referenced by entities returned by primary query, for each tree entity there is a number that represents the count of
 	 * currently queried entities that relates to that referenced hierarchical entity and match the query filter - either
 	 * directly or to some subordinate entity of this hierarchical entity
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * <pre>
 	 * hierarchyStatisticsOfReference('category')
 	 * hierarchyStatisticsOfReference('category', entityBody(), attributes())
 	 * </pre>
-	 *
+	 * 
 	 * This require query is usually used when hierarchical menu rendering is needed. For example when we need to render
 	 * menu for entire e-commerce site, but we want to take excluded subtrees into an account and also reflect the filtering
 	 * conditions that may filter out dozens of products (and thus leading to empty categories) we can invoke following query:
-	 *
+	 * 
 	 * <pre>
 	 * query(
 	 *     entities('PRODUCT'),
@@ -2324,10 +2324,10 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 *
+	 * 
 	 * This query would return first page with 20 products (omitting hundreds of others on additional pages) but also returns a
 	 * HierarchyStatistics in additional data. This object may contain following structure:
-	 *
+	 * 
 	 * <pre>
 	 * Electronics -> 1789
 	 *     TV -> 126
@@ -2343,13 +2343,13 @@ public interface QueryConstraints {
 	 *     Audio / Video -> 230
 	 *     Printers -> 80
 	 * </pre>
-	 *
+	 * 
 	 * The tree will contain category entities loaded with `attributes` instead the names you see in the example. The number
 	 * after the arrow represents the count of the products that are referencing this category (either directly or some of its
 	 * children). You can see there are only categories that are valid for the passed query - excluded category subtree will
 	 * not be part of the category listing (query filters out all products with excluded category tree) and there is also no
 	 * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
-	 *
+	 * 
 	 * TOBEDONE JNO: review docs
 	*/
 	@Nullable
@@ -2363,26 +2363,26 @@ public interface QueryConstraints {
 	 * argument that specifies type of hierarchical entity that this entity relates to. Additional arguments allow passing
 	 * requirements for fetching the referenced entity contents so that there are no other requests to the evitaDB necessary
 	 * and all data are fetched in single query.
-	 *
+	 * 
 	 * When this require query is used an additional object is stored to result index:
-	 *
+	 * 
 	 * - **HierarchyStatistics**
 	 * this object is organized in the tree structure that reflects the hierarchy of the entities of desired type that are
 	 * referenced by entities returned by primary query, for each tree entity there is a number that represents the count of
 	 * currently queried entities that relates to that referenced hierarchical entity and match the query filter - either
 	 * directly or to some subordinate entity of this hierarchical entity
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * <pre>
 	 * hierarchyStatisticsOfReference('category')
 	 * hierarchyStatisticsOfReference('category', entityBody(), attributes())
 	 * </pre>
-	 *
+	 * 
 	 * This require query is usually used when hierarchical menu rendering is needed. For example when we need to render
 	 * menu for entire e-commerce site, but we want to take excluded subtrees into an account and also reflect the filtering
 	 * conditions that may filter out dozens of products (and thus leading to empty categories) we can invoke following query:
-	 *
+	 * 
 	 * <pre>
 	 * query(
 	 *     entities('PRODUCT'),
@@ -2402,10 +2402,10 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 *
+	 * 
 	 * This query would return first page with 20 products (omitting hundreds of others on additional pages) but also returns a
 	 * HierarchyStatistics in additional data. This object may contain following structure:
-	 *
+	 * 
 	 * <pre>
 	 * Electronics -> 1789
 	 *     TV -> 126
@@ -2421,13 +2421,13 @@ public interface QueryConstraints {
 	 *     Audio / Video -> 230
 	 *     Printers -> 80
 	 * </pre>
-	 *
+	 * 
 	 * The tree will contain category entities loaded with `attributes` instead the names you see in the example. The number
 	 * after the arrow represents the count of the products that are referencing this category (either directly or some of its
 	 * children). You can see there are only categories that are valid for the passed query - excluded category subtree will
 	 * not be part of the category listing (query filters out all products with excluded category tree) and there is also no
 	 * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
-	 *
+	 * 
 	 * TOBEDONE JNO: review docs
 	*/
 	@Nullable
@@ -2444,26 +2444,26 @@ public interface QueryConstraints {
 	 * argument that specifies type of hierarchical entity that this entity relates to. Additional arguments allow passing
 	 * requirements for fetching the referenced entity contents so that there are no other requests to the evitaDB necessary
 	 * and all data are fetched in single query.
-	 *
+	 * 
 	 * When this require query is used an additional object is stored to result index:
-	 *
+	 * 
 	 * - **HierarchyStatistics**
 	 * this object is organized in the tree structure that reflects the hierarchy of the entities of desired type that are
 	 * referenced by entities returned by primary query, for each tree entity there is a number that represents the count of
 	 * currently queried entities that relates to that referenced hierarchical entity and match the query filter - either
 	 * directly or to some subordinate entity of this hierarchical entity
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * <pre>
 	 * hierarchyStatisticsOfReference('category')
 	 * hierarchyStatisticsOfReference('category', entityBody(), attributes())
 	 * </pre>
-	 *
+	 * 
 	 * This require query is usually used when hierarchical menu rendering is needed. For example when we need to render
 	 * menu for entire e-commerce site, but we want to take excluded subtrees into an account and also reflect the filtering
 	 * conditions that may filter out dozens of products (and thus leading to empty categories) we can invoke following query:
-	 *
+	 * 
 	 * <pre>
 	 * query(
 	 *     entities('PRODUCT'),
@@ -2483,10 +2483,10 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 *
+	 * 
 	 * This query would return first page with 20 products (omitting hundreds of others on additional pages) but also returns a
 	 * HierarchyStatistics in additional data. This object may contain following structure:
-	 *
+	 * 
 	 * <pre>
 	 * Electronics -> 1789
 	 *     TV -> 126
@@ -2502,13 +2502,13 @@ public interface QueryConstraints {
 	 *     Audio / Video -> 230
 	 *     Printers -> 80
 	 * </pre>
-	 *
+	 * 
 	 * The tree will contain category entities loaded with `attributes` instead the names you see in the example. The number
 	 * after the arrow represents the count of the products that are referencing this category (either directly or some of its
 	 * children). You can see there are only categories that are valid for the passed query - excluded category subtree will
 	 * not be part of the category listing (query filters out all products with excluded category tree) and there is also no
 	 * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
-	 *
+	 * 
 	 * TOBEDONE JNO: review docs
 	*/
 	@Nullable
@@ -2525,26 +2525,26 @@ public interface QueryConstraints {
 	 * argument that specifies type of hierarchical entity that this entity relates to. Additional arguments allow passing
 	 * requirements for fetching the referenced entity contents so that there are no other requests to the evitaDB necessary
 	 * and all data are fetched in single query.
-	 *
+	 * 
 	 * When this require query is used an additional object is stored to result index:
-	 *
+	 * 
 	 * - **HierarchyStatistics**
 	 * this object is organized in the tree structure that reflects the hierarchy of the entities of desired type that are
 	 * referenced by entities returned by primary query, for each tree entity there is a number that represents the count of
 	 * currently queried entities that relates to that referenced hierarchical entity and match the query filter - either
 	 * directly or to some subordinate entity of this hierarchical entity
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * <pre>
 	 * hierarchyStatisticsOfReference('category')
 	 * hierarchyStatisticsOfReference('category', entityBody(), attributes())
 	 * </pre>
-	 *
+	 * 
 	 * This require query is usually used when hierarchical menu rendering is needed. For example when we need to render
 	 * menu for entire e-commerce site, but we want to take excluded subtrees into an account and also reflect the filtering
 	 * conditions that may filter out dozens of products (and thus leading to empty categories) we can invoke following query:
-	 *
+	 * 
 	 * <pre>
 	 * query(
 	 *     entities('PRODUCT'),
@@ -2564,10 +2564,10 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 *
+	 * 
 	 * This query would return first page with 20 products (omitting hundreds of others on additional pages) but also returns a
 	 * HierarchyStatistics in additional data. This object may contain following structure:
-	 *
+	 * 
 	 * <pre>
 	 * Electronics -> 1789
 	 *     TV -> 126
@@ -2583,13 +2583,13 @@ public interface QueryConstraints {
 	 *     Audio / Video -> 230
 	 *     Printers -> 80
 	 * </pre>
-	 *
+	 * 
 	 * The tree will contain category entities loaded with `attributes` instead the names you see in the example. The number
 	 * after the arrow represents the count of the products that are referencing this category (either directly or some of its
 	 * children). You can see there are only categories that are valid for the passed query - excluded category subtree will
 	 * not be part of the category listing (query filters out all products with excluded category tree) and there is also no
 	 * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
-	 *
+	 * 
 	 * TOBEDONE JNO: review docs
 	*/
 	@Nullable
@@ -2607,26 +2607,26 @@ public interface QueryConstraints {
 	 * argument that specifies type of hierarchical entity that this entity relates to. Additional arguments allow passing
 	 * requirements for fetching the referenced entity contents so that there are no other requests to the evitaDB necessary
 	 * and all data are fetched in single query.
-	 *
+	 * 
 	 * When this require query is used an additional object is stored to result index:
-	 *
+	 * 
 	 * - **HierarchyStatistics**
 	 * this object is organized in the tree structure that reflects the hierarchy of the entities of desired type that are
 	 * referenced by entities returned by primary query, for each tree entity there is a number that represents the count of
 	 * currently queried entities that relates to that referenced hierarchical entity and match the query filter - either
 	 * directly or to some subordinate entity of this hierarchical entity
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * <pre>
 	 * hierarchyStatisticsOfReference('category')
 	 * hierarchyStatisticsOfReference('category', entityBody(), attributes())
 	 * </pre>
-	 *
+	 * 
 	 * This require query is usually used when hierarchical menu rendering is needed. For example when we need to render
 	 * menu for entire e-commerce site, but we want to take excluded subtrees into an account and also reflect the filtering
 	 * conditions that may filter out dozens of products (and thus leading to empty categories) we can invoke following query:
-	 *
+	 * 
 	 * <pre>
 	 * query(
 	 *     entities('PRODUCT'),
@@ -2646,10 +2646,10 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 *
+	 * 
 	 * This query would return first page with 20 products (omitting hundreds of others on additional pages) but also returns a
 	 * HierarchyStatistics in additional data. This object may contain following structure:
-	 *
+	 * 
 	 * <pre>
 	 * Electronics -> 1789
 	 *     TV -> 126
@@ -2665,13 +2665,13 @@ public interface QueryConstraints {
 	 *     Audio / Video -> 230
 	 *     Printers -> 80
 	 * </pre>
-	 *
+	 * 
 	 * The tree will contain category entities loaded with `attributes` instead the names you see in the example. The number
 	 * after the arrow represents the count of the products that are referencing this category (either directly or some of its
 	 * children). You can see there are only categories that are valid for the passed query - excluded category subtree will
 	 * not be part of the category listing (query filters out all products with excluded category tree) and there is also no
 	 * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
-	 *
+	 * 
 	 * TOBEDONE JNO: review docs
 	*/
 	@Nullable
@@ -2695,26 +2695,26 @@ public interface QueryConstraints {
 	 * argument that specifies type of hierarchical entity that this entity relates to. Additional arguments allow passing
 	 * requirements for fetching the referenced entity contents so that there are no other requests to the evitaDB necessary
 	 * and all data are fetched in single query.
-	 *
+	 * 
 	 * When this require query is used an additional object is stored to result index:
-	 *
+	 * 
 	 * - **HierarchyStatistics**
 	 * this object is organized in the tree structure that reflects the hierarchy of the entities of desired type that are
 	 * referenced by entities returned by primary query, for each tree entity there is a number that represents the count of
 	 * currently queried entities that relates to that referenced hierarchical entity and match the query filter - either
 	 * directly or to some subordinate entity of this hierarchical entity
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * <pre>
 	 * hierarchyStatisticsOfReference('category')
 	 * hierarchyStatisticsOfReference('category', entityBody(), attributes())
 	 * </pre>
-	 *
+	 * 
 	 * This require query is usually used when hierarchical menu rendering is needed. For example when we need to render
 	 * menu for entire e-commerce site, but we want to take excluded subtrees into an account and also reflect the filtering
 	 * conditions that may filter out dozens of products (and thus leading to empty categories) we can invoke following query:
-	 *
+	 * 
 	 * <pre>
 	 * query(
 	 *     entities('PRODUCT'),
@@ -2734,10 +2734,10 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 *
+	 * 
 	 * This query would return first page with 20 products (omitting hundreds of others on additional pages) but also returns a
 	 * HierarchyStatistics in additional data. This object may contain following structure:
-	 *
+	 * 
 	 * <pre>
 	 * Electronics -> 1789
 	 *     TV -> 126
@@ -2753,13 +2753,13 @@ public interface QueryConstraints {
 	 *     Audio / Video -> 230
 	 *     Printers -> 80
 	 * </pre>
-	 *
+	 * 
 	 * The tree will contain category entities loaded with `attributes` instead the names you see in the example. The number
 	 * after the arrow represents the count of the products that are referencing this category (either directly or some of its
 	 * children). You can see there are only categories that are valid for the passed query - excluded category subtree will
 	 * not be part of the category listing (query filters out all products with excluded category tree) and there is also no
 	 * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
-	 *
+	 * 
 	 * TOBEDONE JNO: review docs
 	*/
 	@Nullable
@@ -2785,26 +2785,26 @@ public interface QueryConstraints {
 	 * argument that specifies type of hierarchical entity that this entity relates to. Additional arguments allow passing
 	 * requirements for fetching the referenced entity contents so that there are no other requests to the evitaDB necessary
 	 * and all data are fetched in single query.
-	 *
+	 * 
 	 * When this require query is used an additional object is stored to result index:
-	 *
+	 * 
 	 * - **HierarchyStatistics**
 	 * this object is organized in the tree structure that reflects the hierarchy of the entities of desired type that are
 	 * referenced by entities returned by primary query, for each tree entity there is a number that represents the count of
 	 * currently queried entities that relates to that referenced hierarchical entity and match the query filter - either
 	 * directly or to some subordinate entity of this hierarchical entity
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * <pre>
 	 * hierarchyStatisticsOfReference('category')
 	 * hierarchyStatisticsOfReference('category', entityBody(), attributes())
 	 * </pre>
-	 *
+	 * 
 	 * This require query is usually used when hierarchical menu rendering is needed. For example when we need to render
 	 * menu for entire e-commerce site, but we want to take excluded subtrees into an account and also reflect the filtering
 	 * conditions that may filter out dozens of products (and thus leading to empty categories) we can invoke following query:
-	 *
+	 * 
 	 * <pre>
 	 * query(
 	 *     entities('PRODUCT'),
@@ -2824,10 +2824,10 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 *
+	 * 
 	 * This query would return first page with 20 products (omitting hundreds of others on additional pages) but also returns a
 	 * HierarchyStatistics in additional data. This object may contain following structure:
-	 *
+	 * 
 	 * <pre>
 	 * Electronics -> 1789
 	 *     TV -> 126
@@ -2843,13 +2843,13 @@ public interface QueryConstraints {
 	 *     Audio / Video -> 230
 	 *     Printers -> 80
 	 * </pre>
-	 *
+	 * 
 	 * The tree will contain category entities loaded with `attributes` instead the names you see in the example. The number
 	 * after the arrow represents the count of the products that are referencing this category (either directly or some of its
 	 * children). You can see there are only categories that are valid for the passed query - excluded category subtree will
 	 * not be part of the category listing (query filters out all products with excluded category tree) and there is also no
 	 * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
-	 *
+	 * 
 	 * TOBEDONE JNO: review docs
 	*/
 	@Nullable
@@ -2866,26 +2866,26 @@ public interface QueryConstraints {
 	 * argument that specifies type of hierarchical entity that this entity relates to. Additional arguments allow passing
 	 * requirements for fetching the referenced entity contents so that there are no other requests to the evitaDB necessary
 	 * and all data are fetched in single query.
-	 *
+	 * 
 	 * When this require query is used an additional object is stored to result index:
-	 *
+	 * 
 	 * - **HierarchyStatistics**
 	 * this object is organized in the tree structure that reflects the hierarchy of the entities of desired type that are
 	 * referenced by entities returned by primary query, for each tree entity there is a number that represents the count of
 	 * currently queried entities that relates to that referenced hierarchical entity and match the query filter - either
 	 * directly or to some subordinate entity of this hierarchical entity
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * <pre>
 	 * hierarchyStatisticsOfReference('category')
 	 * hierarchyStatisticsOfReference('category', entityBody(), attributes())
 	 * </pre>
-	 *
+	 * 
 	 * This require query is usually used when hierarchical menu rendering is needed. For example when we need to render
 	 * menu for entire e-commerce site, but we want to take excluded subtrees into an account and also reflect the filtering
 	 * conditions that may filter out dozens of products (and thus leading to empty categories) we can invoke following query:
-	 *
+	 * 
 	 * <pre>
 	 * query(
 	 *     entities('PRODUCT'),
@@ -2905,10 +2905,10 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 *
+	 * 
 	 * This query would return first page with 20 products (omitting hundreds of others on additional pages) but also returns a
 	 * HierarchyStatistics in additional data. This object may contain following structure:
-	 *
+	 * 
 	 * <pre>
 	 * Electronics -> 1789
 	 *     TV -> 126
@@ -2924,13 +2924,13 @@ public interface QueryConstraints {
 	 *     Audio / Video -> 230
 	 *     Printers -> 80
 	 * </pre>
-	 *
+	 * 
 	 * The tree will contain category entities loaded with `attributes` instead the names you see in the example. The number
 	 * after the arrow represents the count of the products that are referencing this category (either directly or some of its
 	 * children). You can see there are only categories that are valid for the passed query - excluded category subtree will
 	 * not be part of the category listing (query filters out all products with excluded category tree) and there is also no
 	 * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
-	 *
+	 * 
 	 * TOBEDONE JNO: review docs
 	*/
 	@Nullable
@@ -2948,26 +2948,26 @@ public interface QueryConstraints {
 	 * argument that specifies type of hierarchical entity that this entity relates to. Additional arguments allow passing
 	 * requirements for fetching the referenced entity contents so that there are no other requests to the evitaDB necessary
 	 * and all data are fetched in single query.
-	 *
+	 * 
 	 * When this require query is used an additional object is stored to result index:
-	 *
+	 * 
 	 * - **HierarchyStatistics**
 	 * this object is organized in the tree structure that reflects the hierarchy of the entities of desired type that are
 	 * referenced by entities returned by primary query, for each tree entity there is a number that represents the count of
 	 * currently queried entities that relates to that referenced hierarchical entity and match the query filter - either
 	 * directly or to some subordinate entity of this hierarchical entity
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * <pre>
 	 * hierarchyStatisticsOfReference('category')
 	 * hierarchyStatisticsOfReference('category', entityBody(), attributes())
 	 * </pre>
-	 *
+	 * 
 	 * This require query is usually used when hierarchical menu rendering is needed. For example when we need to render
 	 * menu for entire e-commerce site, but we want to take excluded subtrees into an account and also reflect the filtering
 	 * conditions that may filter out dozens of products (and thus leading to empty categories) we can invoke following query:
-	 *
+	 * 
 	 * <pre>
 	 * query(
 	 *     entities('PRODUCT'),
@@ -2987,10 +2987,10 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 *
+	 * 
 	 * This query would return first page with 20 products (omitting hundreds of others on additional pages) but also returns a
 	 * HierarchyStatistics in additional data. This object may contain following structure:
-	 *
+	 * 
 	 * <pre>
 	 * Electronics -> 1789
 	 *     TV -> 126
@@ -3006,13 +3006,13 @@ public interface QueryConstraints {
 	 *     Audio / Video -> 230
 	 *     Printers -> 80
 	 * </pre>
-	 *
+	 * 
 	 * The tree will contain category entities loaded with `attributes` instead the names you see in the example. The number
 	 * after the arrow represents the count of the products that are referencing this category (either directly or some of its
 	 * children). You can see there are only categories that are valid for the passed query - excluded category subtree will
 	 * not be part of the category listing (query filters out all products with excluded category tree) and there is also no
 	 * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
-	 *
+	 * 
 	 * TOBEDONE JNO: review docs
 	*/
 	@Nullable
@@ -3040,26 +3040,26 @@ public interface QueryConstraints {
 	 * argument that specifies type of hierarchical entity that this entity relates to. Additional arguments allow passing
 	 * requirements for fetching the referenced entity contents so that there are no other requests to the evitaDB necessary
 	 * and all data are fetched in single query.
-	 *
+	 * 
 	 * When this require query is used an additional object is stored to result index:
-	 *
+	 * 
 	 * - **HierarchyStatistics**
 	 * this object is organized in the tree structure that reflects the hierarchy of the entities of desired type that are
 	 * referenced by entities returned by primary query, for each tree entity there is a number that represents the count of
 	 * currently queried entities that relates to that referenced hierarchical entity and match the query filter - either
 	 * directly or to some subordinate entity of this hierarchical entity
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * <pre>
 	 * hierarchyStatisticsOfReference('category')
 	 * hierarchyStatisticsOfReference('category', entityBody(), attributes())
 	 * </pre>
-	 *
+	 * 
 	 * This require query is usually used when hierarchical menu rendering is needed. For example when we need to render
 	 * menu for entire e-commerce site, but we want to take excluded subtrees into an account and also reflect the filtering
 	 * conditions that may filter out dozens of products (and thus leading to empty categories) we can invoke following query:
-	 *
+	 * 
 	 * <pre>
 	 * query(
 	 *     entities('PRODUCT'),
@@ -3079,10 +3079,10 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 *
+	 * 
 	 * This query would return first page with 20 products (omitting hundreds of others on additional pages) but also returns a
 	 * HierarchyStatistics in additional data. This object may contain following structure:
-	 *
+	 * 
 	 * <pre>
 	 * Electronics -> 1789
 	 *     TV -> 126
@@ -3098,13 +3098,13 @@ public interface QueryConstraints {
 	 *     Audio / Video -> 230
 	 *     Printers -> 80
 	 * </pre>
-	 *
+	 * 
 	 * The tree will contain category entities loaded with `attributes` instead the names you see in the example. The number
 	 * after the arrow represents the count of the products that are referencing this category (either directly or some of its
 	 * children). You can see there are only categories that are valid for the passed query - excluded category subtree will
 	 * not be part of the category listing (query filters out all products with excluded category tree) and there is also no
 	 * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
-	 *
+	 * 
 	 * TOBEDONE JNO: review docs
 	*/
 	@Nullable
@@ -3427,13 +3427,13 @@ public interface QueryConstraints {
 	 * This `attributes` requirement changes default behaviour of the query engine returning only entity primary keys in the result. When
 	 * this requirement is used result contains [entity bodies](entity_model.md) except `associated data` that could
 	 * become big. These type of data can be fetched either lazily or by specifying additional requirements in the query.
-	 *
+	 * 
 	 * This requirement implicitly triggers {@link EntityBodyFetch} requirement because attributes cannot be returned without entity.
 	 * [Localized interface](classes/localized_interface.md) attributes are returned according to {@link EntityLocaleEquals}
 	 * query.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * attributes()
 	 * ```
@@ -3447,13 +3447,13 @@ public interface QueryConstraints {
 	 * This `attributes` requirement changes default behaviour of the query engine returning only entity primary keys in the result. When
 	 * this requirement is used result contains [entity bodies](entity_model.md) except `associated data` that could
 	 * become big. These type of data can be fetched either lazily or by specifying additional requirements in the query.
-	 *
+	 * 
 	 * This requirement implicitly triggers {@link EntityBodyFetch} requirement because attributes cannot be returned without entity.
 	 * [Localized interface](classes/localized_interface.md) attributes are returned according to {@link EntityLocaleEquals}
 	 * query.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * attributes()
 	 * ```
@@ -3470,13 +3470,13 @@ public interface QueryConstraints {
 	 * This `associatedData` requirement changes default behaviour of the query engine returning only entity primary keys in the result. When
 	 * this requirement is used result contains [entity bodies](entity_model.md) along with associated data with names specified in
 	 * one or more arguments of this requirement.
-	 *
+	 * 
 	 * This requirement implicitly triggers {@link EntityBodyFetch} requirement because attributes cannot be returned without entity.
 	 * [Localized interface](classes/localized_interface.md) associated data is returned according to {@link EntityLocaleEquals}
 	 * query. Requirement might be combined with {@link AttributeContent} requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * associatedData('description', 'gallery-3d')
 	 * ```
@@ -3490,13 +3490,13 @@ public interface QueryConstraints {
 	 * This `associatedData` requirement changes default behaviour of the query engine returning only entity primary keys in the result. When
 	 * this requirement is used result contains [entity bodies](entity_model.md) along with associated data with names specified in
 	 * one or more arguments of this requirement.
-	 *
+	 * 
 	 * This requirement implicitly triggers {@link EntityBodyFetch} requirement because attributes cannot be returned without entity.
 	 * [Localized interface](classes/localized_interface.md) associated data is returned according to {@link EntityLocaleEquals}
 	 * query. Requirement might be combined with {@link AttributeContent} requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * associatedData('description', 'gallery-3d')
 	 * ```
@@ -3515,21 +3515,21 @@ public interface QueryConstraints {
 	 * localized in required languages as well as global ones. If query contains no argument, global data and data
 	 * localized to all languages are returned. If query is not present in the query, only global attributes and
 	 * associated data are returned.
-	 *
+	 * 
 	 * **Note:** if {@link EntityLocaleEquals}is used in the filter part of the query and `dataInLanguage`
 	 * require query is missing, the system implicitly uses `dataInLanguage` matching the language in filter query.
-	 *
+	 * 
 	 * Only single `dataInLanguage` query can be used in the query.
-	 *
+	 * 
 	 * Example that fetches only global and `en-US` localized attributes and associated data (considering there are multiple
 	 * language localizations):
-	 *
+	 * 
 	 * ```
 	 * dataInLocales('en-US')
 	 * ```
-	 *
+	 * 
 	 * Example that fetches all available global and localized data:
-	 *
+	 * 
 	 * ```
 	 * dataInLocales()
 	 * ```
@@ -3546,9 +3546,9 @@ public interface QueryConstraints {
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * references()
 	 * references(CATEGORY)
@@ -3565,9 +3565,9 @@ public interface QueryConstraints {
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * references()
 	 * references(CATEGORY)
@@ -3587,9 +3587,9 @@ public interface QueryConstraints {
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * references()
 	 * references(CATEGORY)
@@ -3609,9 +3609,9 @@ public interface QueryConstraints {
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * references()
 	 * references(CATEGORY)
@@ -3637,9 +3637,9 @@ public interface QueryConstraints {
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * references()
 	 * references(CATEGORY)
@@ -3665,9 +3665,9 @@ public interface QueryConstraints {
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * references()
 	 * references(CATEGORY)
@@ -3687,9 +3687,9 @@ public interface QueryConstraints {
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * references()
 	 * references(CATEGORY)
@@ -3718,9 +3718,9 @@ public interface QueryConstraints {
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * references()
 	 * references(CATEGORY)
@@ -3749,9 +3749,9 @@ public interface QueryConstraints {
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * references()
 	 * references(CATEGORY)
@@ -3772,9 +3772,9 @@ public interface QueryConstraints {
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * references()
 	 * references(CATEGORY)
@@ -3794,9 +3794,9 @@ public interface QueryConstraints {
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * references()
 	 * references(CATEGORY)
@@ -3823,9 +3823,9 @@ public interface QueryConstraints {
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * references()
 	 * references(CATEGORY)
@@ -3852,9 +3852,9 @@ public interface QueryConstraints {
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * references()
 	 * references(CATEGORY)
@@ -3874,9 +3874,9 @@ public interface QueryConstraints {
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * references()
 	 * references(CATEGORY)
@@ -3896,9 +3896,9 @@ public interface QueryConstraints {
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * references()
 	 * references(CATEGORY)
@@ -3925,9 +3925,9 @@ public interface QueryConstraints {
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * references()
 	 * references(CATEGORY)
@@ -3954,9 +3954,9 @@ public interface QueryConstraints {
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * references()
 	 * references(CATEGORY)
@@ -3976,9 +3976,9 @@ public interface QueryConstraints {
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * references()
 	 * references(CATEGORY)
@@ -4004,9 +4004,9 @@ public interface QueryConstraints {
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * references()
 	 * references(CATEGORY)
@@ -4040,9 +4040,9 @@ public interface QueryConstraints {
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * references()
 	 * references(CATEGORY)
@@ -4076,9 +4076,9 @@ public interface QueryConstraints {
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * references()
 	 * references(CATEGORY)
@@ -4104,9 +4104,9 @@ public interface QueryConstraints {
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * references()
 	 * references(CATEGORY)
@@ -4123,9 +4123,9 @@ public interface QueryConstraints {
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * references()
 	 * references(CATEGORY)
@@ -4142,9 +4142,9 @@ public interface QueryConstraints {
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * references()
 	 * references(CATEGORY)
@@ -4161,9 +4161,9 @@ public interface QueryConstraints {
 	 * This `hierarchyContent` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with hierarchyContent with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * hierarchyContent()
 	 * hierarchyContent(CATEGORY)
@@ -4180,9 +4180,9 @@ public interface QueryConstraints {
 	 * This `hierarchyContent` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with hierarchyContent with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * hierarchyContent()
 	 * hierarchyContent(CATEGORY)
@@ -4199,9 +4199,9 @@ public interface QueryConstraints {
 	 * This `hierarchyContent` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with hierarchyContent with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * hierarchyContent()
 	 * hierarchyContent(CATEGORY)
@@ -4218,9 +4218,9 @@ public interface QueryConstraints {
 	 * This `hierarchyContent` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with hierarchyContent with to entities
 	 * or external objects specified in one or more arguments of this requirement.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * hierarchyContent()
 	 * hierarchyContent(CATEGORY)
@@ -4242,16 +4242,16 @@ public interface QueryConstraints {
 	/**
 	 * This `prices` requirement changes default behaviour of the query engine returning only entity primary keys in the result. When
 	 * this requirement is used result contains [entity prices](entity_model.md).
-	 *
+	 * 
 	 * This requirement implicitly triggers {@link EntityFetch} requirement because prices cannot be returned without entity.
 	 * When price constraints are used returned prices are filtered according to them by default. This behaviour might be
 	 * changed, however.
-	 *
+	 * 
 	 * Accepts single {@link PriceContentMode} parameter. When {@link PriceContentMode#ALL} all prices of the entity are returned
 	 * regardless of the input query constraints otherwise prices are filtered by those constraints. Default is {@link PriceContentMode#RESPECTING_FILTER}.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * prices() // defaults to respecting filter
 	 * prices(RESPECTING_FILTER)
@@ -4274,16 +4274,16 @@ public interface QueryConstraints {
 	/**
 	 * This `prices` requirement changes default behaviour of the query engine returning only entity primary keys in the result. When
 	 * this requirement is used result contains [entity prices](entity_model.md).
-	 *
+	 * 
 	 * This requirement implicitly triggers {@link EntityFetch} requirement because prices cannot be returned without entity.
 	 * When price constraints are used returned prices are filtered according to them by default. This behaviour might be
 	 * changed, however.
-	 *
+	 * 
 	 * Accepts single {@link PriceContentMode} parameter. When {@link PriceContentMode#ALL} all prices of the entity are returned
 	 * regardless of the input query constraints otherwise prices are filtered by those constraints. Default is {@link PriceContentMode#RESPECTING_FILTER}.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * prices() // defaults to respecting filter
 	 * prices(RESPECTING_FILTER)
@@ -4299,16 +4299,16 @@ public interface QueryConstraints {
 	/**
 	 * This `prices` requirement changes default behaviour of the query engine returning only entity primary keys in the result. When
 	 * this requirement is used result contains [entity prices](entity_model.md).
-	 *
+	 * 
 	 * This requirement implicitly triggers {@link EntityFetch} requirement because prices cannot be returned without entity.
 	 * When price constraints are used returned prices are filtered according to them by default. This behaviour might be
 	 * changed, however.
-	 *
+	 * 
 	 * Accepts single {@link PriceContentMode} parameter. When {@link PriceContentMode#ALL} all prices of the entity are returned
 	 * regardless of the input query constraints otherwise prices are filtered by those constraints. Default is {@link PriceContentMode#RESPECTING_FILTER}.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * prices() // defaults to respecting filter
 	 * prices(RESPECTING_FILTER)
@@ -4325,15 +4325,15 @@ public interface QueryConstraints {
 	 * This `useOfPrice` require query can be used to control the form of prices that will be used for computation in
 	 * {@link io.evitadb.api.query.filter.PriceBetween} filtering, and {@link PriceNatural},
 	 * ordering. Also {@link PriceHistogram} is sensitive to this setting.
-	 *
+	 * 
 	 * By default, end customer form of price (e.g. price with tax) is used in all above-mentioned constraints. This could
 	 * be changed by using this requirement query. It has single argument that can have one of the following values:
-	 *
+	 * 
 	 * - WITH_TAX
 	 * - WITHOUT_TAX
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * useOfPrice(WITH_TAX)
 	 * ```
@@ -4345,14 +4345,14 @@ public interface QueryConstraints {
 
 	/**
 	 * This `page` constraint controls count of the entities in the query output. It allows specifying 2 arguments in following order:
-	 *
+	 * 
 	 * - **[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) pageNumber**: number of the page of
 	 * results that are expected to be returned, starts with 1, must be greater than zero (mandatory)
 	 * - **[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) pageSize**: number of entities on
 	 * a single page, must be greater than zero (mandatory)
-	 *
+	 * 
 	 * Example - return first page with 24 items:
-	 *
+	 * 
 	 * ```
 	 * page(1, 24)
 	 * ```
@@ -4364,14 +4364,14 @@ public interface QueryConstraints {
 
 	/**
 	 * This `strip` query controls count of the entities in the query output. It allows specifying 2 arguments in following order:
-	 *
+	 * 
 	 * - **[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) offset**: number of the items that
 	 *   should be omitted in the result, must be greater than or equals to zero (mandatory)
 	 * - **[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) limit**: number of entities on
 	 *   that should be returned, must be greater than zero (mandatory)
-	 *
+	 * 
 	 * Example - return 24 records from index 52:
-	 *
+	 * 
 	 * ```
 	 * strip(52, 24)
 	 * ```
@@ -4385,19 +4385,19 @@ public interface QueryConstraints {
 	 * This `facetSummary` requirement usage triggers computing and adding an object to the result index. The object is
 	 * quite complex but allows rendering entire facet listing to e-commerce users. It contains information about all
 	 * facets present in current hierarchy view along with count of requested entities that have those facets assigned.
-	 *
+	 * 
 	 * Facet summary respects current query filtering constraints excluding the conditions inside {@link UserFilter}
 	 * container constraint.
-	 *
+	 * 
 	 * When this requirement is used an additional object {@link io.evitadb.api.requestResponse.extraResult.FacetSummary} is stored to result.
-	 *
+	 * 
 	 * Optionally accepts single enum argument:
-	 *
+	 * 
 	 * - COUNT: only counts of facets will be computed
 	 * - IMPACT: counts and selection impact for non-selected facets will be computed
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * facetSummary()
 	 * facetSummary(COUNT) //same as previous row - default
@@ -4413,19 +4413,19 @@ public interface QueryConstraints {
 	 * This `facetSummary` requirement usage triggers computing and adding an object to the result index. The object is
 	 * quite complex but allows rendering entire facet listing to e-commerce users. It contains information about all
 	 * facets present in current hierarchy view along with count of requested entities that have those facets assigned.
-	 *
+	 * 
 	 * Facet summary respects current query filtering constraints excluding the conditions inside {@link UserFilter}
 	 * container constraint.
-	 *
+	 * 
 	 * When this requirement is used an additional object {@link io.evitadb.api.requestResponse.extraResult.FacetSummary} is stored to result.
-	 *
+	 * 
 	 * Optionally accepts single enum argument:
-	 *
+	 * 
 	 * - COUNT: only counts of facets will be computed
 	 * - IMPACT: counts and selection impact for non-selected facets will be computed
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * facetSummary()
 	 * facetSummary(COUNT) //same as previous row - default
@@ -4443,19 +4443,19 @@ public interface QueryConstraints {
 	 * This `facetSummary` requirement usage triggers computing and adding an object to the result index. The object is
 	 * quite complex but allows rendering entire facet listing to e-commerce users. It contains information about all
 	 * facets present in current hierarchy view along with count of requested entities that have those facets assigned.
-	 *
+	 * 
 	 * Facet summary respects current query filtering constraints excluding the conditions inside {@link UserFilter}
 	 * container constraint.
-	 *
+	 * 
 	 * When this requirement is used an additional object {@link io.evitadb.api.requestResponse.extraResult.FacetSummary} is stored to result.
-	 *
+	 * 
 	 * Optionally accepts single enum argument:
-	 *
+	 * 
 	 * - COUNT: only counts of facets will be computed
 	 * - IMPACT: counts and selection impact for non-selected facets will be computed
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * facetSummary()
 	 * facetSummary(COUNT) //same as previous row - default
@@ -4486,19 +4486,19 @@ public interface QueryConstraints {
 	 * This `facetSummary` requirement usage triggers computing and adding an object to the result index. The object is
 	 * quite complex but allows rendering entire facet listing to e-commerce users. It contains information about all
 	 * facets present in current hierarchy view along with count of requested entities that have those facets assigned.
-	 *
+	 * 
 	 * Facet summary respects current query filtering constraints excluding the conditions inside {@link UserFilter}
 	 * container constraint.
-	 *
+	 * 
 	 * When this requirement is used an additional object {@link io.evitadb.api.requestResponse.extraResult.FacetSummary} is stored to result.
-	 *
+	 * 
 	 * Optionally accepts single enum argument:
-	 *
+	 * 
 	 * - COUNT: only counts of facets will be computed
 	 * - IMPACT: counts and selection impact for non-selected facets will be computed
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * facetSummary()
 	 * facetSummary(COUNT) //same as previous row - default
@@ -4536,19 +4536,19 @@ public interface QueryConstraints {
 	 * This `facetSummary` requirement usage triggers computing and adding an object to the result index. The object is
 	 * quite complex but allows rendering entire facet listing to e-commerce users. It contains information about all
 	 * facets present in current hierarchy view along with count of requested entities that have those facets assigned.
-	 *
+	 * 
 	 * Facet summary respects current query filtering constraints excluding the conditions inside {@link UserFilter}
 	 * container constraint.
-	 *
+	 * 
 	 * When this requirement is used an additional object {@link FacetSummary} is stored to result.
-	 *
+	 * 
 	 * Optionally accepts single enum argument:
-	 *
+	 * 
 	 * - COUNT: only counts of facets will be computed
 	 * - IMPACT: counts and selection impact for non-selected facets will be computed
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * facetSummary()
 	 * facetSummary(COUNT) //same as previous row - default
@@ -4564,19 +4564,19 @@ public interface QueryConstraints {
 	 * This `facetSummary` requirement usage triggers computing and adding an object to the result index. The object is
 	 * quite complex but allows rendering entire facet listing to e-commerce users. It contains information about all
 	 * facets present in current hierarchy view along with count of requested entities that have those facets assigned.
-	 *
+	 * 
 	 * Facet summary respects current query filtering constraints excluding the conditions inside {@link UserFilter}
 	 * container constraint.
-	 *
+	 * 
 	 * When this requirement is used an additional object {@link FacetSummary} is stored to result.
-	 *
+	 * 
 	 * Optionally accepts single enum argument:
-	 *
+	 * 
 	 * - COUNT: only counts of facets will be computed
 	 * - IMPACT: counts and selection impact for non-selected facets will be computed
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * facetSummary()
 	 * facetSummary(COUNT) //same as previous row - default
@@ -4594,19 +4594,19 @@ public interface QueryConstraints {
 	 * This `facetSummary` requirement usage triggers computing and adding an object to the result index. The object is
 	 * quite complex but allows rendering entire facet listing to e-commerce users. It contains information about all
 	 * facets present in current hierarchy view along with count of requested entities that have those facets assigned.
-	 *
+	 * 
 	 * Facet summary respects current query filtering constraints excluding the conditions inside {@link UserFilter}
 	 * container constraint.
-	 *
+	 * 
 	 * When this requirement is used an additional object {@link FacetSummary} is stored to result.
-	 *
+	 * 
 	 * Optionally accepts single enum argument:
-	 *
+	 * 
 	 * - COUNT: only counts of facets will be computed
 	 * - IMPACT: counts and selection impact for non-selected facets will be computed
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * facetSummary()
 	 * facetSummary(COUNT) //same as previous row - default
@@ -4639,19 +4639,19 @@ public interface QueryConstraints {
 	 * This `facetSummary` requirement usage triggers computing and adding an object to the result index. The object is
 	 * quite complex but allows rendering entire facet listing to e-commerce users. It contains information about all
 	 * facets present in current hierarchy view along with count of requested entities that have those facets assigned.
-	 *
+	 * 
 	 * Facet summary respects current query filtering constraints excluding the conditions inside {@link UserFilter}
 	 * container constraint.
-	 *
+	 * 
 	 * When this requirement is used an additional object {@link FacetSummary} is stored to result.
-	 *
+	 * 
 	 * Optionally accepts single enum argument:
-	 *
+	 * 
 	 * - COUNT: only counts of facets will be computed
 	 * - IMPACT: counts and selection impact for non-selected facets will be computed
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * facetSummary()
 	 * facetSummary(COUNT) //same as previous row - default
@@ -4690,9 +4690,9 @@ public interface QueryConstraints {
 	/**
 	 * This `queryTelemetry` requirement triggers creation of the {@link io.evitadb.api.requestResponse.extraResult.QueryTelemetry} DTO and including it the evitaDB
 	 * response.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * queryTelemetry()
 	 * ```
