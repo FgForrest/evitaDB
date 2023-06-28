@@ -57,6 +57,12 @@ To sort products by the number of their sales (the best-selling products first),
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[List of products sorted by number attribute](/docs/user/en/query/ordering/examples/natural/attribute-natural-non-localized.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>
 
 If you want to sort products by their name, which is a localized attribute, you need to specify the `entityLocaleEquals`
@@ -88,6 +94,12 @@ order the localized attribute string, so that the order is consistent with the n
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[List of products sorted by localized attribute](/docs/user/en/query/ordering/examples/natural/attribute-natural-localized.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>
 
 The sorting mechanism of evitaDB is somewhat different from what you might be used to. If you sort entities by two
@@ -115,6 +127,12 @@ attribute, they are not sorted by the second attribute, but by the primary key (
 <LanguageSpecific to="graphql">
 
 <MDInclude>[List of products sorted by multiple attributes](/docs/user/en/query/ordering/examples/natural/attribute-natural-multiple.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+<MDInclude>[List of products sorted by multiple attributes](/docs/user/en/query/ordering/examples/natural/attribute-natural-multiple.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
