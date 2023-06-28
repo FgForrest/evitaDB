@@ -7,7 +7,6 @@ POST /rest/test-catalog/product/list
   "require": {
     "entityFetch": {
       "attributeContentAll": true,
-      "hierarchyContent": {},
       "associatedDataContentAll": true,
       "priceContentAll": true,
       "referenceContentAll": true,

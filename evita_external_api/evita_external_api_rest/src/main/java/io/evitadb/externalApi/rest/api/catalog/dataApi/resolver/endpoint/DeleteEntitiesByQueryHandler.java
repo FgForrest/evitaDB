@@ -80,7 +80,7 @@ public class DeleteEntitiesByQueryHandler extends ListEntitiesHandler {
 	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
 		final Query query = resolveQuery(exchange);
 
-		log.debug("Generated evitaDB query for deletion of entity list of type `" + restApiHandlingContext.getEntitySchema() + "` is `" + query + "`.");
+		log.debug("Generated evitaDB query for deletion of entity list of type `{}` is `{}`.", restApiHandlingContext.getEntitySchema(), query);
 
 		final SealedEntity[] deletedEntities = restApiHandlingContext.updateCatalog(session ->
 			session.deleteEntitiesAndReturnBodies(query));

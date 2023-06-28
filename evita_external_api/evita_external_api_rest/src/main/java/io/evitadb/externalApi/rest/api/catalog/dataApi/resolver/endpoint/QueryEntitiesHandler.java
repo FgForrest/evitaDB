@@ -80,7 +80,7 @@ public class QueryEntitiesHandler extends ListEntitiesHandler {
 	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
 		final Query query = resolveQuery(exchange);
 
-		log.debug("Generated evitaDB query for entity query of type `" + restApiHandlingContext.getEntitySchema() + "` is `" + query + "`.");
+		log.debug("Generated evitaDB query for entity query of type `{}` is `{}`.", restApiHandlingContext.getEntitySchema(), query);
 
 		final QueryResponse queryResponse = restApiHandlingContext.queryCatalog(session -> {
 			final EvitaResponse<EntityClassifier> response = session.query(query, EntityClassifier.class);
