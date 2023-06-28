@@ -1,1 +1,1 @@
-GET /rest/test-catalog/brand/get/1?locale=en&attributeContent=name
+GET /rest/test-catalog/brand/get/1?attributeContent=name

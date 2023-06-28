@@ -1,6 +1,6 @@
 query {
   getBrand(primaryKey: 1) {
-    attributes(locale: en) {
+    attributes {
       name
     }
   }

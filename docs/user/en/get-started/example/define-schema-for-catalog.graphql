@@ -53,6 +53,9 @@ mutation {
               setEntitySchemaWithGeneratedPrimaryKeyMutation: {
                 withGeneratedPrimaryKey: false
               }
+              setEntitySchemaWithHierarchyMutation: {
+                withHierarchy: true
+              }
               allowLocaleInEntitySchemaMutation: {
                 locales: ["en", "de"]
               }
