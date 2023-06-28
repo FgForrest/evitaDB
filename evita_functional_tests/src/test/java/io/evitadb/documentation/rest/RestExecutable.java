@@ -58,6 +58,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -93,7 +94,7 @@ public class RestExecutable implements Executable, EvitaTestSupport {
 	/**
 	 * Regex pattern to parse input request into URL and query (request body)
 	 */
-	private static final Pattern REQUEST_PATTERN = Pattern.compile("POST\\s((/[a-z\\-]+)+)\\s+([.\\s\\S]+)");
+	private static final Pattern REQUEST_PATTERN = Pattern.compile("([A-Z]+)\\s((/[\\w\\-]+)+)(\\s+([.\\s\\S]+))?");
 
 	/*
 	  Initializes the Java code template to be used when {@link CreateSnippets#JAVA} is requested.
@@ -184,13 +185,14 @@ public class RestExecutable implements Executable, EvitaTestSupport {
 	 */
 	@Nonnull
 	private static String generateMarkdownSnippet(
+		boolean shouldHaveResult,
 		@Nonnull JsonNode response,
 		@Nullable OutputSnippet outputSnippet
 	) {
 		final String outputFormat = ofNullable(outputSnippet).map(OutputSnippet::forFormat).orElse("json");
 		if (outputFormat.equals("json")) {
 			final String sourceVariable = ofNullable(outputSnippet).map(OutputSnippet::sourceVariable).orElse(null);
-			return generateMarkDownJsonBlock(response, sourceVariable);
+			return generateMarkDownJsonBlock(shouldHaveResult, response, sourceVariable);
 		} else {
 			throw new UnsupportedOperationException("Unsupported output format: " + outputFormat);
 		}
@@ -201,6 +203,7 @@ public class RestExecutable implements Executable, EvitaTestSupport {
 	 */
 	@Nonnull
 	private static String generateMarkDownJsonBlock(
+		boolean shouldHaveResult,
 		@Nonnull JsonNode response,
 		@Nullable String sourceVariable
 	) {
@@ -211,10 +214,17 @@ public class RestExecutable implements Executable, EvitaTestSupport {
 			final String[] sourceVariableParts = sourceVariable.split("\\.");
 			theValue = extractValueFrom(response, sourceVariableParts);
 		}
-		Assert.isPremiseValid(
-			theValue != null,
-			"Result value is null for sourceVariable `" + sourceVariable + "`. This is strange."
-		);
+		if (shouldHaveResult) {
+			Assert.isPremiseValid(
+				theValue != null,
+				"Expected non-empty result but result value is null for sourceVariable `" + sourceVariable + "`. This is strange."
+			);
+		} else {
+			Assert.isPremiseValid(
+				theValue == null,
+				"Expected empty result but result value is not null for sourceVariable `" + sourceVariable + "`. This is strange."
+			);
+		}
 		final String json = ofNullable(theValue)
 			.map(it -> {
 				try {
@@ -257,20 +267,22 @@ public class RestExecutable implements Executable, EvitaTestSupport {
 	public void execute() throws Throwable {
 		final Matcher request = REQUEST_PATTERN.matcher(sourceContent);
 		Assert.isPremiseValid(request.matches(), "Invalid request format.");
-		final String path = request.group(1);
-		final String theQuery = request.group(3);
+		final String method = request.group(1);
+		final String path = request.group(2);
+		final String theQuery = request.group(5);
+		final boolean shouldHaveResult = Set.of("POST", "PUT", "GET").contains(method);
 
 		final RestClient restClient = testContextAccessor.get().getRestClient();
 		final JsonNode theResult;
 		try {
-			theResult = restClient.call(path, theQuery);
+			theResult = restClient.call(method, path, theQuery);
 		} catch (Exception ex) {
 			fail("The query " + theQuery + " failed: " + ex.getMessage(), ex);
 			return;
 		}
 
 		if (resource != null) {
-			final String markdownSnippet = generateMarkdownSnippet(theResult, outputSnippet);
+			final String markdownSnippet = generateMarkdownSnippet(shouldHaveResult, theResult, outputSnippet);
 
 			// generate Markdown snippet from the result if required
 			final String outputFormat = ofNullable(outputSnippet).map(OutputSnippet::forFormat).orElse("json");
