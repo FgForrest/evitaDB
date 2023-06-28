@@ -6,7 +6,7 @@
         "primaryKey" : 66468,
         "type" : "Category",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -19,7 +19,7 @@
         "type" : "Category",
         "parent" : 66468,
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -32,7 +32,7 @@
         "type" : "Category",
         "parent" : 66468,
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -45,7 +45,7 @@
         "type" : "Category",
         "parent" : 66468,
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -58,7 +58,7 @@
         "type" : "Category",
         "parent" : 66468,
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -71,7 +71,7 @@
         "type" : "Category",
         "parent" : 66468,
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -84,7 +84,7 @@
         "type" : "Category",
         "parent" : 66468,
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {

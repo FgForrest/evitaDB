@@ -6,7 +6,7 @@
         "primaryKey" : 108310,
         "type" : "Product",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -18,7 +18,7 @@
         "primaryKey" : 108313,
         "type" : "Product",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -30,7 +30,7 @@
         "primaryKey" : 108315,
         "type" : "Product",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -42,7 +42,7 @@
         "primaryKey" : 108317,
         "type" : "Product",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -54,7 +54,7 @@
         "primaryKey" : 108325,
         "type" : "Product",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -66,7 +66,7 @@
         "primaryKey" : 108326,
         "type" : "Product",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -78,7 +78,7 @@
         "primaryKey" : 108328,
         "type" : "Product",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -90,7 +90,7 @@
         "primaryKey" : 108330,
         "type" : "Product",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -102,7 +102,7 @@
         "primaryKey" : 108335,
         "type" : "Product",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -114,7 +114,7 @@
         "primaryKey" : 108338,
         "type" : "Product",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -126,7 +126,7 @@
         "primaryKey" : 108341,
         "type" : "Product",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -138,7 +138,7 @@
         "primaryKey" : 108342,
         "type" : "Product",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -150,7 +150,7 @@
         "primaryKey" : 108346,
         "type" : "Product",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -162,7 +162,7 @@
         "primaryKey" : 108348,
         "type" : "Product",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -174,7 +174,7 @@
         "primaryKey" : 108349,
         "type" : "Product",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -186,7 +186,7 @@
         "primaryKey" : 108358,
         "type" : "Product",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -198,7 +198,7 @@
         "primaryKey" : 108360,
         "type" : "Product",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -210,7 +210,7 @@
         "primaryKey" : 108366,
         "type" : "Product",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -222,7 +222,7 @@
         "primaryKey" : 108371,
         "type" : "Product",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -234,7 +234,7 @@
         "primaryKey" : 108377,
         "type" : "Product",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {

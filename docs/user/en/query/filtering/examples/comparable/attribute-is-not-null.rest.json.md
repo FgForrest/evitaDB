@@ -6,8 +6,8 @@
         "primaryKey" : 63049,
         "type" : "Product",
         "allLocales" : [
-          "cs-CZ",
-          "en-US"
+          "en",
+          "cs"
         ],
         "attributes" : {
           "global" : {
@@ -20,8 +20,8 @@
         "primaryKey" : 66554,
         "type" : "Product",
         "allLocales" : [
-          "cs-CZ",
-          "en-US"
+          "en",
+          "cs"
         ],
         "attributes" : {
           "global" : {
@@ -34,8 +34,8 @@
         "primaryKey" : 66556,
         "type" : "Product",
         "allLocales" : [
-          "cs-CZ",
-          "en-US"
+          "en",
+          "cs"
         ],
         "attributes" : {
           "global" : {
@@ -48,8 +48,8 @@
         "primaryKey" : 66559,
         "type" : "Product",
         "allLocales" : [
-          "cs-CZ",
-          "en-US"
+          "en",
+          "cs"
         ],
         "attributes" : {
           "global" : {
@@ -62,8 +62,8 @@
         "primaryKey" : 66561,
         "type" : "Product",
         "allLocales" : [
-          "cs-CZ",
-          "en-US"
+          "en",
+          "cs"
         ],
         "attributes" : {
           "global" : {
@@ -76,8 +76,8 @@
         "primaryKey" : 66562,
         "type" : "Product",
         "allLocales" : [
-          "cs-CZ",
-          "en-US"
+          "en",
+          "cs"
         ],
         "attributes" : {
           "global" : {
@@ -90,8 +90,8 @@
         "primaryKey" : 66563,
         "type" : "Product",
         "allLocales" : [
-          "cs-CZ",
-          "en-US"
+          "en",
+          "cs"
         ],
         "attributes" : {
           "global" : {
@@ -104,8 +104,8 @@
         "primaryKey" : 66565,
         "type" : "Product",
         "allLocales" : [
-          "cs-CZ",
-          "en-US"
+          "en",
+          "cs"
         ],
         "attributes" : {
           "global" : {
@@ -118,8 +118,8 @@
         "primaryKey" : 66566,
         "type" : "Product",
         "allLocales" : [
-          "cs-CZ",
-          "en-US"
+          "en",
+          "cs"
         ],
         "attributes" : {
           "global" : {
@@ -132,8 +132,8 @@
         "primaryKey" : 66567,
         "type" : "Product",
         "allLocales" : [
-          "cs-CZ",
-          "en-US"
+          "en",
+          "cs"
         ],
         "attributes" : {
           "global" : {
@@ -146,8 +146,8 @@
         "primaryKey" : 66569,
         "type" : "Product",
         "allLocales" : [
-          "cs-CZ",
-          "en-US"
+          "en",
+          "cs"
         ],
         "attributes" : {
           "global" : {
@@ -160,8 +160,8 @@
         "primaryKey" : 66570,
         "type" : "Product",
         "allLocales" : [
-          "cs-CZ",
-          "en-US"
+          "en",
+          "cs"
         ],
         "attributes" : {
           "global" : {
@@ -174,8 +174,8 @@
         "primaryKey" : 66571,
         "type" : "Product",
         "allLocales" : [
-          "cs-CZ",
-          "en-US"
+          "en",
+          "cs"
         ],
         "attributes" : {
           "global" : {
@@ -188,8 +188,8 @@
         "primaryKey" : 66572,
         "type" : "Product",
         "allLocales" : [
-          "cs-CZ",
-          "en-US"
+          "en",
+          "cs"
         ],
         "attributes" : {
           "global" : {
@@ -202,8 +202,8 @@
         "primaryKey" : 66573,
         "type" : "Product",
         "allLocales" : [
-          "cs-CZ",
-          "en-US"
+          "en",
+          "cs"
         ],
         "attributes" : {
           "global" : {
@@ -216,8 +216,8 @@
         "primaryKey" : 66574,
         "type" : "Product",
         "allLocales" : [
-          "cs-CZ",
-          "en-US"
+          "en",
+          "cs"
         ],
         "attributes" : {
           "global" : {
@@ -230,8 +230,8 @@
         "primaryKey" : 66575,
         "type" : "Product",
         "allLocales" : [
-          "cs-CZ",
-          "en-US"
+          "en",
+          "cs"
         ],
         "attributes" : {
           "global" : {
@@ -244,8 +244,8 @@
         "primaryKey" : 66576,
         "type" : "Product",
         "allLocales" : [
-          "cs-CZ",
-          "en-US"
+          "en",
+          "cs"
         ],
         "attributes" : {
           "global" : {
@@ -258,8 +258,8 @@
         "primaryKey" : 66577,
         "type" : "Product",
         "allLocales" : [
-          "cs-CZ",
-          "en-US"
+          "en",
+          "cs"
         ],
         "attributes" : {
           "global" : {
@@ -272,7 +272,7 @@
         "primaryKey" : 66578,
         "type" : "Product",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {

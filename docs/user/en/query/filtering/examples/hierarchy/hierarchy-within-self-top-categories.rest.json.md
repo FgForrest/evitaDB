@@ -6,7 +6,7 @@
         "primaryKey" : 66466,
         "type" : "Category",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -18,7 +18,7 @@
         "primaryKey" : 66467,
         "type" : "Category",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -30,7 +30,7 @@
         "primaryKey" : 66468,
         "type" : "Category",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -42,7 +42,7 @@
         "primaryKey" : 66469,
         "type" : "Category",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -54,7 +54,7 @@
         "primaryKey" : 66470,
         "type" : "Category",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {

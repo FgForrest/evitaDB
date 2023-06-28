@@ -7,7 +7,7 @@ POST /rest/evita/product/query
         "attributeCodeEquals" : "vouchers-for-shareholders"
       }
     },
-    "entityLocaleEquals" : "en-US"
+    "entityLocaleEquals" : "en"
   },
   "require" : {
     "entityFetch" : {

@@ -6,7 +6,7 @@
         "primaryKey" : 108473,
         "type" : "Product",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
@@ -19,7 +19,7 @@
         "primaryKey" : 108480,
         "type" : "Product",
         "allLocales" : [
-          "en-US"
+          "en"
         ],
         "attributes" : {
           "global" : {
