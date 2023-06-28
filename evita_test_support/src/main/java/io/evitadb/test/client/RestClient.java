@@ -50,11 +50,11 @@ public class RestClient extends ApiClient {
 	}
 
 	@Nullable
-	public JsonNode call(@Nonnull String resource, @Nullable String body) {
+	public JsonNode call(@Nonnull String method, @Nonnull String resource, @Nullable String body) {
 		HttpURLConnection connection = null;
 		try {
-			connection = createConnection(resource, body != null);
-			if (body != null) {
+			connection = createConnection(method, resource);
+			if (body != null && !body.isBlank()) {
 				writeRequestBody(connection, body);
 			}
 
@@ -84,16 +84,12 @@ public class RestClient extends ApiClient {
 	}
 
 	@Nonnull
-	private  HttpURLConnection createConnection(@Nonnull String resource, boolean hasBody) throws IOException, URISyntaxException {
+	private  HttpURLConnection createConnection(@Nonnull String method, @Nonnull String resource) throws IOException, URISyntaxException {
 		final URL url = new URL(this.url + resource);
 		final HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 		connection.setRequestProperty("Accept", "application/json");
 		connection.setRequestProperty("Content-Type", "application/json");
-		if (hasBody) {
-			connection.setRequestMethod("POST");
-		} else {
-			connection.setRequestMethod("GET");
-		}
+		connection.setRequestMethod(method);
 		connection.setDoOutput(true);
 		return connection;
 	}
