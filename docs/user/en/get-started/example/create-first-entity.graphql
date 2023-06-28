@@ -6,7 +6,7 @@ mutation {
       {
         upsertAttributeMutation: {
           name: "name"
-          value: "Lenovo"
+          value: "Samsung"
         }
       }
     ]

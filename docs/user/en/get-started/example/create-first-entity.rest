@@ -6,7 +6,7 @@ PUT /rest/test-catalog/brand/1
     {
       "upsertAttributeMutation": {
         "name": "name",
-        "value": "Lenovo"
+        "value": "Samsung"
       }
     }
   ]

@@ -2,17 +2,17 @@ evita.updateCatalog(
 	"testCatalog",
 	session -> {
 		session
-			.createNewEntity("Brand", 1)
+			.createNewEntity("Brand", 2)
 			.setAttribute("name", "Lenovo")
 			.upsertVia(session);
 
 		session
-			.createNewEntity("Brand", 2)
+			.createNewEntity("Brand", 3)
 			.setAttribute("name", "Acer")
 			.upsertVia(session);
 
 		session
-			.createNewEntity("Brand", 3)
+			.createNewEntity("Brand", 4)
 			.setAttribute("name", "ASUS")
 			.upsertVia(session);
 
@@ -58,7 +58,7 @@ evita.updateCatalog(
 				new BigDecimal("68.03"), new BigDecimal("22"), new BigDecimal(83),
 				true
 			)
-			.setReference("brand", "Brand", Cardinality.ZERO_OR_ONE, 1)
+			.setReference("brand", "Brand", Cardinality.ZERO_OR_ONE, 2)
 			.setReference("categories", "Category", Cardinality.ZERO_OR_MORE, 2)
 			.upsertVia(session);
 
@@ -86,7 +86,7 @@ evita.updateCatalog(
 				new BigDecimal("29.5"), new BigDecimal("22"), new BigDecimal(36),
 				true
 			)
-			.setReference("brand", "Brand", Cardinality.ZERO_OR_ONE, 3)
+			.setReference("brand", "Brand", Cardinality.ZERO_OR_ONE, 4)
 			.setReference("categories", "Category", Cardinality.ZERO_OR_MORE, 2)
 			.upsertVia(session);
 
@@ -113,7 +113,7 @@ evita.updateCatalog(
 				new BigDecimal("1097.54"), new BigDecimal("22"), new BigDecimal(1339),
 				true
 			)
-			.setReference("brand", "Brand", Cardinality.ZERO_OR_ONE, 1)
+			.setReference("brand", "Brand", Cardinality.ZERO_OR_ONE, 2)
 			.setReference("categories", "Category", Cardinality.ZERO_OR_MORE, 3)
 			.upsertVia(session);
 
@@ -139,7 +139,7 @@ evita.updateCatalog(
 				new BigDecimal("654.92"), new BigDecimal("22"), new BigDecimal(799),
 				true
 			)
-			.setReference("brand", "Brand", Cardinality.ZERO_OR_ONE, 2)
+			.setReference("brand", "Brand", Cardinality.ZERO_OR_ONE, 3)
 			.setReference("categories", "Category", Cardinality.ZERO_OR_MORE, 3)
 			.upsertVia(session);
 
@@ -165,7 +165,7 @@ evita.updateCatalog(
 				new BigDecimal("365.57"), new BigDecimal("22"), new BigDecimal(446),
 				true
 			)
-			.setReference("brand", "Brand", Cardinality.ZERO_OR_ONE, 3)
+			.setReference("brand", "Brand", Cardinality.ZERO_OR_ONE, 4)
 			.setReference("categories", "Category", Cardinality.ZERO_OR_MORE, 3)
 			.upsertVia(session);
 	}

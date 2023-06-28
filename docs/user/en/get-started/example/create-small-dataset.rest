@@ -1,4 +1,4 @@
-PUT /rest/test-catalog/brand/1
+PUT /rest/test-catalog/brand/2
 
 {
   "entityExistence": "MUST_NOT_EXIST",
@@ -12,7 +12,7 @@ PUT /rest/test-catalog/brand/1
   ]
 }
 
-PUT /rest/test-catalog/brand/2
+PUT /rest/test-catalog/brand/3
 
 {
   "entityExistence": "MUST_NOT_EXIST",
@@ -26,7 +26,7 @@ PUT /rest/test-catalog/brand/2
   ]
 }
 
-PUT /rest/test-catalog/brand/3
+PUT /rest/test-catalog/brand/4
 
 {
   "entityExistence": "MUST_NOT_EXIST",
@@ -173,7 +173,7 @@ POST /rest/test-catalog/product
         "name": "brand",
         "referencedEntityType": "Brand",
         "cardinality": "ZERO_OR_ONE",
-        "primaryKey": 1
+        "primaryKey": 2
       }
     },
     {
@@ -256,7 +256,7 @@ POST /rest/test-catalog/product
         "name": "brand",
         "referencedEntityType": "Brand",
         "cardinality": "ZERO_OR_ONE",
-        "primaryKey": 3
+        "primaryKey": 4
       }
     },
     {
@@ -338,7 +338,7 @@ POST /rest/test-catalog/product
         "name": "brand",
         "referencedEntityType": "Brand",
         "cardinality": "ZERO_OR_ONE",
-        "primaryKey": 1
+        "primaryKey": 2
       }
     },
     {
@@ -419,7 +419,7 @@ POST /rest/test-catalog/product
         "name": "brand",
         "referencedEntityType": "Brand",
         "cardinality": "ZERO_OR_ONE",
-        "primaryKey": 2
+        "primaryKey": 3
       }
     },
     {
@@ -500,7 +500,7 @@ POST /rest/test-catalog/product
         "name": "brand",
         "referencedEntityType": "Brand",
         "cardinality": "ZERO_OR_ONE",
-        "primaryKey": 3
+        "primaryKey": 4
       }
     },
     {
