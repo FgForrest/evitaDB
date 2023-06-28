@@ -1,0 +1,14 @@
+POST /rest/evita/category/query
+
+{
+  "filterBy" : {
+    "hierarchyWithinRootSelf" : { }
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ]
+    }
+  }
+}

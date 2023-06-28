@@ -1,0 +1,45 @@
+POST /rest/evita/category/query
+
+{
+  "filterBy" : {
+    "hierarchyWithinSelf" : {
+      "ofParent" : {
+        "attributeCodeEquals" : "audio"
+      }
+    }
+  },
+  "require" : {
+    "hierarchyOfSelf" : {
+      "requirements" : [
+        {
+          "children" : {
+            "outputName" : "directChildren",
+            "entityFetch" : {
+              "attributeContent" : [
+                "code"
+              ]
+            },
+            "requirements" : {
+              "stopAt" : {
+                "distance" : 1
+              }
+            }
+          },
+          "parents" : {
+            "outputName" : "directParent",
+            "entityFetch" : {
+              "attributeContent" : [
+                "code"
+              ]
+            },
+            "requirements" : {
+              "stopAt" : {
+                "distance" : 1
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

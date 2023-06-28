@@ -4784,7 +4784,7 @@ public interface QueryConstraints {
 	@Nonnull
 	static EntityFetch entityFetchAll() {
 		return entityFetch(
-			attributeContent(), hierarchyContent(), associatedDataContent(), priceContentAll(), referenceContentAll(), dataInLocales()
+			attributeContentAll(), hierarchyContent(), associatedDataContentAll(), priceContentAll(), referenceContentAll(), dataInLocales()
 		);
 	}
 

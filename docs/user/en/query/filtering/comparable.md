@@ -77,6 +77,12 @@ Returns exactly one product with *code* equal to *apple-iphone-13-pro-3*.
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[Product with `code` attribute equal to `apple-iphone-13-pro-3`](/docs/user/en/query/filtering/examples/comparable/attribute-equals.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>
 
 ## Attribute greater than
@@ -126,6 +132,12 @@ Returns exactly several products with *battery-life* greater than *40* hours.
 <LanguageSpecific to="graphql">
 
 <MDInclude>[Products with `battery-life` attribute greater than 40 hours](/docs/user/en/query/filtering/examples/comparable/attribute-greater-than.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+<MDInclude>[Products with `battery-life` attribute greater than 40 hours](/docs/user/en/query/filtering/examples/comparable/attribute-greater-than.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -182,6 +194,12 @@ Returns exactly several products with *battery-life* greater than or equal to *4
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[Products with `battery-life` attribute greater than or equal to 40 hours](/docs/user/en/query/filtering/examples/comparable/attribute-greater-than-equals.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>
 
 ## Attribute less than
@@ -234,6 +252,12 @@ Returns exactly several products with *battery-capacity* less than *125* mWH.
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[Products with `battery-life` attribute less than 125 mWH](/docs/user/en/query/filtering/examples/comparable/attribute-less-than.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>
 
 ## Attribute less than, equals
@@ -283,6 +307,12 @@ Returns exactly several products with *battery-capacity* less than or equal to *
 <LanguageSpecific to="graphql">
 
 <MDInclude>[Products with `battery-life` attribute less than or equal to 125 mWH](/docs/user/en/query/filtering/examples/comparable/attribute-less-than-equals.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+<MDInclude>[Products with `battery-life` attribute less than or equal to 125 mWH](/docs/user/en/query/filtering/examples/comparable/attribute-less-than-equals.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -345,6 +375,12 @@ Returns exactly several products with *battery-capacity* between *125* and *160*
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[Products with `battery-life` attribute less than or equal to 125 mWH](/docs/user/en/query/filtering/examples/comparable/attribute-between.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>
 
 ## Attribute in set
@@ -397,6 +433,12 @@ in the database and is missing in the result.
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[Product found by a `code` attribute in given set](/docs/user/en/query/filtering/examples/comparable/attribute-in-set.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>
 
 ## Attribute is
@@ -444,6 +486,12 @@ Returns hundreds of products with the *catalogNumber* attribute set.
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[Product with `catalogNumber` attribute present](/docs/user/en/query/filtering/examples/comparable/attribute-is-not-null.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>
 
 When you try to list products without such attribute:
@@ -470,6 +518,12 @@ When you try to list products without such attribute:
 <LanguageSpecific to="graphql">
 
 <MDInclude>[Product with `catalog-number` attribute missing](/docs/user/en/query/filtering/examples/comparable/attribute-is-null.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+<MDInclude>[Product with `catalog-number` attribute missing](/docs/user/en/query/filtering/examples/comparable/attribute-is-null.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 

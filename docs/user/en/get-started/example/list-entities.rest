@@ -1,0 +1,16 @@
+POST /rest/test-catalog/product/list
+
+{
+  "filterBy": {
+    "entityLocaleEquals": "en"
+  },
+  "require": {
+    "entityFetch": {
+      "attributeContentAll": true,
+      "associatedDataContentAll": true,
+      "priceContentAll": true,
+      "referenceContentAll": true,
+      "dataInLocales": []
+    }
+  }
+}

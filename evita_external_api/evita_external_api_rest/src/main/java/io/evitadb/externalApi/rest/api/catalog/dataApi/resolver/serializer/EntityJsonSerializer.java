@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -101,7 +102,6 @@ public class EntityJsonSerializer {
 	@Nonnull
 	private ObjectNode serializeSingleEntity(@Nonnull EntityClassifier entityClassifier) {
 		final ObjectNode rootNode = serializeEntityClassifier(entityClassifier);
-//		rootNode.
 		if (entityClassifier instanceof EntityContract entity) {
 			serializeEntityBody(rootNode, entity);
 			serializeEntityAttributes(rootNode, entity);
@@ -130,10 +130,16 @@ public class EntityJsonSerializer {
 		entity.getParent().ifPresent(pk -> rootNode.put(RestEntityDescriptor.PARENT.name(), pk));
 		entity.getParentEntity().ifPresent(parent -> rootNode.putIfAbsent(RestEntityDescriptor.PARENT_ENTITY.name(), serialize(parent)));
 
-		rootNode.putIfAbsent(RestEntityDescriptor.LOCALES.name(), objectJsonSerializer.serializeObject(entity.getLocales()));
-		rootNode.putIfAbsent(RestEntityDescriptor.ALL_LOCALES.name(), objectJsonSerializer.serializeObject(entity.getAllLocales()));
+		if (!entity.getLocales().isEmpty()) {
+			rootNode.putIfAbsent(RestEntityDescriptor.LOCALES.name(), objectJsonSerializer.serializeObject(entity.getLocales()));
+		}
+		if (!entity.getAllLocales().isEmpty()) {
+			rootNode.putIfAbsent(RestEntityDescriptor.ALL_LOCALES.name(), objectJsonSerializer.serializeObject(entity.getAllLocales()));
+		}
 
-		rootNode.putIfAbsent(RestEntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), objectJsonSerializer.serializeObject(entity.getPriceInnerRecordHandling()));
+		if (entity.getPriceInnerRecordHandling() != PriceInnerRecordHandling.UNKNOWN) {
+			rootNode.putIfAbsent(RestEntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), objectJsonSerializer.serializeObject(entity.getPriceInnerRecordHandling()));
+		}
 	}
 
 	/**

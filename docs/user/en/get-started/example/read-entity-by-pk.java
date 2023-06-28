@@ -3,6 +3,6 @@ final String brandNameInEnglish = evita.queryCatalog(
 	session -> {
 		return session.getEntity("brand", 1)
 			.orElseThrow()
-			.getAttribute("name", Locale.ENGLISH);
+			.getAttribute("name");
 	}
 );

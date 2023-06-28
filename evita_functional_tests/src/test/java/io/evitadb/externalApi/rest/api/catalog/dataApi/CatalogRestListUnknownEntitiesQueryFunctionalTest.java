@@ -142,7 +142,6 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 							.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 							.e(EntityDescriptor.LOCALES.name(), List.of(Locale.ENGLISH.toLanguageTag()))
 							.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-							.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 							.e(EntityDescriptor.ATTRIBUTES.name(), createEntityAttributes(entityWithUrl1, true, Locale.ENGLISH))
 							.build(),
 						map()
@@ -150,7 +149,6 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 							.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 							.e(EntityDescriptor.LOCALES.name(), List.of(Locale.ENGLISH.toLanguageTag()))
 							.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-							.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 							.e(EntityDescriptor.ATTRIBUTES.name(), createEntityAttributes(entityWithUrl2, true, Locale.ENGLISH))
 							.build()
 					)
@@ -169,7 +167,6 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 				map()
 					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-					.e(EntityDescriptor.LOCALES.name(), List.of())
 					.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 					.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.NONE.name())
 					.e(EntityDescriptor.PRICES.name(), createPricesDto(entity))
@@ -366,7 +363,6 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 			.e(EntityDescriptor.LOCALES.name(), entityLocales)
 			.e(EntityDescriptor.ALL_LOCALES.name(), entity.getAllLocales().stream().map(Locale::toLanguageTag).toList())
-			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 			.e(EntityDescriptor.ASSOCIATED_DATA.name(), associatedData)
 			.build();
 	}

@@ -84,8 +84,8 @@ public class AttributeContent extends AbstractRequireConstraintLeaf
 	}
 
 	@Creator
-	public AttributeContent(@Nonnull @Value String... attributeName) {
-		super(attributeName);
+	public AttributeContent(@Nonnull @Value String... attributeNames) {
+		super(attributeNames);
 	}
 
 	/**

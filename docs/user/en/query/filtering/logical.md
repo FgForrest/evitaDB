@@ -82,6 +82,12 @@ The following query:
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[Logical conjunction example result](/docs/user/en/query/filtering/examples/logical/and.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>
 
 ## Or
@@ -133,6 +139,12 @@ The following query:
 <LanguageSpecific to="graphql">
 
 <MDInclude>[Logical disjunction example result](/docs/user/en/query/filtering/examples/logical/or.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+<MDInclude>[Logical disjunction example result](/docs/user/en/query/filtering/examples/logical/or.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -188,6 +200,12 @@ The following query:
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[Logical negation example result](/docs/user/en/query/filtering/examples/logical/not.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>
 
 Because this situation is hard to visualize - let's narrow our super set to only a few entities:
@@ -214,6 +232,12 @@ Because this situation is hard to visualize - let's narrow our super set to only
 <LanguageSpecific to="graphql">
 
 <MDInclude>[Logical negation example result (narrowed)](/docs/user/en/query/filtering/examples/logical/not-narrowed.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+<MDInclude>[Logical negation example result (narrowed)](/docs/user/en/query/filtering/examples/logical/not-narrowed.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 

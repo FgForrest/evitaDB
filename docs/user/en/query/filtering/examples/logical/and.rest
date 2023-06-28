@@ -1,0 +1,28 @@
+POST /rest/evita/product/query
+
+{
+  "filterBy" : {
+    "and" : [
+      {
+        "entityPrimaryKeyInSet" : [
+          110066,
+          106742,
+          110513
+        ]
+      },
+      {
+        "entityPrimaryKeyInSet" : [
+          110066,
+          106742
+        ]
+      },
+      {
+        "entityPrimaryKeyInSet" : [
+          107546,
+          106742,
+          107546
+        ]
+      }
+    ]
+  }
+}

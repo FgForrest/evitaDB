@@ -1,0 +1,20 @@
+POST /rest/evita/product/query
+
+{
+  "filterBy" : {
+    "hierarchyCategoriesWithin" : {
+      "ofParent" : {
+        "attributeCodeEquals" : "vouchers-for-shareholders"
+      }
+    },
+    "entityLocaleEquals" : "cs"
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code",
+        "name"
+      ]
+    }
+  }
+}

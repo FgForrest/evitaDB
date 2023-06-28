@@ -1,0 +1,21 @@
+POST /rest/evita/product/query
+
+{
+  "filterBy" : {
+    "attributeCodeStartsWith" : "lenovo"
+  },
+  "orderBy" : {
+    "entityPrimaryKeyExact" : [
+      104732,
+      104718,
+      105929
+    ]
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ]
+    }
+  }
+}

@@ -1,0 +1,18 @@
+POST /rest/test-catalog/brand/list
+
+{
+  "filterBy": {
+    "attributeNameStartsWith": "A"
+  },
+  "orderBy": {
+    "attributeNameNatural": "ASC"
+  },
+  "require": {
+    "entityFetch": {
+      "attributeContentAll": true,
+      "associatedDataContentAll": true,
+      "referenceContentAll": true,
+      "dataInLocales": []
+    }
+  }
+}

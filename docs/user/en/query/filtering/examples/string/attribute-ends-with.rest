@@ -1,0 +1,14 @@
+POST /rest/evita/product/query
+
+{
+  "filterBy" : {
+    "attributeCodeEndsWith" : "solar"
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ]
+    }
+  }
+}

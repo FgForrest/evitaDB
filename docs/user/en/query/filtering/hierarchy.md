@@ -97,6 +97,12 @@ To list all nested categories of *Accessories* category issue this query:
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[Single root hierarchy example](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-simple.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>
 
 The first argument specifies the filter targets the attributes of the `Category` entity. In this example we used
@@ -129,6 +135,12 @@ Yes, it can. Although, it's apparently one of the edge cases, it's possible. Thi
 <LanguageSpecific to="graphql">
 
 <MDInclude>[Multi-root hierarchy example](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-multi.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+<MDInclude>[Multi-root hierarchy example](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-multi.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -204,6 +216,12 @@ The query returns the first page of a total of 26 pages of items.
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[Product listing from *Accessories* category](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-simple.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>
 
 The category filter constraint specifies a condition that targets the referenced entity (i.e., category attributes,
@@ -274,6 +292,12 @@ The query returns the first page of a total of 2 pages of items.
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[Category listing](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-root-simple.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>
 
 ### Referenced entity
@@ -338,6 +362,12 @@ The query returns the first page of a total of 212 pages of items:
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[Product listing assigned to a category](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-root-reference-simple.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>
 
 ## Direct relation
@@ -382,6 +412,12 @@ top root - so only the top-level categories are returned.
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[Top categories listing](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-top-categories.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>
 
 In the case of the `hierarchyWithin` the result will contain direct children of the filtered category (or categories).
@@ -406,6 +442,12 @@ In the case of the `hierarchyWithin` the result will contain direct children of 
 <LanguageSpecific to="graphql">
 
 <MDInclude>[Accessories children categories listing](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-direct-categories.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+<MDInclude>[Accessories children categories listing](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-direct-categories.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -451,6 +493,12 @@ some of its subcategories. Let's try the *Smartwatches* subcategory:
 <LanguageSpecific to="graphql">
 
 <MDInclude>[Product directly assigned to Smartwatches category](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-direct-categories-smart.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+<MDInclude>[Product directly assigned to Smartwatches category](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-direct-categories-smart.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -500,6 +548,12 @@ As we can see the requested parent category *Accessories* is excluded from the r
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[Category listing excluding parent](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-excluding-root.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>
 
 ### Referenced entity
@@ -539,6 +593,12 @@ assigned to *Exotic keyboards*:
 <LanguageSpecific to="graphql">
 
 <MDInclude>[Products in subcategories of Keyboard category](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-excluding-root.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+<MDInclude>[Products in subcategories of Keyboard category](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-excluding-root.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -623,6 +683,12 @@ validity restrictions).
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[Accessories category listing with validity constraint](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-having.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>
 
 ### Referenced entity
@@ -661,6 +727,12 @@ You can see that Christmas products like *Retlux Blue christmas lightning*, *Ret
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[Accessories category product listing with validity constraint](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-having.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>
 
 When you change the date and time in range constraint for *validity* attribute to 2nd December:
@@ -687,6 +759,12 @@ When you change the date and time in range constraint for *validity* attribute t
 <LanguageSpecific to="graphql">
 
 <MDInclude>[Accessories category product listing with validity constraint](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-having-december.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+<MDInclude>[Accessories category product listing with validity constraint](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-having-december.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -784,6 +862,12 @@ The category *Wireless Headphones* and all its subcategories will not be shown i
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[Accessories category listing excluding *Wireless headphones*](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-excluding.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>
 
 ### Referenced entity
@@ -820,6 +904,12 @@ present in the listing.
 <LanguageSpecific to="graphql">
 
 <MDInclude>[Accessories category product listing except *Wireless headphones*](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-except.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+<MDInclude>[Accessories category product listing except *Wireless headphones*](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-except.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 

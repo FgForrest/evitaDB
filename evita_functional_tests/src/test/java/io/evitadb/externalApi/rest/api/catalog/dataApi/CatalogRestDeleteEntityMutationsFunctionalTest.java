@@ -102,7 +102,6 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndp
 				map()
 					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-					.e(EntityDescriptor.LOCALES.name(), List.of())
 					.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 					.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.NONE.name())
 					.e(EntityDescriptor.ATTRIBUTES.name(), map()

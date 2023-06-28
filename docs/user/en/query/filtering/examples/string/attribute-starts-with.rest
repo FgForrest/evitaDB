@@ -1,0 +1,14 @@
+POST /rest/evita/product/query
+
+{
+  "filterBy" : {
+    "attributeCodeStartsWith" : "garmin"
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ]
+    }
+  }
+}

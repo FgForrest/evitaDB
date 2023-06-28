@@ -44,4 +44,8 @@ public abstract class AbstractRestArtificialState {
 	 * Request body prepared for the measured invocation.
 	 */
 	@Getter protected String requestBody;
+
+	public String getMethod() {
+		return requestBody != null ? "POST" : "GET";
+	}
 }
