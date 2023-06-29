@@ -116,7 +116,7 @@
 		<grpc.version>1.52.1</grpc.version>
 		<bouncyCastle.version>1.70</bouncyCastle.version>
 		<!--Compatible versions with gRPC could be found here: https://github.com/grpc/grpc-java/blob/master/SECURITY.md#netty -->
-		<nettyHandler.version>4.1.79.Final</nettyHandler.version>
+		<nettyHandler.version>4.1.94.Final</nettyHandler.version>
 	</properties>
 
 	<modules>
