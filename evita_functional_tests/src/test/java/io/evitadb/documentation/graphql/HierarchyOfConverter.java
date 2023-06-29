@@ -23,15 +23,9 @@
 
 package io.evitadb.documentation.graphql;
 
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.evitadb.api.query.OrderConstraint;
-import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.documentation.constraint.OrderConstraintToJsonConverter;
-import io.evitadb.documentation.constraint.RequireConstraintToJsonConverter;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
@@ -48,7 +42,6 @@ import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Optional;
 import java.util.function.Consumer;
 
 /**
@@ -57,23 +50,14 @@ import java.util.function.Consumer;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class HierarchyOfConverter {
+public class HierarchyOfConverter extends RequireConverter {
 
-	private final EntityFetchConverter entityFetchBuilder = new EntityFetchConverter();
-
-	@Nonnull private final CatalogSchemaContract catalogSchema;
-	@Nonnull private final JsonNodeFactory jsonNodeFactory;
-	@Nonnull private final GraphQLInputJsonPrinter inputJsonPrinter;
-	@Nonnull private final OrderConstraintToJsonConverter orderConstraintToJsonConverter;
-	@Nonnull private final RequireConstraintToJsonConverter requireConstraintToJsonConverter;
+	private final EntityFetchConverter entityFetchBuilder;
 
 	public HierarchyOfConverter(@Nonnull CatalogSchemaContract catalogSchema,
 	                            @Nonnull GraphQLInputJsonPrinter inputJsonPrinter) {
-		this.catalogSchema = catalogSchema;
-		this.inputJsonPrinter = inputJsonPrinter;
-		this.jsonNodeFactory = new JsonNodeFactory(true);
-		this.orderConstraintToJsonConverter = new OrderConstraintToJsonConverter(catalogSchema);
-		this.requireConstraintToJsonConverter = new RequireConstraintToJsonConverter(catalogSchema);
+		super(catalogSchema, inputJsonPrinter);
+		this.entityFetchBuilder = new EntityFetchConverter(catalogSchema, inputJsonPrinter);
 	}
 
 	public void convert(@Nonnull GraphQLOutputFieldsBuilder fieldsBuilder,
@@ -371,21 +355,5 @@ public class HierarchyOfConverter {
 		}
 
 		levelInfoBuilder.addPrimitiveField(LevelInfoDescriptor.HAS_CHILDREN);
-	}
-
-	@Nonnull
-	private Optional<String> convertOrderConstraint(@Nonnull DataLocator dataLocator,
-	                                                @Nonnull OrderConstraint orderConstraint,
-	                                                int offset) {
-		return orderConstraintToJsonConverter.convert(dataLocator, orderConstraint)
-			.map(it -> inputJsonPrinter.print(offset, it.value()).stripLeading());
-	}
-
-	@Nonnull
-	private Optional<String> convertRequireConstraint(@Nonnull DataLocator dataLocator,
-	                                                  @Nonnull RequireConstraint requireConstraint,
-	                                                  int offset) {
-		return requireConstraintToJsonConverter.convert(dataLocator, requireConstraint)
-			.map(it -> inputJsonPrinter.print(offset, it.value()).stripLeading());
 	}
 }
