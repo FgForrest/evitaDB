@@ -20,6 +20,7 @@ on:
 permissions:
   contents: read
   checks: write
+  security-events: write
 
 concurrency:
   group: ${{ github.head_ref || github.ref_name }}  # for the same branch (dev or PR)
