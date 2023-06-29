@@ -19,6 +19,14 @@
         attributes {
           code
         }
+        categories {
+          referencedPrimaryKey
+          attributes {
+            relatedBreadCrumbPath
+            orderInCategory
+            relatedBreadCrumbOrder
+          }
+        }
       }
     }
   }

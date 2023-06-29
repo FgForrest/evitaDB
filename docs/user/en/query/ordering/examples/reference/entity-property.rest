@@ -1,0 +1,26 @@
+POST /rest/evita/product/query
+
+{
+  "filterBy" : {
+    "attributeCodeEquals" : "garmin-vivoactive-4"
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ],
+      "referenceParameterValuesContent" : {
+        "entityFetch" : {
+          "attributeContent" : [
+            "code"
+          ]
+        },
+        "orderBy" : {
+          "entityProperty" : {
+            "attributeCodeNatural" : "DESC"
+          }
+        }
+      }
+    }
+  }
+}

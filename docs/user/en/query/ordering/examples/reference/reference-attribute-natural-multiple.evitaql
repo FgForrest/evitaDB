@@ -4,7 +4,7 @@ query(
         referenceHaving(
             'brand',
             entityHaving(
-                attributeInSet('code','sony', 'google')
+                attributeInSet('code', 'sony', 'google')
             )
         )
     ),
