@@ -9,8 +9,13 @@ on:
       - completed
 
 permissions:
-  contents: read
+  id-token: write
+  contents: write
+  actions: read
   checks: write
+  pull-requests: read
+  security-events: write
+  statuses: write
 
 jobs:
   report:
