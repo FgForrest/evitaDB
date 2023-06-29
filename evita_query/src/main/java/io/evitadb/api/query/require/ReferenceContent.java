@@ -248,19 +248,19 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	 * Returns requirements for entities.
 	 */
 	@AliasForParameter("entityFetch")
-	@Nullable
-	public EntityFetch getEntityRequirement() {
+	@Nonnull
+	public Optional<EntityFetch> getEntityRequirement() {
 		final int childrenLength = getChildren().length;
 		if (childrenLength == 2) {
-			return (EntityFetch) getChildren()[0];
+			return of((EntityFetch) getChildren()[0]);
 		} else if (childrenLength == 1) {
 			if (getChildren()[0] instanceof final EntityFetch facetEntityRequirement) {
-				return facetEntityRequirement;
+				return of(facetEntityRequirement);
 			} else {
-				return null;
+				return empty();
 			}
 		} else {
-			return null;
+			return empty();
 		}
 	}
 
@@ -268,36 +268,36 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	 * Returns requirements for group entities.
 	 */
 	@AliasForParameter("entityGroupFetch")
-	@Nullable
-	public EntityGroupFetch getGroupEntityRequirement() {
+	@Nonnull
+	public Optional<EntityGroupFetch> getGroupEntityRequirement() {
 		final int childrenLength = getChildren().length;
 		if (childrenLength == 2) {
-			return (EntityGroupFetch) getChildren()[1];
+			return of((EntityGroupFetch) getChildren()[1]);
 		} else if (childrenLength == 1) {
 			if (getChildren()[0] instanceof final EntityGroupFetch groupEntityRequirement) {
-				return groupEntityRequirement;
+				return of(groupEntityRequirement);
 			} else {
-				return null;
+				return empty();
 			}
 		} else {
-			return null;
+			return empty();
 		}
 	}
 
 	/**
 	 * Returns filter to filter list of returning references.
 	 */
-	@Nullable
-	public FilterBy getFilterBy() {
-		return getAdditionalChild(FilterBy.class).orElse(null);
+	@Nonnull
+	public Optional<FilterBy> getFilterBy() {
+		return getAdditionalChild(FilterBy.class);
 	}
 
 	/**
 	 * Returns sorting to order list of returning references.
 	 */
-	@Nullable
-	public OrderBy getOrderBy() {
-		return getAdditionalChild(OrderBy.class).orElse(null);
+	@Nonnull
+	public Optional<OrderBy> getOrderBy() {
+		return getAdditionalChild(OrderBy.class);
 	}
 
 	/**
@@ -328,8 +328,8 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		} else if (((ReferenceContent) anotherRequirement).isAllRequested()) {
 			return anotherRequirement;
 		} else {
-			final EntityFetch combinedEntityRequirement = combineRequirements(getEntityRequirement(), ((ReferenceContent) anotherRequirement).getEntityRequirement());
-			final EntityGroupFetch combinedGroupEntityRequirement = combineRequirements(getGroupEntityRequirement(), ((ReferenceContent) anotherRequirement).getGroupEntityRequirement());
+			final EntityFetch combinedEntityRequirement = combineRequirements(getEntityRequirement().orElse(null), ((ReferenceContent) anotherRequirement).getEntityRequirement().orElse(null));
+			final EntityGroupFetch combinedGroupEntityRequirement = combineRequirements(getGroupEntityRequirement().orElse(null), ((ReferenceContent) anotherRequirement).getGroupEntityRequirement().orElse(null));
 			final String[] arguments = Stream.concat(
 					Arrays.stream(getArguments()).map(String.class::cast),
 					Arrays.stream(anotherRequirement.getArguments()).map(String.class::cast)
@@ -346,8 +346,8 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 				).filter(Objects::nonNull).toArray(RequireConstraint[]::new),
 				Arrays.stream(
 					new Constraint<?>[] {
-						getFilterBy(),
-						getOrderBy()
+						getFilterBy().orElse(null),
+						getOrderBy().orElse(null)
 					}
 				).filter(Objects::nonNull).toArray(Constraint[]::new)
 			);

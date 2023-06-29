@@ -77,7 +77,7 @@ public class GraphQLQueryConverter implements AutoCloseable {
 			final CatalogSchemaContract catalogSchema = session.getCatalogSchema();
 
 			// prepare common converters and builders
-			final EntityFetchConverter entityFetchConverter = new EntityFetchConverter();
+			final EntityFetchConverter entityFetchConverter = new EntityFetchConverter(catalogSchema, inputJsonPrinter);
 
 			// convert query parts
 			final String collection = query.getCollection().getEntityType();

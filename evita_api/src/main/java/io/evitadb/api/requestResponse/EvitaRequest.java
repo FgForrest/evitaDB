@@ -735,10 +735,10 @@ public class EvitaRequest {
 							.map(entityType -> new SimpleEntry<>(
 									entityType,
 									new RequirementContext(
-										it.getEntityRequirement(),
-										it.getGroupEntityRequirement(),
-										it.getFilterBy(),
-										it.getOrderBy()
+										it.getEntityRequirement().orElse(null),
+										it.getGroupEntityRequirement().orElse(null),
+										it.getFilterBy().orElse(null),
+										it.getOrderBy().orElse(null)
 									)
 								)
 							)

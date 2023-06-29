@@ -10,6 +10,24 @@
         attributes {
           code
         }
+        parameterValues(
+          orderBy: {
+            entityProperty: {
+              attributeCodeNatural: DESC
+            }
+          }
+        ) {
+          referencedPrimaryKey
+          referencedEntity {
+            primaryKey
+            attributes {
+              code
+            }
+          }
+          attributes {
+            variant
+          }
+        }
       }
     }
   }
