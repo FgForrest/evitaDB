@@ -29,6 +29,7 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.ReferenceContent;
@@ -50,6 +51,7 @@ public class ReferenceContentSerializer extends Serializer<ReferenceContent> {
 			output.writeString(refEntityType);
 		}
 
+		kryo.writeClassAndObject(output, object.getAttributeContent().orElse(null));
 		kryo.writeClassAndObject(output, object.getEntityRequirement().orElse(null));
 		kryo.writeClassAndObject(output, object.getGroupEntityRequirement().orElse(null));
 
@@ -65,13 +67,14 @@ public class ReferenceContentSerializer extends Serializer<ReferenceContent> {
 			referencedEntityTypes[i] = input.readString();
 		}
 
+		final AttributeContent attributeContent = (AttributeContent) kryo.readClassAndObject(input);
 		final EntityFetch entityFetch = (EntityFetch) kryo.readClassAndObject(input);
 		final EntityGroupFetch groupEntityFetch = (EntityGroupFetch) kryo.readClassAndObject(input);
 
 		final FilterBy filter = (FilterBy) kryo.readClassAndObject(input);
 		final OrderBy orderBy = (OrderBy) kryo.readClassAndObject(input);
 
-		return new ReferenceContent(referencedEntityTypes[0], filter, orderBy, entityFetch, groupEntityFetch);
+		return new ReferenceContent(referencedEntityTypes[0], filter, orderBy, attributeContent, entityFetch, groupEntityFetch);
 	}
 
 }
