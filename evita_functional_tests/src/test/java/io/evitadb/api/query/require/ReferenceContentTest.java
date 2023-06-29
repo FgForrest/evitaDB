@@ -94,7 +94,7 @@ class ReferenceContentTest {
 		assertEquals(entityFetch(attributeContentAll()), referenceContent7.getEntityRequirement().orElse(null));
 		assertTrue(referenceContent7.getGroupEntityRequirement().isEmpty());
 
-		final ReferenceContent referenceContent8 = referenceContent("a", null, null, null, null, null);
+		final ReferenceContent referenceContent8 = referenceContent("a");
 		assertArrayEquals(new String[] {"a"}, referenceContent8.getReferenceNames());
 		assertTrue(referenceContent8.getFilterBy().isEmpty());
 		assertTrue(referenceContent8.getOrderBy().isEmpty());

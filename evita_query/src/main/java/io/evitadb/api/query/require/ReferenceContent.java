@@ -77,7 +77,8 @@ import static java.util.Optional.of;
 public class ReferenceContent extends AbstractRequireConstraintContainer
 	implements ReferenceConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, EntityContentRequire, ConstraintWithSuffix {
 	@Serial private static final long serialVersionUID = 3374240925555151814L;
-	private static final String SUFFIX = "all";
+	private static final String SUFFIX_ALL = "all";
+	private static final String SUFFIX_WITH_ATTRIBUTES = "withAttributes";
 	public static final ReferenceContent ALL_REFERENCES = new ReferenceContent();
 
 	private ReferenceContent(@Nonnull String[] referenceName,
@@ -86,7 +87,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		super(referenceName, requirements, additionalChildren);
 	}
 
-	@Creator(suffix = SUFFIX)
+	@Creator(suffix = SUFFIX_ALL)
 	public ReferenceContent() {
 		super();
 	}
@@ -95,13 +96,25 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		super(referenceName);
 	}
 
+	public ReferenceContent(@Nonnull String referenceName, @Nullable AttributeContent attributeContent) {
+		super(referenceName, attributeContent);
+	}
+
 	public ReferenceContent(@Nonnull String[] referenceNames,
 							@Nullable EntityFetch entityRequirement,
 	                        @Nullable EntityGroupFetch groupEntityRequirement) {
 		super(referenceNames, entityRequirement, groupEntityRequirement);
 	}
 
-	@Creator
+	public ReferenceContent(@Nonnull String referenceName,
+	                        @Nullable FilterBy filterBy,
+	                        @Nullable OrderBy orderBy,
+	                        @Nullable EntityFetch entityFetch,
+	                        @Nullable EntityGroupFetch entityGroupFetch) {
+		super(new String[] { referenceName }, new RequireConstraint[] {entityFetch, entityGroupFetch}, filterBy, orderBy);
+	}
+
+	@Creator // we don't want to use `withAttributes` suffix here because it would be confusing in the APIs when the `attributeContent` parameter is optional
 	public ReferenceContent(@Nonnull @Classifier String referenceName,
 							@Nullable @AdditionalChild FilterBy filterBy,
 	                        @Nullable @AdditionalChild OrderBy orderBy,
@@ -201,7 +214,13 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	@Nonnull
 	@Override
 	public Optional<String> getSuffixIfApplied() {
-		return isAllRequested() ? of(SUFFIX) : empty();
+		if (isAllRequested()) {
+			return of(SUFFIX_ALL);
+		}
+		if (getAttributeContent().isPresent()) {
+			return of(SUFFIX_WITH_ATTRIBUTES);
+		}
+		return empty();
 	}
 
 	@Override

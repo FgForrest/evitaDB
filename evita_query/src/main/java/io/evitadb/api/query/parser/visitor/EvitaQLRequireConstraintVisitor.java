@@ -128,7 +128,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				return new EntityFetch(
 					ctx.args.requirements
 						.stream()
-						.map(this::visitChildEntityContentRequire)
+						.map(c -> visitChildConstraint(c, EntityContentRequire.class))
 						.toArray(EntityContentRequire[]::new)
 				);
 			}
@@ -146,7 +146,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				return new EntityGroupFetch(
 					ctx.args.requirements
 						.stream()
-						.map(this::visitChildEntityContentRequire)
+						.map(c -> visitChildConstraint(c, EntityContentRequire.class))
 						.toArray(EntityContentRequire[]::new)
 				);
 			}
@@ -229,7 +229,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					return new ReferenceContent();
 				}
 				if (ctx.args.requirement != null) {
-					final EntityRequire require = visitChildEntityRequire(ctx.args.requirement);
+					final EntityRequire require = visitChildConstraint(ctx.args.requirement, EntityRequire.class);
 					if (require instanceof final EntityFetch entityFetch) {
 						return new ReferenceContent(entityFetch, null);
 					} else if (require instanceof final EntityGroupFetch entityGroupFetch) {
@@ -251,11 +251,24 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitSingleRefReferenceContent1Constraint(SingleRefReferenceContent1ConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new ReferenceContent(
-				ctx.args.classifier
+			() -> {
+				final String classifier = ctx.args.classifier
 					.accept(classifierTokenVisitor)
-					.asSingleClassifier()
-			)
+					.asSingleClassifier();
+				final EntityRequire requirement = Optional.ofNullable(ctx.args.requirement)
+					.map(c -> visitChildConstraint(c, EntityRequire.class))
+					.orElse(null);
+
+				if (requirement == null) {
+					return new ReferenceContent(classifier, null, null, null, null, null);
+				} else if (requirement instanceof final EntityFetch entityFetch) {
+					return new ReferenceContent(classifier, null, null, null, entityFetch, null);
+				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
+					return new ReferenceContent(classifier, null, null, null, null, entityGroupFetch);
+				} else {
+					throw new EvitaInternalError("Should never happen!");
+				}
+			}
 		);
 	}
 
@@ -268,17 +281,10 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					.accept(classifierTokenVisitor)
 					.asSingleClassifier();
 
-				final RequireConstraint requirement = visitChildConstraint(ctx.args.requirement, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class);
+				final EntityFetch facetEntityRequirement = visitChildConstraint(ctx.args.facetEntityRequirement, EntityFetch.class);
+				final EntityGroupFetch groupEntityRequirement = visitChildConstraint(ctx.args.groupEntityRequirement, EntityGroupFetch.class);
 
-				if (requirement instanceof final AttributeContent attributeContent) {
-					return new ReferenceContent(classifier, null, null, attributeContent, null, null);
-				} else if (requirement instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(classifier, null, null, null, entityFetch, null);
-				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, null, null, null, null, entityGroupFetch);
-				} else {
-					throw new EvitaInternalError("Should never happen!");
-				}
+				return new ReferenceContent(classifier, null, null, null, facetEntityRequirement, groupEntityRequirement);
 			}
 		);
 	}
@@ -292,21 +298,20 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					.accept(classifierTokenVisitor)
 					.asSingleClassifier();
 
-				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.requirement1, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class);
-				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.requirement2, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class);
-				Assert.isTrue(
-					!requirement1.getClass().equals(requirement2.getClass()),
-					() -> new EvitaQLInvalidQueryError(ctx, "Each requirement must be of a different type.")
-				);
+				final FilterBy filterBy = visitChildConstraint(filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 
-				if (requirement1 instanceof final EntityFetch entityFetch && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, null, null, null, entityFetch, entityGroupFetch);
-				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(classifier, null, null, attributeContent, entityFetch, null);
-				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, null, null, attributeContent, null, entityGroupFetch);
+				final EntityRequire requirement = Optional.ofNullable(ctx.args.requirement)
+					.map(c -> visitChildConstraint(c, EntityRequire.class))
+					.orElse(null);
+
+				if (requirement == null) {
+					return new ReferenceContent(classifier, filterBy, null, null, null, null);
+				} else if (requirement instanceof final EntityFetch entityFetch) {
+					return new ReferenceContent(classifier, filterBy, null, null, entityFetch, null);
+				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
+					return new ReferenceContent(classifier, filterBy, null, null, null, entityGroupFetch);
 				} else {
-					throw new EvitaQLInvalidQueryError(ctx, "Invalid combination of requirements.");
+					throw new EvitaInternalError("Should never happen!");
 				}
 			}
 		);
@@ -314,6 +319,149 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 
 	@Override
 	public RequireConstraint visitSingleRefReferenceContent4Constraint(SingleRefReferenceContent4ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> {
+				final String classifier = ctx.args.classifier
+					.accept(classifierTokenVisitor)
+					.asSingleClassifier();
+
+				final FilterBy filterBy = visitChildConstraint(filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
+
+				final EntityFetch requirement1 = visitChildConstraint(ctx.args.facetEntityRequirement, EntityFetch.class);
+				final EntityGroupFetch requirement2 = visitChildConstraint(ctx.args.groupEntityRequirement, EntityGroupFetch.class);
+
+				return new ReferenceContent(classifier, filterBy, null, null, requirement1, requirement2);
+			}
+		);
+	}
+
+	@Override
+	public RequireConstraint visitSingleRefReferenceContent5Constraint(SingleRefReferenceContent5ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> {
+				final String classifier = ctx.args.classifier
+					.accept(classifierTokenVisitor)
+					.asSingleClassifier();
+
+				final OrderBy orderBy = visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
+
+				final EntityRequire requirement = Optional.ofNullable(ctx.args.requirement)
+					.map(c -> visitChildConstraint(c, EntityRequire.class))
+					.orElse(null);
+
+				if (requirement == null) {
+					return new ReferenceContent(classifier, null, orderBy, null, null, null);
+				} else if (requirement instanceof final EntityFetch entityFetch) {
+					return new ReferenceContent(classifier, null, orderBy, null, entityFetch, null);
+				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
+					return new ReferenceContent(classifier, null, orderBy, null, null, entityGroupFetch);
+				} else {
+					throw new EvitaInternalError("Should never happen!");
+				}
+			}
+		);
+	}
+
+	@Override
+	public RequireConstraint visitSingleRefReferenceContent6Constraint(SingleRefReferenceContent6ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> {
+				final String classifier = ctx.args.classifier
+					.accept(classifierTokenVisitor)
+					.asSingleClassifier();
+
+				final OrderBy orderBy = visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
+
+				final EntityFetch facetEntityRequirement = visitChildConstraint(ctx.args.facetEntityRequirement, EntityFetch.class);
+				final EntityGroupFetch groupEntityRequirement = visitChildConstraint(ctx.args.groupEntityRequirement, EntityGroupFetch.class);
+
+				return new ReferenceContent(classifier, null, orderBy, null, facetEntityRequirement, groupEntityRequirement);
+			}
+		);
+	}
+
+
+	@Override
+	public RequireConstraint visitSingleRefReferenceContent7Constraint(SingleRefReferenceContent7ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> {
+				final String classifier = ctx.args.classifier
+					.accept(classifierTokenVisitor)
+					.asSingleClassifier();
+
+				final FilterBy filterBy = visitChildConstraint(filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
+				final OrderBy orderBy = visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
+
+				final EntityRequire requirement = Optional.ofNullable(ctx.args.requirement)
+					.map(c -> visitChildConstraint(c, EntityRequire.class))
+					.orElse(null);
+
+				if (requirement == null) {
+					return new ReferenceContent(classifier, filterBy, orderBy, null, null, null);
+				} else if (requirement instanceof final EntityFetch entityFetch) {
+					return new ReferenceContent(classifier, filterBy, orderBy, null, entityFetch, null);
+				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
+					return new ReferenceContent(classifier, filterBy, orderBy, null, null, entityGroupFetch);
+				} else {
+					throw new EvitaInternalError("Should never happen!");
+				}
+			}
+		);
+	}
+
+	@Override
+	public RequireConstraint visitSingleRefReferenceContent8Constraint(SingleRefReferenceContent8ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> {
+				final String classifier = ctx.args.classifier
+					.accept(classifierTokenVisitor)
+					.asSingleClassifier();
+
+				final FilterBy filterBy = visitChildConstraint(filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
+				final OrderBy orderBy = visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
+
+				final EntityFetch facetEntityRequirements = visitChildConstraint(ctx.args.facetEntityRequirement, EntityFetch.class);
+				final EntityGroupFetch groupEntityRequirements = visitChildConstraint(ctx.args.groupEntityRequirement, EntityGroupFetch.class);
+
+				return new ReferenceContent(classifier, filterBy, orderBy, null, facetEntityRequirements, groupEntityRequirements);
+			}
+		);
+	}
+
+	@Override
+	public RequireConstraint visitSingleRefReferenceContentWithAttributes1Constraint(SingleRefReferenceContentWithAttributes1ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> {
+				final String classifier = ctx.args.classifier
+					.accept(classifierTokenVisitor)
+					.asSingleClassifier();
+
+				final AttributeContent attributeContent = visitChildConstraint(ctx.args.attributeContent, AttributeContent.class);
+				final EntityRequire requirement = Optional.ofNullable(ctx.args.requirement)
+					.map(c -> visitChildConstraint(c, EntityRequire.class))
+					.orElse(null);
+
+				if (requirement == null) {
+					return new ReferenceContent(classifier, null, null, attributeContent, null, null);
+				} else if (requirement instanceof final EntityFetch entityFetch) {
+					return new ReferenceContent(classifier, null, null, attributeContent, entityFetch, null);
+				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
+					return new ReferenceContent(classifier, null, null, attributeContent, null, entityGroupFetch);
+				} else {
+					throw new EvitaInternalError("Should never happen!");
+				}
+			}
+		);
+	}
+
+	@Override
+	public RequireConstraint visitSingleRefReferenceContentWithAttributes2Constraint(SingleRefReferenceContentWithAttributes2ConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -331,7 +479,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitSingleRefReferenceContent5Constraint(SingleRefReferenceContent5ConstraintContext ctx) {
+	public RequireConstraint visitSingleRefReferenceContentWithAttributes3Constraint(SingleRefReferenceContentWithAttributes3ConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -341,30 +489,17 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 
 				final FilterBy filterBy = visitChildConstraint(filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 
-				return new ReferenceContent(classifier, filterBy, null, null, null, null);
-			}
-		);
-	}
+				final AttributeContent attributeContent = visitChildConstraint(ctx.args.attributeContent, AttributeContent.class);
+				final EntityRequire requirement = Optional.ofNullable(ctx.args.requirement)
+					.map(c -> visitChildConstraint(c, EntityRequire.class))
+					.orElse(null);
 
-	@Override
-	public RequireConstraint visitSingleRefReferenceContent6Constraint(SingleRefReferenceContent6ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final String classifier = ctx.args.classifier
-					.accept(classifierTokenVisitor)
-					.asSingleClassifier();
-
-				final FilterBy filterBy = visitChildConstraint(filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
-
-				final RequireConstraint requirement = visitChildConstraint(ctx.args.requirement, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class);
-
-				if (requirement instanceof final AttributeContent attributeContent) {
+				if (requirement == null) {
 					return new ReferenceContent(classifier, filterBy, null, attributeContent, null, null);
 				} else if (requirement instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(classifier, filterBy, null, null, entityFetch, null);
+					return new ReferenceContent(classifier, filterBy, null, attributeContent, entityFetch, null);
 				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, filterBy, null, null, null, entityGroupFetch);
+					return new ReferenceContent(classifier, filterBy, null, attributeContent, null, entityGroupFetch);
 				} else {
 					throw new EvitaInternalError("Should never happen!");
 				}
@@ -373,38 +508,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitSingleRefReferenceContent7Constraint(SingleRefReferenceContent7ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final String classifier = ctx.args.classifier
-					.accept(classifierTokenVisitor)
-					.asSingleClassifier();
-
-				final FilterBy filterBy = visitChildConstraint(filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
-
-				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.requirement1, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class);
-				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.requirement2, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class);
-				Assert.isTrue(
-					!requirement1.getClass().equals(requirement2.getClass()),
-					() -> new EvitaQLInvalidQueryError(ctx, "Each requirement must be of a different type.")
-				);
-
-				if (requirement1 instanceof final EntityFetch entityFetch && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, filterBy, null, null, entityFetch, entityGroupFetch);
-				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(classifier, filterBy, null, attributeContent, entityFetch, null);
-				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, filterBy, null, attributeContent, null, entityGroupFetch);
-				} else {
-					throw new EvitaQLInvalidQueryError(ctx, "Invalid combination of requirements.");
-				}
-			}
-		);
-	}
-
-	@Override
-	public RequireConstraint visitSingleRefReferenceContent8Constraint(SingleRefReferenceContent8ConstraintContext ctx) {
+	public RequireConstraint visitSingleRefReferenceContentWithAttributes4Constraint(SingleRefReferenceContentWithAttributes4ConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -424,7 +528,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitSingleRefReferenceContent9Constraint(SingleRefReferenceContent9ConstraintContext ctx) {
+	public RequireConstraint visitSingleRefReferenceContentWithAttributes5Constraint(SingleRefReferenceContentWithAttributes5ConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -434,30 +538,17 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 
 				final OrderBy orderBy = visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
 
-				return new ReferenceContent(classifier, null, orderBy, null, null, null);
-			}
-		);
-	}
+				final AttributeContent attributeContent = visitChildConstraint(ctx.args.attributeContent, AttributeContent.class);
+				final EntityRequire requirement = Optional.ofNullable(ctx.args.requirement)
+					.map(c -> visitChildConstraint(c, EntityRequire.class))
+					.orElse(null);
 
-	@Override
-	public RequireConstraint visitSingleRefReferenceContent10Constraint(SingleRefReferenceContent10ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final String classifier = ctx.args.classifier
-					.accept(classifierTokenVisitor)
-					.asSingleClassifier();
-
-				final OrderBy orderBy = visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
-
-				final RequireConstraint requirement = visitChildConstraint(ctx.args.requirement, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class);
-
-				if (requirement instanceof final AttributeContent attributeContent) {
+				if (requirement == null) {
 					return new ReferenceContent(classifier, null, orderBy, attributeContent, null, null);
 				} else if (requirement instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(classifier, null, orderBy, null, entityFetch, null);
+					return new ReferenceContent(classifier, null, orderBy, attributeContent, entityFetch, null);
 				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, null, orderBy, null, null, entityGroupFetch);
+					return new ReferenceContent(classifier, null, orderBy, attributeContent, null, entityGroupFetch);
 				} else {
 					throw new EvitaInternalError("Should never happen!");
 				}
@@ -466,38 +557,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitSingleRefReferenceContent11Constraint(SingleRefReferenceContent11ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final String classifier = ctx.args.classifier
-					.accept(classifierTokenVisitor)
-					.asSingleClassifier();
-
-				final OrderBy orderBy = visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
-
-				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.requirement1, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class);
-				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.requirement2, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class);
-				Assert.isTrue(
-					!requirement1.getClass().equals(requirement2.getClass()),
-					() -> new EvitaQLInvalidQueryError(ctx, "Each requirement must be of a different type.")
-				);
-
-				if (requirement1 instanceof final EntityFetch entityFetch && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, null, orderBy, null, entityFetch, entityGroupFetch);
-				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(classifier, null, orderBy, attributeContent, entityFetch, null);
-				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, null, orderBy, attributeContent, null, entityGroupFetch);
-				} else {
-					throw new EvitaQLInvalidQueryError(ctx, "Invalid combination of requirements.");
-				}
-			}
-		);
-	}
-
-	@Override
-	public RequireConstraint visitSingleRefReferenceContent12Constraint(SingleRefReferenceContent12ConstraintContext ctx) {
+	public RequireConstraint visitSingleRefReferenceContentWithAttributes6Constraint(SingleRefReferenceContentWithAttributes6ConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -517,7 +577,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitSingleRefReferenceContent13Constraint(SingleRefReferenceContent13ConstraintContext ctx) {
+	public RequireConstraint visitSingleRefReferenceContentWithAttributes7Constraint(SingleRefReferenceContentWithAttributes7ConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -528,31 +588,17 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				final FilterBy filterBy = visitChildConstraint(filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 				final OrderBy orderBy = visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
 
-				return new ReferenceContent(classifier, filterBy, orderBy, null, null, null);
-			}
-		);
-	}
+				final AttributeContent attributeContent = visitChildConstraint(ctx.args.attributeContent, AttributeContent.class);
+				final EntityRequire requirement = Optional.ofNullable(ctx.args.requirement)
+					.map(c -> visitChildConstraint(c, EntityRequire.class))
+					.orElse(null);
 
-	@Override
-	public RequireConstraint visitSingleRefReferenceContent14Constraint(SingleRefReferenceContent14ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final String classifier = ctx.args.classifier
-					.accept(classifierTokenVisitor)
-					.asSingleClassifier();
-
-				final FilterBy filterBy = visitChildConstraint(filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
-				final OrderBy orderBy = visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
-
-				final RequireConstraint requirement = visitChildConstraint(ctx.args.requirement, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class);
-
-				if (requirement instanceof final AttributeContent attributeContent) {
+				if (requirement == null) {
 					return new ReferenceContent(classifier, filterBy, orderBy, attributeContent, null, null);
 				} else if (requirement instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(classifier, filterBy, orderBy, null, entityFetch, null);
+					return new ReferenceContent(classifier, filterBy, orderBy, attributeContent, entityFetch, null);
 				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, filterBy, orderBy, null, null, entityGroupFetch);
+					return new ReferenceContent(classifier, filterBy, orderBy, attributeContent, null, entityGroupFetch);
 				} else {
 					throw new EvitaInternalError("Should never happen!");
 				}
@@ -561,39 +607,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitSingleRefReferenceContent15Constraint(SingleRefReferenceContent15ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final String classifier = ctx.args.classifier
-					.accept(classifierTokenVisitor)
-					.asSingleClassifier();
-
-				final FilterBy filterBy = visitChildConstraint(filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
-				final OrderBy orderBy = visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
-
-				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.requirement1, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class);
-				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.requirement2, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class);
-				Assert.isTrue(
-					!requirement1.getClass().equals(requirement2.getClass()),
-					() -> new EvitaQLInvalidQueryError(ctx, "Each requirement must be of a different type.")
-				);
-
-				if (requirement1 instanceof final EntityFetch entityFetch && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, filterBy, orderBy, null, entityFetch, entityGroupFetch);
-				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(classifier, filterBy, orderBy, attributeContent, entityFetch, null);
-				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(classifier, filterBy, orderBy, attributeContent, null, entityGroupFetch);
-				} else {
-					throw new EvitaQLInvalidQueryError(ctx, "Invalid combination of requirements.");
-				}
-			}
-		);
-	}
-
-	@Override
-	public RequireConstraint visitSingleRefReferenceContent16Constraint(SingleRefReferenceContent16ConstraintContext ctx) {
+	public RequireConstraint visitSingleRefReferenceContentWithAttributes8Constraint(SingleRefReferenceContentWithAttributes8ConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -613,6 +627,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		);
 	}
 
+
 	@Override
 	public RequireConstraint visitMultipleRefsReferenceContentConstraint(@Nonnull MultipleRefsReferenceContentConstraintContext ctx) {
 		return parse(
@@ -625,7 +640,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				if (ctx.args.requirement == null && ctx.args.facetEntityRequirement == null && ctx.args.groupEntityRequirement == null) {
 					return new ReferenceContent(classifiers);
 				} else if (ctx.args.requirement != null) {
-					final EntityRequire require = visitChildEntityRequire(ctx.args.requirement);
+					final EntityRequire require = visitChildConstraint(ctx.args.requirement, EntityRequire.class);
 					if (require instanceof final EntityFetch entityFetch) {
 						return new ReferenceContent(classifiers, entityFetch, null);
 					} else if (require instanceof final EntityGroupFetch entityGroupFetch) {
@@ -1318,22 +1333,12 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 
 
 	@Nonnull
-	private EntityRequire visitChildEntityRequire(@Nonnull RequireConstraintContext arg) {
-		return visitChildConstraint(arg, EntityRequire.class);
-	}
-
-	@Nonnull
-	private EntityContentRequire visitChildEntityContentRequire(@Nonnull RequireConstraintContext arg) {
-		return visitChildConstraint(arg, EntityContentRequire.class);
-	}
-
-	@Nonnull
 	private EntityRequire[] parseFacetSummaryRequirementsArgs(@Nullable FacetSummaryRequirementsArgsContext ctx) {
 		if (ctx == null) {
 			return new EntityRequire[0];
 		}
 		if (ctx.requirement != null) {
-			final EntityRequire requirement = visitChildEntityRequire(ctx.requirement);
+			final EntityRequire requirement = visitChildConstraint(ctx.requirement, EntityRequire.class);
 			if (requirement instanceof final EntityFetch facetEntityRequirement) {
 				return new EntityRequire[] { facetEntityRequirement };
 			} else if (requirement instanceof final EntityGroupFetch groupEntityRequirement) {
