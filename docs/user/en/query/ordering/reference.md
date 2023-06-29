@@ -73,6 +73,12 @@ following query:
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[List of "Sony" products ordered by priority](/docs/user/en/query/ordering/examples/reference/reference-attribute-natural.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>
 
 The example is based on a simple one-to-zero-or-one reference (a product can have at most one reference to a brand 
@@ -119,6 +125,12 @@ brand "Google":
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[List of "Sony" or "Google" products ordered by priority](/docs/user/en/query/ordering/examples/reference/reference-attribute-natural-multiple.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 The result will contain first products referring to a "Google" brand which has the lowest primary key, and then products
 referring to a "Sony" brand. The order of products within each group will be determined by the `orderInBrand` attribute.
 
@@ -158,6 +170,12 @@ by the `orderInCategory` attribute on the reference to the category:
 <LanguageSpecific to="graphql">
 
 <MDInclude>[List products in "Accessories" category ordered by priority](/docs/user/en/query/ordering/examples/reference/reference-attribute-natural-hierarchy.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+<MDInclude>[List products in "Accessories" category ordered by priority](/docs/user/en/query/ordering/examples/reference/reference-attribute-natural-hierarchy.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -213,6 +231,12 @@ by, for example, the `priority` or `name` attribute of the `Parameter` entity. L
 <LanguageSpecific to="graphql">
 
 <MDInclude>[Get product with parameters ordered by their priority](/docs/user/en/query/ordering/examples/reference/entity-property.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+<MDInclude>[Get product with parameters ordered by their priority](/docs/user/en/query/ordering/examples/reference/entity-property.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 

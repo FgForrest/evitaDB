@@ -31,6 +31,7 @@ import io.evitadb.api.query.ReferenceConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
+import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
@@ -79,10 +80,10 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	private static final String SUFFIX = "all";
 	public static final ReferenceContent ALL_REFERENCES = new ReferenceContent();
 
-	private ReferenceContent(@Nonnull String[] referencedEntityType,
+	private ReferenceContent(@Nonnull String[] referenceName,
 	                         @Nonnull RequireConstraint[] requirements,
 	                         @Nonnull Constraint<?>[] additionalChildren) {
-		super(referencedEntityType, requirements, additionalChildren);
+		super(referenceName, requirements, additionalChildren);
 	}
 
 	@Creator(suffix = SUFFIX)
@@ -90,121 +91,121 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		super();
 	}
 
-	public ReferenceContent(@Nonnull String referencedEntityType) {
-		super(new String[] { referencedEntityType });
+	public ReferenceContent(@Nonnull String referenceName) {
+		super(new String[] { referenceName });
 	}
 
-	public ReferenceContent(@Nonnull String... referencedEntityType) {
-		super(referencedEntityType);
+	public ReferenceContent(@Nonnull String... referenceName) {
+		super(referenceName);
 	}
 
-	public ReferenceContent(@Nonnull String referencedEntityType,
+	public ReferenceContent(@Nonnull String referenceName,
 	                        @Nullable EntityFetch entityRequirement) {
-		super(new String[] { referencedEntityType }, entityRequirement);
+		super(new String[] { referenceName }, entityRequirement);
 	}
 
-	public ReferenceContent(@Nonnull String referencedEntityType,
+	public ReferenceContent(@Nonnull String referenceName,
 	                        @Nullable EntityGroupFetch groupEntityRequirement) {
-		super(new String[] { referencedEntityType }, groupEntityRequirement);
+		super(new String[] { referenceName }, groupEntityRequirement);
 	}
 
-	public ReferenceContent(@Nonnull String referencedEntityType,
+	public ReferenceContent(@Nonnull String referenceName,
 	                        @Nullable EntityFetch entityRequirement,
 	                        @Nullable EntityGroupFetch groupEntityRequirement) {
-		super(new String[] { referencedEntityType }, entityRequirement, groupEntityRequirement);
+		super(new String[] { referenceName }, entityRequirement, groupEntityRequirement);
 	}
 
-	public ReferenceContent(@Nonnull String[] referencedEntityTypes,
+	public ReferenceContent(@Nonnull String[] referenceNames,
 	                        @Nullable EntityFetch entityRequirement) {
-		super(referencedEntityTypes, entityRequirement);
+		super(referenceNames, entityRequirement);
 	}
 
-	public ReferenceContent(@Nonnull String[] referencedEntityTypes,
+	public ReferenceContent(@Nonnull String[] referenceNames,
 	                        @Nullable EntityGroupFetch groupEntityRequirement) {
-		super(referencedEntityTypes, groupEntityRequirement);
+		super(referenceNames, groupEntityRequirement);
 	}
 
-	public ReferenceContent(@Nonnull String[] referencedEntityTypes,
+	public ReferenceContent(@Nonnull String[] referenceNames,
 							@Nullable EntityFetch entityRequirement,
 	                        @Nullable EntityGroupFetch groupEntityRequirement) {
-		super(referencedEntityTypes, entityRequirement, groupEntityRequirement);
+		super(referenceNames, entityRequirement, groupEntityRequirement);
 	}
 
-	public ReferenceContent(@Nonnull String referencedEntityType,
+	public ReferenceContent(@Nonnull String referenceName,
 	                        @Nullable FilterBy filterBy,
 	                        @Nullable EntityFetch entityRequirement) {
-		super(new String[] { referencedEntityType }, new RequireConstraint[] {entityRequirement}, filterBy);
+		super(new String[] { referenceName }, new RequireConstraint[] {entityRequirement}, filterBy);
 	}
 
-	public ReferenceContent(@Nonnull String referencedEntityType,
+	public ReferenceContent(@Nonnull String referenceName,
 	                        @Nullable FilterBy filterBy,
 	                        @Nullable EntityGroupFetch groupEntityRequirement) {
-		super(new String[] { referencedEntityType }, new RequireConstraint[] {groupEntityRequirement}, filterBy);
+		super(new String[] { referenceName }, new RequireConstraint[] {groupEntityRequirement}, filterBy);
 	}
 
-	public ReferenceContent(@Nonnull String referencedEntityType,
+	public ReferenceContent(@Nonnull String referenceName,
 	                        @Nullable FilterBy filterBy,
 							@Nullable EntityFetch entityRequirement,
 	                        @Nullable EntityGroupFetch groupEntityRequirement) {
-		super(new String[] { referencedEntityType }, new RequireConstraint[] {entityRequirement, groupEntityRequirement}, filterBy);
+		super(new String[] { referenceName }, new RequireConstraint[] {entityRequirement, groupEntityRequirement}, filterBy);
 	}
 
-	public ReferenceContent(@Nonnull String referencedEntityType,
+	public ReferenceContent(@Nonnull String referenceName,
 	                        @Nullable FilterBy filterBy) {
-		super(new String[] { referencedEntityType }, new RequireConstraint[0], filterBy);
+		super(new String[] { referenceName }, new RequireConstraint[0], filterBy);
 	}
 
-	public ReferenceContent(@Nonnull String referencedEntityType,
+	public ReferenceContent(@Nonnull String referenceName,
 	                        @Nullable OrderBy orderBy,
 	                        @Nullable EntityFetch entityRequirement) {
-		super(new String[] { referencedEntityType }, new RequireConstraint[] {entityRequirement}, orderBy);
+		super(new String[] { referenceName }, new RequireConstraint[] {entityRequirement}, orderBy);
 	}
 
-	public ReferenceContent(@Nonnull String referencedEntityType,
+	public ReferenceContent(@Nonnull String referenceName,
 	                        @Nullable OrderBy orderBy,
 	                        @Nullable EntityGroupFetch groupEntityRequirement) {
-		super(new String[] { referencedEntityType }, new RequireConstraint[] {groupEntityRequirement}, orderBy);
+		super(new String[] { referenceName }, new RequireConstraint[] {groupEntityRequirement}, orderBy);
 	}
 
-	public ReferenceContent(@Nonnull String referencedEntityType,
+	public ReferenceContent(@Nonnull String referenceName,
 	                        @Nullable OrderBy orderBy,
 	                        @Nullable EntityFetch entityRequirement,
 	                        @Nullable EntityGroupFetch groupEntityRequirement) {
-		super(new String[] { referencedEntityType }, new RequireConstraint[] {entityRequirement, groupEntityRequirement}, orderBy);
+		super(new String[] { referenceName }, new RequireConstraint[] {entityRequirement, groupEntityRequirement}, orderBy);
 	}
 
-	public ReferenceContent(@Nonnull String referencedEntityType,
+	public ReferenceContent(@Nonnull String referenceName,
 	                        @Nullable OrderBy orderBy) {
-		super(new String[] { referencedEntityType }, new RequireConstraint[0], orderBy);
+		super(new String[] { referenceName }, new RequireConstraint[0], orderBy);
 	}
 
-	public ReferenceContent(@Nonnull String referencedEntityType,
+	public ReferenceContent(@Nonnull String referenceName,
 							@Nullable FilterBy filterBy,
 	                        @Nullable OrderBy orderBy,
 	                        @Nullable EntityFetch entityRequirement) {
-		super(new String[] { referencedEntityType }, new RequireConstraint[] {entityRequirement}, filterBy, orderBy);
+		super(new String[] { referenceName }, new RequireConstraint[] {entityRequirement}, filterBy, orderBy);
 	}
 
-	public ReferenceContent(@Nonnull String referencedEntityType,
+	public ReferenceContent(@Nonnull String referenceName,
 							@Nullable FilterBy filterBy,
 	                        @Nullable OrderBy orderBy,
 	                        @Nullable EntityGroupFetch groupEntityRequirement) {
-		super(new String[] { referencedEntityType }, new RequireConstraint[] {groupEntityRequirement}, filterBy, orderBy);
+		super(new String[] { referenceName }, new RequireConstraint[] {groupEntityRequirement}, filterBy, orderBy);
 	}
 
 	@Creator
-	public ReferenceContent(@Nonnull @Classifier String referencedEntityType,
+	public ReferenceContent(@Nonnull @Classifier String referenceName,
 							@Nullable @AdditionalChild FilterBy filterBy,
 	                        @Nullable @AdditionalChild OrderBy orderBy,
 	                        @Nullable @Child EntityFetch entityFetch,
 	                        @Nullable @Child EntityGroupFetch entityGroupFetch) {
-		super(new String[] { referencedEntityType }, new RequireConstraint[] {entityFetch, entityGroupFetch}, filterBy, orderBy);
+		super(new String[] { referenceName }, new RequireConstraint[] {entityFetch, entityGroupFetch}, filterBy, orderBy);
 	}
 
-	public ReferenceContent(@Nonnull String referencedEntityType,
+	public ReferenceContent(@Nonnull String referenceName,
 							@Nullable FilterBy filterBy,
 	                        @Nullable OrderBy orderBy) {
-		super(new String[] { referencedEntityType }, new RequireConstraint[0], filterBy, orderBy);
+		super(new String[] { referenceName }, new RequireConstraint[0], filterBy, orderBy);
 	}
 
 	public ReferenceContent(@Nonnull EntityFetch entityRequirement) {
@@ -220,6 +221,20 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	}
 
 	/**
+	 * Returns name of reference which should be loaded along with entity.
+	 * Note: this can be used only if there is single reference name. Otherwise {@link #getReferenceNames()} should be used.
+	 */
+	@Nonnull
+	public String getReferenceName() {
+		final String[] referenceNames = getReferenceNames();
+		Assert.isTrue(
+			referenceNames.length == 1,
+			"There are multiple reference names, cannot return single name."
+		);
+		return referenceNames[0];
+	}
+
+	/**
 	 * Returns names of references which should be loaded along with entity.
 	 */
 	@Nonnull
@@ -232,6 +247,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	/**
 	 * Returns requirements for entities.
 	 */
+	@AliasForParameter("entityFetch")
 	@Nullable
 	public EntityFetch getEntityRequirement() {
 		final int childrenLength = getChildren().length;
@@ -251,6 +267,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	/**
 	 * Returns requirements for group entities.
 	 */
+	@AliasForParameter("entityGroupFetch")
 	@Nullable
 	public EntityGroupFetch getGroupEntityRequirement() {
 		final int childrenLength = getChildren().length;
