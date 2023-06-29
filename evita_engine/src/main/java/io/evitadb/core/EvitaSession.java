@@ -36,6 +36,8 @@ import io.evitadb.api.exception.TransactionNotSupportedException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.exception.UnexpectedResultException;
 import io.evitadb.api.exception.UnexpectedTransactionStateException;
+import io.evitadb.api.proxy.ProxyFactory;
+import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.EntityContentRequire;
@@ -142,6 +144,10 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 */
 	private final AtomicReference<CatalogContract> catalog;
 	/**
+	 * Contains reference to the proxy factory that is used to create proxies for the entities.
+	 */
+	private final ProxyFactory proxyFactory;
+	/**
 	 * Flag that is se to TRUE when Evita. is ready to serve application calls.
 	 * Aim of this flag is to refuse any calls after {@link #close()} method has been called.
 	 */
@@ -185,20 +191,21 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	EvitaSession(
-		@Nonnull CatalogContract catalog,
+		@Nonnull Catalog catalog,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nullable EvitaSessionTerminationCallback terminationCallback,
 		@Nonnull SessionTraits sessionTraits
 	) {
 		this.catalog = new AtomicReference<>(catalog);
 		this.reflectionLookup = reflectionLookup;
+		this.proxyFactory = catalog.getProxyFactory();
 		this.updatedCatalogCallback = null;
 		this.sessionTraits = sessionTraits;
 		this.terminationCallback = terminationCallback;
 	}
 
 	EvitaSession(
-		@Nonnull CatalogContract catalog,
+		@Nonnull Catalog catalog,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nullable EvitaSessionTerminationCallback terminationCallback,
 		@Nonnull UnaryOperator<CatalogContract> updatedCatalogCallback,
@@ -206,6 +213,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	) {
 		this.catalog = new AtomicReference<>(catalog);
 		this.reflectionLookup = reflectionLookup;
+		this.proxyFactory = catalog.getProxyFactory();
 		this.updatedCatalogCallback = updatedCatalogCallback;
 		this.sessionTraits = sessionTraits;
 		this.terminationCallback = terminationCallback;
@@ -321,14 +329,41 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Nonnull
 	@Override
-	public <S extends EntityClassifier> Optional<S> queryOne(@Nonnull Query query, @Nonnull Class<S> expectedType)
-		throws UnexpectedResultException, UnexpectedResultCountException, InstanceTerminatedException {
-		final EvitaRequest request = new EvitaRequest(
-			query.normalizeQuery(),
-			OffsetDateTime.now()
+	public <S extends EntityClassifier> Optional<S> queryOne(@Nonnull Query query, @Nonnull Class<S> expectedType) throws UnexpectedResultException, UnexpectedResultCountException, InstanceTerminatedException {
+		return queryOne(
+			new EvitaRequest(
+				query.normalizeQuery(),
+				OffsetDateTime.now(),
+				expectedType,
+				this.proxyFactory::createProxy
+			)
 		);
+	}
 
-		return queryOne(request, expectedType);
+	@Nonnull
+	@Override
+	public <S extends EntityClassifier> Optional<S> queryOne(@Nonnull EvitaRequest evitaRequest)
+		throws UnexpectedResultException, UnexpectedResultCountException, InstanceTerminatedException {
+
+		assertActive();
+		final String entityType = evitaRequest.getEntityType();
+		final EvitaResponse<S> response;
+		final CatalogContract theCatalog = getCatalog();
+		if (entityType == null) {
+			response = theCatalog.getEntities(evitaRequest, this);
+		} else {
+			final EntityCollectionContract entityCollection = theCatalog.getCollectionForEntityOrThrowException(entityType);
+			response = entityCollection.getEntities(evitaRequest, this);
+		}
+
+		final List<S> recordData = response.getRecordData();
+		if (recordData.isEmpty()) {
+			return empty();
+		} else if (recordData.size() > 1) {
+			throw new UnexpectedResultCountException(recordData.size());
+		} else {
+			return of(recordData.get(0));
+		}
 	}
 
 	@Nonnull
@@ -340,82 +375,45 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Nonnull
 	@Override
+	public <S extends EntityClassifier> List<S> queryList(@Nonnull EvitaRequest evitaRequest) throws UnexpectedResultException, InstanceTerminatedException {
+		//noinspection unchecked
+		return (List<S>) query(evitaRequest).getRecordData();
+	}
+
+	@Nonnull
+	@Override
+	public <S extends EntityClassifier, T extends EvitaResponse<S>> T query(@Nonnull EvitaRequest evitaRequest) throws UnexpectedResultException, InstanceTerminatedException {
+		assertActive();
+		final String entityType = evitaRequest.getEntityType();
+		final T response;
+		final CatalogContract theCatalog = getCatalog();
+		if (entityType == null) {
+			response = theCatalog.getEntities(evitaRequest, this);
+		} else {
+			final EntityCollectionContract entityCollection = theCatalog.getCollectionForEntityOrThrowException(entityType);
+			response = entityCollection.getEntities(evitaRequest, this);
+		}
+		return response;
+	}
+
+	@Nonnull
+	@Override
 	public <S extends EntityClassifier, T extends EvitaResponse<S>> T query(@Nonnull Query query, @Nonnull Class<S> expectedType) throws UnexpectedResultException, InstanceTerminatedException {
 		final EvitaRequest request = new EvitaRequest(
 			query.normalizeQuery(),
-			OffsetDateTime.now()
+			OffsetDateTime.now(),
+			expectedType,
+			this.proxyFactory::createProxy
 		);
 
-		return query(request, expectedType);
-	}
-
-	@Override
-	public <T> T execute(@Nonnull Function<EvitaSessionContract, T> logic) {
-		return executeInTransactionIfPossible(logic);
-	}
-
-	@Override
-	public void execute(@Nonnull Consumer<EvitaSessionContract> logic) {
-		executeInTransactionIfPossible(
-			evitaSessionContract -> {
-				logic.accept(evitaSessionContract);
-				return null;
-			}
-		);
+		return query(request);
 	}
 
 	@Nonnull
 	@Override
-	public Optional<SealedEntity> getEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require) {
+	public <T extends EntityClassifier> Optional<T> getEntity(@Nonnull String entityType, @Nonnull Class<T> expectedType, int primaryKey, EntityContentRequire... require) {
 		assertActive();
 		final EntityCollectionContract entityCollection = getCatalog().getCollectionForEntityOrThrowException(entityType);
-		return entityCollection.getEntity(
-			primaryKey,
-			new EvitaRequest(
-				Query.query(
-					collection(entityType),
-					require(
-						entityFetch(require)
-					)
-				),
-				OffsetDateTime.now()
-			),
-			this
-		);
-	}
-
-	@Nonnull
-	@Override
-	public SealedEntity enrichEntity(@Nonnull SealedEntity partiallyLoadedEntity, EntityContentRequire... require) {
-		assertActive();
-		final String entityType = partiallyLoadedEntity.getType();
-		final EntityCollectionContract entityCollection = getCatalog().getCollectionForEntityOrThrowException(entityType);
-		Assert.isTrue(partiallyLoadedEntity instanceof EntityDecorator, "Expected entity decorator in the input.");
-		final EntityDecorator entityDecorator = (EntityDecorator) partiallyLoadedEntity;
-		return entityCollection.enrichEntity(
-			entityDecorator,
-			new EvitaRequest(
-				Query.query(
-					collection(entityType),
-					require(
-						entityFetch(require)
-					)
-				),
-				OffsetDateTime.now()
-			),
-			this
-		);
-	}
-
-	@Nonnull
-	@Override
-	public SealedEntity enrichOrLimitEntity(@Nonnull SealedEntity partiallyLoadedEntity, EntityContentRequire... require) {
-		assertActive();
-		final String entityType = partiallyLoadedEntity.getType();
-		final EntityCollectionContract entityCollection = getCatalog().getCollectionForEntity(entityType)
-			.orElseThrow(() -> new CollectionNotFoundException(entityType));
-		Assert.isTrue(partiallyLoadedEntity instanceof EntityDecorator, "Expected entity decorator in the input.");
-		final EntityDecorator entityDecorator = (EntityDecorator) partiallyLoadedEntity;
 		final EvitaRequest evitaRequest = new EvitaRequest(
 			Query.query(
 				collection(entityType),
@@ -423,12 +421,122 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					entityFetch(require)
 				)
 			),
-			OffsetDateTime.now()
+			OffsetDateTime.now(),
+			expectedType,
+			this.proxyFactory::createProxy
 		);
-		return entityCollection.limitEntity(
-			entityCollection.enrichEntity(entityDecorator, evitaRequest, this),
-			evitaRequest, this
+		return entityCollection.getEntity(
+			primaryKey,
+			evitaRequest,
+			this
+		).map(it -> this.proxyFactory.createProxy(expectedType, it, evitaRequest));
+	}
+
+	@Nonnull
+	@Override
+	public Optional<SealedEntity> getEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require) {
+		assertActive();
+		final EntityCollectionContract entityCollection = getCatalog().getCollectionForEntityOrThrowException(entityType);
+		final EvitaRequest evitaRequest = new EvitaRequest(
+			Query.query(
+				collection(entityType),
+				require(
+					entityFetch(require)
+				)
+			),
+			OffsetDateTime.now(),
+			EntityReference.class,
+			this.proxyFactory::createProxy
 		);
+		return entityCollection.getEntity(
+			primaryKey,
+			evitaRequest,
+			this
+		);
+	}
+
+	@Nonnull
+	@Override
+	public <T extends EntityClassifier> T enrichEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require) {
+		assertActive();
+		final String entityType = partiallyLoadedEntity.getType();
+		final EntityCollectionContract entityCollection = getCatalog().getCollectionForEntityOrThrowException(entityType);
+		final EvitaRequest evitaRequest = new EvitaRequest(
+			Query.query(
+				collection(entityType),
+				require(
+					entityFetch(require)
+				)
+			),
+			OffsetDateTime.now(),
+			EntityReference.class,
+			this.proxyFactory::createProxy
+		);
+		if (partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy) {
+			//noinspection unchecked
+			return (T) this.proxyFactory.createProxy(
+				sealedEntityProxy.getProxyClass(),
+				entityCollection.enrichEntity(
+					sealedEntityProxy.getSealedEntity(),
+					evitaRequest,
+					this
+				),
+				evitaRequest
+			);
+		} else {
+			Assert.isTrue(partiallyLoadedEntity instanceof EntityDecorator, "Expected entity decorator in the input.");
+			final EntityDecorator entityDecorator = (EntityDecorator) partiallyLoadedEntity;
+			//noinspection unchecked
+			return (T) entityCollection.enrichEntity(
+				entityDecorator,
+				evitaRequest,
+				this
+			);
+		}
+	}
+
+	@Nonnull
+	@Override
+	public <T extends EntityClassifier> T enrichOrLimitEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require) {
+		assertActive();
+		final String entityType = partiallyLoadedEntity.getType();
+		final EntityCollectionContract entityCollection = getCatalog().getCollectionForEntity(entityType)
+			.orElseThrow(() -> new CollectionNotFoundException(entityType));
+		final EvitaRequest evitaRequest = new EvitaRequest(
+			Query.query(
+				collection(entityType),
+				require(
+					entityFetch(require)
+				)
+			),
+			OffsetDateTime.now(),
+			partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy ?
+				sealedEntityProxy.getProxyClass() : partiallyLoadedEntity.getClass(),
+			this.proxyFactory::createProxy
+		);
+		if (partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy) {
+			//noinspection unchecked
+			return (T) this.proxyFactory.createProxy(
+				sealedEntityProxy.getProxyClass(),
+				entityCollection.limitEntity(
+					entityCollection.enrichEntity(
+						sealedEntityProxy.getSealedEntity(),
+						evitaRequest,
+						this
+					),
+					evitaRequest, this
+				),
+				evitaRequest
+			);
+		} else {
+			Assert.isTrue(partiallyLoadedEntity instanceof EntityDecorator, "Expected entity decorator in the input.");
+			final EntityDecorator entityDecorator = (EntityDecorator) partiallyLoadedEntity;
+			//noinspection unchecked
+			return (T) entityCollection.limitEntity(
+				entityCollection.enrichEntity(entityDecorator, evitaRequest, this),
+				evitaRequest, this
+			);
+		}
 	}
 
 	@Nonnull
@@ -577,7 +685,9 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 							entityFetch(require)
 						)
 					),
-					OffsetDateTime.now()
+					OffsetDateTime.now(),
+					SealedEntity.class,
+					this.proxyFactory::createProxy
 				),
 				this
 			);
@@ -608,7 +718,9 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 							entityFetch(require)
 						)
 					),
-					OffsetDateTime.now()
+					OffsetDateTime.now(),
+					SealedEntity.class,
+					this.proxyFactory::createProxy
 				),
 				this
 			);
@@ -647,7 +759,9 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 							entityFetch(require)
 						)
 					),
-					OffsetDateTime.now()
+					OffsetDateTime.now(),
+					ArrayUtils.isEmpty(require) ? EntityReference.class : SealedEntity.class,
+					this.proxyFactory::createProxy
 				),
 				this
 			);
@@ -659,7 +773,9 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		assertActive();
 		final EvitaRequest request = new EvitaRequest(
 			query.normalizeQuery(),
-			OffsetDateTime.now()
+			OffsetDateTime.now(),
+			EntityReference.class,
+			this.proxyFactory::createProxy
 		);
 		return executeInTransactionIfPossible(session -> {
 			final EntityCollectionContract collection = getCatalog()
@@ -674,13 +790,30 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		assertActive();
 		final EvitaRequest request = new EvitaRequest(
 			query.normalizeQuery(),
-			OffsetDateTime.now()
+			OffsetDateTime.now(),
+			SealedEntity.class,
+			this.proxyFactory::createProxy
 		);
 		return executeInTransactionIfPossible(session -> {
 			final EntityCollectionContract collection = getCatalog()
 				.getOrCreateCollectionForEntity(request.getEntityTypeOrThrowException("entities to be deleted"), session);
 			return collection.deleteEntitiesAndReturnThem(request, session);
 		});
+	}
+
+	@Override
+	public <T> T execute(@Nonnull Function<EvitaSessionContract, T> logic) {
+		return executeInTransactionIfPossible(logic);
+	}
+
+	@Override
+	public void execute(@Nonnull Consumer<EvitaSessionContract> logic) {
+		executeInTransactionIfPossible(
+			evitaSessionContract -> {
+				logic.accept(evitaSessionContract);
+				return null;
+			}
+		);
 	}
 
 	@Override
@@ -750,57 +883,6 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public long getInactivityDurationInSeconds() {
 		return (System.currentTimeMillis() - lastCall) / 1000;
-	}
-
-	@Nonnull
-	@Override
-	public <S extends EntityClassifier> Optional<S> queryOne(@Nonnull EvitaRequest evitaRequest, @Nonnull Class<S> expectedType) throws UnexpectedResultException, UnexpectedResultCountException, InstanceTerminatedException {
-		assertActive();
-		final String entityType = evitaRequest.getEntityType();
-		final EvitaResponse<S> response;
-		final CatalogContract theCatalog = getCatalog();
-		if (entityType == null) {
-			response = theCatalog.getEntities(evitaRequest, this);
-		} else {
-			final EntityCollectionContract entityCollection = theCatalog.getCollectionForEntityOrThrowException(entityType);
-			response = entityCollection.getEntities(evitaRequest, this);
-		}
-
-		final List<S> recordData = response.getRecordData();
-		if (recordData.isEmpty()) {
-			return empty();
-		} else if (!expectedType.isInstance(recordData.get(0))) {
-			throw new UnexpectedResultException(expectedType, recordData.get(0).getClass());
-		} else if (recordData.size() > 1) {
-			throw new UnexpectedResultCountException(recordData.size());
-		} else {
-			return of(recordData.get(0));
-		}
-	}
-
-	@Nonnull
-	@Override
-	public <S extends EntityClassifier> List<S> queryList(@Nonnull EvitaRequest evitaRequest, @Nonnull Class<S> expectedType) throws UnexpectedResultException, InstanceTerminatedException {
-		return query(evitaRequest, expectedType).getRecordData();
-	}
-
-	@Nonnull
-	@Override
-	public <S extends EntityClassifier, T extends EvitaResponse<S>> T query(@Nonnull EvitaRequest evitaRequest, @Nonnull Class<S> expectedType) throws UnexpectedResultException, InstanceTerminatedException {
-		assertActive();
-		final String entityType = evitaRequest.getEntityType();
-		final T response;
-		final CatalogContract theCatalog = getCatalog();
-		if (entityType == null) {
-			response = theCatalog.getEntities(evitaRequest, this);
-		} else {
-			final EntityCollectionContract entityCollection = theCatalog.getCollectionForEntityOrThrowException(entityType);
-			response = entityCollection.getEntities(evitaRequest, this);
-		}
-		if (!response.getRecordData().isEmpty() && !expectedType.isInstance(response.getRecordData().get(0))) {
-			throw new UnexpectedResultException(expectedType, response.getRecordData().get(0).getClass());
-		}
-		return response;
 	}
 
 	/**

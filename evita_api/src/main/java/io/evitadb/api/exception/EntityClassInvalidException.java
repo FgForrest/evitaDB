@@ -23,24 +23,36 @@
 
 package io.evitadb.api.exception;
 
+import io.evitadb.exception.EvitaInvalidUsageException;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception is throw when {@link io.evitadb.api.EvitaSessionContract#defineEntitySchemaFromModelClass(Class)} is
- * executed and fails to create schema by the passed model class due a structure error.
+ * Exception is throw when {@link io.evitadb.api.EvitaSessionContract} is asked to return the query result wrapped into
+ * as custom entity interface and it fails to do so due to an invalid interface definition.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class SchemaClassInvalidException extends SchemaAlteringException {
-	@Serial private static final long serialVersionUID = -5406849919777450870L;
+public class EntityClassInvalidException extends EvitaInvalidUsageException {
+	@Serial private static final long serialVersionUID = 4659727444287535443L;
 	@Getter private final Class<?> modelClass;
 
-	public SchemaClassInvalidException(Class<?> modelClass, @Nonnull Throwable cause) {
-		super("Failed to examine class `" + modelClass + "` and alter the entity collection schema.", cause);
+	public EntityClassInvalidException(Class<?> modelClass, @Nonnull Throwable cause) {
+		super(
+			"Failed to wrap `SealedEntity` into class `" + modelClass + "` due to: " + cause.getMessage(),
+			"Failed to wrap `SealedEntity`.",
+			cause
+		);
 		this.modelClass = modelClass;
 	}
 
+	public EntityClassInvalidException(@Nonnull Class<?> modelClass, @Nonnull String message) {
+		super(
+			"Failed to wrap `SealedEntity` into class `" + modelClass + "` due to: " + message,
+			"Failed to wrap `SealedEntity`."
+		);
+		this.modelClass = modelClass;
+	}
 }

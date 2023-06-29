@@ -32,15 +32,14 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Annotation is used to mark a field, getter method or record component as a target for
- * {@link HierarchicalPlacement} value. Using this annotation in the class also triggers
- * {@link EntitySchemaContract#isWithHierarchy()} to true.
+ * Annotation is used to mark a field, getter method or record component as a target for hierarchical placement value.
+ * Using this annotation in the class also triggers {@link EntitySchemaContract#isWithHierarchy()} to true.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.FIELD, ElementType.METHOD, ElementType.RECORD_COMPONENT})
+@Target({ElementType.FIELD, ElementType.METHOD, ElementType.RECORD_COMPONENT, ElementType.PARAMETER})
 public @interface Parent {
 
 }

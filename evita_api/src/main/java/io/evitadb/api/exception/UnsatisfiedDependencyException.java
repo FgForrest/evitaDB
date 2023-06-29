@@ -21,30 +21,26 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse;
+package io.evitadb.api.exception;
 
-import io.evitadb.api.query.Query;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
-import io.evitadb.dataType.DataChunk;
+import io.evitadb.exception.EvitaInternalError;
 
 import javax.annotation.Nonnull;
-
+import java.io.Serial;
 
 /**
- * This class passes simple references to the found entities - i.e. {@link EntityReference}.
+ * Exception is thrown when a library this function relies on is not found on a classpath.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public final class EvitaEntityReferenceResponse extends EvitaResponse<EntityReference> {
+public class UnsatisfiedDependencyException extends EvitaInternalError {
+	@Serial private static final long serialVersionUID = -7691809070603406429L;
 
-	public EvitaEntityReferenceResponse(@Nonnull Query sourceQuery, @Nonnull DataChunk<EntityReference> recordPage) {
-		super(sourceQuery, recordPage);
-	}
-
-	public EvitaEntityReferenceResponse(@Nonnull Query sourceQuery,
-	                                    @Nonnull DataChunk<EntityReference> recordPage,
-	                                    @Nonnull EvitaResponseExtraResult... extraResults) {
-		super(sourceQuery, recordPage, extraResults);
+	public UnsatisfiedDependencyException(
+		@Nonnull String privateMessage,
+		@Nonnull String publicMessage
+	) {
+		super(privateMessage, publicMessage);
 	}
 
 }

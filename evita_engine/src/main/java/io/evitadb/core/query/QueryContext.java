@@ -65,9 +65,6 @@ import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.extraResult.CacheSupervisorExtraResultAccessor;
 import io.evitadb.core.query.extraResult.ExtraResultCacheAccessor;
 import io.evitadb.core.query.extraResult.translator.facet.producer.FilteringFormulaPredicate;
-import io.evitadb.core.query.sort.ConditionalSorter;
-import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.dataType.DataChunk;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.CatalogIndexKey;
@@ -809,27 +806,6 @@ public class QueryContext {
 		return ofNullable(evitaRequest.getEntityType())
 			.map(it -> cacheSupervisor.analyse(evitaSession, it, formula))
 			.orElse(formula);
-	}
-
-	/**
-	 * Creates slice of entity primary keys that respect filtering query, specified sorting and is sliced according
-	 * to requested offset and limit.
-	 */
-	@Nonnull
-	public DataChunk<Integer> createDataChunk(int totalRecordCount, @Nonnull Formula filteringFormula, @Nonnull Sorter sorter) {
-		final int firstRecordOffset = evitaRequest.getFirstRecordOffset(totalRecordCount);
-		sorter = ConditionalSorter.getFirstApplicableSorter(sorter, this);
-		return evitaRequest.createDataChunk(
-			totalRecordCount,
-			Arrays.stream(
-					sorter.sortAndSlice(
-						this, filteringFormula,
-						firstRecordOffset, firstRecordOffset + evitaRequest.getLimit()
-					)
-				)
-				.boxed()
-				.collect(Collectors.toList())
-		);
 	}
 
 	/**

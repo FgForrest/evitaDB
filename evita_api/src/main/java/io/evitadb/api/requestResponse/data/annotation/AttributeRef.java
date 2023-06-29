@@ -21,27 +21,29 @@
  *   limitations under the License.
  */
 
-package io.evitadb.function;
+package io.evitadb.api.requestResponse.data.annotation;
 
-import java.util.function.Function;
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
- * Represents a function that accepts two arguments and produces a result.
- * This is the two-arity specialization of {@link Function}.
+ * Annotation is used to mark a field, getter method or constructor method argument as a reference
+ * to attribute of the entity.
  *
- * @see Function
- * @apiNote inspired by the JDK interface
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@FunctionalInterface
-public interface ToLongDoubleIntBiFunction {
+@Documented
+@Retention(RetentionPolicy.RUNTIME)
+@Target({ElementType.FIELD, ElementType.METHOD, ElementType.PARAMETER})
+public @interface AttributeRef {
 
 	/**
-	 * Applies this function to the given arguments.
-	 *
-	 * @param t the first function argument
-	 * @param u the second function argument
-	 * @return the function result
+	 * Name of the attribute. Use camel-case naming style.
+	 * If left empty the name is taken from the name of the field / property / component.
 	 */
-	long apply(int t, int u);
+	String name() default "";
 
 }

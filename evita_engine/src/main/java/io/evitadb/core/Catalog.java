@@ -34,6 +34,8 @@ import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.exception.SchemaNotFoundException;
+import io.evitadb.api.proxy.ProxyFactory;
+import io.evitadb.api.proxy.impl.UnsatisfiedDependencyFactory;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -87,6 +89,8 @@ import io.evitadb.store.spi.operation.RemoveCollectionOperation;
 import io.evitadb.store.spi.operation.RemoveStoragePartOperation;
 import io.evitadb.store.spi.operation.RenameCollectionOperation;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.ClassUtils;
+import io.evitadb.utils.ReflectionLookup;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -186,6 +190,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 */
 	private final SequenceService sequenceService = new SequenceService();
 	/**
+	 * Contains reference to the proxy factory that is used to create proxies for the entities.
+	 */
+	@Getter private final ProxyFactory proxyFactory;
+	/**
 	 * Contains id of the transaction ({@link Transaction#getId()}) that was successfully committed to the disk.
 	 */
 	@Getter long lastCommittedTransactionId;
@@ -193,7 +201,8 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	public Catalog(
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nonnull CacheSupervisor cacheSupervisor,
-		@Nonnull StorageOptions storageOptions
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull ReflectionLookup reflectionLookup
 	) {
 		final CatalogSchema internalCatalogSchema = CatalogSchema._internalBuild(
 			catalogSchema.getName(), catalogSchema.getNameVariants(), catalogSchema.getCatalogEvolutionMode(),
@@ -227,13 +236,20 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 			catalogSchema.getName(), SequenceType.ENTITY_COLLECTION, 1
 		);
 		this.catalogIndex = new CatalogIndex(this);
+		this.proxyFactory = ClassUtils.whenPresentOnClasspath(
+			"one.edee.oss.proxycian.bytebuddy.ByteBuddyProxyGenerator",
+			() -> (ProxyFactory) Class.forName("io.evitadb.api.proxy.impl.ProxycianFactory")
+				.getConstructor(ReflectionLookup.class)
+				.newInstance(reflectionLookup)
+		).orElse(UnsatisfiedDependencyFactory.INSTANCE);
 	}
 
 	public Catalog(
 		@Nonnull String catalogName,
 		@Nonnull Path catalogPath,
 		@Nonnull CacheSupervisor cacheSupervisor,
-		@Nonnull StorageOptions storageOptions
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull ReflectionLookup reflectionLookup
 	) {
 		this.ioService = ServiceLoader.load(CatalogPersistenceServiceFactory.class)
 			.findFirst()
@@ -284,6 +300,12 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 					)
 				)
 		);
+		this.proxyFactory = ClassUtils.whenPresentOnClasspath(
+			"one.edee.oss.proxycian.bytebuddy.ByteBuddyProxyGenerator",
+			() -> (ProxyFactory) Class.forName("io.evitadb.api.proxy.impl.ProxycianFactory")
+				.getConstructor(ReflectionLookup.class)
+				.newInstance(reflectionLookup)
+		).orElse(UnsatisfiedDependencyFactory.INSTANCE);
 	}
 
 	Catalog(
@@ -295,7 +317,8 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		@Nonnull AtomicLong txPkSequence,
 		long lastCommittedTransactionId,
 		@Nonnull AtomicInteger entityTypeSequence,
-		@Nonnull Map<String, EntityCollection> entityCollections
+		@Nonnull Map<String, EntityCollection> entityCollections,
+		@Nonnull ProxyFactory proxyFactory
 	) {
 		this.state = new AtomicReference<>(catalogState);
 		this.catalogIndex = catalogIndex;
@@ -330,6 +353,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 					)
 				)
 		);
+		this.proxyFactory = proxyFactory;
 	}
 
 	@Override
@@ -560,7 +584,8 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				txPkSequence,
 				id,
 				entityTypeSequence,
-				newCollections
+				newCollections,
+				proxyFactory
 			);
 			newCollections.values().forEach(it -> it.updateReferenceToCatalog(catalogAfterRename));
 			return catalogAfterRename;
@@ -737,7 +762,8 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				txPkSequence,
 				id,
 				entityTypeSequence,
-				possiblyUpdatedCollections
+				possiblyUpdatedCollections,
+				proxyFactory
 			);
 		} else {
 			if (possiblyUpdatedCatalogIndex != catalogIndex ||
@@ -755,7 +781,8 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 					txPkSequence,
 					id,
 					entityTypeSequence,
-					possiblyUpdatedCollections
+					possiblyUpdatedCollections,
+					proxyFactory
 				);
 			} else {
 				// no changes present we can return self

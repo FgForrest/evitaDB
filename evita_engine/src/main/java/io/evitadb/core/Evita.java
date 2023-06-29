@@ -214,8 +214,7 @@ public final class Evita implements EvitaContract {
 				CatalogContract catalog;
 				try {
 					final long start = System.nanoTime();
-					catalog = new Catalog(
-						catalogName, directory, cacheSupervisor, configuration.storage());
+					catalog = new Catalog(catalogName, directory, cacheSupervisor, configuration.storage(), reflectionLookup);
 					log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
 				} catch (Throwable ex) {
 					log.error("Catalog {} is corrupted!", catalogName);
@@ -516,7 +515,8 @@ public final class Evita implements EvitaContract {
 					return new Catalog(
 						catalogSchema,
 						cacheSupervisor,
-						configuration.storage()
+						configuration.storage(),
+						reflectionLookup
 					);
 				} else {
 					throw new CatalogAlreadyPresentException(catalogName, existingCatalog.getSchema());

@@ -467,6 +467,20 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	Optional<SealedEntity> getEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require);
 
 	/**
+	 * Method returns entity by its type and primary key in requested form of completeness. This method allows quick
+	 * access to the entity contents when primary key is known. Result object is not constrained to an evitaDB type but
+	 * can represent any POJO, record or interface annotated with {@link io.evitadb.api.requestResponse.data.annotation}
+	 * annotations.
+	 */
+	@Nonnull
+	<T extends EntityClassifier> Optional<T> getEntity(
+		@Nonnull String entityType,
+		@Nonnull Class<T> expectedType,
+		int primaryKey,
+		EntityContentRequire... require
+	);
+
+	/**
 	 * Method returns entity with additionally loaded data specified by requirements in second argument. This method
 	 * is particularly useful for implementation of lazy loading when application loads only parts of the entity it
 	 * expects to be required for handling common client request and then load additional data if processing requires
@@ -475,7 +489,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @throws EntityAlreadyRemovedException when the entity has been already removed
 	 */
 	@Nonnull
-	SealedEntity enrichEntity(@Nonnull SealedEntity partiallyLoadedEntity, EntityContentRequire... require)
+	<T extends EntityClassifier> T enrichEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require)
 		throws EntityAlreadyRemovedException;
 
 	/**
@@ -487,7 +501,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @throws EntityAlreadyRemovedException when the entity has been already removed
 	 */
 	@Nonnull
-	SealedEntity enrichOrLimitEntity(@Nonnull SealedEntity partiallyLoadedEntity, EntityContentRequire... require)
+	<T extends EntityClassifier> T enrichOrLimitEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require)
 		throws EntityAlreadyRemovedException;
 
 	/**
@@ -860,7 +874,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	long getInactivityDurationInSeconds();
 
 	/**
-	 * Provides access to the result of {@link #deleteEntityAndItsHierarchy(String, Integer, EntityContentRequire...)}.
+	 * Provides access to the result of {@link #deleteEntityAndItsHierarchy(String, int, EntityContentRequire...)} .
 	 *
 	 * @param deletedEntities   count of all removed entities in the hierarchy
 	 * @param deletedRootEntity requested contents of the removed root entity

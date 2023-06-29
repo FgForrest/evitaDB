@@ -31,8 +31,7 @@ import io.evitadb.dataType.DataChunk;
 import javax.annotation.Nonnull;
 
 /**
- * This class passes simple references to the found entities - i.e. full {@link EntityContract}. There wouldn't be probably
- * necessary any additional extension for this class, but if so, implementors may add new properties to this class here.
+ * This class passes simple references to the found entities - i.e. full {@link EntityContract}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

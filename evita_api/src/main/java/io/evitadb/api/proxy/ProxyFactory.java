@@ -21,30 +21,34 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse;
+package io.evitadb.api.proxy;
 
-import io.evitadb.api.query.Query;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
-import io.evitadb.dataType.DataChunk;
+import io.evitadb.api.exception.EntityClassInvalidException;
+import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 
 import javax.annotation.Nonnull;
 
-
 /**
- * This class passes simple references to the found entities - i.e. {@link EntityReference}.
+ * TODO JNO - document me
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public final class EvitaEntityReferenceResponse extends EvitaResponse<EntityReference> {
+public interface ProxyFactory {
 
-	public EvitaEntityReferenceResponse(@Nonnull Query sourceQuery, @Nonnull DataChunk<EntityReference> recordPage) {
-		super(sourceQuery, recordPage);
-	}
-
-	public EvitaEntityReferenceResponse(@Nonnull Query sourceQuery,
-	                                    @Nonnull DataChunk<EntityReference> recordPage,
-	                                    @Nonnull EvitaResponseExtraResult... extraResults) {
-		super(sourceQuery, recordPage, extraResults);
-	}
+	/**
+	 * TODO JNO - document me
+	 * @param expectedType
+	 * @param sealedEntity
+	 * @return
+	 * @param <T>
+	 */
+	<T extends EntityClassifier>  T createProxy(
+		@Nonnull Class<T> expectedType,
+		@Nonnull SealedEntity sealedEntity,
+		@Nonnull EvitaRequest request
+	)
+		throws EntityClassInvalidException;
 
 }

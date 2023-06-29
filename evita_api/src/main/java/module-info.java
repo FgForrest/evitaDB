@@ -8,6 +8,8 @@ module evita.api {
 
 	exports io.evitadb.api;
 	exports io.evitadb.api.configuration;
+	exports io.evitadb.api.proxy;
+	exports io.evitadb.api.proxy.impl;
 	exports io.evitadb.api.requestResponse;
 	exports io.evitadb.api.requestResponse.data;
 	exports io.evitadb.api.requestResponse.data.key;
@@ -39,5 +41,6 @@ module evita.api {
 
 	requires evita.common;
 	requires evita.query;
+	requires proxycian.bytebuddy;
 
 }

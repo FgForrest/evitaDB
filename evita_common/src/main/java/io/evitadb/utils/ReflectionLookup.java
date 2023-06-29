@@ -61,6 +61,7 @@ import static java.util.Optional.ofNullable;
 @Slf4j
 @RequiredArgsConstructor
 public class ReflectionLookup {
+	public final static ReflectionLookup NO_CACHE_INSTANCE = new ReflectionLookup(ReflectionCachingBehaviour.NO_CACHE);
 	private final WeakHashMap<Class<?>, Map<ConstructorKey, Constructor<?>>> constructorCache = new WeakHashMap<>();
 	private final WeakHashMap<Class<?>, List<Annotation>> classCache = new WeakHashMap<>();
 	private final WeakHashMap<Class<?>, Map<Field, List<Annotation>>> fieldCache = new WeakHashMap<>();

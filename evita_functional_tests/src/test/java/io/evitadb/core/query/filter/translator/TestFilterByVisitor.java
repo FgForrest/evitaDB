@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
@@ -79,7 +80,12 @@ public class TestFilterByVisitor extends FilterByVisitor {
 			false
 		);
 		this.schema = entitySchema;
-		this.evitaRequest = new EvitaRequest(query, OffsetDateTime.now());
+		this.evitaRequest = new EvitaRequest(
+			query,
+			OffsetDateTime.now(),
+			EntityReference.class,
+			EvitaRequest.CONVERSION_NOT_SUPPORTED
+		);
 		this.entities = entities;
 	}
 

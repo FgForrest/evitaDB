@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityCollectionRequiredException;
+import io.evitadb.api.exception.UnexpectedResultException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
@@ -39,9 +40,12 @@ import io.evitadb.api.query.filter.PriceValidIn;
 import io.evitadb.api.query.head.Collection;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.*;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
+import io.evitadb.function.TriFunction;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -69,11 +73,16 @@ import static java.util.Optional.ofNullable;
  * @see EvitaResponse examples in super class
  */
 public class EvitaRequest {
+	public static final TriFunction<Class<? extends EntityClassifier>, SealedEntity, EvitaRequest, EntityClassifier> CONVERSION_NOT_SUPPORTED = (aClass, sealedEntity, request) -> {
+		throw new UnsupportedOperationException();
+	};
 	private static final int[] EMPTY_INTS = new int[0];
 	@Getter private final Query query;
 	@Getter private final OffsetDateTime alignedNow;
 	private final String entityType;
 	private final Locale implicitLocale;
+	private final Class<? extends EntityClassifier> expectedType;
+	private final TriFunction<Class<? extends EntityClassifier>, SealedEntity, EvitaRequest, ? extends EntityClassifier> converter;
 	private int[] primaryKeys;
 	private boolean localeExamined;
 	private Locale locale;
@@ -112,12 +121,19 @@ public class EvitaRequest {
 	private EnumSet<DebugMode> debugModes;
 	private Map<String, RequirementContext> entityFetchRequirements;
 
-	public EvitaRequest(@Nonnull Query query, @Nonnull OffsetDateTime alignedNow) {
+	public EvitaRequest(
+		@Nonnull Query query,
+		@Nonnull OffsetDateTime alignedNow,
+		@Nonnull Class<? extends EntityClassifier> expectedType,
+		@Nonnull TriFunction<Class<? extends EntityClassifier>, SealedEntity, EvitaRequest, ? extends EntityClassifier> converter
+	) {
 		final Collection header = query.getCollection();
 		this.entityType = ofNullable(header).map(Collection::getEntityType).orElse(null);
 		this.query = query;
 		this.alignedNow = alignedNow;
 		this.implicitLocale = null;
+		this.expectedType = expectedType;
+		this.converter = converter;
 	}
 
 	public EvitaRequest(@Nonnull EvitaRequest evitaRequest, @Nonnull Locale implicitLocale) {
@@ -159,6 +175,8 @@ public class EvitaRequest {
 		this.requiresParent = evitaRequest.requiresParent;
 		this.parentContent = evitaRequest.parentContent;
 		this.entityRequirement = evitaRequest.entityRequirement;
+		this.expectedType = evitaRequest.expectedType;
+		this.converter = evitaRequest.converter;
 	}
 
 	public EvitaRequest(
@@ -209,6 +227,8 @@ public class EvitaRequest {
 		this.facetGroupConjunction = evitaRequest.facetGroupConjunction;
 		this.facetGroupDisjunction = evitaRequest.facetGroupDisjunction;
 		this.facetGroupNegation = evitaRequest.facetGroupNegation;
+		this.expectedType = evitaRequest.expectedType;
+		this.converter = evitaRequest.converter;
 	}
 
 	public EvitaRequest(
@@ -261,6 +281,8 @@ public class EvitaRequest {
 		this.facetGroupConjunction = null;
 		this.facetGroupDisjunction = null;
 		this.facetGroupNegation = null;
+		this.expectedType = evitaRequest.expectedType;
+		this.converter = evitaRequest.converter;
 	}
 
 	/**
@@ -307,8 +329,18 @@ public class EvitaRequest {
 	 * Returns implicit locale that might be derived from the globally unique attribute if the entity is matched
 	 * particularly by it.
 	 */
+	@Nullable
 	public Locale getImplicitLocale() {
 		return implicitLocale;
+	}
+
+	/**
+	 * Returns locale of the entity that is being requested. If locale is not explicitly set in the query it falls back
+	 * to {@link #getImplicitLocale()}.
+	 */
+	@Nullable
+	public Locale getRequiredOrImplicitLocale() {
+		return ofNullable(getLocale()).orElseGet(this::getImplicitLocale);
 	}
 
 	/**
@@ -779,10 +811,25 @@ public class EvitaRequest {
 	 * Method creates requested implementation of {@link DataChunk} with results.
 	 */
 	@Nonnull
-	public <T extends Serializable> DataChunk<T> createDataChunk(int totalRecordCount, List<T> data) {
+	public <T extends Serializable> DataChunk<T> createDataChunk(int totalRecordCount, @Nonnull List<T> data) {
 		if (firstRecordOffset == null) {
 			initPagination();
 		}
+
+		if (!data.isEmpty()) {
+			if (!expectedType.isInstance(data.get(0))) {
+				if (data.get(0) instanceof SealedEntity) {
+					//noinspection unchecked
+					data = (List<T>) data.stream()
+						.map(SealedEntity.class::cast)
+						.map(it -> converter.apply(expectedType, it, this))
+						.toList();
+				} else {
+					throw new UnexpectedResultException(expectedType, data.get(0).getClass());
+				}
+			}
+		}
+
 		return switch (resultForm) {
 			case PAGINATED_LIST ->
 				new PaginatedList<>(limit == 0 ? 1 : (firstRecordOffset + limit) / limit, limit, totalRecordCount, data);

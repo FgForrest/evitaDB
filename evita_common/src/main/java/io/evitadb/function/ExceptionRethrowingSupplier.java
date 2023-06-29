@@ -23,25 +23,25 @@
 
 package io.evitadb.function;
 
-import java.util.function.Function;
-
 /**
- * Represents a function that accepts two arguments and produces a result.
- * This is the two-arity specialization of {@link Function}.
+ * Represents a supplier of results.
  *
- * @see Function
+ * There is no requirement that a new or distinct result be returned each
+ * time the supplier is invoked.
+ *
+ * @param <T> the type of results supplied by this supplier
+ *
  * @apiNote inspired by the JDK interface
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @FunctionalInterface
-public interface ToLongDoubleIntBiFunction {
+public interface ExceptionRethrowingSupplier<T> {
 
 	/**
-	 * Applies this function to the given arguments.
+	 * Gets a result.
 	 *
-	 * @param t the first function argument
-	 * @param u the second function argument
-	 * @return the function result
+	 * @return a result
 	 */
-	long apply(int t, int u);
+	T get() throws Exception;
 
 }

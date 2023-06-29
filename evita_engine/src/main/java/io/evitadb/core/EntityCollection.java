@@ -150,6 +150,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public final class EntityCollection implements TransactionalLayerProducer<DataSourceChanges<EntityIndexKey, EntityIndex>, EntityCollection>, EntityCollectionContract {
+
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * Contains a unique identifier of the entity type that is assigned on entity collection creation and never changes.
@@ -505,7 +506,9 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 					filterBy(entityPrimaryKeyInSet(primaryKey)),
 					require(entityFetchAll())
 				),
-				OffsetDateTime.now()
+				OffsetDateTime.now(),
+				EntityReference.class,
+				EvitaRequest.CONVERSION_NOT_SUPPORTED
 			),
 			session
 		).deletedEntities();
@@ -1123,7 +1126,9 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 				collection(getSchema().getName()),
 				require(entityFetchAll())
 			),
-			OffsetDateTime.now()
+			OffsetDateTime.now(),
+			Entity.class,
+			EvitaRequest.CONVERSION_NOT_SUPPORTED
 		);
 		return getEntityById(primaryKey, evitaRequest);
 	}

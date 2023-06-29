@@ -26,7 +26,6 @@ package io.evitadb.externalApi.grpc.requestResponse.data;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Int32Value;
 import io.evitadb.api.SessionTraits.SessionFlags;
-import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
@@ -53,7 +52,6 @@ import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -468,7 +466,7 @@ public class EntityConverter {
 	@Nonnull
 	public static List<SealedEntity> toSealedEntities(
 		@Nonnull List<GrpcSealedEntity> sealedEntitiesList,
-		@Nonnull Query query,
+		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull BiFunction<String, Integer, SealedEntitySchema> entitySchemaProvider
 	) {
 		return sealedEntitiesList
@@ -476,7 +474,7 @@ public class EntityConverter {
 			.map(
 				it -> toSealedEntity(
 					entity -> entitySchemaProvider.apply(entity.getEntityType(), entity.getSchemaVersion()),
-					new EvitaRequest(query, OffsetDateTime.now()),
+					evitaRequest,
 					it
 				)
 			)
