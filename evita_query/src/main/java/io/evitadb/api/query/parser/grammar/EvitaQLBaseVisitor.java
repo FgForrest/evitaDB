@@ -586,56 +586,56 @@ public class EvitaQLBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public T visitSingleRefReferenceContent9Constraint(EvitaQLParser.SingleRefReferenceContent9ConstraintContext ctx) { return visitChildren(ctx); }
+	@Override public T visitSingleRefReferenceContentWithAttributes1Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes1ConstraintContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public T visitSingleRefReferenceContent10Constraint(EvitaQLParser.SingleRefReferenceContent10ConstraintContext ctx) { return visitChildren(ctx); }
+	@Override public T visitSingleRefReferenceContentWithAttributes2Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes2ConstraintContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public T visitSingleRefReferenceContent11Constraint(EvitaQLParser.SingleRefReferenceContent11ConstraintContext ctx) { return visitChildren(ctx); }
+	@Override public T visitSingleRefReferenceContentWithAttributes3Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes3ConstraintContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public T visitSingleRefReferenceContent12Constraint(EvitaQLParser.SingleRefReferenceContent12ConstraintContext ctx) { return visitChildren(ctx); }
+	@Override public T visitSingleRefReferenceContentWithAttributes4Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes4ConstraintContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public T visitSingleRefReferenceContent13Constraint(EvitaQLParser.SingleRefReferenceContent13ConstraintContext ctx) { return visitChildren(ctx); }
+	@Override public T visitSingleRefReferenceContentWithAttributes5Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes5ConstraintContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public T visitSingleRefReferenceContent14Constraint(EvitaQLParser.SingleRefReferenceContent14ConstraintContext ctx) { return visitChildren(ctx); }
+	@Override public T visitSingleRefReferenceContentWithAttributes6Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes6ConstraintContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public T visitSingleRefReferenceContent15Constraint(EvitaQLParser.SingleRefReferenceContent15ConstraintContext ctx) { return visitChildren(ctx); }
+	@Override public T visitSingleRefReferenceContentWithAttributes7Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes7ConstraintContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public T visitSingleRefReferenceContent16Constraint(EvitaQLParser.SingleRefReferenceContent16ConstraintContext ctx) { return visitChildren(ctx); }
+	@Override public T visitSingleRefReferenceContentWithAttributes8Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes8ConstraintContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -1153,56 +1153,56 @@ public class EvitaQLBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public T visitSingleRefReferenceContent9Args(EvitaQLParser.SingleRefReferenceContent9ArgsContext ctx) { return visitChildren(ctx); }
+	@Override public T visitSingleRefReferenceContentWithAttributes1Args(EvitaQLParser.SingleRefReferenceContentWithAttributes1ArgsContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public T visitSingleRefReferenceContent10Args(EvitaQLParser.SingleRefReferenceContent10ArgsContext ctx) { return visitChildren(ctx); }
+	@Override public T visitSingleRefReferenceContentWithAttributes2Args(EvitaQLParser.SingleRefReferenceContentWithAttributes2ArgsContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public T visitSingleRefReferenceContent11Args(EvitaQLParser.SingleRefReferenceContent11ArgsContext ctx) { return visitChildren(ctx); }
+	@Override public T visitSingleRefReferenceContentWithAttributes3Args(EvitaQLParser.SingleRefReferenceContentWithAttributes3ArgsContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public T visitSingleRefReferenceContent12Args(EvitaQLParser.SingleRefReferenceContent12ArgsContext ctx) { return visitChildren(ctx); }
+	@Override public T visitSingleRefReferenceContentWithAttributes4Args(EvitaQLParser.SingleRefReferenceContentWithAttributes4ArgsContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public T visitSingleRefReferenceContent13Args(EvitaQLParser.SingleRefReferenceContent13ArgsContext ctx) { return visitChildren(ctx); }
+	@Override public T visitSingleRefReferenceContentWithAttributes5Args(EvitaQLParser.SingleRefReferenceContentWithAttributes5ArgsContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public T visitSingleRefReferenceContent14Args(EvitaQLParser.SingleRefReferenceContent14ArgsContext ctx) { return visitChildren(ctx); }
+	@Override public T visitSingleRefReferenceContentWithAttributes6Args(EvitaQLParser.SingleRefReferenceContentWithAttributes6ArgsContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public T visitSingleRefReferenceContent15Args(EvitaQLParser.SingleRefReferenceContent15ArgsContext ctx) { return visitChildren(ctx); }
+	@Override public T visitSingleRefReferenceContentWithAttributes7Args(EvitaQLParser.SingleRefReferenceContentWithAttributes7ArgsContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public T visitSingleRefReferenceContent16Args(EvitaQLParser.SingleRefReferenceContent16ArgsContext ctx) { return visitChildren(ctx); }
+	@Override public T visitSingleRefReferenceContentWithAttributes8Args(EvitaQLParser.SingleRefReferenceContentWithAttributes8ArgsContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *

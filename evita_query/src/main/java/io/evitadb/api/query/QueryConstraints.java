@@ -3654,7 +3654,7 @@ public interface QueryConstraints {
 	}
 
 	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referencedEntityType, @Nullable AttributeContent attributeContent) {
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable AttributeContent attributeContent) {
 		return new ReferenceContent(referencedEntityType, null, null, attributeContent, null, null);
 	}
 
@@ -3706,7 +3706,7 @@ public interface QueryConstraints {
 	}
 
 	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referencedEntityType, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent(referencedEntityType,  null, null, attributeContent, entityRequirement, null);
 	}
 
@@ -3736,7 +3736,7 @@ public interface QueryConstraints {
 	}
 
 	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referencedEntityType, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(referencedEntityType, null, null, attributeContent, null, groupEntityRequirement);
 	}
 
@@ -3763,7 +3763,7 @@ public interface QueryConstraints {
 	}
 
 	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referencedEntityType, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(referencedEntityType, null, null, null, entityRequirement, groupEntityRequirement);
 	}
 
@@ -3869,7 +3869,7 @@ public interface QueryConstraints {
 	}
 
 	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent) {
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent) {
 		return new ReferenceContent(referenceName, filterBy, null, attributeContent, null, null);
 	}
 
@@ -3893,7 +3893,7 @@ public interface QueryConstraints {
 	}
 
 	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent(referenceName, filterBy, null, attributeContent, entityRequirement, null);
 	}
 
@@ -3917,7 +3917,7 @@ public interface QueryConstraints {
 	}
 
 	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(referenceName, filterBy, null, attributeContent, null, groupEntityRequirement);
 	}
 
@@ -3941,7 +3941,7 @@ public interface QueryConstraints {
 	}
 
 	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(referenceName, filterBy, null, attributeContent, entityRequirement, groupEntityRequirement);
 	}
 
@@ -3965,7 +3965,7 @@ public interface QueryConstraints {
 	}
 
 	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent) {
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent) {
 		return new ReferenceContent(referenceName, null, orderBy, attributeContent, null, null);
 	}
 
@@ -3989,7 +3989,7 @@ public interface QueryConstraints {
 	}
 
 	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent(referenceName, null, orderBy, attributeContent, entityRequirement, null);
 	}
 
@@ -4013,7 +4013,7 @@ public interface QueryConstraints {
 	}
 
 	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(referenceName, null, orderBy, attributeContent, null, groupEntityRequirement);
 	}
 
@@ -4037,7 +4037,7 @@ public interface QueryConstraints {
 	}
 
 	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(referenceName, null, orderBy, attributeContent, entityRequirement, groupEntityRequirement);
 	}
 
@@ -4061,7 +4061,7 @@ public interface QueryConstraints {
 	}
 
 	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent) {
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent) {
 		return new ReferenceContent(referenceName, filterBy, orderBy, attributeContent, null, null);
 	}
 
@@ -4085,7 +4085,7 @@ public interface QueryConstraints {
 	}
 
 	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent(referenceName, filterBy, orderBy, attributeContent, entityRequirement, null);
 	}
 
@@ -4109,7 +4109,7 @@ public interface QueryConstraints {
 	}
 
 	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(referenceName, filterBy, orderBy, attributeContent, null, groupEntityRequirement);
 	}
 
@@ -4133,7 +4133,7 @@ public interface QueryConstraints {
 	}
 
 	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(referenceName, filterBy, orderBy, attributeContent, entityRequirement, groupEntityRequirement);
 	}
 
