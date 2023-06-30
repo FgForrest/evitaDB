@@ -24,6 +24,7 @@
 package io.evitadb.api.query.parser.visitor;
 
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.parser.ParseContext;
 import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
@@ -105,6 +106,65 @@ class EvitaQLQueryVisitorTest {
                     "value", 1L
                 )
             )
+        );
+
+        assertEquals(
+            query(
+                collection("Product"),
+                filterBy(
+                    referenceHaving(
+                        "brand",
+                        entityHaving(
+                            attributeEquals("code", "sony")
+                        )
+                    )
+                ),
+                orderBy(
+                    referenceProperty(
+                        "brand",
+                        attributeNatural("orderInBrand", OrderDirection.ASC)
+                    )
+                ),
+                require(
+                    entityFetch(
+                        attributeContent("code"),
+                        referenceContentWithAttributes(
+                            "brand",
+                            attributeContent("orderInBrand")
+                        )
+                    )
+                )
+            ),
+            parseQuery("""
+                query(
+                    collection('Product'),
+                    filterBy(
+                        referenceHaving(
+                            'brand',
+                            entityHaving(
+                                attributeEquals('code', ?)
+                            )
+                        )
+                    ),
+                    orderBy(
+                        referenceProperty(
+                            'brand',
+                            attributeNatural('orderInBrand', ?)
+                        )
+                    ),
+                    require(
+                        entityFetch(
+                            attributeContent('code'),
+                            referenceContentWithAttributes(
+                                'brand',
+                                attributeContent('orderInBrand')
+                            )
+                        )
+                    )
+                )
+                """,
+                "sony",
+                OrderDirection.ASC)
         );
     }
 

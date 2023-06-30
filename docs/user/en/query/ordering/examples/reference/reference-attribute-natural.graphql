@@ -21,6 +21,14 @@
         attributes {
           code
         }
+        brand {
+          referencedPrimaryKey
+          attributes {
+            relatedBreadCrumbPath
+            orderInBrand
+            relatedBreadCrumbOrder
+          }
+        }
       }
     }
   }

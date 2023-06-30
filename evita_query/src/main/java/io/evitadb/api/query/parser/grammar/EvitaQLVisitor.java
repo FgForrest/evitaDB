@@ -1,26 +1,3 @@
-/*
- *
- *                         _ _        ____  ____
- *               _____   _(_) |_ __ _|  _ \| __ )
- *              / _ \ \ / / | __/ _` | | | |  _ \
- *             |  __/\ V /| | || (_| | |_| | |_) |
- *              \___| \_/ |_|\__\__,_|____/|____/
- *
- *   Copyright (c) 2023
- *
- *   Licensed under the Business Source License, Version 1.1 (the "License");
- *   you may not use this file except in compliance with the License.
- *   You may obtain a copy of the License at
- *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
- *
- *   Unless required by applicable law or agreed to in writing, software
- *   distributed under the License is distributed on an "AS IS" BASIS,
- *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *   See the License for the specific language governing permissions and
- *   limitations under the License.
- */
-
 // Generated from EvitaQL.g4 by ANTLR 4.9.2
 
 package io.evitadb.api.query.parser.grammar;
@@ -538,33 +515,117 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitMultipleRefsReferenceContentConstraint(EvitaQLParser.MultipleRefsReferenceContentConstraintContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code singleRefReferenceContentConstraint}
+	 * Visit a parse tree produced by the {@code singleRefReferenceContent1Constraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitSingleRefReferenceContentConstraint(EvitaQLParser.SingleRefReferenceContentConstraintContext ctx);
+	T visitSingleRefReferenceContent1Constraint(EvitaQLParser.SingleRefReferenceContent1ConstraintContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code singleRefWithFilterReferenceContentConstraint}
+	 * Visit a parse tree produced by the {@code singleRefReferenceContent2Constraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitSingleRefWithFilterReferenceContentConstraint(EvitaQLParser.SingleRefWithFilterReferenceContentConstraintContext ctx);
+	T visitSingleRefReferenceContent2Constraint(EvitaQLParser.SingleRefReferenceContent2ConstraintContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code singleRefWithOrderReferenceContentConstraint}
+	 * Visit a parse tree produced by the {@code singleRefReferenceContent3Constraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitSingleRefWithOrderReferenceContentConstraint(EvitaQLParser.SingleRefWithOrderReferenceContentConstraintContext ctx);
+	T visitSingleRefReferenceContent3Constraint(EvitaQLParser.SingleRefReferenceContent3ConstraintContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code singleRefWithFilterAndOrderReferenceContentConstraint}
+	 * Visit a parse tree produced by the {@code singleRefReferenceContent4Constraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitSingleRefWithFilterAndOrderReferenceContentConstraint(EvitaQLParser.SingleRefWithFilterAndOrderReferenceContentConstraintContext ctx);
+	T visitSingleRefReferenceContent4Constraint(EvitaQLParser.SingleRefReferenceContent4ConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code singleRefReferenceContent5Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContent5Constraint(EvitaQLParser.SingleRefReferenceContent5ConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code singleRefReferenceContent6Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContent6Constraint(EvitaQLParser.SingleRefReferenceContent6ConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code singleRefReferenceContent7Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContent7Constraint(EvitaQLParser.SingleRefReferenceContent7ConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code singleRefReferenceContent8Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContent8Constraint(EvitaQLParser.SingleRefReferenceContent8ConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code singleRefReferenceContentWithAttributes1Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContentWithAttributes1Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes1ConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code singleRefReferenceContentWithAttributes2Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContentWithAttributes2Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes2ConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code singleRefReferenceContentWithAttributes3Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContentWithAttributes3Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes3ConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code singleRefReferenceContentWithAttributes4Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContentWithAttributes4Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes4ConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code singleRefReferenceContentWithAttributes5Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContentWithAttributes5Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes5ConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code singleRefReferenceContentWithAttributes6Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContentWithAttributes6Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes6ConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code singleRefReferenceContentWithAttributes7Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContentWithAttributes7Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes7ConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code singleRefReferenceContentWithAttributes8Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContentWithAttributes8Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes8ConstraintContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code emptyHierarchyContentConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
@@ -989,29 +1050,101 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitPriceContentArgs(EvitaQLParser.PriceContentArgsContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentArgs}.
+	 * Visit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContent1Args}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitSingleRefReferenceContentArgs(EvitaQLParser.SingleRefReferenceContentArgsContext ctx);
+	T visitSingleRefReferenceContent1Args(EvitaQLParser.SingleRefReferenceContent1ArgsContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link EvitaQLParser#singleRefWithFilterReferenceContentArgs}.
+	 * Visit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContent2Args}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitSingleRefWithFilterReferenceContentArgs(EvitaQLParser.SingleRefWithFilterReferenceContentArgsContext ctx);
+	T visitSingleRefReferenceContent2Args(EvitaQLParser.SingleRefReferenceContent2ArgsContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link EvitaQLParser#singleRefWithOrderReferenceContentArgs}.
+	 * Visit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContent3Args}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitSingleRefWithOrderReferenceContentArgs(EvitaQLParser.SingleRefWithOrderReferenceContentArgsContext ctx);
+	T visitSingleRefReferenceContent3Args(EvitaQLParser.SingleRefReferenceContent3ArgsContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link EvitaQLParser#singleRefWithFilterAndOrderReferenceContentArgs}.
+	 * Visit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContent4Args}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitSingleRefWithFilterAndOrderReferenceContentArgs(EvitaQLParser.SingleRefWithFilterAndOrderReferenceContentArgsContext ctx);
+	T visitSingleRefReferenceContent4Args(EvitaQLParser.SingleRefReferenceContent4ArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContent5Args}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContent5Args(EvitaQLParser.SingleRefReferenceContent5ArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContent6Args}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContent6Args(EvitaQLParser.SingleRefReferenceContent6ArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContent7Args}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContent7Args(EvitaQLParser.SingleRefReferenceContent7ArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContent8Args}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContent8Args(EvitaQLParser.SingleRefReferenceContent8ArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes1Args}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContentWithAttributes1Args(EvitaQLParser.SingleRefReferenceContentWithAttributes1ArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes2Args}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContentWithAttributes2Args(EvitaQLParser.SingleRefReferenceContentWithAttributes2ArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes3Args}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContentWithAttributes3Args(EvitaQLParser.SingleRefReferenceContentWithAttributes3ArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes4Args}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContentWithAttributes4Args(EvitaQLParser.SingleRefReferenceContentWithAttributes4ArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes5Args}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContentWithAttributes5Args(EvitaQLParser.SingleRefReferenceContentWithAttributes5ArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes6Args}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContentWithAttributes6Args(EvitaQLParser.SingleRefReferenceContentWithAttributes6ArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes7Args}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContentWithAttributes7Args(EvitaQLParser.SingleRefReferenceContentWithAttributes7ArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes8Args}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContentWithAttributes8Args(EvitaQLParser.SingleRefReferenceContentWithAttributes8ArgsContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link EvitaQLParser#multipleRefsReferenceContentArgs}.
 	 * @param ctx the parse tree

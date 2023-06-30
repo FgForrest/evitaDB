@@ -3653,6 +3653,11 @@ public interface QueryConstraints {
 		return new ReferenceContent(referencedEntityType);
 	}
 
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable AttributeContent attributeContent) {
+		return new ReferenceContent(referencedEntityType, null, null, attributeContent, null, null);
+	}
+
 	/**
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
 	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
@@ -3695,12 +3700,14 @@ public interface QueryConstraints {
 			return new ReferenceContent();
 		}
 		if (referencedEntityType == null) {
-			return new ReferenceContent(entityRequirement);
+			return new ReferenceContent(entityRequirement, null);
 		}
-		if (entityRequirement == null) {
-			return new ReferenceContent(referencedEntityType);
-		}
-		return new ReferenceContent(referencedEntityType, entityRequirement);
+		return new ReferenceContent(referencedEntityType,  null, null, null, entityRequirement, null);
+	}
+
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
+		return new ReferenceContent(referencedEntityType,  null, null, attributeContent, entityRequirement, null);
 	}
 
 	/**
@@ -3723,12 +3730,14 @@ public interface QueryConstraints {
 			return new ReferenceContent();
 		}
 		if (referencedEntityType == null) {
-			return new ReferenceContent(groupEntityRequirement);
+			return new ReferenceContent(null, groupEntityRequirement);
 		}
-		if (groupEntityRequirement == null) {
-			return new ReferenceContent(referencedEntityType);
-		}
-		return new ReferenceContent(referencedEntityType, groupEntityRequirement);
+		return new ReferenceContent(referencedEntityType, null, null, null, null, groupEntityRequirement);
+	}
+
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return new ReferenceContent(referencedEntityType, null, null, attributeContent, null, groupEntityRequirement);
 	}
 
 	/**
@@ -3750,8 +3759,14 @@ public interface QueryConstraints {
 		if (referencedEntityType == null) {
 			return new ReferenceContent(entityRequirement, groupEntityRequirement);
 		}
-		return new ReferenceContent(referencedEntityType, entityRequirement, groupEntityRequirement);
+		return new ReferenceContent(referencedEntityType, null, null, null, entityRequirement, groupEntityRequirement);
 	}
+
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return new ReferenceContent(referencedEntityType, null, null, null, entityRequirement, groupEntityRequirement);
+	}
+
 
 	/**
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
@@ -3773,14 +3788,12 @@ public interface QueryConstraints {
 			return new ReferenceContent();
 		}
 		if (referencedEntityTypes == null) {
-			return new ReferenceContent(entityRequirement);
-		}
-		if (entityRequirement == null) {
-			return new ReferenceContent(referencedEntityTypes);
+			return new ReferenceContent(entityRequirement, null);
 		}
 		return new ReferenceContent(
 			referencedEntityTypes,
-			entityRequirement
+			entityRequirement,
+			null
 		);
 	}
 
@@ -3804,13 +3817,11 @@ public interface QueryConstraints {
 			return new ReferenceContent();
 		}
 		if (referencedEntityTypes == null) {
-			return new ReferenceContent(groupEntityRequirement);
-		}
-		if (groupEntityRequirement == null) {
-			return new ReferenceContent(referencedEntityTypes);
+			return new ReferenceContent(null, groupEntityRequirement);
 		}
 		return new ReferenceContent(
 			referencedEntityTypes,
+			null,
 			groupEntityRequirement
 		);
 	}
@@ -3854,10 +3865,12 @@ public interface QueryConstraints {
 	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
-		if (filterBy == null) {
-			return new ReferenceContent(referenceName);
-		}
-		return new ReferenceContent(referenceName, filterBy);
+		return new ReferenceContent(referenceName, filterBy, null, null, null, null);
+	}
+
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent) {
+		return new ReferenceContent(referenceName, filterBy, null, attributeContent, null, null);
 	}
 
 	/**
@@ -3876,17 +3889,12 @@ public interface QueryConstraints {
 	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement) {
-		if (filterBy == null) {
-			return referenceContent(referenceName, entityRequirement);
-		}
-		if (entityRequirement == null) {
-			return new ReferenceContent(referenceName, filterBy);
-		}
-		return new ReferenceContent(
-			referenceName,
-			filterBy,
-			entityRequirement
-		);
+		return new ReferenceContent(referenceName, filterBy, null, null, entityRequirement, null);
+	}
+
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
+		return new ReferenceContent(referenceName, filterBy, null, attributeContent, entityRequirement, null);
 	}
 
 	/**
@@ -3905,17 +3913,12 @@ public interface QueryConstraints {
 	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable EntityGroupFetch groupEntityRequirement) {
-		if (filterBy == null) {
-			return referenceContent(referenceName, groupEntityRequirement);
-		}
-		if (groupEntityRequirement == null) {
-			return new ReferenceContent(referenceName, filterBy);
-		}
-		return new ReferenceContent(
-			referenceName,
-			filterBy,
-			groupEntityRequirement
-		);
+		return new ReferenceContent(referenceName, filterBy, null, null, null, groupEntityRequirement);
+	}
+
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return new ReferenceContent(referenceName, filterBy, null, attributeContent, null, groupEntityRequirement);
 	}
 
 	/**
@@ -3934,10 +3937,12 @@ public interface QueryConstraints {
 	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		if (filterBy == null) {
-			return new ReferenceContent(referenceName, entityRequirement, groupEntityRequirement);
-		}
-		return new ReferenceContent(referenceName, filterBy, entityRequirement, groupEntityRequirement);
+		return new ReferenceContent(referenceName, filterBy, null, null, entityRequirement, groupEntityRequirement);
+	}
+
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return new ReferenceContent(referenceName, filterBy, null, attributeContent, entityRequirement, groupEntityRequirement);
 	}
 
 	/**
@@ -3956,10 +3961,12 @@ public interface QueryConstraints {
 	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy) {
-		if (orderBy == null) {
-			return new ReferenceContent(referenceName);
-		}
-		return new ReferenceContent(referenceName, orderBy);
+		return new ReferenceContent(referenceName, null, orderBy, null, null, null);
+	}
+
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent) {
+		return new ReferenceContent(referenceName, null, orderBy, attributeContent, null, null);
 	}
 
 	/**
@@ -3978,17 +3985,12 @@ public interface QueryConstraints {
 	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
-		if (orderBy == null) {
-			return referenceContent(referenceName, entityRequirement);
-		}
-		if (entityRequirement == null) {
-			return new ReferenceContent(referenceName, orderBy);
-		}
-		return new ReferenceContent(
-			referenceName,
-			orderBy,
-			entityRequirement
-		);
+		return new ReferenceContent(referenceName, null, orderBy, null, entityRequirement, null);
+	}
+
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
+		return new ReferenceContent(referenceName, null, orderBy, attributeContent, entityRequirement, null);
 	}
 
 	/**
@@ -4007,17 +4009,12 @@ public interface QueryConstraints {
 	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
-		if (orderBy == null) {
-			return referenceContent(referenceName, groupEntityRequirement);
-		}
-		if (groupEntityRequirement == null) {
-			return new ReferenceContent(referenceName, orderBy);
-		}
-		return new ReferenceContent(
-			referenceName,
-			orderBy,
-			groupEntityRequirement
-		);
+		return new ReferenceContent(referenceName, null, orderBy, null, null, groupEntityRequirement);
+	}
+
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return new ReferenceContent(referenceName, null, orderBy, attributeContent, null, groupEntityRequirement);
 	}
 
 	/**
@@ -4036,10 +4033,12 @@ public interface QueryConstraints {
 	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		if (orderBy == null) {
-			return new ReferenceContent(referenceName, entityRequirement, groupEntityRequirement);
-		}
-		return new ReferenceContent(referenceName, orderBy, entityRequirement, groupEntityRequirement);
+		return new ReferenceContent(referenceName, null, orderBy, null, entityRequirement, groupEntityRequirement);
+	}
+
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return new ReferenceContent(referenceName, null, orderBy, attributeContent, entityRequirement, groupEntityRequirement);
 	}
 
 	/**
@@ -4058,16 +4057,12 @@ public interface QueryConstraints {
 	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy) {
-		if (filterBy == null && orderBy == null) {
-			return new ReferenceContent(referenceName);
-		}
-		if (filterBy == null) {
-			return referenceContent(referenceName, orderBy);
-		}
-		if (orderBy == null) {
-			return referenceContent(referenceName, filterBy);
-		}
-		return new ReferenceContent(referenceName, filterBy, orderBy);
+		return new ReferenceContent(referenceName, filterBy, orderBy, null, null, null);
+	}
+
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent) {
+		return new ReferenceContent(referenceName, filterBy, orderBy, attributeContent, null, null);
 	}
 
 	/**
@@ -4086,24 +4081,12 @@ public interface QueryConstraints {
 	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
-		if (filterBy == null && orderBy == null) {
-			return referenceContent(referenceName, entityRequirement);
-		}
-		if (filterBy == null) {
-			return referenceContent(referenceName, orderBy, entityRequirement);
-		}
-		if (orderBy == null) {
-			return referenceContent(referenceName, filterBy, entityRequirement);
-		}
-		if (entityRequirement == null) {
-			return referenceContent(referenceName, filterBy, orderBy);
-		}
-		return new ReferenceContent(
-			referenceName,
-			filterBy,
-			orderBy,
-			entityRequirement
-		);
+		return new ReferenceContent(referenceName, filterBy, orderBy, null, entityRequirement, null);
+	}
+
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
+		return new ReferenceContent(referenceName, filterBy, orderBy, attributeContent, entityRequirement, null);
 	}
 
 	/**
@@ -4122,24 +4105,12 @@ public interface QueryConstraints {
 	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
-		if (filterBy == null && orderBy == null) {
-			return referenceContent(referenceName, groupEntityRequirement);
-		}
-		if (filterBy == null) {
-			return referenceContent(referenceName, orderBy, groupEntityRequirement);
-		}
-		if (orderBy == null) {
-			return referenceContent(referenceName, filterBy, groupEntityRequirement);
-		}
-		if (groupEntityRequirement == null) {
-			return referenceContent(referenceName, filterBy, orderBy);
-		}
-		return new ReferenceContent(
-			referenceName,
-			filterBy,
-			orderBy,
-			groupEntityRequirement
-		);
+		return new ReferenceContent(referenceName, filterBy, orderBy, null, null, groupEntityRequirement);
+	}
+
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return new ReferenceContent(referenceName, filterBy, orderBy, attributeContent, null, groupEntityRequirement);
 	}
 
 	/**
@@ -4158,16 +4129,12 @@ public interface QueryConstraints {
 	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		if (filterBy == null && orderBy == null) {
-			return referenceContent(referenceName, entityRequirement, groupEntityRequirement);
-		}
-		if (filterBy == null) {
-			return referenceContent(referenceName, orderBy, entityRequirement, groupEntityRequirement);
-		}
-		if (orderBy == null) {
-			return referenceContent(referenceName, filterBy, entityRequirement, groupEntityRequirement);
-		}
-		return new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, groupEntityRequirement);
+		return new ReferenceContent(referenceName, filterBy, orderBy, null, entityRequirement, groupEntityRequirement);
+	}
+
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return new ReferenceContent(referenceName, filterBy, orderBy, attributeContent, entityRequirement, groupEntityRequirement);
 	}
 
 	/**

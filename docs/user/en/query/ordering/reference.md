@@ -73,6 +73,12 @@ following query:
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[List of "Sony" products ordered by priority](/docs/user/en/query/ordering/examples/reference/reference-attribute-natural.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>
 
 The example is based on a simple one-to-zero-or-one reference (a product can have at most one reference to a brand 
@@ -119,6 +125,12 @@ brand "Google":
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[List of "Sony" or "Google" products ordered by priority](/docs/user/en/query/ordering/examples/reference/reference-attribute-natural-multiple.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 The result will contain first products referring to a "Google" brand which has the lowest primary key, and then products
 referring to a "Sony" brand. The order of products within each group will be determined by the `orderInBrand` attribute.
 
@@ -161,6 +173,12 @@ by the `orderInCategory` attribute on the reference to the category:
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[List products in "Accessories" category ordered by priority](/docs/user/en/query/ordering/examples/reference/reference-attribute-natural-hierarchy.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 The result will first contain products directly related to the "Accessories" category, ordered by `orderInCategory` in 
 ascending order, then products "Christmas electronics" (which is the first child of the "Accessories" category with 
 the least primary key), then "Smart wearable" (which has no directly related products), then "Bands" (which is the first 
@@ -168,6 +186,18 @@ child of the "Smart wearable" category), and so on. The order follows the order 
 image:
 
 ![dynamic-tree.png](../requirements/assets/dynamic-tree.png)
+
+</Note>
+
+<Note type="warning">
+
+<NoteTitle toggles="true">
+
+##### Both rules order the sorted groups by primary key in ascending order. Do you need different behaviour?
+</NoteTitle>
+
+If so, please vote for the [issue #160](https://github.com/FgForrest/evitaDB/issues/160) on GitHub. This issue won't
+be resolved until there is a demand for it.
 
 </Note>
 
@@ -213,6 +243,12 @@ by, for example, the `priority` or `name` attribute of the `Parameter` entity. L
 <LanguageSpecific to="graphql">
 
 <MDInclude>[Get product with parameters ordered by their priority](/docs/user/en/query/ordering/examples/reference/entity-property.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+<MDInclude>[Get product with parameters ordered by their priority](/docs/user/en/query/ordering/examples/reference/entity-property.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 

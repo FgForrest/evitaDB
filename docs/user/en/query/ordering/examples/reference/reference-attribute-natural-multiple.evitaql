@@ -4,7 +4,7 @@ query(
         referenceHaving(
             'brand',
             entityHaving(
-                attributeInSet('code','sony', 'google')
+                attributeInSet('code', 'sony', 'google')
             )
         )
     ),
@@ -17,8 +17,9 @@ query(
     require(
         entityFetch(
             attributeContent('code'),
-            referenceContent(
-                'brand'
+            referenceContentWithAttributes(
+                'brand',
+                attributeContent('orderInBrand')
             )
         )
     )

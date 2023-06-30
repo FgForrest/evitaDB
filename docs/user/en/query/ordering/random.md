@@ -41,4 +41,10 @@ The sample query always returns a different page of products.
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[List of randomized products](/docs/user/en/query/ordering/examples/random/randomized.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>

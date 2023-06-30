@@ -56,13 +56,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static io.evitadb.utils.CollectionUtils.createHashMap;
-import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
  * Transforms {@link Constraint} classes of concrete constraints into {@link ConstraintDescriptor}s.
@@ -77,7 +74,7 @@ class ConstraintProcessor {
 	 */
 	@Nonnull
 	Set<ConstraintDescriptor> process(@Nonnull Set<Class<? extends Constraint<?>>> constraintClasses) {
-		final Set<ConstraintDescriptor> constraintDescriptors = createHashSet(constraintClasses.size());
+		final Set<ConstraintDescriptor> constraintDescriptors = new TreeSet<>();
 
 		constraintClasses.forEach(constraintClass -> {
 			final ConstraintDefinition constraintDefinition = findConstraintDefAnnotation(constraintClass);

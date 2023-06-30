@@ -493,7 +493,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 
 		final var expectedBody = Stream.of(product)
-			.map(entity -> createEntityWithReferencedParentsDto(entity,  Entities.CATEGORY, false).build())
+			.map(entity -> createEntityWithReferencedParentsDto(entity,  Entities.CATEGORY, false, new String[0]).build())
 			.toList();
 
 		tester.test(TEST_CATALOG)
@@ -576,7 +576,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 
 		final var expectedBody = Stream.of(product)
-			.map(entity -> createEntityWithReferencedParentsDto(entity,  Entities.CATEGORY, true).build())
+			.map(entity -> createEntityWithReferencedParentsDto(entity,  Entities.CATEGORY, true, new String[0]).build())
 			.toList();
 
 		tester.test(TEST_CATALOG)
@@ -661,7 +661,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 
 		final var expectedBody = Stream.of(product)
-			.map(entity -> createEntityWithReferencedParentsDto(entity,  Entities.CATEGORY, false).build())
+			.map(entity -> createEntityWithReferencedParentsDto(entity,  Entities.CATEGORY, false, new String[0]).build())
 			.toList();
 
 		tester.test(TEST_CATALOG)
@@ -988,7 +988,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 					.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-					.e(Entities.BRAND.toLowerCase(), createReferenceDto(entity, Entities.BRAND, true, true))
+					.e(Entities.BRAND.toLowerCase(), createReferenceDto(entity, Entities.BRAND, true, true, new String[0]))
 					.build();
 			})
 			.toList();
