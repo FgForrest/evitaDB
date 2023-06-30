@@ -43,6 +43,7 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * This test verifies behaviour of {@link ReferenceContractSerializablePredicate}.
@@ -78,6 +79,14 @@ class ReferenceContractSerializablePredicateTest {
 					it -> it.getValue().attributeRequest()
 				)
 			);
+	}
+
+	@Nonnull
+	private static RequirementContext createRequirementContext(String... attributes) {
+		return new RequirementContext(
+			new AttributeRequest(Set.of(attributes), true),
+			null, null, null, null
+		);
 	}
 
 	@Test
@@ -262,6 +271,106 @@ class ReferenceContractSerializablePredicateTest {
 		assertSame(noReferencesRequired, richerCopy);
 	}
 
-	/* TODO JNO - dopsat testy na rozšiřování načtených atributů */
+	@Test
+	void shouldCreateRicherCopyForAttributesByName() {
+		final ReferenceContractSerializablePredicate referencesRequired = new ReferenceContractSerializablePredicate(
+			Collections.emptyMap(),
+			false,
+			null,
+			new HashSet<>(Collections.singletonList(Locale.ENGLISH))
+		);
+
+		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
+		Mockito.when(evitaRequest.isRequiresEntityReferences()).thenReturn(true);
+		Mockito.when(evitaRequest.getReferenceEntityFetch()).thenReturn(
+			Map.of(
+				"A", createRequirementContext("D", "E")
+			)
+		);
+		Mockito.when(evitaRequest.getImplicitLocale()).thenReturn(null);
+		Mockito.when(evitaRequest.getRequiredLocales()).thenReturn(Collections.emptySet());
+
+		final ReferenceContractSerializablePredicate richerCopy = referencesRequired.createRicherCopyWith(evitaRequest);
+		assertNotSame(referencesRequired, richerCopy);
+		assertEquals(Set.of("D", "E"), richerCopy.getAttributePredicate("A").getReferenceAttributes().attributeSet());
+	}
+
+	@Test
+	void shouldCreateRicherCopyForAttributesByNameWithDefinedBasis() {
+		final ReferenceContractSerializablePredicate referencesRequired = new ReferenceContractSerializablePredicate(
+			Map.of(
+				"A", createRequirementContext("D", "E").attributeRequest()
+			),
+			true,
+			null,
+			new HashSet<>(Collections.singletonList(Locale.ENGLISH))
+		);
+
+		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
+		Mockito.when(evitaRequest.isRequiresEntityReferences()).thenReturn(true);
+		Mockito.when(evitaRequest.getReferenceEntityFetch()).thenReturn(
+			Map.of(
+				"A", createRequirementContext("F", "X")
+			)
+		);
+		Mockito.when(evitaRequest.getImplicitLocale()).thenReturn(null);
+		Mockito.when(evitaRequest.getRequiredLocales()).thenReturn(Collections.emptySet());
+
+		final ReferenceContractSerializablePredicate richerCopy = referencesRequired.createRicherCopyWith(evitaRequest);
+		assertNotSame(referencesRequired, richerCopy);
+		assertEquals(Set.of("D", "E", "F", "X"), richerCopy.getAttributePredicate("A").getReferenceAttributes().attributeSet());
+	}
+
+	@Test
+	void shouldCreateRicherCopyForAttributesByNameWithDefinedBasisAndOverriddenByAll() {
+		final ReferenceContractSerializablePredicate referencesRequired = new ReferenceContractSerializablePredicate(
+			Map.of(
+				"A", createRequirementContext("D", "E").attributeRequest()
+			),
+			true,
+			null,
+			new HashSet<>(Collections.singletonList(Locale.ENGLISH))
+		);
+
+		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
+		Mockito.when(evitaRequest.isRequiresEntityReferences()).thenReturn(true);
+		Mockito.when(evitaRequest.getReferenceEntityFetch()).thenReturn(
+			Map.of(
+				"A", createRequirementContext()
+			)
+		);
+		Mockito.when(evitaRequest.getImplicitLocale()).thenReturn(null);
+		Mockito.when(evitaRequest.getRequiredLocales()).thenReturn(Collections.emptySet());
+
+		final ReferenceContractSerializablePredicate richerCopy = referencesRequired.createRicherCopyWith(evitaRequest);
+		assertNotSame(referencesRequired, richerCopy);
+		assertEquals(Set.of(), richerCopy.getAttributePredicate("A").getReferenceAttributes().attributeSet());
+		assertTrue(richerCopy.getAttributePredicate("A").getReferenceAttributes().isRequiresEntityAttributes());
+	}
+
+	@Test
+	void shouldCreateRicherCopyForAttributesByNameWithAllBasisAndOverriddenByAFew() {
+		final ReferenceContractSerializablePredicate referencesRequired = new ReferenceContractSerializablePredicate(
+			Map.of(
+				"A", createRequirementContext().attributeRequest()
+			),
+			true,
+			null,
+			new HashSet<>(Collections.singletonList(Locale.ENGLISH))
+		);
+
+		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
+		Mockito.when(evitaRequest.isRequiresEntityReferences()).thenReturn(true);
+		Mockito.when(evitaRequest.getReferenceEntityFetch()).thenReturn(
+			Map.of(
+				"A", createRequirementContext("D", "E")
+			)
+		);
+		Mockito.when(evitaRequest.getImplicitLocale()).thenReturn(null);
+		Mockito.when(evitaRequest.getRequiredLocales()).thenReturn(Collections.emptySet());
+
+		final ReferenceContractSerializablePredicate richerCopy = referencesRequired.createRicherCopyWith(evitaRequest);
+		assertSame(referencesRequired, richerCopy);
+	}
 
 }

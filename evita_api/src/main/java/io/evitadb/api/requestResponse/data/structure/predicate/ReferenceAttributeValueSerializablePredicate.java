@@ -54,7 +54,7 @@ public class ReferenceAttributeValueSerializablePredicate implements Serializabl
 	/**
 	 * Contains information about all attribute names that has been requested for the entity reference.
 	 */
-	@Nonnull private final AttributeRequest referenceAttributes;
+	@Nonnull @Getter private final AttributeRequest referenceAttributes;
 
 	ReferenceAttributeValueSerializablePredicate(
 		@Nullable Locale implicitLocale,
