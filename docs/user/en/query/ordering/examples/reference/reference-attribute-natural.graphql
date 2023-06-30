@@ -24,9 +24,7 @@
         brand {
           referencedPrimaryKey
           attributes {
-            relatedBreadCrumbPath
             orderInBrand
-            relatedBreadCrumbOrder
           }
         }
       }

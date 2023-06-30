@@ -13,9 +13,7 @@
               {
                 "referencedPrimaryKey" : 66480,
                 "attributes" : {
-                  "relatedBreadCrumbPath" : "Accessories/Christmas electronics",
-                  "orderInCategory" : -2147483648,
-                  "relatedBreadCrumbOrder" : 1
+                  "orderInCategory" : -2147483648
                 }
               }
             ]
@@ -29,9 +27,7 @@
               {
                 "referencedPrimaryKey" : 66480,
                 "attributes" : {
-                  "relatedBreadCrumbPath" : "Accessories/Christmas electronics",
-                  "orderInCategory" : 113705,
-                  "relatedBreadCrumbOrder" : 1
+                  "orderInCategory" : 113705
                 }
               }
             ]
@@ -45,9 +41,7 @@
               {
                 "referencedPrimaryKey" : 66480,
                 "attributes" : {
-                  "relatedBreadCrumbPath" : "Accessories/Christmas electronics",
-                  "orderInCategory" : 113709,
-                  "relatedBreadCrumbOrder" : 1
+                  "orderInCategory" : 113709
                 }
               }
             ]
@@ -61,9 +55,7 @@
               {
                 "referencedPrimaryKey" : 66480,
                 "attributes" : {
-                  "relatedBreadCrumbPath" : "Accessories/Christmas electronics",
-                  "orderInCategory" : 113713,
-                  "relatedBreadCrumbOrder" : 1
+                  "orderInCategory" : 113713
                 }
               }
             ]
@@ -77,9 +69,7 @@
               {
                 "referencedPrimaryKey" : 66480,
                 "attributes" : {
-                  "relatedBreadCrumbPath" : "Accessories/Christmas electronics",
-                  "orderInCategory" : 113714,
-                  "relatedBreadCrumbOrder" : 1
+                  "orderInCategory" : 113714
                 }
               }
             ]
@@ -93,9 +83,7 @@
               {
                 "referencedPrimaryKey" : 66480,
                 "attributes" : {
-                  "relatedBreadCrumbPath" : "Accessories/Christmas electronics",
-                  "orderInCategory" : 113716,
-                  "relatedBreadCrumbOrder" : 1
+                  "orderInCategory" : 113716
                 }
               }
             ]
@@ -109,9 +97,7 @@
               {
                 "referencedPrimaryKey" : 66480,
                 "attributes" : {
-                  "relatedBreadCrumbPath" : "Accessories/Christmas electronics",
-                  "orderInCategory" : 113718,
-                  "relatedBreadCrumbOrder" : 1
+                  "orderInCategory" : 113718
                 }
               }
             ]
@@ -125,9 +111,7 @@
               {
                 "referencedPrimaryKey" : 66480,
                 "attributes" : {
-                  "relatedBreadCrumbPath" : "Accessories/Christmas electronics",
-                  "orderInCategory" : 113720,
-                  "relatedBreadCrumbOrder" : 1
+                  "orderInCategory" : 113720
                 }
               }
             ]
@@ -141,9 +125,7 @@
               {
                 "referencedPrimaryKey" : 66480,
                 "attributes" : {
-                  "relatedBreadCrumbPath" : "Accessories/Christmas electronics",
-                  "orderInCategory" : 113721,
-                  "relatedBreadCrumbOrder" : 1
+                  "orderInCategory" : 113721
                 }
               }
             ]
@@ -157,9 +139,7 @@
               {
                 "referencedPrimaryKey" : 66480,
                 "attributes" : {
-                  "relatedBreadCrumbPath" : "Accessories/Christmas electronics",
-                  "orderInCategory" : 113725,
-                  "relatedBreadCrumbOrder" : 1
+                  "orderInCategory" : 113725
                 }
               }
             ]
@@ -173,9 +153,7 @@
               {
                 "referencedPrimaryKey" : 66486,
                 "attributes" : {
-                  "relatedBreadCrumbPath" : "Accessories/Smart wearable/Smartwatches",
-                  "orderInCategory" : -2147483648,
-                  "relatedBreadCrumbOrder" : 1
+                  "orderInCategory" : -2147483648
                 }
               }
             ]
@@ -189,9 +167,7 @@
               {
                 "referencedPrimaryKey" : 66486,
                 "attributes" : {
-                  "relatedBreadCrumbPath" : "Accessories/Smart wearable/Smartwatches",
-                  "orderInCategory" : -2147483648,
-                  "relatedBreadCrumbOrder" : 1
+                  "orderInCategory" : -2147483648
                 }
               }
             ]
@@ -205,9 +181,7 @@
               {
                 "referencedPrimaryKey" : 66486,
                 "attributes" : {
-                  "relatedBreadCrumbPath" : "Accessories/Smart wearable/Smartwatches",
-                  "orderInCategory" : -2147483648,
-                  "relatedBreadCrumbOrder" : 1
+                  "orderInCategory" : -2147483648
                 }
               }
             ]
@@ -221,9 +195,7 @@
               {
                 "referencedPrimaryKey" : 66486,
                 "attributes" : {
-                  "relatedBreadCrumbPath" : "Accessories/Smart wearable/Smartwatches",
-                  "orderInCategory" : -2147483648,
-                  "relatedBreadCrumbOrder" : 1
+                  "orderInCategory" : -2147483648
                 }
               }
             ]
@@ -237,9 +209,7 @@
               {
                 "referencedPrimaryKey" : 66486,
                 "attributes" : {
-                  "relatedBreadCrumbPath" : "Accessories/Smart wearable/Smartwatches",
-                  "orderInCategory" : -2147483648,
-                  "relatedBreadCrumbOrder" : 1
+                  "orderInCategory" : -2147483648
                 }
               }
             ]
@@ -253,9 +223,7 @@
               {
                 "referencedPrimaryKey" : 66486,
                 "attributes" : {
-                  "relatedBreadCrumbPath" : "Accessories/Smart wearable/Smartwatches",
-                  "orderInCategory" : -2147483648,
-                  "relatedBreadCrumbOrder" : 1
+                  "orderInCategory" : -2147483648
                 }
               }
             ]
@@ -269,9 +237,7 @@
               {
                 "referencedPrimaryKey" : 66486,
                 "attributes" : {
-                  "relatedBreadCrumbPath" : "Accessories/Smart wearable/Smartwatches",
-                  "orderInCategory" : -2147483648,
-                  "relatedBreadCrumbOrder" : 1
+                  "orderInCategory" : -2147483648
                 }
               }
             ]
@@ -285,9 +251,7 @@
               {
                 "referencedPrimaryKey" : 66486,
                 "attributes" : {
-                  "relatedBreadCrumbPath" : "Accessories/Smart wearable/Smartwatches",
-                  "orderInCategory" : -2147483648,
-                  "relatedBreadCrumbOrder" : 1
+                  "orderInCategory" : -2147483648
                 }
               }
             ]
@@ -301,9 +265,7 @@
               {
                 "referencedPrimaryKey" : 66486,
                 "attributes" : {
-                  "relatedBreadCrumbPath" : "Accessories/Smart wearable/Smartwatches",
-                  "orderInCategory" : -2147483648,
-                  "relatedBreadCrumbOrder" : 1
+                  "orderInCategory" : -2147483648
                 }
               }
             ]
@@ -317,9 +279,7 @@
               {
                 "referencedPrimaryKey" : 66486,
                 "attributes" : {
-                  "relatedBreadCrumbPath" : "Accessories/Smart wearable/Smartwatches",
-                  "orderInCategory" : -2147483648,
-                  "relatedBreadCrumbOrder" : 1
+                  "orderInCategory" : -2147483648
                 }
               }
             ]
