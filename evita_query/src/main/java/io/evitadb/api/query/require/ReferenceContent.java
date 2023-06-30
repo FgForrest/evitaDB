@@ -106,22 +106,37 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		super(referenceNames, entityRequirement, groupEntityRequirement);
 	}
 
-	public ReferenceContent(@Nonnull String referenceName,
-	                        @Nullable FilterBy filterBy,
-	                        @Nullable OrderBy orderBy,
-	                        @Nullable EntityFetch entityFetch,
-	                        @Nullable EntityGroupFetch entityGroupFetch) {
-		super(new String[] { referenceName }, new RequireConstraint[] {entityFetch, entityGroupFetch}, filterBy, orderBy);
-	}
-
-	@Creator // we don't want to use `withAttributes` suffix here because it would be confusing in the APIs when the `attributeContent` parameter is optional
+	@Creator
 	public ReferenceContent(@Nonnull @Classifier String referenceName,
 							@Nullable @AdditionalChild FilterBy filterBy,
 	                        @Nullable @AdditionalChild OrderBy orderBy,
-							@Nullable @Child AttributeContent attributeContent,
 	                        @Nullable @Child EntityFetch entityFetch,
 	                        @Nullable @Child EntityGroupFetch entityGroupFetch) {
+		super(new String[] { referenceName }, new RequireConstraint[] {entityFetch, entityGroupFetch}, filterBy, orderBy);
+	}
+
+	public ReferenceContent(@Nonnull String referenceName,
+	                        @Nullable FilterBy filterBy,
+	                        @Nullable OrderBy orderBy,
+	                        @Nullable AttributeContent attributeContent,
+	                        @Nullable EntityFetch entityFetch,
+	                        @Nullable EntityGroupFetch entityGroupFetch) {
 		super(new String[] { referenceName }, new RequireConstraint[] {attributeContent, entityFetch, entityGroupFetch}, filterBy, orderBy);
+	}
+
+	/**
+	 * Special constructor with REQUIRED attributes for APIs, so that the suffix make sense.
+	 * This was previously decided to omit and use only creator without suffix but with optional `attributeContent`.
+	 * Unfortunately, this causes issues when e.g. converters try to find correct descriptor using {@link #getSuffixIfApplied()}.
+	 */
+	@Creator(suffix = SUFFIX_WITH_ATTRIBUTES)
+	private static ReferenceContent withRequiredAttributes(@Nonnull @Classifier String referenceName,
+	                                                       @Nullable @AdditionalChild FilterBy filterBy,
+	                                                       @Nullable @AdditionalChild OrderBy orderBy,
+	                                                       @Nonnull @Child AttributeContent attributeContent,
+	                                                       @Nullable @Child EntityFetch entityFetch,
+	                                                       @Nullable @Child EntityGroupFetch entityGroupFetch) {
+		return new ReferenceContent(referenceName, filterBy, orderBy, attributeContent, entityFetch, entityGroupFetch);
 	}
 
 	public ReferenceContent(@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
