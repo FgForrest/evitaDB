@@ -44,6 +44,6 @@ public @interface AttributeRef {
 	 * Name of the attribute. Use camel-case naming style.
 	 * If left empty the name is taken from the name of the field / property / component.
 	 */
-	String name() default "";
+	String value();
 
 }

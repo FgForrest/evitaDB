@@ -28,6 +28,8 @@ import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.proxy.impl.method.GetAssociatedDataMethodClassifier;
 import io.evitadb.api.proxy.impl.method.GetAttributeMethodClassifier;
+import io.evitadb.api.proxy.impl.method.GetEntityTypeClassifier;
+import io.evitadb.api.proxy.impl.method.GetPrimaryKeyClassifier;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -70,12 +72,11 @@ public class ProxycianFactory implements ProxyFactory {
 		StandardJavaMethods.hashCodeMethodInvoker(),
 		StandardJavaMethods.toStringMethodInvoker(),
 		StandardJavaMethods.realMethodInvoker(),
-		new DelegatingMethodClassification<SealedEntityProxyState, EntityClassifier>(
-			EntityClassifier.class, Function.identity()
-		),
 		new DelegatingMethodClassification<SealedEntityProxyState, SealedEntityProxy>(
 			SealedEntityProxy.class, Function.identity()
 		),
+		GetPrimaryKeyClassifier.INSTANCE,
+		GetEntityTypeClassifier.INSTANCE,
 		GetAttributeMethodClassifier.INSTANCE,
 		GetAssociatedDataMethodClassifier.INSTANCE
 	};

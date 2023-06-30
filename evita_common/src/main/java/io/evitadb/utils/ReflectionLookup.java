@@ -24,6 +24,7 @@
 package io.evitadb.utils;
 
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
+import io.evitadb.dataType.map.WeakConcurrentMap;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
@@ -62,13 +63,14 @@ import static java.util.Optional.ofNullable;
 @RequiredArgsConstructor
 public class ReflectionLookup {
 	public final static ReflectionLookup NO_CACHE_INSTANCE = new ReflectionLookup(ReflectionCachingBehaviour.NO_CACHE);
-	private final WeakHashMap<Class<?>, Map<ConstructorKey, Constructor<?>>> constructorCache = new WeakHashMap<>();
-	private final WeakHashMap<Class<?>, List<Annotation>> classCache = new WeakHashMap<>();
-	private final WeakHashMap<Class<?>, Map<Field, List<Annotation>>> fieldCache = new WeakHashMap<>();
-	private final WeakHashMap<Class<?>, Map<Method, List<Annotation>>> methodCache = new WeakHashMap<>();
-	private final WeakHashMap<Class<?>, Map<String, PropertyDescriptor>> propertiesCache = new WeakHashMap<>();
-	private final WeakHashMap<Class<?>, List<Method>> gettersWithCorrespondingSetterOrConstructor = new WeakHashMap<>();
-	private final WeakHashMap<Class<?>, Set<Class<?>>> interfacesCache = new WeakHashMap<>();
+	private final WeakConcurrentMap<Class<?>, Map<ConstructorKey, Constructor<?>>> constructorCache = new WeakConcurrentMap<>();
+	private final WeakConcurrentMap<Class<?>, List<Annotation>> classCache = new WeakConcurrentMap<>();
+	private final WeakConcurrentMap<Class<?>, Map<Field, List<Annotation>>> fieldCache = new WeakConcurrentMap<>();
+	private final WeakConcurrentMap<Class<?>, Map<Method, List<Annotation>>> methodCache = new WeakConcurrentMap<>();
+	private final WeakConcurrentMap<Class<?>, Map<String, PropertyDescriptor>> propertiesCache = new WeakConcurrentMap<>();
+	private final WeakConcurrentMap<Class<?>, List<Method>> gettersWithCorrespondingSetterOrConstructor = new WeakConcurrentMap<>();
+	private final WeakConcurrentMap<Class<?>, Set<Class<?>>> interfacesCache = new WeakConcurrentMap<>();
+	private final WeakConcurrentMap<MethodAndPackage, Boolean> samePackageAnnotation = new WeakConcurrentMap<>();
 	private final ReflectionCachingBehaviour cachingBehaviour;
 
 	/**
@@ -350,10 +352,9 @@ public class ReflectionLookup {
 		List<Annotation> cachedInformations = classCache.get(type);
 		if (cachedInformations == null) {
 			final Set<Annotation> informations = new LinkedHashSet<>(16);
-			Class<?> examinedClass = type;
 			final Set<Class<?>> alreadyDetectedAnnotations = new HashSet<>();
-			if (!Objects.equals(Object.class, examinedClass)) {
-				getClassAnnotationsThroughSuperClasses(informations, examinedClass, alreadyDetectedAnnotations);
+			if (!Objects.equals(Object.class, type)) {
+				getClassAnnotationsThroughSuperClasses(informations, type, alreadyDetectedAnnotations);
 			}
 			cachedInformations = new ArrayList<>(informations);
 			if (cachingBehaviour == ReflectionCachingBehaviour.CACHE) {
@@ -391,6 +392,17 @@ public class ReflectionLookup {
 	}
 
 	/**
+	 * Returns true if method has at least one annotation in the same package as the passed annotation.
+	 */
+	public boolean hasAnnotationInSamePackage(@Nonnull Method method, @Nonnull Class<? extends Annotation> annotation) {
+		return samePackageAnnotation.computeIfAbsent(
+			new MethodAndPackage(method, annotation.getPackage()),
+			tuple -> Arrays.stream(tuple.method().getAnnotations())
+				.anyMatch(it -> it.getClass().getPackage().equals(tuple.annotationPackage()))
+		);
+	}
+
+	/**
 	 * Returns index of all fields with list of annotations used on them. Fields are also looked up in superclass
 	 * hierarchy. Annotations on annotation are also taken into account.
 	 */
@@ -401,9 +413,8 @@ public class ReflectionLookup {
 		if (cachedInformations == null) {
 			cachedInformations = new LinkedHashMap<>(16);
 			final Set<String> foundFields = new HashSet<>();
-			Class<?> examinedClass = type;
-			if (!Objects.equals(Object.class, examinedClass)) {
-				getFieldAnnotationsThroughSuperClasses(cachedInformations, foundFields, examinedClass);
+			if (!Objects.equals(Object.class, type)) {
+				getFieldAnnotationsThroughSuperClasses(cachedInformations, foundFields, type);
 			}
 			if (cachingBehaviour == ReflectionCachingBehaviour.CACHE) {
 				fieldCache.put(type, cachedInformations);
@@ -588,7 +599,7 @@ public class ReflectionLookup {
 		return ifaces;
 	}
 
-	private void registerMethods(Map<Method, List<Annotation>> cachedInformations, Set<MethodAnnotationKey> foundMethodAnnotations, Class<?> tmpClass) {
+	private static void registerMethods(Map<Method, List<Annotation>> cachedInformations, Set<MethodAnnotationKey> foundMethodAnnotations, Class<?> tmpClass) {
 		for (Method method : tmpClass.getDeclaredMethods()) {
 			final Annotation[] someAnnotation = method.getAnnotations();
 			if (someAnnotation != null && someAnnotation.length > 0) {
@@ -606,7 +617,7 @@ public class ReflectionLookup {
 	}
 
 	@Nullable
-	private <T extends Annotation> Class<?> getRepeatableContainerAnnotation(Class<T> annotationType) {
+	private static <T extends Annotation> Class<?> getRepeatableContainerAnnotation(Class<T> annotationType) {
 		final Class<?> containerAnnotation;
 		final Repeatable repeatable = annotationType.getAnnotation(Repeatable.class);
 		if (repeatable != null) {
@@ -617,7 +628,7 @@ public class ReflectionLookup {
 		return containerAnnotation;
 	}
 
-	private <T extends Annotation> void addAnnotationIfMatches(Class<T> annotationType, Class<?> containerAnnotation, List<T> fieldResult, Annotation annotation) {
+	private static <T extends Annotation> void addAnnotationIfMatches(Class<T> annotationType, Class<?> containerAnnotation, List<T> fieldResult, Annotation annotation) {
 		if (annotationType.isInstance(annotation)) {
 			//noinspection unchecked
 			fieldResult.add((T) annotation);
@@ -636,7 +647,7 @@ public class ReflectionLookup {
 		}
 	}
 
-	private <T extends Annotation> T getAnnotation(Class<T> searchedAnnotationType, Class<?> type, Deque<Class<? extends Annotation>> processedAnnotations) {
+	private static <T extends Annotation> T getAnnotation(Class<T> searchedAnnotationType, Class<?> type, Deque<Class<? extends Annotation>> processedAnnotations) {
 		final Annotation[] annotations = type.getAnnotations();
 		for (Annotation annItem : annotations) {
 			if (searchedAnnotationType.isInstance(annItem)) {
@@ -661,7 +672,7 @@ public class ReflectionLookup {
 		return null;
 	}
 
-	private List<Annotation> expand(Annotation[] annotation) {
+	private static List<Annotation> expand(Annotation[] annotation) {
 		if (ArrayUtils.isEmpty(annotation)) {
 			return emptyList();
 		} else {
@@ -684,7 +695,7 @@ public class ReflectionLookup {
 		return index;
 	}
 
-	private Map<String, PropertyDescriptor> mapGettersAndSetters(Class<?> onClass) {
+	private static Map<String, PropertyDescriptor> mapGettersAndSetters(Class<?> onClass) {
 		final Map<String, PropertyDescriptor> result = new LinkedHashMap<>();
 		final Method[] methods = onClass.getMethods();
 		for (Method method : methods) {
@@ -723,7 +734,7 @@ public class ReflectionLookup {
 		}
 	}
 
-	private Map<ConstructorKey, Constructor<?>> mapConstructors(Class<?> onClass) {
+	private static Map<ConstructorKey, Constructor<?>> mapConstructors(Class<?> onClass) {
 		final HashMap<ConstructorKey, Constructor<?>> mappedConstructors = new HashMap<>();
 		for (Constructor<?> constructor : onClass.getConstructors()) {
 			try {
@@ -805,7 +816,7 @@ public class ReflectionLookup {
 	 * without setters. If there are multiple such constructors - none is used, because it represents ambiguous situation.
 	 */
 	@Nullable
-	private List<Method> getGettersForSettersAndBestConstructor(Stream<Method> simplePropertiesWithSetter, Map<String, Method> propertiesWithoutSetter, List<WeightedConstructorKey> constructorsByBestFit, WeightedConstructorKey bestConstructor, long bestFitWeight) {
+	private static List<Method> getGettersForSettersAndBestConstructor(Stream<Method> simplePropertiesWithSetter, Map<String, Method> propertiesWithoutSetter, List<WeightedConstructorKey> constructorsByBestFit, WeightedConstructorKey bestConstructor, long bestFitWeight) {
 		if (constructorsByBestFit.size() == 1) {
 			return returnMethodsForBestConstructor(
 				simplePropertiesWithSetter, propertiesWithoutSetter, bestConstructor
@@ -872,7 +883,7 @@ public class ReflectionLookup {
 	 * methods that have corresponding setter method.
 	 */
 	@Nonnull
-	private List<Method> returnMethodsForBestConstructor(Stream<Method> simplePropertiesWithSetter, Map<String, Method> propertiesInjectedByConstructor, WeightedConstructorKey bestConstructor) {
+	private static List<Method> returnMethodsForBestConstructor(Stream<Method> simplePropertiesWithSetter, Map<String, Method> propertiesInjectedByConstructor, WeightedConstructorKey bestConstructor) {
 		final Set<String> constructorArgs = bestConstructor.constructorKey().arguments()
 			.stream()
 			.map(ArgumentKey::getName)
@@ -893,7 +904,7 @@ public class ReflectionLookup {
 	/**
 	 * Finds field on passed class. If field is not found, it traverses through super classes to find it.
 	 */
-	private Field mapField(@Nonnull Class<?> onClass, @Nonnull String propertyName) {
+	private static Field mapField(@Nonnull Class<?> onClass, @Nonnull String propertyName) {
 		try {
 			return onClass.getDeclaredField(propertyName);
 		} catch (NoSuchFieldException e) {
@@ -908,7 +919,7 @@ public class ReflectionLookup {
 	/**
 	 * Goes through inheritance chain and looks up for annotations.
 	 */
-	private void getFieldAnnotationsThroughSuperClasses(Map<Field, List<Annotation>> annotations, Set<String> foundFields, Class<?> examinedClass) {
+	private static void getFieldAnnotationsThroughSuperClasses(Map<Field, List<Annotation>> annotations, Set<String> foundFields, Class<?> examinedClass) {
 		do {
 			for (Field field : examinedClass.getDeclaredFields()) {
 				final Annotation[] someAnnotation = field.getAnnotations();
@@ -946,7 +957,7 @@ public class ReflectionLookup {
 		} while (examinedClass != null && !Objects.equals(Object.class, examinedClass));
 	}
 
-	private void processRepeatableAnnotations(Set<Annotation> annotations, Set<Class<?>> alreadyDetectedAnnotations, Set<Class<?>> addedAnnotationsInThisRound, Annotation annotation) {
+	private static void processRepeatableAnnotations(Set<Annotation> annotations, Set<Class<?>> alreadyDetectedAnnotations, Set<Class<?>> addedAnnotationsInThisRound, Annotation annotation) {
 		final Class<?> containerAnnotation = getRepeatableContainerAnnotation(annotation.annotationType());
 		if (!alreadyDetectedAnnotations.contains(annotation.annotationType()) && (containerAnnotation == null || !alreadyDetectedAnnotations.contains(containerAnnotation))) {
 			annotations.add(annotation);
@@ -958,7 +969,7 @@ public class ReflectionLookup {
 	/**
 	 * Registers property descriptor.
 	 */
-	private void registerPropertyDescriptor(Map<String, PropertyDescriptor> result, Method method, String propertyName, boolean isGetter, Field propertyField) {
+	private static void registerPropertyDescriptor(Map<String, PropertyDescriptor> result, Method method, String propertyName, boolean isGetter, Field propertyField) {
 		final PropertyDescriptor existingTuple = result.get(propertyName);
 		if (existingTuple == null) {
 			result.put(
@@ -1024,6 +1035,15 @@ public class ReflectionLookup {
 	public static class ArgumentKey {
 		private final String name;
 		private final Class<?> type;
+	}
+
+	/**
+	 * Cache key for {@link #hasAnnotationInSamePackage(Method, Class)}.
+	 */
+	private record MethodAndPackage(
+		@Nonnull Method method,
+		@Nonnull Package annotationPackage) {
+
 	}
 
 }

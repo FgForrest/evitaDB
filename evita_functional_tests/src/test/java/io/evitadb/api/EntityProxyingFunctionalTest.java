@@ -24,6 +24,7 @@
 package io.evitadb.api;
 
 import io.evitadb.api.mock.ProductInterface;
+import io.evitadb.api.mock.TestEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
@@ -74,7 +75,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 	@Test
 	@UseDataSet(FIFTY_PRODUCTS)
 	void shouldProxyToInterfaceWithEnglishLocalization(EvitaSessionContract evitaSession) {
-		final Optional<ProductInterface> product = evitaSession.queryOne(
+		final Optional<ProductInterface> productRef = evitaSession.queryOne(
 			query(
 				collection(Entities.PRODUCT),
 				filterBy(
@@ -91,13 +92,19 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 			),
 			ProductInterface.class
 		);
-		assertTrue(product.isPresent());
-		assertEquals(1, product.get().getPrimaryKey());
-		assertEquals(Entities.PRODUCT, product.get().getType());
-		assertEquals("Ergonomic-Plastic-Table-1", product.get().getCode());
-		assertEquals("Incredible Linen Clock", product.get().getName());
-		assertEquals(new BigDecimal("310.37"), product.get().getQuantity());
-		assertTrue(product.get().isAlias());
+		assertTrue(productRef.isPresent());
+		final ProductInterface product = productRef.get();
+		assertEquals(1, product.getPrimaryKey());
+		assertEquals(1, product.getId());
+		assertEquals(Entities.PRODUCT, product.getType());
+		assertEquals(TestEntity.PRODUCT, product.getEntityType());
+		assertEquals("Ergonomic-Plastic-Table-1", product.getCode());
+		assertEquals("Incredible Linen Clock", product.getName());
+		assertEquals(new BigDecimal("310.37"), product.getQuantity());
+		assertEquals(new BigDecimal("310.37"), product.getQuantityAsDifferentProperty());
+		assertTrue(product.isAlias());
+		assertEquals(new ReferencedFileSet(null), product.getReferencedFileSet());
+		assertEquals(new ReferencedFileSet(null), product.getReferencedFileSetAsDifferentProperty());
 	}
 
 	@DisplayName("Should wrap an interface and load all data")
@@ -110,13 +117,17 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 		assertTrue(productRef.isPresent());
 		final ProductInterface product = productRef.get();
 		assertEquals(1, product.getPrimaryKey());
+		assertEquals(1, product.getId());
 		assertEquals(Entities.PRODUCT, product.getType());
+		assertEquals(TestEntity.PRODUCT, product.getEntityType());
 		assertEquals("Ergonomic-Plastic-Table-1", product.getCode());
 		assertEquals("Incredible Linen Clock", product.getName(CZECH_LOCALE));
 		assertEquals("Incredible Linen Clock_2", product.getName(Locale.ENGLISH));
 		assertEquals(new BigDecimal("310.37"), product.getQuantity());
+		assertEquals(new BigDecimal("310.37"), product.getQuantityAsDifferentProperty());
 		assertTrue(product.isAlias());
 		assertEquals(new ReferencedFileSet(null), product.getReferencedFileSet());
+		assertEquals(new ReferencedFileSet(null), product.getReferencedFileSetAsDifferentProperty());
 	}
 
 }

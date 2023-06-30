@@ -21,29 +21,15 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.data.annotation;
-
-import java.lang.annotation.Documented;
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+package io.evitadb.api.mock;
 
 /**
- * Annotation is used to mark a field, getter method or constructor method argument as a reference
- * to a reference of the entity.
+ * Example of the enum for entities.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@Documented
-@Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.FIELD, ElementType.METHOD, ElementType.PARAMETER})
-public @interface ReferenceRef {
+public enum TestEntity {
 
-	/**
-	 * Name of the reference. Use camel-case naming style.
-	 * If left empty the name is taken from the name of the field / property / component.
-	 */
-	String value();
+	PRODUCT, CATEGORY, BRAND, PRICE_LIST, STORE, PARAMETER_GROUP, PARAMETER
 
 }

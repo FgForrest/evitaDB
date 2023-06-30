@@ -83,13 +83,15 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		if (associatedDataInstance != null) {
 			return getAssociatedDataSchemaContractOrThrow(entitySchema, associatedDataInstance.name());
 		} else if (associatedDataRefInstance != null) {
-			return getAssociatedDataSchemaContractOrThrow(entitySchema, associatedDataRefInstance.name());
-		} else {
+			return getAssociatedDataSchemaContractOrThrow(entitySchema, associatedDataRefInstance.value());
+		} else if (!reflectionLookup.hasAnnotationInSamePackage(method, AssociatedData.class)) {
 			return entitySchema.getAssociatedDataByName(
 					ReflectionLookup.getPropertyNameFromMethodName(method.getName()),
 					NamingConvention.CAMEL_CASE
 				)
 				.orElse(null);
+		} else {
+			return null;
 		}
 	}
 

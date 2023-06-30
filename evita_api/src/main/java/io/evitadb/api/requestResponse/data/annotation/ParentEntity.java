@@ -34,7 +34,7 @@ import java.lang.annotation.Target;
 
 /**
  * Annotation is used to mark a field, getter method or record component as a target for
- * {@link HierarchicalPlacement#getParentPrimaryKey()} value. Using this annotation in the class also triggers
+ * parent entity primary key value. Using this annotation in the class also triggers
  * {@link EntitySchemaContract#isWithHierarchy()} to true.
  *
  * If the field, method or record component is an int type, the primary key will be injected to that place. If it

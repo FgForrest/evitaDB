@@ -94,13 +94,15 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Ent
 		if (attributeInstance != null) {
 			return getAttributeSchemaContractOrThrow(entitySchema, referenceSchema, attributeInstance.name());
 		} else if (attributeRefInstance != null) {
-			return getAttributeSchemaContractOrThrow(entitySchema, referenceSchema, attributeRefInstance.name());
-		} else {
+			return getAttributeSchemaContractOrThrow(entitySchema, referenceSchema, attributeRefInstance.value());
+		} else if (!reflectionLookup.hasAnnotationInSamePackage(method, Attribute.class)) {
 			final String attributeName = ReflectionLookup.getPropertyNameFromMethodName(method.getName());
 			result = Optional.ofNullable(referenceSchema)
 				.map(it -> it.getAttributeByName(attributeName, NamingConvention.CAMEL_CASE))
 				.orElseGet(() -> entitySchema.getAttributeByName(attributeName, NamingConvention.CAMEL_CASE));
 			return result.orElse(null);
+		} else {
+			return null;
 		}
 	}
 

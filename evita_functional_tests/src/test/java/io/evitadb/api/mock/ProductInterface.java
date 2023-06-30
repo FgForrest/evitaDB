@@ -25,7 +25,11 @@ package io.evitadb.api.mock;
 
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedData;
+import io.evitadb.api.requestResponse.data.annotation.AssociatedDataRef;
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
+import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
+import io.evitadb.api.requestResponse.data.annotation.EntityRef;
+import io.evitadb.api.requestResponse.data.annotation.PrimaryKeyRef;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
 
@@ -39,6 +43,13 @@ import java.util.Locale;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public interface ProductInterface extends EntityClassifier {
+
+	@PrimaryKeyRef
+	int getId();
+
+	@EntityRef
+	@Nonnull
+	TestEntity getEntityType();
 
 	@Attribute(name = DataGenerator.ATTRIBUTE_CODE)
 	@Nonnull
@@ -55,10 +66,17 @@ public interface ProductInterface extends EntityClassifier {
 	@Nonnull
 	BigDecimal getQuantity();
 
+	@AttributeRef(DataGenerator.ATTRIBUTE_QUANTITY)
+	@Nonnull
+	BigDecimal getQuantityAsDifferentProperty();
+
 	@Attribute(name = DataGenerator.ATTRIBUTE_ALIAS)
 	boolean isAlias();
 
 	@AssociatedData(name = DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES)
 	ReferencedFileSet getReferencedFileSet();
+
+	@AssociatedDataRef(DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES)
+	ReferencedFileSet getReferencedFileSetAsDifferentProperty();
 
 }

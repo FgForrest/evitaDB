@@ -44,6 +44,6 @@ public @interface AssociatedDataRef {
 	 * Name of the associated data. Use camel-case naming style.
 	 * If left empty the name is taken from the name of the field / property / component.
 	 */
-	String name() default "";
+	String value();
 
 }
