@@ -105,6 +105,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @Slf4j
 public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctionalTest {
 	private static final Locale LOCALE_CZECH = CZECH_LOCALE;
+	private static final String ATTRIBUTE_CATEGORY_SHADOW = "shadow";
 	private final static BiFunction<SealedEntity, String, int[]> REFERENCED_ID_EXTRACTOR =
 		(entity, referencedType) -> entity.getReferences(referencedType)
 			.stream()
@@ -1141,7 +1142,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 				final List<PriceContract> filteredPrices = it.getPrices()
 					.stream()
 					.filter(PriceContract::isSellable)
-					.filter(price -> Objects.equals(price.getPriceList(), PRICE_LIST_B2B))
+					.filter(price -> Objects.equals(price.getPriceList(), PRICE_LIST_VIP))
 					.toList();
 				return filteredPrices.stream().map(PriceContract::getCurrency).anyMatch(CURRENCY_EUR::equals) &&
 					filteredPrices.stream().map(PriceContract::getCurrency).noneMatch(CURRENCY_USD::equals);
@@ -1157,7 +1158,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 						filterBy(
 							and(
 								entityPrimaryKeyInSet(entitiesMatchingTheRequirements),
-								priceInPriceLists(PRICE_LIST_B2B),
+								priceInPriceLists(PRICE_LIST_VIP),
 								priceInCurrency(CURRENCY_EUR)
 							)
 						),
@@ -1351,7 +1352,100 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 				for (SealedEntity product : productByPk.getRecordData()) {
 					assertFalse(product.getReferences(Entities.CATEGORY).isEmpty());
+					assertTrue(product.getReferences(Entities.CATEGORY).stream().allMatch(it -> it.getAttributeValues().isEmpty()));
 					assertFalse(product.getReferences(Entities.STORE).isEmpty());
+					assertTrue(product.getReferences(Entities.STORE).stream().allMatch(it -> it.getAttributeValues().isEmpty()));
+				}
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Multiple entities with specific references with exactly stated attributes can be retrieved")
+	@UseDataSet(FIFTY_PRODUCTS)
+	@Test
+	void shouldRetrieveMultipleEntitiesWithSpecificReferencesByPrimaryKeyWithExactAttributes(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> !it.getReferences(Entities.CATEGORY).isEmpty() && !it.getReferences(Entities.STORE).isEmpty()
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(entitiesMatchingTheRequirements)
+						),
+						require(
+							entityFetch(
+								referenceContentWithAttributes(
+									Entities.CATEGORY,
+									attributeContent(ATTRIBUTE_CATEGORY_PRIORITY)
+								)
+							),
+							page(1, 4)
+						)
+					)
+				);
+
+				assertEquals(4, productByPk.getRecordData().size());
+				assertEquals(entitiesMatchingTheRequirements.length, productByPk.getTotalRecordCount());
+
+				for (SealedEntity product : productByPk.getRecordData()) {
+					assertFalse(product.getReferences(Entities.CATEGORY).isEmpty());
+					for (ReferenceContract categoryRef : product.getReferences(Entities.CATEGORY)) {
+						assertEquals(1, categoryRef.getAttributeValues().size());
+						assertNotNull(categoryRef.getAttributeValue(ATTRIBUTE_CATEGORY_PRIORITY));
+					}
+				}
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Multiple entities with specific references with all attributes can be retrieved")
+	@UseDataSet(FIFTY_PRODUCTS)
+	@Test
+	void shouldRetrieveMultipleEntitiesWithSpecificReferencesByPrimaryKeyWithAllAttributes(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> !it.getReferences(Entities.CATEGORY).isEmpty() && !it.getReferences(Entities.STORE).isEmpty()
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(entitiesMatchingTheRequirements)
+						),
+						require(
+							entityFetch(
+								referenceContentWithAttributes(
+									Entities.CATEGORY,
+									attributeContentAll()
+								)
+							),
+							page(1, 4)
+						)
+					)
+				);
+
+				assertEquals(4, productByPk.getRecordData().size());
+				assertEquals(entitiesMatchingTheRequirements.length, productByPk.getTotalRecordCount());
+
+				for (SealedEntity product : productByPk.getRecordData()) {
+					assertFalse(product.getReferences(Entities.CATEGORY).isEmpty());
+					for (ReferenceContract categoryRef : product.getReferences(Entities.CATEGORY)) {
+						assertEquals(2, categoryRef.getAttributeValues().size());
+						assertNotNull(categoryRef.getAttributeValue(ATTRIBUTE_CATEGORY_PRIORITY));
+						assertNotNull(categoryRef.getAttributeValue(ATTRIBUTE_CATEGORY_SHADOW));
+					}
 				}
 				return null;
 			}
@@ -1858,7 +1952,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 						collection(Entities.PRODUCT),
 						filterBy(
 							and(
-								priceInPriceLists(PRICE_LIST_INTRODUCTION),
+								priceInPriceLists(PRICE_LIST_BASIC),
 								priceInCurrency(CURRENCY_CZK)
 							)
 						),

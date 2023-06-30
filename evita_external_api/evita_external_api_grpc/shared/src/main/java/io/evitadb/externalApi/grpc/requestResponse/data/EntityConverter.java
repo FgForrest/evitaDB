@@ -25,6 +25,7 @@ package io.evitadb.externalApi.grpc.requestResponse.data;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Int32Value;
+import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
@@ -40,7 +41,12 @@ import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReferenc
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.*;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
-import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceAttributeValueSerializablePredicate;
+import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
+import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
+import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
+import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
+import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.externalApi.grpc.dataType.ComplexDataObjectConverter;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
@@ -54,12 +60,14 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.function.BiFunction;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -104,6 +112,7 @@ public class EntityConverter {
 		} else {
 			parentEntity = parent;
 		}
+
 		return new EntityDecorator(
 			Entity._internalBuild(
 				grpcEntity.getPrimaryKey(),
@@ -112,7 +121,7 @@ public class EntityConverter {
 				grpcEntity.hasParent() ? grpcEntity.getParent().getValue() : null,
 				grpcEntity.getReferencesList()
 					.stream()
-					.map(it -> toReference(entitySchema, entitySchemaFetcher, evitaRequest, it))
+					.map(it -> toReference(entitySchema, it))
 					.collect(Collectors.toList()),
 				new Attributes(
 					entitySchema,
@@ -140,7 +149,18 @@ public class EntityConverter {
 			),
 			entitySchema,
 			parentEntity,
-			evitaRequest
+			new LocaleSerializablePredicate(evitaRequest),
+			new AttributeValueSerializablePredicate(evitaRequest),
+			new AssociatedDataValueSerializablePredicate(evitaRequest),
+			new ReferenceContractSerializablePredicate(evitaRequest),
+			new PriceContractSerializablePredicate(evitaRequest, (Boolean) null),
+			evitaRequest.getAlignedNow(),
+			new ClientReferenceFetcher(
+				parentEntity,
+				grpcEntity.getReferencesList(),
+				entitySchemaFetcher,
+				evitaRequest
+			)
 		);
 	}
 
@@ -150,43 +170,32 @@ public class EntityConverter {
 	@Nonnull
 	public static ReferenceContract toReference(
 		@Nonnull SealedEntitySchema entitySchema,
-		@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
-		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull GrpcReference grpcReference
 	) {
-		return new ReferenceDecorator(
-			new Reference(
-				entitySchema,
-				grpcReference.getVersion(),
-				grpcReference.getReferenceName(),
-				grpcReference.hasReferencedEntityReference() ?
-					grpcReference.getReferencedEntityReference().getPrimaryKey() :
-					grpcReference.getReferencedEntity().getPrimaryKey(),
-				grpcReference.hasReferencedEntityReference() ?
-					grpcReference.getReferencedEntityReference().getEntityType() :
-					grpcReference.getReferencedEntity().getEntityType(),
-				EvitaEnumConverter.toCardinality(grpcReference.getReferenceCardinality()),
-				grpcReference.hasGroupReferencedEntity() ?
-					new GroupEntityReference(
-						grpcReference.getGroupReferencedEntityReference().getEntityType(),
-						grpcReference.getGroupReferencedEntityReference().getPrimaryKey(),
-						grpcReference.getGroupReferencedEntityReference().getVersion(),
-						false
-					) :
-					null,
-				toAttributeValues(
-					grpcReference.getGlobalAttributesMap(),
-					grpcReference.getLocalizedAttributesMap()
-				),
-				false
-			),
-			grpcReference.hasReferencedEntity() ?
-				toSealedEntity(entitySchemaFetcher, evitaRequest, grpcReference.getReferencedEntity()) :
-				null,
+		return new Reference(
+			entitySchema,
+			grpcReference.getVersion(),
+			grpcReference.getReferenceName(),
+			grpcReference.hasReferencedEntityReference() ?
+				grpcReference.getReferencedEntityReference().getPrimaryKey() :
+				grpcReference.getReferencedEntity().getPrimaryKey(),
+			grpcReference.hasReferencedEntityReference() ?
+				grpcReference.getReferencedEntityReference().getEntityType() :
+				grpcReference.getReferencedEntity().getEntityType(),
+			EvitaEnumConverter.toCardinality(grpcReference.getReferenceCardinality()),
 			grpcReference.hasGroupReferencedEntity() ?
-				toSealedEntity(entitySchemaFetcher, evitaRequest, grpcReference.getGroupReferencedEntity()) :
+				new GroupEntityReference(
+					grpcReference.getGroupReferencedEntityReference().getEntityType(),
+					grpcReference.getGroupReferencedEntityReference().getPrimaryKey(),
+					grpcReference.getGroupReferencedEntityReference().getVersion(),
+					false
+				) :
 				null,
-			new ReferenceAttributeValueSerializablePredicate(evitaRequest)
+			toAttributeValues(
+				grpcReference.getGlobalAttributesMap(),
+				grpcReference.getLocalizedAttributesMap()
+			),
+			false
 		);
 	}
 
@@ -699,5 +708,70 @@ public class EntityConverter {
 		@Nonnull Map<String, GrpcLocalizedAttribute> localizedAttributesMap,
 		@Nonnull Map<String, GrpcEvitaValue> globalAttributesMap
 	) {
+	}
+
+	private static class ClientReferenceFetcher implements ReferenceFetcher {
+		private final EntityClassifierWithParent parentEntity;
+		private final Map<Integer, SealedEntity> entityIndex;
+		private final Map<Integer, SealedEntity> groupIndex;
+
+		public ClientReferenceFetcher(
+			@Nullable EntityClassifierWithParent parentEntity,
+			@Nonnull List<GrpcReference> grpcReference,
+			@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
+			@Nonnull EvitaRequest evitaRequest
+		) {
+			this.parentEntity = parentEntity;
+			this.entityIndex = grpcReference.stream()
+					.filter(GrpcReference::hasReferencedEntity)
+					.map(it -> toSealedEntity(entitySchemaFetcher, evitaRequest, it.getReferencedEntity()))
+					.collect(Collectors.toMap(SealedEntity::getPrimaryKey, Function.identity()));
+			this.groupIndex = grpcReference.stream()
+				.filter(GrpcReference::hasGroupReferencedEntity)
+				.map(it -> toSealedEntity(entitySchemaFetcher, evitaRequest, it.getGroupReferencedEntity()))
+				.collect(Collectors.toMap(SealedEntity::getPrimaryKey, Function.identity()));
+		}
+
+		@Nonnull
+		@Override
+		public <T extends SealedEntity> T initReferenceIndex(@Nonnull T entity, @Nonnull EntityCollectionContract entityCollection) {
+			throw new UnsupportedOperationException("Unexpected call!");
+		}
+
+		@Nonnull
+		@Override
+		public <T extends SealedEntity> List<T> initReferenceIndex(@Nonnull List<T> entities, @Nonnull EntityCollectionContract entityCollection) {
+			throw new UnsupportedOperationException("Unexpected call!");
+		}
+
+		@Nullable
+		@Override
+		public Function<Integer, EntityClassifierWithParent> getParentEntityFetcher() {
+			return parentId -> parentEntity;
+		}
+
+		@Nullable
+		@Override
+		public Function<Integer, SealedEntity> getEntityFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
+			return entityIndex::get;
+		}
+
+		@Nullable
+		@Override
+		public Function<Integer, SealedEntity> getEntityGroupFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
+			return groupIndex::get;
+		}
+
+		@Nullable
+		@Override
+		public Comparator<ReferenceContract> getEntityComparator(@Nonnull ReferenceSchemaContract referenceSchema) {
+			return null;
+		}
+
+		@Nullable
+		@Override
+		public BiPredicate<Integer, ReferenceDecorator> getEntityFilter(@Nonnull ReferenceSchemaContract referenceSchema) {
+			return (entityId, referenceDecorator) -> true;
+		}
 	}
 }

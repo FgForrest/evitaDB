@@ -157,8 +157,10 @@ public interface ReferenceFetcher {
 	 * The client logic cannot order by attributes that were not marked as sortable as of now. However, this might
 	 * change in the future (see https://gitlab.fg.cz/hv/evita/-/issues/136).
 	 * If none the init methods is not called, the exception is thrown.
+	 *
+	 * @return null if the references should remain in the order they were fetched
 	 */
-	@Nonnull
+	@Nullable
 	Comparator<ReferenceContract> getEntityComparator(@Nonnull ReferenceSchemaContract referenceSchema);
 
 	/**

@@ -100,7 +100,6 @@ public class EvitaRequest {
 	private Boolean entityAssociatedData;
 	private Set<String> entityAssociatedDataSet;
 	private Boolean entityReference;
-	private Set<String> entityReferenceSet;
 	private PriceContentMode entityPrices;
 	private Boolean currencySet;
 	private Currency currency;
@@ -154,7 +153,6 @@ public class EvitaRequest {
 		this.entityAssociatedData = evitaRequest.entityAssociatedData;
 		this.entityAssociatedDataSet = evitaRequest.entityAssociatedDataSet;
 		this.entityReference = evitaRequest.entityReference;
-		this.entityReferenceSet = evitaRequest.entityReferenceSet;
 		this.entityPrices = evitaRequest.entityPrices;
 		this.currencySet = evitaRequest.currencySet;
 		this.currency = evitaRequest.currency;
@@ -210,7 +208,6 @@ public class EvitaRequest {
 		this.entityAssociatedData = null;
 		this.entityAssociatedDataSet = null;
 		this.entityReference = null;
-		this.entityReferenceSet = null;
 		this.entityPrices = evitaRequest.entityPrices;
 		this.currencySet = evitaRequest.currencySet;
 		this.currency = evitaRequest.currency;
@@ -269,7 +266,6 @@ public class EvitaRequest {
 		this.entityAssociatedData = null;
 		this.entityAssociatedDataSet = null;
 		this.entityReference = null;
-		this.entityReferenceSet = null;
 		this.entityPrices = null;
 		this.firstRecordOffset = null;
 		this.hierarchyWithin = null;
@@ -532,34 +528,9 @@ public class EvitaRequest {
 	 */
 	public boolean isRequiresEntityReferences() {
 		if (entityReference == null) {
-			final EntityFetch entityFetch = getEntityRequirement();
-			if (entityFetch == null) {
-				this.entityReference = false;
-				this.entityReferenceSet = Collections.emptySet();
-			} else {
-				final List<ReferenceContent> requiresReference = QueryUtils.findConstraints(entityFetch, ReferenceContent.class, SeparateEntityContentRequireContainer.class);
-				this.entityReference = !requiresReference.isEmpty();
-				this.entityReferenceSet = requiresReference.isEmpty() ?
-					Collections.emptySet() :
-					requiresReference
-						.stream()
-						.flatMap(it -> Arrays.stream(it.getReferenceNames()))
-						.collect(Collectors.toSet());
-			}
+			getReferenceEntityFetch();
 		}
 		return entityReference;
-	}
-
-	/**
-	 * Returns set of reference names that were requested in the query. The set is empty if none is requested
-	 * which means - all references ought to be returned.
-	 */
-	@Nonnull
-	public Set<String> getEntityReferenceSet() {
-		if (this.entityReferenceSet == null) {
-			isRequiresEntityReferences();
-		}
-		return this.entityReferenceSet;
 	}
 
 	/**
@@ -759,28 +730,42 @@ public class EvitaRequest {
 	public Map<String, RequirementContext> getReferenceEntityFetch() {
 		if (entityFetchRequirements == null) {
 			entityFetchRequirements = ofNullable(getEntityRequirement())
-				.map(entityRequirement -> QueryUtils.findConstraints(entityRequirement, ReferenceContent.class, SeparateEntityContentRequireContainer.class)
-					.stream()
-					.flatMap(it ->
-						Arrays
-							.stream(it.getReferenceNames())
-							.map(entityType -> new SimpleEntry<>(
-									entityType,
-									new RequirementContext(
-										it.getEntityRequirement().orElse(null),
-										it.getGroupEntityRequirement().orElse(null),
-										it.getFilterBy().orElse(null),
-										it.getOrderBy().orElse(null)
+				.map(
+					entityRequirement -> {
+						final List<ReferenceContent> referenceContent = QueryUtils.findConstraints(entityRequirement, ReferenceContent.class, SeparateEntityContentRequireContainer.class);
+						this.entityReference = !referenceContent.isEmpty();
+						return referenceContent
+							.stream()
+							.flatMap(it ->
+								Arrays
+									.stream(it.getReferenceNames())
+									.map(entityType -> {
+											final Optional<AttributeContent> attributeContent = it.getAttributeContent();
+											return new SimpleEntry<>(
+												entityType,
+												new RequirementContext(
+													new AttributeRequest(
+														attributeContent
+															.map(AttributeContent::getAttributeNamesAsSet)
+															.orElseGet(Collections::emptySet),
+														attributeContent.isPresent()
+													),
+													it.getEntityRequirement().orElse(null),
+													it.getGroupEntityRequirement().orElse(null),
+													it.getFilterBy().orElse(null),
+													it.getOrderBy().orElse(null)
+												)
+											);
+										}
 									)
-								)
 							)
-					)
-					.collect(
-						Collectors.toMap(
-							SimpleEntry::getKey,
-							SimpleEntry::getValue
-						)
-					)
+							.collect(
+								Collectors.toMap(
+									SimpleEntry::getKey,
+									SimpleEntry::getValue
+								)
+							);
+					}
 				).orElse(Collections.emptyMap());
 		}
 		return entityFetchRequirements;
@@ -858,9 +843,9 @@ public class EvitaRequest {
 	@Nonnull
 	public EvitaRequest deriveCopyWith(
 		@Nonnull String entityType,
-		@Nonnull FilterBy filterConstraint,
+		@Nullable FilterBy filterConstraint,
 		@Nullable OrderBy orderConstraint
-		) {
+	) {
 		return new EvitaRequest(
 			this,
 			entityType, filterConstraint, orderConstraint
@@ -897,17 +882,39 @@ public class EvitaRequest {
 	 * Simple DTO that allows collection of {@link ReferenceContent} inner constraints related to fetching the entity
 	 * and group entity for fast access in this evita request instance.
 	 *
+	 * @param attributeRequest requested attributes for the entity reference
 	 * @param entityFetch      requirements related to fetching related entity
 	 * @param entityGroupFetch requirements related to fetching related entity group
 	 * @param filterBy         filtering constraints for entities
 	 * @param orderBy          ordering constraints for entities
 	 */
 	public record RequirementContext(
+		@Nonnull AttributeRequest attributeRequest,
 		@Nullable EntityFetch entityFetch,
 		@Nullable EntityGroupFetch entityGroupFetch,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy
 	) {
+	}
+
+	/**
+	 * TODO JNO - document me
+	 *
+	 * @param attributeSet             Contains information about all attribute names that has been fetched / requested for the entity.
+	 * @param requiresEntityAttributes Contains true if any of the attributes of the entity has been fetched / requested.
+	 */
+	public record AttributeRequest(
+		@Nonnull Set<String> attributeSet,
+		@Getter boolean requiresEntityAttributes
+	) implements Serializable {
+		/**
+		 * TODO JNO - document me
+		 */
+		public static final AttributeRequest EMPTY = new AttributeRequest(Collections.emptySet(), false);
+		/**
+		 * TODO JNO - document me
+		 */
+		public static final AttributeRequest FULL = new AttributeRequest(Collections.emptySet(), true);
 	}
 
 }
