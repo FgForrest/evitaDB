@@ -17,9 +17,6 @@
                   "attributes" : {
                     "code" : "width-45-1"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -29,9 +26,6 @@
                   "attributes" : {
                     "code" : "weight-50-5"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -41,9 +35,6 @@
                   "attributes" : {
                     "code" : "water-resistance-true"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -53,9 +44,6 @@
                   "attributes" : {
                     "code" : "usb-c"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -65,9 +53,6 @@
                   "attributes" : {
                     "code" : "thickness-12-8"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -77,9 +62,6 @@
                   "attributes" : {
                     "code" : "shape-circle"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -89,9 +71,6 @@
                   "attributes" : {
                     "code" : "operating-system-proprietal"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -101,9 +80,6 @@
                   "attributes" : {
                     "code" : "operating-system-com-ios"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -113,9 +89,6 @@
                   "attributes" : {
                     "code" : "operating-system-com-android"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -125,9 +98,6 @@
                   "attributes" : {
                     "code" : "nfc-true"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -137,9 +107,6 @@
                   "attributes" : {
                     "code" : "material-stainless-steel"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -149,9 +116,6 @@
                   "attributes" : {
                     "code" : "height-45-1"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -161,9 +125,6 @@
                   "attributes" : {
                     "code" : "health-functions-temperature-s"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -173,9 +134,6 @@
                   "attributes" : {
                     "code" : "health-functions-monitors-pers"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -185,9 +143,6 @@
                   "attributes" : {
                     "code" : "health-functions-monitors-bloo"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -197,9 +152,6 @@
                   "attributes" : {
                     "code" : "health-functions-heart-rate-mo"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -209,9 +161,6 @@
                   "attributes" : {
                     "code" : "health-functions-gyroscope"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -221,9 +170,6 @@
                   "attributes" : {
                     "code" : "health-functions-gps"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -233,9 +179,6 @@
                   "attributes" : {
                     "code" : "health-functions-compass"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -245,9 +188,6 @@
                   "attributes" : {
                     "code" : "health-functions-cadence-senso"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -257,9 +197,6 @@
                   "attributes" : {
                     "code" : "health-functions-barometer"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -269,9 +206,6 @@
                   "attributes" : {
                     "code" : "health-functions-accelerometer"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -281,9 +215,6 @@
                   "attributes" : {
                     "code" : "health-functions-3d-compass"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -293,9 +224,6 @@
                   "attributes" : {
                     "code" : "display-type-mip"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -305,9 +233,6 @@
                   "attributes" : {
                     "code" : "display-resolution-260-x-260"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -317,9 +242,6 @@
                   "attributes" : {
                     "code" : "connector-usb-c"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -329,9 +251,6 @@
                   "attributes" : {
                     "code" : "battery-life-8"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               },
               {
@@ -341,9 +260,6 @@
                   "attributes" : {
                     "code" : "battery-capacity-275"
                   }
-                },
-                "attributes" : {
-                  "variant" : false
                 }
               }
             ]

@@ -761,7 +761,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 					"require": {
 					    "entityFetch": {
 					        "attributeContentAll": true,
-					        "referenceStoreContent": {
+					        "referenceStoreContentWithAttributes": {
 					            "attributeContent": ["storeVisibleForB2C"]
 					        }
 					    }
@@ -783,7 +783,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 					"require": {
 						"entityFetch": {
 							"attributeContentAll": true,
-					        "referenceStoreContent": {
+					        "referenceStoreContentWithAttributes": {
 				                "attributeContent": ["storeVisibleForB2C"]
 				            }
 				        }

@@ -141,41 +141,37 @@ public class EntityFetchConverter extends RequireConverter {
 
 				referenceBuilder.addPrimitiveField(ReferenceDescriptor.REFERENCED_PRIMARY_KEY);
 
-				if (referenceContent.getEntityRequirement().isPresent()) {
+				referenceContent.getAttributeContent().ifPresent(attributeContent ->
+					referenceBuilder.addObjectField(
+						ReferenceDescriptor.ATTRIBUTES,
+						referenceAttributesBuilder -> {
+							for (String attributeName : attributeContent.getAttributeNames()) {
+								referenceAttributesBuilder.addPrimitiveField(StringUtils.toCamelCase(attributeName));
+							}
+						}
+					));
+
+				referenceContent.getEntityRequirement().ifPresent(entityRequirement ->
 					referenceBuilder.addObjectField(
 						ReferenceDescriptor.REFERENCED_ENTITY,
 						referencedEntityBuilder -> convert(
 							catalogSchema,
 							referencedEntityBuilder,
 							referenceSchema.getReferencedEntityType(),
-							referenceContent.getEntityRequirement().get()
+							entityRequirement
 						)
-					);
-				}
+					));
 
-				if (referenceContent.getGroupEntityRequirement().isPresent()) {
+				referenceContent.getGroupEntityRequirement().ifPresent(groupEntityRequirement ->
 					referenceBuilder.addObjectField(
 						ReferenceDescriptor.GROUP_ENTITY,
 						referencedGroupEntityBuilder -> convert(
 							catalogSchema,
 							referencedGroupEntityBuilder,
 							referenceSchema.getReferencedGroupType(),
-							referenceContent.getGroupEntityRequirement().get()
+							groupEntityRequirement
 						)
-					);
-				}
-
-				final Collection<AttributeSchemaContract> referenceAttributes = referenceSchema.getAttributes().values();
-				if (!referenceAttributes.isEmpty()) {
-					referenceBuilder.addObjectField(
-						ReferenceDescriptor.ATTRIBUTES,
-						referenceAttributesBuilder -> {
-							for (AttributeSchemaContract attribute : referenceAttributes) {
-								referenceAttributesBuilder.addPrimitiveField(StringUtils.toCamelCase(attribute.getName()));
-							}
-						}
-					);
-				}
+					));
 			}
 		);
 	}
