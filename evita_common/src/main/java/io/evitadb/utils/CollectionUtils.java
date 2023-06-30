@@ -31,6 +31,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -175,6 +176,23 @@ public class CollectionUtils {
 			return new LinkedHashSet<>((int) ((float) expectedCapacity / 0.75F + 1.0F));
 		}
 		return new LinkedHashSet<>(Integer.MAX_VALUE); // any large value
+	}
+
+	/**
+	 * Method combines all values of two sets into a new set.
+	 */
+	@Nonnull
+	public static <T> Set<T> combine(@Nonnull Set<T> first, Set<T> second) {
+		if (first.isEmpty()) {
+			return second;
+		} else if (second.isEmpty()) {
+			return first;
+		} else {
+			final HashSet<T> combinationResult = CollectionUtils.createHashSet(first.size() + second.size());
+			combinationResult.addAll(first);
+			combinationResult.addAll(second);
+			return combinationResult;
+		}
 	}
 
 	/**

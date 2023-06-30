@@ -258,7 +258,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 
 		final var expectedBody = entities.stream()
 			.map(entity ->
-				createReferencesDto(entity, Entities.STORE, false, false)
+				createReferencesDto(entity, Entities.STORE, false, false, null)
 			)
 			.toList();
 

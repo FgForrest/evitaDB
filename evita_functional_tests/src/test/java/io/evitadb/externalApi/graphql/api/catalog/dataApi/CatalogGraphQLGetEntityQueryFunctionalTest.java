@@ -31,9 +31,10 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
-import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.tester.GraphQLTester;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -48,9 +49,8 @@ import java.util.function.Predicate;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.api.query.QueryConstraints.entityFetch;
-import static io.evitadb.api.query.QueryConstraints.hierarchyContent;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ATTRIBUTE_MARKET_SHARE;
+import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ATTRIBUTE_STORE_VISIBLE_FOR_B2C;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
@@ -1424,6 +1424,47 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 						.stream()
 						.map(ReferenceContract::getReferencedPrimaryKey)
 						.toArray(Integer[]::new)
+				)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference list with attributes for single product")
+	void shouldReturnReferenceListWithAttributesForSingleProduct(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final SealedEntity entity = findEntity(
+			originalProductEntities,
+			it -> it.getReferences(Entities.STORE).size() > 1
+		);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    getProduct(code: "%s") {
+	                        primaryKey
+	                        type
+                            store {
+                                attributes {
+                                    storeVisibleForB2C
+                                }
+                            }
+	                    }
+	                }
+					""",
+				entity.getAttribute(ATTRIBUTE_CODE, String.class)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				GET_PRODUCT_PATH + ".store." + ReferenceDescriptor.ATTRIBUTES.name() + "." + ATTRIBUTE_STORE_VISIBLE_FOR_B2C,
+				containsInAnyOrder(
+					entity.getReferences(Entities.STORE)
+						.stream()
+						.map(it -> (Boolean) it.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C))
+						.peek(Assertions::assertNotNull)
+						.toArray(Boolean[]::new)
 				)
 			);
 	}

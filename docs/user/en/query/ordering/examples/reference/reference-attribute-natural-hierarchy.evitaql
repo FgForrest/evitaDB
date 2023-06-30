@@ -15,8 +15,9 @@ query(
      require(
          entityFetch(
              attributeContent('code'),
-             referenceContent(
-                 'categories'
+             referenceContentWithAttributes(
+                'categories',
+                attributeContent('orderInCategory')
              )
          )
      )

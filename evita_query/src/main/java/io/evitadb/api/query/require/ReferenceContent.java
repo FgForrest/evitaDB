@@ -155,7 +155,6 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	/**
 	 * Returns attribute content requirement for reference attributes.
 	 */
-	// TODO JNO: use this method to support attribute specification in references
 	@Nonnull
 	public Optional<AttributeContent> getAttributeContent() {
 		return Arrays.stream(getChildren())
