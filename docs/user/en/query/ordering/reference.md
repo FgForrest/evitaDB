@@ -93,18 +93,6 @@ involves ordering by a property on a reference attribute? Is it wise to allow su
 
 We decided to allow it and bind it with the following rules:
 
-<Note type="warning">
-
-<NoteTitle toggles="true">
-
-##### Both rules order the sorted groups by primary key in ascending order. Do you need different behaviour?
-</NoteTitle>
-
-If so, please vote for the [issue #160](https://github.com/FgForrest/evitaDB/issues/160) on GitHub. This issue won't
-be resolved until there is a demand for it.
-
-</Note>
-
 #### Non-hierarchical entity
 
 If the referenced entity is **non-hierarchical**, and the returned entity references multiple entities, only 
@@ -198,6 +186,18 @@ child of the "Smart wearable" category), and so on. The order follows the order 
 image:
 
 ![dynamic-tree.png](../requirements/assets/dynamic-tree.png)
+
+</Note>
+
+<Note type="warning">
+
+<NoteTitle toggles="true">
+
+##### Both rules order the sorted groups by primary key in ascending order. Do you need different behaviour?
+</NoteTitle>
+
+If so, please vote for the [issue #160](https://github.com/FgForrest/evitaDB/issues/160) on GitHub. This issue won't
+be resolved until there is a demand for it.
 
 </Note>
 
