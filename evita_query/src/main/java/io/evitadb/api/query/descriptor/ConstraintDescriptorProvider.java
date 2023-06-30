@@ -145,7 +145,7 @@ public class ConstraintDescriptorProvider {
 	public static Set<ConstraintDescriptor> getConstraints(@Nonnull Class<? extends Constraint<?>> constraintClass) {
 		final Set<ConstraintDescriptor> foundConstraints = CONSTRAINT_DESCRIPTORS.stream()
 			.filter(cd -> cd.constraintClass().equals(constraintClass))
-			.collect(Collectors.toUnmodifiableSet());
+			.collect(Collectors.toCollection(TreeSet::new));
 		Assert.isPremiseValid(
 			!foundConstraints.isEmpty(),
 			"Unknown constraint `" + constraintClass.getName() + "`. Is it properly registered?"
