@@ -338,7 +338,7 @@ public class EntityDecorator implements SealedEntity {
 				referenceContract, referenceSchema, entityFetcher, entityGroupFetcher
 			);
 		}
-		if (referenceSchema != null) {
+		if (referenceSchema != null && fetchedReferenceComparator != null) {
 			sortAndFilterSubList(
 				entityPrimaryKey,
 				fetchedAndFilteredReferences, fetchedReferenceComparator,
@@ -997,7 +997,7 @@ public class EntityDecorator implements SealedEntity {
 				.filter(referencePredicate)
 				.map(
 					it -> new ReferenceDecorator(
-						it, referencePredicate.getAttributePredicate()
+						it, referencePredicate.getAttributePredicate(it.getReferenceKey().referenceName())
 					)
 				)
 				.collect(
@@ -1038,7 +1038,9 @@ public class EntityDecorator implements SealedEntity {
 			reference,
 			referencedEntity,
 			referencedGroupEntity,
-			referencePredicate.getAttributePredicate()
+			referencePredicate.getAttributePredicate(
+				referenceSchema.getName()
+			)
 		);
 	}
 
