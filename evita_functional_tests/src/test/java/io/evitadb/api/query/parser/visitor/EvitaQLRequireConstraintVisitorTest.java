@@ -350,6 +350,15 @@ class EvitaQLRequireConstraintVisitorTest {
 		final RequireConstraint constraint1 = parseRequireConstraint("referenceContent('a')");
 		assertEquals(referenceContent("a"), constraint1);
 
+		final RequireConstraint constraint1a = parseRequireConstraint("referenceContentWithAttributes('a', attributeContent('order'))");
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				attributeContent("order")
+			),
+			constraint1a
+		);
+
 		final RequireConstraint constraint2 = parseRequireConstraint("referenceContent('a','b','c')");
 		assertEquals(referenceContent("a", "b", "c"), constraint2);
 
