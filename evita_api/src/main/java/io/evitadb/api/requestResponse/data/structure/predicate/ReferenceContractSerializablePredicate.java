@@ -223,16 +223,25 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 			requiredReferences.putAll(this.referenceSet);
 			for (Entry<String, RequirementContext> newEntry : referenceEntityFetch.entrySet()) {
 				final AttributeRequest existingAttributeRequest = requiredReferences.get(newEntry.getKey());
+				final AttributeRequest newAttributeRequest = newEntry.getValue().attributeRequest();
 				if (existingAttributeRequest == null) {
-					requiredReferences.put(newEntry.getKey(), newEntry.getValue().attributeRequest());
+					requiredReferences.put(newEntry.getKey(), newAttributeRequest);
 				} else {
+					final AttributeRequest attributeRequest;
+					if (existingAttributeRequest.isRequiresEntityAttributes() && existingAttributeRequest.attributeSet().isEmpty()) {
+						attributeRequest = existingAttributeRequest;
+					} else if (newAttributeRequest.isRequiresEntityAttributes() && newAttributeRequest.attributeSet().isEmpty()) {
+						attributeRequest = newAttributeRequest;
+					} else {
+						attributeRequest = new AttributeRequest(
+							CollectionUtils.combine(existingAttributeRequest.attributeSet(), newAttributeRequest.attributeSet()),
+							existingAttributeRequest.isRequiresEntityAttributes() ||
+								newAttributeRequest.isRequiresEntityAttributes()
+						);
+					}
 					requiredReferences.put(
 						newEntry.getKey(),
-						new AttributeRequest(
-							CollectionUtils.combine(existingAttributeRequest.attributeSet(), newEntry.getValue().attributeRequest().attributeSet()),
-							existingAttributeRequest.isRequiresEntityAttributes() ||
-								newEntry.getValue().attributeRequest().isRequiresEntityAttributes()
-						)
+						attributeRequest
 					);
 				}
 			}
