@@ -18,7 +18,11 @@ POST /rest/evita/product/query
       "attributeContent" : [
         "code"
       ],
-      "referenceCategoriesContent" : { }
+      "referenceCategoriesContentWithAttributes" : {
+        "attributeContent" : [
+          "orderInCategory"
+        ]
+      }
     }
   }
 }
