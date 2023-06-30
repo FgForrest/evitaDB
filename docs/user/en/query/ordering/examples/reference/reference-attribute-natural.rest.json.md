@@ -14,11 +14,7 @@
           }
         },
         "brand" : {
-          "referencedPrimaryKey" : 113036,
-          "attributes" : {
-            "orderInBrand" : 0,
-            "relatedBreadCrumbOrder" : 2
-          }
+          "referencedPrimaryKey" : 113036
         }
       },
       {
@@ -33,11 +29,7 @@
           }
         },
         "brand" : {
-          "referencedPrimaryKey" : 113036,
-          "attributes" : {
-            "orderInBrand" : 0,
-            "relatedBreadCrumbOrder" : 2
-          }
+          "referencedPrimaryKey" : 113036
         }
       },
       {
@@ -52,11 +44,7 @@
           }
         },
         "brand" : {
-          "referencedPrimaryKey" : 113036,
-          "attributes" : {
-            "orderInBrand" : 0,
-            "relatedBreadCrumbOrder" : 2
-          }
+          "referencedPrimaryKey" : 113036
         }
       },
       {
@@ -71,11 +59,7 @@
           }
         },
         "brand" : {
-          "referencedPrimaryKey" : 113036,
-          "attributes" : {
-            "orderInBrand" : 0,
-            "relatedBreadCrumbOrder" : 2
-          }
+          "referencedPrimaryKey" : 113036
         }
       },
       {
@@ -90,11 +74,7 @@
           }
         },
         "brand" : {
-          "referencedPrimaryKey" : 113036,
-          "attributes" : {
-            "orderInBrand" : 0,
-            "relatedBreadCrumbOrder" : 2
-          }
+          "referencedPrimaryKey" : 113036
         }
       },
       {
@@ -109,11 +89,7 @@
           }
         },
         "brand" : {
-          "referencedPrimaryKey" : 113036,
-          "attributes" : {
-            "orderInBrand" : 0,
-            "relatedBreadCrumbOrder" : 2
-          }
+          "referencedPrimaryKey" : 113036
         }
       },
       {
@@ -128,11 +104,7 @@
           }
         },
         "brand" : {
-          "referencedPrimaryKey" : 113036,
-          "attributes" : {
-            "orderInBrand" : 0,
-            "relatedBreadCrumbOrder" : 2
-          }
+          "referencedPrimaryKey" : 113036
         }
       }
     ],

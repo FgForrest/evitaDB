@@ -31,9 +31,6 @@
             "groupEntity" : {
               "primaryKey" : 114008,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -53,9 +50,6 @@
             "groupEntity" : {
               "primaryKey" : 114009,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -75,9 +69,6 @@
             "groupEntity" : {
               "primaryKey" : 107860,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -97,9 +88,6 @@
             "groupEntity" : {
               "primaryKey" : 114010,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -119,9 +107,6 @@
             "groupEntity" : {
               "primaryKey" : 67915,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -141,9 +126,6 @@
             "groupEntity" : {
               "primaryKey" : 107855,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -163,9 +145,6 @@
             "groupEntity" : {
               "primaryKey" : 66514,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -185,9 +164,6 @@
             "groupEntity" : {
               "primaryKey" : 66526,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -207,9 +183,6 @@
             "groupEntity" : {
               "primaryKey" : 66526,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -229,9 +202,6 @@
             "groupEntity" : {
               "primaryKey" : 107859,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -251,9 +221,6 @@
             "groupEntity" : {
               "primaryKey" : 66528,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -273,9 +240,6 @@
             "groupEntity" : {
               "primaryKey" : 67913,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -295,9 +259,6 @@
             "groupEntity" : {
               "primaryKey" : 107858,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -317,9 +278,6 @@
             "groupEntity" : {
               "primaryKey" : 107858,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -339,9 +297,6 @@
             "groupEntity" : {
               "primaryKey" : 107858,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -361,9 +316,6 @@
             "groupEntity" : {
               "primaryKey" : 107858,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -383,9 +335,6 @@
             "groupEntity" : {
               "primaryKey" : 107858,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -405,9 +354,6 @@
             "groupEntity" : {
               "primaryKey" : 107858,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -427,9 +373,6 @@
             "groupEntity" : {
               "primaryKey" : 107858,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -449,9 +392,6 @@
             "groupEntity" : {
               "primaryKey" : 107858,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -471,9 +411,6 @@
             "groupEntity" : {
               "primaryKey" : 107858,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -493,9 +430,6 @@
             "groupEntity" : {
               "primaryKey" : 107858,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -515,9 +449,6 @@
             "groupEntity" : {
               "primaryKey" : 107858,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -537,9 +468,6 @@
             "groupEntity" : {
               "primaryKey" : 66518,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -559,9 +487,6 @@
             "groupEntity" : {
               "primaryKey" : 66517,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -581,9 +506,6 @@
             "groupEntity" : {
               "primaryKey" : 66533,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -603,9 +525,6 @@
             "groupEntity" : {
               "primaryKey" : 66532,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           },
           {
@@ -625,9 +544,6 @@
             "groupEntity" : {
               "primaryKey" : 67917,
               "type" : "Parameter"
-            },
-            "attributes" : {
-              "variant" : false
             }
           }
         ]
