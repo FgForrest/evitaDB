@@ -93,7 +93,7 @@ involves ordering by a property on a reference attribute? Is it wise to allow su
 
 We decided to allow it and bind it with the following rules:
 
-<Note type="warning">
+<Note type="warn">
 
 <NoteTitle toggles="true">
 
