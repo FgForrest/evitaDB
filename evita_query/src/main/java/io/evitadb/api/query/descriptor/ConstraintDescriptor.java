@@ -69,7 +69,7 @@ public record ConstraintDescriptor(@Nonnull Class<?> constraintClass,
 								   @Nonnull String shortDescription,
 								   @Nonnull Set<ConstraintDomain> supportedIn,
 	                               @Nullable SupportedValues supportedValues,
-	                               @Nonnull ConstraintCreator creator) {
+	                               @Nonnull ConstraintCreator creator) implements Comparable<ConstraintDescriptor> {
 
 	private static final Pattern NAME_PATTERN = Pattern.compile("^[a-z][a-zA-Z]*$");
 
@@ -124,6 +124,37 @@ public record ConstraintDescriptor(@Nonnull Class<?> constraintClass,
 	public int hashCode() {
 		// lombok cannot generate equals and hash code for records
 		return Objects.hash(type, propertyType, fullName, creator.hasClassifierParameter(), creator.hasImplicitClassifier());
+	}
+
+	@Override
+	public int compareTo(@Nonnull ConstraintDescriptor o) {
+		int result = type().compareTo(o.type());
+		if (result == 0) {
+			result = propertyType().compareTo(o.propertyType());
+		}
+		if (result == 0) {
+			result = fullName().compareTo(o.fullName());
+		}
+		if (result == 0) {
+			result = Boolean.compare(creator().hasClassifier(), o.creator().hasClassifier());
+			if (result == 0 && !creator().hasClassifier()) {
+				// if neither creator has classifier, they are equal
+				return 0;
+			}
+			if (creator().hasClassifier() && o.creator().hasClassifier()) {
+				// if both creators have some kind of classifier, compare the types of the classifiers
+				if (creator().hasImplicitClassifier() == o.creator().hasImplicitClassifier() &&
+					creator().hasClassifierParameter() == o.creator().hasClassifierParameter()) {
+					return 0;
+				}
+				if (creator().hasImplicitClassifier() && o.creator().hasClassifierParameter()) {
+					return -1;
+				}
+				return 1;
+			}
+			return result;
+		}
+		return result;
 	}
 
 

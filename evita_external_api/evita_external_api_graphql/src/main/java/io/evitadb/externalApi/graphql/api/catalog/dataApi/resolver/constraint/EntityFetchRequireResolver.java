@@ -29,11 +29,13 @@ import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AssociatedDataFieldHeaderDescriptor;
@@ -151,7 +153,7 @@ public class EntityFetchRequireResolver {
 	}
 
 	private boolean needsAttributes(@Nonnull SelectionSetWrapper selectionSetWrapper) {
-		return selectionSetWrapper.contains(GraphQLEntityDescriptor.ATTRIBUTES.name());
+		return selectionSetWrapper.contains(AttributesProviderDescriptor.ATTRIBUTES.name());
 	}
 
 	private boolean needsAssociatedData(@Nonnull SelectionSetWrapper selectionSetWrapper) {
@@ -208,24 +210,21 @@ public class EntityFetchRequireResolver {
 
 	@Nonnull
 	private Optional<AttributeContent> resolveAttributeContent(@Nonnull SelectionSetWrapper selectionSetWrapper,
-	                                                           @Nonnull EntitySchemaContract currentEntitySchema) {
+	                                                           @Nonnull AttributeSchemaProvider<?> attributeSchemaProvider) {
 		if (!needsAttributes(selectionSetWrapper)) {
 			return Optional.empty();
 		}
 
-		final String[] neededAttributes = selectionSetWrapper.getFields(GraphQLEntityDescriptor.ATTRIBUTES.name())
+		final String[] neededAttributes = selectionSetWrapper.getFields(AttributesProviderDescriptor.ATTRIBUTES.name())
 			.stream()
 			.flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
-			.map(f -> currentEntitySchema.getAttributeByName(f.getName(), PROPERTY_NAME_NAMING_CONVENTION))
+			.map(f -> attributeSchemaProvider.getAttributeByName(f.getName(), PROPERTY_NAME_NAMING_CONVENTION))
 			.filter(Optional::isPresent)
 			.map(Optional::get)
 			.map(AttributeSchemaContract::getName)
 			.collect(Collectors.toUnmodifiableSet())
 			.toArray(String[]::new);
 
-		if (neededAttributes.length == 0) {
-			return Optional.empty();
-		}
 		return Optional.of(attributeContent(neededAttributes));
 	}
 
@@ -316,16 +315,30 @@ public class EntityFetchRequireResolver {
 				it.referenceSchema(),
 				resolveReferenceContentFilter(currentEntitySchema, it).orElse(null),
 				resolveReferenceContentOrder(currentEntitySchema, it).orElse(null),
+				resolveReferenceAttributeContent(it).orElse(null),
 				resolveReferenceEntityRequirement(desiredLocale, it).orElse(null),
 				resolveReferenceGroupRequirement(desiredLocale, it).orElse(null)
 			))
-			.map(it -> referenceContent(
-				it.referenceSchema().getName(),
-				it.filterBy(),
-				it.orderBy(),
-				it.entityRequirement(),
-				it.groupRequirement()
-			))
+			.map(it -> {
+				if (it.attributeContent() != null) {
+					return referenceContentWithAttributes(
+						it.referenceSchema().getName(),
+						it.filterBy(),
+						it.orderBy(),
+						it.attributeContent(),
+						it.entityRequirement(),
+						it.groupRequirement()
+					);
+				} else {
+					return referenceContent(
+						it.referenceSchema().getName(),
+						it.filterBy(),
+						it.orderBy(),
+						it.entityRequirement(),
+						it.groupRequirement()
+					);
+				}
+			})
 			.toList();
 	}
 
@@ -373,6 +386,32 @@ public class EntityFetchRequireResolver {
 				fieldsForReferenceHolder.fields().get(0).getArguments().get(ReferenceFieldHeaderDescriptor.ORDER_BY.name())
 			)
 		);
+	}
+
+	@Nonnull
+	private Optional<AttributeContent> resolveReferenceAttributeContent(@Nonnull FieldsForReferenceHolder fieldsForReferenceHolder) {
+		final SelectionSetWrapper attributeFields = SelectionSetWrapper.from(
+			fieldsForReferenceHolder.fields()
+				.stream()
+				.flatMap(it -> SelectionSetWrapper.from(it.getSelectionSet()).getFields(ReferenceDescriptor.ATTRIBUTES.name()).stream())
+				.map(SelectedField::getSelectionSet)
+				.toList()
+		);
+
+		if (attributeFields.isEmpty()) {
+			return Optional.empty();
+		}
+
+		final String[] neededAttributes = attributeFields.getFields("*")
+			.stream()
+			.map(f -> fieldsForReferenceHolder.referenceSchema().getAttributeByName(f.getName(), PROPERTY_NAME_NAMING_CONVENTION))
+			.filter(Optional::isPresent)
+			.map(Optional::get)
+			.map(AttributeSchemaContract::getName)
+			.collect(Collectors.toUnmodifiableSet())
+			.toArray(String[]::new);
+
+		return Optional.of(attributeContent(neededAttributes));
 	}
 
 	@Nonnull
@@ -456,6 +495,7 @@ public class EntityFetchRequireResolver {
 	private record RequirementForReferenceHolder(@Nonnull ReferenceSchemaContract referenceSchema,
 	                                             @Nullable FilterBy filterBy,
 	                                             @Nullable OrderBy orderBy,
+												 @Nullable AttributeContent attributeContent,
 	                                             @Nullable EntityFetch entityRequirement,
 	                                             @Nullable EntityGroupFetch groupRequirement) {
 	}

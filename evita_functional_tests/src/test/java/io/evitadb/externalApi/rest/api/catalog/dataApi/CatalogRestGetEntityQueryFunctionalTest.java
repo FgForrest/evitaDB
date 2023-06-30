@@ -463,7 +463,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 			.statusCode(200)
 			.body(
 				Entities.STORE.toLowerCase(),
-				equalTo(createReferencesDto(entity, Entities.STORE, false, false))
+				equalTo(createReferencesDto(entity, Entities.STORE, false, false, null))
 			);
 	}
 

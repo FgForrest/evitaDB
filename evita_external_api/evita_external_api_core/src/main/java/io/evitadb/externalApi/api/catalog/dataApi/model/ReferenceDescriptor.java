@@ -38,7 +38,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface ReferenceDescriptor {
+public interface ReferenceDescriptor extends AttributesProviderDescriptor {
 
 	PropertyDescriptor REFERENCED_PRIMARY_KEY = PropertyDescriptor.builder()
 		.name("referencedPrimaryKey")
@@ -61,14 +61,7 @@ public interface ReferenceDescriptor {
 			""")
 		// type is expected to be a sealed entity
 		.build();
-	PropertyDescriptor ATTRIBUTES = PropertyDescriptor.builder()
-		.name("attributes")
-		.description("""
-			Attributes allows defining set of data that are fetched in bulk along with the reference.
-			Attributes may be used for fast filtering or can be used to sort along.
-			""")
-		// type is expected to be a map with attribute names as key and attribute values as values
-		.build();
+
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("*Reference")
