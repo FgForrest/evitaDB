@@ -23,7 +23,11 @@ POST /rest/evita/product/query
       "attributeContent" : [
         "code"
       ],
-      "referenceBrandContent" : { }
+      "referenceBrandContentWithAttributes" : {
+        "attributeContent" : [
+          "orderInBrand"
+        ]
+      }
     }
   }
 }

@@ -16,8 +16,7 @@
         "brand" : {
           "referencedPrimaryKey" : 113036,
           "attributes" : {
-            "orderInBrand" : 0,
-            "relatedBreadCrumbOrder" : 2
+            "orderInBrand" : 0
           }
         }
       },
@@ -35,8 +34,7 @@
         "brand" : {
           "referencedPrimaryKey" : 113036,
           "attributes" : {
-            "orderInBrand" : 0,
-            "relatedBreadCrumbOrder" : 2
+            "orderInBrand" : 0
           }
         }
       },
@@ -54,8 +52,7 @@
         "brand" : {
           "referencedPrimaryKey" : 113036,
           "attributes" : {
-            "orderInBrand" : 0,
-            "relatedBreadCrumbOrder" : 2
+            "orderInBrand" : 0
           }
         }
       },
@@ -73,8 +70,7 @@
         "brand" : {
           "referencedPrimaryKey" : 113036,
           "attributes" : {
-            "orderInBrand" : 0,
-            "relatedBreadCrumbOrder" : 2
+            "orderInBrand" : 0
           }
         }
       },
@@ -92,8 +88,7 @@
         "brand" : {
           "referencedPrimaryKey" : 113036,
           "attributes" : {
-            "orderInBrand" : 0,
-            "relatedBreadCrumbOrder" : 2
+            "orderInBrand" : 0
           }
         }
       },
@@ -111,8 +106,7 @@
         "brand" : {
           "referencedPrimaryKey" : 113036,
           "attributes" : {
-            "orderInBrand" : 0,
-            "relatedBreadCrumbOrder" : 2
+            "orderInBrand" : 0
           }
         }
       },
@@ -130,8 +124,7 @@
         "brand" : {
           "referencedPrimaryKey" : 113036,
           "attributes" : {
-            "orderInBrand" : 0,
-            "relatedBreadCrumbOrder" : 2
+            "orderInBrand" : 0
           }
         }
       }
