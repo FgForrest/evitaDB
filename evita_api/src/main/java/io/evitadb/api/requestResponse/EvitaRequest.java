@@ -851,7 +851,8 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * Attribute request DTO contains information about all attribute names that has been requested for the particular
+	 * reference.
 	 *
 	 * @param attributeSet             Contains information about all attribute names that has been fetched / requested for the entity.
 	 * @param requiresEntityAttributes Contains true if any of the attributes of the entity has been fetched / requested.
@@ -861,11 +862,11 @@ public class EvitaRequest {
 		@Getter boolean requiresEntityAttributes
 	) implements Serializable {
 		/**
-		 * TODO JNO - document me
+		 * Represents a request for no attributes to be fetched.
 		 */
 		public static final AttributeRequest EMPTY = new AttributeRequest(Collections.emptySet(), false);
 		/**
-		 * TODO JNO - document me
+		 * Represents a request for all attributes to be fetched.
 		 */
 		public static final AttributeRequest FULL = new AttributeRequest(Collections.emptySet(), true);
 	}
