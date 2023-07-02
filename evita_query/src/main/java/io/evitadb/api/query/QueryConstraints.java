@@ -27,6 +27,7 @@ import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.head.Collection;
 import io.evitadb.api.query.order.*;
 import io.evitadb.api.query.require.*;
+import io.evitadb.dataType.Range;
 import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
@@ -1373,26 +1374,36 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `language` is query accepts single {@link Locale} argument.
+	 * If any filter constraint of the query targets a localized attribute, the `entityLocaleEquals` must also be provided,
+	 * otherwise the query interpreter will return an error. Localized attributes must be identified by both their name and
+	 * {@link Locale} in order to be used.
 	 * 
-	 * Function returns true if entity has at least one localized attribute or associated data that  targets specified locale.
+	 * Only a single occurrence of entityLocaleEquals is allowed in the filter part of the query. Currently, there is no way
+	 * to switch context between different parts of the filter and build queries such as find a product whose name in en-US
+	 * is "screwdriver" or in cs is "šroubovák".
 	 * 
-	 * If require part of the query doesn't contain {@link DataInLocales} requirement that
-	 * would specify the requested data localization, this filtering query implicitly sets requirement to the passed
-	 * language argument. In other words if entity has two localizations: `en-US` and `cs-CZ` and `language('cs-CZ')` is
-	 * used in query, returned entity would have only Czech localization of attributes and associated data fetched along
-	 * with it (and also attributes that are locale agnostic).
-	 * 
-	 * If query contains no language query filtering logic is applied only on "global" (i.e. language agnostic)
-	 * attributes.
-	 * 
-	 * Only single `language` query can be used in the query.
+	 * Also, it's not possible to omit the language specification for a localized attribute and ask questions like: find
+	 * a product whose name in any language is "screwdriver".
 	 * 
 	 * Example:
 	 * 
-	 * ```
-	 * language('en-US')
-	 * ```
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'vouchers-for-shareholders')
+	 *         ),
+	 *         entityLocaleEquals('en')
+	 *     ),
+	 *     require(
+	 *        entityFetch(
+	 *            attributeContent('code', 'name')
+	 *        )
+	 *     )
+	 * )
+	 * </pre>
 	*/
 	@Nullable
 	static EntityLocaleEquals entityLocaleEquals(@Nullable Locale locale) {
@@ -1869,14 +1880,14 @@ public interface QueryConstraints {
 	 * 
 	 * Example:
 	 * 
-	 * ```
+	 * <pre>
 	 * facetSummaryOfReference(
 	 *    'parameters',
 	 *    orderGroupBy(
 	 *       attributeNatural('name', OrderDirection.ASC)
 	 *    )
 	 * )
-	 * ```
+	 * </pre>
 	*/
 	@Nullable
 	static OrderGroupBy orderGroupBy(@Nullable OrderConstraint... constraints) {
@@ -2014,12 +2025,34 @@ public interface QueryConstraints {
 	 * 
 	 * Example:
 	 * 
-	 * ```
-	 * referenceAttribute(
-	 *    'brand',
-	 *    attributeNatural('brandPriority', DESC)
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         referenceHaving(
+	 *             'brand',
+	 *             entityHaving(
+	 *                 attributeEquals('code','sony')
+	 *             )
+	 *         )
+	 *     ),
+	 *     orderBy(
+	 *         referenceProperty(
+	 *             'brand',
+	 *             attributeNatural('orderInBrand', ASC)
+	 *         )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent('code'),
+	 *             referenceContentWithAttributes(
+	 *                 'brand',
+	 *                 attributeContent('orderInBrand')
+	 *             )
+	 *         )
+	 *     )
 	 * )
-	 * ```
+	 * </pre>
 	 * 
 	 * **The `referenceProperty` is implicit in requirement `referenceContent`**
 	 * 
@@ -2075,14 +2108,30 @@ public interface QueryConstraints {
 	 * 
 	 * Example:
 	 * 
-	 * ```
-	 * referenceContent(
-	 *    'parameters',
-	 *    entityProperty(
-	 *       attributeNatural('priority', DESC)
-	 *    )
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         attributeEquals('code', 'garmin-vivoactive-4')
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent('code'),
+	 *             referenceContent(
+	 *                 'parameterValues',
+	 *                 orderBy(
+	 *                     entityProperty(
+	 *                         attributeNatural('code', DESC)
+	 *                     )
+	 *                 ),
+	 *                 entityFetch(
+	 *                     attributeContent('code')
+	 *                 )
+	 *             )
+	 *         )
+	 *     )
 	 * )
-	 * ```
+	 * </pre>
 	*/
 	@Nullable
 	static EntityProperty entityProperty(@Nullable OrderConstraint... constraints) {
@@ -2101,10 +2150,19 @@ public interface QueryConstraints {
 	 * 
 	 * Example:
 	 * 
-	 * ```
-	 * attributeNatural('married')
-	 * attributeNatural('age', ASC)
-	 * ```
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     orderBy(
+	 *         attributeNatural('orderedQuantity', DESC)
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent('code', 'orderedQuantity')
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
 	 * 
 	 * If you want to sort products by their name, which is a localized attribute, you need to specify the {@link EntityLocaleEquals}
 	 * constraint in the {@link FilterBy} part of the query. The correct {@link java.text.Collator} is used to
@@ -2136,10 +2194,19 @@ public interface QueryConstraints {
 	 * 
 	 * Example:
 	 * 
-	 * ```
-	 * attributeNatural('married')
-	 * attributeNatural('age', ASC)
-	 * ```
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     orderBy(
+	 *         attributeNatural('orderedQuantity', DESC)
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent('code', 'orderedQuantity')
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
 	 * 
 	 * If you want to sort products by their name, which is a localized attribute, you need to specify the {@link EntityLocaleEquals}
 	 * constraint in the {@link FilterBy} part of the query. The correct {@link java.text.Collator} is used to
@@ -2203,9 +2270,9 @@ public interface QueryConstraints {
 	 * 
 	 * Example:
 	 * 
-	 * ```
+	 * <pre>
 	 * random()
-	 * ```
+	 * </pre>
 	*/
 	@Nonnull
 	static Random random() {
@@ -4342,9 +4409,7 @@ public interface QueryConstraints {
 	*/
 	@Nonnull
 	static ReferenceContent referenceContentAll() {
-		return new ReferenceContent(
-			attributeContentAll()
-		);
+		return new ReferenceContent();
 	}
 
 	/**
@@ -4384,7 +4449,7 @@ public interface QueryConstraints {
 	 * ```
 	*/
 	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable String attributeNames) {
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable String... attributeNames) {
 		return new ReferenceContent(
 			referencedEntityType, null, null,
 			attributeContent(attributeNames), null, null
@@ -5140,7 +5205,7 @@ public interface QueryConstraints {
 	static ReferenceContent referenceContentAll(@Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent(
 			null,  null, null,
-			attributeContentAll(), entityRequirement, null
+			null, entityRequirement, null
 		);
 	}
 
@@ -5162,7 +5227,7 @@ public interface QueryConstraints {
 	static ReferenceContent referenceContentAll(@Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(
 			null,  null, null,
-			attributeContentAll(), null, groupEntityRequirement
+			null, null, groupEntityRequirement
 		);
 	}
 
@@ -5184,7 +5249,7 @@ public interface QueryConstraints {
 	static ReferenceContent referenceContentAll(@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(
 			null,  null, null,
-			attributeContentAll(), entityRequirement, groupEntityRequirement
+			null, entityRequirement, groupEntityRequirement
 		);
 	}
 

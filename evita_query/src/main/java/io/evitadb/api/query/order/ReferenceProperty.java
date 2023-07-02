@@ -46,12 +46,34 @@ import java.io.Serializable;
  *
  * Example:
  *
- * ```
- * referenceAttribute(
- *    'brand',
- *    attributeNatural('brandPriority', DESC)
+ * <pre>
+ * query(
+ *     collection('Product'),
+ *     filterBy(
+ *         referenceHaving(
+ *             'brand',
+ *             entityHaving(
+ *                 attributeEquals('code','sony')
+ *             )
+ *         )
+ *     ),
+ *     orderBy(
+ *         referenceProperty(
+ *             'brand',
+ *             attributeNatural('orderInBrand', ASC)
+ *         )
+ *     ),
+ *     require(
+ *         entityFetch(
+ *             attributeContent('code'),
+ *             referenceContentWithAttributes(
+ *                 'brand',
+ *                 attributeContent('orderInBrand')
+ *             )
+ *         )
+ *     )
  * )
- * ```
+ * </pre>
  *
  * **The `referenceProperty` is implicit in requirement `referenceContent`**
  *

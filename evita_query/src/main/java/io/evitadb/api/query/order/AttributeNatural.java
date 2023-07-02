@@ -47,10 +47,19 @@ import java.io.Serializable;
  *
  * Example:
  *
- * ```
- * attributeNatural('married')
- * attributeNatural('age', ASC)
- * ```
+ * <pre>
+ * query(
+ *     collection('Product'),
+ *     orderBy(
+ *         attributeNatural('orderedQuantity', DESC)
+ *     ),
+ *     require(
+ *         entityFetch(
+ *             attributeContent('code', 'orderedQuantity')
+ *         )
+ *     )
+ * )
+ * </pre>
  *
  * If you want to sort products by their name, which is a localized attribute, you need to specify the {@link EntityLocaleEquals}
  * constraint in the {@link FilterBy} part of the query. The correct {@link java.text.Collator} is used to
