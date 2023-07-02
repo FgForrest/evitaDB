@@ -39,7 +39,46 @@ import java.util.Arrays;
 import java.util.EnumSet;
 
 /**
- * TOBEDONE JNO: docs
+ * The statistics constraint allows you to retrieve statistics about the hierarchy nodes that are returned by the
+ * current query. When used it triggers computation of the queriedEntityCount, childrenCount statistics, or both for
+ * each hierarchy node in the returned hierarchy tree.
+ *
+ * It requires mandatory argument of type {@link StatisticsType} enum that specifies which statistics to compute:
+ *
+ * - {@link StatisticsType#CHILDREN_COUNT}: triggers calculation of the count of child hierarchy nodes that exist in
+ *   the hierarchy tree below the given node; the count is correct regardless of whether the children themselves are
+ *   requested/traversed by the constraint definition, and respects hierarchyOfReference settings for automatic removal
+ *   of hierarchy nodes that would contain empty result set of queried entities ({@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY})
+ * - {@link StatisticsType#QUERIED_ENTITY_COUNT}: triggers the calculation of the total number of queried entities that
+ *   will be returned if the current query is focused on this particular hierarchy node using the hierarchyWithin filter
+ *   constraint (the possible refining constraint in the form of directRelation and excluding-root is not taken into
+ *   account).
+ *
+ * And optional argument of type {@link StatisticsBase} enum allowing you to specify the base queried entity set that
+ * is the source for statistics calculations:
+ *
+ * - {@link StatisticsBase#COMPLETE_FILTER}: complete filtering query constraint
+ * - {@link StatisticsBase#WITHOUT_USER_FILTER}: filtering query constraint where the contents of optional userFilter
+ *    are ignored
+ *
+ * The calculation always ignores hierarchyWithin because the focused part of the hierarchy tree is defined on
+ * the requirement constraint level, but including having/excluding constraints. The having/excluding constraints are
+ * crucial for the calculation of queriedEntityCount (and therefore also affects the value of childrenCount
+ * transitively).
+ *
+ * <strong>Computational complexity of statistical data calculation</strong>
+ *
+ * The performance price paid for calculating statistics is not negligible. The calculation of {@link StatisticsType#CHILDREN_COUNT}
+ * is cheaper because it allows to eliminate "dead branches" early and thus conserve the computation cycles.
+ * The calculation of the {@link StatisticsType#QUERIED_ENTITY_COUNT} is more expensive because it requires counting
+ * items up to the last one and must be precise.
+ *
+ * We strongly recommend that you avoid using {@link StatisticsType#QUERIED_ENTITY_COUNT} for root hierarchy nodes for
+ * large datasets.
+ *
+ * This query actually has to filter and aggregate all the records in the database, which is obviously quite expensive,
+ * even considering that all the indexes are in-memory. Caching is probably the only way out if you really need
+ * to crunch these numbers.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
