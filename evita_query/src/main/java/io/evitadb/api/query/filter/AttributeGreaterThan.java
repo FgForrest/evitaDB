@@ -37,8 +37,7 @@ import java.io.Serializable;
 
 /**
  * This `greaterThan` is query that compares value of the attribute with name passed in first argument with the value passed
- * in the second argument. First argument must be {@link String},
- * second argument may be any of {@link Comparable} type.
+ * in the second argument. First argument must be {@link String}, second argument may be any of {@link Comparable} type.
  * Type of the attribute value and second argument must be convertible one to another otherwise `greaterThan` function
  * returns false.
  *
@@ -49,9 +48,9 @@ import java.io.Serializable;
  *
  * Example:
  *
- * ```
+ * <pre>
  * greaterThan('age', 20)
- * ```
+ * </pre>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

@@ -100,6 +100,10 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		super(referenceName, attributeContent);
 	}
 
+	public ReferenceContent(@Nullable AttributeContent attributeContent) {
+		super(attributeContent);
+	}
+
 	public ReferenceContent(@Nonnull String[] referenceNames,
 							@Nullable EntityFetch entityRequirement,
 	                        @Nullable EntityGroupFetch groupEntityRequirement) {

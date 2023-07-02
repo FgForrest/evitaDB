@@ -37,23 +37,20 @@ import java.io.Serializable;
 
 /**
  * This `lessThan` is query that compares value of the attribute with name passed in first argument with the value passed
- * in the second argument. First argument must be {@link String},
- * second argument may be any of {@link Comparable} type.
+ * in the second argument. First argument must be {@link String}, second argument may be any of {@link Comparable} type.
  * Type of the attribute value and second argument must be convertible one to another otherwise `lessThan` function
  * returns false.
  *
- * Function returns true if value in a filterable attribute of such a name is lesser than value in second argument.
+ * Function returns true if value in a filterable attribute of such a name is less than value in second argument.
  *
  * Function currently doesn't support attribute arrays and when attribute is of array type. Query returns error when this
  * query is used in combination with array type attribute. This may however change in the future.
  *
  * Example:
  *
- * ```
+ * <pre>
  * lessThan('age', 20)
- * ```
- *
- * TOBEDONE JNO - rename to "lesserThan"
+ * </pre>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

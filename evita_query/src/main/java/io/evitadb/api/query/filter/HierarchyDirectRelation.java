@@ -33,110 +33,58 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This query can be used only as sub query of `withinHierarchy` or `withinRootHierarchy`.
- * If you use `directRelation` sub-query fetching products related to category - only products that are directly
- * related to that category will be returned in the response.
+ * The constraint `directRelation` is a constraint that can only be used within {@link HierarchyWithin} or
+ * {@link HierarchyWithinRoot} parent constraints. It simply makes no sense anywhere else because it changes the default
+ * behavior of those constraints. Hierarchy constraints return all hierarchy children of the parent node or entities
+ * that are transitively or directly related to them and the parent node itself. If the directRelation is used as
+ * a sub-constraint, this behavior changes and only direct descendants or directly referencing entities are matched.
  *
- * Let's have the following category tree:
+ * If the hierarchy constraint targets the hierarchy entity, the `directRelation` will cause only the children of
+ * a direct parent node to be returned. In the case of the hierarchyWithinRoot constraint, the parent is an invisible
+ * "virtual" top root - so only the top-level categories are returned.
  *
- * - TV (1)
- *     - Crt (2)
- *     - LCD (3)
- *        - AMOLED (4)
- *
- * These categories are related by following products:
- *
- * - TV (1):
- *     - Product Philips 32"
- *     - Product Samsung 24"
- *     - Crt (2):
- *         - Product Ilyiama 15"
- *         - Product Panasonic 17"
- *     - LCD (3):
- *         - Product BenQ 32"
- *         - Product LG 28"
- *         - AMOLED (4):
- *             - Product Samsung 32"
- *
- * When using this query:
- *
- * ```
+ * <pre>
  * query(
- *    entities('PRODUCT'),
- *    filterBy(
- *       withinHierarchy('CATEGORY', 1)
- *    )
+ *     collection('Category'),
+ *     filterBy(
+ *         hierarchyWithinRootSelf(
+ *             directRelation()
+ *         )
+ *     ),
+ *     require(
+ *         entityFetch(
+ *             attributeContent('code')
+ *         )
+ *     )
  * )
- * ```
+ * </pre>
  *
- * All products will be returned.
+ * If the hierarchy constraint targets a non-hierarchical entity that references the hierarchical one (typical example
+ * is a product assigned to a category), it can only be used in the hierarchyWithin parent constraint.
  *
- * When this query is used:
+ * In the case of {@link HierarchyWithinRoot}, the `directRelation` constraint makes no sense because no entity can be
+ * assigned to a "virtual" top parent root.
  *
- * ```
+ * So we can only list products that are directly related to a certain category. We can list products that have
+ * Smartwatches category assigned:
+ *
+ * <pre>
  * query(
- *    entities('PRODUCT'),
- *    filterBy(
- *       withinHierarchy('CATEGORY', 1, directRelation())
- *    )
+ *     collection('Product'),
+ *     filterBy(
+ *         hierarchyWithin(
+ *             'categories',
+ *             attributeEquals('code', 'smartwatches'),
+ *             directRelation()
+ *         )
+ *     ),
+ *     require(
+ *         entityFetch(
+ *             attributeContent('code')
+ *         )
+ *     )
  * )
- * ```
- *
- * Only products directly related to TV category will be returned - i.e.: Philips 32" and Samsung 24". Products related
- * to sub-categories of TV category will be omitted.
- *
- * You can also use this hint to browse the hierarchy of the entity itself - to fetch subcategories of category.
- * If you use this query:
- *
- * ```
- * query(
- *    entities('CATEGORY'),
- *    filterBy(
- *       withinHierarchy(1)
- *    )
- * )
- * ```
- *
- * All categories under the category subtree of `TV (1)` will be listed (this means categories `TV`, `Crt`, `LCD`, `AMOLED`).
- * If you use this query:
- *
- * ```
- * query(
- *    entities('CATEGORY'),
- *    filterBy(
- *       withinHierarchy(1, directRelation())
- *    )
- * )
- * ```
- *
- * Only direct sub-categories of category `TV (1)` will be listed (this means categories `Crt` and `LCD`).
- * You can also use this hint with query `withinRootHierarchy`:
- *
- * ```
- * query(
- *    entities('CATEGORY'),
- *    filterBy(
- *       withinRootHierarchy()
- *    )
- * )
- * ```
- *
- * All categories in entire tree will be listed.
- *
- * When using this query:
- *
- * ```
- * query(
- *    entities('CATEGORY'),
- *    filterBy(
- *       withinHierarchy(directRelation())
- *    )
- * )
- * ```
- *
- * Which would return only category `TV (1)`.
- *
- * As you can see {@link HierarchyExcludingRoot} and {@link HierarchyDirectRelation} are mutually exclusive.
+ * </pre>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
