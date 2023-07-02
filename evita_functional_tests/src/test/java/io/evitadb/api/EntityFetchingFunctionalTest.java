@@ -1452,6 +1452,49 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 		);
 	}
 
+	@DisplayName("Multiple entities with specific references with all attributes (default behaviour) can be retrieved")
+	@UseDataSet(FIFTY_PRODUCTS)
+	@Test
+	void shouldRetrieveMultipleEntitiesWithSpecificReferencesByPrimaryKeyWithAllAttributesDefault(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> !it.getReferences(Entities.CATEGORY).isEmpty() && !it.getReferences(Entities.STORE).isEmpty()
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(entitiesMatchingTheRequirements)
+						),
+						require(
+							entityFetch(
+								referenceContentWithAttributes(Entities.CATEGORY)
+							),
+							page(1, 4)
+						)
+					)
+				);
+
+				assertEquals(4, productByPk.getRecordData().size());
+				assertEquals(entitiesMatchingTheRequirements.length, productByPk.getTotalRecordCount());
+
+				for (SealedEntity product : productByPk.getRecordData()) {
+					assertFalse(product.getReferences(Entities.CATEGORY).isEmpty());
+					for (ReferenceContract categoryRef : product.getReferences(Entities.CATEGORY)) {
+						assertEquals(2, categoryRef.getAttributeValues().size());
+						assertNotNull(categoryRef.getAttributeValue(ATTRIBUTE_CATEGORY_PRIORITY));
+						assertNotNull(categoryRef.getAttributeValue(ATTRIBUTE_CATEGORY_SHADOW));
+					}
+				}
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Multiple entities with references by their primary keys should be found")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
