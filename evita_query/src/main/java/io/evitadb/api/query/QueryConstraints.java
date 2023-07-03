@@ -5961,12 +5961,30 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * TOBEDONE JNO docs
+	 * Requirement returns a `entityFetch` requirement filled with content requirements that fully load the entity
+	 * including all language specific attributes, all prices, all references and all associated data. The references
+	 * don't have initialized the referenced entity / group bodies but only the reference with attributes itself.
 	*/
 	@Nonnull
 	static EntityFetch entityFetchAll() {
 		return entityFetch(
-			attributeContentAll(), hierarchyContent(), associatedDataContentAll(), priceContentAll(), referenceContentAllWithAttributes(), dataInLocales()
+			attributeContentAll(), hierarchyContent(),
+			associatedDataContentAll(), priceContentAll(),
+			referenceContentAllWithAttributes(), dataInLocales()
+		);
+	}
+
+	/**
+	 * Requirement returns a `entityGroupFetch` requirement filled with content requirements that fully load the entity
+	 * including all language specific attributes, all prices, all references and all associated data. The references
+	 * don't have initialized the referenced entity / group bodies but only the reference with attributes itself.
+	 */
+	@Nonnull
+	static EntityGroupFetch entityGroupFetchAll() {
+		return entityGroupFetch(
+			attributeContentAll(), hierarchyContent(),
+			associatedDataContentAll(), priceContentAll(),
+			referenceContentAllWithAttributes(), dataInLocales()
 		);
 	}
 
