@@ -28,6 +28,7 @@ import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordsLookupResult;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.array.CompositeIntArray;
 import io.evitadb.index.array.CompositeObjectArray;
 import io.evitadb.index.bitmap.Bitmap;
@@ -48,7 +49,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
+
+import static java.util.Optional.*;
 
 /**
  * Filtered price records provide access to {@link PriceRecord price records} that are involved in formula entity id
@@ -87,14 +91,6 @@ public interface FilteredPriceRecords extends Serializable {
 			.map(it -> it instanceof NonResolvedFilteredPriceRecords ? ((NonResolvedFilteredPriceRecords) it).toResolvedFilteredPriceRecords() : it)
 			.toList();
 
-		final boolean allResolved = filteredPriceRecords.stream().allMatch(ResolvedFilteredPriceRecords.class::isInstance);
-		final boolean allLazy = filteredPriceRecords.stream().allMatch(LazyEvaluatedEntityPriceRecords.class::isInstance);
-		Assert.isPremiseValid(
-			allResolved || allLazy,
-			"FilteredPriceRecords that mix price records and lookups to price indexes cannot be combined! " +
-				"This would lead to error states where invalid prices (with validity span) would get involved even if they should not!"
-		);
-
 		// there are no filtered price accessors or narrowed bitmap produces no output
 		if (filteredPriceRecords.isEmpty() || (narrowToEntityIds != null && narrowToEntityIds.isEmpty())) {
 			return new ResolvedFilteredPriceRecords();
@@ -102,56 +98,117 @@ public interface FilteredPriceRecords extends Serializable {
 		} else if (filteredPriceRecords.size() == 1 && narrowToEntityIds == null) {
 			return filteredPriceRecords.get(0);
 			// all price records are resolved
-		} else if (allResolved) {
+		} else {
+			final Optional<LazyEvaluatedEntityPriceRecords> lazyEvaluatedEntityPriceRecords = getLazyEvaluatedEntityPriceRecords(filteredPriceRecordAccessors);
+			final Optional<ResolvedFilteredPriceRecords> resolvedFilteredPriceRecords;
 			if (narrowToEntityIds == null) {
 				// and no filtering is known (all contents combined should be returned)
-				return new ResolvedFilteredPriceRecords(
-					ArrayUtils.mergeArrays(
-						filteredPriceRecords.stream()
-							.map(ResolvedFilteredPriceRecords.class::cast)
-							.map(ResolvedFilteredPriceRecords::getPriceRecords)
-							.toArray(PriceRecordContract[][]::new)
-					),
-					SortingForm.NOT_SORTED
-				);
+				resolvedFilteredPriceRecords = getResolvedFilteredPriceRecords(filteredPriceRecords);
 			} else {
 				// limited entity ids are known - we need to include only the prices that link to those entities
-				final BatchArrayIterator filteredPriceIdsIterator = new RoaringBitmapBatchArrayIterator(RoaringBitmapBackedBitmap.getRoaringBitmap(narrowToEntityIds).getBatchIterator());
-				final PriceRecordLookup[] priceRecordIterators = filteredPriceRecords.stream().map(FilteredPriceRecords::getPriceRecordsLookup).toArray(PriceRecordLookup[]::new);
-				final CompositeObjectArray<PriceRecordContract> narrowedPrices = new CompositeObjectArray<>(PriceRecordContract.class, false);
-				while (filteredPriceIdsIterator.hasNext()) {
-					final int[] batch = filteredPriceIdsIterator.nextBatch();
-					final int lastExpectedEntity = filteredPriceIdsIterator.getPeek() > 0 ? batch[filteredPriceIdsIterator.getPeek() - 1] : -1;
-					for (int i = 0; i < filteredPriceIdsIterator.getPeek(); i++) {
-						int narrowedPriceId = batch[i];
-						boolean anyPriceFound = false;
-						for (PriceRecordLookup it : priceRecordIterators) {
-							anyPriceFound = it.forEachPriceOfEntity(narrowedPriceId, lastExpectedEntity, narrowedPrices::add);
-							if (anyPriceFound) {
-								break;
-							}
-						}
-						Assert.isPremiseValid(
-							anyPriceFound,
-							"Entity with id " + narrowedPriceId + " has no price associated!"
-						);
-					}
-				}
-				return new ResolvedFilteredPriceRecords(
-					narrowedPrices.toArray(),
-					SortingForm.ENTITY_PK
+				resolvedFilteredPriceRecords = getNarrowedResolvedFilteredPriceRecords(
+					narrowToEntityIds, filteredPriceRecords, lazyEvaluatedEntityPriceRecords.isEmpty()
 				);
 			}
+
+			if (resolvedFilteredPriceRecords.isPresent() && lazyEvaluatedEntityPriceRecords.isEmpty()) {
+				return resolvedFilteredPriceRecords.get();
+			} else if (resolvedFilteredPriceRecords.isEmpty() && lazyEvaluatedEntityPriceRecords.isPresent()) {
+				return lazyEvaluatedEntityPriceRecords.get();
+			} else if (resolvedFilteredPriceRecords.isPresent()) {
+				return new CombinedPriceRecords(
+					resolvedFilteredPriceRecords.get(),
+					lazyEvaluatedEntityPriceRecords.get()
+				);
+			} else {
+				throw new EvitaInternalError("Both resolved and lazy price records are present!");
+			}
+		}
+	}
+
+	@Nonnull
+	private static Optional<LazyEvaluatedEntityPriceRecords> getLazyEvaluatedEntityPriceRecords(
+		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors
+	) {
+		final PriceListAndCurrencyPriceIndex[] priceIndexes = filteredPriceRecordAccessors.stream()
+			.map(FilteredPriceRecordAccessor::getFilteredPriceRecords)
+			.filter(LazyEvaluatedEntityPriceRecords.class::isInstance)
+			.map(LazyEvaluatedEntityPriceRecords.class::cast)
+			.flatMap(it -> Arrays.stream(it.getPriceIndexes()))
+			.toArray(PriceListAndCurrencyPriceIndex[]::new);
+		final Optional<LazyEvaluatedEntityPriceRecords> lazyEvaluatedEntityPriceRecords = ArrayUtils.isEmpty(priceIndexes) ?
+			empty() :
+			of(
+				new LazyEvaluatedEntityPriceRecords(
+					priceIndexes
+				)
+			);
+		return lazyEvaluatedEntityPriceRecords;
+	}
+
+	@Nonnull
+	private static Optional<ResolvedFilteredPriceRecords> getNarrowedResolvedFilteredPriceRecords(
+		@Nonnull Bitmap narrowToEntityIds,
+		@Nonnull List<FilteredPriceRecords> filteredPriceRecords,
+		boolean requirePriceFound
+	) {
+		final Optional<ResolvedFilteredPriceRecords> resolvedFilteredPriceRecords;
+		final BatchArrayIterator filteredPriceIdsIterator = new RoaringBitmapBatchArrayIterator(RoaringBitmapBackedBitmap.getRoaringBitmap(narrowToEntityIds).getBatchIterator());
+		final PriceRecordLookup[] priceRecordIterators = filteredPriceRecords.stream()
+			.filter(ResolvedFilteredPriceRecords.class::isInstance)
+			.map(FilteredPriceRecords::getPriceRecordsLookup)
+			.toArray(PriceRecordLookup[]::new);
+		if (ArrayUtils.isEmpty(priceRecordIterators)) {
+			resolvedFilteredPriceRecords = empty();
 		} else {
-			// prices are resolved lazily - just combine the indexes for lazy fetch
-			return new LazyEvaluatedEntityPriceRecords(
-				filteredPriceRecordAccessors.stream()
-					.map(FilteredPriceRecordAccessor::getFilteredPriceRecords)
-					.map(LazyEvaluatedEntityPriceRecords.class::cast)
-					.flatMap(it -> Arrays.stream(it.getPriceIndexes()))
-					.toArray(PriceListAndCurrencyPriceIndex[]::new)
+			final CompositeObjectArray<PriceRecordContract> narrowedPrices = new CompositeObjectArray<>(PriceRecordContract.class, false);
+			while (filteredPriceIdsIterator.hasNext()) {
+				final int[] batch = filteredPriceIdsIterator.nextBatch();
+				final int lastExpectedEntity = filteredPriceIdsIterator.getPeek() > 0 ? batch[filteredPriceIdsIterator.getPeek() - 1] : -1;
+				for (int i = 0; i < filteredPriceIdsIterator.getPeek(); i++) {
+					int narrowedPriceId = batch[i];
+					boolean anyPriceFound = false;
+					for (PriceRecordLookup it : priceRecordIterators) {
+						anyPriceFound = it.forEachPriceOfEntity(narrowedPriceId, lastExpectedEntity, narrowedPrices::add);
+						if (anyPriceFound) {
+							break;
+						}
+					}
+					Assert.isPremiseValid(
+						!requirePriceFound || anyPriceFound,
+						"Entity with id " + narrowedPriceId + " has no price associated!"
+					);
+				}
+			}
+			resolvedFilteredPriceRecords = of(
+				new ResolvedFilteredPriceRecords(
+					narrowedPrices.toArray(),
+					SortingForm.ENTITY_PK
+				)
 			);
 		}
+		return resolvedFilteredPriceRecords;
+	}
+
+	@Nonnull
+	private static Optional<ResolvedFilteredPriceRecords> getResolvedFilteredPriceRecords(List<FilteredPriceRecords> filteredPriceRecords) {
+		final Optional<ResolvedFilteredPriceRecords> resolvedFilteredPriceRecords;
+		final PriceRecordContract[] priceRecords = ArrayUtils.mergeArrays(
+			filteredPriceRecords.stream()
+				.filter(ResolvedFilteredPriceRecords.class::isInstance)
+				.map(ResolvedFilteredPriceRecords.class::cast)
+				.map(ResolvedFilteredPriceRecords::getPriceRecords)
+				.toArray(PriceRecordContract[][]::new)
+		);
+		resolvedFilteredPriceRecords = ArrayUtils.isEmpty(priceRecords) ?
+			empty() :
+			of(
+				new ResolvedFilteredPriceRecords(
+					priceRecords,
+					SortingForm.NOT_SORTED
+				)
+			);
+		return resolvedFilteredPriceRecords;
 	}
 
 	/**
