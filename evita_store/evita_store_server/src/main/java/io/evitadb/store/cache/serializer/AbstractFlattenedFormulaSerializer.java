@@ -29,6 +29,7 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.core.cache.payload.CachePayloadHeader;
+import io.evitadb.core.query.algebra.price.filteredPriceRecords.CombinedPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.LazyEvaluatedEntityPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.NonResolvedFilteredPriceRecords;
@@ -60,6 +61,9 @@ public abstract class AbstractFlattenedFormulaSerializer<T extends CachePayloadH
 	 * Cached array of all possible values of {@link QueryPriceMode} to avoid memory allocation that is part of values method.
 	 */
 	private static final QueryPriceMode[] QUERY_PRICE_MODE_VALUES = QueryPriceMode.values();
+	private static final byte NON_RESOLVED_PRICE_RECORDS = 0;
+	private static final byte LAZY = 1;
+	private static final byte BOTH = 2;
 
 	/**
 	 * Method serializes array of long to Kryo output.
@@ -112,12 +116,23 @@ public abstract class AbstractFlattenedFormulaSerializer<T extends CachePayloadH
 	 * @see #readFilteredPriceRecords(Kryo, Input, Supplier, PriceEvaluationContext) to understand how price ids are reconstructed back
 	 */
 	protected void writeFilteredPriceRecords(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull FilteredPriceRecords filteredPriceRecords) {
-		if (filteredPriceRecords instanceof ResolvedFilteredPriceRecords) {
-			writeFilteredPriceRecords(output, (ResolvedFilteredPriceRecords) filteredPriceRecords);
-		} else if (filteredPriceRecords instanceof NonResolvedFilteredPriceRecords) {
-			writeFilteredPriceRecords(output, ((NonResolvedFilteredPriceRecords) filteredPriceRecords).toResolvedFilteredPriceRecords());
-		} else if (filteredPriceRecords instanceof LazyEvaluatedEntityPriceRecords) {
-			writeFilteredPriceRecords(kryo, output, (LazyEvaluatedEntityPriceRecords) filteredPriceRecords);
+		if (filteredPriceRecords instanceof ResolvedFilteredPriceRecords resolvedFilteredPriceRecords) {
+			// store flag that we have resolved filtered price records
+			output.writeByte(NON_RESOLVED_PRICE_RECORDS);
+			writeResolvedPriceRecords(output, resolvedFilteredPriceRecords);
+		} else if (filteredPriceRecords instanceof NonResolvedFilteredPriceRecords nonResolvedFilteredPriceRecords) {
+			// store flag that we have resolved filtered price records
+			output.writeByte(NON_RESOLVED_PRICE_RECORDS);
+			writeResolvedPriceRecords(output, nonResolvedFilteredPriceRecords.toResolvedFilteredPriceRecords());
+		} else if (filteredPriceRecords instanceof LazyEvaluatedEntityPriceRecords lazyEvaluatedEntityPriceRecords) {
+			// store flag that we don't have resolved filtered price records
+			output.writeByte(LAZY);
+			writeLazyEvaluatedPriceRecords(kryo, output, lazyEvaluatedEntityPriceRecords);
+		} else if (filteredPriceRecords instanceof CombinedPriceRecords combinedPriceRecords) {
+			// store flag that we have combination of both
+			output.writeByte(BOTH);
+			writeResolvedPriceRecords(output, combinedPriceRecords.getResolvedFilteredPriceRecords());
+			writeLazyEvaluatedPriceRecords(kryo, output, combinedPriceRecords.getLazyEvaluatedEntityPriceRecords());
 		} else {
 			throw new EvitaInternalError("Unknown type of FilteredPriceRecords " + filteredPriceRecords.getClass().getName());
 		}
@@ -133,20 +148,24 @@ public abstract class AbstractFlattenedFormulaSerializer<T extends CachePayloadH
 	 */
 	@Nonnull
 	protected FilteredPriceRecords readFilteredPriceRecords(@Nonnull Kryo kryo, @Nonnull Input input, @Nonnull Supplier<GlobalEntityIndex> globalEntityIndexAccessor, @Nonnull PriceEvaluationContext priceEvaluationContext) {
-		if (input.readBoolean()) {
-			return readNonResolvedFilteredPriceRecords(input, priceEvaluationContext, globalEntityIndexAccessor);
-		} else {
+		final byte type = input.readByte();
+		if (type == NON_RESOLVED_PRICE_RECORDS) {
+			return readResolvedFilteredPriceRecords(input, priceEvaluationContext, globalEntityIndexAccessor);
+		} else if (type == LAZY) {
 			return readLazyEvaluatedEntityPriceRecords(kryo, input, globalEntityIndexAccessor);
+		} else if (type == BOTH) {
+			final NonResolvedFilteredPriceRecords nonResolvedFilteredPriceRecords = readResolvedFilteredPriceRecords(input, priceEvaluationContext, globalEntityIndexAccessor);
+			final LazyEvaluatedEntityPriceRecords lazyEvaluatedEntityPriceRecords = readLazyEvaluatedEntityPriceRecords(kryo, input, globalEntityIndexAccessor);
+			return new CombinedPriceRecords(nonResolvedFilteredPriceRecords, lazyEvaluatedEntityPriceRecords);
+		} else {
+			throw new EvitaInternalError("Unknown type of FilteredPriceRecords: `" + type + "`");
 		}
 	}
 
 	/**
 	 * Writes specialized form of {@link ResolvedFilteredPriceRecords} to a Kryo stream.
 	 */
-	private void writeFilteredPriceRecords(@Nonnull Output output, @Nonnull ResolvedFilteredPriceRecords filteredPriceRecords) {
-		// store flag that we have resolved filtered price records
-		output.writeBoolean(true);
-
+	private void writeResolvedPriceRecords(@Nonnull Output output, @Nonnull ResolvedFilteredPriceRecords filteredPriceRecords) {
 		final PriceRecordContract[] priceRecords = filteredPriceRecords.getPriceRecords();
 
 		// we need one iteration to create a list of internal price ids of all standard prices
@@ -189,8 +208,7 @@ public abstract class AbstractFlattenedFormulaSerializer<T extends CachePayloadH
 	 * using data from appropriate price indexes in {@link GlobalEntityIndex}.
 	 */
 	@Nonnull
-	private NonResolvedFilteredPriceRecords readNonResolvedFilteredPriceRecords(@Nonnull Input input, @Nonnull PriceEvaluationContext priceEvaluationContext, @Nonnull Supplier<GlobalEntityIndex> globalEntityIndexAccessor) {
-
+	private NonResolvedFilteredPriceRecords readResolvedFilteredPriceRecords(@Nonnull Input input, @Nonnull PriceEvaluationContext priceEvaluationContext, @Nonnull Supplier<GlobalEntityIndex> globalEntityIndexAccessor) {
 		// now read the prices from the stream
 		final int priceRecordCount = input.readVarInt(true);
 		final PriceRecordContract[] cumulatedPriceRecords = new PriceRecordContract[priceRecordCount];
@@ -219,10 +237,7 @@ public abstract class AbstractFlattenedFormulaSerializer<T extends CachePayloadH
 	 * Writes specialized form of {@link LazyEvaluatedEntityPriceRecords} to a Kryo stream. The implementation contains
 	 * information only of {@link PriceIndexKey} that can be used to retrieve the lowest prices for associated entities.
 	 */
-	private void writeFilteredPriceRecords(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull LazyEvaluatedEntityPriceRecords filteredPriceRecords) {
-		// store flag that we don't have resolved filtered price records
-		output.writeBoolean(false);
-
+	private void writeLazyEvaluatedPriceRecords(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull LazyEvaluatedEntityPriceRecords filteredPriceRecords) {
 		final PriceIndexKey[] priceIndexKeys = Arrays.stream(filteredPriceRecords.getPriceIndexes())
 			.map(PriceListAndCurrencyPriceIndex::getPriceIndexKey)
 			.distinct()

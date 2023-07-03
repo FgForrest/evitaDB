@@ -63,8 +63,9 @@ public class ResolvedFilteredPriceRecords implements FilteredPriceRecords {
 		this.sortingForm = sortingForm;
 	}
 
+	@Nonnull
 	@Override
-	public @Nonnull PriceRecordLookup getPriceRecordsLookup() {
+	public PriceRecordIterator getPriceRecordsLookup() {
 		return new PriceRecordIterator(getPriceRecords());
 	}
 
