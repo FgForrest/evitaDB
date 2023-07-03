@@ -25,6 +25,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
+import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
@@ -34,11 +35,14 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDes
 import io.evitadb.externalApi.graphql.api.testSuite.GraphQLEndpointFunctionalTest;
 import io.evitadb.test.Entities;
 import io.evitadb.test.builder.MapBuilder;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.text.NumberFormat;
+import java.util.Collection;
+import java.util.Currency;
 import java.util.Deque;
 import java.util.LinkedList;
 import java.util.List;
@@ -49,6 +53,7 @@ import java.util.Objects;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Ancestor for tests for GraphQL catalog endpoint.
@@ -158,14 +163,21 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 
 	@Nonnull
 	protected Map<String, Object> createEntityDtoWithPrice(@Nonnull SealedEntity entity) {
+		return createEntityDtoWithPrice(entity, CURRENCY_CZK, PRICE_LIST_BASIC);
+	}
+
+	@Nonnull
+	protected Map<String, Object> createEntityDtoWithPrice(@Nonnull SealedEntity entity, @Nonnull Currency currency, @Nonnull String priceList) {
+		final Collection<PriceContract> prices = entity.getPrices(currency, priceList);
+		assertEquals(1, prices.size());
 		return map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 			.e(EntityDescriptor.PRICE.name(), map()
 				.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
-				.e(PriceDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
-				.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-				.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().getPriceWithTax().toString())
+				.e(PriceDescriptor.CURRENCY.name(), currency.toString())
+				.e(PriceDescriptor.PRICE_LIST.name(), prices)
+				.e(PriceDescriptor.PRICE_WITH_TAX.name(), prices.iterator().next().getPriceWithTax().toString())
 				.build())
 			.build();
 	}

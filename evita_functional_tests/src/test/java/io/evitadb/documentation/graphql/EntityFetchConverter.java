@@ -27,17 +27,22 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.AttributeContent;
+import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.EntityGroupFetch;
+import io.evitadb.api.query.require.PriceContent;
+import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferenceFieldHeaderDescriptor;
@@ -62,6 +67,7 @@ public class EntityFetchConverter extends RequireConverter {
 
 	private static final Set<Class<? extends Constraint<RequireConstraint>>> SUPPORTED_CHILDREN = Set.of(
 		AttributeContent.class,
+		PriceContent.class,
 		ReferenceContent.class
 	);
 
@@ -85,13 +91,14 @@ public class EntityFetchConverter extends RequireConverter {
 			return;
 		}
 
-		Assert.isPremiseValid(
-			Arrays.stream(entityFetch.getRequirements())
-				.allMatch(it -> SUPPORTED_CHILDREN.contains(it.getClass())),
-			"Unsupported entityFetch child constraint used."
-		);
+		for (EntityContentRequire requirement : entityFetch.getRequirements()) {
+			if (!SUPPORTED_CHILDREN.contains(requirement.getClass())) {
+				throw new EvitaInternalError("Constraint `" + requirement.getClass().getName() + "` is currently not supported as child of `entityFetch` or `entityGroupFetch`. Someone needs to implement it ¯\\_(ツ)_/¯.");
+			}
+		}
 
 		convertAttributeContent(fieldsBuilder, entityFetch);
+		convertPriceContent(fieldsBuilder, entityFetch);
 		convertReferenceContents(catalogSchema, fieldsBuilder, entityType, entityFetch, entitySchema);
 	}
 
@@ -110,6 +117,29 @@ public class EntityFetchConverter extends RequireConverter {
 					}
 				}
 			);
+		}
+	}
+
+	private static void convertPriceContent(@Nonnull GraphQLOutputFieldsBuilder entityFieldsBuilder,
+	                                        @Nonnull EntityFetchRequire entityFetch) {
+		final PriceContent priceContent = QueryUtils.findConstraint(entityFetch, PriceContent.class, SeparateEntityContentRequireContainer.class);
+		if (priceContent != null) {
+			final PriceContentMode fetchMode = priceContent.getFetchMode();
+			if (fetchMode == PriceContentMode.NONE) {
+				return;
+			} else if (fetchMode == PriceContentMode.RESPECTING_FILTER) {
+				entityFieldsBuilder.addObjectField(
+					EntityDescriptor.PRICE_FOR_SALE,
+					getPriceForSaleFieldsBuilder()
+				);
+			} else if (fetchMode == PriceContentMode.ALL) {
+				entityFieldsBuilder.addObjectField(
+					EntityDescriptor.PRICES,
+					getPriceForSaleFieldsBuilder()
+				);
+			} else {
+				throw new EvitaInternalError("Unsupported price content mode `" + fetchMode + "`."); // should never happen
+			}
 		}
 	}
 
@@ -174,6 +204,21 @@ public class EntityFetchConverter extends RequireConverter {
 					));
 			}
 		);
+	}
+
+	@Nonnull
+	private static Consumer<GraphQLOutputFieldsBuilder> getPriceForSaleFieldsBuilder() {
+		return priceForSaleBuilder -> {
+			priceForSaleBuilder.addPrimitiveField(PriceDescriptor.PRICE_ID);
+			priceForSaleBuilder.addPrimitiveField(PriceDescriptor.PRICE_LIST);
+			priceForSaleBuilder.addPrimitiveField(PriceDescriptor.CURRENCY);
+			priceForSaleBuilder.addPrimitiveField(PriceDescriptor.INNER_RECORD_ID);
+			priceForSaleBuilder.addPrimitiveField(PriceDescriptor.SELLABLE);
+			priceForSaleBuilder.addPrimitiveField(PriceDescriptor.VALIDITY);
+			priceForSaleBuilder.addPrimitiveField(PriceDescriptor.PRICE_WITHOUT_TAX);
+			priceForSaleBuilder.addPrimitiveField(PriceDescriptor.PRICE_WITH_TAX);
+			priceForSaleBuilder.addPrimitiveField(PriceDescriptor.TAX_RATE);
+		};
 	}
 
 	@Nullable
