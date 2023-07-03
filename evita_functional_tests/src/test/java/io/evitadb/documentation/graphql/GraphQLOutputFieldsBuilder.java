@@ -56,8 +56,30 @@ public class GraphQLOutputFieldsBuilder {
 	}
 
 	@Nonnull
+	public GraphQLOutputFieldsBuilder addPrimitiveField(@Nonnull PropertyDescriptor fieldDescriptor,
+	                                                    @Nullable Consumer<GraphQLOutputFieldsBuilder> argumentsBuilder) {
+		return addPrimitiveField(fieldDescriptor.name(), argumentsBuilder);
+	}
+
+	@Nonnull
 	public GraphQLOutputFieldsBuilder addPrimitiveField(@Nonnull String fieldName) {
 		lines.add(getCurrentIndentation() + fieldName);
+		return this;
+	}
+
+	@Nonnull
+	public GraphQLOutputFieldsBuilder addPrimitiveField(@Nonnull String fieldName,
+	                                                    @Nullable Consumer<GraphQLOutputFieldsBuilder> argumentsBuilder) {
+		if (argumentsBuilder == null) {
+			return addPrimitiveField(fieldName);
+		}
+
+		lines.add(getCurrentIndentation() + fieldName + " (");
+		level++;
+		argumentsBuilder.accept(this);
+		level--;
+		lines.add(getCurrentIndentation() + ")");
+
 		return this;
 	}
 

@@ -48,86 +48,65 @@ import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
- * This `withinHierarchy` query accepts [Serializable](https://docs.oracle.com/javase/8/docs/api/java/io/Serializable.html)
- * entity type in first argument, primary key of [Integer](https://docs.oracle.com/javase/8/docs/api/java/lang/Integer.html)
- * type of entity with [hierarchical placement](../model/entity_model.md#hierarchical-placement) in second argument. There
- * are also optional third and fourth arguments - see optional arguments {@link HierarchyDirectRelation}, {@link HierarchyExcludingRoot}
- * and {@link HierarchyExcluding}.
+ * The constraint `hierarchyWithin` allows you to restrict the search to only those entities that are part of
+ * the hierarchy tree starting with the root node identified by the first argument of this constraint. In e-commerce
+ * systems the typical representative of a hierarchical entity is a category, which will be used in all of our examples.
  *
- * Constraint can also have only one numeric argument representing primary key of [Integer](https://docs.oracle.com/javase/8/docs/api/java/lang/Integer.html)
- * the very same entity type in case this entity has [hierarchical placement](../model/entity_model.md#hierarchical-placement)
- * defined. This format of the query may be used for example for returning category sub-tree (where we want to return
- * category entities and also query them by their own hierarchy placement).
+ * The constraint accepts following arguments:
  *
- * Function returns true if entity has at least one [reference](../model/entity_model.md#references) that relates to specified entity
- * type and entity either directly or relates to any other entity of the same type with [hierarchical placement](../model/entity_model.md#hierarchical-placement)
- * subordinate to the directly related entity placement (in other words is present in its sub-tree).
+ * - optional name of the queried entity reference schema that represents the relationship to the hierarchical entity
+ *   type, your entity may target different hierarchical entities in different reference types, or it may target
+ *   the same hierarchical entity through multiple semantically different references, and that is why the reference name
+ *   is used instead of the target entity type.
+ * - a single mandatory filter constraint that identifies one or more hierarchy nodes that act as hierarchy roots;
+ *   multiple constraints must be enclosed in AND / OR containers
+ * - optional constraints allow you to narrow the scope of the hierarchy; none or all of the constraints may be present:
  *
- * Let's have following hierarchical tree of categories (primary keys are in brackets):
+ *      - {@link HierarchyDirectRelation}
+ *      - {@link HierarchyHaving}
+ *      - {@link HierarchyExcluding}
+ *      - {@link HierarchyExcludingRoot}
  *
- * - TV (1)
- * - Crt (2)
- * - LCD (3)
- * - big (4)
- * - small (5)
- * - Plasma (6)
- * - Fridges (7)
+ * The most straightforward usage is filtering the hierarchical entities themselves.
  *
- * When query `withinHierarchy('category', 1)` is used in a query targeting product entities only products that
- * relates directly to categories: `TV`, `Crt`, `LCD`, `big`, `small` and `Plasma` will be returned. Products in `Fridges`
- * will be omitted because they are not in a sub-tree of `TV` hierarchy.
- *
- * Only single `withinHierarchy` query can be used in the query.
- *
- * Example:
- *
- * ```
- * withinHierarchy('category', 4)
- * ```
- *
- * If you want to query the entity that you're querying on you can also omit entity type specification. See example:
- *
- * ```
+ * <pre>
  * query(
- * entities('CATEGORY'),
- * filterBy(
- * withinHierarchy(5)
+ *     collection('Category'),
+ *     filterBy(
+ *         hierarchyWithinSelf(
+ *             attributeEquals('code', 'accessories')
+ *         )
+ *     ),
+ *     require(
+ *         entityFetch(
+ *             attributeContent('code')
+ *         )
+ *     )
  * )
- * )
- * ```
+ * </pre>
  *
- * This query will return all categories that belong to the sub-tree of category with primary key equal to 5.
+ * The `hierarchyWithin` constraint can also be used for entities that directly reference a hierarchical entity type.
+ * The most common use case from the e-commerce world is a product that is assigned to one or more categories.
  *
- * If you want to list all entities from the root level you need to use different query - `withinRootHierarchy` that
- * has the same notation but doesn't specify the id of the root level entity:
- *
- * ```
+ * <pre>
  * query(
- * entities('CATEGORY'),
- * filterBy(
- * withinRootHierarchy()
+ *     collection('Product'),
+ *     filterBy(
+ *         hierarchyWithin(
+ *             'categories',
+ *             attributeEquals('code', 'accessories')
+ *         )
+ *     ),
+ *     require(
+ *         entityFetch(
+ *             attributeContent('code')
+ *         )
+ *     )
  * )
- * )
- * ```
+ * </pre>
  *
- * This query will return all categories within `CATEGORY` entity.
- *
- * You may use this query to list entities that refers to the hierarchical entities:
- *
- * ```
- * query(
- * entities('PRODUCT'),
- * filterBy(
- * withinRootHierarchy('CATEGORY')
- * )
- * )
- * ```
- *
- * This query returns all products that are attached to any category. Although, this query doesn't make much sense it starts
- * to be useful when combined with additional inner constraints described in following paragraphs.
- *
- * You can use additional sub constraints in `withinHierarchy` query: {@link HierarchyDirectRelation}, {@link HierarchyExcludingRoot}
- * and {@link HierarchyExcluding}
+ * Products assigned to two or more subcategories of Accessories category will only appear once in the response
+ * (contrary to what you might expect if you have experience with SQL).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

@@ -723,8 +723,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.map(r -> map()
 				.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), r.getReferencedPrimaryKey())
 				.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
-					.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, r.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C))
-					.e(ATTRIBUTE_CAPACITY, String.valueOf(r.getAttributeValue(ATTRIBUTE_CAPACITY).get().getValue())))
+					.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, r.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C)))
 				.build())
 			.toList();
 		expectedBody = new LinkedList<>(expectedBody);
@@ -762,7 +761,9 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 					"require": {
 					    "entityFetch": {
 					        "attributeContentAll": true,
-					        "referenceStoreContent": {}
+					        "referenceStoreContentWithAttributes": {
+					            "attributeContent": ["storeVisibleForB2C"]
+					        }
 					    }
 					}
 				}
@@ -782,7 +783,9 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 					"require": {
 						"entityFetch": {
 							"attributeContentAll": true,
-					        "referenceStoreContent": {}
+					        "referenceStoreContentWithAttributes": {
+				                "attributeContent": ["storeVisibleForB2C"]
+				            }
 				        }
 					}
 				}

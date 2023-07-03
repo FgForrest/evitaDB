@@ -23,7 +23,9 @@
 
 package io.evitadb.index.price.model.entityPrices;
 
-import com.esotericsoftware.kryo.util.IntMap;
+import com.carrotsearch.hppc.IntObjectHashMap;
+import com.carrotsearch.hppc.IntObjectMap;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.ArrayUtils;
 
@@ -57,7 +59,7 @@ class FullBlownEntityPrices extends EntityPrices {
 		this.prices = prices;
 		this.internalPriceIds = new int[prices.length];
 
-		final IntMap<PriceRecordContract> theLowestPrices = new IntMap<>(prices.length);
+		final IntObjectMap<PriceRecordContract> theLowestPrices = new IntObjectHashMap<>(prices.length);
 		for (int i = 0; i < prices.length; i++) {
 			final PriceRecordContract price = prices[i];
 			this.internalPriceIds[i] = price.internalPriceId();
@@ -68,10 +70,10 @@ class FullBlownEntityPrices extends EntityPrices {
 			}
 		}
 
-		this.lowestPrices = new PriceRecordContract[theLowestPrices.size];
+		this.lowestPrices = new PriceRecordContract[theLowestPrices.size()];
 		int i = 0;
-		for (PriceRecordContract lowestPrice : theLowestPrices.values()) {
-			this.lowestPrices[i++] = lowestPrice;
+		for (ObjectCursor<PriceRecordContract> lowestPrice : theLowestPrices.values()) {
+			this.lowestPrices[i++] = lowestPrice.value;
 		}
 		Arrays.sort(this.lowestPrices, PRICE_ID_COMPARATOR);
 	}

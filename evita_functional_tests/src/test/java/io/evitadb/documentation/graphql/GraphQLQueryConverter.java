@@ -28,6 +28,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.documentation.constraint.FilterConstraintToJsonConverter;
@@ -45,6 +46,7 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -140,6 +142,10 @@ public class GraphQLQueryConverter implements AutoCloseable {
 		final HierarchyOfConverter hierarchyOfConverter = new HierarchyOfConverter(catalogSchema, inputJsonPrinter);
 
 		final String entityType = query.getCollection().getEntityType();
+		final Locale locale = Optional.ofNullable(query.getFilterBy())
+			.map(f -> QueryUtils.findConstraint(f, EntityLocaleEquals.class, SeparateEntityContentRequireContainer.class))
+			.map(EntityLocaleEquals::getLocale)
+			.orElse(null);
 		final Require require = query.getRequire();
 
 		final GraphQLOutputFieldsBuilder fieldsBuilder = new GraphQLOutputFieldsBuilder(1);
@@ -147,14 +153,14 @@ public class GraphQLQueryConverter implements AutoCloseable {
 			fieldsBuilder
 				.addObjectField(ResponseDescriptor.RECORD_PAGE, b1 -> b1
 					.addObjectField(DataChunkDescriptor.DATA, b2 ->
-						entityFetchConverter.convert(catalogSchema, b2, entityType, null)));
+						entityFetchConverter.convert(catalogSchema, b2, entityType, locale, null)));
 		} else {
 			// build main entity fields
 			Optional.ofNullable(QueryUtils.findConstraint(require, EntityFetch.class, SeparateEntityContentRequireContainer.class))
 				.ifPresent(entityFetch -> fieldsBuilder
 					.addObjectField(ResponseDescriptor.RECORD_PAGE, b1 -> b1
 						.addObjectField(DataChunkDescriptor.DATA, b2 ->
-							entityFetchConverter.convert(catalogSchema, b2, entityType, entityFetch))));
+							entityFetchConverter.convert(catalogSchema, b2, entityType, locale, entityFetch))));
 
 			// build extra results
 			final List<Constraint<?>> extraResultConstraints = QueryUtils.findConstraints(require, c -> c instanceof ExtraResultRequireConstraint);
@@ -163,6 +169,7 @@ public class GraphQLQueryConverter implements AutoCloseable {
 					hierarchyOfConverter.convert(
 						extraResultsBuilder,
 						entityType,
+						locale,
 						QueryUtils.findConstraint(require, HierarchyOfSelf.class),
 						QueryUtils.findConstraint(require, HierarchyOfReference.class)
 					);

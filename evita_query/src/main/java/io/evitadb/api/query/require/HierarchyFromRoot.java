@@ -31,6 +31,9 @@ import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
+import io.evitadb.api.query.filter.HierarchyExcluding;
+import io.evitadb.api.query.filter.HierarchyHaving;
+import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -45,7 +48,65 @@ import static java.util.Optional.empty;
 import static java.util.Optional.of;
 
 /**
- * TOBEDONE JNO: docs
+ * The `fromRoot` requirement computes the hierarchy tree starting from the "virtual" invisible top root of
+ * the hierarchy, regardless of the potential use of the {@link HierarchyWithin} constraint in the filtering part of
+ * the query. The scope of the calculated information can be controlled by the stopAt constraint. By default,
+ * the traversal goes all the way to the bottom of the hierarchy tree unless you tell it to stop at anywhere.
+ * If you need to access statistical data, use statistics constraint. Calculated data is not affected by
+ * the {@link HierarchyWithin} filter constraint - the query can filter entities using {@link HierarchyWithin} from
+ * category Accessories, while still allowing you to correctly compute menu at root level.
+ *
+ * Please keep in mind that the full statistic calculation can be particularly expensive in the case of the fromRoot
+ * requirement - it usually requires aggregation for the entire queried dataset (see more information about
+ * the calculation).
+ *
+ * The constraint accepts following arguments:
+ *
+ * - mandatory String argument specifying the output name for the calculated data structure
+ * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope of
+ *   the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
+ *   present:
+ *
+ *      - {@link EntityFetch}
+ *      - {@link HierarchyStopAt}
+ *      - {@link HierarchyStatistics}
+ *
+ * The following query lists products in category Audio and its subcategories. Along with the returned products, it also
+ * requires a computed megaMenu data structure that lists the top 2 levels of the Category hierarchy tree with
+ * a computed count of child categories for each menu item and an aggregated count of all filtered products that would
+ * fall into the given category.
+ *
+ * <pre>
+ * query(
+ *     collection('Product'),
+ *     filterBy(
+ *         hierarchyWithin(
+ *             'categories',
+ *             attributeEquals('code', 'audio')
+ *         )
+ *     ),
+ *     require(
+ *         hierarchyOfReference(
+ *             'categories',
+ *             fromRoot(
+ *                 'megaMenu',
+ *                 entityFetch(attributeContent('code')),
+ *                 stopAt(level(2)),
+ *                 statistics(
+ *                     CHILDREN_COUNT,
+ *                     QUERIED_ENTITY_COUNT
+ *                 )
+ *             )
+ *         )
+ *     )
+ * )
+ * </pre>
+ *
+ * The calculated result for `fromRoot` is not affected by the {@link HierarchyWithin} pivot hierarchy node.
+ * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
+ * the `fromRoot` respects them. The reason is simple: when you render a menu for the query result, you want
+ * the calculated statistics to respect the rules that apply to the {@link HierarchyWithin} so that the calculated
+ * number remains consistent for the end user.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

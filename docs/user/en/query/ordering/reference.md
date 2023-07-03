@@ -189,6 +189,18 @@ image:
 
 </Note>
 
+<Note type="warning">
+
+<NoteTitle toggles="true">
+
+##### Both rules order the sorted groups by primary key in ascending order. Do you need different behaviour?
+</NoteTitle>
+
+If so, please vote for the [issue #160](https://github.com/FgForrest/evitaDB/issues/160) on GitHub. This issue won't
+be resolved until there is a demand for it.
+
+</Note>
+
 ## Entity property
 
 ```evitaql-syntax

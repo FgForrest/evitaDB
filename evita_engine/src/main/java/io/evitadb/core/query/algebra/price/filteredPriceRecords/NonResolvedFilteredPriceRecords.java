@@ -90,7 +90,7 @@ public class NonResolvedFilteredPriceRecords implements FilteredPriceRecords {
 	}
 
 	/**
-	 * This method returns price records in this object and ensures the output is sortedby entity id in the ascending
+	 * This method returns price records in this object and ensures the output is sorted by entity id in the ascending
 	 * order.
 	 */
 	public ResolvedFilteredPriceRecords toResolvedFilteredPriceRecords() {

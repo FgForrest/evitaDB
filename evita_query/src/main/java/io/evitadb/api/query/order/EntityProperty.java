@@ -46,14 +46,30 @@ import java.io.Serializable;
  *
  * Example:
  *
- * ```
- * referenceContent(
- *    'parameters',
- *    entityProperty(
- *       attributeNatural('priority', DESC)
- *    )
+ * <pre>
+ * query(
+ *     collection('Product'),
+ *     filterBy(
+ *         attributeEquals('code', 'garmin-vivoactive-4')
+ *     ),
+ *     require(
+ *         entityFetch(
+ *             attributeContent('code'),
+ *             referenceContent(
+ *                 'parameterValues',
+ *                 orderBy(
+ *                     entityProperty(
+ *                         attributeNatural('code', DESC)
+ *                     )
+ *                 ),
+ *                 entityFetch(
+ *                     attributeContent('code')
+ *                 )
+ *             )
+ *         )
+ *     )
  * )
- * ```
+ * </pre>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

@@ -44,18 +44,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface EntityDescriptor {
-
-    default PropertyDescriptor primaryKey() {
-        return PropertyDescriptor.builder()
-            .name("primaryKey")
-            .description("""
-            Unique Integer positive number representing the entity. Can be used for fast lookup for
-            entity (entities). Primary key must be unique within the same entity type.
-            """)
-            .type(nonNull(Integer.class))
-            .build();
-    }
+public interface EntityDescriptor extends AttributesProviderDescriptor {
 
     PropertyDescriptor PRIMARY_KEY = PropertyDescriptor.builder()
         .name("primaryKey")
@@ -88,14 +77,6 @@ public interface EntityDescriptor {
             this particular entity.
             """)
         .type(nonNull(Locale[].class))
-        .build();
-    PropertyDescriptor ATTRIBUTES = PropertyDescriptor.builder()
-        .name("attributes")
-        .description("""
-            Attributes allows defining set of data that are fetched in bulk along with the entity body.
-            Attributes may be used for fast filtering or can be used to sort along.
-            """)
-        // type is expected to be a map with attribute names as keys and attribute values as values
         .build();
     PropertyDescriptor ASSOCIATED_DATA = PropertyDescriptor.builder()
         .name("associatedData")

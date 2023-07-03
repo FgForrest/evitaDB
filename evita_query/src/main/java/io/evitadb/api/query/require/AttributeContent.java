@@ -40,6 +40,8 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Optional.empty;
@@ -96,6 +98,16 @@ public class AttributeContent extends AbstractRequireConstraintLeaf
 		return Arrays.stream(getArguments())
 				.map(String.class::cast)
 				.toArray(String[]::new);
+	}
+
+	/**
+	 * Returns names of attributes that should be loaded along with entity.
+	 */
+	@Nonnull
+	public Set<String> getAttributeNamesAsSet() {
+		return Arrays.stream(getArguments())
+			.map(String.class::cast)
+			.collect(Collectors.toSet());
 	}
 
 	/**

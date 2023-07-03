@@ -52,6 +52,7 @@ import java.util.stream.Stream;
 
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
+import static java.util.Optional.ofNullable;
 
 /**
  * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
@@ -79,6 +80,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	@Serial private static final long serialVersionUID = 3374240925555151814L;
 	private static final String SUFFIX_ALL = "all";
 	private static final String SUFFIX_WITH_ATTRIBUTES = "withAttributes";
+	private static final String SUFFIX_ALL_WITH_ATTRIBUTES = "allWithAttributes";
 	public static final ReferenceContent ALL_REFERENCES = new ReferenceContent();
 
 	private ReferenceContent(@Nonnull String[] referenceName,
@@ -97,35 +99,72 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	}
 
 	public ReferenceContent(@Nonnull String referenceName, @Nullable AttributeContent attributeContent) {
-		super(referenceName, attributeContent);
+		super(
+			referenceName,
+			ofNullable(attributeContent).orElse(new AttributeContent())
+		);
 	}
 
-	public ReferenceContent(@Nonnull String[] referenceNames,
-							@Nullable EntityFetch entityRequirement,
-	                        @Nullable EntityGroupFetch groupEntityRequirement) {
+	@Creator(suffix = SUFFIX_ALL_WITH_ATTRIBUTES)
+	public ReferenceContent(@Nullable @Child AttributeContent attributeContent) {
+		super(
+			ofNullable(attributeContent).orElse(new AttributeContent())
+		);
+	}
+
+	public ReferenceContent(
+		@Nonnull String[] referenceNames,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement
+	) {
 		super(referenceNames, entityRequirement, groupEntityRequirement);
 	}
 
-	public ReferenceContent(@Nonnull String referenceName,
-	                        @Nullable FilterBy filterBy,
-	                        @Nullable OrderBy orderBy,
-	                        @Nullable EntityFetch entityFetch,
-	                        @Nullable EntityGroupFetch entityGroupFetch) {
-		super(new String[] { referenceName }, new RequireConstraint[] {entityFetch, entityGroupFetch}, filterBy, orderBy);
+	@Creator
+	public ReferenceContent(
+		@Nonnull @Classifier String referenceName,
+		@Nullable @AdditionalChild FilterBy filterBy,
+		@Nullable @AdditionalChild OrderBy orderBy,
+		@Nullable @Child EntityFetch entityFetch,
+		@Nullable @Child EntityGroupFetch entityGroupFetch
+	) {
+		super(
+			ofNullable(referenceName).map(it -> (Serializable[]) new String[]{it}).orElse(NO_ARGS),
+			new RequireConstraint[]{entityFetch, entityGroupFetch}, filterBy, orderBy
+		);
 	}
 
-	@Creator // we don't want to use `withAttributes` suffix here because it would be confusing in the APIs when the `attributeContent` parameter is optional
-	public ReferenceContent(@Nonnull @Classifier String referenceName,
-							@Nullable @AdditionalChild FilterBy filterBy,
-	                        @Nullable @AdditionalChild OrderBy orderBy,
-							@Nullable @Child AttributeContent attributeContent,
-	                        @Nullable @Child EntityFetch entityFetch,
-	                        @Nullable @Child EntityGroupFetch entityGroupFetch) {
-		super(new String[] { referenceName }, new RequireConstraint[] {attributeContent, entityFetch, entityGroupFetch}, filterBy, orderBy);
+	@Creator(suffix = SUFFIX_WITH_ATTRIBUTES)
+	public ReferenceContent(
+		@Nonnull @Classifier String referenceName,
+		@Nullable @AdditionalChild FilterBy filterBy,
+		@Nullable @AdditionalChild OrderBy orderBy,
+		@Nullable @Child AttributeContent attributeContent,
+		@Nullable @Child EntityFetch entityFetch,
+		@Nullable @Child EntityGroupFetch entityGroupFetch
+	) {
+		super(
+			ofNullable(referenceName).map(it -> (Serializable[])new String[] { it }).orElse(NO_ARGS),
+			new RequireConstraint[] {
+				ofNullable(attributeContent).orElse(new AttributeContent()),
+				entityFetch,
+				entityGroupFetch
+			},
+			filterBy,
+			orderBy
+		);
 	}
 
 	public ReferenceContent(@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		super(entityRequirement, groupEntityRequirement);
+	}
+
+	public ReferenceContent(@Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		super(
+			ofNullable(attributeContent).orElse(new AttributeContent()),
+			entityRequirement,
+			groupEntityRequirement
+		);
 	}
 
 	/**
@@ -155,7 +194,6 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	/**
 	 * Returns attribute content requirement for reference attributes.
 	 */
-	// TODO JNO: use this method to support attribute specification in references
 	@Nonnull
 	public Optional<AttributeContent> getAttributeContent() {
 		return Arrays.stream(getChildren())
@@ -214,8 +252,11 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	@Nonnull
 	@Override
 	public Optional<String> getSuffixIfApplied() {
-		if (isAllRequested()) {
+		if (isAllRequested() && getAttributeContent().isEmpty()) {
 			return of(SUFFIX_ALL);
+		}
+		if (isAllRequested() && getAttributeContent().isPresent()) {
+			return of(SUFFIX_ALL_WITH_ATTRIBUTES);
 		}
 		if (getAttributeContent().isPresent()) {
 			return of(SUFFIX_WITH_ATTRIBUTES);

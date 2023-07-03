@@ -47,6 +47,7 @@ import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.PaginatedList;
@@ -55,6 +56,7 @@ import io.evitadb.documentation.JavaPrettyPrintingVisitor;
 import io.evitadb.documentation.UserDocumentationTest.CreateSnippets;
 import io.evitadb.documentation.UserDocumentationTest.OutputSnippet;
 import io.evitadb.documentation.markdown.Table;
+import io.evitadb.documentation.markdown.Table.Builder;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.ReflectionLookup;
@@ -134,6 +136,7 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 	 * Object used for reflection access when `sourceVariable` is evaluated.
 	 */
 	private static final ReflectionLookup REFLECTION_LOOKUP = new ReflectionLookup(ReflectionCachingBehaviour.CACHE);
+	private static final Pattern ATTR_LINK_PARSER = Pattern.compile(ATTR_LINK);
 
 	/*
 	  Initializes the Java code template to be used when {@link CreateSnippets#JAVA} is requested.
@@ -145,7 +148,7 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 				allow(EntityClassifier.class),
 				allow(EntityClassifierWithParent.class),
 				allow(Hierarchy.class),
-				allow(Hierarchy.LevelInfo.class)
+				allow(LevelInfo.class)
 			)
 		);
 		OBJECT_MAPPER.registerModule(new Jdk8Module());
@@ -319,7 +322,15 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 							final SealedEntitySchema schema = session.getEntitySchemaOrThrow(query.getCollection().getEntityType());
 							return Arrays.stream(refCnt.getReferenceNames()).filter(Objects::nonNull)
 								.map(schema::getReferenceOrThrowException)
-								.flatMap(ref -> ref.getAttributes().keySet().stream().map(attr -> REF_LINK + ref.getName() + ATTR_LINK + attr));
+								.flatMap(ref -> {
+									final AttributeContent attributeContent = QueryUtils.findConstraint(refCnt, AttributeContent.class, SeparateEntityContentRequireContainer.class);
+									if (attributeContent != null) {
+										return Arrays.stream(attributeContent.getAttributeNames())
+											.map(attr -> REF_LINK + ref.getName() + ATTR_LINK + attr);
+									} else {
+										return Stream.empty();
+									}
+								});
 						})
 						.distinct())
 					.orElse(Stream.empty())
@@ -328,7 +339,7 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 			.toArray(String[]::new);
 
 		// define the table with header line
-		Table.Builder tableBuilder = new Table.Builder()
+		Builder tableBuilder = new Builder()
 			.withAlignment(Table.ALIGN_LEFT)
 			.addRow((Object[]) headers);
 
@@ -347,7 +358,7 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 						Arrays.stream(headers)
 							.filter(it -> it.startsWith(REF_LINK))
 							.map(it -> {
-								final String[] refAttr = it.substring(REF_LINK.length()).split(ATTR_LINK);
+								final String[] refAttr = ATTR_LINK_PARSER.split(it.substring(REF_LINK.length()));
 								return sealedEntity.getReferences(refAttr[0])
 									.stream()
 									.filter(ref -> ref.getAttributeValue(refAttr[1]).isPresent())

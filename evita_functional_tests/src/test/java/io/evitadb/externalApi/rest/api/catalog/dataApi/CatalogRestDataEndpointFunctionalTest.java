@@ -279,10 +279,11 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 	protected List<Map<String, Object>> createReferencesDto(@Nonnull SealedEntity entity,
 	                                                        @Nonnull String entityName,
 															boolean withReferencedEntityBody,
-	                                                        boolean withLocales) {
+	                                                        boolean withLocales,
+	                                                        @Nullable String[] referenceAttributes) {
 		final Collection<ReferenceContract> referenceContracts = entity.getReferences(entityName);
 		return referenceContracts.stream()
-			.map(reference -> createSingleReferenceDto(reference, withReferencedEntityBody, withLocales).build())
+			.map(reference -> createSingleReferenceDto(reference, withReferencedEntityBody, withLocales, referenceAttributes).build())
 			.toList();
 	}
 
@@ -293,9 +294,10 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 	@Nonnull
 	protected List<Map<String, Object>> createReferencesDto(@Nonnull List<ReferenceContract> referenceContracts,
 	                                                        boolean withReferencedEntityBody,
-	                                                        boolean withLocales) {
+	                                                        boolean withLocales,
+	                                                        @Nullable String[] referenceAttributes) {
 		return referenceContracts.stream()
-			.map(reference -> createSingleReferenceDto(reference, withReferencedEntityBody, withLocales).build())
+			.map(reference -> createSingleReferenceDto(reference, withReferencedEntityBody, withLocales, referenceAttributes).build())
 			.toList();
 	}
 
@@ -305,13 +307,14 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 	 */
 	@Nonnull
 	protected MapBuilder createReferenceDto(@Nonnull SealedEntity entity,
-	                                                 @Nonnull String entityName,
-	                                                 boolean withReferencedEntityBody,
-	                                                 boolean withLocales) {
+	                                        @Nonnull String entityName,
+	                                        boolean withReferencedEntityBody,
+	                                        boolean withLocales,
+	                                        @Nullable String[] referenceAttributes) {
 		final Collection<ReferenceContract> referenceContracts = entity.getReferences(entityName);
 		final ReferenceContract reference = referenceContracts.stream().findFirst().orElseThrow();
 
-		return createSingleReferenceDto(reference, withReferencedEntityBody, withLocales);
+		return createSingleReferenceDto(reference, withReferencedEntityBody, withLocales, referenceAttributes);
 	}
 
 	protected Map<String, ?> createEntityAttributes(@Nonnull EntityContract entity, boolean distinguishLocalized, @Nullable Locale locale) {
@@ -365,11 +368,16 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 
 	protected MapBuilder createSingleReferenceDto(@Nonnull ReferenceContract reference,
 	                                              boolean withReferencedEntityBody,
-	                                              boolean withLocales) {
+	                                              boolean withLocales,
+	                                              @Nullable String[] referenceAttributes) {
 
 
 		final MapBuilder referenceBuilder = map()
 			.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), reference.getReferencedPrimaryKey());
+
+		if (referenceAttributes == null || referenceAttributes.length > 0) {
+			referenceBuilder.e(ReferenceDescriptor.ATTRIBUTES.name(), convertAttributesIntoMap(reference, referenceAttributes));
+		}
 
 		if (withReferencedEntityBody) {
 			final MapBuilder referenceAttributesBuilder = map()
@@ -382,14 +390,14 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 			referenceBuilder.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), referenceAttributesBuilder);
 		}
 
-		referenceBuilder.e(ReferenceDescriptor.ATTRIBUTES.name(), convertAttributesIntoMap(reference));
-
 		return referenceBuilder;
 	}
 
-	protected MapBuilder convertAttributesIntoMap(ReferenceContract reference) {
+	protected MapBuilder convertAttributesIntoMap(@Nonnull ReferenceContract reference, @Nullable String[] referenceAttributes) {
 		final MapBuilder attrsMap = map();
 		reference.getAttributeValues()
+			.stream()
+			.filter(it -> referenceAttributes == null || Arrays.asList(referenceAttributes).contains(it.getKey().getAttributeName()))
 			.forEach(attributeValue ->
 				attrsMap.e(attributeValue.getKey().getAttributeName(), serializeToJsonValue(attributeValue.getValue())));
 		return attrsMap;
@@ -468,7 +476,8 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 	@Nonnull
 	protected MapBuilder createEntityWithReferencedParentsDto(@Nonnull SealedEntity entity,
 	                                                          @Nonnull String referenceName,
-	                                                          boolean withBody) {
+	                                                          boolean withBody,
+	                                                          @Nullable String[] referenceAttributes) {
 
 		return map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
@@ -478,11 +487,13 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 				.stream()
 				.map(it -> {
 					final SealedEntity referencedEntity = it.getReferencedEntity().orElseThrow();
-					return map()
+					final MapBuilder builder = map()
 						.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), it.getReferencedPrimaryKey())
-						.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), createEntityWithSelfParentsDto(referencedEntity, withBody))
-						.e(ReferenceDescriptor.ATTRIBUTES.name(), convertAttributesIntoMap(it))
-						.build();
+						.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), createEntityWithSelfParentsDto(referencedEntity, withBody));
+					if (referenceAttributes != null && referenceAttributes.length > 0) {
+						builder.e(ReferenceDescriptor.ATTRIBUTES.name(), convertAttributesIntoMap(it, referenceAttributes));
+					}
+					return builder.build();
 				})
 				.toList());
 	}

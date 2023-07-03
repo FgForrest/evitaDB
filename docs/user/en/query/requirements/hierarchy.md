@@ -341,7 +341,7 @@ If you need to access statistical data, use [`statistics`](#statistics) constrai
 </NoteTitle>
 
 The following query lists products in category *Audio* and its subcategories. Along with the products returned, it also 
-return a computed *sideMenu1* and *sideMenu2* data structure that lists the flat category list for the categories 
+returns a computed *sideMenu1* and *sideMenu2* data structure that lists the flat category list for the categories 
 *Portables* and *Laptops* with a computed count of child categories for each menu item and an aggregated count of all 
 products that would fall into the given category.
 

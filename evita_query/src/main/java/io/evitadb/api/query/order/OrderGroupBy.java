@@ -43,14 +43,14 @@ import java.io.Serializable;
  *
  * Example:
  *
- * ```
+ * <pre>
  * facetSummaryOfReference(
  *    'parameters',
  *    orderGroupBy(
  *       attributeNatural('name', OrderDirection.ASC)
  *    )
  * )
- * ```
+ * </pre>
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */

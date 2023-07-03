@@ -22,9 +22,7 @@
         categories {
           referencedPrimaryKey
           attributes {
-            relatedBreadCrumbPath
             orderInCategory
-            relatedBreadCrumbOrder
           }
         }
       }
