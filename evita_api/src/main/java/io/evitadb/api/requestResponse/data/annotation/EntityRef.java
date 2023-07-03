@@ -37,7 +37,13 @@ import java.lang.annotation.Target;
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.FIELD, ElementType.METHOD, ElementType.PARAMETER})
+@Target({ElementType.FIELD, ElementType.METHOD, ElementType.PARAMETER, ElementType.TYPE})
 public @interface EntityRef {
+
+	/**
+	 * Name of the entity. Use camel-case naming style.
+	 * If left empty the name is taken from the name of the field / property / component.
+	 */
+	String value();
 
 }

@@ -27,6 +27,7 @@ import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityCollectionRequiredException;
 import io.evitadb.api.exception.UnexpectedResultException;
+import io.evitadb.api.proxy.impl.EvitaRequestContext;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
@@ -46,6 +47,7 @@ import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
 import io.evitadb.function.TriFunction;
+import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -73,7 +75,7 @@ import static java.util.Optional.ofNullable;
  * @see EvitaResponse examples in super class
  */
 public class EvitaRequest {
-	public static final TriFunction<Class<? extends EntityClassifier>, SealedEntity, EvitaRequest, EntityClassifier> CONVERSION_NOT_SUPPORTED = (aClass, sealedEntity, request) -> {
+	public static final TriFunction<Class<? extends EntityClassifier>, SealedEntity, EvitaRequestContext, EntityClassifier> CONVERSION_NOT_SUPPORTED = (aClass, sealedEntity, request) -> {
 		throw new UnsupportedOperationException();
 	};
 	private static final int[] EMPTY_INTS = new int[0];
@@ -82,7 +84,7 @@ public class EvitaRequest {
 	private final String entityType;
 	private final Locale implicitLocale;
 	private final Class<? extends EntityClassifier> expectedType;
-	private final TriFunction<Class<? extends EntityClassifier>, SealedEntity, EvitaRequest, ? extends EntityClassifier> converter;
+	private final TriFunction<Class<? extends EntityClassifier>, SealedEntity, EvitaRequestContext, ? extends EntityClassifier> converter;
 	private int[] primaryKeys;
 	private boolean localeExamined;
 	private Locale locale;
@@ -119,12 +121,33 @@ public class EvitaRequest {
 	private Boolean queryTelemetryRequested;
 	private EnumSet<DebugMode> debugModes;
 	private Map<String, RequirementContext> entityFetchRequirements;
+	private RequirementContext defaultReferenceRequirement;
+
+	/**
+	 * Parses the requirement context from the passed {@link ReferenceContent} and {@link AttributeContent}.
+	 */
+	@Nonnull
+	private static RequirementContext getRequirementContext(
+		@Nonnull ReferenceContent referenceContent,
+		@Nullable AttributeContent attributeContent
+	) {
+		return new RequirementContext(
+			new AttributeRequest(
+				attributeContent == null ? Collections.emptySet() : attributeContent.getAttributeNamesAsSet(),
+				attributeContent != null
+			),
+			referenceContent.getEntityRequirement().orElse(null),
+			referenceContent.getGroupEntityRequirement().orElse(null),
+			referenceContent.getFilterBy().orElse(null),
+			referenceContent.getOrderBy().orElse(null)
+		);
+	}
 
 	public EvitaRequest(
 		@Nonnull Query query,
 		@Nonnull OffsetDateTime alignedNow,
 		@Nonnull Class<? extends EntityClassifier> expectedType,
-		@Nonnull TriFunction<Class<? extends EntityClassifier>, SealedEntity, EvitaRequest, ? extends EntityClassifier> converter
+		@Nonnull TriFunction<Class<? extends EntityClassifier>, SealedEntity, EvitaRequestContext, ? extends EntityClassifier> converter
 	) {
 		final Collection header = query.getCollection();
 		this.entityType = ofNullable(header).map(Collection::getEntityType).orElse(null);
@@ -153,6 +176,8 @@ public class EvitaRequest {
 		this.entityAssociatedData = evitaRequest.entityAssociatedData;
 		this.entityAssociatedDataSet = evitaRequest.entityAssociatedDataSet;
 		this.entityReference = evitaRequest.entityReference;
+		this.entityFetchRequirements = evitaRequest.entityFetchRequirements;
+		this.defaultReferenceRequirement = evitaRequest.defaultReferenceRequirement;
 		this.entityPrices = evitaRequest.entityPrices;
 		this.currencySet = evitaRequest.currencySet;
 		this.currency = evitaRequest.currency;
@@ -208,6 +233,8 @@ public class EvitaRequest {
 		this.entityAssociatedData = null;
 		this.entityAssociatedDataSet = null;
 		this.entityReference = null;
+		this.entityFetchRequirements = null;
+		this.defaultReferenceRequirement = null;
 		this.entityPrices = evitaRequest.entityPrices;
 		this.currencySet = evitaRequest.currencySet;
 		this.currency = evitaRequest.currency;
@@ -266,6 +293,8 @@ public class EvitaRequest {
 		this.entityAssociatedData = null;
 		this.entityAssociatedDataSet = null;
 		this.entityReference = null;
+		this.entityFetchRequirements = null;
+		this.defaultReferenceRequirement = null;
 		this.entityPrices = null;
 		this.firstRecordOffset = null;
 		this.hierarchyWithin = null;
@@ -723,6 +752,15 @@ public class EvitaRequest {
 	}
 
 	/**
+	 * Returns default requirements for reference content.
+	 */
+	@Nullable
+	public RequirementContext getDefaultReferenceRequirement() {
+		getReferenceEntityFetch();
+		return defaultReferenceRequirement;
+	}
+
+	/**
 	 * Returns requested referenced entity requirements from the input query.
 	 * Allows traversing through the object relational graph in unlimited depth.
 	 */
@@ -734,29 +772,23 @@ public class EvitaRequest {
 					entityRequirement -> {
 						final List<ReferenceContent> referenceContent = QueryUtils.findConstraints(entityRequirement, ReferenceContent.class, SeparateEntityContentRequireContainer.class);
 						this.entityReference = !referenceContent.isEmpty();
+						this.defaultReferenceRequirement = referenceContent
+							.stream()
+							.filter(it -> ArrayUtils.isEmpty(it.getReferenceNames()))
+							.map(it -> getRequirementContext(it, it.getAttributeContent().orElse(null)))
+							.findFirst()
+							.orElse(null);
+
 						return referenceContent
 							.stream()
 							.flatMap(it ->
 								Arrays
 									.stream(it.getReferenceNames())
-									.map(entityType -> {
-											final Optional<AttributeContent> attributeContent = it.getAttributeContent();
-											return new SimpleEntry<>(
-												entityType,
-												new RequirementContext(
-													new AttributeRequest(
-														attributeContent
-															.map(AttributeContent::getAttributeNamesAsSet)
-															.orElseGet(Collections::emptySet),
-														attributeContent.isPresent()
-													),
-													it.getEntityRequirement().orElse(null),
-													it.getGroupEntityRequirement().orElse(null),
-													it.getFilterBy().orElse(null),
-													it.getOrderBy().orElse(null)
-												)
-											);
-										}
+									.map(
+										entityType -> new SimpleEntry<>(
+											entityType,
+											getRequirementContext(it, it.getAttributeContent().orElse(null))
+										)
 									)
 							)
 							.collect(
@@ -766,7 +798,10 @@ public class EvitaRequest {
 								)
 							);
 					}
-				).orElse(Collections.emptyMap());
+				).orElseGet(() -> {
+					this.entityReference = false;
+					return Collections.emptyMap();
+				});
 		}
 		return entityFetchRequirements;
 	}
@@ -807,7 +842,7 @@ public class EvitaRequest {
 					//noinspection unchecked
 					data = (List<T>) data.stream()
 						.map(SealedEntity.class::cast)
-						.map(it -> converter.apply(expectedType, it, this))
+						.map(it -> converter.apply(expectedType, it, getContext()))
 						.toList();
 				} else {
 					throw new UnexpectedResultException(expectedType, data.get(0).getClass());
@@ -849,6 +884,17 @@ public class EvitaRequest {
 		return new EvitaRequest(
 			this,
 			entityType, filterConstraint, orderConstraint
+		);
+	}
+
+	/**
+	 * TODO JNO - document me, OTÁZKA JESTLI TO NĚJAK NEZPROPAGOVAT I DO EVITA REQUESTU
+	 * TODO JNO - cachovat
+	 */
+	@Nonnull
+	public EvitaRequestContext getContext() {
+		return new EvitaRequestContext(
+			getRequiredOrImplicitLocale()
 		);
 	}
 

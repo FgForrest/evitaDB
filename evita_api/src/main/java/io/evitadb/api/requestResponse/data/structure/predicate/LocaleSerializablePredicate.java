@@ -89,7 +89,7 @@ public class LocaleSerializablePredicate implements SerializablePredicate<Locale
 	}
 
 	@Override
-	public boolean test(@Nonnull Locale locale) {
+	public boolean test(Locale locale) {
 		return (this.locales != null && (this.locales.isEmpty() || this.locales.contains(locale))) ||
 			(this.implicitLocale != null && Objects.equals(this.implicitLocale, locale));
 	}

@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.ReflectionLookup;
 import one.edee.oss.proxycian.DirectMethodClassification;
@@ -42,6 +43,8 @@ import java.lang.reflect.Method;
 import java.util.Locale;
 import java.util.Optional;
 
+import static java.util.Optional.ofNullable;
+
 /**
  * TODO JNO - document me
  *
@@ -50,44 +53,13 @@ import java.util.Optional;
 public class GetAttributeMethodClassifier extends DirectMethodClassification<EntityClassifier, SealedEntityProxyState> {
 	public static final GetAttributeMethodClassifier INSTANCE = new GetAttributeMethodClassifier();
 
-	public GetAttributeMethodClassifier() {
-		super(
-			"getAttribute",
-			(method, proxyState) -> {
-				if (method.getParameterCount() > 1 || (method.getParameterCount() == 1 && !method.getParameterTypes()[0].equals(Locale.class))) {
-					return null;
-				}
-				final AttributeSchemaContract attributeSchema = getAttributeName(
-					method, proxyState.getReflectionLookup(),
-					proxyState.getEntitySchema(),
-					proxyState.getReferenceSchema()
-				);
-				if (attributeSchema == null) {
-					return null;
-				} else {
-					final String cleanAttributeName = attributeSchema.getName();
-					final int indexedDecimalPlaces = attributeSchema.getIndexedDecimalPlaces();
-					@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
-					//noinspection unchecked
-					return method.getParameterCount() == 0 ?
-						(entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
-							theState.getAttribute(cleanAttributeName), returnType, indexedDecimalPlaces
-						) :
-						(entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
-							theState.getAttribute(cleanAttributeName, (Locale) args[0]), returnType, indexedDecimalPlaces
-						);
-				}
-			}
-		);
-	}
-
 	@Nullable
-	private static AttributeSchemaContract getAttributeName(
+	private static AttributeSchemaContract getAttributeSchema(
 		@Nonnull Method method,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema
-		) {
+	) {
 		final Attribute attributeInstance = reflectionLookup.getAnnotationInstance(method, Attribute.class);
 		final AttributeRef attributeRefInstance = reflectionLookup.getAnnotationInstance(method, AttributeRef.class);
 		final Optional<AttributeSchemaContract> result;
@@ -96,11 +68,14 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Ent
 		} else if (attributeRefInstance != null) {
 			return getAttributeSchemaContractOrThrow(entitySchema, referenceSchema, attributeRefInstance.value());
 		} else if (!reflectionLookup.hasAnnotationInSamePackage(method, Attribute.class)) {
-			final String attributeName = ReflectionLookup.getPropertyNameFromMethodName(method.getName());
-			result = Optional.ofNullable(referenceSchema)
-				.map(it -> it.getAttributeByName(attributeName, NamingConvention.CAMEL_CASE))
-				.orElseGet(() -> entitySchema.getAttributeByName(attributeName, NamingConvention.CAMEL_CASE));
-			return result.orElse(null);
+			final Optional<String> attributeName = ReflectionLookup.getPropertyNameFromMethodNameIfPossible(method.getName());
+			return attributeName
+				.flatMap(
+					attrName -> ofNullable(referenceSchema)
+						.map(it -> it.getAttributeByName(attrName, NamingConvention.CAMEL_CASE))
+						.orElseGet(() -> entitySchema.getAttributeByName(attrName, NamingConvention.CAMEL_CASE))
+				)
+				.orElse(null);
 		} else {
 			return null;
 		}
@@ -112,8 +87,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Ent
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull String attributeName
 	) {
-		final Optional<AttributeSchemaContract> result;
-		result = Optional.ofNullable(referenceSchema)
+		final Optional<AttributeSchemaContract> result = ofNullable(referenceSchema)
 			.map(it -> it.getAttribute(attributeName))
 			.orElseGet(() -> entitySchema.getAttribute(attributeName));
 		return result
@@ -122,6 +96,48 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Ent
 					new AttributeNotFoundException(attributeName, entitySchema) :
 					new AttributeNotFoundException(attributeName, referenceSchema, entitySchema)
 			);
+	}
+
+	public GetAttributeMethodClassifier() {
+		super(
+			"getAttribute",
+			(method, proxyState) -> {
+				if (method.getParameterCount() > 1 || (method.getParameterCount() == 1 && !method.getParameterTypes()[0].equals(Locale.class))) {
+					return null;
+				}
+				final AttributeSchemaContract attributeSchema = getAttributeSchema(
+					method, proxyState.getReflectionLookup(),
+					proxyState.getEntitySchema(),
+					proxyState.getReferenceSchema()
+				);
+				if (attributeSchema == null) {
+					return null;
+				} else {
+					final String cleanAttributeName = attributeSchema.getName();
+					final int indexedDecimalPlaces = attributeSchema.getIndexedDecimalPlaces();
+					@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
+					if (attributeSchema.isLocalized()) {
+						//noinspection unchecked
+						return method.getParameterCount() == 0 ?
+							(entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
+								theState.getAttribute(cleanAttributeName), returnType, indexedDecimalPlaces
+							) :
+							(entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
+								theState.getAttribute(cleanAttributeName, (Locale) args[0]), returnType, indexedDecimalPlaces
+							);
+					} else {
+						Assert.isTrue(
+							method.getParameterCount() == 0,
+							"Non-localized attribute `" + attributeSchema.getName() + "` must not have a locale parameter!"
+						);
+						//noinspection unchecked
+						return (entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
+							theState.getAttribute(cleanAttributeName), returnType, indexedDecimalPlaces
+						);
+					}
+				}
+			}
+		);
 	}
 
 }

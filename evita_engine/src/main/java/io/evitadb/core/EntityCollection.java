@@ -376,11 +376,14 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 	@Nonnull
 	public EntityDecorator enrichEntity(@Nonnull SealedEntity sealedEntity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
-		final ReferenceFetcher referenceFetcher = referenceEntityFetch.isEmpty() && !evitaRequest.isRequiresParent() ?
+		final ReferenceFetcher referenceFetcher = referenceEntityFetch.isEmpty() &&
+			!evitaRequest.isRequiresEntityReferences() &&
+			!evitaRequest.isRequiresParent() ?
 			ReferenceFetcher.NO_IMPLEMENTATION :
 			new ReferencedEntityFetcher(
 				evitaRequest.getHierarchyContent(),
 				referenceEntityFetch,
+				evitaRequest.getDefaultReferenceRequirement(),
 				createQueryContext(evitaRequest, session),
 				sealedEntity
 			);
@@ -1158,11 +1161,14 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		@Nonnull EvitaSessionContract session
 	) {
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
-		return referenceEntityFetch.isEmpty() && !evitaRequest.isRequiresParent() ?
+		return referenceEntityFetch.isEmpty() &&
+			!evitaRequest.isRequiresEntityReferences() &&
+			!evitaRequest.isRequiresParent() ?
 			ReferenceFetcher.NO_IMPLEMENTATION :
 			new ReferencedEntityFetcher(
 				evitaRequest.getHierarchyContent(),
 				referenceEntityFetch,
+				evitaRequest.getDefaultReferenceRequirement(),
 				createQueryContext(evitaRequest, session)
 			);
 	}

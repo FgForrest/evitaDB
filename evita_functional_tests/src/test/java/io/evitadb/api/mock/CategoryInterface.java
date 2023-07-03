@@ -21,35 +21,49 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.proxy.impl;
+package io.evitadb.api.mock;
 
-import io.evitadb.api.exception.EntityClassInvalidException;
-import io.evitadb.api.exception.UnsatisfiedDependencyException;
-import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
-import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.annotation.Attribute;
+import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
+import io.evitadb.api.requestResponse.data.annotation.EntityRef;
+import io.evitadb.api.requestResponse.data.annotation.PrimaryKeyRef;
+import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.test.Entities;
+import io.evitadb.test.generator.DataGenerator;
 
 import javax.annotation.Nonnull;
+import java.util.Locale;
 
 /**
  * TODO JNO - document me
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class UnsatisfiedDependencyFactory implements ProxyFactory {
-	public static final UnsatisfiedDependencyFactory INSTANCE = new UnsatisfiedDependencyFactory();
+@EntityRef(Entities.CATEGORY)
+public interface CategoryInterface extends EntityClassifier {
 
-	@Override
-	public <T extends EntityClassifier> T createProxy(
-		@Nonnull Class<T> expectedType,
-		@Nonnull SealedEntity sealedEntity,
-		@Nonnull EvitaRequestContext context
-	) throws EntityClassInvalidException {
-		throw new UnsatisfiedDependencyException(
-			"ProxyFactory requires a Proxycian (https://github.com/FgForrest/Proxycian) and " +
-				"ByteBuddy (https://github.com/raphw/byte-buddy) to be present on the classpath.",
-			"Required dependency is not available in evitaDB engine, contact developers of the application."
-		);
-	}
+	@PrimaryKeyRef
+	int getId();
+
+	@Nonnull
+	TestEntity getEntityType();
+
+	@Attribute(name = DataGenerator.ATTRIBUTE_CODE)
+	@Nonnull
+	String getCode();
+
+	@Attribute(name = DataGenerator.ATTRIBUTE_NAME)
+	@Nonnull
+	String getName();
+
+	@Nonnull
+	String getName(@Nonnull Locale locale);
+
+	@AttributeRef(DataGenerator.ATTRIBUTE_PRIORITY)
+	Long getPriority();
+
+	@AttributeRef(DataGenerator.ATTRIBUTE_VALIDITY)
+	DateTimeRange getValidity();
 
 }

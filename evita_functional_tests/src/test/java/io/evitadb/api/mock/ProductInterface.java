@@ -28,14 +28,19 @@ import io.evitadb.api.requestResponse.data.annotation.AssociatedData;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedDataRef;
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
-import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKeyRef;
+import io.evitadb.api.requestResponse.data.annotation.ReferenceRef;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.test.Entities;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
+import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * Example product interface for proxying.
@@ -47,7 +52,6 @@ public interface ProductInterface extends EntityClassifier {
 	@PrimaryKeyRef
 	int getId();
 
-	@EntityRef
 	@Nonnull
 	TestEntity getEntityType();
 
@@ -78,5 +82,41 @@ public interface ProductInterface extends EntityClassifier {
 
 	@AssociatedDataRef(DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES)
 	ReferencedFileSet getReferencedFileSetAsDifferentProperty();
+
+	@ReferenceRef(Entities.CATEGORY)
+	Collection<EntityReference> getCategoryReferences();
+
+	@ReferenceRef(Entities.CATEGORY)
+	List<EntityReference> getCategoryReferencesAsList();
+
+	@ReferenceRef(Entities.CATEGORY)
+	Set<EntityReference> getCategoryReferencesAsSet();
+
+	@ReferenceRef(Entities.CATEGORY)
+	EntityReference[] getCategoryReferencesAsArray();
+
+	@ReferenceRef(Entities.CATEGORY)
+	Collection<ProductCategoryInterface> getProductCategories();
+
+	@ReferenceRef(Entities.CATEGORY)
+	List<ProductCategoryInterface> getProductCategoriesAsList();
+
+	@ReferenceRef(Entities.CATEGORY)
+	Set<ProductCategoryInterface> getProductCategoriesAsSet();
+
+	@ReferenceRef(Entities.CATEGORY)
+	ProductCategoryInterface[] getProductCategoriesAsArray();
+
+	@ReferenceRef(Entities.CATEGORY)
+	Collection<CategoryInterface> getCategories();
+
+	@ReferenceRef(Entities.CATEGORY)
+	List<CategoryInterface> getCategoriesAsList();
+
+	@ReferenceRef(Entities.CATEGORY)
+	Set<CategoryInterface> getCategoriesAsSet();
+
+	@ReferenceRef(Entities.CATEGORY)
+	CategoryInterface[] getCategoriesAsArray();
 
 }

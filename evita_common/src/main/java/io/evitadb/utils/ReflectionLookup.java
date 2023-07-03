@@ -51,6 +51,8 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -78,14 +80,23 @@ public class ReflectionLookup {
 	 */
 	@Nonnull
 	public static String getPropertyNameFromMethodName(@Nonnull String methodName) {
+		return getPropertyNameFromMethodNameIfPossible(methodName)
+			.orElseThrow(() -> new IllegalArgumentException("Method " + methodName + " must start with get or is in order to store localized label value!"));
+	}
+
+	/**
+	 * Returns property name from getter method (i.e. method starting with get/is).
+	 */
+	@Nonnull
+	public static Optional<String> getPropertyNameFromMethodNameIfPossible(@Nonnull String methodName) {
 		if (methodName.startsWith("get") && methodName.length() > 3 && Character.isUpperCase(methodName.charAt(3))) {
-			return StringUtils.uncapitalize(methodName.substring(3));
+			return of(StringUtils.uncapitalize(methodName.substring(3)));
 		} else if (methodName.startsWith("is") && methodName.length() > 2 && Character.isUpperCase(methodName.charAt(2))) {
-			return StringUtils.uncapitalize(methodName.substring(2));
+			return of(StringUtils.uncapitalize(methodName.substring(2)));
 		} else if (methodName.startsWith("set") && methodName.length() > 3 && Character.isUpperCase(methodName.charAt(3))) {
-			return StringUtils.uncapitalize(methodName.substring(3));
+			return of(StringUtils.uncapitalize(methodName.substring(3)));
 		} else {
-			throw new IllegalArgumentException("Method " + methodName + " must start with get or is in order to store localized label value!");
+			return empty();
 		}
 	}
 
@@ -398,7 +409,7 @@ public class ReflectionLookup {
 		return samePackageAnnotation.computeIfAbsent(
 			new MethodAndPackage(method, annotation.getPackage()),
 			tuple -> Arrays.stream(tuple.method().getAnnotations())
-				.anyMatch(it -> it.getClass().getPackage().equals(tuple.annotationPackage()))
+				.anyMatch(it -> Objects.equals(it.getClass().getPackage(), tuple.annotationPackage()))
 		);
 	}
 

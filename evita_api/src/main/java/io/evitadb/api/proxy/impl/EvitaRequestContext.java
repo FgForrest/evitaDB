@@ -21,34 +21,18 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.proxy;
+package io.evitadb.api.proxy.impl;
 
-import io.evitadb.api.exception.EntityClassInvalidException;
-import io.evitadb.api.proxy.impl.EvitaRequestContext;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
-import io.evitadb.api.requestResponse.data.SealedEntity;
-
-import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.io.Serializable;
+import java.util.Locale;
 
 /**
  * TODO JNO - document me
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface ProxyFactory {
-
-	/**
-	 * TODO JNO - document me
-	 * @param expectedType
-	 * @param sealedEntity
-	 * @return
-	 * @param <T>
-	 */
-	<T extends EntityClassifier>  T createProxy(
-		@Nonnull Class<T> expectedType,
-		@Nonnull SealedEntity sealedEntity,
-		@Nonnull EvitaRequestContext context
-	)
-		throws EntityClassInvalidException;
-
+public record EvitaRequestContext(
+	@Nullable Locale locale
+) implements Serializable {
 }

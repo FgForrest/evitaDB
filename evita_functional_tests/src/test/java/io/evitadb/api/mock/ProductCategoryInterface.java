@@ -21,34 +21,39 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.proxy;
+package io.evitadb.api.mock;
 
-import io.evitadb.api.exception.EntityClassInvalidException;
-import io.evitadb.api.proxy.impl.EvitaRequestContext;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
-import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
+import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
+import io.evitadb.test.generator.DataGenerator;
 
-import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * TODO JNO - document me
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface ProxyFactory {
+public interface ProductCategoryInterface {
 
 	/**
-	 * TODO JNO - document me
-	 * @param expectedType
-	 * @param sealedEntity
-	 * @return
-	 * @param <T>
+	 * Returns a primary key of the referenced category.
 	 */
-	<T extends EntityClassifier>  T createProxy(
-		@Nonnull Class<T> expectedType,
-		@Nonnull SealedEntity sealedEntity,
-		@Nonnull EvitaRequestContext context
-	)
-		throws EntityClassInvalidException;
+	@ReferencedEntity
+	int getPrimaryKey();
+
+	/**
+	 * Order of the entity among other products within the same category in the listing. Used for sorting entities
+	 * in ascending order.
+	 */
+	@AttributeRef(DataGenerator.ATTRIBUTE_CATEGORY_PRIORITY)
+	Long getOrderInCategory();
+
+	/**
+	 * Contains the body of the referenced category if the category is fetched along with the product.
+	 */
+	@ReferencedEntity
+	@Nullable
+	CategoryInterface getCategory();
 
 }

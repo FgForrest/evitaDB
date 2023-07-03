@@ -363,11 +363,14 @@ public class QueryContext {
 		final Map<String, RequirementContext> requirementTuples = evitaRequest.getReferenceEntityFetch();
 
 		// new predicates are richer that previous ones - we need to fetch additional data and create new entity
-		final ReferenceFetcher entityFetcher = requirementTuples.isEmpty() && !evitaRequest.isRequiresParent() ?
+		final ReferenceFetcher entityFetcher = requirementTuples.isEmpty() &&
+			!evitaRequest.isRequiresEntityReferences() &&
+			!evitaRequest.isRequiresParent() ?
 			ReferenceFetcher.NO_IMPLEMENTATION :
 			new ReferencedEntityFetcher(
 				evitaRequest.getHierarchyContent(),
 				requirementTuples,
+				evitaRequest.getDefaultReferenceRequirement(),
 				this
 			);
 

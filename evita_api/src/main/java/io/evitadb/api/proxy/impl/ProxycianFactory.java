@@ -26,11 +26,7 @@ package io.evitadb.api.proxy.impl;
 import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.proxy.SealedEntityProxy;
-import io.evitadb.api.proxy.impl.method.GetAssociatedDataMethodClassifier;
-import io.evitadb.api.proxy.impl.method.GetAttributeMethodClassifier;
-import io.evitadb.api.proxy.impl.method.GetEntityTypeClassifier;
-import io.evitadb.api.proxy.impl.method.GetPrimaryKeyClassifier;
-import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.proxy.impl.method.EntityContractAdvice;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
@@ -39,20 +35,22 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.function.ExceptionRethrowingBiFunction;
 import io.evitadb.function.ExceptionRethrowingIntTriFunction;
+import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.RequiredArgsConstructor;
-import one.edee.oss.proxycian.MethodClassification;
-import one.edee.oss.proxycian.bytebuddy.ByteBuddyDispatcherInvocationHandler;
 import one.edee.oss.proxycian.bytebuddy.ByteBuddyProxyGenerator;
-import one.edee.oss.proxycian.trait.StandardJavaMethods;
-import one.edee.oss.proxycian.trait.delegate.DelegateCallsAdvice.DelegatingMethodClassification;
+import one.edee.oss.proxycian.recipe.Advice;
+import one.edee.oss.proxycian.recipe.ProxyRecipe;
+import one.edee.oss.proxycian.trait.delegate.DelegateCallsAdvice;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Parameter;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
@@ -66,65 +64,61 @@ import static io.evitadb.utils.ClassUtils.isAbstract;
  */
 @RequiredArgsConstructor
 public class ProxycianFactory implements ProxyFactory {
-	@SuppressWarnings("rawtypes")
-	private static final MethodClassification[] METHOD_CLASSIFICATIONS = {
-		StandardJavaMethods.equalsMethodInvoker(),
-		StandardJavaMethods.hashCodeMethodInvoker(),
-		StandardJavaMethods.toStringMethodInvoker(),
-		StandardJavaMethods.realMethodInvoker(),
-		new DelegatingMethodClassification<SealedEntityProxyState, SealedEntityProxy>(
-			SealedEntityProxy.class, Function.identity()
-		),
-		GetPrimaryKeyClassifier.INSTANCE,
-		GetEntityTypeClassifier.INSTANCE,
-		GetAttributeMethodClassifier.INSTANCE,
-		GetAssociatedDataMethodClassifier.INSTANCE
-	};
 
+	final static Function<Class<?>, ProxyRecipe> DEFAULT_ENTITY_RECIPE = theType -> new ProxyRecipe(
+		new Class<?>[]{theType},
+		new Advice[]{
+			new DelegateCallsAdvice<>(SealedEntityProxy.class, Function.identity(), true),
+			EntityContractAdvice.INSTANCE
+		}
+	);
+	private final static ConcurrentHashMap<BestConstructorCacheKey, BestMatchingConstructorWithExtractionLambda<?>> CONSTRUCTOR_CACHE = CollectionUtils.createConcurrentHashMap(256);
+	private final Map<Class<?>, ProxyRecipe> recipes = new ConcurrentHashMap<>(64);
+	private final Map<Class<?>, ProxyRecipe> collectedRecipes = new ConcurrentHashMap<>(64);
 	private final ReflectionLookup reflectionLookup;
-	private final ConcurrentHashMap<BestConstructorCacheKey, BestMatchingConstructorWithExtractionLambda<?>> constructorCache = CollectionUtils.createConcurrentHashMap(256);
 
-	@Override
-	public <T extends EntityClassifier> T createProxy(
+	static <T extends EntityClassifier> T createTheProxy(
 		@Nonnull Class<T> expectedType,
+		@Nonnull Map<Class<?>, ProxyRecipe> recipes,
+		@Nonnull Map<Class<?>, ProxyRecipe> collectedRecipes,
 		@Nonnull SealedEntity sealedEntity,
-		@Nonnull EvitaRequest request
+		@Nonnull EvitaRequestContext context,
+		@Nonnull ReflectionLookup reflectionLookup,
+		@Nonnull Function<Class<T>, ProxyRecipe> recipeLocator
 	) {
+		Assert.isTrue(
+			EntityClassifier.class.isAssignableFrom(expectedType),
+			() -> new EntityClassInvalidException(expectedType, "Proxied type `" + expectedType + "` must be a subclass of EntityClassifier!")
+		);
 		try {
 			if (expectedType.isRecord()) {
 				final BestMatchingConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
 					expectedType, sealedEntity.getSchema(), reflectionLookup
 				);
 				return bestMatchingConstructor.constructor().newInstance(
-					bestMatchingConstructor.constructorArguments(sealedEntity, request)
+					bestMatchingConstructor.constructorArguments(sealedEntity, context)
 				);
 			} else if (expectedType.isInterface()) {
 				return ByteBuddyProxyGenerator.instantiate(
-					new ByteBuddyDispatcherInvocationHandler<>(
-						new SealedEntityProxyState(sealedEntity, expectedType, reflectionLookup),
-						METHOD_CLASSIFICATIONS
-					),
-					new Class<?>[]{expectedType, SealedEntityProxy.class}
+					recipeLocator.apply(expectedType),
+					new SealedEntityProxyState(context, sealedEntity, expectedType, recipes, collectedRecipes, reflectionLookup)
 				);
 			} else if (isAbstract(expectedType)) {
 				final BestMatchingConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
 					expectedType, sealedEntity.getSchema(), reflectionLookup
 				);
 				return ByteBuddyProxyGenerator.instantiate(
-					new ByteBuddyDispatcherInvocationHandler<>(
-						new SealedEntityProxyState(sealedEntity, expectedType, reflectionLookup),
-						METHOD_CLASSIFICATIONS
-					),
+					recipeLocator.apply(expectedType),
 					new Class<?>[]{expectedType, SealedEntityProxy.class},
 					bestMatchingConstructor.constructor().getParameterTypes(),
-					bestMatchingConstructor.constructorArguments(sealedEntity, request)
+					bestMatchingConstructor.constructorArguments(sealedEntity, context)
 				);
 			} else {
 				final BestMatchingConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
 					expectedType, sealedEntity.getSchema(), reflectionLookup
 				);
 				return bestMatchingConstructor.constructor().newInstance(
-					bestMatchingConstructor.constructorArguments(sealedEntity, request)
+					bestMatchingConstructor.constructorArguments(sealedEntity, context)
 				);
 			}
 		} catch (Exception e) {
@@ -132,15 +126,15 @@ public class ProxycianFactory implements ProxyFactory {
 		}
 	}
 
-	private <T extends EntityClassifier> BestMatchingConstructorWithExtractionLambda<T> findBestMatchingConstructor(
+	private static <T extends EntityClassifier> BestMatchingConstructorWithExtractionLambda<T> findBestMatchingConstructor(
 		@Nonnull Class<T> expectedType,
 		@Nonnull EntitySchemaContract schema,
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
 		final BestConstructorCacheKey cacheKey = new BestConstructorCacheKey(schema.getName(), null, expectedType);
-		if (constructorCache.containsKey(cacheKey)) {
+		if (CONSTRUCTOR_CACHE.containsKey(cacheKey)) {
 			//noinspection unchecked
-			return (BestMatchingConstructorWithExtractionLambda<T>) constructorCache.get(cacheKey);
+			return (BestMatchingConstructorWithExtractionLambda<T>) CONSTRUCTOR_CACHE.get(cacheKey);
 		} else {
 			int bestConstructorScore = Integer.MIN_VALUE;
 			BestMatchingConstructorWithExtractionLambda<T> bestConstructor = null;
@@ -148,7 +142,7 @@ public class ProxycianFactory implements ProxyFactory {
 				int score = 0;
 				final Parameter[] parameters = declaredConstructor.getParameters();
 				//noinspection unchecked
-				final ExceptionRethrowingBiFunction<SealedEntity, EvitaRequest, Object>[] argumentExtractors =
+				final ExceptionRethrowingBiFunction<SealedEntity, EvitaRequestContext, Object>[] argumentExtractors =
 					new ExceptionRethrowingBiFunction[parameters.length];
 
 				for (int i = 0; i < parameters.length; i++) {
@@ -167,19 +161,19 @@ public class ProxycianFactory implements ProxyFactory {
 							final String attributeName = attribute.get().getName();
 							if (parameterType.isEnum()) {
 								//noinspection unchecked
-								argumentExtractors[i] = (entity, request) -> Enum.valueOf(
+								argumentExtractors[i] = (entity, context) -> Enum.valueOf(
 									parameterType,
 									(String) entity.getAttribute(
 										attributeName,
-										request.getRequiredOrImplicitLocale(),
+										context.locale(),
 										String.class
 									)
 								);
 							} else {
 								//noinspection unchecked
-								argumentExtractors[i] = (entity, request) -> entity.getAttribute(
+								argumentExtractors[i] = (entity, context) -> entity.getAttribute(
 									attributeName,
-									request.getRequiredOrImplicitLocale(),
+									context.locale(),
 									parameterType
 								);
 							}
@@ -188,20 +182,20 @@ public class ProxycianFactory implements ProxyFactory {
 							final String associatedDataName = associatedData.get().getName();
 							if (parameterType.isEnum()) {
 								//noinspection unchecked
-								argumentExtractors[i] = (entity, request) -> Enum.valueOf(
+								argumentExtractors[i] = (entity, context) -> Enum.valueOf(
 									parameterType,
 									(String) entity.getAssociatedData(
 										associatedDataName,
-										request.getRequiredOrImplicitLocale(),
+										context.locale(),
 										String.class,
 										reflectionLookup
 									)
 								);
 							} else {
 								//noinspection unchecked
-								argumentExtractors[i] = (entity, request) -> entity.getAssociatedData(
+								argumentExtractors[i] = (entity, context) -> entity.getAssociatedData(
 									associatedDataName,
-									request.getRequiredOrImplicitLocale(),
+									context.locale(),
 									parameterType,
 									reflectionLookup
 								);
@@ -215,9 +209,9 @@ public class ProxycianFactory implements ProxyFactory {
 						if (associatedData.isPresent()) {
 							final String associatedDataName = associatedData.get().getName();
 							//noinspection unchecked
-							argumentExtractors[i] = (entity, request) -> entity.getAssociatedData(
+							argumentExtractors[i] = (entity, context) -> entity.getAssociatedData(
 								associatedDataName,
-								request.getRequiredOrImplicitLocale(),
+								context.locale(),
 								parameterType,
 								reflectionLookup
 							);
@@ -231,7 +225,7 @@ public class ProxycianFactory implements ProxyFactory {
 						//noinspection unchecked
 						bestConstructor = new BestMatchingConstructorWithExtractionLambda<>(
 							(Constructor<T>) declaredConstructor,
-							(argumentIndex, sealedEntity, request) -> argumentExtractors[argumentIndex].apply(sealedEntity, request)
+							(argumentIndex, sealedEntity, context) -> argumentExtractors[argumentIndex].apply(sealedEntity, context)
 						);
 					}
 				}
@@ -242,28 +236,62 @@ public class ProxycianFactory implements ProxyFactory {
 					"Cannot find any constructor with matching arguments in class: `" + expectedType.getName() + "`"
 				);
 			} else {
-				constructorCache.putIfAbsent(cacheKey, bestConstructor);
+				CONSTRUCTOR_CACHE.putIfAbsent(cacheKey, bestConstructor);
 				return bestConstructor;
 			}
 		}
 	}
 
+	/**
+	 * TODO JNO - document me
+	 */
+	public <T extends EntityClassifier> void registerRecipe(@Nonnull Class<T> type, @Nonnull ProxyRecipe recipe) {
+		final ProxyRecipe theRecipe = new ProxyRecipe(
+			recipe.getInterfacesWith(SealedEntityProxy.class),
+			ArrayUtils.mergeArrays(
+				new Advice[]{
+					new DelegateCallsAdvice<>(SealedEntityProxy.class, Function.identity(), true),
+					EntityContractAdvice.INSTANCE
+				},
+				recipe.getAdvices()
+			),
+			recipe.getInstantiationCallback()
+		);
+		recipes.put(type, theRecipe);
+		collectedRecipes.put(type, theRecipe);
+	}
+
+	@Override
+	public <T extends EntityClassifier> T createProxy(
+		@Nonnull Class<T> expectedType,
+		@Nonnull SealedEntity sealedEntity,
+		@Nonnull EvitaRequestContext context
+	) {
+		return createTheProxy(
+			expectedType, recipes, collectedRecipes, sealedEntity, context, reflectionLookup,
+			theType -> collectedRecipes.computeIfAbsent(theType, DEFAULT_ENTITY_RECIPE)
+		);
+	}
+
 	private record BestMatchingConstructorWithExtractionLambda<T>(
 		@Nonnull Constructor<T> constructor,
-		@Nonnull ExceptionRethrowingIntTriFunction<SealedEntity, EvitaRequest, Object> extractionLambda
+		@Nonnull ExceptionRethrowingIntTriFunction<SealedEntity, EvitaRequestContext, Object> extractionLambda
 	) {
 
 		@Nonnull
-		public Object[] constructorArguments(@Nonnull SealedEntity sealedEntity, @Nonnull EvitaRequest request) throws Exception {
+		public Object[] constructorArguments(@Nonnull SealedEntity sealedEntity, @Nonnull EvitaRequestContext context) throws Exception {
 			final Class<?>[] parameterTypes = constructor.getParameterTypes();
 			final Object[] parameterArguments = new Object[parameterTypes.length];
 			for (int i = 0; i < parameterTypes.length; i++) {
-				parameterArguments[i] = extractionLambda.apply(i, sealedEntity, request);
+				parameterArguments[i] = extractionLambda.apply(i, sealedEntity, context);
 			}
 			return parameterArguments;
 		}
 	}
 
+	/**
+	 * TODO JNO - document me
+	 */
 	private record BestConstructorCacheKey(
 		@Nonnull String entityName,
 		@Nullable String referenceName,

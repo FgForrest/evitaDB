@@ -32,33 +32,56 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
+import one.edee.oss.proxycian.recipe.ProxyRecipe;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+import static io.evitadb.api.proxy.impl.ProxycianFactory.DEFAULT_ENTITY_RECIPE;
 
 /**
  * TODO JNO - document me
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@RequiredArgsConstructor
-@EqualsAndHashCode(of = { "sealedEntity", "proxyClass" })
+@EqualsAndHashCode(of = {"context", "sealedEntity", "proxyClass"})
 public class SealedEntityProxyState implements EntityClassifier, SealedEntityProxy, Serializable, AttributesContract {
 	@Serial private static final long serialVersionUID = 586508293856395550L;
-	@Delegate(types = { AttributesContract.class })
+	@Delegate(types = {AttributesContract.class})
 	@Getter @Nonnull private final SealedEntity sealedEntity;
+	@Getter @Nonnull private final EvitaRequestContext context;
 	@Getter @Nonnull private final Class<? extends EntityClassifier> proxyClass;
-	@Nonnull private final transient ReflectionLookup reflectionLookup;
+	@Nonnull private final Map<Class<?>, ProxyRecipe> recipes;
+	@Nonnull private transient Map<Class<?>, ProxyRecipe> collectedRecipes;
+	@Nonnull private transient ReflectionLookup reflectionLookup;
+
+	public SealedEntityProxyState(
+		@Nonnull EvitaRequestContext context,
+		@Nonnull SealedEntity sealedEntity,
+		@Nonnull Class<? extends EntityClassifier> proxyClass,
+		@Nonnull Map<Class<?>, ProxyRecipe> recipes,
+		@Nonnull Map<Class<?>, ProxyRecipe> collectedRecipes,
+		@Nonnull ReflectionLookup reflectionLookup
+	) {
+		this.context = context;
+		this.sealedEntity = sealedEntity;
+		this.proxyClass = proxyClass;
+		this.recipes = recipes;
+		this.collectedRecipes = collectedRecipes;
+		this.reflectionLookup = reflectionLookup;
+	}
 
 	@Nonnull
 	public ReflectionLookup getReflectionLookup() {
-		return reflectionLookup == null ?
-			ReflectionLookup.NO_CACHE_INSTANCE : reflectionLookup;
+		return reflectionLookup;
 	}
 
 	@Nonnull
@@ -89,12 +112,26 @@ public class SealedEntityProxyState implements EntityClassifier, SealedEntityPro
 	}
 
 	@Nullable
-	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale,@Nonnull Class<T> returnType) {
+	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale, @Nonnull Class<T> returnType) {
 		return sealedEntity.getAssociatedData(associatedDataName, locale, returnType, getReflectionLookup());
 	}
 
 	@Override
 	public String toString() {
 		return sealedEntity.toString();
+	}
+
+	public <T extends EntityClassifier> T wrapTo(@Nonnull Class<T> entityContract, @Nonnull SealedEntity sealedEntity) {
+		return ProxycianFactory.createTheProxy(
+			entityContract, recipes, collectedRecipes, sealedEntity, context, getReflectionLookup(),
+			theType -> collectedRecipes.computeIfAbsent(theType, DEFAULT_ENTITY_RECIPE)
+		);
+	}
+
+	@Serial
+	private void readObject(@Nonnull ObjectInputStream ois) throws ClassNotFoundException, IOException {
+		ois.defaultReadObject();
+		this.reflectionLookup = ReflectionLookup.NO_CACHE_INSTANCE;
+		this.collectedRecipes = new ConcurrentHashMap<>(recipes);
 	}
 }

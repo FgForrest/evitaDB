@@ -39,7 +39,7 @@ public class EntityClassInvalidException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = 4659727444287535443L;
 	@Getter private final Class<?> modelClass;
 
-	public EntityClassInvalidException(Class<?> modelClass, @Nonnull Throwable cause) {
+	public EntityClassInvalidException(@Nonnull Class<?> modelClass, @Nonnull Throwable cause) {
 		super(
 			"Failed to wrap `SealedEntity` into class `" + modelClass + "` due to: " + cause.getMessage(),
 			"Failed to wrap `SealedEntity`.",

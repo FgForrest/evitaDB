@@ -48,32 +48,8 @@ import java.util.Optional;
 public class GetAssociatedDataMethodClassifier extends DirectMethodClassification<EntityClassifier, SealedEntityProxyState> {
 	public static final GetAssociatedDataMethodClassifier INSTANCE = new GetAssociatedDataMethodClassifier();
 
-	public GetAssociatedDataMethodClassifier() {
-		super(
-			"getAssociatedData",
-			(method, proxyState) -> {
-				if (method.getParameterCount() > 1 || (method.getParameterCount() == 1 && !method.getParameterTypes()[0].equals(Locale.class))) {
-					return null;
-				}
-				final AssociatedDataSchemaContract associatedDataSchema = getAssociatedDataName(
-					method, proxyState.getReflectionLookup(), proxyState.getEntitySchema()
-				);
-				if (associatedDataSchema == null) {
-					return null;
-				} else {
-					final String cleanAssociatedDataName = associatedDataSchema.getName();
-					@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
-					//noinspection unchecked
-					return method.getParameterCount() == 0 ?
-						(entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getAssociatedData(cleanAssociatedDataName, returnType) :
-						(entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getAssociatedData(cleanAssociatedDataName, (Locale) args[0], returnType);
-				}
-			}
-		);
-	}
-
 	@Nullable
-	private static AssociatedDataSchemaContract getAssociatedDataName(
+	private static AssociatedDataSchemaContract getAssociatedDataSchema(
 		@Nonnull Method method,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull EntitySchemaContract entitySchema
@@ -85,9 +61,12 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		} else if (associatedDataRefInstance != null) {
 			return getAssociatedDataSchemaContractOrThrow(entitySchema, associatedDataRefInstance.value());
 		} else if (!reflectionLookup.hasAnnotationInSamePackage(method, AssociatedData.class)) {
-			return entitySchema.getAssociatedDataByName(
-					ReflectionLookup.getPropertyNameFromMethodName(method.getName()),
-					NamingConvention.CAMEL_CASE
+			return ReflectionLookup.getPropertyNameFromMethodNameIfPossible(method.getName())
+				.flatMap(
+					associatedDataName -> entitySchema.getAssociatedDataByName(
+						associatedDataName,
+						NamingConvention.CAMEL_CASE
+					)
 				)
 				.orElse(null);
 		} else {
@@ -106,6 +85,30 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 			.orElseThrow(
 				() -> new AssociatedDataNotFoundException(associatedDataName, entitySchema)
 			);
+	}
+
+	public GetAssociatedDataMethodClassifier() {
+		super(
+			"getAssociatedData",
+			(method, proxyState) -> {
+				if (method.getParameterCount() > 1 || (method.getParameterCount() == 1 && !method.getParameterTypes()[0].equals(Locale.class))) {
+					return null;
+				}
+				final AssociatedDataSchemaContract associatedDataSchema = getAssociatedDataSchema(
+					method, proxyState.getReflectionLookup(), proxyState.getEntitySchema()
+				);
+				if (associatedDataSchema == null) {
+					return null;
+				} else {
+					final String cleanAssociatedDataName = associatedDataSchema.getName();
+					@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
+					//noinspection unchecked
+					return method.getParameterCount() == 0 ?
+						(entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getAssociatedData(cleanAssociatedDataName, returnType) :
+						(entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getAssociatedData(cleanAssociatedDataName, (Locale) args[0], returnType);
+				}
+			}
+		);
 	}
 
 }
