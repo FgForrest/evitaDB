@@ -61,8 +61,9 @@ public class LazyEvaluatedEntityPriceRecords implements FilteredPriceRecords {
 	 * Method returns {@link PriceRecordLookup} implementation that provides
 	 * {@link PriceListAndCurrencyPriceIndex#getLowestPriceRecordsForEntity(int)} for each entity asked.
 	 */
+	@Nonnull
 	@Override
-	public @Nonnull PriceRecordLookup getPriceRecordsLookup() {
+	public PriceRecordIterator getPriceRecordsLookup() {
 		return new PriceRecordIterator(this.priceIndexes);
 	}
 
