@@ -66,7 +66,7 @@ public interface QueryConstraints {
 	 * ```
 	 * collection('category')
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static Collection collection(@Nonnull String entityType) {
 		return new Collection(entityType);
@@ -93,7 +93,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
-	 */
+	*/
 	@Nullable
 	static FilterBy filterBy(@Nullable FilterConstraint... constraint) {
 		return constraint == null ? null : new FilterBy(constraint);
@@ -101,7 +101,7 @@ public interface QueryConstraints {
 
 	/**
 	 * TOBEDONE JNO - document me
-	 */
+	*/
 	@Nullable
 	static FilterGroupBy filterGroupBy(@Nullable FilterConstraint... constraint) {
 		return constraint == null ? null : new FilterGroupBy(constraint);
@@ -160,7 +160,7 @@ public interface QueryConstraints {
 	 *
 	 * ... returns a single result - product with entity primary key 106742, which is the only one that all three
 	 * `entityPrimaryKeyInSet` constraints have in common.
-	 */
+	*/
 	@Nullable
 	static And and(@Nullable FilterConstraint... constraints) {
 		if (constraints == null) {
@@ -222,7 +222,7 @@ public interface QueryConstraints {
 	 *
 	 * ... returns four results representing a combination of all primary keys used in the `entityPrimaryKeyInSet`
 	 * constraints.
-	 */
+	*/
 	@Nullable
 	static Or or(@Nullable FilterConstraint... constraints) {
 		if (constraints == null) {
@@ -283,7 +283,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * ... which returns only three products that were not excluded by the following `not` constraint.
-	 */
+	*/
 	@Nullable
 	static Not not(@Nullable FilterConstraint constraint) {
 		return constraint == null ? null : new Not(constraint);
@@ -315,7 +315,7 @@ public interface QueryConstraints {
 	 * ```
 	 *
 	 * TOBEDONE JNO - consider renaming to `referenceMatching`
-	 */
+	*/
 	@Nullable
 	static ReferenceHaving referenceHaving(@Nonnull String referenceName, @Nullable FilterConstraint... constraint) {
 		return ArrayUtils.isEmpty(constraint) ? null : new ReferenceHaving(referenceName, constraint);
@@ -403,7 +403,7 @@ public interface QueryConstraints {
 	 * groups (i.e. facet in group are not represented as multi-select/checkboxes but as exlusive select/radio) or conditional
 	 * filters (which can be used to apply a certain filter only if it would produce non-empty result, this is good for
 	 * "sticky" filters).*
-	 */
+	*/
 	@Nullable
 	static UserFilter userFilter(@Nullable FilterConstraint... constraints) {
 		if (constraints == null) {
@@ -456,7 +456,7 @@ public interface QueryConstraints {
 	 * between(`validity`, 0, 1)
 	 * between(`validity`, 6, 7)
 	 * </pre>
-	 */
+	*/
 	@Nullable
 	static <T extends Serializable & Comparable<?>> AttributeBetween attributeBetween(@Nonnull String attributeName, @Nullable T from, @Nullable T to) {
 		if (from == null && to == null) {
@@ -487,7 +487,7 @@ public interface QueryConstraints {
 	 * contains('code','mou')
 	 * contains('code','o')
 	 * </pre>
-	 */
+	*/
 	@Nullable
 	static AttributeContains attributeContains(@Nonnull String attributeName, @Nullable String textToSearch) {
 		return textToSearch == null ? null : new AttributeContains(attributeName, textToSearch);
@@ -515,7 +515,7 @@ public interface QueryConstraints {
 	 * contains('code','mou')
 	 * contains('code','do')
 	 * </pre>
-	 */
+	*/
 	@Nullable
 	static AttributeStartsWith attributeStartsWith(@Nonnull String attributeName, @Nullable String textToSearch) {
 		return textToSearch == null ? null : new AttributeStartsWith(attributeName, textToSearch);
@@ -543,7 +543,7 @@ public interface QueryConstraints {
 	 * contains('code','at')
 	 * contains('code','og')
 	 * </pre>
-	 */
+	*/
 	@Nullable
 	static AttributeEndsWith attributeEndsWith(@Nonnull String attributeName, @Nullable String textToSearch) {
 		return textToSearch == null ? null : new AttributeEndsWith(attributeName, textToSearch);
@@ -572,7 +572,7 @@ public interface QueryConstraints {
 	 * equals('code','B')
 	 * equals('code','C')
 	 * </pre>
-	 */
+	*/
 	@Nullable
 	static <T extends Serializable> AttributeEquals attributeEquals(@Nonnull String attributeName, @Nullable T attributeValue) {
 		return attributeValue == null ? null : new AttributeEquals(attributeName, attributeValue);
@@ -594,7 +594,7 @@ public interface QueryConstraints {
 	 * <pre>
 	 * lessThan('age', 20)
 	 * </pre>
-	 */
+	*/
 	@Nullable
 	static <T extends Serializable & Comparable<?>> AttributeLessThan attributeLessThan(@Nonnull String attributeName, @Nullable T attributeValue) {
 		return attributeValue == null ? null : new AttributeLessThan(attributeName, attributeValue);
@@ -617,7 +617,7 @@ public interface QueryConstraints {
 	 * <pre>
 	 * lessThanEquals('age', 20)
 	 * </pre>
-	 */
+	*/
 	@Nullable
 	static <T extends Serializable & Comparable<?>> AttributeLessThanEquals attributeLessThanEquals(@Nonnull String attributeName, @Nullable T attributeValue) {
 		return attributeValue == null ? null : new AttributeLessThanEquals(attributeName, attributeValue);
@@ -639,7 +639,7 @@ public interface QueryConstraints {
 	 * <pre>
 	 * greaterThan('age', 20)
 	 * </pre>
-	 */
+	*/
 	@Nullable
 	static <T extends Serializable & Comparable<?>> AttributeGreaterThan attributeGreaterThan(@Nonnull String attributeName, @Nullable T attributeValue) {
 		return attributeValue == null ? null : new AttributeGreaterThan(attributeName, attributeValue);
@@ -662,7 +662,7 @@ public interface QueryConstraints {
 	 * <pre>
 	 * greaterThanEquals('age', 20)
 	 * </pre>
-	 */
+	*/
 	@Nullable
 	static <T extends Serializable & Comparable<?>> AttributeGreaterThanEquals attributeGreaterThanEquals(@Nonnull String attributeName, @Nullable T attributeValue) {
 		return attributeValue == null ? null : new AttributeGreaterThanEquals(attributeName, attributeValue);
@@ -718,7 +718,7 @@ public interface QueryConstraints {
 	 * ```
 	 * priceInPriceLists(1, 5, 6)
 	 * ```
-	 */
+	*/
 	@Nullable
 	static PriceInPriceLists priceInPriceLists(@Nullable String... priceList) {
 		if (priceList == null) {
@@ -746,7 +746,7 @@ public interface QueryConstraints {
 	 * ```
 	 * priceInCurrency('USD')
 	 * ```
-	 */
+	*/
 	@Nullable
 	static PriceInCurrency priceInCurrency(@Nullable String currency) {
 		return currency == null ? null : new PriceInCurrency(currency);
@@ -771,7 +771,7 @@ public interface QueryConstraints {
 	 * ```
 	 * priceInCurrency('USD')
 	 * ```
-	 */
+	*/
 	@Nullable
 	static PriceInCurrency priceInCurrency(@Nullable Currency currency) {
 		return currency == null ? null : new PriceInCurrency(currency);
@@ -837,7 +837,7 @@ public interface QueryConstraints {
 	 *
 	 * Products assigned to two or more subcategories of Accessories category will only appear once in the response
 	 * (contrary to what you might expect if you have experience with SQL).
-	 */
+	*/
 	@Nullable
 	static HierarchyWithin hierarchyWithinSelf(@Nullable FilterConstraint ofParent, @Nullable HierarchySpecificationFilterConstraint... with) {
 		if (ofParent == null) {
@@ -909,7 +909,7 @@ public interface QueryConstraints {
 	 *
 	 * Products assigned to two or more subcategories of Accessories category will only appear once in the response
 	 * (contrary to what you might expect if you have experience with SQL).
-	 */
+	*/
 	@Nullable
 	static HierarchyWithin hierarchyWithin(@Nonnull String referenceName, @Nullable FilterConstraint ofParent, @Nullable HierarchySpecificationFilterConstraint... with) {
 		if (ofParent == null) {
@@ -979,7 +979,7 @@ public interface QueryConstraints {
 	 *
 	 * Products assigned to only one orphan category will be missing from the result. Products assigned to two or more
 	 * categories will only appear once in the response (contrary to what you might expect if you have experience with SQL).
-	 */
+	*/
 	@Nonnull
 	static HierarchyWithinRoot hierarchyWithinRootSelf(@Nullable HierarchySpecificationFilterConstraint... with) {
 		return with == null ? new HierarchyWithinRoot() : new HierarchyWithinRoot(with);
@@ -1043,7 +1043,7 @@ public interface QueryConstraints {
 	 *
 	 * Products assigned to only one orphan category will be missing from the result. Products assigned to two or more
 	 * categories will only appear once in the response (contrary to what you might expect if you have experience with SQL).
-	 */
+	*/
 	@Nonnull
 	static HierarchyWithinRoot hierarchyWithinRoot(@Nonnull String referenceName, @Nullable HierarchySpecificationFilterConstraint... with) {
 		return with == null ? new HierarchyWithinRoot() : new HierarchyWithinRoot(referenceName, with);
@@ -1144,7 +1144,7 @@ public interface QueryConstraints {
 	 * In the situation where the single product, let's say Garmin Vivosmart 5, is in both the excluded category Christmas
 	 * Electronics and the included category Smartwatches, it will remain in the query result because there is at least one
 	 * product reference that is part of the visible part of the tree.
-	 */
+	*/
 	@Nullable
 	static HierarchyHaving having(@Nullable FilterConstraint... includeChildTreeConstraints) {
 		if (ArrayUtils.isEmpty(includeChildTreeConstraints)) {
@@ -1237,7 +1237,7 @@ public interface QueryConstraints {
 	 * The hierarchical query traverses from the root nodes to the leaf nodes. For each of the nodes, the engine checks
 	 * whether the excluding constraint is satisfied valid, and if so, it excludes that hierarchy node and all of its child
 	 * nodes (entire subtree).
-	 */
+	*/
 	@Nullable
 	static HierarchyExcluding excluding(@Nullable FilterConstraint... excludeChildTreeConstraints) {
 		if (ArrayUtils.isEmpty(excludeChildTreeConstraints)) {
@@ -1299,7 +1299,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 */
+	*/
 	@Nonnull
 	static HierarchyDirectRelation directRelation() {
 		return new HierarchyDirectRelation();
@@ -1367,7 +1367,7 @@ public interface QueryConstraints {
 	 *
 	 * ... we get only 4 items, which means that 16 were assigned directly to Keyboards category and only 4 of them were
 	 * assigned to Exotic keyboards.
-	 */
+	*/
 	@Nonnull
 	static HierarchyExcludingRoot excludingRoot() {
 		return new HierarchyExcludingRoot();
@@ -1404,7 +1404,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 */
+	*/
 	@Nullable
 	static EntityLocaleEquals entityLocaleEquals(@Nullable Locale locale) {
 		return locale == null ? null : new EntityLocaleEquals(locale);
@@ -1414,7 +1414,7 @@ public interface QueryConstraints {
 	 * Container allowing to filter entities by having references to entities managed by evitaDB that
 	 * match inner filtering constraints. This container resembles the SQL inner join clauses where the `entityHaving`
 	 * contains the filtering condition on particular join.
-	 */
+	*/
 	@Nullable
 	static EntityHaving entityHaving(@Nullable FilterConstraint filterConstraint) {
 		return filterConstraint == null ? null : new EntityHaving(filterConstraint);
@@ -1445,7 +1445,7 @@ public interface QueryConstraints {
 	 * inRange('age', 24)
 	 * inRange('age', 63)
 	 * </pre>
-	 */
+	*/
 	@Nullable
 	static AttributeInRange attributeInRange(@Nonnull String attributeName, @Nullable OffsetDateTime atTheMoment) {
 		return atTheMoment == null ? null : new AttributeInRange(attributeName, atTheMoment);
@@ -1476,7 +1476,7 @@ public interface QueryConstraints {
 	 * inRange('age', 24)
 	 * inRange('age', 63)
 	 * </pre>
-	 */
+	*/
 	@Nullable
 	static AttributeInRange attributeInRange(@Nonnull String attributeName, @Nullable Number theValue) {
 		return theValue == null ? null : new AttributeInRange(attributeName, theValue);
@@ -1507,7 +1507,7 @@ public interface QueryConstraints {
 	 * inRange('age', 24)
 	 * inRange('age', 63)
 	 * </pre>
-	 */
+	*/
 	@Nonnull
 	static AttributeInRange attributeInRangeNow(@Nonnull String attributeName) {
 		return new AttributeInRange(attributeName);
@@ -1537,7 +1537,7 @@ public interface QueryConstraints {
 	 * inSet('code','A','D')
 	 * inSet('code','A', 'B')
 	 * </pre>
-	 */
+	*/
 	@SuppressWarnings("unchecked")
 	@Nullable
 	static <T extends Serializable> AttributeInSet attributeInSet(@Nonnull String attributeName, @Nullable T... set) {
@@ -1581,7 +1581,7 @@ public interface QueryConstraints {
 	 * equals('code','B')
 	 * equals('code','C')
 	 * </pre>
-	 */
+	*/
 	@Nonnull
 	static AttributeEquals attributeEqualsFalse(@Nonnull String attributeName) {
 		return new AttributeEquals(attributeName, Boolean.FALSE);
@@ -1610,7 +1610,7 @@ public interface QueryConstraints {
 	 * equals('code','B')
 	 * equals('code','C')
 	 * </pre>
-	 */
+	*/
 	@Nonnull
 	static AttributeEquals attributeEqualsTrue(@Nonnull String attributeName) {
 		return new AttributeEquals(attributeName, Boolean.TRUE);
@@ -1633,7 +1633,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * Function supports attribute arrays in the same way as plain values.
-	 */
+	*/
 	@Nullable
 	static AttributeIs attributeIs(@Nonnull String attributeName, @Nullable AttributeSpecialValue specialValue) {
 		if (specialValue == null) {
@@ -1659,7 +1659,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * Function supports attribute arrays in the same way as plain values.
-	 */
+	*/
 	@Nonnull
 	static AttributeIs attributeIsNull(@Nonnull String attributeName) {
 		return new AttributeIs(attributeName, AttributeSpecialValue.NULL);
@@ -1682,7 +1682,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * Function supports attribute arrays in the same way as plain values.
-	 */
+	*/
 	@Nonnull
 	static AttributeIs attributeIsNotNull(@Nonnull String attributeName) {
 		return new AttributeIs(attributeName, AttributeSpecialValue.NOT_NULL);
@@ -1709,7 +1709,7 @@ public interface QueryConstraints {
 	 * ```
 	 * priceBetween(150.25, 220.0)
 	 * ```
-	 */
+	*/
 	@Nullable
 	static PriceBetween priceBetween(@Nullable BigDecimal from, @Nullable BigDecimal to) {
 		if (from == null && to == null) {
@@ -1738,7 +1738,7 @@ public interface QueryConstraints {
 	 * ```
 	 * priceValidIn(2020-07-30T20:37:50+00:00)
 	 * ```
-	 */
+	*/
 	@Nullable
 	static PriceValidIn priceValidIn(@Nullable OffsetDateTime theMoment) {
 		return theMoment == null ? null : new PriceValidIn(theMoment);
@@ -1763,7 +1763,7 @@ public interface QueryConstraints {
 	 * ```
 	 * priceValidIn(2020-07-30T20:37:50+00:00)
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static PriceValidIn priceValidInNow() {
 		return new PriceValidIn();
@@ -1809,7 +1809,7 @@ public interface QueryConstraints {
 	 *
 	 * *Another reason is that we need to know relationships among facet groups even for types/groups that hasn't yet been
 	 * selected by the user in order to be able to compute [facet summary](#facet-summary) output.*
-	 */
+	*/
 	@Nullable
 	static FacetHaving facetHaving(@Nonnull String referenceName, @Nullable FilterConstraint... constraint) {
 		return ArrayUtils.isEmpty(constraint) ? null : new FacetHaving(referenceName, constraint);
@@ -1829,7 +1829,7 @@ public interface QueryConstraints {
 	 * ```
 	 * primaryKey(1, 2, 3)
 	 * ```
-	 */
+	*/
 	@Nullable
 	static EntityPrimaryKeyInSet entityPrimaryKeyInSet(@Nullable Integer... primaryKey) {
 		if (primaryKey == null) {
@@ -1865,7 +1865,7 @@ public interface QueryConstraints {
 	 *     priceDescending()
 	 * )
 	 * ```
-	 */
+	*/
 	@Nullable
 	static OrderBy orderBy(@Nullable OrderConstraint... constraints) {
 		if (constraints == null) {
@@ -1888,7 +1888,7 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * </pre>
-	 */
+	*/
 	@Nullable
 	static OrderGroupBy orderGroupBy(@Nullable OrderConstraint... constraints) {
 		if (constraints == null) {
@@ -1918,7 +1918,7 @@ public interface QueryConstraints {
 	 * The example will return the selected entities (if present) in the exact order that was used for array filtering them.
 	 * The ordering constraint is particularly useful when you have sorted set of entity primary keys from an external
 	 * system which needs to be maintained (for example, it represents a relevancy of those entities).
-	 */
+	*/
 	@Nonnull
 	static EntityPrimaryKeyInFilter entityPrimaryKeyInFilter() {
 		return new EntityPrimaryKeyInFilter();
@@ -1945,7 +1945,7 @@ public interface QueryConstraints {
 	 * this ordering constraint. If there are entities, whose primary keys are not present in the argument, then they
 	 * will be present at the end of the output in ascending order of their primary keys (or they will be sorted by
 	 * additional ordering constraint in the chain).
-	 */
+	*/
 	@Nullable
 	static EntityPrimaryKeyExact entityPrimaryKeyExact(@Nullable Integer... primaryKey) {
 		if (ArrayUtils.isEmpty(primaryKey)) {
@@ -1976,7 +1976,7 @@ public interface QueryConstraints {
 	 * The example will return the selected entities (if present) in the exact order of their attribute `code` that was used
 	 * for array filtering them. The ordering constraint is particularly useful when you have sorted set of attribute values
 	 * from an external system which needs to be maintained (for example, it represents a relevancy of those entities).
-	 */
+	*/
 	@Nullable
 	static AttributeSetInFilter attributeSetInFilter(@Nullable String attributeName) {
 		if (attributeName == null || attributeName.isBlank()) {
@@ -2006,7 +2006,7 @@ public interface QueryConstraints {
 	 * stated in the second to Nth argument of this ordering constraint. If there are entities, that have not the attribute
 	 * `code` , then they will be present at the end of the output in ascending order of their primary keys (or they will be
 	 * sorted by additional ordering constraint in the chain).
-	 */
+	*/
 	@Nullable
 	static AttributeSetExact attributeSetExact(@Nullable String attributeName, @Nullable Serializable... attributeValues) {
 		if (attributeName == null || attributeName.isBlank() || ArrayUtils.isEmpty(attributeValues)) {
@@ -2089,7 +2089,7 @@ public interface QueryConstraints {
 	 * order them by a property "priority" set on the reference to the category, the first products will be those directly
 	 * related to the category, ordered by "priority", followed by the products of the first child category, and so on,
 	 * maintaining the depth-first order of the category tree.
-	 */
+	*/
 	@Nullable
 	static ReferenceProperty referenceProperty(@Nonnull String referenceName, @Nullable OrderConstraint... constraints) {
 		if (constraints == null) {
@@ -2132,7 +2132,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 */
+	*/
 	@Nullable
 	static EntityProperty entityProperty(@Nullable OrderConstraint... constraints) {
 		if (constraints == null) {
@@ -2179,7 +2179,7 @@ public interface QueryConstraints {
 	 * compound will cover multiple attributes and prepares a special sort index for this particular combination of
 	 * attributes, respecting the predefined order and NULL values behaviour. In the query, you can then use the compound
 	 * name instead of the default attribute name and achieve the expected results.
-	 */
+	*/
 	@Nonnull
 	static AttributeNatural attributeNatural(@Nonnull String attributeName) {
 		return new AttributeNatural(attributeName);
@@ -2223,7 +2223,7 @@ public interface QueryConstraints {
 	 * compound will cover multiple attributes and prepares a special sort index for this particular combination of
 	 * attributes, respecting the predefined order and NULL values behaviour. In the query, you can then use the compound
 	 * name instead of the default attribute name and achieve the expected results.
-	 */
+	*/
 	@Nonnull
 	static AttributeNatural attributeNatural(@Nonnull String attributeName, @Nonnull OrderDirection orderDirection) {
 		return new AttributeNatural(attributeName, orderDirection);
@@ -2240,7 +2240,7 @@ public interface QueryConstraints {
 	 * price()
 	 * price(DESC)
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static PriceNatural priceNatural() {
 		return new PriceNatural();
@@ -2257,7 +2257,7 @@ public interface QueryConstraints {
 	 * price()
 	 * price(DESC)
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static PriceNatural priceNatural(@Nonnull OrderDirection orderDirection) {
 		return new PriceNatural(orderDirection);
@@ -2273,7 +2273,7 @@ public interface QueryConstraints {
 	 * <pre>
 	 * random()
 	 * </pre>
-	 */
+	*/
 	@Nonnull
 	static Random random() {
 		return new Random();
@@ -2295,7 +2295,7 @@ public interface QueryConstraints {
 	 *     entityBody()
 	 * )
 	 * ```
-	 */
+	*/
 	@Nullable
 	static Require require(@Nullable RequireConstraint... constraints) {
 		if (constraints == null) {
@@ -2324,7 +2324,7 @@ public interface QueryConstraints {
 	 * ```
 	 * attributeHistogram(20, 'width', 'height')
 	 * ```
-	 */
+	*/
 	@Nullable
 	static AttributeHistogram attributeHistogram(int requestedBucketCount, @Nullable String... attributeName) {
 		if (ArrayUtils.isEmpty(attributeName)) {
@@ -2348,7 +2348,7 @@ public interface QueryConstraints {
 	 * ```
 	 * priceHistogram(20)
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static PriceHistogram priceHistogram(int requestedBucketCount) {
 		return new PriceHistogram(requestedBucketCount);
@@ -2402,7 +2402,7 @@ public interface QueryConstraints {
 	 * When user selects facets: blue (11), red (12) by default relation would be: get all entities that have facet blue(11) OR
 	 * facet red(12). If require `facetGroupsConjunction('parameterType', 1)` is passed in the query filtering condition will
 	 * be composed as: blue(11) AND red(12)
-	 */
+	*/
 	@Nullable
 	static FacetGroupsConjunction facetGroupsConjunction(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
 		if (filterBy == null || !filterBy.isApplicable()) {
@@ -2459,7 +2459,7 @@ public interface QueryConstraints {
 	 * When user selects facets: blue (11), large (22), new products (31) - the default meaning would be: get all entities that
 	 * have facet blue as well as facet large and action products tag (AND). If require `facetGroupsDisjunction('tag', 3)`
 	 * is passed in the query, filtering condition will be composed as: (`blue(11)` AND `large(22)`) OR `new products(31)`
-	 */
+	*/
 	@Nullable
 	static FacetGroupsDisjunction facetGroupsDisjunction(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
 		if (filterBy == null || !filterBy.isApplicable()) {
@@ -2482,7 +2482,7 @@ public interface QueryConstraints {
 	 *
 	 * This statement means, that facets in 'parameterType' groups `1`, `8`, `15` will be joined with boolean AND NOT relation
 	 * when selected.
-	 */
+	*/
 	@Nullable
 	static FacetGroupsNegation facetGroupsNegation(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
 		if (filterBy == null || !filterBy.isApplicable()) {
@@ -2522,7 +2522,7 @@ public interface QueryConstraints {
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
-	 */
+	*/
 	@Nullable
 	static HierarchyOfSelf hierarchyOfSelf(@Nullable HierarchyRequireConstraint... requirement) {
 		return ArrayUtils.isEmpty(requirement) ? null : new HierarchyOfSelf(null, requirement);
@@ -2559,7 +2559,7 @@ public interface QueryConstraints {
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
-	 */
+	*/
 	@Nullable
 	static HierarchyOfSelf hierarchyOfSelf(
 		@Nullable OrderBy orderBy,
@@ -2603,7 +2603,7 @@ public interface QueryConstraints {
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
-	 */
+	*/
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String referenceName,
@@ -2647,7 +2647,7 @@ public interface QueryConstraints {
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
-	 */
+	*/
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String referenceName,
@@ -2692,7 +2692,7 @@ public interface QueryConstraints {
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
-	 */
+	*/
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String referenceName,
@@ -2743,7 +2743,7 @@ public interface QueryConstraints {
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
-	 */
+	*/
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String referenceName,
@@ -2796,7 +2796,7 @@ public interface QueryConstraints {
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
-	 */
+	*/
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String[] referenceName,
@@ -2840,7 +2840,7 @@ public interface QueryConstraints {
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
-	 */
+	*/
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String[] referenceName,
@@ -2885,7 +2885,7 @@ public interface QueryConstraints {
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
-	 */
+	*/
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String[] referenceName,
@@ -2940,7 +2940,7 @@ public interface QueryConstraints {
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
-	 */
+	*/
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String[] referenceName,
@@ -3022,7 +3022,7 @@ public interface QueryConstraints {
 	 * the `fromRoot` respects them. The reason is simple: when you render a menu for the query result, you want
 	 * the calculated statistics to respect the rules that apply to the {@link HierarchyWithin} so that the calculated
 	 * number remains consistent for the end user.
-	 */
+	*/
 	@Nullable
 	static HierarchyFromRoot fromRoot(
 		@Nullable String outputName,
@@ -3095,7 +3095,7 @@ public interface QueryConstraints {
 	 * the `fromRoot` respects them. The reason is simple: when you render a menu for the query result, you want
 	 * the calculated statistics to respect the rules that apply to the {@link HierarchyWithin} so that the calculated
 	 * number remains consistent for the end user.
-	 */
+	*/
 	@Nullable
 	static HierarchyFromRoot fromRoot(
 		@Nullable String outputName,
@@ -3187,7 +3187,7 @@ public interface QueryConstraints {
 	 * the `fromNode` respects them. The reason is simple: when you render a menu for the query result, you want
 	 * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
 	 * remains consistent for the end user.
-	 */
+	*/
 	@Nullable
 	static HierarchyFromNode fromNode(
 		@Nullable String outputName,
@@ -3281,7 +3281,7 @@ public interface QueryConstraints {
 	 * the `fromNode` respects them. The reason is simple: when you render a menu for the query result, you want
 	 * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
 	 * remains consistent for the end user.
-	 */
+	*/
 	@Nullable
 	static HierarchyFromNode fromNode(
 		@Nullable String outputName,
@@ -3353,7 +3353,7 @@ public interface QueryConstraints {
 	 * well. The reason is simple: when you render a menu for the query result, you want the calculated statistics to
 	 * respect the rules that apply to the hierarchyWithin so that the calculated number remains consistent for the end
 	 * user.
-	 */
+	*/
 	@Nullable
 	static HierarchyChildren children(
 		@Nullable String outputName,
@@ -3422,7 +3422,7 @@ public interface QueryConstraints {
 	 * well. The reason is simple: when you render a menu for the query result, you want the calculated statistics to
 	 * respect the rules that apply to the hierarchyWithin so that the calculated number remains consistent for the end
 	 * user.
-	 */
+	*/
 	@Nullable
 	static HierarchyChildren children(
 		@Nullable String outputName,
@@ -3498,7 +3498,7 @@ public interface QueryConstraints {
 	 * the first string argument that defines the name for the output data structure. The reason is that this name is
 	 * already defined on the enclosing parents constraint, and the siblings constraint simply extends the data available
 	 * in its data structure.
-	 */
+	*/
 	@Nullable
 	static HierarchySiblings siblings(
 		@Nullable String outputName,
@@ -3575,7 +3575,7 @@ public interface QueryConstraints {
 	 * the first string argument that defines the name for the output data structure. The reason is that this name is
 	 * already defined on the enclosing parents constraint, and the siblings constraint simply extends the data available
 	 * in its data structure.
-	 */
+	*/
 	@Nullable
 	static HierarchySiblings siblings(
 		@Nullable String outputName,
@@ -3651,7 +3651,7 @@ public interface QueryConstraints {
 	 * the first string argument that defines the name for the output data structure. The reason is that this name is
 	 * already defined on the enclosing parents constraint, and the siblings constraint simply extends the data available
 	 * in its data structure.
-	 */
+	*/
 	@Nullable
 	static HierarchySiblings siblings(
 		@Nullable EntityFetch entityFetch,
@@ -3723,7 +3723,7 @@ public interface QueryConstraints {
 	 * the first string argument that defines the name for the output data structure. The reason is that this name is
 	 * already defined on the enclosing parents constraint, and the siblings constraint simply extends the data available
 	 * in its data structure.
-	 */
+	*/
 	@Nullable
 	static HierarchySiblings siblings(@Nullable HierarchyOutputRequireConstraint... requirements) {
 		return new HierarchySiblings(null, requirements);
@@ -3783,7 +3783,7 @@ public interface QueryConstraints {
 	 * the parents will respect them as well during child nodes / queried entities statistics calculation. The reason is
 	 * simple: when you render a menu for the query result, you want the calculated statistics to respect the rules that
 	 * apply to the {@link HierarchyWithin} so that the calculated number remains consistent for the end user.
-	 */
+	*/
 	@Nullable
 	static HierarchyParents parents(
 		@Nullable String outputName,
@@ -3851,7 +3851,7 @@ public interface QueryConstraints {
 	 * the parents will respect them as well during child nodes / queried entities statistics calculation. The reason is
 	 * simple: when you render a menu for the query result, you want the calculated statistics to respect the rules that
 	 * apply to the {@link HierarchyWithin} so that the calculated number remains consistent for the end user.
-	 */
+	*/
 	@Nullable
 	static HierarchyParents parents(
 		@Nullable String outputName,
@@ -3924,7 +3924,7 @@ public interface QueryConstraints {
 	 * the parents will respect them as well during child nodes / queried entities statistics calculation. The reason is
 	 * simple: when you render a menu for the query result, you want the calculated statistics to respect the rules that
 	 * apply to the {@link HierarchyWithin} so that the calculated number remains consistent for the end user.
-	 */
+	*/
 	@Nullable
 	static HierarchyParents parents(
 		@Nullable String outputName,
@@ -3991,7 +3991,7 @@ public interface QueryConstraints {
 	 * the parents will respect them as well during child nodes / queried entities statistics calculation. The reason is
 	 * simple: when you render a menu for the query result, you want the calculated statistics to respect the rules that
 	 * apply to the {@link HierarchyWithin} so that the calculated number remains consistent for the end user.
-	 */
+	*/
 	@Nullable
 	static HierarchyParents parents(
 		@Nullable String outputName,
@@ -4019,7 +4019,7 @@ public interface QueryConstraints {
 	 *
 	 * which define the constraint that stops traversing the hierarchy tree when it's satisfied by a currently traversed
 	 * node.
-	 */
+	*/
 	@Nullable
 	static HierarchyStopAt stopAt(@Nullable HierarchyStopAtRequireConstraint stopConstraint) {
 		return stopConstraint == null ? null : new HierarchyStopAt(stopConstraint);
@@ -4065,7 +4065,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
-	 */
+	*/
 	@Nullable
 	static HierarchyNode node(@Nullable FilterBy filterBy) {
 		return filterBy == null ? null : new HierarchyNode(filterBy);
@@ -4102,7 +4102,7 @@ public interface QueryConstraints {
 	 *
 	 * The query lists products in Audio category and its subcategories. Along with the products returned, it
 	 * also returns a computed megaMenu data structure that lists top two levels of the entire hierarchy.
-	 */
+	*/
 	@Nullable
 	static HierarchyLevel level(@Nullable Integer level) {
 		return level == null ? null : new HierarchyLevel(level);
@@ -4146,7 +4146,7 @@ public interface QueryConstraints {
 	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it
 	 * also returns a computed subcategories data structure that lists the flat category list the currently focused category
 	 * Audio.
-	 */
+	*/
 	@Nullable
 	static HierarchyDistance distance(@Nullable Integer distance) {
 		return distance == null ? null : new HierarchyDistance(distance);
@@ -4193,7 +4193,7 @@ public interface QueryConstraints {
 	 * This query actually has to filter and aggregate all the records in the database, which is obviously quite expensive,
 	 * even considering that all the indexes are in-memory. Caching is probably the only way out if you really need
 	 * to crunch these numbers.
-	 */
+	*/
 	@Nullable
 	static HierarchyStatistics statistics(@Nullable StatisticsType... type) {
 		return type == null ?
@@ -4242,7 +4242,7 @@ public interface QueryConstraints {
 	 * This query actually has to filter and aggregate all the records in the database, which is obviously quite expensive,
 	 * even considering that all the indexes are in-memory. Caching is probably the only way out if you really need
 	 * to crunch these numbers.
-	 */
+	*/
 	@Nullable
 	static HierarchyStatistics statistics(@Nullable StatisticsBase base, @Nullable StatisticsType... type) {
 		if (base == null) {
@@ -4254,7 +4254,7 @@ public interface QueryConstraints {
 
 	/**
 	 * TOBEDONE JNO docs
-	 */
+	*/
 	@Nonnull
 	static EntityFetch entityFetch(@Nullable EntityContentRequire... requirements) {
 		if (requirements == null) {
@@ -4265,7 +4265,7 @@ public interface QueryConstraints {
 
 	/**
 	 * TOBEDONE JNO docs
-	 */
+	*/
 	@Nonnull
 	static EntityGroupFetch entityGroupFetch(@Nullable EntityContentRequire... requirements) {
 		if (requirements == null) {
@@ -4288,7 +4288,7 @@ public interface QueryConstraints {
 	 * ```
 	 * attributes()
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static AttributeContent attributeContentAll() {
 		return new AttributeContent();
@@ -4308,7 +4308,7 @@ public interface QueryConstraints {
 	 * ```
 	 * attributes()
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static AttributeContent attributeContent(@Nullable String... attributeName) {
 		if (attributeName == null) {
@@ -4331,7 +4331,7 @@ public interface QueryConstraints {
 	 * ```
 	 * associatedData('description', 'gallery-3d')
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static AssociatedDataContent associatedDataContentAll() {
 		return new AssociatedDataContent();
@@ -4351,7 +4351,7 @@ public interface QueryConstraints {
 	 * ```
 	 * associatedData('description', 'gallery-3d')
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static AssociatedDataContent associatedDataContent(@Nullable String... associatedDataName) {
 		if (associatedDataName == null) {
@@ -4384,7 +4384,7 @@ public interface QueryConstraints {
 	 * ```
 	 * dataInLocales()
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static DataInLocales dataInLocales(@Nullable Locale... locale) {
 		if (locale == null) {
@@ -4406,7 +4406,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAll() {
 		return new ReferenceContent();
@@ -4436,7 +4436,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String referencedEntityType) {
 		if (referencedEntityType == null) {
@@ -4458,7 +4458,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable String... attributeNames) {
 		return new ReferenceContent(
@@ -4486,7 +4486,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable AttributeContent attributeContent) {
 		return new ReferenceContent(
@@ -4508,7 +4508,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String... referencedEntityType) {
 		if (referencedEntityType == null) {
@@ -4530,7 +4530,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String referencedEntityType, @Nullable EntityFetch entityRequirement) {
 		if (referencedEntityType == null && entityRequirement == null) {
@@ -4565,7 +4565,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent(
@@ -4587,7 +4587,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String referencedEntityType, @Nullable EntityGroupFetch groupEntityRequirement) {
 		if (referencedEntityType == null && groupEntityRequirement == null) {
@@ -4628,7 +4628,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String referencedEntityType, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		if (referencedEntityType == null) {
@@ -4672,7 +4672,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes, @Nullable EntityFetch entityRequirement) {
 		if (referencedEntityTypes == null && entityRequirement == null) {
@@ -4701,7 +4701,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes, @Nullable EntityGroupFetch groupEntityRequirement) {
 		if (referencedEntityTypes == null && groupEntityRequirement == null) {
@@ -4730,7 +4730,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		if (referencedEntityTypes != null) {
@@ -4753,7 +4753,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
 		return new ReferenceContent(referenceName, filterBy, null, null, null);
@@ -4777,7 +4777,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent) {
 		return new ReferenceContent(referenceName, filterBy, null, attributeContent, null, null);
@@ -4796,7 +4796,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent(referenceName, filterBy, null, entityRequirement, null);
@@ -4823,7 +4823,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent(
@@ -4845,7 +4845,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(referenceName, filterBy, null, null, groupEntityRequirement);
@@ -4872,7 +4872,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(
@@ -4894,7 +4894,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(referenceName, filterBy, null, entityRequirement, groupEntityRequirement);
@@ -4921,7 +4921,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(
@@ -4943,7 +4943,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy) {
 		return new ReferenceContent(referenceName, null, orderBy, null, null);
@@ -4970,7 +4970,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent) {
 		return new ReferenceContent(
@@ -4992,7 +4992,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent(referenceName, null, orderBy, entityRequirement, null);
@@ -5019,7 +5019,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent(
@@ -5041,7 +5041,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(referenceName, null, orderBy, null, groupEntityRequirement);
@@ -5068,7 +5068,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(
@@ -5090,7 +5090,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(referenceName, null, orderBy, entityRequirement, groupEntityRequirement);
@@ -5117,7 +5117,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(
@@ -5139,7 +5139,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy) {
 		return new ReferenceContent(referenceName, filterBy, orderBy, null, null);
@@ -5166,7 +5166,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent) {
 		return new ReferenceContent(
@@ -5188,7 +5188,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, null);
@@ -5215,7 +5215,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent(
@@ -5237,7 +5237,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(referenceName, filterBy, orderBy, null, groupEntityRequirement);
@@ -5264,7 +5264,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(
@@ -5286,7 +5286,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, groupEntityRequirement);
@@ -5313,7 +5313,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(
@@ -5335,7 +5335,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent(entityRequirement, null);
@@ -5364,7 +5364,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(null, groupEntityRequirement);
@@ -5393,7 +5393,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(entityRequirement, groupEntityRequirement);
@@ -5422,7 +5422,7 @@ public interface QueryConstraints {
 	 * hierarchyContent(CATEGORY, 'stocks', entityBody())
 	 * hierarchyContent(CATEGORY, stopAt(distance(4)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static HierarchyContent hierarchyContent() {
 		return new HierarchyContent();
@@ -5441,7 +5441,7 @@ public interface QueryConstraints {
 	 * hierarchyContent(CATEGORY, 'stocks', entityBody())
 	 * hierarchyContent(CATEGORY, stopAt(distance(4)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static HierarchyContent hierarchyContent(@Nullable HierarchyStopAt stopAt) {
 		return stopAt == null ? new HierarchyContent() : new HierarchyContent(stopAt);
@@ -5460,7 +5460,7 @@ public interface QueryConstraints {
 	 * hierarchyContent(CATEGORY, 'stocks', entityBody())
 	 * hierarchyContent(CATEGORY, stopAt(distance(4)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static HierarchyContent hierarchyContent(@Nullable EntityFetch entityFetch) {
 		return entityFetch == null ? new HierarchyContent() : new HierarchyContent(entityFetch);
@@ -5479,7 +5479,7 @@ public interface QueryConstraints {
 	 * hierarchyContent(CATEGORY, 'stocks', entityBody())
 	 * hierarchyContent(CATEGORY, stopAt(distance(4)), entityBody())
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static HierarchyContent hierarchyContent(@Nullable HierarchyStopAt stopAt, @Nullable EntityFetch entityFetch) {
 		if (stopAt == null && entityFetch == null) {
@@ -5510,7 +5510,7 @@ public interface QueryConstraints {
 	 * prices(ALL)
 	 * prices(NONE)
 	 * ```
-	 */
+	*/
 	@Nullable
 	static PriceContent priceContent(@Nullable PriceContentMode contentMode, @Nullable String... priceLists) {
 		if (contentMode == null) {
@@ -5542,7 +5542,7 @@ public interface QueryConstraints {
 	 * prices(ALL)
 	 * prices(NONE)
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static PriceContent priceContentAll() {
 		return PriceContent.all();
@@ -5567,7 +5567,7 @@ public interface QueryConstraints {
 	 * prices(ALL)
 	 * prices(NONE)
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static PriceContent priceContentRespectingFilter(@Nullable String... priceLists) {
 		return PriceContent.respectingFilter(priceLists);
@@ -5589,7 +5589,7 @@ public interface QueryConstraints {
 	 * ```
 	 * useOfPrice(WITH_TAX)
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static PriceType priceType(@Nonnull QueryPriceMode priceMode) {
 		return new PriceType(priceMode);
@@ -5608,7 +5608,7 @@ public interface QueryConstraints {
 	 * ```
 	 * page(1, 24)
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static Page page(@Nullable Integer pageNumber, @Nullable Integer pageSize) {
 		return new Page(pageNumber, pageSize);
@@ -5627,7 +5627,7 @@ public interface QueryConstraints {
 	 * ```
 	 * strip(52, 24)
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static Strip strip(@Nullable Integer offset, @Nullable Integer limit) {
 		return new Strip(offset, limit);
@@ -5655,7 +5655,7 @@ public interface QueryConstraints {
 	 * facetSummary(COUNT) //same as previous row - default
 	 * facetSummary(IMPACT)
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary() {
 		return new FacetSummary();
@@ -5683,7 +5683,7 @@ public interface QueryConstraints {
 	 * facetSummary(COUNT) //same as previous row - default
 	 * facetSummary(IMPACT)
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(@Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityRequire... requirements) {
 		return statisticsDepth == null ?
@@ -5713,7 +5713,7 @@ public interface QueryConstraints {
 	 * facetSummary(COUNT) //same as previous row - default
 	 * facetSummary(IMPACT)
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -5756,7 +5756,7 @@ public interface QueryConstraints {
 	 * facetSummary(COUNT) //same as previous row - default
 	 * facetSummary(IMPACT)
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -5806,7 +5806,7 @@ public interface QueryConstraints {
 	 * facetSummary(COUNT) //same as previous row - default
 	 * facetSummary(IMPACT)
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static FacetSummaryOfReference facetSummaryOfReference(@Nonnull String referenceName, @Nullable EntityRequire... requirements) {
 		return new FacetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, requirements);
@@ -5834,7 +5834,7 @@ public interface QueryConstraints {
 	 * facetSummary(COUNT) //same as previous row - default
 	 * facetSummary(IMPACT)
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static FacetSummaryOfReference facetSummaryOfReference(@Nonnull String referenceName, @Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityRequire... requirements) {
 		return statisticsDepth == null ?
@@ -5864,7 +5864,7 @@ public interface QueryConstraints {
 	 * facetSummary(COUNT) //same as previous row - default
 	 * facetSummary(IMPACT)
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nonnull String referenceName,
@@ -5909,7 +5909,7 @@ public interface QueryConstraints {
 	 * facetSummary(COUNT) //same as previous row - default
 	 * facetSummary(IMPACT)
 	 * ```
-	 */
+	*/
 	@Nonnull
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nonnull String referenceName,
@@ -5948,43 +5948,25 @@ public interface QueryConstraints {
 	 * ```
 	 * queryTelemetry()
 	 * ```
-	 */
+	*/
 	static QueryTelemetry queryTelemetry() {
 		return new QueryTelemetry();
 	}
 
 	/**
 	 * This `debug` require is targeted for internal purposes only and is not exposed in public evitaDB API.
-	 */
+	*/
 	static Debug debug(@Nonnull DebugMode... debugMode) {
 		return new Debug(debugMode);
 	}
 
 	/**
-	 * Requirement returns a `entityFetch` requirement filled with content requirements that fully load the entity
-	 * including all language specific attributes, all prices, all references and all associated data. The references
-	 * don't have initialized the referenced entity / group bodies but only the reference with attributes itself.
-	 */
+	 * TOBEDONE JNO docs
+	*/
 	@Nonnull
 	static EntityFetch entityFetchAll() {
 		return entityFetch(
-			attributeContentAll(), hierarchyContent(),
-			associatedDataContentAll(), priceContentAll(),
-			referenceContentAllWithAttributes(), dataInLocales()
-		);
-	}
-
-	/**
-	 * Requirement returns a `entityGroupFetch` requirement filled with content requirements that fully load the entity
-	 * including all language specific attributes, all prices, all references and all associated data. The references
-	 * don't have initialized the referenced entity / group bodies but only the reference with attributes itself.
-	 */
-	@Nonnull
-	static EntityGroupFetch entityGroupFetchAll() {
-		return entityGroupFetch(
-			attributeContentAll(), hierarchyContent(),
-			associatedDataContentAll(), priceContentAll(),
-			referenceContentAllWithAttributes(), dataInLocales()
+			attributeContentAll(), hierarchyContent(), associatedDataContentAll(), priceContentAll(), referenceContentAllWithAttributes(), dataInLocales()
 		);
 	}
 
@@ -6008,7 +5990,7 @@ public interface QueryConstraints {
 
 	/**
 	 * This interface marks all requirements that can be used for loading additional data to existing entity.
-	 */
+	*/
 	@Nonnull
 	static EntityContentRequire[] entityFetchAllContent() {
 		return new EntityContentRequire[]{
@@ -6018,7 +6000,7 @@ public interface QueryConstraints {
 
 	/**
 	 * This interface marks all requirements that can be used for loading additional data to existing entity.
-	 */
+	*/
 	@Nonnull
 	static EntityContentRequire[] entityFetchAllContentAnd(@Nullable EntityContentRequire... combineWith) {
 		if (ArrayUtils.isEmpty(combineWith)) {

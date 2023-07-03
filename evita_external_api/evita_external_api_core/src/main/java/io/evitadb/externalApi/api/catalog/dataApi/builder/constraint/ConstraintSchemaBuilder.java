@@ -537,18 +537,18 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 
 		fields.addAll(
 			referenceSchemas
-			.stream()
-			.filter(ReferenceSchemaContract::isIndexed)
-			.flatMap(referenceSchema -> {
-				final FieldFromConstraintDescriptorBuilder<OBJECT_FIELD> fieldBuilder = constraintDescriptor -> buildFieldFromConstraintDescriptor(
-					buildContext.switchToChildContext(new ReferenceDataLocator(
-						buildContext.dataLocator().entityType(),
-						referenceSchema.getName()
-					)),
-					constraintDescriptor,
-					() -> referenceSchema.getNameVariant(CLASSIFIER_NAMING_CONVENTION),
-					null
-				);
+				.stream()
+				.filter(ReferenceSchemaContract::isIndexed)
+				.flatMap(referenceSchema -> {
+					final FieldFromConstraintDescriptorBuilder<OBJECT_FIELD> fieldBuilder = constraintDescriptor -> buildFieldFromConstraintDescriptor(
+						buildContext.switchToChildContext(new ReferenceDataLocator(
+							buildContext.dataLocator().entityType(),
+							referenceSchema.getName()
+						)),
+						constraintDescriptor,
+						() -> referenceSchema.getNameVariant(CLASSIFIER_NAMING_CONVENTION),
+						null
+					);
 
 					return buildChildren(allowedChildrenPredicate, referenceConstraintsWithDynamicClassifier, fieldBuilder).stream();
 				})

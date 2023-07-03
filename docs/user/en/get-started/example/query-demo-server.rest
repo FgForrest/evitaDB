@@ -12,7 +12,8 @@ POST /rest/evita/brand/list
     "entityFetch": {
       "attributeContentAll": true,
       "associatedDataContentAll": true,
-      "referenceContentAll": true,
+      "priceContentAll": true,
+      "referenceContentAllWithAttributes": {},
       "dataInLocales": []
     }
   }

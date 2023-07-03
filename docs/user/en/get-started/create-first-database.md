@@ -265,7 +265,7 @@ For more information, see the [write API description](../use/api/write-data.md#u
 
 You can delete entity by is primary key:
 
-<SourceCodeTabs requires="/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
 [Example of deleting entity by PK](/docs/user/en/get-started/example/delete-entity-by-pk.java)
 </SourceCodeTabs>
 
