@@ -171,6 +171,14 @@ class ReferenceContentTest {
 		assertTrue(referenceContent15.getOrderBy().isPresent());
 		assertTrue(referenceContent15.getEntityRequirement().isEmpty());
 		assertTrue(referenceContent15.getGroupEntityRequirement().isEmpty());
+
+		final ReferenceContent referenceContentWithAttributes1 = referenceContentWithAttributes("a", entityFetch());
+		assertArrayEquals(new String[] {"a"}, referenceContentWithAttributes1.getReferenceNames());
+		assertTrue(referenceContentWithAttributes1.getFilterBy().isEmpty());
+		assertTrue(referenceContentWithAttributes1.getOrderBy().isEmpty());
+		assertEquals(attributeContentAll(), referenceContentWithAttributes1.getAttributeContent().orElse(null));
+		assertEquals(entityFetch(), referenceContentWithAttributes1.getEntityRequirement().orElse(null));
+		assertTrue(referenceContentWithAttributes1.getGroupEntityRequirement().isEmpty());
 	}
 
 	@Test
@@ -197,7 +205,7 @@ class ReferenceContentTest {
 		final ReferenceContent referenceContent3 = referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), entityFetch(attributeContentAll()));
 		assertEquals("referenceContent('a',filterBy(entityPrimaryKeyInSet(1)),entityFetch(attributeContentAll()))", referenceContent3.toString());
 
-		final ReferenceContent referenceContent4 = QueryConstraints.referenceContentAll(entityFetch(attributeContentAll()));
+		final ReferenceContent referenceContent4 = referenceContentAll(entityFetch(attributeContentAll()));
 		assertEquals("referenceContentAll(entityFetch(attributeContentAll()))", referenceContent4.toString());
 
 		final ReferenceContent referenceContent5 = referenceContent(new String[]{"a", "b"}, entityFetch(attributeContentAll()));
@@ -214,6 +222,15 @@ class ReferenceContentTest {
 
 		final ReferenceContent referenceContent9 = referenceContent("a", orderBy(attributeNatural("code")));
 		assertEquals("referenceContent('a',orderBy(attributeNatural('code',ASC)))", referenceContent9.toString());
+
+		final ReferenceContent referenceContentWithAttributes1 = referenceContentWithAttributes("a", entityFetch(attributeContentAll()));
+		assertEquals("referenceContentWithAttributes('a',attributeContentAll(),entityFetch(attributeContentAll()))", referenceContentWithAttributes1.toString());
+
+		final ReferenceContent referenceContentWithAttributes2 = referenceContentAllWithAttributes();
+		assertEquals("referenceContentAllWithAttributes(attributeContentAll())", referenceContentWithAttributes2.toString());
+
+		final ReferenceContent referenceContentWithAttributes3 = referenceContentAllWithAttributes(attributeContent("a"));
+		assertEquals("referenceContentAllWithAttributes(attributeContent('a'))", referenceContentWithAttributes3.toString());
 	}
 
 	@Test

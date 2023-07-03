@@ -80,6 +80,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	@Serial private static final long serialVersionUID = 3374240925555151814L;
 	private static final String SUFFIX_ALL = "all";
 	private static final String SUFFIX_WITH_ATTRIBUTES = "withAttributes";
+	private static final String SUFFIX_ALL_WITH_ATTRIBUTES = "allWithAttributes";
 	public static final ReferenceContent ALL_REFERENCES = new ReferenceContent();
 
 	private ReferenceContent(@Nonnull String[] referenceName,
@@ -98,11 +99,17 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	}
 
 	public ReferenceContent(@Nonnull String referenceName, @Nullable AttributeContent attributeContent) {
-		super(referenceName, attributeContent);
+		super(
+			referenceName,
+			ofNullable(attributeContent).orElse(new AttributeContent())
+		);
 	}
 
-	public ReferenceContent(@Nullable AttributeContent attributeContent) {
-		super(attributeContent);
+	@Creator(suffix = SUFFIX_ALL_WITH_ATTRIBUTES)
+	public ReferenceContent(@Nullable @Child AttributeContent attributeContent) {
+		super(
+			ofNullable(attributeContent).orElse(new AttributeContent())
+		);
 	}
 
 	public ReferenceContent(
@@ -127,39 +134,37 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		);
 	}
 
-	public ReferenceContent(
-		@Nullable String referenceName,
-		@Nullable FilterBy filterBy,
-		@Nullable OrderBy orderBy,
-		@Nullable AttributeContent attributeContent,
-		@Nullable EntityFetch entityFetch,
-		@Nullable EntityGroupFetch entityGroupFetch
-	) {
-		super(
-			ofNullable(referenceName).map(it -> (Serializable[])new String[] { it }).orElse(NO_ARGS),
-			new RequireConstraint[] {attributeContent, entityFetch, entityGroupFetch}, filterBy, orderBy
-		);
-	}
-
-	/**
-	 * Special constructor with REQUIRED attributes for APIs, so that the suffix make sense.
-	 * This was previously decided to omit and use only creator without suffix but with optional `attributeContent`.
-	 * Unfortunately, this causes issues when e.g. converters try to find correct descriptor using {@link #getSuffixIfApplied()}.
-	 */
 	@Creator(suffix = SUFFIX_WITH_ATTRIBUTES)
-	private static ReferenceContent withRequiredAttributes(
+	public ReferenceContent(
 		@Nonnull @Classifier String referenceName,
 		@Nullable @AdditionalChild FilterBy filterBy,
 		@Nullable @AdditionalChild OrderBy orderBy,
-		@Nonnull @Child AttributeContent attributeContent,
+		@Nullable @Child AttributeContent attributeContent,
 		@Nullable @Child EntityFetch entityFetch,
 		@Nullable @Child EntityGroupFetch entityGroupFetch
 	) {
-		return new ReferenceContent(referenceName, filterBy, orderBy, attributeContent, entityFetch, entityGroupFetch);
+		super(
+			ofNullable(referenceName).map(it -> (Serializable[])new String[] { it }).orElse(NO_ARGS),
+			new RequireConstraint[] {
+				ofNullable(attributeContent).orElse(new AttributeContent()),
+				entityFetch,
+				entityGroupFetch
+			},
+			filterBy,
+			orderBy
+		);
 	}
 
 	public ReferenceContent(@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		super(entityRequirement, groupEntityRequirement);
+	}
+
+	public ReferenceContent(@Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		super(
+			ofNullable(attributeContent).orElse(new AttributeContent()),
+			entityRequirement,
+			groupEntityRequirement
+		);
 	}
 
 	/**
@@ -247,8 +252,11 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	@Nonnull
 	@Override
 	public Optional<String> getSuffixIfApplied() {
-		if (isAllRequested()) {
+		if (isAllRequested() && getAttributeContent().isEmpty()) {
 			return of(SUFFIX_ALL);
+		}
+		if (isAllRequested() && getAttributeContent().isPresent()) {
+			return of(SUFFIX_ALL_WITH_ATTRIBUTES);
 		}
 		if (getAttributeContent().isPresent()) {
 			return of(SUFFIX_WITH_ATTRIBUTES);
