@@ -1,0 +1,24 @@
+{
+  queryProduct(
+    filterBy: {
+      priceInPriceLists: [
+        "basic"
+      ],
+      priceInCurrency: EUR
+    },
+    orderBy: {
+      priceNatural: DESC
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        priceForSale {
+          priceWithoutTax
+          priceWithTax
+          taxRate
+        }
+      }
+    }
+  }
+}

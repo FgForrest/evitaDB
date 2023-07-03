@@ -35,9 +35,13 @@ import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.filter.EntityLocaleEquals;
+import io.evitadb.api.query.filter.PriceInCurrency;
 import io.evitadb.api.query.parser.DefaultQueryParser;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.api.query.require.PriceContent;
+import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -75,8 +79,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.text.NumberFormat;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -111,6 +117,8 @@ import static org.junit.jupiter.api.Assertions.fail;
 public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 	private static final String REF_LINK = "\uD83D\uDD17 ";
 	private static final String ATTR_LINK = ": ";
+	public static final String PRICE_LINK = "\uD83E\uDE99 ";
+	private static final String PRICE_FOR_SALE = PRICE_LINK + "Price for sale";
 
 	/**
 	 * Mandatory header column with entity primary key.
@@ -136,6 +144,9 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 	 * Object used for reflection access when `sourceVariable` is evaluated.
 	 */
 	private static final ReflectionLookup REFLECTION_LOOKUP = new ReflectionLookup(ReflectionCachingBehaviour.CACHE);
+	/**
+	 * Regex pattern for parsing the reference link from the attribute value.
+	 */
 	private static final Pattern ATTR_LINK_PARSER = Pattern.compile(ATTR_LINK);
 
 	/*
@@ -333,6 +344,21 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 								});
 						})
 						.distinct())
+					.orElse(Stream.empty()),
+				entityFetch
+					.map(it -> QueryUtils.findConstraints(
+							it, PriceContent.class, SeparateEntityContentRequireContainer.class
+						)
+						.stream()
+						.map(priceCnt -> {
+							if (priceCnt.getFetchMode() == PriceContentMode.RESPECTING_FILTER) {
+								return PRICE_FOR_SALE;
+							} else {
+								return null;
+							}
+						})
+						.filter(Objects::nonNull)
+					)
 					.orElse(Stream.empty())
 			)
 			.flatMap(Function.identity())
@@ -342,6 +368,14 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 		Builder tableBuilder = new Builder()
 			.withAlignment(Table.ALIGN_LEFT)
 			.addRow((Object[]) headers);
+
+		// prepare price formatter
+		final EntityLocaleEquals entityLocale = QueryUtils.findConstraint(query.getFilterBy(), EntityLocaleEquals.class);
+		final PriceInCurrency currency = QueryUtils.findConstraint(query.getFilterBy(), PriceInCurrency.class);
+		final Locale locale = entityLocale == null ? Locale.ENGLISH : entityLocale.getLocale();
+		final NumberFormat priceFormatter = NumberFormat.getCurrencyInstance(locale);
+		priceFormatter.setCurrency(currency.getCurrency());
+		final NumberFormat percentFormatter = NumberFormat.getNumberInstance(locale);
 
 		// add rows
 		for (SealedEntity sealedEntity : response.getRecordData()) {
@@ -364,7 +398,12 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 									.filter(ref -> ref.getAttributeValue(refAttr[1]).isPresent())
 									.map(ref -> REF_LINK + ref.getReferenceKey().primaryKey() + ATTR_LINK + EvitaDataTypes.formatValue(ref.getAttribute(refAttr[1])))
 									.collect(Collectors.joining(", "));
-							})
+							}),
+						Arrays.stream(headers)
+							.filter(PRICE_FOR_SALE::equals)
+							.map(it -> sealedEntity.getPriceForSale()
+								.map(price -> PRICE_LINK + priceFormatter.format(price.getPriceWithTax()) + " (with " + percentFormatter.format(price.getTaxRate()) + "% tax) / " + priceFormatter.format(price.getPriceWithoutTax()))
+								.orElse("N/A"))
 					)
 					.flatMap(Function.identity())
 					.toArray(String[]::new)

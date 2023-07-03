@@ -6,7 +6,7 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 				collection("Product"),
 				filterBy(
 					priceInPriceLists("basic"),
-					priceInCurrency(Currency.getInstance("CZK"))
+					priceInCurrency(Currency.getInstance("EUR"))
 				),
 				orderBy(
 					priceNatural(DESC)
