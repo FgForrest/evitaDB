@@ -36,11 +36,47 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Objects;
-import java.util.Optional;
 
 /**
- * TOBEDONE JNO: docs
+ * The node filtering container is an alternative to the {@link HierarchyDistance} and {@link HierarchyLevel}
+ * termination constraints, which is much more dynamic and can produce hierarchy trees of non-uniform depth. Because
+ * the filtering constraint can be satisfied by nodes of widely varying depths, traversal can be highly dynamic.
+ *
+ * Constraint children define a criterion that determines the point in a hierarchical structure where the traversal
+ * should stop. The traversal stops at the first node that satisfies the filter condition specified in this container.
+ *
+ * The situations where you'd need this dynamic behavior are few and far between. Unfortunately, we do not have
+ * a meaningful example of this in the demo dataset, so our example query will be slightly off. But for the sake of
+ * demonstration, let's list the entire Accessories hierarchy, but stop traversing at the nodes whose code starts with
+ * the letter `w`.
+ *
+ * <pre>
+ * query(
+ *     collection('Product'),
+ *     filterBy(
+ *         hierarchyWithin(
+ *             'categories',
+ *             attributeEquals('code', 'accessories')
+ *         )
+ *     ),
+ *     require(
+ *         hierarchyOfReference(
+ *             'categories',
+ *             children(
+ *                 'subMenu',
+ *                 entityFetch(attributeContent('code')),
+ *                 stopAt(
+ *                     node(
+ *                         filterBy(
+ *                             attributeStartsWith('code', 'w')
+ *                         )
+ *                     )
+ *                 )
+ *             )
+ *         )
+ *     )
+ * )
+ * </pre>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

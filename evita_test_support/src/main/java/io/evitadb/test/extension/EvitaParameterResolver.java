@@ -158,6 +158,8 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 						)
 					);
 				});
+		}
+		for (Method declaredMethod : testClass.getDeclaredMethods()) {
 			ofNullable(declaredMethod.getAnnotation(OnDataSetTearDown.class))
 				.ifPresent(it -> {
 					declaredMethod.setAccessible(true);

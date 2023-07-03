@@ -40,16 +40,16 @@ import java.io.Serializable;
  * {@link Comparable} of attribute with name passed in first argument.
  * First argument must be {@link String}. Second is one of the {@link AttributeSpecialValue special values}:
  *
- * - NULL
- * - NOT_NULL
+ * - {@link AttributeSpecialValue#NULL}
+ * - {@link AttributeSpecialValue#NOT_NULL}
  *
  * Function returns true if attribute has (explicitly or implicitly) passed special value.
  *
  * Example:
  *
- * ```
+ * <pre>
  * attributeIs('visible', NULL)
- * ```
+ * </pre>
  *
  * Function supports attribute arrays in the same way as plain values.
  *

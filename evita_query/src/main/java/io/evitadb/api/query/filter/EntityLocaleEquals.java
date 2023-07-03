@@ -29,7 +29,6 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
-import io.evitadb.api.query.require.DataInLocales;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -37,26 +36,36 @@ import java.io.Serializable;
 import java.util.Locale;
 
 /**
- * This `language` is query accepts single {@link Locale} argument.
+ * If any filter constraint of the query targets a localized attribute, the `entityLocaleEquals` must also be provided,
+ * otherwise the query interpreter will return an error. Localized attributes must be identified by both their name and
+ * {@link Locale} in order to be used.
  *
- * Function returns true if entity has at least one localized attribute or associated data that  targets specified locale.
+ * Only a single occurrence of entityLocaleEquals is allowed in the filter part of the query. Currently, there is no way
+ * to switch context between different parts of the filter and build queries such as find a product whose name in en-US
+ * is "screwdriver" or in cs is "šroubovák".
  *
- * If require part of the query doesn't contain {@link DataInLocales} requirement that
- * would specify the requested data localization, this filtering query implicitly sets requirement to the passed
- * language argument. In other words if entity has two localizations: `en-US` and `cs-CZ` and `language('cs-CZ')` is
- * used in query, returned entity would have only Czech localization of attributes and associated data fetched along
- * with it (and also attributes that are locale agnostic).
- *
- * If query contains no language query filtering logic is applied only on "global" (i.e. language agnostic)
- * attributes.
- *
- * Only single `language` query can be used in the query.
+ * Also, it's not possible to omit the language specification for a localized attribute and ask questions like: find
+ * a product whose name in any language is "screwdriver".
  *
  * Example:
  *
- * ```
- * language('en-US')
- * ```
+ * <pre>
+ * query(
+ *     collection('Product'),
+ *     filterBy(
+ *         hierarchyWithin(
+ *             'categories',
+ *             attributeEquals('code', 'vouchers-for-shareholders')
+ *         ),
+ *         entityLocaleEquals('en')
+ *     ),
+ *     require(
+ *        entityFetch(
+ *            attributeContent('code', 'name')
+ *        )
+ *     )
+ * )
+ * </pre>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

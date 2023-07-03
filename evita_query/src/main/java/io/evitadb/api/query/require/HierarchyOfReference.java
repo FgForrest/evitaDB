@@ -47,77 +47,40 @@ import java.util.Optional;
 import static java.util.Optional.ofNullable;
 
 /**
- * This `hierarchyStatistics` require query triggers computing the statistics for referenced hierarchical entities
- * and adds an object to the result index. It has at least one {@link Serializable}
- * argument that specifies type of hierarchical entity that this entity relates to. Additional arguments allow passing
- * requirements for fetching the referenced entity contents so that there are no other requests to the evitaDB necessary
- * and all data are fetched in single query.
+ * The requirement triggers the calculation of the Hierarchy data structure for the hierarchies of the referenced entity
+ * type.
  *
- * When this require query is used an additional object is stored to result index:
+ * The hierarchy of reference can still be combined with {@link HierarchyOfSelf} if the queried entity is a hierarchical
+ * entity that is also connected to another hierarchical entity. Such situations are rather sporadic in reality.
  *
- * - **HierarchyStatistics**
- * this object is organized in the tree structure that reflects the hierarchy of the entities of desired type that are
- * referenced by entities returned by primary query, for each tree entity there is a number that represents the count of
- * currently queried entities that relates to that referenced hierarchical entity and match the query filter - either
- * directly or to some subordinate entity of this hierarchical entity
+ * The `hierarchyOfReference` can be repeated multiple times in a single query if you need different calculation
+ * settings for different reference types.
  *
- * Example:
+ * The constraint accepts following arguments:
  *
- * <pre>
- * hierarchyStatisticsOfReference('category')
- * hierarchyStatisticsOfReference('category', entityBody(), attributes())
- * </pre>
+ * - specification of one or more reference names that identify the reference to the target hierarchical entity for
+ *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
+ *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
+ *   that the same requirements apply to different references of the queried entity.
+ * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
+ *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
+ *   filter constraint assigned to them - either directly or transitively):
  *
- * This require query is usually used when hierarchical menu rendering is needed. For example when we need to render
- * menu for entire e-commerce site, but we want to take excluded subtrees into an account and also reflect the filtering
- * conditions that may filter out dozens of products (and thus leading to empty categories) we can invoke following query:
+ *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
+ *        structures
+ *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
+ *        structures
  *
- * <pre>
- * query(
- *     entities('PRODUCT'),
- *     filterBy(
- *         and(
- *             eq('visible', true),
- *             inRange('valid', 2020-07-30T20:37:50+00:00),
- *             priceInCurrency('USD'),
- *             priceValidIn(2020-07-30T20:37:50+00:00),
- *             priceInPriceLists('vip', 'standard'),
- *             withinRootHierarchy('CATEGORY', excluding(3, 7))
- *         )
- *     ),
- *     require(
- *         page(1, 20),
- *         hierarchyStatisticsOfSelf('CATEGORY', entityBody(), attributes())
- *     )
- * )
- * </pre>
+ * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
+ *   hierarchy data structure
+ * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
+ *   the constraints may be present:
  *
- * This query would return first page with 20 products (omitting hundreds of others on additional pages) but also returns a
- * HierarchyStatistics in additional data. This object may contain following structure:
- *
- * <pre>
- * Electronics -> 1789
- *     TV -> 126
- *         LED -> 90
- *         CRT -> 36
- *     Washing machines -> 190
- *         Slim -> 40
- *         Standard -> 40
- *         With drier -> 23
- *         Top filling -> 42
- *         Smart -> 45
- *     Cell phones -> 350
- *     Audio / Video -> 230
- *     Printers -> 80
- * </pre>
- *
- * The tree will contain category entities loaded with `attributes` instead the names you see in the example. The number
- * after the arrow represents the count of the products that are referencing this category (either directly or some of its
- * children). You can see there are only categories that are valid for the passed query - excluded category subtree will
- * not be part of the category listing (query filters out all products with excluded category tree) and there is also no
- * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
- *
- * TOBEDONE JNO: review docs
+ *      - {@link HierarchyFromRoot}
+ *      - {@link HierarchyFromNode}
+ *      - {@link HierarchySiblings}
+ *      - {@link HierarchyChildren}
+ *      - {@link HierarchyParents}
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

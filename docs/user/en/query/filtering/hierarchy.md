@@ -565,7 +565,7 @@ constraint.
 In the case of `hierarchyWithinRoot`, the `excludingRoot` constraint makes no sense because no entity can be assigned
 to a "virtual" top parent root.
 
-Because we learned that *Accessories* category has no directly assigned products, the `exludingRoot` constraint presence
+Because we learned that *Accessories* category has no directly assigned products, the `excludingRoot` constraint presence
 would not affect the query result. Therefore, we choose *Keyboard* category for our example. When we list all products
 in *Keyboard* category using `hierarchyWithin` constraint, we obtain **20 items**. When the `excludingRoot` constraint
 is used:

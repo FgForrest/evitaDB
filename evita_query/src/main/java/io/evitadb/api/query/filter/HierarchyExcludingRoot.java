@@ -33,55 +33,67 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * If you use `excludingRoot` sub-query in `withinHierarchy` parent, response will contain only children of the
- * entity specified in `withinHierarchy` or entities related to those children entities - if the `withinHierarchy` targets
- * different entity types.
+ * The constraint `excludingRoot` is a constraint that can only be used within {@link HierarchyWithin} or
+ * {@link HierarchyWithinRoot} parent constraints. It simply makes no sense anywhere else because it changes the default
+ * behavior of those constraints. Hierarchy constraints return all hierarchy children of the parent node or entities
+ * that are transitively or directly related to them and the parent node itself. When the excludingRoot is used as
+ * a sub-constraint, this behavior changes and the parent node itself or the entities directly related to that parent
+ * node are be excluded from the result.
  *
- * Let's have following category tree:
+ * If the hierarchy constraint targets the hierarchy entity, the `excludingRoot` will omit the requested parent node
+ * from the result. In the case of the {@link HierarchyWithinRoot} constraint, the parent is an invisible "virtual" top
+ * root, and this constraint makes no sense.
  *
- * - TV (1)
- *     - Crt (2)
- *     - LCD (3)
- *
- * These categories are related by following products:
- *
- * - TV (1):
- *     - Product Philips 32"
- *     - Product Samsung 24"
- *     - Crt (2):
- *         - Product Ilyiama 15"
- *         - Product Panasonic 17"
- *     - LCD (3):
- *         - Product BenQ 32"
- *         - Product LG 28"
- *
- * When using this query:
- *
- * ```
+ * <pre>
  * query(
- *    entities('PRODUCT'),
- *    filterBy(
- *       withinHierarchy('CATEGORY', 1)
- *    )
+ *     collection('Product'),
+ *     filterBy(
+ *         hierarchyWithin(
+ *             'categories',
+ *             attributeEquals('code', 'accessories'),
+ *             excludingRoot()
+ *         )
+ *     ),
+ *     require(
+ *         entityFetch(
+ *             attributeContent('code')
+ *         )
+ *     )
  * )
- * ```
+ * </pre>
  *
- * All products will be returned.
- * When this query is used:
+ * If the hierarchy constraint targets a non-hierarchical entity that references the hierarchical one (typical example
+ * is a product assigned to a category), the `excludingRoot` constraint can only be used in the {@link HierarchyWithin}
+ * parent constraint.
  *
- * ```
+ * In the case of {@link HierarchyWithinRoot}, the `excludingRoot` constraint makes no sense because no entity can be
+ * assigned to a "virtual" top parent root.
+ *
+ * Because we learned that Accessories category has no directly assigned products, the `excludingRoot` constraint
+ * presence would not affect the query result. Therefore, we choose Keyboard category for our example. When we list all
+ * products in Keyboard category using {@link HierarchyWithin} constraint, we obtain 20 items. When the `excludingRoot`
+ * constraint is used:
+ *
+ * <pre>
  * query(
- *    entities('PRODUCT'),
- *    filterBy(
- *       withinHierarchy('CATEGORY', 1, excludingRoot())
- *    )
+ *     collection('Product'),
+ *     filterBy(
+ *         hierarchyWithin(
+ *             'categories',
+ *             attributeEquals('code', 'keyboards'),
+ *             excludingRoot()
+ *         )
+ *     ),
+ *     require(
+ *         entityFetch(
+ *             attributeContent('code')
+ *         )
+ *     )
  * )
- * ```
+ * </pre>
  *
- * Only products related to sub-categories of the TV category will be returned - i.e.: Ilyiama 15", Panasonic 17" and
- * BenQ 32", LG 28". The products related directly to TV category will not be returned.
- *
- * As you can see {@link HierarchyExcludingRoot} and {@link HierarchyDirectRelation} are mutually exclusive.
+ * ... we get only 4 items, which means that 16 were assigned directly to Keyboards category and only 4 of them were
+ * assigned to Exotic keyboards.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
