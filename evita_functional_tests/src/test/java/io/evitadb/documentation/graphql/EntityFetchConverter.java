@@ -35,7 +35,6 @@ import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -45,15 +44,15 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceBigDecimalFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferenceFieldHeaderDescriptor;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -79,6 +78,7 @@ public class EntityFetchConverter extends RequireConverter {
 	public void convert(@Nonnull CatalogSchemaContract catalogSchema,
 	                    @Nonnull GraphQLOutputFieldsBuilder fieldsBuilder,
 	                    @Nonnull String entityType,
+						@Nullable Locale locale,
 	                    @Nullable EntityFetchRequire entityFetch) {
 		final EntitySchemaContract entitySchema = catalogSchema.getEntitySchemaOrThrowException(entityType);
 
@@ -98,8 +98,8 @@ public class EntityFetchConverter extends RequireConverter {
 		}
 
 		convertAttributeContent(fieldsBuilder, entityFetch);
-		convertPriceContent(fieldsBuilder, entityFetch);
-		convertReferenceContents(catalogSchema, fieldsBuilder, entityType, entityFetch, entitySchema);
+		convertPriceContent(fieldsBuilder, locale, entityFetch);
+		convertReferenceContents(catalogSchema, fieldsBuilder, entityType, locale, entityFetch, entitySchema);
 	}
 
 	private static void convertAttributeContent(@Nonnull GraphQLOutputFieldsBuilder entityFieldsBuilder,
@@ -121,6 +121,7 @@ public class EntityFetchConverter extends RequireConverter {
 	}
 
 	private static void convertPriceContent(@Nonnull GraphQLOutputFieldsBuilder entityFieldsBuilder,
+	                                        @Nullable Locale locale,
 	                                        @Nonnull EntityFetchRequire entityFetch) {
 		final PriceContent priceContent = QueryUtils.findConstraint(entityFetch, PriceContent.class, SeparateEntityContentRequireContainer.class);
 		if (priceContent != null) {
@@ -130,12 +131,38 @@ public class EntityFetchConverter extends RequireConverter {
 			} else if (fetchMode == PriceContentMode.RESPECTING_FILTER) {
 				entityFieldsBuilder.addObjectField(
 					EntityDescriptor.PRICE_FOR_SALE,
-					getPriceForSaleFieldsBuilder()
+					priceForSaleBuilder -> {
+						priceForSaleBuilder.addPrimitiveField(
+							PriceDescriptor.PRICE_WITHOUT_TAX,
+							getPriceValueFieldArgumentsBuilder(locale)
+						);
+						priceForSaleBuilder.addPrimitiveField(
+							PriceDescriptor.PRICE_WITH_TAX,
+							getPriceValueFieldArgumentsBuilder(locale)
+						);
+						priceForSaleBuilder.addPrimitiveField(PriceDescriptor.TAX_RATE);
+					}
 				);
 			} else if (fetchMode == PriceContentMode.ALL) {
 				entityFieldsBuilder.addObjectField(
 					EntityDescriptor.PRICES,
-					getPriceForSaleFieldsBuilder()
+					pricesBuilder -> {
+						pricesBuilder.addPrimitiveField(PriceDescriptor.PRICE_ID);
+						pricesBuilder.addPrimitiveField(PriceDescriptor.PRICE_LIST);
+						pricesBuilder.addPrimitiveField(PriceDescriptor.CURRENCY);
+						pricesBuilder.addPrimitiveField(PriceDescriptor.INNER_RECORD_ID);
+						pricesBuilder.addPrimitiveField(PriceDescriptor.SELLABLE);
+						pricesBuilder.addPrimitiveField(PriceDescriptor.VALIDITY);
+						pricesBuilder.addPrimitiveField(
+							PriceDescriptor.PRICE_WITHOUT_TAX,
+							getPriceValueFieldArgumentsBuilder(locale)
+						);
+						pricesBuilder.addPrimitiveField(
+							PriceDescriptor.PRICE_WITH_TAX,
+							getPriceValueFieldArgumentsBuilder(locale)
+						);
+						pricesBuilder.addPrimitiveField(PriceDescriptor.TAX_RATE);
+					}
 				);
 			} else {
 				throw new EvitaInternalError("Unsupported price content mode `" + fetchMode + "`."); // should never happen
@@ -143,15 +170,27 @@ public class EntityFetchConverter extends RequireConverter {
 		}
 	}
 
+	@Nullable
+	private static Consumer<GraphQLOutputFieldsBuilder> getPriceValueFieldArgumentsBuilder(@Nullable Locale locale) {
+		if (locale == null) {
+			return null;
+		}
+		return priceWithoutTaxArgumentsBuilder -> {
+			priceWithoutTaxArgumentsBuilder.addFieldArgument(PriceBigDecimalFieldHeaderDescriptor.FORMATTED, __ -> Boolean.toString(true));
+			priceWithoutTaxArgumentsBuilder.addFieldArgument(PriceBigDecimalFieldHeaderDescriptor.WITH_CURRENCY, __ -> Boolean.toString(true));
+		};
+	}
+
 	private void convertReferenceContents(@Nonnull CatalogSchemaContract catalogSchema,
 	                                      @Nonnull GraphQLOutputFieldsBuilder entityFieldsBuilder,
 	                                      @Nonnull String entityType,
+										  @Nullable Locale locale,
 	                                      @Nonnull EntityFetchRequire entityFetch,
 	                                      @Nonnull EntitySchemaContract entitySchema) {
 		final List<ReferenceContent> referenceContents = QueryUtils.findConstraints(entityFetch, ReferenceContent.class, SeparateEntityContentRequireContainer.class);
 		referenceContents.forEach(referenceContent -> {
 			for (String referenceName : referenceContent.getReferenceNames()) {
-				convertReferenceContent(catalogSchema, entityFieldsBuilder, entityType, entitySchema, referenceContent, referenceName);
+				convertReferenceContent(catalogSchema, entityFieldsBuilder, entityType, locale, entitySchema, referenceContent, referenceName);
 			}
 		});
 	}
@@ -159,6 +198,7 @@ public class EntityFetchConverter extends RequireConverter {
 	private void convertReferenceContent(@Nonnull CatalogSchemaContract catalogSchema,
 	                                     @Nonnull GraphQLOutputFieldsBuilder entityFieldsBuilder,
 	                                     @Nonnull String entityType,
+										 @Nullable Locale locale,
 	                                     @Nonnull EntitySchemaContract entitySchema,
 	                                     @Nonnull ReferenceContent referenceContent,
 	                                     @Nonnull String referenceName) {
@@ -188,6 +228,7 @@ public class EntityFetchConverter extends RequireConverter {
 							catalogSchema,
 							referencedEntityBuilder,
 							referenceSchema.getReferencedEntityType(),
+							locale,
 							entityRequirement
 						)
 					));
@@ -199,26 +240,12 @@ public class EntityFetchConverter extends RequireConverter {
 							catalogSchema,
 							referencedGroupEntityBuilder,
 							referenceSchema.getReferencedGroupType(),
+							locale,
 							groupEntityRequirement
 						)
 					));
 			}
 		);
-	}
-
-	@Nonnull
-	private static Consumer<GraphQLOutputFieldsBuilder> getPriceForSaleFieldsBuilder() {
-		return priceForSaleBuilder -> {
-			priceForSaleBuilder.addPrimitiveField(PriceDescriptor.PRICE_ID);
-			priceForSaleBuilder.addPrimitiveField(PriceDescriptor.PRICE_LIST);
-			priceForSaleBuilder.addPrimitiveField(PriceDescriptor.CURRENCY);
-			priceForSaleBuilder.addPrimitiveField(PriceDescriptor.INNER_RECORD_ID);
-			priceForSaleBuilder.addPrimitiveField(PriceDescriptor.SELLABLE);
-			priceForSaleBuilder.addPrimitiveField(PriceDescriptor.VALIDITY);
-			priceForSaleBuilder.addPrimitiveField(PriceDescriptor.PRICE_WITHOUT_TAX);
-			priceForSaleBuilder.addPrimitiveField(PriceDescriptor.PRICE_WITH_TAX);
-			priceForSaleBuilder.addPrimitiveField(PriceDescriptor.TAX_RATE);
-		};
 	}
 
 	@Nullable

@@ -27,6 +27,7 @@ import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import graphql.schema.PropertyDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.dto.FormattableBigDecimal;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.BigDecimalFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.utils.Assert;
 
@@ -43,11 +44,6 @@ import java.util.Optional;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 public class BigDecimalDataFetcher implements DataFetcher<FormattableBigDecimal> {
-
-    /**
-     * Parameter specifying if big decimal value should be formatted on output based on desired locale of entity.
-     */
-    public static final String FORMATTED_PARAMETER = "formatted";
 
     private final DataFetcher<BigDecimal> delegate;
 
@@ -87,7 +83,7 @@ public class BigDecimalDataFetcher implements DataFetcher<FormattableBigDecimal>
      * @return whether found {@link BigDecimal} value should be formatted to human-readable format
      */
     protected boolean shouldBeFormatted(@Nonnull DataFetchingEnvironment environment) {
-        return environment.getArgumentOrDefault(FORMATTED_PARAMETER, false);
+        return environment.getArgumentOrDefault(BigDecimalFieldHeaderDescriptor.FORMATTED.name(), false);
     }
 
     /**

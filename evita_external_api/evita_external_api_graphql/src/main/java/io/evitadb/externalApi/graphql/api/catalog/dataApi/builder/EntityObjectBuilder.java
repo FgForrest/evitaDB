@@ -91,8 +91,6 @@ import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRoo
  */
 public class EntityObjectBuilder {
 
-	private static final PriceBigDecimalFieldDecorator PRICE_FIELD_DECORATOR = new PriceBigDecimalFieldDecorator();
-
 	@Nonnull private final CatalogGraphQLSchemaBuildingContext buildingContext;
 	@Nonnull private final FilterConstraintSchemaBuilder filterConstraintSchemaBuilder;
 	@Nonnull private final OrderConstraintSchemaBuilder orderConstraintSchemaBuilder;
@@ -102,6 +100,8 @@ public class EntityObjectBuilder {
 	@Nonnull private final ObjectDescriptorToGraphQLInterfaceTransformer interfaceBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer;
 	@Nonnull private final PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer;
+
+	@Nonnull private final PriceBigDecimalFieldDecorator priceFieldDecorator;
 
 	public EntityObjectBuilder(@Nonnull CatalogGraphQLSchemaBuildingContext buildingContext,
 							   @Nonnull GraphQLConstraintSchemaBuildingContext constraintSchemaBuildingContext,
@@ -124,6 +124,8 @@ public class EntityObjectBuilder {
 		this.interfaceBuilderTransformer = interfaceBuilderTransformer;
 		this.objectBuilderTransformer = objectBuilderTransformer;
 		this.fieldBuilderTransformer = fieldBuilderTransformer;
+
+		this.priceFieldDecorator = new PriceBigDecimalFieldDecorator(argumentBuilderTransformer);
 	}
 
 	public void buildCommonTypes() {
@@ -397,7 +399,7 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
-	private static BuiltFieldDescriptor buildAttributeField(@Nonnull AttributeSchemaContract attributeSchema) {
+	private BuiltFieldDescriptor buildAttributeField(@Nonnull AttributeSchemaContract attributeSchema) {
 		final GraphQLFieldDefinition.Builder attributeFieldBuilder = newFieldDefinition()
 			.name(attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 			.description(attributeSchema.getDescription())
@@ -407,9 +409,9 @@ public class EntityObjectBuilder {
 		final Class<? extends Serializable> attributeType = attributeSchema.getType();
 		if (BigDecimal.class.isAssignableFrom(attributeType)) {
 			if (attributeSchema.isNullable()) {
-				new NullableBigDecimalFieldDecorator().accept(attributeFieldBuilder);
+				new NullableBigDecimalFieldDecorator(argumentBuilderTransformer).accept(attributeFieldBuilder);
 			} else {
-				new NonNullBigDecimalFieldDecorator().accept(attributeFieldBuilder);
+				new NonNullBigDecimalFieldDecorator(argumentBuilderTransformer).accept(attributeFieldBuilder);
 			}
 
 			attributeFieldDataFetcher = new BigDecimalDataFetcher(new AttributeValueDataFetcher<>(attributeSchema));
@@ -478,9 +480,9 @@ public class EntityObjectBuilder {
 		final Class<? extends Serializable> associatedDataType = associatedDataSchema.getType();
 		if (BigDecimal.class.isAssignableFrom(associatedDataType)) {
 			if (associatedDataSchema.isNullable()) {
-				new NullableBigDecimalFieldDecorator().accept(associatedDataFieldBuilder);
+				new NullableBigDecimalFieldDecorator(argumentBuilderTransformer).accept(associatedDataFieldBuilder);
 			} else {
-				new NonNullBigDecimalFieldDecorator().accept(associatedDataFieldBuilder);
+				new NonNullBigDecimalFieldDecorator(argumentBuilderTransformer).accept(associatedDataFieldBuilder);
 			}
 
 			associatedDataFieldDataFetcher = new BigDecimalDataFetcher(new AssociatedDataValueDataFetcher<>(cdoObjectMapper, associatedDataSchema));
@@ -684,9 +686,9 @@ public class EntityObjectBuilder {
 
 		return PriceDescriptor.THIS
 			.to(objectBuilderTransformer)
-			.field(PriceDescriptor.PRICE_WITHOUT_TAX.to(fieldBuilderTransformer.with(PRICE_FIELD_DECORATOR)))
-			.field(PriceDescriptor.PRICE_WITH_TAX.to(fieldBuilderTransformer.with(PRICE_FIELD_DECORATOR)))
-			.field(PriceDescriptor.TAX_RATE.to(fieldBuilderTransformer.with(PRICE_FIELD_DECORATOR)))
+			.field(PriceDescriptor.PRICE_WITHOUT_TAX.to(fieldBuilderTransformer.with(priceFieldDecorator)))
+			.field(PriceDescriptor.PRICE_WITH_TAX.to(fieldBuilderTransformer.with(priceFieldDecorator)))
+			.field(PriceDescriptor.TAX_RATE.to(fieldBuilderTransformer.with(priceFieldDecorator)))
 			.build();
 	}
 
