@@ -21,31 +21,26 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi.builder;
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity;
 
-import graphql.schema.GraphQLFieldDefinition.Builder;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.BigDecimalFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars;
-import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLArgumentTransformer;
-import lombok.RequiredArgsConstructor;
 
-import javax.annotation.Nonnull;
-
-import static graphql.schema.GraphQLNonNull.nonNull;
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * Sets field to non-null big decimal and adds parameter for formatting the output value.
+ * Descriptor of header arguments of fields representing concrete prices in {@link io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor}.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@RequiredArgsConstructor
-public class NonNullBigDecimalFieldDecorator implements FieldDecorator {
+public interface PriceBigDecimalFieldHeaderDescriptor extends BigDecimalFieldHeaderDescriptor {
 
-	@Nonnull protected final PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer;
-
-	@Override
-	public void accept(Builder builder) {
-		builder.type(nonNull(GraphQLScalars.BIG_DECIMAL));
-		builder.argument(BigDecimalFieldHeaderDescriptor.FORMATTED.to(argumentBuilderTransformer));
-	}
+	PropertyDescriptor WITH_CURRENCY = PropertyDescriptor.builder()
+		.name("withCurrency")
+		.description("""
+	        Parameter specifying if price value should be formatted and the formatted string should contain currency on output
+			based on desired entity locale.
+			""")
+		.type(nullable(Boolean.class))
+		.build();
 }

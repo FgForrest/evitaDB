@@ -27,6 +27,7 @@ import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.dto.FormattableBigDecimal;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.dto.PriceBigDecimal;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceBigDecimalFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.BigDecimalDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
 
@@ -40,12 +41,6 @@ import java.math.BigDecimal;
  */
 public class PriceBigDecimalDataFetcher extends BigDecimalDataFetcher {
 
-    /**
-     * Parameter specifying if price value should be formatted and the formatted string should contain currency on output
-     * based on desired entity locale.
-     */
-    public static final String WITH_CURRENCY_PARAMETER = "withCurrency";
-
     public PriceBigDecimalDataFetcher(@Nonnull String propertyName) {
         super(propertyName);
     }
@@ -53,7 +48,7 @@ public class PriceBigDecimalDataFetcher extends BigDecimalDataFetcher {
     @Override
     protected boolean shouldBeFormatted(@Nonnull DataFetchingEnvironment environment) {
         return super.shouldBeFormatted(environment) ||
-            environment.getArgumentOrDefault(WITH_CURRENCY_PARAMETER, false);
+            environment.getArgumentOrDefault(PriceBigDecimalFieldHeaderDescriptor.WITH_CURRENCY.name(), false);
     }
 
     @Nonnull
@@ -61,7 +56,7 @@ public class PriceBigDecimalDataFetcher extends BigDecimalDataFetcher {
     protected FormattableBigDecimal wrapBigDecimal(@Nonnull BigDecimal value,
                                                    @Nonnull DataFetchingEnvironment environment) {
         final EntityQueryContext context = environment.getLocalContext();
-        final boolean withCurrency = environment.getArgumentOrDefault(WITH_CURRENCY_PARAMETER, false);
+        final boolean withCurrency = environment.getArgumentOrDefault(PriceBigDecimalFieldHeaderDescriptor.WITH_CURRENCY.name(), false);
         return new PriceBigDecimal(
             value,
             context.getDesiredLocale(),
