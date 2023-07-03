@@ -14,7 +14,7 @@ POST /rest/evita/brand/list
       "hierarchyContent": {},
       "associatedDataContentAll": true,
       "priceContentAll": true,
-      "referenceContentAll": true,
+      "referenceContentAllWithAttributes": {},
       "dataInLocales": []
     }
   }
