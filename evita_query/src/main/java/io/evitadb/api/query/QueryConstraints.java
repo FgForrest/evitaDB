@@ -27,6 +27,7 @@ import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.head.Collection;
 import io.evitadb.api.query.order.*;
 import io.evitadb.api.query.require.*;
+import io.evitadb.dataType.Range;
 import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
@@ -65,7 +66,7 @@ public interface QueryConstraints {
 	 * ```
 	 * collection('category')
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static Collection collection(@Nonnull String entityType) {
 		return new Collection(entityType);
@@ -92,7 +93,7 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
-	*/
+	 */
 	@Nullable
 	static FilterBy filterBy(@Nullable FilterConstraint... constraint) {
 		return constraint == null ? null : new FilterBy(constraint);
@@ -100,7 +101,7 @@ public interface QueryConstraints {
 
 	/**
 	 * TOBEDONE JNO - document me
-	*/
+	 */
 	@Nullable
 	static FilterGroupBy filterGroupBy(@Nullable FilterConstraint... constraint) {
 		return constraint == null ? null : new FilterGroupBy(constraint);
@@ -159,7 +160,7 @@ public interface QueryConstraints {
 	 *
 	 * ... returns a single result - product with entity primary key 106742, which is the only one that all three
 	 * `entityPrimaryKeyInSet` constraints have in common.
-	*/
+	 */
 	@Nullable
 	static And and(@Nullable FilterConstraint... constraints) {
 		if (constraints == null) {
@@ -221,7 +222,7 @@ public interface QueryConstraints {
 	 *
 	 * ... returns four results representing a combination of all primary keys used in the `entityPrimaryKeyInSet`
 	 * constraints.
-	*/
+	 */
 	@Nullable
 	static Or or(@Nullable FilterConstraint... constraints) {
 		if (constraints == null) {
@@ -282,7 +283,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * ... which returns only three products that were not excluded by the following `not` constraint.
-	*/
+	 */
 	@Nullable
 	static Not not(@Nullable FilterConstraint constraint) {
 		return constraint == null ? null : new Not(constraint);
@@ -314,7 +315,7 @@ public interface QueryConstraints {
 	 * ```
 	 *
 	 * TOBEDONE JNO - consider renaming to `referenceMatching`
-	*/
+	 */
 	@Nullable
 	static ReferenceHaving referenceHaving(@Nonnull String referenceName, @Nullable FilterConstraint... constraint) {
 		return ArrayUtils.isEmpty(constraint) ? null : new ReferenceHaving(referenceName, constraint);
@@ -402,7 +403,7 @@ public interface QueryConstraints {
 	 * groups (i.e. facet in group are not represented as multi-select/checkboxes but as exlusive select/radio) or conditional
 	 * filters (which can be used to apply a certain filter only if it would produce non-empty result, this is good for
 	 * "sticky" filters).*
-	*/
+	 */
 	@Nullable
 	static UserFilter userFilter(@Nullable FilterConstraint... constraints) {
 		if (constraints == null) {
@@ -413,8 +414,9 @@ public interface QueryConstraints {
 
 	/**
 	 * This `between` is query that compares value of the attribute with name passed in first argument with the value passed
-	 * in the second argument and value passed in third argument. First argument must be {@link String},
-	 * second and third argument may be any of {@link Comparable} type.
+	 * in the second argument and value passed in third argument. First argument must be {@link String}, second and third
+	 * argument may be any of {@link Comparable} type.
+	 *
 	 * Type of the attribute value and second argument must be convertible one to another otherwise `between` function
 	 * returns false.
 	 *
@@ -423,38 +425,38 @@ public interface QueryConstraints {
 	 *
 	 * Example:
 	 *
-	 * ```
+	 * <pre>
 	 * between('age', 20, 25)
-	 * ```
+	 * </pre>
 	 *
 	 * Function supports attribute arrays and when attribute is of array type `between` returns true if *any of attribute* values
 	 * is between the passed interval the value in the query. If we have the attribute `amount` with value `[1, 9]` all
 	 * these constraints will match:
 	 *
-	 * ```
+	 * <pre>
 	 * between('amount', 0, 50)
 	 * between('amount', 0, 5)
 	 * between('amount', 8, 10)
-	 * ```
+	 * </pre>
 	 *
 	 * If attribute is of `Range` type `between` query behaves like overlap - it returns true if examined range and
 	 * any of the attribute ranges (see previous paragraph about array types) share anything in common. All of following
 	 * constraints return true when we have the attribute `validity` with following `NumberRange` values: `[[2,5],[8,10]]`:
 	 *
-	 * ```
+	 * <pre>
 	 * between(`validity`, 0, 3)
 	 * between(`validity`, 0, 100)
 	 * between(`validity`, 9, 10)
-	 * ```
+	 * </pre>
 	 *
 	 * ... but these constraints will return false:
 	 *
-	 * ```
+	 * <pre>
 	 * between(`validity`, 11, 15)
 	 * between(`validity`, 0, 1)
 	 * between(`validity`, 6, 7)
-	 * ```
-	*/
+	 * </pre>
+	 */
 	@Nullable
 	static <T extends Serializable & Comparable<?>> AttributeBetween attributeBetween(@Nonnull String attributeName, @Nullable T from, @Nullable T to) {
 		if (from == null && to == null) {
@@ -473,19 +475,19 @@ public interface QueryConstraints {
 	 *
 	 * Example:
 	 *
-	 * ```
+	 * <pre>
 	 * contains('code', 'eve')
-	 * ```
+	 * </pre>
 	 *
-	 * Function supports attribute arrays and when attribute is of array type `contains` returns true if *any of attribute* values
-	 * contains the value in the query. If we have the attribute `code` with value `['cat','mouse','dog']` all these constraints will
-	 * match:
+	 * Function supports attribute arrays and when attribute is of array type `contains` returns true if any of attribute
+	 * values contains the value in the query. If we have the attribute `code` with value `['cat','mouse','dog']` all these
+	 * constraints will match:
 	 *
-	 * ```
+	 * <pre>
 	 * contains('code','mou')
 	 * contains('code','o')
-	 * ```
-	*/
+	 * </pre>
+	 */
 	@Nullable
 	static AttributeContains attributeContains(@Nonnull String attributeName, @Nullable String textToSearch) {
 		return textToSearch == null ? null : new AttributeContains(attributeName, textToSearch);
@@ -501,19 +503,19 @@ public interface QueryConstraints {
 	 *
 	 * Example:
 	 *
-	 * ```
+	 * <pre>
 	 * startsWith('code', 'vid')
-	 * ```
+	 * </pre>
 	 *
-	 * Function supports attribute arrays and when attribute is of array type `startsWith` returns true if *any of attribute* values
-	 * starts with the value in the query. If we have the attribute `code` with value `['cat','mouse','dog']` all these
-	 * constraints will match:
+	 * Function supports attribute arrays and when attribute is of array type `startsWith` returns true if any of attribute
+	 * values starts with the value in the query. If we have the attribute `code` with value `['cat','mouse','dog']` all
+	 * these constraints will match:
 	 *
-	 * ```
+	 * <pre>
 	 * contains('code','mou')
 	 * contains('code','do')
-	 * ```
-	*/
+	 * </pre>
+	 */
 	@Nullable
 	static AttributeStartsWith attributeStartsWith(@Nonnull String attributeName, @Nullable String textToSearch) {
 		return textToSearch == null ? null : new AttributeStartsWith(attributeName, textToSearch);
@@ -529,19 +531,19 @@ public interface QueryConstraints {
 	 *
 	 * Example:
 	 *
-	 * ```
+	 * <pre>
 	 * endsWith('code', 'ida')
-	 * ```
+	 * </pre>
 	 *
-	 * Function supports attribute arrays and when attribute is of array type `endsWith` returns true if *any of attribute* values
-	 * ends with the value in the query. If we have the attribute `code` with value `['cat','mouse','dog']` all these
+	 * Function supports attribute arrays and when attribute is of array type `endsWith` returns true if any of attribute
+	 * values ends with the value in the query. If we have the attribute `code` with value `['cat','mouse','dog']` all these
 	 * constraints will match:
 	 *
-	 * ```
+	 * <pre>
 	 * contains('code','at')
 	 * contains('code','og')
-	 * ```
-	*/
+	 * </pre>
+	 */
 	@Nullable
 	static AttributeEndsWith attributeEndsWith(@Nonnull String attributeName, @Nullable String textToSearch) {
 		return textToSearch == null ? null : new AttributeEndsWith(attributeName, textToSearch);
@@ -557,20 +559,20 @@ public interface QueryConstraints {
 	 *
 	 * Example:
 	 *
-	 * ```
+	 * <pre>
 	 * equals('code', 'abc')
-	 * ```
+	 * </pre>
 	 *
-	 * Function supports attribute arrays and when attribute is of array type `equals` returns true if *any of attribute* values
+	 * Function supports attribute arrays and when attribute is of array type `equals` returns true if any of attribute values
 	 * equals the value in the query. If we have the attribute `code` with value `['A','B','C']` all these constraints will
 	 * match:
 	 *
-	 * ```
+	 * <pre>
 	 * equals('code','A')
 	 * equals('code','B')
 	 * equals('code','C')
-	 * ```
-	*/
+	 * </pre>
+	 */
 	@Nullable
 	static <T extends Serializable> AttributeEquals attributeEquals(@Nonnull String attributeName, @Nullable T attributeValue) {
 		return attributeValue == null ? null : new AttributeEquals(attributeName, attributeValue);
@@ -578,24 +580,21 @@ public interface QueryConstraints {
 
 	/**
 	 * This `lessThan` is query that compares value of the attribute with name passed in first argument with the value passed
-	 * in the second argument. First argument must be {@link String},
-	 * second argument may be any of {@link Comparable} type.
+	 * in the second argument. First argument must be {@link String}, second argument may be any of {@link Comparable} type.
 	 * Type of the attribute value and second argument must be convertible one to another otherwise `lessThan` function
 	 * returns false.
 	 *
-	 * Function returns true if value in a filterable attribute of such a name is lesser than value in second argument.
+	 * Function returns true if value in a filterable attribute of such a name is less than value in second argument.
 	 *
 	 * Function currently doesn't support attribute arrays and when attribute is of array type. Query returns error when this
 	 * query is used in combination with array type attribute. This may however change in the future.
 	 *
 	 * Example:
 	 *
-	 * ```
+	 * <pre>
 	 * lessThan('age', 20)
-	 * ```
-	 *
-	 * TOBEDONE JNO - rename to "lesserThan"
-	*/
+	 * </pre>
+	 */
 	@Nullable
 	static <T extends Serializable & Comparable<?>> AttributeLessThan attributeLessThan(@Nonnull String attributeName, @Nullable T attributeValue) {
 		return attributeValue == null ? null : new AttributeLessThan(attributeName, attributeValue);
@@ -603,8 +602,7 @@ public interface QueryConstraints {
 
 	/**
 	 * This `lessThanEquals` is query that compares value of the attribute with name passed in first argument with the value passed
-	 * in the second argument. First argument must be {@link String},
-	 * second argument may be any of {@link Comparable} type.
+	 * in the second argument. First argument must be {@link String}, second argument may be any of {@link Comparable} type.
 	 * Type of the attribute value and second argument must be convertible one to another otherwise `lessThanEquals` function
 	 * returns false.
 	 *
@@ -616,10 +614,10 @@ public interface QueryConstraints {
 	 *
 	 * Example:
 	 *
-	 * ```
+	 * <pre>
 	 * lessThanEquals('age', 20)
-	 * ```
-	*/
+	 * </pre>
+	 */
 	@Nullable
 	static <T extends Serializable & Comparable<?>> AttributeLessThanEquals attributeLessThanEquals(@Nonnull String attributeName, @Nullable T attributeValue) {
 		return attributeValue == null ? null : new AttributeLessThanEquals(attributeName, attributeValue);
@@ -627,8 +625,7 @@ public interface QueryConstraints {
 
 	/**
 	 * This `greaterThan` is query that compares value of the attribute with name passed in first argument with the value passed
-	 * in the second argument. First argument must be {@link String},
-	 * second argument may be any of {@link Comparable} type.
+	 * in the second argument. First argument must be {@link String}, second argument may be any of {@link Comparable} type.
 	 * Type of the attribute value and second argument must be convertible one to another otherwise `greaterThan` function
 	 * returns false.
 	 *
@@ -639,10 +636,10 @@ public interface QueryConstraints {
 	 *
 	 * Example:
 	 *
-	 * ```
+	 * <pre>
 	 * greaterThan('age', 20)
-	 * ```
-	*/
+	 * </pre>
+	 */
 	@Nullable
 	static <T extends Serializable & Comparable<?>> AttributeGreaterThan attributeGreaterThan(@Nonnull String attributeName, @Nullable T attributeValue) {
 		return attributeValue == null ? null : new AttributeGreaterThan(attributeName, attributeValue);
@@ -650,8 +647,7 @@ public interface QueryConstraints {
 
 	/**
 	 * This `greaterThanEquals` is query that compares value of the attribute with name passed in first argument with the value passed
-	 * in the second argument. First argument must be {@link String},
-	 * second argument may be any of {@link Comparable} type.
+	 * in the second argument. First argument must be {@link String}, second argument may be any of {@link Comparable} type.
 	 * Type of the attribute value and second argument must be convertible one to another otherwise `greaterThanEquals` function
 	 * returns false.
 	 *
@@ -663,10 +659,10 @@ public interface QueryConstraints {
 	 *
 	 * Example:
 	 *
-	 * ```
+	 * <pre>
 	 * greaterThanEquals('age', 20)
-	 * ```
-	*/
+	 * </pre>
+	 */
 	@Nullable
 	static <T extends Serializable & Comparable<?>> AttributeGreaterThanEquals attributeGreaterThanEquals(@Nonnull String attributeName, @Nullable T attributeValue) {
 		return attributeValue == null ? null : new AttributeGreaterThanEquals(attributeName, attributeValue);
@@ -722,7 +718,7 @@ public interface QueryConstraints {
 	 * ```
 	 * priceInPriceLists(1, 5, 6)
 	 * ```
-	*/
+	 */
 	@Nullable
 	static PriceInPriceLists priceInPriceLists(@Nullable String... priceList) {
 		if (priceList == null) {
@@ -750,7 +746,7 @@ public interface QueryConstraints {
 	 * ```
 	 * priceInCurrency('USD')
 	 * ```
-	*/
+	 */
 	@Nullable
 	static PriceInCurrency priceInCurrency(@Nullable String currency) {
 		return currency == null ? null : new PriceInCurrency(currency);
@@ -775,94 +771,73 @@ public interface QueryConstraints {
 	 * ```
 	 * priceInCurrency('USD')
 	 * ```
-	*/
+	 */
 	@Nullable
 	static PriceInCurrency priceInCurrency(@Nullable Currency currency) {
 		return currency == null ? null : new PriceInCurrency(currency);
 	}
 
 	/**
-	 * This `withinHierarchy` query accepts [Serializable](https://docs.oracle.com/javase/8/docs/api/java/io/Serializable.html)
-	 * entity type in first argument, primary key of [Integer](https://docs.oracle.com/javase/8/docs/api/java/lang/Integer.html)
-	 * type of entity with [hierarchical placement](../model/entity_model.md#hierarchical-placement) in second argument. There
-	 * are also optional third and fourth arguments - see optional arguments {@link HierarchyDirectRelation}, {@link HierarchyExcludingRoot}
-	 * and {@link HierarchyExcluding}.
+	 * The constraint `hierarchyWithin` allows you to restrict the search to only those entities that are part of
+	 * the hierarchy tree starting with the root node identified by the first argument of this constraint. In e-commerce
+	 * systems the typical representative of a hierarchical entity is a category, which will be used in all of our examples.
 	 *
-	 * Constraint can also have only one numeric argument representing primary key of [Integer](https://docs.oracle.com/javase/8/docs/api/java/lang/Integer.html)
-	 * the very same entity type in case this entity has [hierarchical placement](../model/entity_model.md#hierarchical-placement)
-	 * defined. This format of the query may be used for example for returning category sub-tree (where we want to return
-	 * category entities and also query them by their own hierarchy placement).
+	 * The constraint accepts following arguments:
 	 *
-	 * Function returns true if entity has at least one [reference](../model/entity_model.md#references) that relates to specified entity
-	 * type and entity either directly or relates to any other entity of the same type with [hierarchical placement](../model/entity_model.md#hierarchical-placement)
-	 * subordinate to the directly related entity placement (in other words is present in its sub-tree).
+	 * - optional name of the queried entity reference schema that represents the relationship to the hierarchical entity
+	 *   type, your entity may target different hierarchical entities in different reference types, or it may target
+	 *   the same hierarchical entity through multiple semantically different references, and that is why the reference name
+	 *   is used instead of the target entity type.
+	 * - a single mandatory filter constraint that identifies one or more hierarchy nodes that act as hierarchy roots;
+	 *   multiple constraints must be enclosed in AND / OR containers
+	 * - optional constraints allow you to narrow the scope of the hierarchy; none or all of the constraints may be present:
 	 *
-	 * Let's have following hierarchical tree of categories (primary keys are in brackets):
+	 *      - {@link HierarchyDirectRelation}
+	 *      - {@link HierarchyHaving}
+	 *      - {@link HierarchyExcluding}
+	 *      - {@link HierarchyExcludingRoot}
 	 *
-	 * - TV (1)
-	 * - Crt (2)
-	 * - LCD (3)
-	 * - big (4)
-	 * - small (5)
-	 * - Plasma (6)
-	 * - Fridges (7)
+	 * The most straightforward usage is filtering the hierarchical entities themselves.
 	 *
-	 * When query `withinHierarchy('category', 1)` is used in a query targeting product entities only products that
-	 * relates directly to categories: `TV`, `Crt`, `LCD`, `big`, `small` and `Plasma` will be returned. Products in `Fridges`
-	 * will be omitted because they are not in a sub-tree of `TV` hierarchy.
-	 *
-	 * Only single `withinHierarchy` query can be used in the query.
-	 *
-	 * Example:
-	 *
-	 * ```
-	 * withinHierarchy('category', 4)
-	 * ```
-	 *
-	 * If you want to query the entity that you're querying on you can also omit entity type specification. See example:
-	 *
-	 * ```
+	 * <pre>
 	 * query(
-	 * entities('CATEGORY'),
-	 * filterBy(
-	 * withinHierarchy(5)
+	 *     collection('Category'),
+	 *     filterBy(
+	 *         hierarchyWithinSelf(
+	 *             attributeEquals('code', 'accessories')
+	 *         )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent('code')
+	 *         )
+	 *     )
 	 * )
-	 * )
-	 * ```
+	 * </pre>
 	 *
-	 * This query will return all categories that belong to the sub-tree of category with primary key equal to 5.
+	 * The `hierarchyWithin` constraint can also be used for entities that directly reference a hierarchical entity type.
+	 * The most common use case from the e-commerce world is a product that is assigned to one or more categories.
 	 *
-	 * If you want to list all entities from the root level you need to use different query - `withinRootHierarchy` that
-	 * has the same notation but doesn't specify the id of the root level entity:
-	 *
-	 * ```
+	 * <pre>
 	 * query(
-	 * entities('CATEGORY'),
-	 * filterBy(
-	 * withinRootHierarchy()
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'accessories')
+	 *         )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent('code')
+	 *         )
+	 *     )
 	 * )
-	 * )
-	 * ```
+	 * </pre>
 	 *
-	 * This query will return all categories within `CATEGORY` entity.
-	 *
-	 * You may use this query to list entities that refers to the hierarchical entities:
-	 *
-	 * ```
-	 * query(
-	 * entities('PRODUCT'),
-	 * filterBy(
-	 * withinRootHierarchy('CATEGORY')
-	 * )
-	 * )
-	 * ```
-	 *
-	 * This query returns all products that are attached to any category. Although, this query doesn't make much sense it starts
-	 * to be useful when combined with additional inner constraints described in following paragraphs.
-	 *
-	 * You can use additional sub constraints in `withinHierarchy` query: {@link HierarchyDirectRelation}, {@link HierarchyExcludingRoot}
-	 * and {@link HierarchyExcluding}
-	*/
+	 * Products assigned to two or more subcategories of Accessories category will only appear once in the response
+	 * (contrary to what you might expect if you have experience with SQL).
+	 */
 	@Nullable
 	static HierarchyWithin hierarchyWithinSelf(@Nullable FilterConstraint ofParent, @Nullable HierarchySpecificationFilterConstraint... with) {
 		if (ofParent == null) {
@@ -875,87 +850,66 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `withinHierarchy` query accepts [Serializable](https://docs.oracle.com/javase/8/docs/api/java/io/Serializable.html)
-	 * entity type in first argument, primary key of [Integer](https://docs.oracle.com/javase/8/docs/api/java/lang/Integer.html)
-	 * type of entity with [hierarchical placement](../model/entity_model.md#hierarchical-placement) in second argument. There
-	 * are also optional third and fourth arguments - see optional arguments {@link HierarchyDirectRelation}, {@link HierarchyExcludingRoot}
-	 * and {@link HierarchyExcluding}.
+	 * The constraint `hierarchyWithin` allows you to restrict the search to only those entities that are part of
+	 * the hierarchy tree starting with the root node identified by the first argument of this constraint. In e-commerce
+	 * systems the typical representative of a hierarchical entity is a category, which will be used in all of our examples.
 	 *
-	 * Constraint can also have only one numeric argument representing primary key of [Integer](https://docs.oracle.com/javase/8/docs/api/java/lang/Integer.html)
-	 * the very same entity type in case this entity has [hierarchical placement](../model/entity_model.md#hierarchical-placement)
-	 * defined. This format of the query may be used for example for returning category sub-tree (where we want to return
-	 * category entities and also query them by their own hierarchy placement).
+	 * The constraint accepts following arguments:
 	 *
-	 * Function returns true if entity has at least one [reference](../model/entity_model.md#references) that relates to specified entity
-	 * type and entity either directly or relates to any other entity of the same type with [hierarchical placement](../model/entity_model.md#hierarchical-placement)
-	 * subordinate to the directly related entity placement (in other words is present in its sub-tree).
+	 * - optional name of the queried entity reference schema that represents the relationship to the hierarchical entity
+	 *   type, your entity may target different hierarchical entities in different reference types, or it may target
+	 *   the same hierarchical entity through multiple semantically different references, and that is why the reference name
+	 *   is used instead of the target entity type.
+	 * - a single mandatory filter constraint that identifies one or more hierarchy nodes that act as hierarchy roots;
+	 *   multiple constraints must be enclosed in AND / OR containers
+	 * - optional constraints allow you to narrow the scope of the hierarchy; none or all of the constraints may be present:
 	 *
-	 * Let's have following hierarchical tree of categories (primary keys are in brackets):
+	 *      - {@link HierarchyDirectRelation}
+	 *      - {@link HierarchyHaving}
+	 *      - {@link HierarchyExcluding}
+	 *      - {@link HierarchyExcludingRoot}
 	 *
-	 * - TV (1)
-	 * - Crt (2)
-	 * - LCD (3)
-	 * - big (4)
-	 * - small (5)
-	 * - Plasma (6)
-	 * - Fridges (7)
+	 * The most straightforward usage is filtering the hierarchical entities themselves.
 	 *
-	 * When query `withinHierarchy('category', 1)` is used in a query targeting product entities only products that
-	 * relates directly to categories: `TV`, `Crt`, `LCD`, `big`, `small` and `Plasma` will be returned. Products in `Fridges`
-	 * will be omitted because they are not in a sub-tree of `TV` hierarchy.
-	 *
-	 * Only single `withinHierarchy` query can be used in the query.
-	 *
-	 * Example:
-	 *
-	 * ```
-	 * withinHierarchy('category', 4)
-	 * ```
-	 *
-	 * If you want to query the entity that you're querying on you can also omit entity type specification. See example:
-	 *
-	 * ```
+	 * <pre>
 	 * query(
-	 * entities('CATEGORY'),
-	 * filterBy(
-	 * withinHierarchy(5)
+	 *     collection('Category'),
+	 *     filterBy(
+	 *         hierarchyWithinSelf(
+	 *             attributeEquals('code', 'accessories')
+	 *         )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent('code')
+	 *         )
+	 *     )
 	 * )
-	 * )
-	 * ```
+	 * </pre>
 	 *
-	 * This query will return all categories that belong to the sub-tree of category with primary key equal to 5.
+	 * The `hierarchyWithin` constraint can also be used for entities that directly reference a hierarchical entity type.
+	 * The most common use case from the e-commerce world is a product that is assigned to one or more categories.
 	 *
-	 * If you want to list all entities from the root level you need to use different query - `withinRootHierarchy` that
-	 * has the same notation but doesn't specify the id of the root level entity:
-	 *
-	 * ```
+	 * <pre>
 	 * query(
-	 * entities('CATEGORY'),
-	 * filterBy(
-	 * withinRootHierarchy()
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'accessories')
+	 *         )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent('code')
+	 *         )
+	 *     )
 	 * )
-	 * )
-	 * ```
+	 * </pre>
 	 *
-	 * This query will return all categories within `CATEGORY` entity.
-	 *
-	 * You may use this query to list entities that refers to the hierarchical entities:
-	 *
-	 * ```
-	 * query(
-	 * entities('PRODUCT'),
-	 * filterBy(
-	 * withinRootHierarchy('CATEGORY')
-	 * )
-	 * )
-	 * ```
-	 *
-	 * This query returns all products that are attached to any category. Although, this query doesn't make much sense it starts
-	 * to be useful when combined with additional inner constraints described in following paragraphs.
-	 *
-	 * You can use additional sub constraints in `withinHierarchy` query: {@link HierarchyDirectRelation}, {@link HierarchyExcludingRoot}
-	 * and {@link HierarchyExcluding}
-	*/
+	 * Products assigned to two or more subcategories of Accessories category will only appear once in the response
+	 * (contrary to what you might expect if you have experience with SQL).
+	 */
 	@Nullable
 	static HierarchyWithin hierarchyWithin(@Nonnull String referenceName, @Nullable FilterConstraint ofParent, @Nullable HierarchySpecificationFilterConstraint... with) {
 		if (ofParent == null) {
@@ -968,130 +922,229 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `withinRootHierarchy` query accepts [Serializable](https://docs.oracle.com/javase/8/docs/api/java/io/Serializable.html)
-	 * entity type in first argument. There are also optional second and third arguments - see optional arguments {@link HierarchyDirectRelation},
-	 * and {@link HierarchyExcluding}.
+	 * The constraint `hierarchyWithinRoot` allows you to restrict the search to only those entities that are part of
+	 * the entire hierarchy tree. In e-commerce systems the typical representative of a hierarchical entity is a category.
 	 *
-	 * Function returns true if entity has at least one [reference](../model/entity_model.md#references) that relates to specified entity
-	 * type and entity either directly or relates to any other entity of the same type with [hierarchical placement](../model/entity_model.md#hierarchical-placement)
-	 * subordinate to the directly related entity placement (in other words is present in its sub-tree).
+	 * The single difference to {@link HierarchyWithin} constraint is that it doesn't accept a root node specification.
+	 * Because evitaDB accepts multiple root nodes in your entity hierarchy, it may be helpful to imagine there is
+	 * an invisible "virtual" top root above all the top nodes (whose parent property remains NULL) you have in your entity
+	 * hierarchy and this virtual top root is targeted by this constraint.
 	 *
-	 * Let's have following hierarchical tree of categories (primary keys are in brackets):
+	 * - The constraint accepts following arguments:
 	 *
-	 * - TV (1)
-	 * - Crt (2)
-	 * - LCD (3)
-	 * - big (4)
-	 * - small (5)
-	 * - Plasma (6)
-	 * - Fridges (7)
+	 * - optional name of the queried entity reference schema that represents the relationship to the hierarchical entity
+	 *   type, your entity may target different hierarchical entities in different reference types, or it may target
+	 *   the same hierarchical entity through multiple semantically different references, and that is why the reference name
+	 *   is used instead of the target entity type.
+	 * - optional constraints allow you to narrow the scope of the hierarchy; none or all of the constraints may be present:
 	 *
-	 * When query `withinRootHierarchy('category')` is used in a query targeting product entities all products that
-	 * relates to any of categories will be returned.
+	 *      - {@link HierarchyDirectRelation}
+	 *      - {@link HierarchyHaving}
+	 *      - {@link HierarchyExcluding}
 	 *
-	 * Only single `withinRootHierarchy` query can be used in the query.
+	 * The `hierarchyWithinRoot`, which targets the Category collection itself, returns all categories except those that
+	 * would point to non-existent parent nodes, such hierarchy nodes are called orphans and do not satisfy any hierarchy
+	 * query.
 	 *
-	 * Example:
-	 *
-	 * ```
-	 * withinRootHierarchy('category')
-	 * ```
-	 *
-	 * If you want to query the entity that you're querying on you can also omit entity type specification. See example:
-	 *
-	 * ```
+	 * <pre>
 	 * query(
-	 * entities('CATEGORY'),
-	 * filterBy(
-	 * withinRootHierarchy()
+	 *     collection('Category'),
+	 *     filterBy(
+	 *         hierarchyWithinRootSelf()
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent('code')
+	 *         )
+	 *     )
 	 * )
-	 * )
-	 * ```
+	 * </pre>
 	 *
-	 * This query will return all categories within `CATEGORY` entity.
+	 * The `hierarchyWithinRoot` constraint can also be used for entities that directly reference a hierarchical entity
+	 * type. The most common use case from the e-commerce world is a product that is assigned to one or more categories.
 	 *
-	 * You may use this query to list entities that refers to the hierarchical entities:
-	 *
-	 * ```
+	 * <pre>
 	 * query(
-	 * entities('PRODUCT'),
-	 * filterBy(
-	 * withinRootHierarchy('CATEGORY')
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithinRoot('categories')
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent('code')
+	 *         )
+	 *     )
 	 * )
-	 * )
-	 * ```
+	 * </pre>
 	 *
-	 * This query returns all products that are attached to any category.
-	*/
+	 * Products assigned to only one orphan category will be missing from the result. Products assigned to two or more
+	 * categories will only appear once in the response (contrary to what you might expect if you have experience with SQL).
+	 */
 	@Nonnull
 	static HierarchyWithinRoot hierarchyWithinRootSelf(@Nullable HierarchySpecificationFilterConstraint... with) {
 		return with == null ? new HierarchyWithinRoot() : new HierarchyWithinRoot(with);
 	}
 
 	/**
-	 * This `withinRootHierarchy` query accepts [Serializable](https://docs.oracle.com/javase/8/docs/api/java/io/Serializable.html)
-	 * entity type in first argument. There are also optional second and third arguments - see optional arguments {@link HierarchyDirectRelation},
-	 * and {@link HierarchyExcluding}.
+	 * The constraint `hierarchyWithinRoot` allows you to restrict the search to only those entities that are part of
+	 * the entire hierarchy tree. In e-commerce systems the typical representative of a hierarchical entity is a category.
 	 *
-	 * Function returns true if entity has at least one [reference](../model/entity_model.md#references) that relates to specified entity
-	 * type and entity either directly or relates to any other entity of the same type with [hierarchical placement](../model/entity_model.md#hierarchical-placement)
-	 * subordinate to the directly related entity placement (in other words is present in its sub-tree).
+	 * The single difference to {@link HierarchyWithin} constraint is that it doesn't accept a root node specification.
+	 * Because evitaDB accepts multiple root nodes in your entity hierarchy, it may be helpful to imagine there is
+	 * an invisible "virtual" top root above all the top nodes (whose parent property remains NULL) you have in your entity
+	 * hierarchy and this virtual top root is targeted by this constraint.
 	 *
-	 * Let's have following hierarchical tree of categories (primary keys are in brackets):
+	 * - The constraint accepts following arguments:
 	 *
-	 * - TV (1)
-	 * - Crt (2)
-	 * - LCD (3)
-	 * - big (4)
-	 * - small (5)
-	 * - Plasma (6)
-	 * - Fridges (7)
+	 * - optional name of the queried entity reference schema that represents the relationship to the hierarchical entity
+	 *   type, your entity may target different hierarchical entities in different reference types, or it may target
+	 *   the same hierarchical entity through multiple semantically different references, and that is why the reference name
+	 *   is used instead of the target entity type.
+	 * - optional constraints allow you to narrow the scope of the hierarchy; none or all of the constraints may be present:
 	 *
-	 * When query `withinRootHierarchy('category')` is used in a query targeting product entities all products that
-	 * relates to any of categories will be returned.
+	 *      - {@link HierarchyDirectRelation}
+	 *      - {@link HierarchyHaving}
+	 *      - {@link HierarchyExcluding}
 	 *
-	 * Only single `withinRootHierarchy` query can be used in the query.
+	 * The `hierarchyWithinRoot`, which targets the Category collection itself, returns all categories except those that
+	 * would point to non-existent parent nodes, such hierarchy nodes are called orphans and do not satisfy any hierarchy
+	 * query.
 	 *
-	 * Example:
-	 *
-	 * ```
-	 * withinRootHierarchy('category')
-	 * ```
-	 *
-	 * If you want to query the entity that you're querying on you can also omit entity type specification. See example:
-	 *
-	 * ```
+	 * <pre>
 	 * query(
-	 * entities('CATEGORY'),
-	 * filterBy(
-	 * withinRootHierarchy()
+	 *     collection('Category'),
+	 *     filterBy(
+	 *         hierarchyWithinRootSelf()
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent('code')
+	 *         )
+	 *     )
 	 * )
-	 * )
-	 * ```
+	 * </pre>
 	 *
-	 * This query will return all categories within `CATEGORY` entity.
+	 * The `hierarchyWithinRoot` constraint can also be used for entities that directly reference a hierarchical entity
+	 * type. The most common use case from the e-commerce world is a product that is assigned to one or more categories.
 	 *
-	 * You may use this query to list entities that refers to the hierarchical entities:
-	 *
-	 * ```
+	 * <pre>
 	 * query(
-	 * entities('PRODUCT'),
-	 * filterBy(
-	 * withinRootHierarchy('CATEGORY')
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithinRoot('categories')
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent('code')
+	 *         )
+	 *     )
 	 * )
-	 * )
-	 * ```
+	 * </pre>
 	 *
-	 * This query returns all products that are attached to any category.
-	*/
+	 * Products assigned to only one orphan category will be missing from the result. Products assigned to two or more
+	 * categories will only appear once in the response (contrary to what you might expect if you have experience with SQL).
+	 */
 	@Nonnull
 	static HierarchyWithinRoot hierarchyWithinRoot(@Nonnull String referenceName, @Nullable HierarchySpecificationFilterConstraint... with) {
 		return with == null ? new HierarchyWithinRoot() : new HierarchyWithinRoot(referenceName, with);
 	}
 
 	/**
-	 * TOBEDONE JNO - write javadoc
-	*/
+	 * The constraint `having` is a constraint that can only be used within {@link HierarchyWithin} or
+	 * {@link HierarchyWithinRoot} parent constraints. It simply makes no sense anywhere else because it changes the default
+	 * behavior of those constraints. Hierarchy constraints return all hierarchy children of the parent node or entities
+	 * that are transitively or directly related to them, and the parent node itself.
+	 *
+	 * The having constraint allows you to set a constraint that must be fulfilled by all categories in the category scope
+	 * in order to be accepted by hierarchy within filter. This constraint is especially useful if you want to conditionally
+	 * display certain parts of the tree. Imagine you have a category Christmas Sale that should only be available during
+	 * a certain period of the year, or a category B2B Partners that should only be accessible to a certain role of users.
+	 * All of these scenarios can take advantage of the having constraint (but there are other approaches to solving
+	 * the above use cases).
+	 *
+	 * The constraint accepts following arguments:
+	 *
+	 * - one or more mandatory constraints that must be satisfied by all returned hierarchy nodes and that mark the visible
+	 *   part of the tree, the implicit relation between constraints is logical conjunction (boolean AND)
+	 *
+	 * When the hierarchy constraint targets the hierarchy entity, the children that don't satisfy the inner constraints
+	 * (and their children, whether they satisfy them or not) are excluded from the result.
+	 *
+	 * For demonstration purposes, let's list all categories within the Accessories category, but only those that are valid
+	 * at 01:00 AM on October 1, 2023.
+	 *
+	 * <pre>
+	 * query(
+	 *     collection('Category'),
+	 *     filterBy(
+	 *         hierarchyWithinSelf(
+	 *             attributeEquals('code', 'accessories'),
+	 *             having(
+	 *                 or(
+	 *                     attributeIsNull('validity'),
+	 *                     attributeInRange('validity', 2023-10-01T01:00:00-01:00)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent('code')
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * Because the category Christmas electronics has its validity set to be valid only between December 1st and December
+	 * 24th, it will be omitted from the result. If it had subcategories, they would also be omitted (even if they had no
+	 * validity restrictions).
+	 *
+	 * If the hierarchy constraint targets a non-hierarchical entity that references the hierarchical one (typical example
+	 * is a product assigned to a category), the having constraint is evaluated against the hierarchical entity (category),
+	 * but affects the queried non-hierarchical entities (products). It excludes all products referencing categories that
+	 * don't satisfy the having inner constraints.
+	 *
+	 * Let's use again our example with Christmas electronics that is valid only between 1st and 24th December. To list all
+	 * products available at 01:00 AM on October 1, 2023, issue a following query:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'accessories'),
+	 *             having(
+	 *                 or(
+	 *                     attributeIsNull('validity'),
+	 *                     attributeInRange('validity', 2023-10-01T01:00:00-01:00)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent('code')
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * You can see that Christmas products like Retlux Blue Christmas lightning, Retlux Warm white Christmas lightning or
+	 * Emos Candlestick are not present in the listing.
+	 *
+	 * <strong>The lookup stops at the first node that doesn't satisfy the constraint!</strong>
+	 *
+	 * The hierarchical query traverses from the root nodes to the leaf nodes. For each of the nodes, the engine checks
+	 * whether the having constraint is still valid, and if not, it excludes that hierarchy node and all of its child nodes
+	 * (entire subtree).
+	 *
+	 * <strong>What if the product is linked to two categories - one that meets the constraint and one that does not?</strong>
+	 *
+	 * In the situation where the single product, let's say Garmin Vivosmart 5, is in both the excluded category Christmas
+	 * Electronics and the included category Smartwatches, it will remain in the query result because there is at least one
+	 * product reference that is part of the visible part of the tree.
+	 */
 	@Nullable
 	static HierarchyHaving having(@Nullable FilterConstraint... includeChildTreeConstraints) {
 		if (ArrayUtils.isEmpty(includeChildTreeConstraints)) {
@@ -1101,28 +1154,90 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * If you use {@link HierarchyExcludingRoot} sub-query in {@link HierarchyWithin} parent, you can specify one or more
-	 * Integer primary keys of the underlying entities which hierarchical subtree should be excluded from examination.
+	 * The constraint `excluding` is a constraint that can only be used within {@link HierarchyWithin} or
+	 * {@link HierarchyWithinRoot} parent constraints. It simply makes no sense anywhere else because it changes the default
+	 * behavior of those constraints. Hierarchy constraints return all hierarchy children of the parent node or entities
+	 * that are transitively or directly related to them, and the parent node itself.
 	 *
-	 * Exclusion arguments allows excluding certain parts of the hierarchy tree from examination. This feature is used in
-	 * environments where certain sub-trees can be made "invisible" and should not be accessible to users, although they are
-	 * still part of the database.
+	 * The excluding constraint allows you to exclude one or more subtrees from the scope of the filter. This constraint is
+	 * the exact opposite of the having constraint. If the constraint is true for a hierarchy entity, it and all of its
+	 * children are excluded from the query. The excluding constraint is the same as declaring `having(not(expression))`,
+	 * but for the sake of readability it has its own constraint.
 	 *
-	 * Let's have following hierarchical tree of categories (primary keys are in brackets):
+	 * The constraint accepts following arguments:
 	 *
-	 * - TV (1)
-	 * - Crt (2)
-	 * - LCD (3)
-	 * - big (4)
-	 * - small (5)
-	 * - Plasma (6)
-	 * - Fridges (7)
+	 * - one or more mandatory constraints that must be satisfied by all returned hierarchy nodes and that mark the visible
+	 *   part of the tree, the implicit relation between constraints is logical conjunction (boolean AND)
 	 *
-	 * When query `withinHierarchy('category', 1, excluding(3))` is used in a query targeting product entities,
-	 * only products that relate directly to categories: `TV`, `Crt` and `Plasma` will be returned. Products in `Fridges` will
-	 * be omitted because they are not in a sub-tree of `TV` hierarchy and products in `LCD` sub-tree will be omitted because
-	 * they're part of the excluded sub-trees.
-	*/
+	 * When the hierarchy constraint targets the hierarchy entity, the children that satisfy the inner constraints (and
+	 * their children, whether they satisfy them or not) are excluded from the result.
+	 *
+	 * For demonstration purposes, let's list all categories within the Accessories category, but exclude exactly
+	 * the Wireless headphones subcategory.
+	 *
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'accessories'),
+	 *             excluding(
+	 *                 attributeEquals('code', 'wireless-headphones')
+	 *             )
+	 *         )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent('code')
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * The category Wireless Headphones and all its subcategories will not be shown in the results list.
+	 *
+	 * If the hierarchy constraint targets a non-hierarchical entity that references the hierarchical one (typical example
+	 * is a product assigned to a category), the excluding constraint is evaluated against the hierarchical entity
+	 * (category), but affects the queried non-hierarchical entities (products). It excludes all products referencing
+	 * categories that satisfy the excluding inner constraints.
+	 *
+	 * Let's go back to our example query that excludes the Wireless Headphones category subtree. To list all products
+	 * available in the Accessories category except those related to the Wireless Headphones category or its subcategories,
+	 * issue the following query:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'accessories'),
+	 *             excluding(
+	 *                 attributeEquals('code', 'wireless-headphones')
+	 *             )
+	 *         )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent('code')
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * You can see that wireless headphone products like Huawei FreeBuds 4, Jabra Elite 3 or Adidas FWD-02 Sport are not
+	 * present in the listing.
+	 *
+	 * When the product is assigned to two categories - one excluded and one part of the visible category tree, the product
+	 * remains in the result. See the example.
+	 *
+	 * <strong>The lookup stops at the first node that satisfies the constraint!</strong>
+	 *
+	 * The hierarchical query traverses from the root nodes to the leaf nodes. For each of the nodes, the engine checks
+	 * whether the excluding constraint is satisfied valid, and if so, it excludes that hierarchy node and all of its child
+	 * nodes (entire subtree).
+	 */
 	@Nullable
 	static HierarchyExcluding excluding(@Nullable FilterConstraint... excludeChildTreeConstraints) {
 		if (ArrayUtils.isEmpty(excludeChildTreeConstraints)) {
@@ -1132,194 +1247,164 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This query can be used only as sub query of `withinHierarchy` or `withinRootHierarchy`.
-	 * If you use `directRelation` sub-query fetching products related to category - only products that are directly
-	 * related to that category will be returned in the response.
+	 * The constraint `directRelation` is a constraint that can only be used within {@link HierarchyWithin} or
+	 * {@link HierarchyWithinRoot} parent constraints. It simply makes no sense anywhere else because it changes the default
+	 * behavior of those constraints. Hierarchy constraints return all hierarchy children of the parent node or entities
+	 * that are transitively or directly related to them and the parent node itself. If the directRelation is used as
+	 * a sub-constraint, this behavior changes and only direct descendants or directly referencing entities are matched.
 	 *
-	 * Let's have the following category tree:
+	 * If the hierarchy constraint targets the hierarchy entity, the `directRelation` will cause only the children of
+	 * a direct parent node to be returned. In the case of the hierarchyWithinRoot constraint, the parent is an invisible
+	 * "virtual" top root - so only the top-level categories are returned.
 	 *
-	 * - TV (1)
-	 *     - Crt (2)
-	 *     - LCD (3)
-	 *        - AMOLED (4)
-	 *
-	 * These categories are related by following products:
-	 *
-	 * - TV (1):
-	 *     - Product Philips 32"
-	 *     - Product Samsung 24"
-	 *     - Crt (2):
-	 *         - Product Ilyiama 15"
-	 *         - Product Panasonic 17"
-	 *     - LCD (3):
-	 *         - Product BenQ 32"
-	 *         - Product LG 28"
-	 *         - AMOLED (4):
-	 *             - Product Samsung 32"
-	 *
-	 * When using this query:
-	 *
-	 * ```
+	 * <pre>
 	 * query(
-	 *    entities('PRODUCT'),
-	 *    filterBy(
-	 *       withinHierarchy('CATEGORY', 1)
-	 *    )
+	 *     collection('Category'),
+	 *     filterBy(
+	 *         hierarchyWithinRootSelf(
+	 *             directRelation()
+	 *         )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent('code')
+	 *         )
+	 *     )
 	 * )
-	 * ```
+	 * </pre>
 	 *
-	 * All products will be returned.
+	 * If the hierarchy constraint targets a non-hierarchical entity that references the hierarchical one (typical example
+	 * is a product assigned to a category), it can only be used in the hierarchyWithin parent constraint.
 	 *
-	 * When this query is used:
+	 * In the case of {@link HierarchyWithinRoot}, the `directRelation` constraint makes no sense because no entity can be
+	 * assigned to a "virtual" top parent root.
 	 *
-	 * ```
+	 * So we can only list products that are directly related to a certain category. We can list products that have
+	 * Smartwatches category assigned:
+	 *
+	 * <pre>
 	 * query(
-	 *    entities('PRODUCT'),
-	 *    filterBy(
-	 *       withinHierarchy('CATEGORY', 1, directRelation())
-	 *    )
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'smartwatches'),
+	 *             directRelation()
+	 *         )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent('code')
+	 *         )
+	 *     )
 	 * )
-	 * ```
-	 *
-	 * Only products directly related to TV category will be returned - i.e.: Philips 32" and Samsung 24". Products related
-	 * to sub-categories of TV category will be omitted.
-	 *
-	 * You can also use this hint to browse the hierarchy of the entity itself - to fetch subcategories of category.
-	 * If you use this query:
-	 *
-	 * ```
-	 * query(
-	 *    entities('CATEGORY'),
-	 *    filterBy(
-	 *       withinHierarchy(1)
-	 *    )
-	 * )
-	 * ```
-	 *
-	 * All categories under the category subtree of `TV (1)` will be listed (this means categories `TV`, `Crt`, `LCD`, `AMOLED`).
-	 * If you use this query:
-	 *
-	 * ```
-	 * query(
-	 *    entities('CATEGORY'),
-	 *    filterBy(
-	 *       withinHierarchy(1, directRelation())
-	 *    )
-	 * )
-	 * ```
-	 *
-	 * Only direct sub-categories of category `TV (1)` will be listed (this means categories `Crt` and `LCD`).
-	 * You can also use this hint with query `withinRootHierarchy`:
-	 *
-	 * ```
-	 * query(
-	 *    entities('CATEGORY'),
-	 *    filterBy(
-	 *       withinRootHierarchy()
-	 *    )
-	 * )
-	 * ```
-	 *
-	 * All categories in entire tree will be listed.
-	 *
-	 * When using this query:
-	 *
-	 * ```
-	 * query(
-	 *    entities('CATEGORY'),
-	 *    filterBy(
-	 *       withinHierarchy(directRelation())
-	 *    )
-	 * )
-	 * ```
-	 *
-	 * Which would return only category `TV (1)`.
-	 *
-	 * As you can see {@link HierarchyExcludingRoot} and {@link HierarchyDirectRelation} are mutually exclusive.
-	*/
+	 * </pre>
+	 */
 	@Nonnull
 	static HierarchyDirectRelation directRelation() {
 		return new HierarchyDirectRelation();
 	}
 
 	/**
-	 * If you use `excludingRoot` sub-query in `withinHierarchy` parent, response will contain only children of the
-	 * entity specified in `withinHierarchy` or entities related to those children entities - if the `withinHierarchy` targets
-	 * different entity types.
+	 * The constraint `excludingRoot` is a constraint that can only be used within {@link HierarchyWithin} or
+	 * {@link HierarchyWithinRoot} parent constraints. It simply makes no sense anywhere else because it changes the default
+	 * behavior of those constraints. Hierarchy constraints return all hierarchy children of the parent node or entities
+	 * that are transitively or directly related to them and the parent node itself. When the excludingRoot is used as
+	 * a sub-constraint, this behavior changes and the parent node itself or the entities directly related to that parent
+	 * node are be excluded from the result.
 	 *
-	 * Let's have following category tree:
+	 * If the hierarchy constraint targets the hierarchy entity, the `excludingRoot` will omit the requested parent node
+	 * from the result. In the case of the {@link HierarchyWithinRoot} constraint, the parent is an invisible "virtual" top
+	 * root, and this constraint makes no sense.
 	 *
-	 * - TV (1)
-	 *     - Crt (2)
-	 *     - LCD (3)
-	 *
-	 * These categories are related by following products:
-	 *
-	 * - TV (1):
-	 *     - Product Philips 32"
-	 *     - Product Samsung 24"
-	 *     - Crt (2):
-	 *         - Product Ilyiama 15"
-	 *         - Product Panasonic 17"
-	 *     - LCD (3):
-	 *         - Product BenQ 32"
-	 *         - Product LG 28"
-	 *
-	 * When using this query:
-	 *
-	 * ```
+	 * <pre>
 	 * query(
-	 *    entities('PRODUCT'),
-	 *    filterBy(
-	 *       withinHierarchy('CATEGORY', 1)
-	 *    )
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'accessories'),
+	 *             excludingRoot()
+	 *         )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent('code')
+	 *         )
+	 *     )
 	 * )
-	 * ```
+	 * </pre>
 	 *
-	 * All products will be returned.
-	 * When this query is used:
+	 * If the hierarchy constraint targets a non-hierarchical entity that references the hierarchical one (typical example
+	 * is a product assigned to a category), the `excludingRoot` constraint can only be used in the {@link HierarchyWithin}
+	 * parent constraint.
 	 *
-	 * ```
+	 * In the case of {@link HierarchyWithinRoot}, the `excludingRoot` constraint makes no sense because no entity can be
+	 * assigned to a "virtual" top parent root.
+	 *
+	 * Because we learned that Accessories category has no directly assigned products, the `excludingRoot` constraint
+	 * presence would not affect the query result. Therefore, we choose Keyboard category for our example. When we list all
+	 * products in Keyboard category using {@link HierarchyWithin} constraint, we obtain 20 items. When the `excludingRoot`
+	 * constraint is used:
+	 *
+	 * <pre>
 	 * query(
-	 *    entities('PRODUCT'),
-	 *    filterBy(
-	 *       withinHierarchy('CATEGORY', 1, excludingRoot())
-	 *    )
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'keyboards'),
+	 *             excludingRoot()
+	 *         )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent('code')
+	 *         )
+	 *     )
 	 * )
-	 * ```
+	 * </pre>
 	 *
-	 * Only products related to sub-categories of the TV category will be returned - i.e.: Ilyiama 15", Panasonic 17" and
-	 * BenQ 32", LG 28". The products related directly to TV category will not be returned.
-	 *
-	 * As you can see {@link HierarchyExcludingRoot} and {@link HierarchyDirectRelation} are mutually exclusive.
-	*/
+	 * ... we get only 4 items, which means that 16 were assigned directly to Keyboards category and only 4 of them were
+	 * assigned to Exotic keyboards.
+	 */
 	@Nonnull
 	static HierarchyExcludingRoot excludingRoot() {
 		return new HierarchyExcludingRoot();
 	}
 
 	/**
-	 * This `language` is query accepts single {@link Locale} argument.
+	 * If any filter constraint of the query targets a localized attribute, the `entityLocaleEquals` must also be provided,
+	 * otherwise the query interpreter will return an error. Localized attributes must be identified by both their name and
+	 * {@link Locale} in order to be used.
 	 *
-	 * Function returns true if entity has at least one localized attribute or associated data that  targets specified locale.
+	 * Only a single occurrence of entityLocaleEquals is allowed in the filter part of the query. Currently, there is no way
+	 * to switch context between different parts of the filter and build queries such as find a product whose name in en-US
+	 * is "screwdriver" or in cs is "šroubovák".
 	 *
-	 * If require part of the query doesn't contain {@link DataInLocales} requirement that
-	 * would specify the requested data localization, this filtering query implicitly sets requirement to the passed
-	 * language argument. In other words if entity has two localizations: `en-US` and `cs-CZ` and `language('cs-CZ')` is
-	 * used in query, returned entity would have only Czech localization of attributes and associated data fetched along
-	 * with it (and also attributes that are locale agnostic).
-	 *
-	 * If query contains no language query filtering logic is applied only on "global" (i.e. language agnostic)
-	 * attributes.
-	 *
-	 * Only single `language` query can be used in the query.
+	 * Also, it's not possible to omit the language specification for a localized attribute and ask questions like: find
+	 * a product whose name in any language is "screwdriver".
 	 *
 	 * Example:
 	 *
-	 * ```
-	 * language('en-US')
-	 * ```
-	*/
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'vouchers-for-shareholders')
+	 *         ),
+	 *         entityLocaleEquals('en')
+	 *     ),
+	 *     require(
+	 *        entityFetch(
+	 *            attributeContent('code', 'name')
+	 *        )
+	 *     )
+	 * )
+	 * </pre>
+	 */
 	@Nullable
 	static EntityLocaleEquals entityLocaleEquals(@Nullable Locale locale) {
 		return locale == null ? null : new EntityLocaleEquals(locale);
@@ -1329,7 +1414,7 @@ public interface QueryConstraints {
 	 * Container allowing to filter entities by having references to entities managed by evitaDB that
 	 * match inner filtering constraints. This container resembles the SQL inner join clauses where the `entityHaving`
 	 * contains the filtering condition on particular join.
-	*/
+	 */
 	@Nullable
 	static EntityHaving entityHaving(@Nullable FilterConstraint filterConstraint) {
 		return filterConstraint == null ? null : new EntityHaving(filterConstraint);
@@ -1337,30 +1422,30 @@ public interface QueryConstraints {
 
 	/**
 	 * This `inRange` is query that compares value of the attribute with name passed in first argument with the date
-	 * and time passed in the second argument. First argument must be {@link String}, second argument must be {@link OffsetDateTime}
-	 * type. If second argument is not passed - current date and time (now) is used.
-	 * Type of the attribute value must implement [Range](classes/range_interface.md) interface.
+	 * and time passed in the second argument. First argument must be {@link String}, second argument must be
+	 * {@link OffsetDateTime} type. If second argument is not passed - current date and time (now) is used.
+	 * Type of the attribute value must implement {@link Range} interface.
 	 *
 	 * Function returns true if second argument is greater than or equal to range start (from), and is lesser than
 	 * or equal to range end (to).
 	 *
 	 * Example:
 	 *
-	 * ```
+	 * <pre>
 	 * inRange('valid', 2020-07-30T20:37:50+00:00)
 	 * inRange('age', 18)
-	 * ```
+	 * </pre>
 	 *
-	 * Function supports attribute arrays and when attribute is of array type `inRange` returns true if *any of attribute* values
-	 * has range, that envelopes the passed value the value in the query. If we have the attribute `age` with value
+	 * Function supports attribute arrays and when attribute is of array type `inRange` returns true if any of attribute
+	 * values has range, that envelopes the passed value the value in the query. If we have the attribute `age` with value
 	 * `[[18, 25],[60,65]]` all these constraints will match:
 	 *
-	 * ```
+	 * <pre>
 	 * inRange('age', 18)
 	 * inRange('age', 24)
 	 * inRange('age', 63)
-	 * ```
-	*/
+	 * </pre>
+	 */
 	@Nullable
 	static AttributeInRange attributeInRange(@Nonnull String attributeName, @Nullable OffsetDateTime atTheMoment) {
 		return atTheMoment == null ? null : new AttributeInRange(attributeName, atTheMoment);
@@ -1368,30 +1453,30 @@ public interface QueryConstraints {
 
 	/**
 	 * This `inRange` is query that compares value of the attribute with name passed in first argument with the date
-	 * and time passed in the second argument. First argument must be {@link String}, second argument must be {@link OffsetDateTime}
-	 * type. If second argument is not passed - current date and time (now) is used.
-	 * Type of the attribute value must implement [Range](classes/range_interface.md) interface.
+	 * and time passed in the second argument. First argument must be {@link String}, second argument must be
+	 * {@link OffsetDateTime} type. If second argument is not passed - current date and time (now) is used.
+	 * Type of the attribute value must implement {@link Range} interface.
 	 *
 	 * Function returns true if second argument is greater than or equal to range start (from), and is lesser than
 	 * or equal to range end (to).
 	 *
 	 * Example:
 	 *
-	 * ```
+	 * <pre>
 	 * inRange('valid', 2020-07-30T20:37:50+00:00)
 	 * inRange('age', 18)
-	 * ```
+	 * </pre>
 	 *
-	 * Function supports attribute arrays and when attribute is of array type `inRange` returns true if *any of attribute* values
-	 * has range, that envelopes the passed value the value in the query. If we have the attribute `age` with value
+	 * Function supports attribute arrays and when attribute is of array type `inRange` returns true if any of attribute
+	 * values has range, that envelopes the passed value the value in the query. If we have the attribute `age` with value
 	 * `[[18, 25],[60,65]]` all these constraints will match:
 	 *
-	 * ```
+	 * <pre>
 	 * inRange('age', 18)
 	 * inRange('age', 24)
 	 * inRange('age', 63)
-	 * ```
-	*/
+	 * </pre>
+	 */
 	@Nullable
 	static AttributeInRange attributeInRange(@Nonnull String attributeName, @Nullable Number theValue) {
 		return theValue == null ? null : new AttributeInRange(attributeName, theValue);
@@ -1399,30 +1484,30 @@ public interface QueryConstraints {
 
 	/**
 	 * This `inRange` is query that compares value of the attribute with name passed in first argument with the date
-	 * and time passed in the second argument. First argument must be {@link String}, second argument must be {@link OffsetDateTime}
-	 * type. If second argument is not passed - current date and time (now) is used.
-	 * Type of the attribute value must implement [Range](classes/range_interface.md) interface.
+	 * and time passed in the second argument. First argument must be {@link String}, second argument must be
+	 * {@link OffsetDateTime} type. If second argument is not passed - current date and time (now) is used.
+	 * Type of the attribute value must implement {@link Range} interface.
 	 *
 	 * Function returns true if second argument is greater than or equal to range start (from), and is lesser than
 	 * or equal to range end (to).
 	 *
 	 * Example:
 	 *
-	 * ```
+	 * <pre>
 	 * inRange('valid', 2020-07-30T20:37:50+00:00)
 	 * inRange('age', 18)
-	 * ```
+	 * </pre>
 	 *
-	 * Function supports attribute arrays and when attribute is of array type `inRange` returns true if *any of attribute* values
-	 * has range, that envelopes the passed value the value in the query. If we have the attribute `age` with value
+	 * Function supports attribute arrays and when attribute is of array type `inRange` returns true if any of attribute
+	 * values has range, that envelopes the passed value the value in the query. If we have the attribute `age` with value
 	 * `[[18, 25],[60,65]]` all these constraints will match:
 	 *
-	 * ```
+	 * <pre>
 	 * inRange('age', 18)
 	 * inRange('age', 24)
 	 * inRange('age', 63)
-	 * ```
-	*/
+	 * </pre>
+	 */
 	@Nonnull
 	static AttributeInRange attributeInRangeNow(@Nonnull String attributeName) {
 		return new AttributeInRange(attributeName);
@@ -1430,8 +1515,9 @@ public interface QueryConstraints {
 
 	/**
 	 * This `inSet` is query that compares value of the attribute with name passed in first argument with all the values passed
-	 * in the second, third and additional arguments. First argument must be {@link String},
-	 * additional arguments may be any of {@link Comparable} type.
+	 * in the second, third and additional arguments. First argument must be {@link String}, additional arguments may be any
+	 * of {@link Comparable} type.
+	 *
 	 * Type of the attribute value and additional arguments must be convertible one to another otherwise `in` function
 	 * skips value comparison and ultimately returns false.
 	 *
@@ -1439,19 +1525,19 @@ public interface QueryConstraints {
 	 *
 	 * Example:
 	 *
-	 * ```
+	 * <pre>
 	 * inSet('level', 1, 2, 3)
-	 * ```
+	 * </pre>
 	 *
-	 * Function supports attribute arrays and when attribute is of array type `inSet` returns true if *any of attribute* values
+	 * Function supports attribute arrays and when attribute is of array type `inSet` returns true if any of attribute values
 	 * equals the value in the query. If we have the attribute `code` with value `['A','B','C']` all these constraints will
 	 * match:
 	 *
-	 * ```
+	 * <pre>
 	 * inSet('code','A','D')
 	 * inSet('code','A', 'B')
-	 * ```
-	*/
+	 * </pre>
+	 */
 	@SuppressWarnings("unchecked")
 	@Nullable
 	static <T extends Serializable> AttributeInSet attributeInSet(@Nonnull String attributeName, @Nullable T... set) {
@@ -1482,20 +1568,20 @@ public interface QueryConstraints {
 	 *
 	 * Example:
 	 *
-	 * ```
+	 * <pre>
 	 * equals('code', 'abc')
-	 * ```
+	 * </pre>
 	 *
-	 * Function supports attribute arrays and when attribute is of array type `equals` returns true if *any of attribute* values
+	 * Function supports attribute arrays and when attribute is of array type `equals` returns true if any of attribute values
 	 * equals the value in the query. If we have the attribute `code` with value `['A','B','C']` all these constraints will
 	 * match:
 	 *
-	 * ```
+	 * <pre>
 	 * equals('code','A')
 	 * equals('code','B')
 	 * equals('code','C')
-	 * ```
-	*/
+	 * </pre>
+	 */
 	@Nonnull
 	static AttributeEquals attributeEqualsFalse(@Nonnull String attributeName) {
 		return new AttributeEquals(attributeName, Boolean.FALSE);
@@ -1511,20 +1597,20 @@ public interface QueryConstraints {
 	 *
 	 * Example:
 	 *
-	 * ```
+	 * <pre>
 	 * equals('code', 'abc')
-	 * ```
+	 * </pre>
 	 *
-	 * Function supports attribute arrays and when attribute is of array type `equals` returns true if *any of attribute* values
+	 * Function supports attribute arrays and when attribute is of array type `equals` returns true if any of attribute values
 	 * equals the value in the query. If we have the attribute `code` with value `['A','B','C']` all these constraints will
 	 * match:
 	 *
-	 * ```
+	 * <pre>
 	 * equals('code','A')
 	 * equals('code','B')
 	 * equals('code','C')
-	 * ```
-	*/
+	 * </pre>
+	 */
 	@Nonnull
 	static AttributeEquals attributeEqualsTrue(@Nonnull String attributeName) {
 		return new AttributeEquals(attributeName, Boolean.TRUE);
@@ -1535,19 +1621,19 @@ public interface QueryConstraints {
 	 * {@link Comparable} of attribute with name passed in first argument.
 	 * First argument must be {@link String}. Second is one of the {@link AttributeSpecialValue special values}:
 	 *
-	 * - NULL
-	 * - NOT_NULL
+	 * - {@link AttributeSpecialValue#NULL}
+	 * - {@link AttributeSpecialValue#NOT_NULL}
 	 *
 	 * Function returns true if attribute has (explicitly or implicitly) passed special value.
 	 *
 	 * Example:
 	 *
-	 * ```
+	 * <pre>
 	 * attributeIs('visible', NULL)
-	 * ```
+	 * </pre>
 	 *
 	 * Function supports attribute arrays in the same way as plain values.
-	*/
+	 */
 	@Nullable
 	static AttributeIs attributeIs(@Nonnull String attributeName, @Nullable AttributeSpecialValue specialValue) {
 		if (specialValue == null) {
@@ -1561,19 +1647,19 @@ public interface QueryConstraints {
 	 * {@link Comparable} of attribute with name passed in first argument.
 	 * First argument must be {@link String}. Second is one of the {@link AttributeSpecialValue special values}:
 	 *
-	 * - NULL
-	 * - NOT_NULL
+	 * - {@link AttributeSpecialValue#NULL}
+	 * - {@link AttributeSpecialValue#NOT_NULL}
 	 *
 	 * Function returns true if attribute has (explicitly or implicitly) passed special value.
 	 *
 	 * Example:
 	 *
-	 * ```
+	 * <pre>
 	 * attributeIs('visible', NULL)
-	 * ```
+	 * </pre>
 	 *
 	 * Function supports attribute arrays in the same way as plain values.
-	*/
+	 */
 	@Nonnull
 	static AttributeIs attributeIsNull(@Nonnull String attributeName) {
 		return new AttributeIs(attributeName, AttributeSpecialValue.NULL);
@@ -1584,19 +1670,19 @@ public interface QueryConstraints {
 	 * {@link Comparable} of attribute with name passed in first argument.
 	 * First argument must be {@link String}. Second is one of the {@link AttributeSpecialValue special values}:
 	 *
-	 * - NULL
-	 * - NOT_NULL
+	 * - {@link AttributeSpecialValue#NULL}
+	 * - {@link AttributeSpecialValue#NOT_NULL}
 	 *
 	 * Function returns true if attribute has (explicitly or implicitly) passed special value.
 	 *
 	 * Example:
 	 *
-	 * ```
+	 * <pre>
 	 * attributeIs('visible', NULL)
-	 * ```
+	 * </pre>
 	 *
 	 * Function supports attribute arrays in the same way as plain values.
-	*/
+	 */
 	@Nonnull
 	static AttributeIs attributeIsNotNull(@Nonnull String attributeName) {
 		return new AttributeIs(attributeName, AttributeSpecialValue.NOT_NULL);
@@ -1623,7 +1709,7 @@ public interface QueryConstraints {
 	 * ```
 	 * priceBetween(150.25, 220.0)
 	 * ```
-	*/
+	 */
 	@Nullable
 	static PriceBetween priceBetween(@Nullable BigDecimal from, @Nullable BigDecimal to) {
 		if (from == null && to == null) {
@@ -1652,7 +1738,7 @@ public interface QueryConstraints {
 	 * ```
 	 * priceValidIn(2020-07-30T20:37:50+00:00)
 	 * ```
-	*/
+	 */
 	@Nullable
 	static PriceValidIn priceValidIn(@Nullable OffsetDateTime theMoment) {
 		return theMoment == null ? null : new PriceValidIn(theMoment);
@@ -1677,7 +1763,7 @@ public interface QueryConstraints {
 	 * ```
 	 * priceValidIn(2020-07-30T20:37:50+00:00)
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static PriceValidIn priceValidInNow() {
 		return new PriceValidIn();
@@ -1723,7 +1809,7 @@ public interface QueryConstraints {
 	 *
 	 * *Another reason is that we need to know relationships among facet groups even for types/groups that hasn't yet been
 	 * selected by the user in order to be able to compute [facet summary](#facet-summary) output.*
-	*/
+	 */
 	@Nullable
 	static FacetHaving facetHaving(@Nonnull String referenceName, @Nullable FilterConstraint... constraint) {
 		return ArrayUtils.isEmpty(constraint) ? null : new FacetHaving(referenceName, constraint);
@@ -1743,7 +1829,7 @@ public interface QueryConstraints {
 	 * ```
 	 * primaryKey(1, 2, 3)
 	 * ```
-	*/
+	 */
 	@Nullable
 	static EntityPrimaryKeyInSet entityPrimaryKeyInSet(@Nullable Integer... primaryKey) {
 		if (primaryKey == null) {
@@ -1779,7 +1865,7 @@ public interface QueryConstraints {
 	 *     priceDescending()
 	 * )
 	 * ```
-	*/
+	 */
 	@Nullable
 	static OrderBy orderBy(@Nullable OrderConstraint... constraints) {
 		if (constraints == null) {
@@ -1794,15 +1880,15 @@ public interface QueryConstraints {
 	 *
 	 * Example:
 	 *
-	 * ```
+	 * <pre>
 	 * facetSummaryOfReference(
 	 *    'parameters',
 	 *    orderGroupBy(
 	 *       attributeNatural('name', OrderDirection.ASC)
 	 *    )
 	 * )
-	 * ```
-	*/
+	 * </pre>
+	 */
 	@Nullable
 	static OrderGroupBy orderGroupBy(@Nullable OrderConstraint... constraints) {
 		if (constraints == null) {
@@ -1832,7 +1918,7 @@ public interface QueryConstraints {
 	 * The example will return the selected entities (if present) in the exact order that was used for array filtering them.
 	 * The ordering constraint is particularly useful when you have sorted set of entity primary keys from an external
 	 * system which needs to be maintained (for example, it represents a relevancy of those entities).
-	*/
+	 */
 	@Nonnull
 	static EntityPrimaryKeyInFilter entityPrimaryKeyInFilter() {
 		return new EntityPrimaryKeyInFilter();
@@ -1859,7 +1945,7 @@ public interface QueryConstraints {
 	 * this ordering constraint. If there are entities, whose primary keys are not present in the argument, then they
 	 * will be present at the end of the output in ascending order of their primary keys (or they will be sorted by
 	 * additional ordering constraint in the chain).
-	*/
+	 */
 	@Nullable
 	static EntityPrimaryKeyExact entityPrimaryKeyExact(@Nullable Integer... primaryKey) {
 		if (ArrayUtils.isEmpty(primaryKey)) {
@@ -1890,7 +1976,7 @@ public interface QueryConstraints {
 	 * The example will return the selected entities (if present) in the exact order of their attribute `code` that was used
 	 * for array filtering them. The ordering constraint is particularly useful when you have sorted set of attribute values
 	 * from an external system which needs to be maintained (for example, it represents a relevancy of those entities).
-	*/
+	 */
 	@Nullable
 	static AttributeSetInFilter attributeSetInFilter(@Nullable String attributeName) {
 		if (attributeName == null || attributeName.isBlank()) {
@@ -1920,7 +2006,7 @@ public interface QueryConstraints {
 	 * stated in the second to Nth argument of this ordering constraint. If there are entities, that have not the attribute
 	 * `code` , then they will be present at the end of the output in ascending order of their primary keys (or they will be
 	 * sorted by additional ordering constraint in the chain).
-	*/
+	 */
 	@Nullable
 	static AttributeSetExact attributeSetExact(@Nullable String attributeName, @Nullable Serializable... attributeValues) {
 		if (attributeName == null || attributeName.isBlank() || ArrayUtils.isEmpty(attributeValues)) {
@@ -1939,12 +2025,34 @@ public interface QueryConstraints {
 	 *
 	 * Example:
 	 *
-	 * ```
-	 * referenceAttribute(
-	 *    'brand',
-	 *    attributeNatural('brandPriority', DESC)
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         referenceHaving(
+	 *             'brand',
+	 *             entityHaving(
+	 *                 attributeEquals('code','sony')
+	 *             )
+	 *         )
+	 *     ),
+	 *     orderBy(
+	 *         referenceProperty(
+	 *             'brand',
+	 *             attributeNatural('orderInBrand', ASC)
+	 *         )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent('code'),
+	 *             referenceContentWithAttributes(
+	 *                 'brand',
+	 *                 attributeContent('orderInBrand')
+	 *             )
+	 *         )
+	 *     )
 	 * )
-	 * ```
+	 * </pre>
 	 *
 	 * **The `referenceProperty` is implicit in requirement `referenceContent`**
 	 *
@@ -1981,7 +2089,7 @@ public interface QueryConstraints {
 	 * order them by a property "priority" set on the reference to the category, the first products will be those directly
 	 * related to the category, ordered by "priority", followed by the products of the first child category, and so on,
 	 * maintaining the depth-first order of the category tree.
-	*/
+	 */
 	@Nullable
 	static ReferenceProperty referenceProperty(@Nonnull String referenceName, @Nullable OrderConstraint... constraints) {
 		if (constraints == null) {
@@ -2000,15 +2108,31 @@ public interface QueryConstraints {
 	 *
 	 * Example:
 	 *
-	 * ```
-	 * referenceContent(
-	 *    'parameters',
-	 *    entityProperty(
-	 *       attributeNatural('priority', DESC)
-	 *    )
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         attributeEquals('code', 'garmin-vivoactive-4')
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent('code'),
+	 *             referenceContent(
+	 *                 'parameterValues',
+	 *                 orderBy(
+	 *                     entityProperty(
+	 *                         attributeNatural('code', DESC)
+	 *                     )
+	 *                 ),
+	 *                 entityFetch(
+	 *                     attributeContent('code')
+	 *                 )
+	 *             )
+	 *         )
+	 *     )
 	 * )
-	 * ```
-	*/
+	 * </pre>
+	 */
 	@Nullable
 	static EntityProperty entityProperty(@Nullable OrderConstraint... constraints) {
 		if (constraints == null) {
@@ -2026,10 +2150,19 @@ public interface QueryConstraints {
 	 *
 	 * Example:
 	 *
-	 * ```
-	 * attributeNatural('married')
-	 * attributeNatural('age', ASC)
-	 * ```
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     orderBy(
+	 *         attributeNatural('orderedQuantity', DESC)
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent('code', 'orderedQuantity')
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
 	 *
 	 * If you want to sort products by their name, which is a localized attribute, you need to specify the {@link EntityLocaleEquals}
 	 * constraint in the {@link FilterBy} part of the query. The correct {@link java.text.Collator} is used to
@@ -2046,7 +2179,7 @@ public interface QueryConstraints {
 	 * compound will cover multiple attributes and prepares a special sort index for this particular combination of
 	 * attributes, respecting the predefined order and NULL values behaviour. In the query, you can then use the compound
 	 * name instead of the default attribute name and achieve the expected results.
-	*/
+	 */
 	@Nonnull
 	static AttributeNatural attributeNatural(@Nonnull String attributeName) {
 		return new AttributeNatural(attributeName);
@@ -2061,10 +2194,19 @@ public interface QueryConstraints {
 	 *
 	 * Example:
 	 *
-	 * ```
-	 * attributeNatural('married')
-	 * attributeNatural('age', ASC)
-	 * ```
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     orderBy(
+	 *         attributeNatural('orderedQuantity', DESC)
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent('code', 'orderedQuantity')
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
 	 *
 	 * If you want to sort products by their name, which is a localized attribute, you need to specify the {@link EntityLocaleEquals}
 	 * constraint in the {@link FilterBy} part of the query. The correct {@link java.text.Collator} is used to
@@ -2081,7 +2223,7 @@ public interface QueryConstraints {
 	 * compound will cover multiple attributes and prepares a special sort index for this particular combination of
 	 * attributes, respecting the predefined order and NULL values behaviour. In the query, you can then use the compound
 	 * name instead of the default attribute name and achieve the expected results.
-	*/
+	 */
 	@Nonnull
 	static AttributeNatural attributeNatural(@Nonnull String attributeName, @Nonnull OrderDirection orderDirection) {
 		return new AttributeNatural(attributeName, orderDirection);
@@ -2098,7 +2240,7 @@ public interface QueryConstraints {
 	 * price()
 	 * price(DESC)
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static PriceNatural priceNatural() {
 		return new PriceNatural();
@@ -2115,7 +2257,7 @@ public interface QueryConstraints {
 	 * price()
 	 * price(DESC)
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static PriceNatural priceNatural(@Nonnull OrderDirection orderDirection) {
 		return new PriceNatural(orderDirection);
@@ -2128,10 +2270,10 @@ public interface QueryConstraints {
 	 *
 	 * Example:
 	 *
-	 * ```
+	 * <pre>
 	 * random()
-	 * ```
-	*/
+	 * </pre>
+	 */
 	@Nonnull
 	static Random random() {
 		return new Random();
@@ -2153,7 +2295,7 @@ public interface QueryConstraints {
 	 *     entityBody()
 	 * )
 	 * ```
-	*/
+	 */
 	@Nullable
 	static Require require(@Nullable RequireConstraint... constraints) {
 		if (constraints == null) {
@@ -2182,7 +2324,7 @@ public interface QueryConstraints {
 	 * ```
 	 * attributeHistogram(20, 'width', 'height')
 	 * ```
-	*/
+	 */
 	@Nullable
 	static AttributeHistogram attributeHistogram(int requestedBucketCount, @Nullable String... attributeName) {
 		if (ArrayUtils.isEmpty(attributeName)) {
@@ -2206,7 +2348,7 @@ public interface QueryConstraints {
 	 * ```
 	 * priceHistogram(20)
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static PriceHistogram priceHistogram(int requestedBucketCount) {
 		return new PriceHistogram(requestedBucketCount);
@@ -2260,7 +2402,7 @@ public interface QueryConstraints {
 	 * When user selects facets: blue (11), red (12) by default relation would be: get all entities that have facet blue(11) OR
 	 * facet red(12). If require `facetGroupsConjunction('parameterType', 1)` is passed in the query filtering condition will
 	 * be composed as: blue(11) AND red(12)
-	*/
+	 */
 	@Nullable
 	static FacetGroupsConjunction facetGroupsConjunction(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
 		if (filterBy == null || !filterBy.isApplicable()) {
@@ -2317,7 +2459,7 @@ public interface QueryConstraints {
 	 * When user selects facets: blue (11), large (22), new products (31) - the default meaning would be: get all entities that
 	 * have facet blue as well as facet large and action products tag (AND). If require `facetGroupsDisjunction('tag', 3)`
 	 * is passed in the query, filtering condition will be composed as: (`blue(11)` AND `large(22)`) OR `new products(31)`
-	*/
+	 */
 	@Nullable
 	static FacetGroupsDisjunction facetGroupsDisjunction(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
 		if (filterBy == null || !filterBy.isApplicable()) {
@@ -2340,7 +2482,7 @@ public interface QueryConstraints {
 	 *
 	 * This statement means, that facets in 'parameterType' groups `1`, `8`, `15` will be joined with boolean AND NOT relation
 	 * when selected.
-	*/
+	 */
 	@Nullable
 	static FacetGroupsNegation facetGroupsNegation(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
 		if (filterBy == null || !filterBy.isApplicable()) {
@@ -2350,156 +2492,74 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `hierarchyStatistics` require query triggers computing the statistics for referenced hierarchical entities
-	 * and adds an object to the result index. It has at least one {@link Serializable}
-	 * argument that specifies type of hierarchical entity that this entity relates to. Additional arguments allow passing
-	 * requirements for fetching the referenced entity contents so that there are no other requests to the evitaDB necessary
-	 * and all data are fetched in single query.
+	 * The requirement triggers the calculation of the Hierarchy data structure for the hierarchy of which it is a part.
 	 *
-	 * When this require query is used an additional object is stored to result index:
+	 * The hierarchy of self can still be combined with {@link HierarchyOfReference} if the queried entity is a hierarchical
+	 * entity that is also connected to another hierarchical entity. Such situations are rather sporadic in reality.
 	 *
-	 * - **HierarchyStatistics**
-	 * this object is organized in the tree structure that reflects the hierarchy of the entities of desired type that are
-	 * referenced by entities returned by primary query, for each tree entity there is a number that represents the count of
-	 * currently queried entities that relates to that referenced hierarchical entity and match the query filter - either
-	 * directly or to some subordinate entity of this hierarchical entity
+	 * The constraint accepts following arguments:
 	 *
-	 * Example:
+	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
+	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
+	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
+	 *   that the same requirements apply to different references of the queried entity.
+	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
+	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
+	 *   filter constraint assigned to them - either directly or transitively):
 	 *
-	 * <pre>
-	 * hierarchyStatisticsOfReference('category')
-	 * hierarchyStatisticsOfReference('category', entityBody(), attributes())
-	 * </pre>
+	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
+	 *        structures
+	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
+	 *        structures
 	 *
-	 * This require query is usually used when hierarchical menu rendering is needed. For example when we need to render
-	 * menu for entire e-commerce site, but we want to take excluded subtrees into an account and also reflect the filtering
-	 * conditions that may filter out dozens of products (and thus leading to empty categories) we can invoke following query:
+	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
+	 *   hierarchy data structure
+	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
+	 *   the constraints may be present:
 	 *
-	 * <pre>
-	 * query(
-	 *     entities('PRODUCT'),
-	 *     filterBy(
-	 *         and(
-	 *             eq('visible', true),
-	 *             inRange('valid', 2020-07-30T20:37:50+00:00),
-	 *             priceInCurrency('USD'),
-	 *             priceValidIn(2020-07-30T20:37:50+00:00),
-	 *             priceInPriceLists('vip', 'standard'),
-	 *             withinRootHierarchy('CATEGORY', excluding(3, 7))
-	 *         )
-	 *     ),
-	 *     require(
-	 *         page(1, 20),
-	 *         hierarchyStatisticsOfReference('CATEGORY', entityBody(), attributes())
-	 *     )
-	 * )
-	 * </pre>
-	 *
-	 * This query would return first page with 20 products (omitting hundreds of others on additional pages) but also returns a
-	 * HierarchyStatistics in additional data. This object may contain following structure:
-	 *
-	 * <pre>
-	 * Electronics -> 1789
-	 *     TV -> 126
-	 *         LED -> 90
-	 *         CRT -> 36
-	 *     Washing machines -> 190
-	 *         Slim -> 40
-	 *         Standard -> 40
-	 *         With drier -> 23
-	 *         Top filling -> 42
-	 *         Smart -> 45
-	 *     Cell phones -> 350
-	 *     Audio / Video -> 230
-	 *     Printers -> 80
-	 * </pre>
-	 *
-	 * The tree will contain category entities loaded with `attributes` instead the names you see in the example. The number
-	 * after the arrow represents the count of the products that are referencing this category (either directly or some of its
-	 * children). You can see there are only categories that are valid for the passed query - excluded category subtree will
-	 * not be part of the category listing (query filters out all products with excluded category tree) and there is also no
-	 * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
-	 *
-	 * TOBEDONE JNO: review docs
-	*/
+	 *      - {@link HierarchyFromRoot}
+	 *      - {@link HierarchyFromNode}
+	 *      - {@link HierarchySiblings}
+	 *      - {@link HierarchyChildren}
+	 *      - {@link HierarchyParents}
+	 */
 	@Nullable
 	static HierarchyOfSelf hierarchyOfSelf(@Nullable HierarchyRequireConstraint... requirement) {
 		return ArrayUtils.isEmpty(requirement) ? null : new HierarchyOfSelf(null, requirement);
 	}
 
 	/**
-	 * This `hierarchyStatistics` require query triggers computing the statistics for referenced hierarchical entities
-	 * and adds an object to the result index. It has at least one {@link Serializable}
-	 * argument that specifies type of hierarchical entity that this entity relates to. Additional arguments allow passing
-	 * requirements for fetching the referenced entity contents so that there are no other requests to the evitaDB necessary
-	 * and all data are fetched in single query.
+	 * The requirement triggers the calculation of the Hierarchy data structure for the hierarchy of which it is a part.
 	 *
-	 * When this require query is used an additional object is stored to result index:
+	 * The hierarchy of self can still be combined with {@link HierarchyOfReference} if the queried entity is a hierarchical
+	 * entity that is also connected to another hierarchical entity. Such situations are rather sporadic in reality.
 	 *
-	 * - **HierarchyStatistics**
-	 * this object is organized in the tree structure that reflects the hierarchy of the entities of desired type that are
-	 * referenced by entities returned by primary query, for each tree entity there is a number that represents the count of
-	 * currently queried entities that relates to that referenced hierarchical entity and match the query filter - either
-	 * directly or to some subordinate entity of this hierarchical entity
+	 * The constraint accepts following arguments:
 	 *
-	 * Example:
+	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
+	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
+	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
+	 *   that the same requirements apply to different references of the queried entity.
+	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
+	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
+	 *   filter constraint assigned to them - either directly or transitively):
 	 *
-	 * <pre>
-	 * hierarchyStatisticsOfReference('category')
-	 * hierarchyStatisticsOfReference('category', entityBody(), attributes())
-	 * </pre>
+	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
+	 *        structures
+	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
+	 *        structures
 	 *
-	 * This require query is usually used when hierarchical menu rendering is needed. For example when we need to render
-	 * menu for entire e-commerce site, but we want to take excluded subtrees into an account and also reflect the filtering
-	 * conditions that may filter out dozens of products (and thus leading to empty categories) we can invoke following query:
+	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
+	 *   hierarchy data structure
+	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
+	 *   the constraints may be present:
 	 *
-	 * <pre>
-	 * query(
-	 *     entities('PRODUCT'),
-	 *     filterBy(
-	 *         and(
-	 *             eq('visible', true),
-	 *             inRange('valid', 2020-07-30T20:37:50+00:00),
-	 *             priceInCurrency('USD'),
-	 *             priceValidIn(2020-07-30T20:37:50+00:00),
-	 *             priceInPriceLists('vip', 'standard'),
-	 *             withinRootHierarchy('CATEGORY', excluding(3, 7))
-	 *         )
-	 *     ),
-	 *     require(
-	 *         page(1, 20),
-	 *         hierarchyStatisticsOfReference('CATEGORY', entityBody(), attributes())
-	 *     )
-	 * )
-	 * </pre>
-	 *
-	 * This query would return first page with 20 products (omitting hundreds of others on additional pages) but also returns a
-	 * HierarchyStatistics in additional data. This object may contain following structure:
-	 *
-	 * <pre>
-	 * Electronics -> 1789
-	 *     TV -> 126
-	 *         LED -> 90
-	 *         CRT -> 36
-	 *     Washing machines -> 190
-	 *         Slim -> 40
-	 *         Standard -> 40
-	 *         With drier -> 23
-	 *         Top filling -> 42
-	 *         Smart -> 45
-	 *     Cell phones -> 350
-	 *     Audio / Video -> 230
-	 *     Printers -> 80
-	 * </pre>
-	 *
-	 * The tree will contain category entities loaded with `attributes` instead the names you see in the example. The number
-	 * after the arrow represents the count of the products that are referencing this category (either directly or some of its
-	 * children). You can see there are only categories that are valid for the passed query - excluded category subtree will
-	 * not be part of the category listing (query filters out all products with excluded category tree) and there is also no
-	 * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
-	 *
-	 * TOBEDONE JNO: review docs
-	*/
+	 *      - {@link HierarchyFromRoot}
+	 *      - {@link HierarchyFromNode}
+	 *      - {@link HierarchySiblings}
+	 *      - {@link HierarchyChildren}
+	 *      - {@link HierarchyParents}
+	 */
 	@Nullable
 	static HierarchyOfSelf hierarchyOfSelf(
 		@Nullable OrderBy orderBy,
@@ -2509,78 +2569,41 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `hierarchyStatistics` require query triggers computing the statistics for referenced hierarchical entities
-	 * and adds an object to the result index. It has at least one {@link Serializable}
-	 * argument that specifies type of hierarchical entity that this entity relates to. Additional arguments allow passing
-	 * requirements for fetching the referenced entity contents so that there are no other requests to the evitaDB necessary
-	 * and all data are fetched in single query.
+	 * The requirement triggers the calculation of the Hierarchy data structure for the hierarchies of the referenced entity
+	 * type.
 	 *
-	 * When this require query is used an additional object is stored to result index:
+	 * The hierarchy of reference can still be combined with {@link HierarchyOfSelf} if the queried entity is a hierarchical
+	 * entity that is also connected to another hierarchical entity. Such situations are rather sporadic in reality.
 	 *
-	 * - **HierarchyStatistics**
-	 * this object is organized in the tree structure that reflects the hierarchy of the entities of desired type that are
-	 * referenced by entities returned by primary query, for each tree entity there is a number that represents the count of
-	 * currently queried entities that relates to that referenced hierarchical entity and match the query filter - either
-	 * directly or to some subordinate entity of this hierarchical entity
+	 * The `hierarchyOfReference` can be repeated multiple times in a single query if you need different calculation
+	 * settings for different reference types.
 	 *
-	 * Example:
+	 * The constraint accepts following arguments:
 	 *
-	 * <pre>
-	 * hierarchyStatisticsOfReference('category')
-	 * hierarchyStatisticsOfReference('category', entityBody(), attributes())
-	 * </pre>
+	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
+	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
+	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
+	 *   that the same requirements apply to different references of the queried entity.
+	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
+	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
+	 *   filter constraint assigned to them - either directly or transitively):
 	 *
-	 * This require query is usually used when hierarchical menu rendering is needed. For example when we need to render
-	 * menu for entire e-commerce site, but we want to take excluded subtrees into an account and also reflect the filtering
-	 * conditions that may filter out dozens of products (and thus leading to empty categories) we can invoke following query:
+	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
+	 *        structures
+	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
+	 *        structures
 	 *
-	 * <pre>
-	 * query(
-	 *     entities('PRODUCT'),
-	 *     filterBy(
-	 *         and(
-	 *             eq('visible', true),
-	 *             inRange('valid', 2020-07-30T20:37:50+00:00),
-	 *             priceInCurrency('USD'),
-	 *             priceValidIn(2020-07-30T20:37:50+00:00),
-	 *             priceInPriceLists('vip', 'standard'),
-	 *             withinRootHierarchy('CATEGORY', excluding(3, 7))
-	 *         )
-	 *     ),
-	 *     require(
-	 *         page(1, 20),
-	 *         hierarchyStatisticsOfSelf('CATEGORY', entityBody(), attributes())
-	 *     )
-	 * )
-	 * </pre>
+	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
+	 *   hierarchy data structure
+	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
+	 *   the constraints may be present:
 	 *
-	 * This query would return first page with 20 products (omitting hundreds of others on additional pages) but also returns a
-	 * HierarchyStatistics in additional data. This object may contain following structure:
-	 *
-	 * <pre>
-	 * Electronics -> 1789
-	 *     TV -> 126
-	 *         LED -> 90
-	 *         CRT -> 36
-	 *     Washing machines -> 190
-	 *         Slim -> 40
-	 *         Standard -> 40
-	 *         With drier -> 23
-	 *         Top filling -> 42
-	 *         Smart -> 45
-	 *     Cell phones -> 350
-	 *     Audio / Video -> 230
-	 *     Printers -> 80
-	 * </pre>
-	 *
-	 * The tree will contain category entities loaded with `attributes` instead the names you see in the example. The number
-	 * after the arrow represents the count of the products that are referencing this category (either directly or some of its
-	 * children). You can see there are only categories that are valid for the passed query - excluded category subtree will
-	 * not be part of the category listing (query filters out all products with excluded category tree) and there is also no
-	 * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
-	 *
-	 * TOBEDONE JNO: review docs
-	*/
+	 *      - {@link HierarchyFromRoot}
+	 *      - {@link HierarchyFromNode}
+	 *      - {@link HierarchySiblings}
+	 *      - {@link HierarchyChildren}
+	 *      - {@link HierarchyParents}
+	 */
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String referenceName,
@@ -2590,78 +2613,41 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `hierarchyStatistics` require query triggers computing the statistics for referenced hierarchical entities
-	 * and adds an object to the result index. It has at least one {@link Serializable}
-	 * argument that specifies type of hierarchical entity that this entity relates to. Additional arguments allow passing
-	 * requirements for fetching the referenced entity contents so that there are no other requests to the evitaDB necessary
-	 * and all data are fetched in single query.
+	 * The requirement triggers the calculation of the Hierarchy data structure for the hierarchies of the referenced entity
+	 * type.
 	 *
-	 * When this require query is used an additional object is stored to result index:
+	 * The hierarchy of reference can still be combined with {@link HierarchyOfSelf} if the queried entity is a hierarchical
+	 * entity that is also connected to another hierarchical entity. Such situations are rather sporadic in reality.
 	 *
-	 * - **HierarchyStatistics**
-	 * this object is organized in the tree structure that reflects the hierarchy of the entities of desired type that are
-	 * referenced by entities returned by primary query, for each tree entity there is a number that represents the count of
-	 * currently queried entities that relates to that referenced hierarchical entity and match the query filter - either
-	 * directly or to some subordinate entity of this hierarchical entity
+	 * The `hierarchyOfReference` can be repeated multiple times in a single query if you need different calculation
+	 * settings for different reference types.
 	 *
-	 * Example:
+	 * The constraint accepts following arguments:
 	 *
-	 * <pre>
-	 * hierarchyStatisticsOfReference('category')
-	 * hierarchyStatisticsOfReference('category', entityBody(), attributes())
-	 * </pre>
+	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
+	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
+	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
+	 *   that the same requirements apply to different references of the queried entity.
+	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
+	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
+	 *   filter constraint assigned to them - either directly or transitively):
 	 *
-	 * This require query is usually used when hierarchical menu rendering is needed. For example when we need to render
-	 * menu for entire e-commerce site, but we want to take excluded subtrees into an account and also reflect the filtering
-	 * conditions that may filter out dozens of products (and thus leading to empty categories) we can invoke following query:
+	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
+	 *        structures
+	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
+	 *        structures
 	 *
-	 * <pre>
-	 * query(
-	 *     entities('PRODUCT'),
-	 *     filterBy(
-	 *         and(
-	 *             eq('visible', true),
-	 *             inRange('valid', 2020-07-30T20:37:50+00:00),
-	 *             priceInCurrency('USD'),
-	 *             priceValidIn(2020-07-30T20:37:50+00:00),
-	 *             priceInPriceLists('vip', 'standard'),
-	 *             withinRootHierarchy('CATEGORY', excluding(3, 7))
-	 *         )
-	 *     ),
-	 *     require(
-	 *         page(1, 20),
-	 *         hierarchyStatisticsOfSelf('CATEGORY', entityBody(), attributes())
-	 *     )
-	 * )
-	 * </pre>
+	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
+	 *   hierarchy data structure
+	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
+	 *   the constraints may be present:
 	 *
-	 * This query would return first page with 20 products (omitting hundreds of others on additional pages) but also returns a
-	 * HierarchyStatistics in additional data. This object may contain following structure:
-	 *
-	 * <pre>
-	 * Electronics -> 1789
-	 *     TV -> 126
-	 *         LED -> 90
-	 *         CRT -> 36
-	 *     Washing machines -> 190
-	 *         Slim -> 40
-	 *         Standard -> 40
-	 *         With drier -> 23
-	 *         Top filling -> 42
-	 *         Smart -> 45
-	 *     Cell phones -> 350
-	 *     Audio / Video -> 230
-	 *     Printers -> 80
-	 * </pre>
-	 *
-	 * The tree will contain category entities loaded with `attributes` instead the names you see in the example. The number
-	 * after the arrow represents the count of the products that are referencing this category (either directly or some of its
-	 * children). You can see there are only categories that are valid for the passed query - excluded category subtree will
-	 * not be part of the category listing (query filters out all products with excluded category tree) and there is also no
-	 * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
-	 *
-	 * TOBEDONE JNO: review docs
-	*/
+	 *      - {@link HierarchyFromRoot}
+	 *      - {@link HierarchyFromNode}
+	 *      - {@link HierarchySiblings}
+	 *      - {@link HierarchyChildren}
+	 *      - {@link HierarchyParents}
+	 */
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String referenceName,
@@ -2672,78 +2658,41 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `hierarchyStatistics` require query triggers computing the statistics for referenced hierarchical entities
-	 * and adds an object to the result index. It has at least one {@link Serializable}
-	 * argument that specifies type of hierarchical entity that this entity relates to. Additional arguments allow passing
-	 * requirements for fetching the referenced entity contents so that there are no other requests to the evitaDB necessary
-	 * and all data are fetched in single query.
+	 * The requirement triggers the calculation of the Hierarchy data structure for the hierarchies of the referenced entity
+	 * type.
 	 *
-	 * When this require query is used an additional object is stored to result index:
+	 * The hierarchy of reference can still be combined with {@link HierarchyOfSelf} if the queried entity is a hierarchical
+	 * entity that is also connected to another hierarchical entity. Such situations are rather sporadic in reality.
 	 *
-	 * - **HierarchyStatistics**
-	 * this object is organized in the tree structure that reflects the hierarchy of the entities of desired type that are
-	 * referenced by entities returned by primary query, for each tree entity there is a number that represents the count of
-	 * currently queried entities that relates to that referenced hierarchical entity and match the query filter - either
-	 * directly or to some subordinate entity of this hierarchical entity
+	 * The `hierarchyOfReference` can be repeated multiple times in a single query if you need different calculation
+	 * settings for different reference types.
 	 *
-	 * Example:
+	 * The constraint accepts following arguments:
 	 *
-	 * <pre>
-	 * hierarchyStatisticsOfReference('category')
-	 * hierarchyStatisticsOfReference('category', entityBody(), attributes())
-	 * </pre>
+	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
+	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
+	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
+	 *   that the same requirements apply to different references of the queried entity.
+	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
+	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
+	 *   filter constraint assigned to them - either directly or transitively):
 	 *
-	 * This require query is usually used when hierarchical menu rendering is needed. For example when we need to render
-	 * menu for entire e-commerce site, but we want to take excluded subtrees into an account and also reflect the filtering
-	 * conditions that may filter out dozens of products (and thus leading to empty categories) we can invoke following query:
+	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
+	 *        structures
+	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
+	 *        structures
 	 *
-	 * <pre>
-	 * query(
-	 *     entities('PRODUCT'),
-	 *     filterBy(
-	 *         and(
-	 *             eq('visible', true),
-	 *             inRange('valid', 2020-07-30T20:37:50+00:00),
-	 *             priceInCurrency('USD'),
-	 *             priceValidIn(2020-07-30T20:37:50+00:00),
-	 *             priceInPriceLists('vip', 'standard'),
-	 *             withinRootHierarchy('CATEGORY', excluding(3, 7))
-	 *         )
-	 *     ),
-	 *     require(
-	 *         page(1, 20),
-	 *         hierarchyStatisticsOfSelf('CATEGORY', entityBody(), attributes())
-	 *     )
-	 * )
-	 * </pre>
+	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
+	 *   hierarchy data structure
+	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
+	 *   the constraints may be present:
 	 *
-	 * This query would return first page with 20 products (omitting hundreds of others on additional pages) but also returns a
-	 * HierarchyStatistics in additional data. This object may contain following structure:
-	 *
-	 * <pre>
-	 * Electronics -> 1789
-	 *     TV -> 126
-	 *         LED -> 90
-	 *         CRT -> 36
-	 *     Washing machines -> 190
-	 *         Slim -> 40
-	 *         Standard -> 40
-	 *         With drier -> 23
-	 *         Top filling -> 42
-	 *         Smart -> 45
-	 *     Cell phones -> 350
-	 *     Audio / Video -> 230
-	 *     Printers -> 80
-	 * </pre>
-	 *
-	 * The tree will contain category entities loaded with `attributes` instead the names you see in the example. The number
-	 * after the arrow represents the count of the products that are referencing this category (either directly or some of its
-	 * children). You can see there are only categories that are valid for the passed query - excluded category subtree will
-	 * not be part of the category listing (query filters out all products with excluded category tree) and there is also no
-	 * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
-	 *
-	 * TOBEDONE JNO: review docs
-	*/
+	 *      - {@link HierarchyFromRoot}
+	 *      - {@link HierarchyFromNode}
+	 *      - {@link HierarchySiblings}
+	 *      - {@link HierarchyChildren}
+	 *      - {@link HierarchyParents}
+	 */
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String referenceName,
@@ -2760,78 +2709,41 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `hierarchyStatistics` require query triggers computing the statistics for referenced hierarchical entities
-	 * and adds an object to the result index. It has at least one {@link Serializable}
-	 * argument that specifies type of hierarchical entity that this entity relates to. Additional arguments allow passing
-	 * requirements for fetching the referenced entity contents so that there are no other requests to the evitaDB necessary
-	 * and all data are fetched in single query.
+	 * The requirement triggers the calculation of the Hierarchy data structure for the hierarchies of the referenced entity
+	 * type.
 	 *
-	 * When this require query is used an additional object is stored to result index:
+	 * The hierarchy of reference can still be combined with {@link HierarchyOfSelf} if the queried entity is a hierarchical
+	 * entity that is also connected to another hierarchical entity. Such situations are rather sporadic in reality.
 	 *
-	 * - **HierarchyStatistics**
-	 * this object is organized in the tree structure that reflects the hierarchy of the entities of desired type that are
-	 * referenced by entities returned by primary query, for each tree entity there is a number that represents the count of
-	 * currently queried entities that relates to that referenced hierarchical entity and match the query filter - either
-	 * directly or to some subordinate entity of this hierarchical entity
+	 * The `hierarchyOfReference` can be repeated multiple times in a single query if you need different calculation
+	 * settings for different reference types.
 	 *
-	 * Example:
+	 * The constraint accepts following arguments:
 	 *
-	 * <pre>
-	 * hierarchyStatisticsOfReference('category')
-	 * hierarchyStatisticsOfReference('category', entityBody(), attributes())
-	 * </pre>
+	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
+	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
+	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
+	 *   that the same requirements apply to different references of the queried entity.
+	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
+	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
+	 *   filter constraint assigned to them - either directly or transitively):
 	 *
-	 * This require query is usually used when hierarchical menu rendering is needed. For example when we need to render
-	 * menu for entire e-commerce site, but we want to take excluded subtrees into an account and also reflect the filtering
-	 * conditions that may filter out dozens of products (and thus leading to empty categories) we can invoke following query:
+	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
+	 *        structures
+	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
+	 *        structures
 	 *
-	 * <pre>
-	 * query(
-	 *     entities('PRODUCT'),
-	 *     filterBy(
-	 *         and(
-	 *             eq('visible', true),
-	 *             inRange('valid', 2020-07-30T20:37:50+00:00),
-	 *             priceInCurrency('USD'),
-	 *             priceValidIn(2020-07-30T20:37:50+00:00),
-	 *             priceInPriceLists('vip', 'standard'),
-	 *             withinRootHierarchy('CATEGORY', excluding(3, 7))
-	 *         )
-	 *     ),
-	 *     require(
-	 *         page(1, 20),
-	 *         hierarchyStatisticsOfSelf('CATEGORY', entityBody(), attributes())
-	 *     )
-	 * )
-	 * </pre>
+	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
+	 *   hierarchy data structure
+	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
+	 *   the constraints may be present:
 	 *
-	 * This query would return first page with 20 products (omitting hundreds of others on additional pages) but also returns a
-	 * HierarchyStatistics in additional data. This object may contain following structure:
-	 *
-	 * <pre>
-	 * Electronics -> 1789
-	 *     TV -> 126
-	 *         LED -> 90
-	 *         CRT -> 36
-	 *     Washing machines -> 190
-	 *         Slim -> 40
-	 *         Standard -> 40
-	 *         With drier -> 23
-	 *         Top filling -> 42
-	 *         Smart -> 45
-	 *     Cell phones -> 350
-	 *     Audio / Video -> 230
-	 *     Printers -> 80
-	 * </pre>
-	 *
-	 * The tree will contain category entities loaded with `attributes` instead the names you see in the example. The number
-	 * after the arrow represents the count of the products that are referencing this category (either directly or some of its
-	 * children). You can see there are only categories that are valid for the passed query - excluded category subtree will
-	 * not be part of the category listing (query filters out all products with excluded category tree) and there is also no
-	 * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
-	 *
-	 * TOBEDONE JNO: review docs
-	*/
+	 *      - {@link HierarchyFromRoot}
+	 *      - {@link HierarchyFromNode}
+	 *      - {@link HierarchySiblings}
+	 *      - {@link HierarchyChildren}
+	 *      - {@link HierarchyParents}
+	 */
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String referenceName,
@@ -2850,78 +2762,41 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `hierarchyStatistics` require query triggers computing the statistics for referenced hierarchical entities
-	 * and adds an object to the result index. It has at least one {@link Serializable}
-	 * argument that specifies type of hierarchical entity that this entity relates to. Additional arguments allow passing
-	 * requirements for fetching the referenced entity contents so that there are no other requests to the evitaDB necessary
-	 * and all data are fetched in single query.
+	 * The requirement triggers the calculation of the Hierarchy data structure for the hierarchies of the referenced entity
+	 * type.
 	 *
-	 * When this require query is used an additional object is stored to result index:
+	 * The hierarchy of reference can still be combined with {@link HierarchyOfSelf} if the queried entity is a hierarchical
+	 * entity that is also connected to another hierarchical entity. Such situations are rather sporadic in reality.
 	 *
-	 * - **HierarchyStatistics**
-	 * this object is organized in the tree structure that reflects the hierarchy of the entities of desired type that are
-	 * referenced by entities returned by primary query, for each tree entity there is a number that represents the count of
-	 * currently queried entities that relates to that referenced hierarchical entity and match the query filter - either
-	 * directly or to some subordinate entity of this hierarchical entity
+	 * The `hierarchyOfReference` can be repeated multiple times in a single query if you need different calculation
+	 * settings for different reference types.
 	 *
-	 * Example:
+	 * The constraint accepts following arguments:
 	 *
-	 * <pre>
-	 * hierarchyStatisticsOfReference('category')
-	 * hierarchyStatisticsOfReference('category', entityBody(), attributes())
-	 * </pre>
+	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
+	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
+	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
+	 *   that the same requirements apply to different references of the queried entity.
+	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
+	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
+	 *   filter constraint assigned to them - either directly or transitively):
 	 *
-	 * This require query is usually used when hierarchical menu rendering is needed. For example when we need to render
-	 * menu for entire e-commerce site, but we want to take excluded subtrees into an account and also reflect the filtering
-	 * conditions that may filter out dozens of products (and thus leading to empty categories) we can invoke following query:
+	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
+	 *        structures
+	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
+	 *        structures
 	 *
-	 * <pre>
-	 * query(
-	 *     entities('PRODUCT'),
-	 *     filterBy(
-	 *         and(
-	 *             eq('visible', true),
-	 *             inRange('valid', 2020-07-30T20:37:50+00:00),
-	 *             priceInCurrency('USD'),
-	 *             priceValidIn(2020-07-30T20:37:50+00:00),
-	 *             priceInPriceLists('vip', 'standard'),
-	 *             withinRootHierarchy('CATEGORY', excluding(3, 7))
-	 *         )
-	 *     ),
-	 *     require(
-	 *         page(1, 20),
-	 *         hierarchyStatisticsOfSelf('CATEGORY', entityBody(), attributes())
-	 *     )
-	 * )
-	 * </pre>
+	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
+	 *   hierarchy data structure
+	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
+	 *   the constraints may be present:
 	 *
-	 * This query would return first page with 20 products (omitting hundreds of others on additional pages) but also returns a
-	 * HierarchyStatistics in additional data. This object may contain following structure:
-	 *
-	 * <pre>
-	 * Electronics -> 1789
-	 *     TV -> 126
-	 *         LED -> 90
-	 *         CRT -> 36
-	 *     Washing machines -> 190
-	 *         Slim -> 40
-	 *         Standard -> 40
-	 *         With drier -> 23
-	 *         Top filling -> 42
-	 *         Smart -> 45
-	 *     Cell phones -> 350
-	 *     Audio / Video -> 230
-	 *     Printers -> 80
-	 * </pre>
-	 *
-	 * The tree will contain category entities loaded with `attributes` instead the names you see in the example. The number
-	 * after the arrow represents the count of the products that are referencing this category (either directly or some of its
-	 * children). You can see there are only categories that are valid for the passed query - excluded category subtree will
-	 * not be part of the category listing (query filters out all products with excluded category tree) and there is also no
-	 * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
-	 *
-	 * TOBEDONE JNO: review docs
-	*/
+	 *      - {@link HierarchyFromRoot}
+	 *      - {@link HierarchyFromNode}
+	 *      - {@link HierarchySiblings}
+	 *      - {@link HierarchyChildren}
+	 *      - {@link HierarchyParents}
+	 */
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String[] referenceName,
@@ -2931,78 +2806,41 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `hierarchyStatistics` require query triggers computing the statistics for referenced hierarchical entities
-	 * and adds an object to the result index. It has at least one {@link Serializable}
-	 * argument that specifies type of hierarchical entity that this entity relates to. Additional arguments allow passing
-	 * requirements for fetching the referenced entity contents so that there are no other requests to the evitaDB necessary
-	 * and all data are fetched in single query.
+	 * The requirement triggers the calculation of the Hierarchy data structure for the hierarchies of the referenced entity
+	 * type.
 	 *
-	 * When this require query is used an additional object is stored to result index:
+	 * The hierarchy of reference can still be combined with {@link HierarchyOfSelf} if the queried entity is a hierarchical
+	 * entity that is also connected to another hierarchical entity. Such situations are rather sporadic in reality.
 	 *
-	 * - **HierarchyStatistics**
-	 * this object is organized in the tree structure that reflects the hierarchy of the entities of desired type that are
-	 * referenced by entities returned by primary query, for each tree entity there is a number that represents the count of
-	 * currently queried entities that relates to that referenced hierarchical entity and match the query filter - either
-	 * directly or to some subordinate entity of this hierarchical entity
+	 * The `hierarchyOfReference` can be repeated multiple times in a single query if you need different calculation
+	 * settings for different reference types.
 	 *
-	 * Example:
+	 * The constraint accepts following arguments:
 	 *
-	 * <pre>
-	 * hierarchyStatisticsOfReference('category')
-	 * hierarchyStatisticsOfReference('category', entityBody(), attributes())
-	 * </pre>
+	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
+	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
+	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
+	 *   that the same requirements apply to different references of the queried entity.
+	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
+	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
+	 *   filter constraint assigned to them - either directly or transitively):
 	 *
-	 * This require query is usually used when hierarchical menu rendering is needed. For example when we need to render
-	 * menu for entire e-commerce site, but we want to take excluded subtrees into an account and also reflect the filtering
-	 * conditions that may filter out dozens of products (and thus leading to empty categories) we can invoke following query:
+	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
+	 *        structures
+	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
+	 *        structures
 	 *
-	 * <pre>
-	 * query(
-	 *     entities('PRODUCT'),
-	 *     filterBy(
-	 *         and(
-	 *             eq('visible', true),
-	 *             inRange('valid', 2020-07-30T20:37:50+00:00),
-	 *             priceInCurrency('USD'),
-	 *             priceValidIn(2020-07-30T20:37:50+00:00),
-	 *             priceInPriceLists('vip', 'standard'),
-	 *             withinRootHierarchy('CATEGORY', excluding(3, 7))
-	 *         )
-	 *     ),
-	 *     require(
-	 *         page(1, 20),
-	 *         hierarchyStatisticsOfSelf('CATEGORY', entityBody(), attributes())
-	 *     )
-	 * )
-	 * </pre>
+	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
+	 *   hierarchy data structure
+	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
+	 *   the constraints may be present:
 	 *
-	 * This query would return first page with 20 products (omitting hundreds of others on additional pages) but also returns a
-	 * HierarchyStatistics in additional data. This object may contain following structure:
-	 *
-	 * <pre>
-	 * Electronics -> 1789
-	 *     TV -> 126
-	 *         LED -> 90
-	 *         CRT -> 36
-	 *     Washing machines -> 190
-	 *         Slim -> 40
-	 *         Standard -> 40
-	 *         With drier -> 23
-	 *         Top filling -> 42
-	 *         Smart -> 45
-	 *     Cell phones -> 350
-	 *     Audio / Video -> 230
-	 *     Printers -> 80
-	 * </pre>
-	 *
-	 * The tree will contain category entities loaded with `attributes` instead the names you see in the example. The number
-	 * after the arrow represents the count of the products that are referencing this category (either directly or some of its
-	 * children). You can see there are only categories that are valid for the passed query - excluded category subtree will
-	 * not be part of the category listing (query filters out all products with excluded category tree) and there is also no
-	 * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
-	 *
-	 * TOBEDONE JNO: review docs
-	*/
+	 *      - {@link HierarchyFromRoot}
+	 *      - {@link HierarchyFromNode}
+	 *      - {@link HierarchySiblings}
+	 *      - {@link HierarchyChildren}
+	 *      - {@link HierarchyParents}
+	 */
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String[] referenceName,
@@ -3013,78 +2851,41 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `hierarchyStatistics` require query triggers computing the statistics for referenced hierarchical entities
-	 * and adds an object to the result index. It has at least one {@link Serializable}
-	 * argument that specifies type of hierarchical entity that this entity relates to. Additional arguments allow passing
-	 * requirements for fetching the referenced entity contents so that there are no other requests to the evitaDB necessary
-	 * and all data are fetched in single query.
+	 * The requirement triggers the calculation of the Hierarchy data structure for the hierarchies of the referenced entity
+	 * type.
 	 *
-	 * When this require query is used an additional object is stored to result index:
+	 * The hierarchy of reference can still be combined with {@link HierarchyOfSelf} if the queried entity is a hierarchical
+	 * entity that is also connected to another hierarchical entity. Such situations are rather sporadic in reality.
 	 *
-	 * - **HierarchyStatistics**
-	 * this object is organized in the tree structure that reflects the hierarchy of the entities of desired type that are
-	 * referenced by entities returned by primary query, for each tree entity there is a number that represents the count of
-	 * currently queried entities that relates to that referenced hierarchical entity and match the query filter - either
-	 * directly or to some subordinate entity of this hierarchical entity
+	 * The `hierarchyOfReference` can be repeated multiple times in a single query if you need different calculation
+	 * settings for different reference types.
 	 *
-	 * Example:
+	 * The constraint accepts following arguments:
 	 *
-	 * <pre>
-	 * hierarchyStatisticsOfReference('category')
-	 * hierarchyStatisticsOfReference('category', entityBody(), attributes())
-	 * </pre>
+	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
+	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
+	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
+	 *   that the same requirements apply to different references of the queried entity.
+	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
+	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
+	 *   filter constraint assigned to them - either directly or transitively):
 	 *
-	 * This require query is usually used when hierarchical menu rendering is needed. For example when we need to render
-	 * menu for entire e-commerce site, but we want to take excluded subtrees into an account and also reflect the filtering
-	 * conditions that may filter out dozens of products (and thus leading to empty categories) we can invoke following query:
+	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
+	 *        structures
+	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
+	 *        structures
 	 *
-	 * <pre>
-	 * query(
-	 *     entities('PRODUCT'),
-	 *     filterBy(
-	 *         and(
-	 *             eq('visible', true),
-	 *             inRange('valid', 2020-07-30T20:37:50+00:00),
-	 *             priceInCurrency('USD'),
-	 *             priceValidIn(2020-07-30T20:37:50+00:00),
-	 *             priceInPriceLists('vip', 'standard'),
-	 *             withinRootHierarchy('CATEGORY', excluding(3, 7))
-	 *         )
-	 *     ),
-	 *     require(
-	 *         page(1, 20),
-	 *         hierarchyStatisticsOfSelf('CATEGORY', entityBody(), attributes())
-	 *     )
-	 * )
-	 * </pre>
+	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
+	 *   hierarchy data structure
+	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
+	 *   the constraints may be present:
 	 *
-	 * This query would return first page with 20 products (omitting hundreds of others on additional pages) but also returns a
-	 * HierarchyStatistics in additional data. This object may contain following structure:
-	 *
-	 * <pre>
-	 * Electronics -> 1789
-	 *     TV -> 126
-	 *         LED -> 90
-	 *         CRT -> 36
-	 *     Washing machines -> 190
-	 *         Slim -> 40
-	 *         Standard -> 40
-	 *         With drier -> 23
-	 *         Top filling -> 42
-	 *         Smart -> 45
-	 *     Cell phones -> 350
-	 *     Audio / Video -> 230
-	 *     Printers -> 80
-	 * </pre>
-	 *
-	 * The tree will contain category entities loaded with `attributes` instead the names you see in the example. The number
-	 * after the arrow represents the count of the products that are referencing this category (either directly or some of its
-	 * children). You can see there are only categories that are valid for the passed query - excluded category subtree will
-	 * not be part of the category listing (query filters out all products with excluded category tree) and there is also no
-	 * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
-	 *
-	 * TOBEDONE JNO: review docs
-	*/
+	 *      - {@link HierarchyFromRoot}
+	 *      - {@link HierarchyFromNode}
+	 *      - {@link HierarchySiblings}
+	 *      - {@link HierarchyChildren}
+	 *      - {@link HierarchyParents}
+	 */
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String[] referenceName,
@@ -3105,78 +2906,41 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `hierarchyStatistics` require query triggers computing the statistics for referenced hierarchical entities
-	 * and adds an object to the result index. It has at least one {@link Serializable}
-	 * argument that specifies type of hierarchical entity that this entity relates to. Additional arguments allow passing
-	 * requirements for fetching the referenced entity contents so that there are no other requests to the evitaDB necessary
-	 * and all data are fetched in single query.
+	 * The requirement triggers the calculation of the Hierarchy data structure for the hierarchies of the referenced entity
+	 * type.
 	 *
-	 * When this require query is used an additional object is stored to result index:
+	 * The hierarchy of reference can still be combined with {@link HierarchyOfSelf} if the queried entity is a hierarchical
+	 * entity that is also connected to another hierarchical entity. Such situations are rather sporadic in reality.
 	 *
-	 * - **HierarchyStatistics**
-	 * this object is organized in the tree structure that reflects the hierarchy of the entities of desired type that are
-	 * referenced by entities returned by primary query, for each tree entity there is a number that represents the count of
-	 * currently queried entities that relates to that referenced hierarchical entity and match the query filter - either
-	 * directly or to some subordinate entity of this hierarchical entity
+	 * The `hierarchyOfReference` can be repeated multiple times in a single query if you need different calculation
+	 * settings for different reference types.
 	 *
-	 * Example:
+	 * The constraint accepts following arguments:
 	 *
-	 * <pre>
-	 * hierarchyStatisticsOfReference('category')
-	 * hierarchyStatisticsOfReference('category', entityBody(), attributes())
-	 * </pre>
+	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
+	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
+	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
+	 *   that the same requirements apply to different references of the queried entity.
+	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
+	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
+	 *   filter constraint assigned to them - either directly or transitively):
 	 *
-	 * This require query is usually used when hierarchical menu rendering is needed. For example when we need to render
-	 * menu for entire e-commerce site, but we want to take excluded subtrees into an account and also reflect the filtering
-	 * conditions that may filter out dozens of products (and thus leading to empty categories) we can invoke following query:
+	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
+	 *        structures
+	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
+	 *        structures
 	 *
-	 * <pre>
-	 * query(
-	 *     entities('PRODUCT'),
-	 *     filterBy(
-	 *         and(
-	 *             eq('visible', true),
-	 *             inRange('valid', 2020-07-30T20:37:50+00:00),
-	 *             priceInCurrency('USD'),
-	 *             priceValidIn(2020-07-30T20:37:50+00:00),
-	 *             priceInPriceLists('vip', 'standard'),
-	 *             withinRootHierarchy('CATEGORY', excluding(3, 7))
-	 *         )
-	 *     ),
-	 *     require(
-	 *         page(1, 20),
-	 *         hierarchyStatisticsOfSelf('CATEGORY', entityBody(), attributes())
-	 *     )
-	 * )
-	 * </pre>
+	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
+	 *   hierarchy data structure
+	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
+	 *   the constraints may be present:
 	 *
-	 * This query would return first page with 20 products (omitting hundreds of others on additional pages) but also returns a
-	 * HierarchyStatistics in additional data. This object may contain following structure:
-	 *
-	 * <pre>
-	 * Electronics -> 1789
-	 *     TV -> 126
-	 *         LED -> 90
-	 *         CRT -> 36
-	 *     Washing machines -> 190
-	 *         Slim -> 40
-	 *         Standard -> 40
-	 *         With drier -> 23
-	 *         Top filling -> 42
-	 *         Smart -> 45
-	 *     Cell phones -> 350
-	 *     Audio / Video -> 230
-	 *     Printers -> 80
-	 * </pre>
-	 *
-	 * The tree will contain category entities loaded with `attributes` instead the names you see in the example. The number
-	 * after the arrow represents the count of the products that are referencing this category (either directly or some of its
-	 * children). You can see there are only categories that are valid for the passed query - excluded category subtree will
-	 * not be part of the category listing (query filters out all products with excluded category tree) and there is also no
-	 * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
-	 *
-	 * TOBEDONE JNO: review docs
-	*/
+	 *      - {@link HierarchyFromRoot}
+	 *      - {@link HierarchyFromNode}
+	 *      - {@link HierarchySiblings}
+	 *      - {@link HierarchyChildren}
+	 *      - {@link HierarchyParents}
+	 */
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String[] referenceName,
@@ -3199,8 +2963,66 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * TOBEDONE JNO: docs
-	*/
+	 * The `fromRoot` requirement computes the hierarchy tree starting from the "virtual" invisible top root of
+	 * the hierarchy, regardless of the potential use of the {@link HierarchyWithin} constraint in the filtering part of
+	 * the query. The scope of the calculated information can be controlled by the stopAt constraint. By default,
+	 * the traversal goes all the way to the bottom of the hierarchy tree unless you tell it to stop at anywhere.
+	 * If you need to access statistical data, use statistics constraint. Calculated data is not affected by
+	 * the {@link HierarchyWithin} filter constraint - the query can filter entities using {@link HierarchyWithin} from
+	 * category Accessories, while still allowing you to correctly compute menu at root level.
+	 *
+	 * Please keep in mind that the full statistic calculation can be particularly expensive in the case of the fromRoot
+	 * requirement - it usually requires aggregation for the entire queried dataset (see more information about
+	 * the calculation).
+	 *
+	 * The constraint accepts following arguments:
+	 *
+	 * - mandatory String argument specifying the output name for the calculated data structure
+	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope of
+	 *   the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
+	 *   present:
+	 *
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
+	 *
+	 * The following query lists products in category Audio and its subcategories. Along with the returned products, it also
+	 * requires a computed megaMenu data structure that lists the top 2 levels of the Category hierarchy tree with
+	 * a computed count of child categories for each menu item and an aggregated count of all filtered products that would
+	 * fall into the given category.
+	 *
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'audio')
+	 *         )
+	 *     ),
+	 *     require(
+	 *         hierarchyOfReference(
+	 *             'categories',
+	 *             fromRoot(
+	 *                 'megaMenu',
+	 *                 entityFetch(attributeContent('code')),
+	 *                 stopAt(level(2)),
+	 *                 statistics(
+	 *                     CHILDREN_COUNT,
+	 *                     QUERIED_ENTITY_COUNT
+	 *                 )
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * The calculated result for `fromRoot` is not affected by the {@link HierarchyWithin} pivot hierarchy node.
+	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
+	 * the `fromRoot` respects them. The reason is simple: when you render a menu for the query result, you want
+	 * the calculated statistics to respect the rules that apply to the {@link HierarchyWithin} so that the calculated
+	 * number remains consistent for the end user.
+	 */
 	@Nullable
 	static HierarchyFromRoot fromRoot(
 		@Nullable String outputName,
@@ -3214,8 +3036,66 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * TOBEDONE JNO: docs
-	*/
+	 * The `fromRoot` requirement computes the hierarchy tree starting from the "virtual" invisible top root of
+	 * the hierarchy, regardless of the potential use of the {@link HierarchyWithin} constraint in the filtering part of
+	 * the query. The scope of the calculated information can be controlled by the stopAt constraint. By default,
+	 * the traversal goes all the way to the bottom of the hierarchy tree unless you tell it to stop at anywhere.
+	 * If you need to access statistical data, use statistics constraint. Calculated data is not affected by
+	 * the {@link HierarchyWithin} filter constraint - the query can filter entities using {@link HierarchyWithin} from
+	 * category Accessories, while still allowing you to correctly compute menu at root level.
+	 *
+	 * Please keep in mind that the full statistic calculation can be particularly expensive in the case of the fromRoot
+	 * requirement - it usually requires aggregation for the entire queried dataset (see more information about
+	 * the calculation).
+	 *
+	 * The constraint accepts following arguments:
+	 *
+	 * - mandatory String argument specifying the output name for the calculated data structure
+	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope of
+	 *   the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
+	 *   present:
+	 *
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
+	 *
+	 * The following query lists products in category Audio and its subcategories. Along with the returned products, it also
+	 * requires a computed megaMenu data structure that lists the top 2 levels of the Category hierarchy tree with
+	 * a computed count of child categories for each menu item and an aggregated count of all filtered products that would
+	 * fall into the given category.
+	 *
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'audio')
+	 *         )
+	 *     ),
+	 *     require(
+	 *         hierarchyOfReference(
+	 *             'categories',
+	 *             fromRoot(
+	 *                 'megaMenu',
+	 *                 entityFetch(attributeContent('code')),
+	 *                 stopAt(level(2)),
+	 *                 statistics(
+	 *                     CHILDREN_COUNT,
+	 *                     QUERIED_ENTITY_COUNT
+	 *                 )
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * The calculated result for `fromRoot` is not affected by the {@link HierarchyWithin} pivot hierarchy node.
+	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
+	 * the `fromRoot` respects them. The reason is simple: when you render a menu for the query result, you want
+	 * the calculated statistics to respect the rules that apply to the {@link HierarchyWithin} so that the calculated
+	 * number remains consistent for the end user.
+	 */
 	@Nullable
 	static HierarchyFromRoot fromRoot(
 		@Nullable String outputName,
@@ -3230,8 +3110,84 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * TOBEDONE JNO: docs
-	*/
+	 * The `fromNode` requirement computes the hierarchy tree starting from the pivot node of the hierarchy, that is
+	 * identified by the node inner constraint. The fromNode calculates the result regardless of the potential use of
+	 * the {@link HierarchyWithin} constraint in the filtering part of the query. The scope of the calculated information
+	 * can be controlled by the {@link HierarchyStopAt} constraint. By default, the traversal goes all the way to the bottom
+	 * of the hierarchy tree unless you tell it to stop at anywhere. Calculated data is not affected by
+	 * the {@link HierarchyWithin} filter constraint - the query can filter entities using {@link HierarchyWithin} from
+	 * category Accessories, while still allowing you to correctly compute menu at different node defined in a `fromNode`
+	 * requirement. If you need to access statistical data, use statistics constraint.
+	 *
+	 * The constraint accepts following arguments:
+	 *
+	 * - mandatory String argument specifying the output name for the calculated data structure
+	 * - mandatory require constraint node that must match exactly one pivot hierarchical entity that represents the root
+	 *   node of the traversed hierarchy subtree.
+	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
+	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
+	 *   present:
+	 *
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
+	 *
+	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it
+	 * also returns a computed sideMenu1 and sideMenu2 data structure that lists the flat category list for the categories
+	 * Portables and Laptops with a computed count of child categories for each menu item and an aggregated count of all
+	 * products that would fall into the given category.
+	 *
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'audio')
+	 *         )
+	 *     ),
+	 *     require(
+	 *         hierarchyOfReference(
+	 *             'categories',
+	 *             fromNode(
+	 *                 'sideMenu1',
+	 *                 node(
+	 *                     filterBy(
+	 *                         attributeEquals('code', 'portables')
+	 *                     )
+	 *                 ),
+	 *                 entityFetch(attributeContent('code')),
+	 *                 stopAt(distance(1)),
+	 *                 statistics(
+	 *                     CHILDREN_COUNT,
+	 *                     QUERIED_ENTITY_COUNT
+	 *                 )
+	 *             ),
+	 *             fromNode(
+	 *                 'sideMenu2',
+	 *                 node(
+	 *                     filterBy(
+	 *                         attributeEquals('code', 'laptops')
+	 *                     )
+	 *                 ),
+	 *                 entityFetch(attributeContent('code')),
+	 *                 stopAt(distance(1)),
+	 *                 statistics(
+	 *                     CHILDREN_COUNT,
+	 *                     QUERIED_ENTITY_COUNT
+	 *                 )
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * The calculated result for `fromNode` is not affected by the {@link HierarchyWithin} pivot hierarchy node.
+	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
+	 * the `fromNode` respects them. The reason is simple: when you render a menu for the query result, you want
+	 * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
+	 * remains consistent for the end user.
+	 */
 	@Nullable
 	static HierarchyFromNode fromNode(
 		@Nullable String outputName,
@@ -3248,8 +3204,84 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * TOBEDONE JNO: docs
-	*/
+	 * The `fromNode` requirement computes the hierarchy tree starting from the pivot node of the hierarchy, that is
+	 * identified by the node inner constraint. The fromNode calculates the result regardless of the potential use of
+	 * the {@link HierarchyWithin} constraint in the filtering part of the query. The scope of the calculated information
+	 * can be controlled by the {@link HierarchyStopAt} constraint. By default, the traversal goes all the way to the bottom
+	 * of the hierarchy tree unless you tell it to stop at anywhere. Calculated data is not affected by
+	 * the {@link HierarchyWithin} filter constraint - the query can filter entities using {@link HierarchyWithin} from
+	 * category Accessories, while still allowing you to correctly compute menu at different node defined in a `fromNode`
+	 * requirement. If you need to access statistical data, use statistics constraint.
+	 *
+	 * The constraint accepts following arguments:
+	 *
+	 * - mandatory String argument specifying the output name for the calculated data structure
+	 * - mandatory require constraint node that must match exactly one pivot hierarchical entity that represents the root
+	 *   node of the traversed hierarchy subtree.
+	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
+	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
+	 *   present:
+	 *
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
+	 *
+	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it
+	 * also returns a computed sideMenu1 and sideMenu2 data structure that lists the flat category list for the categories
+	 * Portables and Laptops with a computed count of child categories for each menu item and an aggregated count of all
+	 * products that would fall into the given category.
+	 *
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'audio')
+	 *         )
+	 *     ),
+	 *     require(
+	 *         hierarchyOfReference(
+	 *             'categories',
+	 *             fromNode(
+	 *                 'sideMenu1',
+	 *                 node(
+	 *                     filterBy(
+	 *                         attributeEquals('code', 'portables')
+	 *                     )
+	 *                 ),
+	 *                 entityFetch(attributeContent('code')),
+	 *                 stopAt(distance(1)),
+	 *                 statistics(
+	 *                     CHILDREN_COUNT,
+	 *                     QUERIED_ENTITY_COUNT
+	 *                 )
+	 *             ),
+	 *             fromNode(
+	 *                 'sideMenu2',
+	 *                 node(
+	 *                     filterBy(
+	 *                         attributeEquals('code', 'laptops')
+	 *                     )
+	 *                 ),
+	 *                 entityFetch(attributeContent('code')),
+	 *                 stopAt(distance(1)),
+	 *                 statistics(
+	 *                     CHILDREN_COUNT,
+	 *                     QUERIED_ENTITY_COUNT
+	 *                 )
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * The calculated result for `fromNode` is not affected by the {@link HierarchyWithin} pivot hierarchy node.
+	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
+	 * the `fromNode` respects them. The reason is simple: when you render a menu for the query result, you want
+	 * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
+	 * remains consistent for the end user.
+	 */
 	@Nullable
 	static HierarchyFromNode fromNode(
 		@Nullable String outputName,
@@ -3267,8 +3299,61 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * TOBEDONE JNO: docs
-	*/
+	 * The children requirement computes the hierarchy tree starting at the same hierarchy node that is targeted by
+	 * the filtering part of the same query using the {@link HierarchyWithin} or {@link HierarchyWithinRoot} constraints.
+	 * The scope of the calculated information can be controlled by the stopAt constraint. By default, the traversal goes
+	 * all the way to the bottom of the hierarchy tree unless you tell it to stop at anywhere. If you need to access
+	 * statistical data, use the statistics constraint.
+	 *
+	 * The constraint accepts following arguments:
+	 *
+	 * - mandatory String argument specifying the output name for the calculated data structure
+	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope of
+	 *   the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
+	 *   present:
+	 *
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
+	 *
+	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it also
+	 * returns a computed subcategories data structure that lists the flat category list the currently focused category
+	 * Audio with a computed count of child categories for each menu item and an aggregated count of all products that would
+	 * fall into the given category.
+	 *
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'audio')
+	 *         )
+	 *     ),
+	 *     require(
+	 *         hierarchyOfReference(
+	 *             'categories',
+	 *             children(
+	 *                 'subcategories',
+	 *                 entityFetch(attributeContent('code')),
+	 *                 stopAt(distance(1)),
+	 *                 statistics(
+	 *                     CHILDREN_COUNT,
+	 *                     QUERIED_ENTITY_COUNT
+	 *                 )
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * The calculated result for children is connected with the {@link HierarchyWithin} pivot hierarchy node (or
+	 * the "virtual" invisible top root referred to by the hierarchyWithinRoot constraint). If the {@link HierarchyWithin}
+	 * contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding}, the children will respect them as
+	 * well. The reason is simple: when you render a menu for the query result, you want the calculated statistics to
+	 * respect the rules that apply to the hierarchyWithin so that the calculated number remains consistent for the end
+	 * user.
+	 */
 	@Nullable
 	static HierarchyChildren children(
 		@Nullable String outputName,
@@ -3283,8 +3368,61 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * TOBEDONE JNO: docs
-	*/
+	 * The children requirement computes the hierarchy tree starting at the same hierarchy node that is targeted by
+	 * the filtering part of the same query using the {@link HierarchyWithin} or {@link HierarchyWithinRoot} constraints.
+	 * The scope of the calculated information can be controlled by the stopAt constraint. By default, the traversal goes
+	 * all the way to the bottom of the hierarchy tree unless you tell it to stop at anywhere. If you need to access
+	 * statistical data, use the statistics constraint.
+	 *
+	 * The constraint accepts following arguments:
+	 *
+	 * - mandatory String argument specifying the output name for the calculated data structure
+	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope of
+	 *   the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
+	 *   present:
+	 *
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
+	 *
+	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it also
+	 * returns a computed subcategories data structure that lists the flat category list the currently focused category
+	 * Audio with a computed count of child categories for each menu item and an aggregated count of all products that would
+	 * fall into the given category.
+	 *
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'audio')
+	 *         )
+	 *     ),
+	 *     require(
+	 *         hierarchyOfReference(
+	 *             'categories',
+	 *             children(
+	 *                 'subcategories',
+	 *                 entityFetch(attributeContent('code')),
+	 *                 stopAt(distance(1)),
+	 *                 statistics(
+	 *                     CHILDREN_COUNT,
+	 *                     QUERIED_ENTITY_COUNT
+	 *                 )
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * The calculated result for children is connected with the {@link HierarchyWithin} pivot hierarchy node (or
+	 * the "virtual" invisible top root referred to by the hierarchyWithinRoot constraint). If the {@link HierarchyWithin}
+	 * contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding}, the children will respect them as
+	 * well. The reason is simple: when you render a menu for the query result, you want the calculated statistics to
+	 * respect the rules that apply to the hierarchyWithin so that the calculated number remains consistent for the end
+	 * user.
+	 */
 	@Nullable
 	static HierarchyChildren children(
 		@Nullable String outputName,
@@ -3298,8 +3436,69 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * TOBEDONE JNO: docs
-	*/
+	 * The siblings requirement computes the hierarchy tree starting at the same hierarchy node that is targeted by
+	 * the filtering part of the same query using the hierarchyWithin. It lists all sibling nodes to the node that is
+	 * requested by hierarchyWithin constraint (that's why the siblings has no sense with {@link HierarchyWithinRoot}
+	 * constraint - "virtual" top level node cannot have any siblings). Siblings will produce a flat list of siblings unless
+	 * the {@link HierarchyStopAt} constraint is used as an inner constraint. The {@link HierarchyStopAt} constraint
+	 * triggers a top-down hierarchy traversal from each of the sibling nodes until the {@link HierarchyStopAt} is
+	 * satisfied. If you need to access statistical data, use the statistics constraint.
+	 *
+	 * The constraint accepts following arguments:
+	 *
+	 * - mandatory String argument specifying the output name for the calculated data structure
+	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
+	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may
+	 *   be present:
+	 *
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
+	 *
+	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it also
+	 * returns a computed audioSiblings data structure that lists the flat category list the currently focused category
+	 * Audio with a computed count of child categories for each menu item and an aggregated count of all products that would
+	 * fall into the given category.
+	 *
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'audio')
+	 *         )
+	 *     ),
+	 *     require(
+	 *         hierarchyOfReference(
+	 *             'categories',
+	 *             siblings(
+	 *                 'audioSiblings',
+	 *                 entityFetch(attributeContent('code')),
+	 *                 statistics(
+	 *                     CHILDREN_COUNT,
+	 *                     QUERIED_ENTITY_COUNT
+	 *                 )
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * The calculated result for siblings is connected with the {@link HierarchyWithin} pivot hierarchy node. If
+	 * the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
+	 * the children will respect them as well. The reason is simple: when you render a menu for the query result, you want
+	 * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
+	 * remains consistent for the end user.
+	 *
+	 * <strong>Different siblings syntax when used within parents parent constraint</strong>
+	 *
+	 * The siblings constraint can be used separately as a child of {@link HierarchyOfSelf} or {@link HierarchyOfReference},
+	 * or it can be used as a child constraint of {@link HierarchyParents}. In such a case, the siblings constraint lacks
+	 * the first string argument that defines the name for the output data structure. The reason is that this name is
+	 * already defined on the enclosing parents constraint, and the siblings constraint simply extends the data available
+	 * in its data structure.
+	 */
 	@Nullable
 	static HierarchySiblings siblings(
 		@Nullable String outputName,
@@ -3314,8 +3513,69 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * TOBEDONE JNO: docs
-	*/
+	 * The siblings requirement computes the hierarchy tree starting at the same hierarchy node that is targeted by
+	 * the filtering part of the same query using the hierarchyWithin. It lists all sibling nodes to the node that is
+	 * requested by hierarchyWithin constraint (that's why the siblings has no sense with {@link HierarchyWithinRoot}
+	 * constraint - "virtual" top level node cannot have any siblings). Siblings will produce a flat list of siblings unless
+	 * the {@link HierarchyStopAt} constraint is used as an inner constraint. The {@link HierarchyStopAt} constraint
+	 * triggers a top-down hierarchy traversal from each of the sibling nodes until the {@link HierarchyStopAt} is
+	 * satisfied. If you need to access statistical data, use the statistics constraint.
+	 *
+	 * The constraint accepts following arguments:
+	 *
+	 * - mandatory String argument specifying the output name for the calculated data structure
+	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
+	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may
+	 *   be present:
+	 *
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
+	 *
+	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it also
+	 * returns a computed audioSiblings data structure that lists the flat category list the currently focused category
+	 * Audio with a computed count of child categories for each menu item and an aggregated count of all products that would
+	 * fall into the given category.
+	 *
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'audio')
+	 *         )
+	 *     ),
+	 *     require(
+	 *         hierarchyOfReference(
+	 *             'categories',
+	 *             siblings(
+	 *                 'audioSiblings',
+	 *                 entityFetch(attributeContent('code')),
+	 *                 statistics(
+	 *                     CHILDREN_COUNT,
+	 *                     QUERIED_ENTITY_COUNT
+	 *                 )
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * The calculated result for siblings is connected with the {@link HierarchyWithin} pivot hierarchy node. If
+	 * the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
+	 * the children will respect them as well. The reason is simple: when you render a menu for the query result, you want
+	 * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
+	 * remains consistent for the end user.
+	 *
+	 * <strong>Different siblings syntax when used within parents parent constraint</strong>
+	 *
+	 * The siblings constraint can be used separately as a child of {@link HierarchyOfSelf} or {@link HierarchyOfReference},
+	 * or it can be used as a child constraint of {@link HierarchyParents}. In such a case, the siblings constraint lacks
+	 * the first string argument that defines the name for the output data structure. The reason is that this name is
+	 * already defined on the enclosing parents constraint, and the siblings constraint simply extends the data available
+	 * in its data structure.
+	 */
 	@Nullable
 	static HierarchySiblings siblings(
 		@Nullable String outputName,
@@ -3329,8 +3589,69 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * TOBEDONE JNO: docs
-	*/
+	 * The siblings requirement computes the hierarchy tree starting at the same hierarchy node that is targeted by
+	 * the filtering part of the same query using the hierarchyWithin. It lists all sibling nodes to the node that is
+	 * requested by hierarchyWithin constraint (that's why the siblings has no sense with {@link HierarchyWithinRoot}
+	 * constraint - "virtual" top level node cannot have any siblings). Siblings will produce a flat list of siblings unless
+	 * the {@link HierarchyStopAt} constraint is used as an inner constraint. The {@link HierarchyStopAt} constraint
+	 * triggers a top-down hierarchy traversal from each of the sibling nodes until the {@link HierarchyStopAt} is
+	 * satisfied. If you need to access statistical data, use the statistics constraint.
+	 *
+	 * The constraint accepts following arguments:
+	 *
+	 * - mandatory String argument specifying the output name for the calculated data structure
+	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
+	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may
+	 *   be present:
+	 *
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
+	 *
+	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it also
+	 * returns a computed audioSiblings data structure that lists the flat category list the currently focused category
+	 * Audio with a computed count of child categories for each menu item and an aggregated count of all products that would
+	 * fall into the given category.
+	 *
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'audio')
+	 *         )
+	 *     ),
+	 *     require(
+	 *         hierarchyOfReference(
+	 *             'categories',
+	 *             siblings(
+	 *                 'audioSiblings',
+	 *                 entityFetch(attributeContent('code')),
+	 *                 statistics(
+	 *                     CHILDREN_COUNT,
+	 *                     QUERIED_ENTITY_COUNT
+	 *                 )
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * The calculated result for siblings is connected with the {@link HierarchyWithin} pivot hierarchy node. If
+	 * the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
+	 * the children will respect them as well. The reason is simple: when you render a menu for the query result, you want
+	 * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
+	 * remains consistent for the end user.
+	 *
+	 * <strong>Different siblings syntax when used within parents parent constraint</strong>
+	 *
+	 * The siblings constraint can be used separately as a child of {@link HierarchyOfSelf} or {@link HierarchyOfReference},
+	 * or it can be used as a child constraint of {@link HierarchyParents}. In such a case, the siblings constraint lacks
+	 * the first string argument that defines the name for the output data structure. The reason is that this name is
+	 * already defined on the enclosing parents constraint, and the siblings constraint simply extends the data available
+	 * in its data structure.
+	 */
 	@Nullable
 	static HierarchySiblings siblings(
 		@Nullable EntityFetch entityFetch,
@@ -3340,16 +3661,129 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * TOBEDONE JNO: docs
-	*/
+	 * The siblings requirement computes the hierarchy tree starting at the same hierarchy node that is targeted by
+	 * the filtering part of the same query using the hierarchyWithin. It lists all sibling nodes to the node that is
+	 * requested by hierarchyWithin constraint (that's why the siblings has no sense with {@link HierarchyWithinRoot}
+	 * constraint - "virtual" top level node cannot have any siblings). Siblings will produce a flat list of siblings unless
+	 * the {@link HierarchyStopAt} constraint is used as an inner constraint. The {@link HierarchyStopAt} constraint
+	 * triggers a top-down hierarchy traversal from each of the sibling nodes until the {@link HierarchyStopAt} is
+	 * satisfied. If you need to access statistical data, use the statistics constraint.
+	 *
+	 * The constraint accepts following arguments:
+	 *
+	 * - mandatory String argument specifying the output name for the calculated data structure
+	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
+	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may
+	 *   be present:
+	 *
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
+	 *
+	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it also
+	 * returns a computed audioSiblings data structure that lists the flat category list the currently focused category
+	 * Audio with a computed count of child categories for each menu item and an aggregated count of all products that would
+	 * fall into the given category.
+	 *
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'audio')
+	 *         )
+	 *     ),
+	 *     require(
+	 *         hierarchyOfReference(
+	 *             'categories',
+	 *             siblings(
+	 *                 'audioSiblings',
+	 *                 entityFetch(attributeContent('code')),
+	 *                 statistics(
+	 *                     CHILDREN_COUNT,
+	 *                     QUERIED_ENTITY_COUNT
+	 *                 )
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * The calculated result for siblings is connected with the {@link HierarchyWithin} pivot hierarchy node. If
+	 * the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
+	 * the children will respect them as well. The reason is simple: when you render a menu for the query result, you want
+	 * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
+	 * remains consistent for the end user.
+	 *
+	 * <strong>Different siblings syntax when used within parents parent constraint</strong>
+	 *
+	 * The siblings constraint can be used separately as a child of {@link HierarchyOfSelf} or {@link HierarchyOfReference},
+	 * or it can be used as a child constraint of {@link HierarchyParents}. In such a case, the siblings constraint lacks
+	 * the first string argument that defines the name for the output data structure. The reason is that this name is
+	 * already defined on the enclosing parents constraint, and the siblings constraint simply extends the data available
+	 * in its data structure.
+	 */
 	@Nullable
 	static HierarchySiblings siblings(@Nullable HierarchyOutputRequireConstraint... requirements) {
 		return new HierarchySiblings(null, requirements);
 	}
 
 	/**
-	 * TOBEDONE JNO: docs
-	*/
+	 * The parents requirement computes the hierarchy tree starting at the same hierarchy node that is targeted by
+	 * the filtering part of the same query using the hierarchyWithin constraint towards the root of the hierarchy.
+	 * The scope of the calculated information can be controlled by the stopAt constraint. By default, the traversal goes
+	 * all the way to the top of the hierarchy tree unless you tell it to stop at anywhere. If you need to access
+	 * statistical data, use the statistics constraint.
+	 *
+	 * The constraint accepts following arguments:
+	 *
+	 * - mandatory String argument specifying the output name for the calculated data structure
+	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
+	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
+	 *   present:
+	 *
+	 *      - {@link HierarchySiblings}
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
+	 *
+	 * The following query lists products in the category Audio and its subcategories. Along with the products returned,
+	 * it also returns a computed parentAxis data structure that lists all the parent nodes of the currently focused
+	 * category True wireless with a computed count of child categories for each menu item and an aggregated count of all
+	 * products that would fall into the given category.
+	 *
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'true-wireless')
+	 *         )
+	 *     ),
+	 *     require(
+	 *         hierarchyOfReference(
+	 *             'categories',
+	 *             parents(
+	 *                 'parentAxis',
+	 *                 entityFetch(attributeContent('code')),
+	 *                 statistics(
+	 *                     CHILDREN_COUNT,
+	 *                     QUERIED_ENTITY_COUNT
+	 *                 )
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * The calculated result for parents is connected with the {@link HierarchyWithin} pivot hierarchy node.
+	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
+	 * the parents will respect them as well during child nodes / queried entities statistics calculation. The reason is
+	 * simple: when you render a menu for the query result, you want the calculated statistics to respect the rules that
+	 * apply to the {@link HierarchyWithin} so that the calculated number remains consistent for the end user.
+	 */
 	@Nullable
 	static HierarchyParents parents(
 		@Nullable String outputName,
@@ -3364,8 +3798,60 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * TOBEDONE JNO: docs
-	*/
+	 * The parents requirement computes the hierarchy tree starting at the same hierarchy node that is targeted by
+	 * the filtering part of the same query using the hierarchyWithin constraint towards the root of the hierarchy.
+	 * The scope of the calculated information can be controlled by the stopAt constraint. By default, the traversal goes
+	 * all the way to the top of the hierarchy tree unless you tell it to stop at anywhere. If you need to access
+	 * statistical data, use the statistics constraint.
+	 *
+	 * The constraint accepts following arguments:
+	 *
+	 * - mandatory String argument specifying the output name for the calculated data structure
+	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
+	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
+	 *   present:
+	 *
+	 *      - {@link HierarchySiblings}
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
+	 *
+	 * The following query lists products in the category Audio and its subcategories. Along with the products returned,
+	 * it also returns a computed parentAxis data structure that lists all the parent nodes of the currently focused
+	 * category True wireless with a computed count of child categories for each menu item and an aggregated count of all
+	 * products that would fall into the given category.
+	 *
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'true-wireless')
+	 *         )
+	 *     ),
+	 *     require(
+	 *         hierarchyOfReference(
+	 *             'categories',
+	 *             parents(
+	 *                 'parentAxis',
+	 *                 entityFetch(attributeContent('code')),
+	 *                 statistics(
+	 *                     CHILDREN_COUNT,
+	 *                     QUERIED_ENTITY_COUNT
+	 *                 )
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * The calculated result for parents is connected with the {@link HierarchyWithin} pivot hierarchy node.
+	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
+	 * the parents will respect them as well during child nodes / queried entities statistics calculation. The reason is
+	 * simple: when you render a menu for the query result, you want the calculated statistics to respect the rules that
+	 * apply to the {@link HierarchyWithin} so that the calculated number remains consistent for the end user.
+	 */
 	@Nullable
 	static HierarchyParents parents(
 		@Nullable String outputName,
@@ -3385,8 +3871,60 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * TOBEDONE JNO: docs
-	*/
+	 * The parents requirement computes the hierarchy tree starting at the same hierarchy node that is targeted by
+	 * the filtering part of the same query using the hierarchyWithin constraint towards the root of the hierarchy.
+	 * The scope of the calculated information can be controlled by the stopAt constraint. By default, the traversal goes
+	 * all the way to the top of the hierarchy tree unless you tell it to stop at anywhere. If you need to access
+	 * statistical data, use the statistics constraint.
+	 *
+	 * The constraint accepts following arguments:
+	 *
+	 * - mandatory String argument specifying the output name for the calculated data structure
+	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
+	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
+	 *   present:
+	 *
+	 *      - {@link HierarchySiblings}
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
+	 *
+	 * The following query lists products in the category Audio and its subcategories. Along with the products returned,
+	 * it also returns a computed parentAxis data structure that lists all the parent nodes of the currently focused
+	 * category True wireless with a computed count of child categories for each menu item and an aggregated count of all
+	 * products that would fall into the given category.
+	 *
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'true-wireless')
+	 *         )
+	 *     ),
+	 *     require(
+	 *         hierarchyOfReference(
+	 *             'categories',
+	 *             parents(
+	 *                 'parentAxis',
+	 *                 entityFetch(attributeContent('code')),
+	 *                 statistics(
+	 *                     CHILDREN_COUNT,
+	 *                     QUERIED_ENTITY_COUNT
+	 *                 )
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * The calculated result for parents is connected with the {@link HierarchyWithin} pivot hierarchy node.
+	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
+	 * the parents will respect them as well during child nodes / queried entities statistics calculation. The reason is
+	 * simple: when you render a menu for the query result, you want the calculated statistics to respect the rules that
+	 * apply to the {@link HierarchyWithin} so that the calculated number remains consistent for the end user.
+	 */
 	@Nullable
 	static HierarchyParents parents(
 		@Nullable String outputName,
@@ -3400,8 +3938,60 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * TOBEDONE JNO: docs
-	*/
+	 * The parents requirement computes the hierarchy tree starting at the same hierarchy node that is targeted by
+	 * the filtering part of the same query using the hierarchyWithin constraint towards the root of the hierarchy.
+	 * The scope of the calculated information can be controlled by the stopAt constraint. By default, the traversal goes
+	 * all the way to the top of the hierarchy tree unless you tell it to stop at anywhere. If you need to access
+	 * statistical data, use the statistics constraint.
+	 *
+	 * The constraint accepts following arguments:
+	 *
+	 * - mandatory String argument specifying the output name for the calculated data structure
+	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
+	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
+	 *   present:
+	 *
+	 *      - {@link HierarchySiblings}
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
+	 *
+	 * The following query lists products in the category Audio and its subcategories. Along with the products returned,
+	 * it also returns a computed parentAxis data structure that lists all the parent nodes of the currently focused
+	 * category True wireless with a computed count of child categories for each menu item and an aggregated count of all
+	 * products that would fall into the given category.
+	 *
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'true-wireless')
+	 *         )
+	 *     ),
+	 *     require(
+	 *         hierarchyOfReference(
+	 *             'categories',
+	 *             parents(
+	 *                 'parentAxis',
+	 *                 entityFetch(attributeContent('code')),
+	 *                 statistics(
+	 *                     CHILDREN_COUNT,
+	 *                     QUERIED_ENTITY_COUNT
+	 *                 )
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * The calculated result for parents is connected with the {@link HierarchyWithin} pivot hierarchy node.
+	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
+	 * the parents will respect them as well during child nodes / queried entities statistics calculation. The reason is
+	 * simple: when you render a menu for the query result, you want the calculated statistics to respect the rules that
+	 * apply to the {@link HierarchyWithin} so that the calculated number remains consistent for the end user.
+	 */
 	@Nullable
 	static HierarchyParents parents(
 		@Nullable String outputName,
@@ -3418,40 +4008,192 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * TOBEDONE JNO: docs
-	*/
+	 * The stopAt container constraint is a service wrapping constraint container that only makes sense in combination with
+	 * one of the allowed nested constraints. See the usage examples for specific nested constraints.
+	 *
+	 * It accepts one of the following inner constraints:
+	 *
+	 * - {@link HierarchyDistance}
+	 * - {@link HierarchyLevel}
+	 * - {@link HierarchyNode}
+	 *
+	 * which define the constraint that stops traversing the hierarchy tree when it's satisfied by a currently traversed
+	 * node.
+	 */
 	@Nullable
 	static HierarchyStopAt stopAt(@Nullable HierarchyStopAtRequireConstraint stopConstraint) {
 		return stopConstraint == null ? null : new HierarchyStopAt(stopConstraint);
 	}
 
 	/**
-	 * TOBEDONE JNO: docs
-	*/
+	 * The node filtering container is an alternative to the {@link HierarchyDistance} and {@link HierarchyLevel}
+	 * termination constraints, which is much more dynamic and can produce hierarchy trees of non-uniform depth. Because
+	 * the filtering constraint can be satisfied by nodes of widely varying depths, traversal can be highly dynamic.
+	 *
+	 * Constraint children define a criterion that determines the point in a hierarchical structure where the traversal
+	 * should stop. The traversal stops at the first node that satisfies the filter condition specified in this container.
+	 *
+	 * The situations where you'd need this dynamic behavior are few and far between. Unfortunately, we do not have
+	 * a meaningful example of this in the demo dataset, so our example query will be slightly off. But for the sake of
+	 * demonstration, let's list the entire Accessories hierarchy, but stop traversing at the nodes whose code starts with
+	 * the letter `w`.
+	 *
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'accessories')
+	 *         )
+	 *     ),
+	 *     require(
+	 *         hierarchyOfReference(
+	 *             'categories',
+	 *             children(
+	 *                 'subMenu',
+	 *                 entityFetch(attributeContent('code')),
+	 *                 stopAt(
+	 *                     node(
+	 *                         filterBy(
+	 *                             attributeStartsWith('code', 'w')
+	 *                         )
+	 *                     )
+	 *                 )
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 */
 	@Nullable
 	static HierarchyNode node(@Nullable FilterBy filterBy) {
 		return filterBy == null ? null : new HierarchyNode(filterBy);
 	}
 
 	/**
-	 * TOBEDONE JNO: docs
-	*/
+	 * The level constraint can only be used within the stopAt container and limits the hierarchy traversal to stop when
+	 * the actual level of the traversed node is equal to a specified constant. The "virtual" top invisible node has level
+	 * zero, the top nodes (nodes with NULL parent) have level one, their children have level two, and so on.
+	 *
+	 * See the following figure:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'audio')
+	 *         )
+	 *     ),
+	 *     require(
+	 *         hierarchyOfReference(
+	 *             'categories',
+	 *             fromRoot(
+	 *                 'megaMenu',
+	 *                 entityFetch(attributeContent('code')),
+	 *                 stopAt(level(2))
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * The query lists products in Audio category and its subcategories. Along with the products returned, it
+	 * also returns a computed megaMenu data structure that lists top two levels of the entire hierarchy.
+	 */
 	@Nullable
 	static HierarchyLevel level(@Nullable Integer level) {
 		return level == null ? null : new HierarchyLevel(level);
 	}
 
 	/**
-	 * TOBEDONE JNO: docs
-	*/
+	 * The distance constraint can only be used within the {@link HierarchyStopAt} container and limits the hierarchy
+	 * traversal to stop when the number of levels traversed reaches the specified constant. The distance is always relative
+	 * to the pivot node (the node where the hierarchy traversal starts) and is the same whether we are traversing
+	 * the hierarchy top-down or bottom-up. The distance between any two nodes in the hierarchy can be calculated as
+	 * `abs(level(nodeA) - level(nodeB))`.
+	 *
+	 * The constraint accepts single integer argument `distance`, which defines a maximum relative distance from the pivot
+	 * node that can be traversed; the pivot node itself is at distance zero, its direct child or direct parent is
+	 * at distance one, each additional step adds a one to the distance.
+	 *
+	 * See the following figure when the pivot node is Audio:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             'categories',
+	 *             attributeEquals('code', 'audio')
+	 *         )
+	 *     ),
+	 *     require(
+	 *         hierarchyOfReference(
+	 *             'categories',
+	 *             children(
+	 *                 'subcategories',
+	 *                 entityFetch(attributeContent('code')),
+	 *                 stopAt(distance(1))
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it
+	 * also returns a computed subcategories data structure that lists the flat category list the currently focused category
+	 * Audio.
+	 */
 	@Nullable
 	static HierarchyDistance distance(@Nullable Integer distance) {
 		return distance == null ? null : new HierarchyDistance(distance);
 	}
 
 	/**
-	 * TOBEDONE JNO: docs
-	*/
+	 * The statistics constraint allows you to retrieve statistics about the hierarchy nodes that are returned by the
+	 * current query. When used it triggers computation of the queriedEntityCount, childrenCount statistics, or both for
+	 * each hierarchy node in the returned hierarchy tree.
+	 *
+	 * It requires mandatory argument of type {@link StatisticsType} enum that specifies which statistics to compute:
+	 *
+	 * - {@link StatisticsType#CHILDREN_COUNT}: triggers calculation of the count of child hierarchy nodes that exist in
+	 *   the hierarchy tree below the given node; the count is correct regardless of whether the children themselves are
+	 *   requested/traversed by the constraint definition, and respects hierarchyOfReference settings for automatic removal
+	 *   of hierarchy nodes that would contain empty result set of queried entities ({@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY})
+	 * - {@link StatisticsType#QUERIED_ENTITY_COUNT}: triggers the calculation of the total number of queried entities that
+	 *   will be returned if the current query is focused on this particular hierarchy node using the hierarchyWithin filter
+	 *   constraint (the possible refining constraint in the form of directRelation and excluding-root is not taken into
+	 *   account).
+	 *
+	 * And optional argument of type {@link StatisticsBase} enum allowing you to specify the base queried entity set that
+	 * is the source for statistics calculations:
+	 *
+	 * - {@link StatisticsBase#COMPLETE_FILTER}: complete filtering query constraint
+	 * - {@link StatisticsBase#WITHOUT_USER_FILTER}: filtering query constraint where the contents of optional userFilter
+	 *    are ignored
+	 *
+	 * The calculation always ignores hierarchyWithin because the focused part of the hierarchy tree is defined on
+	 * the requirement constraint level, but including having/excluding constraints. The having/excluding constraints are
+	 * crucial for the calculation of queriedEntityCount (and therefore also affects the value of childrenCount
+	 * transitively).
+	 *
+	 * <strong>Computational complexity of statistical data calculation</strong>
+	 *
+	 * The performance price paid for calculating statistics is not negligible. The calculation of {@link StatisticsType#CHILDREN_COUNT}
+	 * is cheaper because it allows to eliminate "dead branches" early and thus conserve the computation cycles.
+	 * The calculation of the {@link StatisticsType#QUERIED_ENTITY_COUNT} is more expensive because it requires counting
+	 * items up to the last one and must be precise.
+	 *
+	 * We strongly recommend that you avoid using {@link StatisticsType#QUERIED_ENTITY_COUNT} for root hierarchy nodes for
+	 * large datasets.
+	 *
+	 * This query actually has to filter and aggregate all the records in the database, which is obviously quite expensive,
+	 * even considering that all the indexes are in-memory. Caching is probably the only way out if you really need
+	 * to crunch these numbers.
+	 */
 	@Nullable
 	static HierarchyStatistics statistics(@Nullable StatisticsType... type) {
 		return type == null ?
@@ -3460,8 +4202,47 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * TOBEDONE JNO: docs
-	*/
+	 * The statistics constraint allows you to retrieve statistics about the hierarchy nodes that are returned by the
+	 * current query. When used it triggers computation of the queriedEntityCount, childrenCount statistics, or both for
+	 * each hierarchy node in the returned hierarchy tree.
+	 *
+	 * It requires mandatory argument of type {@link StatisticsType} enum that specifies which statistics to compute:
+	 *
+	 * - {@link StatisticsType#CHILDREN_COUNT}: triggers calculation of the count of child hierarchy nodes that exist in
+	 *   the hierarchy tree below the given node; the count is correct regardless of whether the children themselves are
+	 *   requested/traversed by the constraint definition, and respects hierarchyOfReference settings for automatic removal
+	 *   of hierarchy nodes that would contain empty result set of queried entities ({@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY})
+	 * - {@link StatisticsType#QUERIED_ENTITY_COUNT}: triggers the calculation of the total number of queried entities that
+	 *   will be returned if the current query is focused on this particular hierarchy node using the hierarchyWithin filter
+	 *   constraint (the possible refining constraint in the form of directRelation and excluding-root is not taken into
+	 *   account).
+	 *
+	 * And optional argument of type {@link StatisticsBase} enum allowing you to specify the base queried entity set that
+	 * is the source for statistics calculations:
+	 *
+	 * - {@link StatisticsBase#COMPLETE_FILTER}: complete filtering query constraint
+	 * - {@link StatisticsBase#WITHOUT_USER_FILTER}: filtering query constraint where the contents of optional userFilter
+	 *    are ignored
+	 *
+	 * The calculation always ignores hierarchyWithin because the focused part of the hierarchy tree is defined on
+	 * the requirement constraint level, but including having/excluding constraints. The having/excluding constraints are
+	 * crucial for the calculation of queriedEntityCount (and therefore also affects the value of childrenCount
+	 * transitively).
+	 *
+	 * <strong>Computational complexity of statistical data calculation</strong>
+	 *
+	 * The performance price paid for calculating statistics is not negligible. The calculation of {@link StatisticsType#CHILDREN_COUNT}
+	 * is cheaper because it allows to eliminate "dead branches" early and thus conserve the computation cycles.
+	 * The calculation of the {@link StatisticsType#QUERIED_ENTITY_COUNT} is more expensive because it requires counting
+	 * items up to the last one and must be precise.
+	 *
+	 * We strongly recommend that you avoid using {@link StatisticsType#QUERIED_ENTITY_COUNT} for root hierarchy nodes for
+	 * large datasets.
+	 *
+	 * This query actually has to filter and aggregate all the records in the database, which is obviously quite expensive,
+	 * even considering that all the indexes are in-memory. Caching is probably the only way out if you really need
+	 * to crunch these numbers.
+	 */
 	@Nullable
 	static HierarchyStatistics statistics(@Nullable StatisticsBase base, @Nullable StatisticsType... type) {
 		if (base == null) {
@@ -3473,7 +4254,7 @@ public interface QueryConstraints {
 
 	/**
 	 * TOBEDONE JNO docs
-	*/
+	 */
 	@Nonnull
 	static EntityFetch entityFetch(@Nullable EntityContentRequire... requirements) {
 		if (requirements == null) {
@@ -3484,7 +4265,7 @@ public interface QueryConstraints {
 
 	/**
 	 * TOBEDONE JNO docs
-	*/
+	 */
 	@Nonnull
 	static EntityGroupFetch entityGroupFetch(@Nullable EntityContentRequire... requirements) {
 		if (requirements == null) {
@@ -3507,7 +4288,7 @@ public interface QueryConstraints {
 	 * ```
 	 * attributes()
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static AttributeContent attributeContentAll() {
 		return new AttributeContent();
@@ -3527,7 +4308,7 @@ public interface QueryConstraints {
 	 * ```
 	 * attributes()
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static AttributeContent attributeContent(@Nullable String... attributeName) {
 		if (attributeName == null) {
@@ -3550,7 +4331,7 @@ public interface QueryConstraints {
 	 * ```
 	 * associatedData('description', 'gallery-3d')
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static AssociatedDataContent associatedDataContentAll() {
 		return new AssociatedDataContent();
@@ -3570,7 +4351,7 @@ public interface QueryConstraints {
 	 * ```
 	 * associatedData('description', 'gallery-3d')
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static AssociatedDataContent associatedDataContent(@Nullable String... associatedDataName) {
 		if (associatedDataName == null) {
@@ -3603,7 +4384,7 @@ public interface QueryConstraints {
 	 * ```
 	 * dataInLocales()
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static DataInLocales dataInLocales(@Nullable Locale... locale) {
 		if (locale == null) {
@@ -3625,11 +4406,22 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static ReferenceContent referenceContentAll() {
 		return new ReferenceContent();
 	}
+
+	@Nonnull
+	static ReferenceContent referenceContentAllWithAttributes() {
+		return new ReferenceContent((AttributeContent) null);
+	}
+
+	@Nonnull
+	static ReferenceContent referenceContentAllWithAttributes(@Nullable AttributeContent attributeContent) {
+		return new ReferenceContent(attributeContent);
+	}
+
 
 	/**
 	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
@@ -3644,7 +4436,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String referencedEntityType) {
 		if (referencedEntityType == null) {
@@ -3653,9 +4445,54 @@ public interface QueryConstraints {
 		return new ReferenceContent(referencedEntityType);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	 */
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable String... attributeNames) {
+		return new ReferenceContent(
+			referencedEntityType, null, null,
+			attributeContent(attributeNames), null, null
+		);
+	}
+
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType) {
+		return new ReferenceContent(referencedEntityType, null, null, null, null, null);
+	}
+
+
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	 */
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable AttributeContent attributeContent) {
-		return new ReferenceContent(referencedEntityType, null, null, attributeContent, null, null);
+		return new ReferenceContent(
+			referencedEntityType, null, null,
+			attributeContent, null, null
+		);
 	}
 
 	/**
@@ -3671,7 +4508,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String... referencedEntityType) {
 		if (referencedEntityType == null) {
@@ -3693,7 +4530,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String referencedEntityType, @Nullable EntityFetch entityRequirement) {
 		if (referencedEntityType == null && entityRequirement == null) {
@@ -3702,12 +4539,17 @@ public interface QueryConstraints {
 		if (referencedEntityType == null) {
 			return new ReferenceContent(entityRequirement, null);
 		}
-		return new ReferenceContent(referencedEntityType,  null, null, null, entityRequirement, null);
+		return new ReferenceContent(
+			referencedEntityType,  null, null, entityRequirement, null
+		);
 	}
 
 	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
-		return new ReferenceContent(referencedEntityType,  null, null, attributeContent, entityRequirement, null);
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable EntityFetch entityRequirement) {
+		return new ReferenceContent(
+			referencedEntityType,  null, null,
+			null, entityRequirement, null
+		);
 	}
 
 	/**
@@ -3723,7 +4565,29 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	*/
+	 */
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
+		return new ReferenceContent(
+			referencedEntityType,  null, null,
+			attributeContent, entityRequirement, null
+		);
+	}
+
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	 */
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String referencedEntityType, @Nullable EntityGroupFetch groupEntityRequirement) {
 		if (referencedEntityType == null && groupEntityRequirement == null) {
@@ -3732,12 +4596,23 @@ public interface QueryConstraints {
 		if (referencedEntityType == null) {
 			return new ReferenceContent(null, groupEntityRequirement);
 		}
-		return new ReferenceContent(referencedEntityType, null, null, null, null, groupEntityRequirement);
+		return new ReferenceContent(referencedEntityType, null, null, null, groupEntityRequirement);
+	}
+
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return new ReferenceContent(
+			referencedEntityType, null, null,
+			null, null, groupEntityRequirement
+		);
 	}
 
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(referencedEntityType, null, null, attributeContent, null, groupEntityRequirement);
+		return new ReferenceContent(
+			referencedEntityType, null, null,
+			attributeContent, null, groupEntityRequirement
+		);
 	}
 
 	/**
@@ -3753,18 +4628,34 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String referencedEntityType, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		if (referencedEntityType == null) {
 			return new ReferenceContent(entityRequirement, groupEntityRequirement);
 		}
-		return new ReferenceContent(referencedEntityType, null, null, null, entityRequirement, groupEntityRequirement);
+		return new ReferenceContent(referencedEntityType, null, null, entityRequirement, groupEntityRequirement);
 	}
 
 	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(referencedEntityType, null, null, null, entityRequirement, groupEntityRequirement);
+	static ReferenceContent referenceContentWithAttributes(
+		@Nonnull String referencedEntityType, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement
+	) {
+		return new ReferenceContent(
+			referencedEntityType, null, null,
+			entityRequirement, groupEntityRequirement
+		);
+	}
+
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(
+		@Nonnull String referencedEntityType, @Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement
+	) {
+		return new ReferenceContent(
+			referencedEntityType, null, null,
+			attributeContent, entityRequirement, groupEntityRequirement
+		);
 	}
 
 
@@ -3781,7 +4672,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes, @Nullable EntityFetch entityRequirement) {
 		if (referencedEntityTypes == null && entityRequirement == null) {
@@ -3810,7 +4701,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes, @Nullable EntityGroupFetch groupEntityRequirement) {
 		if (referencedEntityTypes == null && groupEntityRequirement == null) {
@@ -3839,7 +4730,7 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		if (referencedEntityTypes != null) {
@@ -3862,12 +4753,31 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
+		return new ReferenceContent(referenceName, filterBy, null, null, null);
+	}
+
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
 		return new ReferenceContent(referenceName, filterBy, null, null, null, null);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	 */
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent) {
 		return new ReferenceContent(referenceName, filterBy, null, attributeContent, null, null);
@@ -3886,15 +4796,40 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement) {
-		return new ReferenceContent(referenceName, filterBy, null, null, entityRequirement, null);
+		return new ReferenceContent(referenceName, filterBy, null, entityRequirement, null);
 	}
 
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement) {
+		return new ReferenceContent(
+			referenceName, filterBy, null,
+			null, entityRequirement, null
+		);
+	}
+
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	 */
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
-		return new ReferenceContent(referenceName, filterBy, null, attributeContent, entityRequirement, null);
+		return new ReferenceContent(
+			referenceName, filterBy, null,
+			attributeContent, entityRequirement, null
+		);
 	}
 
 	/**
@@ -3910,15 +4845,40 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(referenceName, filterBy, null, null, null, groupEntityRequirement);
+		return new ReferenceContent(referenceName, filterBy, null, null, groupEntityRequirement);
 	}
 
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return new ReferenceContent(
+			referenceName, filterBy, null,
+			null, null, groupEntityRequirement
+		);
+	}
+
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	 */
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(referenceName, filterBy, null, attributeContent, null, groupEntityRequirement);
+		return new ReferenceContent(
+			referenceName, filterBy, null,
+			attributeContent, null, groupEntityRequirement
+		);
 	}
 
 	/**
@@ -3934,15 +4894,40 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(referenceName, filterBy, null, null, entityRequirement, groupEntityRequirement);
+		return new ReferenceContent(referenceName, filterBy, null, entityRequirement, groupEntityRequirement);
 	}
 
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return new ReferenceContent(
+			referenceName, filterBy, null,
+			null, entityRequirement, groupEntityRequirement
+		);
+	}
+
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	 */
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(referenceName, filterBy, null, attributeContent, entityRequirement, groupEntityRequirement);
+		return new ReferenceContent(
+			referenceName, filterBy, null,
+			attributeContent, entityRequirement, groupEntityRequirement
+		);
 	}
 
 	/**
@@ -3958,15 +4943,40 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy) {
-		return new ReferenceContent(referenceName, null, orderBy, null, null, null);
+		return new ReferenceContent(referenceName, null, orderBy, null, null);
 	}
 
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy) {
+		return new ReferenceContent(
+			referenceName, null, orderBy,
+			null, null, null
+		);
+	}
+
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	 */
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent) {
-		return new ReferenceContent(referenceName, null, orderBy, attributeContent, null, null);
+		return new ReferenceContent(
+			referenceName, null, orderBy,
+			attributeContent, null, null
+		);
 	}
 
 	/**
@@ -3982,15 +4992,40 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
-		return new ReferenceContent(referenceName, null, orderBy, null, entityRequirement, null);
+		return new ReferenceContent(referenceName, null, orderBy, entityRequirement, null);
 	}
 
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
+		return new ReferenceContent(
+			referenceName, null, orderBy,
+			null, entityRequirement, null
+		);
+	}
+
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	 */
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
-		return new ReferenceContent(referenceName, null, orderBy, attributeContent, entityRequirement, null);
+		return new ReferenceContent(
+			referenceName, null, orderBy,
+			attributeContent, entityRequirement, null
+		);
 	}
 
 	/**
@@ -4006,15 +5041,40 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(referenceName, null, orderBy, null, null, groupEntityRequirement);
+		return new ReferenceContent(referenceName, null, orderBy, null, groupEntityRequirement);
 	}
 
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return new ReferenceContent(
+			referenceName, null, orderBy,
+			null, null, groupEntityRequirement
+		);
+	}
+
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	 */
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(referenceName, null, orderBy, attributeContent, null, groupEntityRequirement);
+		return new ReferenceContent(
+			referenceName, null, orderBy,
+			attributeContent, null, groupEntityRequirement
+		);
 	}
 
 	/**
@@ -4030,15 +5090,40 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(referenceName, null, orderBy, null, entityRequirement, groupEntityRequirement);
+		return new ReferenceContent(referenceName, null, orderBy, entityRequirement, groupEntityRequirement);
 	}
 
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return new ReferenceContent(
+			referenceName, null, orderBy,
+			null, entityRequirement, groupEntityRequirement
+		);
+	}
+
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	 */
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(referenceName, null, orderBy, attributeContent, entityRequirement, groupEntityRequirement);
+		return new ReferenceContent(
+			referenceName, null, orderBy,
+			attributeContent, entityRequirement, groupEntityRequirement
+		);
 	}
 
 	/**
@@ -4054,15 +5139,40 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy) {
-		return new ReferenceContent(referenceName, filterBy, orderBy, null, null, null);
+		return new ReferenceContent(referenceName, filterBy, orderBy, null, null);
 	}
 
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy) {
+		return new ReferenceContent(
+			referenceName, filterBy, orderBy,
+			null, null, null
+		);
+	}
+
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	 */
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent) {
-		return new ReferenceContent(referenceName, filterBy, orderBy, attributeContent, null, null);
+		return new ReferenceContent(
+			referenceName, filterBy, orderBy,
+			attributeContent, null, null
+		);
 	}
 
 	/**
@@ -4078,15 +5188,40 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
-		return new ReferenceContent(referenceName, filterBy, orderBy, null, entityRequirement, null);
+		return new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, null);
 	}
 
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
+		return new ReferenceContent(
+			referenceName, filterBy, orderBy,
+			null, entityRequirement, null
+		);
+	}
+
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	 */
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
-		return new ReferenceContent(referenceName, filterBy, orderBy, attributeContent, entityRequirement, null);
+		return new ReferenceContent(
+			referenceName, filterBy, orderBy,
+			attributeContent, entityRequirement, null
+		);
 	}
 
 	/**
@@ -4102,15 +5237,40 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(referenceName, filterBy, orderBy, null, null, groupEntityRequirement);
+		return new ReferenceContent(referenceName, filterBy, orderBy, null, groupEntityRequirement);
 	}
 
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return new ReferenceContent(
+			referenceName, filterBy, orderBy,
+			null, null, groupEntityRequirement
+		);
+	}
+
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	 */
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(referenceName, filterBy, orderBy, attributeContent, null, groupEntityRequirement);
+		return new ReferenceContent(
+			referenceName, filterBy, orderBy,
+			attributeContent, null, groupEntityRequirement
+		);
 	}
 
 	/**
@@ -4126,15 +5286,40 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(referenceName, filterBy, orderBy, null, entityRequirement, groupEntityRequirement);
+		return new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, groupEntityRequirement);
 	}
 
+	@Nonnull
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return new ReferenceContent(
+			referenceName, filterBy, orderBy,
+			null, entityRequirement, groupEntityRequirement
+		);
+	}
+
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	 */
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(referenceName, filterBy, orderBy, attributeContent, entityRequirement, groupEntityRequirement);
+		return new ReferenceContent(
+			referenceName, filterBy, orderBy,
+			attributeContent, entityRequirement, groupEntityRequirement
+		);
 	}
 
 	/**
@@ -4150,10 +5335,20 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable EntityFetch entityRequirement) {
-		return referenceContent((String) null, entityRequirement);
+		return new ReferenceContent(entityRequirement, null);
+	}
+
+	@Nonnull
+	static ReferenceContent referenceContentAllWithAttributes(@Nullable EntityFetch entityRequirement) {
+		return new ReferenceContent((AttributeContent) null, entityRequirement, null);
+	}
+
+	@Nonnull
+	static ReferenceContent referenceContentAllWithAttributes(@Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
+		return new ReferenceContent(attributeContent, entityRequirement, null);
 	}
 
 	/**
@@ -4169,10 +5364,20 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceContent((String) null, groupEntityRequirement);
+		return new ReferenceContent(null, groupEntityRequirement);
+	}
+
+	@Nonnull
+	static ReferenceContent referenceContentAllWithAttributes(@Nullable EntityGroupFetch groupEntityRequirement) {
+		return new ReferenceContent((AttributeContent) null, null, groupEntityRequirement);
+	}
+
+	@Nonnull
+	static ReferenceContent referenceContentAllWithAttributes(@Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return new ReferenceContent(attributeContent, null, groupEntityRequirement);
 	}
 
 	/**
@@ -4188,10 +5393,20 @@ public interface QueryConstraints {
 	 * references(CATEGORY, 'stocks', entityBody())
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(entityRequirement, groupEntityRequirement);
+	}
+
+	@Nonnull
+	static ReferenceContent referenceContentAllWithAttributes(@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return new ReferenceContent((AttributeContent) null, entityRequirement, groupEntityRequirement);
+	}
+
+	@Nonnull
+	static ReferenceContent referenceContentAllWithAttributes(@Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return new ReferenceContent(attributeContent, entityRequirement, groupEntityRequirement);
 	}
 
 	/**
@@ -4207,7 +5422,7 @@ public interface QueryConstraints {
 	 * hierarchyContent(CATEGORY, 'stocks', entityBody())
 	 * hierarchyContent(CATEGORY, stopAt(distance(4)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static HierarchyContent hierarchyContent() {
 		return new HierarchyContent();
@@ -4226,7 +5441,7 @@ public interface QueryConstraints {
 	 * hierarchyContent(CATEGORY, 'stocks', entityBody())
 	 * hierarchyContent(CATEGORY, stopAt(distance(4)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static HierarchyContent hierarchyContent(@Nullable HierarchyStopAt stopAt) {
 		return stopAt == null ? new HierarchyContent() : new HierarchyContent(stopAt);
@@ -4245,7 +5460,7 @@ public interface QueryConstraints {
 	 * hierarchyContent(CATEGORY, 'stocks', entityBody())
 	 * hierarchyContent(CATEGORY, stopAt(distance(4)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static HierarchyContent hierarchyContent(@Nullable EntityFetch entityFetch) {
 		return entityFetch == null ? new HierarchyContent() : new HierarchyContent(entityFetch);
@@ -4264,7 +5479,7 @@ public interface QueryConstraints {
 	 * hierarchyContent(CATEGORY, 'stocks', entityBody())
 	 * hierarchyContent(CATEGORY, stopAt(distance(4)), entityBody())
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static HierarchyContent hierarchyContent(@Nullable HierarchyStopAt stopAt, @Nullable EntityFetch entityFetch) {
 		if (stopAt == null && entityFetch == null) {
@@ -4295,7 +5510,7 @@ public interface QueryConstraints {
 	 * prices(ALL)
 	 * prices(NONE)
 	 * ```
-	*/
+	 */
 	@Nullable
 	static PriceContent priceContent(@Nullable PriceContentMode contentMode, @Nullable String... priceLists) {
 		if (contentMode == null) {
@@ -4327,7 +5542,7 @@ public interface QueryConstraints {
 	 * prices(ALL)
 	 * prices(NONE)
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static PriceContent priceContentAll() {
 		return PriceContent.all();
@@ -4352,7 +5567,7 @@ public interface QueryConstraints {
 	 * prices(ALL)
 	 * prices(NONE)
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static PriceContent priceContentRespectingFilter(@Nullable String... priceLists) {
 		return PriceContent.respectingFilter(priceLists);
@@ -4374,7 +5589,7 @@ public interface QueryConstraints {
 	 * ```
 	 * useOfPrice(WITH_TAX)
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static PriceType priceType(@Nonnull QueryPriceMode priceMode) {
 		return new PriceType(priceMode);
@@ -4393,7 +5608,7 @@ public interface QueryConstraints {
 	 * ```
 	 * page(1, 24)
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static Page page(@Nullable Integer pageNumber, @Nullable Integer pageSize) {
 		return new Page(pageNumber, pageSize);
@@ -4412,7 +5627,7 @@ public interface QueryConstraints {
 	 * ```
 	 * strip(52, 24)
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static Strip strip(@Nullable Integer offset, @Nullable Integer limit) {
 		return new Strip(offset, limit);
@@ -4440,7 +5655,7 @@ public interface QueryConstraints {
 	 * facetSummary(COUNT) //same as previous row - default
 	 * facetSummary(IMPACT)
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static FacetSummary facetSummary() {
 		return new FacetSummary();
@@ -4468,7 +5683,7 @@ public interface QueryConstraints {
 	 * facetSummary(COUNT) //same as previous row - default
 	 * facetSummary(IMPACT)
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static FacetSummary facetSummary(@Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityRequire... requirements) {
 		return statisticsDepth == null ?
@@ -4498,7 +5713,7 @@ public interface QueryConstraints {
 	 * facetSummary(COUNT) //same as previous row - default
 	 * facetSummary(IMPACT)
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -4541,7 +5756,7 @@ public interface QueryConstraints {
 	 * facetSummary(COUNT) //same as previous row - default
 	 * facetSummary(IMPACT)
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -4591,7 +5806,7 @@ public interface QueryConstraints {
 	 * facetSummary(COUNT) //same as previous row - default
 	 * facetSummary(IMPACT)
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static FacetSummaryOfReference facetSummaryOfReference(@Nonnull String referenceName, @Nullable EntityRequire... requirements) {
 		return new FacetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, requirements);
@@ -4619,7 +5834,7 @@ public interface QueryConstraints {
 	 * facetSummary(COUNT) //same as previous row - default
 	 * facetSummary(IMPACT)
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static FacetSummaryOfReference facetSummaryOfReference(@Nonnull String referenceName, @Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityRequire... requirements) {
 		return statisticsDepth == null ?
@@ -4649,7 +5864,7 @@ public interface QueryConstraints {
 	 * facetSummary(COUNT) //same as previous row - default
 	 * facetSummary(IMPACT)
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nonnull String referenceName,
@@ -4694,7 +5909,7 @@ public interface QueryConstraints {
 	 * facetSummary(COUNT) //same as previous row - default
 	 * facetSummary(IMPACT)
 	 * ```
-	*/
+	 */
 	@Nonnull
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nonnull String referenceName,
@@ -4733,25 +5948,43 @@ public interface QueryConstraints {
 	 * ```
 	 * queryTelemetry()
 	 * ```
-	*/
+	 */
 	static QueryTelemetry queryTelemetry() {
 		return new QueryTelemetry();
 	}
 
 	/**
 	 * This `debug` require is targeted for internal purposes only and is not exposed in public evitaDB API.
-	*/
+	 */
 	static Debug debug(@Nonnull DebugMode... debugMode) {
 		return new Debug(debugMode);
 	}
 
 	/**
-	 * TOBEDONE JNO docs
-	*/
+	 * Requirement returns a `entityFetch` requirement filled with content requirements that fully load the entity
+	 * including all language specific attributes, all prices, all references and all associated data. The references
+	 * don't have initialized the referenced entity / group bodies but only the reference with attributes itself.
+	 */
 	@Nonnull
 	static EntityFetch entityFetchAll() {
 		return entityFetch(
-			attributeContentAll(), hierarchyContent(), associatedDataContentAll(), priceContentAll(), referenceContentAll(), dataInLocales()
+			attributeContentAll(), hierarchyContent(),
+			associatedDataContentAll(), priceContentAll(),
+			referenceContentAllWithAttributes(), dataInLocales()
+		);
+	}
+
+	/**
+	 * Requirement returns a `entityGroupFetch` requirement filled with content requirements that fully load the entity
+	 * including all language specific attributes, all prices, all references and all associated data. The references
+	 * don't have initialized the referenced entity / group bodies but only the reference with attributes itself.
+	 */
+	@Nonnull
+	static EntityGroupFetch entityGroupFetchAll() {
+		return entityGroupFetch(
+			attributeContentAll(), hierarchyContent(),
+			associatedDataContentAll(), priceContentAll(),
+			referenceContentAllWithAttributes(), dataInLocales()
 		);
 	}
 
@@ -4775,17 +6008,17 @@ public interface QueryConstraints {
 
 	/**
 	 * This interface marks all requirements that can be used for loading additional data to existing entity.
-	*/
+	 */
 	@Nonnull
 	static EntityContentRequire[] entityFetchAllContent() {
 		return new EntityContentRequire[]{
-			attributeContent(), associatedDataContent(), priceContentAll(), referenceContentAll(), dataInLocales()
+			attributeContent(), associatedDataContent(), priceContentAll(), referenceContentAllWithAttributes(), dataInLocales()
 		};
 	}
 
 	/**
 	 * This interface marks all requirements that can be used for loading additional data to existing entity.
-	*/
+	 */
 	@Nonnull
 	static EntityContentRequire[] entityFetchAllContentAnd(@Nullable EntityContentRequire... combineWith) {
 		if (ArrayUtils.isEmpty(combineWith)) {

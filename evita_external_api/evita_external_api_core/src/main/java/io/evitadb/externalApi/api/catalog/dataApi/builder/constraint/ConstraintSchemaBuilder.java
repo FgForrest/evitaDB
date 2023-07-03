@@ -535,7 +535,8 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 			.filter(cd -> cd.creator().hasClassifierParameter())
 			.collect(Collectors.toUnmodifiableSet());
 
-		return referenceSchemas
+		fields.addAll(
+			referenceSchemas
 			.stream()
 			.filter(ReferenceSchemaContract::isIndexed)
 			.flatMap(referenceSchema -> {
