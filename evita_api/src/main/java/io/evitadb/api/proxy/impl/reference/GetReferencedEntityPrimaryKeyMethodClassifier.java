@@ -21,13 +21,12 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.proxy.impl.method;
+package io.evitadb.api.proxy.impl.reference;
 
-import io.evitadb.api.proxy.impl.SealedEntityProxyState;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
-import io.evitadb.api.requestResponse.data.annotation.Entity;
-import io.evitadb.api.requestResponse.data.annotation.EntityRef;
+import io.evitadb.api.proxy.impl.SealedEntityReferenceProxyState;
+import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.ReflectionLookup;
 import one.edee.oss.proxycian.DirectMethodClassification;
 
@@ -38,35 +37,33 @@ import java.util.Optional;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class GetEntityTypeMethodClassifier extends DirectMethodClassification<EntityClassifier, SealedEntityProxyState> {
-	public static final GetEntityTypeMethodClassifier INSTANCE = new GetEntityTypeMethodClassifier();
+public class GetReferencedEntityPrimaryKeyMethodClassifier extends DirectMethodClassification<Object, SealedEntityReferenceProxyState> {
+	public static final GetReferencedEntityPrimaryKeyMethodClassifier INSTANCE = new GetReferencedEntityPrimaryKeyMethodClassifier();
 
-	public GetEntityTypeMethodClassifier() {
+	public GetReferencedEntityPrimaryKeyMethodClassifier() {
 		super(
-			"getEntityType",
+			"getReferencedEntityPrimaryKey",
 			(method, proxyState) -> {
-				if (method.getParameterCount() > 0) {
+				if (!ClassUtils.isAbstractOrDefault(method) || method.getParameterCount() > 0) {
 					return null;
 				}
 				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
-				final Entity entity = reflectionLookup.getAnnotationInstance(method, Entity.class);
-				final EntityRef entityRef = reflectionLookup.getAnnotationInstance(method, EntityRef.class);
+				final ReferencedEntity referencedEntity = reflectionLookup.getAnnotationInstance(method, ReferencedEntity.class);
 				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 				final Optional<String> propertyName = ReflectionLookup.getPropertyNameFromMethodNameIfPossible(method.getName());
-				if (entity != null || entityRef != null || (
-					!reflectionLookup.hasAnnotationInSamePackage(method, Entity.class) &&
-						(returnType.isEnum() || String.class.isAssignableFrom(returnType)) &&
+				if (Number.class.isAssignableFrom(EvitaDataTypes.toWrappedForm(returnType)) && referencedEntity != null || (
+					!reflectionLookup.hasAnnotationInSamePackage(method, ReferencedEntity.class) &&
 						propertyName
-							.map(
-								pName -> "entityType".equals(pName) ||
-									"type".equals(pName)
-							)
-							.orElse(false)
-				)
+								.map(pName -> "primaryKey".equals(pName) ||
+									"entityPrimaryKey".equals(pName) ||
+									"pk".equals(pName) ||
+									"id".equals(pName))
+								.orElse(false)
+					)
 				) {
 					//noinspection unchecked
 					return (entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
-						theState.getType(), returnType
+						theState.getReference().getReferencedPrimaryKey(), returnType
 					);
 				} else {
 					return null;

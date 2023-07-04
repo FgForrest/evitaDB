@@ -21,13 +21,13 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.proxy.impl.method;
+package io.evitadb.api.proxy.impl.reference;
 
-import io.evitadb.api.proxy.impl.SealedEntityProxyState;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
-import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
-import io.evitadb.api.requestResponse.data.annotation.PrimaryKeyRef;
+import io.evitadb.api.proxy.impl.SealedEntityReferenceProxyState;
+import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
+import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.ReflectionLookup;
 import one.edee.oss.proxycian.DirectMethodClassification;
 
@@ -38,35 +38,34 @@ import java.util.Optional;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class GetPrimaryKeyMethodClassifier extends DirectMethodClassification<EntityClassifier, SealedEntityProxyState> {
-	public static final GetPrimaryKeyMethodClassifier INSTANCE = new GetPrimaryKeyMethodClassifier();
+public class GetReferencedGroupEntityPrimaryKeyMethodClassifier extends DirectMethodClassification<Object, SealedEntityReferenceProxyState> {
+	public static final GetReferencedGroupEntityPrimaryKeyMethodClassifier INSTANCE = new GetReferencedGroupEntityPrimaryKeyMethodClassifier();
 
-	public GetPrimaryKeyMethodClassifier() {
+	public GetReferencedGroupEntityPrimaryKeyMethodClassifier() {
 		super(
-			"getPrimaryKey",
+			"getReferencedEntityGroupPrimaryKey",
 			(method, proxyState) -> {
-				if (method.getParameterCount() > 0) {
+				if (!ClassUtils.isAbstractOrDefault(method) || method.getParameterCount() > 0) {
 					return null;
 				}
 				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
-				final PrimaryKey primaryKey = reflectionLookup.getAnnotationInstance(method, PrimaryKey.class);
-				final PrimaryKeyRef primaryKeyRef = reflectionLookup.getAnnotationInstance(method, PrimaryKeyRef.class);
+				final ReferencedEntityGroup referencedEntityGroup = reflectionLookup.getAnnotationInstance(method, ReferencedEntityGroup.class);
 				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 				final Optional<String> propertyName = ReflectionLookup.getPropertyNameFromMethodNameIfPossible(method.getName());
-				if (primaryKey != null || primaryKeyRef != null || (
-					!reflectionLookup.hasAnnotationInSamePackage(method, PrimaryKey.class) &&
-						Number.class.isAssignableFrom(returnType) &&
+				if (Number.class.isAssignableFrom(EvitaDataTypes.toWrappedForm(returnType)) && referencedEntityGroup != null || (
+					!reflectionLookup.hasAnnotationInSamePackage(method, ReferencedEntityGroup.class) &&
 							propertyName
-								.map(pName -> "primaryKey".equals(pName) ||
-									"entityPrimaryKey".equals(pName) ||
-									"pk".equals(pName) ||
-									"id".equals(pName))
+								.map(pName -> "groupPrimaryKey".equals(pName) ||
+									"entityGroupPrimaryKey".equals(pName) ||
+									"groupPk".equals(pName) ||
+									"groupId".equals(pName))
 								.orElse(false)
 					)
 				) {
 					//noinspection unchecked
 					return (entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
-						theState.getPrimaryKey(), returnType
+						theState.getReference().getGroup().map(GroupEntityReference::getPrimaryKey).orElse(null),
+						returnType
 					);
 				} else {
 					return null;

@@ -29,6 +29,7 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Optional;
 
@@ -48,6 +49,13 @@ public class ClassUtils {
 	 */
 	public static boolean isAbstract(@Nonnull Class<?> clazz) {
 		return Modifier.isAbstract(clazz.getModifiers());
+	}
+
+	/**
+	 * Returns true if the method is abstract or default.
+	 */
+	public static boolean isAbstractOrDefault(@Nonnull Method method) {
+		return Modifier.isAbstract(method.getModifiers()) || method.isDefault();
 	}
 
 	/**

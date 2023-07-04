@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.proxy.impl.method;
+package io.evitadb.api.proxy.impl.entity;
 
 import io.evitadb.api.proxy.SealedEntityProxy;
 import one.edee.oss.proxycian.MethodClassification;

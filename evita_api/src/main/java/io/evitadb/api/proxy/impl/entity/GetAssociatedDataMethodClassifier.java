@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.proxy.impl.method;
+package io.evitadb.api.proxy.impl.entity;
 
 import io.evitadb.api.exception.AssociatedDataNotFoundException;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.data.annotation.AssociatedData;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedDataRef;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.ReflectionLookup;
 import one.edee.oss.proxycian.DirectMethodClassification;
@@ -91,7 +92,10 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		super(
 			"getAssociatedData",
 			(method, proxyState) -> {
-				if (method.getParameterCount() > 1 || (method.getParameterCount() == 1 && !method.getParameterTypes()[0].equals(Locale.class))) {
+				if (!ClassUtils.isAbstractOrDefault(method) ||
+					method.getParameterCount() > 1 ||
+					(method.getParameterCount() == 1 && !method.getParameterTypes()[0].equals(Locale.class))
+				) {
 					return null;
 				}
 				final AssociatedDataSchemaContract associatedDataSchema = getAssociatedDataSchema(

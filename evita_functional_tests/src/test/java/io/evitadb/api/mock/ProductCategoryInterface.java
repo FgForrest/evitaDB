@@ -23,11 +23,14 @@
 
 package io.evitadb.api.mock;
 
+import io.evitadb.api.AbstractFiftyProductsFunctionalTest;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.test.generator.DataGenerator;
 
-import javax.annotation.Nullable;
+import javax.annotation.Nonnull;
+import java.util.Locale;
 
 /**
  * TODO JNO - document me
@@ -36,24 +39,27 @@ import javax.annotation.Nullable;
  */
 public interface ProductCategoryInterface {
 
-	/**
-	 * Returns a primary key of the referenced category.
-	 */
 	@ReferencedEntity
 	int getPrimaryKey();
 
-	/**
-	 * Order of the entity among other products within the same category in the listing. Used for sorting entities
-	 * in ascending order.
-	 */
 	@AttributeRef(DataGenerator.ATTRIBUTE_CATEGORY_PRIORITY)
 	Long getOrderInCategory();
 
-	/**
-	 * Contains the body of the referenced category if the category is fetched along with the product.
-	 */
+	@AttributeRef(AbstractFiftyProductsFunctionalTest.ATTRIBUTE_CATEGORY_LABEL)
+	String getLabel();
+
+	@AttributeRef(AbstractFiftyProductsFunctionalTest.ATTRIBUTE_CATEGORY_LABEL)
+	String getLabel(@Nonnull Locale locale);
+
 	@ReferencedEntity
-	@Nullable
+	@Nonnull
 	CategoryInterface getCategory();
+
+	@ReferencedEntity
+	@Nonnull
+	EntityReference getCategoryReference();
+
+	@ReferencedEntity
+	int getCategoryReferencePrimaryKey();
 
 }

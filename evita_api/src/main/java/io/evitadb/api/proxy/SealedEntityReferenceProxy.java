@@ -23,8 +23,7 @@
 
 package io.evitadb.api.proxy;
 
-import io.evitadb.api.requestResponse.data.EntityClassifier;
-import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 
 import javax.annotation.Nonnull;
 
@@ -33,9 +32,9 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface SealedEntityProxy extends EvitaProxy<EntityClassifier> {
+public interface SealedEntityReferenceProxy extends EvitaProxy<Object> {
 
 	@Nonnull
-	SealedEntity getSealedEntity();
+	ReferenceContract getReference();
 
 }

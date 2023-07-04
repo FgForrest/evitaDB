@@ -57,6 +57,7 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_PRIORITY;
  */
 public class AbstractFiftyProductsFunctionalTest {
 	protected static final String FIFTY_PRODUCTS = "FiftyProducts";
+	public static final String ATTRIBUTE_CATEGORY_LABEL = "label";
 	private static final int SEED = 40;
 	private final DataGenerator dataGenerator = new DataGenerator();
 
@@ -156,9 +157,18 @@ public class AbstractFiftyProductsFunctionalTest {
 						builder -> {
 							builder
 								.withReferenceToEntity(
+									Entities.CATEGORY,
+									Entities.CATEGORY,
+									Cardinality.ZERO_OR_MORE,
+									whichIs ->
+										whichIs.indexed()
+											.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class, thatIs -> thatIs.sortable().nullable())
+											.withAttribute(ATTRIBUTE_CATEGORY_LABEL, String.class, thatIs -> thatIs.localized())
+								)
+								.withReferenceToEntity(
 									Entities.PARAMETER, Entities.PARAMETER, Cardinality.ONE_OR_MORE,
-									thatIs -> thatIs.indexed()
-										.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class, whichIs -> whichIs.filterable())
+									whichIs -> whichIs.indexed()
+										.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class, thatIs -> thatIs.filterable())
 								)
 								.withReferenceToEntity(Entities.PRICE_LIST, Entities.PRICE_LIST, Cardinality.ZERO_OR_MORE)
 								.withReferenceToEntity(

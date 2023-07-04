@@ -84,6 +84,18 @@ public interface ProductInterface extends EntityClassifier {
 	ReferencedFileSet getReferencedFileSetAsDifferentProperty();
 
 	@ReferenceRef(Entities.CATEGORY)
+	Collection<Integer> getCategoryIds();
+
+	@ReferenceRef(Entities.CATEGORY)
+	List<Integer> getCategoryIdsAsList();
+
+	@ReferenceRef(Entities.CATEGORY)
+	Set<Integer> getCategoryIdsAsSet();
+
+	@ReferenceRef(Entities.CATEGORY)
+	int[] getCategoryIdsAsArray();
+
+	@ReferenceRef(Entities.CATEGORY)
 	Collection<EntityReference> getCategoryReferences();
 
 	@ReferenceRef(Entities.CATEGORY)

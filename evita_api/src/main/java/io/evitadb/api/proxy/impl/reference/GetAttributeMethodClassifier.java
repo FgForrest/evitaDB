@@ -21,11 +21,10 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.proxy.impl.method;
+package io.evitadb.api.proxy.impl.reference;
 
 import io.evitadb.api.exception.AttributeNotFoundException;
-import io.evitadb.api.proxy.impl.SealedEntityProxyState;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.proxy.impl.SealedEntityReferenceProxyState;
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -33,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.ReflectionLookup;
 import one.edee.oss.proxycian.DirectMethodClassification;
@@ -43,14 +43,12 @@ import java.lang.reflect.Method;
 import java.util.Locale;
 import java.util.Optional;
 
-import static java.util.Optional.ofNullable;
-
 /**
  * TODO JNO - document me
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class GetAttributeMethodClassifier extends DirectMethodClassification<EntityClassifier, SealedEntityProxyState> {
+public class GetAttributeMethodClassifier extends DirectMethodClassification<Object, SealedEntityReferenceProxyState> {
 	public static final GetAttributeMethodClassifier INSTANCE = new GetAttributeMethodClassifier();
 
 	@Nullable
@@ -62,7 +60,6 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Ent
 	) {
 		final Attribute attributeInstance = reflectionLookup.getAnnotationInstance(method, Attribute.class);
 		final AttributeRef attributeRefInstance = reflectionLookup.getAnnotationInstance(method, AttributeRef.class);
-		final Optional<AttributeSchemaContract> result;
 		if (attributeInstance != null) {
 			return getAttributeSchemaContractOrThrow(entitySchema, referenceSchema, attributeInstance.name());
 		} else if (attributeRefInstance != null) {
@@ -70,11 +67,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Ent
 		} else if (!reflectionLookup.hasAnnotationInSamePackage(method, Attribute.class)) {
 			final Optional<String> attributeName = ReflectionLookup.getPropertyNameFromMethodNameIfPossible(method.getName());
 			return attributeName
-				.flatMap(
-					attrName -> ofNullable(referenceSchema)
-						.map(it -> it.getAttributeByName(attrName, NamingConvention.CAMEL_CASE))
-						.orElseGet(() -> entitySchema.getAttributeByName(attrName, NamingConvention.CAMEL_CASE))
-				)
+				.flatMap(attrName -> referenceSchema.getAttributeByName(attrName, NamingConvention.CAMEL_CASE))
 				.orElse(null);
 		} else {
 			return null;
@@ -87,22 +80,20 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Ent
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull String attributeName
 	) {
-		final Optional<AttributeSchemaContract> result = ofNullable(referenceSchema)
-			.map(it -> it.getAttribute(attributeName))
-			.orElseGet(() -> entitySchema.getAttribute(attributeName));
-		return result
-			.orElseThrow(
-				() -> referenceSchema == null ?
-					new AttributeNotFoundException(attributeName, entitySchema) :
-					new AttributeNotFoundException(attributeName, referenceSchema, entitySchema)
-			);
+		return referenceSchema.getAttribute(attributeName).orElseThrow(
+			() -> new AttributeNotFoundException(attributeName, referenceSchema, entitySchema)
+		);
 	}
 
 	public GetAttributeMethodClassifier() {
 		super(
 			"getAttribute",
 			(method, proxyState) -> {
-				if (method.getParameterCount() > 1 || (method.getParameterCount() == 1 && !method.getParameterTypes()[0].equals(Locale.class))) {
+				if (
+					!ClassUtils.isAbstractOrDefault(method) ||
+						method.getParameterCount() > 1 ||
+						(method.getParameterCount() == 1 && !method.getParameterTypes()[0].equals(Locale.class))
+				) {
 					return null;
 				}
 				final AttributeSchemaContract attributeSchema = getAttributeSchema(
@@ -128,7 +119,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Ent
 					} else {
 						Assert.isTrue(
 							method.getParameterCount() == 0,
-							"Non-localized attribute `" + attributeSchema.getName() + "` must not have a locale parameter!"
+							"Non-localized attribute `" + attributeSchema.getName() + "` of reference `" + proxyState.getReferenceSchema().getName() + "` must not have a locale parameter!"
 						);
 						//noinspection unchecked
 						return (entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
