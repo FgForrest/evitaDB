@@ -65,6 +65,7 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.builder.MapBuilder;
 import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.utils.StringUtils;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -1264,6 +1265,55 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                primaryKey
 			                        type
 		                            price(priceList: "basic") {
+		                                __typename
+		                                currency
+		                                priceList
+		                                priceWithTax
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
+					""",
+				entities.get(0).getAttribute(ATTRIBUTE_CODE),
+				entities.get(1).getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_QUERY_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return price for products outside of filter")
+	@Disabled("TODO LHO: should not return price for products outside of filter")
+	void shouldReturnPriceForProductsOutsideOfFilter(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final var entities = findEntitiesWithPrices(originalProductEntities, 2, PRICE_LIST_BASIC, CURRENCY_CZK, CURRENCY_EUR);
+
+		final var expectedBody = createBasicPageResponse(
+			entities,
+			it -> createEntityDtoWithPrice(it, CURRENCY_USD, PRICE_LIST_BASIC)
+		);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"]
+	                            priceInCurrency: CZK
+	                            priceInPriceLists: "basic"
+	                        }
+                        ) {
+                            __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+		                            price(currency: USD, priceList: "basic") {
 		                                __typename
 		                                currency
 		                                priceList
@@ -4687,6 +4737,30 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		return findEntities(
 			originalProductEntities,
 			it -> Arrays.stream(priceLists).allMatch(pl -> it.getPrices(CURRENCY_CZK, pl).size() == 1),
+			limit
+		);
+	}
+
+	@Nonnull
+	private List<SealedEntity> findEntitiesWithPrices(@Nonnull List<SealedEntity> originalProductEntities,
+	                                                 int limit,
+													 @Nonnull Currency currency,
+	                                                 @Nonnull String... priceLists) {
+		return findEntities(
+			originalProductEntities,
+			it -> Arrays.stream(priceLists).allMatch(pl -> it.getPrices(currency, pl).size() > 1),
+			limit
+		);
+	}
+
+	@Nonnull
+	private List<SealedEntity> findEntitiesWithPrices(@Nonnull List<SealedEntity> originalProductEntities,
+	                                                  int limit,
+	                                                  @Nonnull String priceList,
+	                                                  @Nonnull Currency... currencies) {
+		return findEntities(
+			originalProductEntities,
+			it -> Arrays.stream(currencies).allMatch(c -> it.getPrices(c, priceList).size() > 1),
 			limit
 		);
 	}

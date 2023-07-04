@@ -24,8 +24,10 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.builder;
 
 import graphql.schema.GraphQLFieldDefinition.Builder;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity.PriceBigDecimalDataFetcher;
-import io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceBigDecimalFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLArgumentTransformer;
+
+import javax.annotation.Nonnull;
 
 
 /**
@@ -35,11 +37,13 @@ import io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars;
  */
 public class PriceBigDecimalFieldDecorator extends NonNullBigDecimalFieldDecorator {
 
+	public PriceBigDecimalFieldDecorator(@Nonnull PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer) {
+		super(argumentBuilderTransformer);
+	}
+
 	@Override
 	public void accept(Builder builder) {
 		super.accept(builder);
-		builder.argument(a -> a
-			.name(PriceBigDecimalDataFetcher.WITH_CURRENCY_PARAMETER)
-			.type(GraphQLScalars.BOOLEAN));
+		builder.argument(PriceBigDecimalFieldHeaderDescriptor.WITH_CURRENCY.to(argumentBuilderTransformer));
 	}
 }

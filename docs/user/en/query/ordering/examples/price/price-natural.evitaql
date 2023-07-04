@@ -2,7 +2,7 @@ query(
     collection('Product'),
     filterBy(
         priceInPriceLists('basic'),
-        priceInCurrency('CZK')
+        priceInCurrency('EUR')
     ),
     orderBy(
         priceNatural(DESC)

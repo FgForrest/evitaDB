@@ -42,6 +42,7 @@ import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Locale;
 import java.util.function.Consumer;
 
 /**
@@ -62,6 +63,7 @@ public class HierarchyOfConverter extends RequireConverter {
 
 	public void convert(@Nonnull GraphQLOutputFieldsBuilder fieldsBuilder,
 	                    @Nonnull String entityType,
+	                    @Nullable Locale locale,
 	                    @Nullable HierarchyOfSelf hierarchyOfSelf,
 	                    @Nullable HierarchyOfReference hierarchyOfReference) {
 		if (hierarchyOfSelf == null && hierarchyOfReference == null) {
@@ -85,6 +87,7 @@ public class HierarchyOfConverter extends RequireConverter {
 					argumentsBuilder,
 					hierarchyOfSelfBuilder -> buildHierarchyRequirementsFields(
 						hierarchyOfSelfBuilder,
+						locale,
 						entityType,
 						new HierarchyDataLocator(entityType),
 						hierarchyOfSelf.getRequirements()
@@ -126,6 +129,7 @@ public class HierarchyOfConverter extends RequireConverter {
 						argumentsBuilder,
 						hierarchyOfReferenceBuilder -> buildHierarchyRequirementsFields(
 							hierarchyOfReferenceBuilder,
+							locale,
 							referencedEntityType,
 							new HierarchyDataLocator(entityType, referenceName),
 							hierarchyOfReference.getRequirements()
@@ -137,20 +141,21 @@ public class HierarchyOfConverter extends RequireConverter {
 	}
 
 	private void buildHierarchyRequirementsFields(@Nonnull GraphQLOutputFieldsBuilder hierarchyOfBuilder,
+	                                              @Nullable Locale locale,
 												  @Nonnull String targetEntityType,
 												  @Nonnull HierarchyDataLocator hierarchyDataLocator,
 	                                              @Nonnull HierarchyRequireConstraint[] requirements) {
 		for (HierarchyRequireConstraint requirement : requirements) {
 			if (requirement instanceof HierarchyChildren children) {
-				buildChildrenFields(hierarchyOfBuilder, targetEntityType, hierarchyDataLocator, children);
+				buildChildrenFields(hierarchyOfBuilder, locale, targetEntityType, hierarchyDataLocator, children);
 			} else if (requirement instanceof HierarchyFromNode fromNode) {
-				buildFromNodeFields(hierarchyOfBuilder, targetEntityType, hierarchyDataLocator, fromNode);
+				buildFromNodeFields(hierarchyOfBuilder, locale, targetEntityType, hierarchyDataLocator, fromNode);
 			} else if (requirement instanceof HierarchyFromRoot fromRoot) {
-				buildFromRootFields(hierarchyOfBuilder, targetEntityType, hierarchyDataLocator, fromRoot);
+				buildFromRootFields(hierarchyOfBuilder, locale, targetEntityType, hierarchyDataLocator, fromRoot);
 			} else if (requirement instanceof HierarchyParents parents) {
-				buildParentsFields(hierarchyOfBuilder, targetEntityType, hierarchyDataLocator, parents);
+				buildParentsFields(hierarchyOfBuilder, locale, targetEntityType, hierarchyDataLocator, parents);
 			} else if (requirement instanceof HierarchySiblings siblings) {
-				buildSiblingsFields(hierarchyOfBuilder, targetEntityType, hierarchyDataLocator, siblings);
+				buildSiblingsFields(hierarchyOfBuilder, locale, targetEntityType, hierarchyDataLocator, siblings);
 			} else {
 				throw new IllegalStateException("Unsupported requirement `" + requirement.getClass().getName() + "`.");
 			}
@@ -158,6 +163,7 @@ public class HierarchyOfConverter extends RequireConverter {
 	}
 
 	private void buildChildrenFields(@Nonnull GraphQLOutputFieldsBuilder hierarchyOfBuilder,
+	                                 @Nullable Locale locale,
 									 @Nonnull String hierarchyEntityType,
 	                                 @Nonnull HierarchyDataLocator hierarchyDataLocator,
 	                                 @Nonnull HierarchyChildren children) {
@@ -178,6 +184,7 @@ public class HierarchyOfConverter extends RequireConverter {
 				catalogSchema,
 				childrenBuilder,
 				hierarchyEntityType,
+				locale,
 				children.getEntityFetch().orElse(null),
 				children.getStatistics().orElse(null)
 			)
@@ -185,6 +192,7 @@ public class HierarchyOfConverter extends RequireConverter {
 	}
 
 	private void buildFromNodeFields(@Nonnull GraphQLOutputFieldsBuilder hierarchyOfBuilder,
+	                                 @Nullable Locale locale,
 	                                 @Nonnull String hierarchyEntityType,
 	                                 @Nonnull HierarchyDataLocator hierarchyDataLocator,
 	                                 @Nonnull HierarchyFromNode fromNode) {
@@ -207,6 +215,7 @@ public class HierarchyOfConverter extends RequireConverter {
 				catalogSchema,
 				fromNodeBuilder,
 				hierarchyEntityType,
+				locale,
 				fromNode.getEntityFetch().orElse(null),
 				fromNode.getStatistics().orElse(null)
 			)
@@ -214,6 +223,7 @@ public class HierarchyOfConverter extends RequireConverter {
 	}
 
 	private void buildFromRootFields(@Nonnull GraphQLOutputFieldsBuilder hierarchyOfBuilder,
+	                                 @Nullable Locale locale,
 	                                 @Nonnull String hierarchyEntityType,
 	                                 @Nonnull HierarchyDataLocator hierarchyDataLocator,
 	                                 @Nonnull HierarchyFromRoot fromRoot) {
@@ -234,6 +244,7 @@ public class HierarchyOfConverter extends RequireConverter {
 				catalogSchema,
 				fromRootBuilder,
 				hierarchyEntityType,
+				locale,
 				fromRoot.getEntityFetch().orElse(null),
 				fromRoot.getStatistics().orElse(null)
 			)
@@ -241,6 +252,7 @@ public class HierarchyOfConverter extends RequireConverter {
 	}
 
 	private void buildParentsFields(@Nonnull GraphQLOutputFieldsBuilder hierarchyOfBuilder,
+	                                @Nullable Locale locale,
 	                                @Nonnull String hierarchyEntityType,
 	                                @Nonnull HierarchyDataLocator hierarchyDataLocator,
 	                                @Nonnull HierarchyParents parents) {
@@ -280,6 +292,7 @@ public class HierarchyOfConverter extends RequireConverter {
 				catalogSchema,
 				parentsBuilder,
 				hierarchyEntityType,
+				locale,
 				parents.getEntityFetch().orElse(null),
 				parents.getStatistics().orElse(null)
 			)
@@ -287,6 +300,7 @@ public class HierarchyOfConverter extends RequireConverter {
 	}
 
 	private void buildSiblingsFields(@Nonnull GraphQLOutputFieldsBuilder hierarchyOfBuilder,
+									 @Nullable Locale locale,
 	                                 @Nonnull String hierarchyEntityType,
 	                                 @Nonnull HierarchyDataLocator hierarchyDataLocator,
 	                                 @Nonnull HierarchySiblings siblings) {
@@ -307,6 +321,7 @@ public class HierarchyOfConverter extends RequireConverter {
 				catalogSchema,
 				siblingsBuilder,
 				hierarchyEntityType,
+				locale,
 				siblings.getEntityFetch().orElse(null),
 				siblings.getStatistics().orElse(null)
 			)
@@ -337,13 +352,14 @@ public class HierarchyOfConverter extends RequireConverter {
 	private void buildLevelInfoFields(@Nonnull CatalogSchemaContract catalogSchema,
 	                                  @Nonnull GraphQLOutputFieldsBuilder levelInfoBuilder,
 									  @Nonnull String entityType,
+                                      @Nullable Locale locale,
 	                                  @Nullable EntityFetch entityFetch,
 	                                  @Nullable HierarchyStatistics statistics) {
 		levelInfoBuilder
 			.addPrimitiveField(LevelInfoDescriptor.PARENT_PRIMARY_KEY)
 			.addPrimitiveField(LevelInfoDescriptor.LEVEL)
 			.addObjectField(LevelInfoDescriptor.ENTITY, entityBuilder ->
-				entityFetchBuilder.convert(catalogSchema, entityBuilder, entityType, entityFetch));
+				entityFetchBuilder.convert(catalogSchema, entityBuilder, entityType, locale, entityFetch));
 
 		if (statistics != null) {
 			if (statistics.getStatisticsType().contains(StatisticsType.QUERIED_ENTITY_COUNT)) {

@@ -21,28 +21,26 @@
  *   limitations under the License.
  */
 
-package io.evitadb.documentation.rest;
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity;
 
-import io.evitadb.documentation.TestContext;
-import io.evitadb.test.client.RestClient;
-import lombok.Getter;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.BigDecimalFieldHeaderDescriptor;
+
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * Context creates new {@link RestClient} instance that is connected to the demo server.
- * The {@link RestClient} instance is reused between tests to speed them up.
+ * Descriptor of header arguments of fields representing concrete prices in {@link io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class RestTestContext implements TestContext {
-	/**
-	 * Initialized client instance.
-	 */
-	@Getter
-	private final RestClient restClient;
+public interface PriceBigDecimalFieldHeaderDescriptor extends BigDecimalFieldHeaderDescriptor {
 
-	public RestTestContext() {
-		this.restClient = new RestClient("https://demo.evitadb.io:5555");
-		// for local documentation testing
-//		this.restClient = new RestClient("https://localhost:5555", false);
-	}
+	PropertyDescriptor WITH_CURRENCY = PropertyDescriptor.builder()
+		.name("withCurrency")
+		.description("""
+	        Parameter specifying if price value should be formatted and the formatted string should contain currency on output
+			based on desired entity locale.
+			""")
+		.type(nullable(Boolean.class))
+		.build();
 }

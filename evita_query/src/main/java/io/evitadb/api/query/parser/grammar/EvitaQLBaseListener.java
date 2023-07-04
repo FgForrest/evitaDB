@@ -1,3 +1,26 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2023
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
 // Generated from EvitaQL.g4 by ANTLR 4.9.2
 
 package io.evitadb.api.query.parser.grammar;
@@ -990,6 +1013,42 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterAllRefsWithAttributesReferenceContent1Constraint(EvitaQLParser.AllRefsWithAttributesReferenceContent1ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitAllRefsWithAttributesReferenceContent1Constraint(EvitaQLParser.AllRefsWithAttributesReferenceContent1ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterAllRefsWithAttributesReferenceContent2Constraint(EvitaQLParser.AllRefsWithAttributesReferenceContent2ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitAllRefsWithAttributesReferenceContent2Constraint(EvitaQLParser.AllRefsWithAttributesReferenceContent2ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterAllRefsWithAttributesReferenceContent3Constraint(EvitaQLParser.AllRefsWithAttributesReferenceContent3ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitAllRefsWithAttributesReferenceContent3Constraint(EvitaQLParser.AllRefsWithAttributesReferenceContent3ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterSingleRefReferenceContentWithAttributes1Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes1ConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -1081,6 +1140,54 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitSingleRefReferenceContentWithAttributes8Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes8ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterSingleRefReferenceContentWithAttributes9Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes9ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitSingleRefReferenceContentWithAttributes9Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes9ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterSingleRefReferenceContentWithAttributes10Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes10ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitSingleRefReferenceContentWithAttributes10Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes10ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterSingleRefReferenceContentWithAttributes11Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes11ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitSingleRefReferenceContentWithAttributes11Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes11ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterSingleRefReferenceContentWithAttributes12Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes12ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitSingleRefReferenceContentWithAttributes12Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes12ConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -2077,6 +2184,42 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitAllRefsReferenceContentArgs(EvitaQLParser.AllRefsReferenceContentArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterAllRefsWithAttributesReferenceContent1Args(EvitaQLParser.AllRefsWithAttributesReferenceContent1ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitAllRefsWithAttributesReferenceContent1Args(EvitaQLParser.AllRefsWithAttributesReferenceContent1ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterAllRefsWithAttributesReferenceContent2Args(EvitaQLParser.AllRefsWithAttributesReferenceContent2ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitAllRefsWithAttributesReferenceContent2Args(EvitaQLParser.AllRefsWithAttributesReferenceContent2ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterAllRefsWithAttributesReferenceContent3Args(EvitaQLParser.AllRefsWithAttributesReferenceContent3ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitAllRefsWithAttributesReferenceContent3Args(EvitaQLParser.AllRefsWithAttributesReferenceContent3ArgsContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *

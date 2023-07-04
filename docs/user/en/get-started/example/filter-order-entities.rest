@@ -11,7 +11,7 @@ POST /rest/test-catalog/brand/list
     "entityFetch": {
       "attributeContentAll": true,
       "associatedDataContentAll": true,
-      "referenceContentAll": true,
+      "referenceContentAllWithAttributes": {},
       "dataInLocales": []
     }
   }

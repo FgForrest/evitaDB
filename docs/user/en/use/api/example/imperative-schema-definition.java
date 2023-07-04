@@ -8,7 +8,7 @@ evita.updateCatalog(
 				EvolutionMode.ADDING_ASSOCIATED_DATA,
 				EvolutionMode.ADDING_REFERENCES
 			)
-			/* product are not organized in the tree */
+			/* products are not organized in the tree */
 			.withoutHierarchy()
 			/* prices are referencing another entity stored in Evita */
 			.withPrice()

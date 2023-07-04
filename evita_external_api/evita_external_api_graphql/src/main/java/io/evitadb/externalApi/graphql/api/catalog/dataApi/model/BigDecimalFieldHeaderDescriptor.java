@@ -21,28 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.documentation.rest;
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.model;
 
-import io.evitadb.documentation.TestContext;
-import io.evitadb.test.client.RestClient;
-import lombok.Getter;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
+
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * Context creates new {@link RestClient} instance that is connected to the demo server.
- * The {@link RestClient} instance is reused between tests to speed them up.
+ * Descriptor of header arguments of fields with {@link java.math.BigDecimal} data type.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class RestTestContext implements TestContext {
-	/**
-	 * Initialized client instance.
-	 */
-	@Getter
-	private final RestClient restClient;
+public interface BigDecimalFieldHeaderDescriptor {
 
-	public RestTestContext() {
-		this.restClient = new RestClient("https://demo.evitadb.io:5555");
-		// for local documentation testing
-//		this.restClient = new RestClient("https://localhost:5555", false);
-	}
+	PropertyDescriptor FORMATTED = PropertyDescriptor.builder()
+		.name("formatted")
+		.description("""
+            Parameter specifying if this value should be formatted on output based on desired locale of entity.
+			""")
+		.type(nullable(Boolean.class))
+		.build();
 }

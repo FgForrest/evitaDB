@@ -9,7 +9,7 @@ POST /rest/test-catalog/product/list
       "attributeContentAll": true,
       "associatedDataContentAll": true,
       "priceContentAll": true,
-      "referenceContentAll": true,
+      "referenceContentAllWithAttributes": {},
       "dataInLocales": []
     }
   }

@@ -27,6 +27,7 @@ import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.PriceConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
@@ -109,6 +110,7 @@ public class PriceContent extends AbstractRequireConstraintLeaf
 	 * Returns set of price list names that should be fetched along with entities on top of prices that are fetched
 	 * due to {@link #getFetchMode()} or empty array.
 	 */
+	@AliasForParameter("priceLists")
 	@Nonnull
 	public String[] getAdditionalPriceListsToFetch() {
 		final Serializable[] arguments = getArguments();

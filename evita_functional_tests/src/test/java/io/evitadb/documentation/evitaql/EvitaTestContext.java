@@ -58,10 +58,10 @@ public class EvitaTestContext implements TestContext {
 	public EvitaTestContext() {
 		this.evitaContract = new EvitaClient(
 			EvitaClientConfiguration.builder()
-				.host("localhost")
+				.host("demo.evitadb.io")
 				.port(5556)
 				// demo server provides Let's encrypt trusted certificate
-				.useGeneratedCertificate(true)
+				.useGeneratedCertificate(false)
 				// the client will not be mutually verified by the server side
 				.mtlsEnabled(false)
 				.build()
