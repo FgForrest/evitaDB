@@ -681,6 +681,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			requirementContext,
 			defaultRequirementContext,
 			queryContext,
+			entityCollection.getSchema(),
 			existingEntityRetriever,
 			(referenceName, entityPk) -> toFormula(
 				(richEnoughEntity instanceof EntityDecorator entityDecorator ? entityDecorator.getDelegate() : richEnoughEntity)
@@ -729,6 +730,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			requirementContext,
 			defaultRequirementContext,
 			queryContext,
+			entityCollection.getSchema(),
 			existingEntityRetriever,
 			(referenceName, entityPk) -> toFormula(
 				richEnoughEntities.stream()
@@ -828,6 +830,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull Map<String, RequirementContext> requirementContext,
 		@Nullable RequirementContext defaultRequirementContext,
 		@Nonnull QueryContext queryContext,
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ExistingEntityProvider existingEntityRetriever,
 		@Nonnull BiFunction<String, Integer, Formula> referencedEntityIdsFormula,
 		@Nonnull BiFunction<String, Integer, Formula> referencedEntityGroupIdsFormula,
@@ -836,8 +839,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		final AtomicReference<FilterByVisitor> filterByVisitor = new AtomicReference<>();
 		final Stream<Entry<String, RequirementContext>> collectedRequirements = defaultRequirementContext == null ?
 			requirementContext.entrySet().stream() :
-			queryContext.getSchema()
-				.getReferences()
+			entitySchema.getReferences()
 				.keySet()
 				.stream()
 				.map(
@@ -854,7 +856,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					it -> {
 						final String referenceName = it.getKey();
 						final RequirementContext requirements = it.getValue();
-						final ReferenceSchemaContract referenceSchema = queryContext.getSchema().getReferenceOrThrowException(referenceName);
+						final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
 
 						final Optional<OrderingDescriptor> orderingDescriptor = ofNullable(requirements.orderBy())
 							.map(OrderBy::getChild)

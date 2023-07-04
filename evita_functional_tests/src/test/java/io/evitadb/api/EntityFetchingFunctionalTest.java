@@ -105,7 +105,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @Slf4j
 public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctionalTest {
 	private static final Locale LOCALE_CZECH = CZECH_LOCALE;
-	private static final String ATTRIBUTE_CATEGORY_SHADOW = "shadow";
 	private final static BiFunction<SealedEntity, String, int[]> REFERENCED_ID_EXTRACTOR =
 		(entity, referencedType) -> entity.getReferences(referencedType)
 			.stream()

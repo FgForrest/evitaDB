@@ -79,10 +79,11 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 			.sorted()
 			.toArray(EntityReference[]::new);
 
-		assertEquals(2, references.length);
+		assertEquals(3, references.length);
 		assertArrayEquals(
 			new EntityReference[]{
 				new EntityReference(Entities.CATEGORY, 1),
+				new EntityReference(Entities.CATEGORY, 7),
 				new EntityReference(Entities.CATEGORY, 10)
 			},
 			references
@@ -95,9 +96,9 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 			.sorted()
 			.toArray(Integer[]::new);
 
-		assertEquals(2, references.length);
+		assertEquals(3, references.length);
 		assertArrayEquals(
-			new Integer[] {1, 10},
+			new Integer[] {1, 7, 10},
 			references
 		);
 	}
@@ -112,7 +113,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 			.sorted(Comparator.comparingInt(CategoryInterface::getId))
 			.toArray(CategoryInterface[]::new);
 
-		assertEquals(2, references.length);
+		assertEquals(3, references.length);
 		for (CategoryInterface reference : references) {
 			assertCategory(
 				reference,
@@ -154,7 +155,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 			.sorted(Comparator.comparingInt(ProductCategoryInterface::getPrimaryKey))
 			.toArray(ProductCategoryInterface[]::new);
 
-		assertEquals(2, references.length);
+		assertEquals(3, references.length);
 		for (ProductCategoryInterface reference : references) {
 			assertCategoryReference(
 				reference,

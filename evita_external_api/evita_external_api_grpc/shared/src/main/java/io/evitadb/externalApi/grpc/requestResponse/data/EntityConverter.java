@@ -712,8 +712,8 @@ public class EntityConverter {
 
 	private static class ClientReferenceFetcher implements ReferenceFetcher {
 		private final EntityClassifierWithParent parentEntity;
-		private final Map<Integer, SealedEntity> entityIndex;
-		private final Map<Integer, SealedEntity> groupIndex;
+		private final Map<EntityReference, SealedEntity> entityIndex;
+		private final Map<EntityReference, SealedEntity> groupIndex;
 
 		public ClientReferenceFetcher(
 			@Nullable EntityClassifierWithParent parentEntity,
@@ -725,11 +725,21 @@ public class EntityConverter {
 			this.entityIndex = grpcReference.stream()
 					.filter(GrpcReference::hasReferencedEntity)
 					.map(it -> toSealedEntity(entitySchemaFetcher, evitaRequest, it.getReferencedEntity()))
-					.collect(Collectors.toMap(SealedEntity::getPrimaryKey, Function.identity()));
+					.collect(
+						Collectors.toMap(
+							it -> new EntityReference(it.getType(), it.getPrimaryKey()),
+							Function.identity()
+						)
+					);
 			this.groupIndex = grpcReference.stream()
 				.filter(GrpcReference::hasGroupReferencedEntity)
 				.map(it -> toSealedEntity(entitySchemaFetcher, evitaRequest, it.getGroupReferencedEntity()))
-				.collect(Collectors.toMap(SealedEntity::getPrimaryKey, Function.identity()));
+				.collect(
+					Collectors.toMap(
+						it -> new EntityReference(it.getType(), it.getPrimaryKey()),
+						Function.identity()
+					)
+				);
 		}
 
 		@Nonnull
@@ -753,13 +763,13 @@ public class EntityConverter {
 		@Nullable
 		@Override
 		public Function<Integer, SealedEntity> getEntityFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
-			return entityIndex::get;
+			return primaryKey -> entityIndex.get(new EntityReference(referenceSchema.getReferencedEntityType(), primaryKey));
 		}
 
 		@Nullable
 		@Override
 		public Function<Integer, SealedEntity> getEntityGroupFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
-			return groupIndex::get;
+			return primaryKey -> groupIndex.get(new EntityReference(referenceSchema.getReferencedGroupType(), primaryKey));
 		}
 
 		@Nullable
