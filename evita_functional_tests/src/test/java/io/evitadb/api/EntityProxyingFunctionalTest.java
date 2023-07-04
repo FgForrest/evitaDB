@@ -23,12 +23,14 @@
 
 package io.evitadb.api;
 
+import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.mock.CategoryInterface;
 import io.evitadb.api.mock.ProductCategoryInterface;
 import io.evitadb.api.mock.ProductInterface;
 import io.evitadb.api.mock.TestEntity;
 import io.evitadb.api.proxy.SealedEntityReferenceProxy;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
+import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -47,7 +49,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -56,10 +60,7 @@ import java.util.stream.Stream;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies the ability to proxy an entity into an arbitrary interface.
@@ -73,7 +74,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctionalTest {
 	private static final Locale CZECH_LOCALE = new Locale("cs", "CZ");
 
-	private static void assertCategoryEntityReferences(@Nonnull Stream<EntityReference> categoryReferences) {
+	private static void assertCategoryEntityReferences(
+		@Nonnull Stream<EntityReference> categoryReferences,
+		@Nonnull int[] expectedCategoryIds
+	) {
 		assertNotNull(categoryReferences);
 		final EntityReference[] references = categoryReferences
 			.sorted()
@@ -81,16 +85,17 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 		assertEquals(3, references.length);
 		assertArrayEquals(
-			new EntityReference[]{
-				new EntityReference(Entities.CATEGORY, 1),
-				new EntityReference(Entities.CATEGORY, 7),
-				new EntityReference(Entities.CATEGORY, 10)
-			},
+			Arrays.stream(expectedCategoryIds)
+				.mapToObj(it -> new EntityReference(Entities.CATEGORY, it))
+				.toArray(EntityReference[]::new),
 			references
 		);
 	}
 
-	private static void assertCategoryIds(@Nonnull Stream<Integer> categoryIds) {
+	private static void assertCategoryIds(
+		@Nonnull Stream<Integer> categoryIds,
+		@Nonnull int[] expectedCategoryIds
+	) {
 		assertNotNull(categoryIds);
 		final Integer[] references = categoryIds
 			.sorted()
@@ -98,7 +103,9 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 		assertEquals(3, references.length);
 		assertArrayEquals(
-			new Integer[] {1, 7, 10},
+			Arrays.stream(expectedCategoryIds)
+				.boxed()
+				.toArray(Integer[]::new),
 			references
 		);
 	}
@@ -106,6 +113,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 	private static void assertCategories(
 		@Nonnull Stream<CategoryInterface> categoryReferences,
 		@Nonnull Map<Integer, SealedEntity> originalCategories,
+		@Nonnull int[] expectedCategoryIds,
 		@Nullable Locale locale
 	) {
 		assertNotNull(categoryReferences);
@@ -113,7 +121,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 			.sorted(Comparator.comparingInt(CategoryInterface::getId))
 			.toArray(CategoryInterface[]::new);
 
-		assertEquals(3, references.length);
+		assertEquals(expectedCategoryIds.length, references.length);
 		for (CategoryInterface reference : references) {
 			assertCategory(
 				reference,
@@ -148,6 +156,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 	private static void assertCategoryReferences(
 		@Nonnull Stream<ProductCategoryInterface> categoryReferences,
 		@Nonnull Map<Integer, SealedEntity> originalCategories,
+		@Nonnull int[] expectedCategoryIds,
 		@Nullable Locale locale
 	) {
 		assertNotNull(categoryReferences);
@@ -155,7 +164,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 			.sorted(Comparator.comparingInt(ProductCategoryInterface::getPrimaryKey))
 			.toArray(ProductCategoryInterface[]::new);
 
-		assertEquals(3, references.length);
+		assertEquals(expectedCategoryIds.length, references.length);
 		for (ProductCategoryInterface reference : references) {
 			assertCategoryReference(
 				reference,
@@ -193,6 +202,31 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	}
 
+	private static void assertCategoryParent(
+		@Nonnull Map<Integer, SealedEntity> originalCategories,
+		@Nonnull CategoryInterface category,
+		@Nullable Locale locale
+	) {
+		final SealedEntity originalCategory = originalCategories.get(category.getId());
+		if (originalCategory.getParent().isEmpty()) {
+			assertNull(category.getParentId());
+			assertNull(category.getParentEntityReference());
+			assertNull(category.getParentEntity());
+		} else {
+			final int expectedParentId = originalCategory.getParent().getAsInt();
+			assertEquals(
+				expectedParentId,
+				category.getParentId()
+			);
+			assertEquals(
+				new EntityReference(Entities.CATEGORY, expectedParentId),
+				category.getParentEntityReference()
+			);
+			assertCategory(category.getParentEntity(), originalCategories.get(expectedParentId), locale);
+			assertCategoryParent(originalCategories, category.getParentEntity(), locale);
+		}
+	}
+
 	@DisplayName("Should downgrade from SealedEntity to EntityReference")
 	@Test
 	@UseDataSet(FIFTY_PRODUCTS)
@@ -208,18 +242,35 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 	@DisplayName("Should wrap an interface and load data in single localization")
 	@Test
 	@UseDataSet(FIFTY_PRODUCTS)
-	void shouldProxyToInterfaceWithCzechLocalization(EvitaSessionContract evitaSession, Map<Integer, SealedEntity> originalCategories) {
+	void shouldProxyToInterfaceWithCzechLocalization(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts,
+		Map<Integer, SealedEntity> originalCategories
+	) {
+		final SealedEntity theProduct = originalProducts
+			.stream()
+			.filter(it -> it.getReferences(Entities.CATEGORY).size() > 2)
+			.filter(it -> it.getAllPricesForSale().size() > 1)
+			.findFirst()
+			.orElseThrow();
+
 		final Optional<ProductInterface> productRef = evitaSession.queryOne(
 			query(
 				collection(Entities.PRODUCT),
 				filterBy(
-					entityPrimaryKeyInSet(1),
+					entityPrimaryKeyInSet(theProduct.getPrimaryKey()),
 					entityLocaleEquals(CZECH_LOCALE)
 				),
 				require(
 					entityFetch(
-						attributeContent(), associatedDataContent(), priceContentAll(), referenceContentAllWithAttributes(
+						attributeContent(),
+						associatedDataContent(),
+						priceContentAll(),
+						referenceContentAllWithAttributes(
 							entityFetch(
+								hierarchyContent(
+									entityFetchAll()
+								),
 								attributeContent(),
 								associatedDataContent()
 							),
@@ -233,50 +284,88 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 			),
 			ProductInterface.class
 		);
+
 		assertTrue(productRef.isPresent());
 		final ProductInterface product = productRef.get();
-		assertEquals(1, product.getPrimaryKey());
-		assertEquals(1, product.getId());
+		assertEquals(theProduct.getPrimaryKey(), product.getPrimaryKey());
+		assertEquals(theProduct.getPrimaryKey(), product.getId());
 		assertEquals(Entities.PRODUCT, product.getType());
 		assertEquals(TestEntity.PRODUCT, product.getEntityType());
-		assertEquals("Ergonomic-Plastic-Table-1", product.getCode());
-		assertEquals("Incredible Linen Clock", product.getName());
-		assertEquals(new BigDecimal("310.37"), product.getQuantity());
-		assertEquals(new BigDecimal("310.37"), product.getQuantityAsDifferentProperty());
-		assertTrue(product.isAlias());
+		assertEquals(theProduct.getAttribute(DataGenerator.ATTRIBUTE_CODE), product.getCode());
+		assertEquals(theProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, CZECH_LOCALE), product.getName());
+		assertEquals(theProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantity());
+		assertEquals(theProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantityAsDifferentProperty());
+		assertEquals(theProduct.getAttribute(DataGenerator.ATTRIBUTE_ALIAS), product.isAlias());
 		assertEquals(new ReferencedFileSet(null), product.getReferencedFileSet());
 		assertEquals(new ReferencedFileSet(null), product.getReferencedFileSetAsDifferentProperty());
 
-		assertCategoryIds(product.getCategoryIds().stream());
-		assertCategoryIds(product.getCategoryIdsAsList().stream());
-		assertCategoryIds(product.getCategoryIdsAsSet().stream());
-		assertCategoryIds(Arrays.stream(product.getCategoryIdsAsArray()).boxed());
+		assertCategoryParents(product.getCategories(), originalCategories, CZECH_LOCALE);
 
-		assertCategoryEntityReferences(product.getCategoryReferences().stream());
-		assertCategoryEntityReferences(product.getCategoryReferencesAsList().stream());
-		assertCategoryEntityReferences(product.getCategoryReferencesAsSet().stream());
-		assertCategoryEntityReferences(Arrays.stream(product.getCategoryReferencesAsArray()));
+		final int[] expectedCategoryIds = theProduct.getReferences(Entities.CATEGORY)
+			.stream()
+			.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+			.toArray();
 
-		assertCategories(product.getCategories().stream(), originalCategories, CZECH_LOCALE);
-		assertCategories(product.getCategoriesAsList().stream(), originalCategories, CZECH_LOCALE);
-		assertCategories(product.getCategoriesAsSet().stream(), originalCategories, CZECH_LOCALE);
-		assertCategories(Arrays.stream(product.getCategoriesAsArray()), originalCategories, CZECH_LOCALE);
+		assertCategoryIds(product.getCategoryIds().stream(), expectedCategoryIds);
+		assertCategoryIds(product.getCategoryIdsAsList().stream(), expectedCategoryIds);
+		assertCategoryIds(product.getCategoryIdsAsSet().stream(), expectedCategoryIds);
+		assertCategoryIds(Arrays.stream(product.getCategoryIdsAsArray()).boxed(), expectedCategoryIds);
 
-		assertCategoryReferences(product.getProductCategories().stream(), originalCategories, CZECH_LOCALE);
-		assertCategoryReferences(product.getProductCategoriesAsList().stream(), originalCategories, CZECH_LOCALE);
-		assertCategoryReferences(product.getProductCategoriesAsSet().stream(), originalCategories, CZECH_LOCALE);
-		assertCategoryReferences(Arrays.stream(product.getProductCategoriesAsArray()), originalCategories, CZECH_LOCALE);
+		assertCategoryEntityReferences(product.getCategoryReferences().stream(), expectedCategoryIds);
+		assertCategoryEntityReferences(product.getCategoryReferencesAsList().stream(), expectedCategoryIds);
+		assertCategoryEntityReferences(product.getCategoryReferencesAsSet().stream(), expectedCategoryIds);
+		assertCategoryEntityReferences(Arrays.stream(product.getCategoryReferencesAsArray()), expectedCategoryIds);
+
+		assertCategories(product.getCategories().stream(), originalCategories, expectedCategoryIds, CZECH_LOCALE);
+		assertCategories(product.getCategoriesAsList().stream(), originalCategories, expectedCategoryIds, CZECH_LOCALE);
+		assertCategories(product.getCategoriesAsSet().stream(), originalCategories, expectedCategoryIds, CZECH_LOCALE);
+		assertCategories(Arrays.stream(product.getCategoriesAsArray()), originalCategories, expectedCategoryIds, CZECH_LOCALE);
+
+		assertCategoryReferences(product.getProductCategories().stream(), originalCategories, expectedCategoryIds, CZECH_LOCALE);
+		assertCategoryReferences(product.getProductCategoriesAsList().stream(), originalCategories, expectedCategoryIds, CZECH_LOCALE);
+		assertCategoryReferences(product.getProductCategoriesAsSet().stream(), originalCategories, expectedCategoryIds, CZECH_LOCALE);
+		assertCategoryReferences(Arrays.stream(product.getProductCategoriesAsArray()), originalCategories, expectedCategoryIds, CZECH_LOCALE);
+
+		assertThrows(ContextMissingException.class, product::getPriceForSale);
+
+		final PriceContract[] allPricesForSale = product.getAllPricesForSale();
+		assertEquals(theProduct.getAllPricesForSale().size(), allPricesForSale.length);
+		assertArrayEquals(theProduct.getAllPricesForSale().toArray(PriceContract[]::new), allPricesForSale);
+
+		final PriceContract[] allPrices = product.getAllPricesAsArray();
+		assertEquals(theProduct.getPrices().size(), allPrices.length);
+		assertArrayEquals(theProduct.getPrices().toArray(PriceContract[]::new), allPrices);
 	}
 
 	@DisplayName("Should wrap an interface and load all data")
 	@Test
 	@UseDataSet(FIFTY_PRODUCTS)
-	void shouldProxyToInterface(EvitaSessionContract evitaSession, Map<Integer, SealedEntity> originalCategories) {
+	void shouldProxyToInterface(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts,
+		Map<Integer, SealedEntity> originalCategories
+	) {
+		final SealedEntity theProduct = originalProducts
+			.stream()
+			.filter(it -> it.getReferences(Entities.CATEGORY).size() > 2)
+			.filter(it -> it.getAllPricesForSale().size() > 3)
+			.findFirst()
+			.orElseThrow();
+
 		final Optional<ProductInterface> productRef = evitaSession.getEntity(
 			Entities.PRODUCT, ProductInterface.class, 1,
-			attributeContent(), associatedDataContent(), priceContentAll(),
+			attributeContent(),
+			associatedDataContent(),
+			priceContentAll(),
 			referenceContentAllWithAttributes(
-				entityFetchAll(), entityGroupFetchAll()
+				entityFetch(
+					hierarchyContent(
+						entityFetchAll()
+					),
+					attributeContent(),
+					associatedDataContent()
+				),
+				entityGroupFetchAll()
 			),
 			dataInLocales()
 		);
@@ -295,25 +384,42 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 		assertEquals(new ReferencedFileSet(null), product.getReferencedFileSet());
 		assertEquals(new ReferencedFileSet(null), product.getReferencedFileSetAsDifferentProperty());
 
-		assertCategoryIds(product.getCategoryIds().stream());
-		assertCategoryIds(product.getCategoryIdsAsList().stream());
-		assertCategoryIds(product.getCategoryIdsAsSet().stream());
-		assertCategoryIds(Arrays.stream(product.getCategoryIdsAsArray()).boxed());
+		assertCategoryParents(product.getCategories(), originalCategories, null);
 
-		assertCategoryEntityReferences(product.getCategoryReferences().stream());
-		assertCategoryEntityReferences(product.getCategoryReferencesAsList().stream());
-		assertCategoryEntityReferences(product.getCategoryReferencesAsSet().stream());
-		assertCategoryEntityReferences(Arrays.stream(product.getCategoryReferencesAsArray()));
+		final int[] expectedCategoryIds = theProduct.getReferences(Entities.CATEGORY)
+			.stream()
+			.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+			.toArray();
 
-		assertCategories(product.getCategories().stream(), originalCategories, null);
-		assertCategories(product.getCategoriesAsList().stream(), originalCategories, null);
-		assertCategories(product.getCategoriesAsSet().stream(), originalCategories, null);
-		assertCategories(Arrays.stream(product.getCategoriesAsArray()), originalCategories, null);
+		assertCategoryIds(product.getCategoryIds().stream(), expectedCategoryIds);
+		assertCategoryIds(product.getCategoryIdsAsList().stream(), expectedCategoryIds);
+		assertCategoryIds(product.getCategoryIdsAsSet().stream(), expectedCategoryIds);
+		assertCategoryIds(Arrays.stream(product.getCategoryIdsAsArray()).boxed(), expectedCategoryIds);
 
-		assertCategoryReferences(product.getProductCategories().stream(), originalCategories, null);
-		assertCategoryReferences(product.getProductCategoriesAsList().stream(), originalCategories, null);
-		assertCategoryReferences(product.getProductCategoriesAsSet().stream(), originalCategories, null);
-		assertCategoryReferences(Arrays.stream(product.getProductCategoriesAsArray()), originalCategories, null);
+		assertCategoryEntityReferences(product.getCategoryReferences().stream(), expectedCategoryIds);
+		assertCategoryEntityReferences(product.getCategoryReferencesAsList().stream(), expectedCategoryIds);
+		assertCategoryEntityReferences(product.getCategoryReferencesAsSet().stream(), expectedCategoryIds);
+		assertCategoryEntityReferences(Arrays.stream(product.getCategoryReferencesAsArray()), expectedCategoryIds);
+
+		assertCategories(product.getCategories().stream(), originalCategories, expectedCategoryIds, null);
+		assertCategories(product.getCategoriesAsList().stream(), originalCategories, expectedCategoryIds, null);
+		assertCategories(product.getCategoriesAsSet().stream(), originalCategories, expectedCategoryIds, null);
+		assertCategories(Arrays.stream(product.getCategoriesAsArray()), originalCategories, expectedCategoryIds, null);
+
+		assertCategoryReferences(product.getProductCategories().stream(), originalCategories, expectedCategoryIds, null);
+		assertCategoryReferences(product.getProductCategoriesAsList().stream(), originalCategories, expectedCategoryIds, null);
+		assertCategoryReferences(product.getProductCategoriesAsSet().stream(), originalCategories, expectedCategoryIds, null);
+		assertCategoryReferences(Arrays.stream(product.getProductCategoriesAsArray()), originalCategories, expectedCategoryIds, null);
+	}
+
+	private void assertCategoryParents(
+		@Nonnull Collection<CategoryInterface> categories,
+		@Nonnull Map<Integer, SealedEntity> originalCategories,
+		@Nullable Locale locale
+	) {
+		for (CategoryInterface category : categories) {
+			assertCategoryParent(originalCategories, category, locale);
+		}
 	}
 
 }

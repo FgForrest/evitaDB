@@ -27,12 +27,15 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
+import io.evitadb.api.requestResponse.data.annotation.ParentEntity;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKeyRef;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.test.Entities;
 import io.evitadb.test.generator.DataGenerator;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Locale;
 
 /**
@@ -48,6 +51,18 @@ public interface CategoryInterface extends EntityClassifier {
 
 	@Nonnull
 	TestEntity getEntityType();
+
+	@ParentEntity
+	@Nullable
+	Integer getParentId();
+
+	@ParentEntity
+	@Nullable
+	CategoryInterface getParentEntity();
+
+	@ParentEntity
+	@Nullable
+	EntityReference getParentEntityReference();
 
 	@Attribute(name = DataGenerator.ATTRIBUTE_CODE)
 	@Nonnull

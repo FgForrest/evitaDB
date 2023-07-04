@@ -33,9 +33,8 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Annotation is used to mark a field, getter method or record component as a target for
- * parent entity primary key value. Using this annotation in the class also triggers
- * {@link EntitySchemaContract#isWithHierarchy()} to true.
+ * Annotation is used to mark a field, getter method or record component as a target for parent entity primary key
+ * value. Using this annotation in the class also triggers {@link EntitySchemaContract#isWithHierarchy()} to true.
  *
  * If the field, method or record component is an int type, the primary key will be injected to that place. If it
  * represents a type marked with {@link Entity} annotation it will inject the body of particular entity in case

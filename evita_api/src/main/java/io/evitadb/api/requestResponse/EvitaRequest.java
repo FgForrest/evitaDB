@@ -41,7 +41,6 @@ import io.evitadb.api.query.filter.PriceValidIn;
 import io.evitadb.api.query.head.Collection;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.*;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
@@ -75,7 +74,7 @@ import static java.util.Optional.ofNullable;
  * @see EvitaResponse examples in super class
  */
 public class EvitaRequest {
-	public static final TriFunction<Class<? extends EntityClassifier>, SealedEntity, EvitaRequestContext, EntityClassifier> CONVERSION_NOT_SUPPORTED = (aClass, sealedEntity, request) -> {
+	public static final TriFunction<Class<?>, SealedEntity, EvitaRequestContext, ?> CONVERSION_NOT_SUPPORTED = (aClass, sealedEntity, request) -> {
 		throw new UnsupportedOperationException();
 	};
 	private static final int[] EMPTY_INTS = new int[0];
@@ -83,8 +82,8 @@ public class EvitaRequest {
 	@Getter private final OffsetDateTime alignedNow;
 	private final String entityType;
 	private final Locale implicitLocale;
-	private final Class<? extends EntityClassifier> expectedType;
-	private final TriFunction<Class<? extends EntityClassifier>, SealedEntity, EvitaRequestContext, ? extends EntityClassifier> converter;
+	private final Class<?> expectedType;
+	private final TriFunction<Class<?>, SealedEntity, EvitaRequestContext, ?> converter;
 	private int[] primaryKeys;
 	private boolean localeExamined;
 	private Locale locale;
@@ -146,8 +145,8 @@ public class EvitaRequest {
 	public EvitaRequest(
 		@Nonnull Query query,
 		@Nonnull OffsetDateTime alignedNow,
-		@Nonnull Class<? extends EntityClassifier> expectedType,
-		@Nonnull TriFunction<Class<? extends EntityClassifier>, SealedEntity, EvitaRequestContext, ? extends EntityClassifier> converter
+		@Nonnull Class<?> expectedType,
+		@Nonnull TriFunction<Class<?>, SealedEntity, EvitaRequestContext, ?> converter
 	) {
 		final Collection header = query.getCollection();
 		this.entityType = ofNullable(header).map(Collection::getEntityType).orElse(null);

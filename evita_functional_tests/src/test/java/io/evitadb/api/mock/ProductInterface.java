@@ -24,10 +24,14 @@
 package io.evitadb.api.mock;
 
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedData;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedDataRef;
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
+import io.evitadb.api.requestResponse.data.annotation.Price;
+import io.evitadb.api.requestResponse.data.annotation.PriceForSale;
+import io.evitadb.api.requestResponse.data.annotation.PriceForSaleRef;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKeyRef;
 import io.evitadb.api.requestResponse.data.annotation.ReferenceRef;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -37,7 +41,9 @@ import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.Collection;
+import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -130,5 +136,41 @@ public interface ProductInterface extends EntityClassifier {
 
 	@ReferenceRef(Entities.CATEGORY)
 	CategoryInterface[] getCategoriesAsArray();
+
+	@PriceForSale
+	PriceContract getPriceForSale();
+
+	@PriceForSale
+	PriceContract getPriceForSale(@Nonnull String priceList, @Nonnull Currency currency);
+
+	@PriceForSale
+	PriceContract getPriceForSale(@Nonnull String priceList, @Nonnull Currency currency, @Nonnull OffsetDateTime validNow);
+
+	@PriceForSaleRef
+	PriceContract[] getAllPricesForSale();
+
+	@PriceForSaleRef
+	PriceContract[] getAllPricesForSale(@Nonnull String priceList);
+
+	@PriceForSaleRef
+	PriceContract[] getAllPricesForSale(@Nonnull Currency currency);
+
+	@PriceForSaleRef
+	PriceContract[] getAllPricesForSale(@Nonnull String priceList, @Nonnull Currency currency);
+
+	@Price(priceList = "basic")
+	PriceContract getBasicPrice();
+
+	@Price
+	Collection<PriceContract> getAllPrices();
+
+	@Price
+	List<PriceContract> getAllPricesAsList();
+
+	@Price
+	Set<PriceContract> getAllPricesAsSet();
+
+	@Price
+	PriceContract[] getAllPricesAsArray();
 
 }

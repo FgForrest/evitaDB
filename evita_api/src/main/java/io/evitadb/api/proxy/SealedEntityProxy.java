@@ -23,18 +23,22 @@
 
 package io.evitadb.api.proxy;
 
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 
 import javax.annotation.Nonnull;
 
 /**
- * TODO JNO - document me
+ * This interface is implemented by all proxy types that wrap a sealed entity and provide access to an instance of
+ * the {@link SealedEntity} trapped in the proxy state object.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface SealedEntityProxy extends EvitaProxy<EntityClassifier> {
+public interface SealedEntityProxy extends EvitaProxy {
 
+	/**
+	 * Returns the underlying sealed entity that is wrapped into a requested proxy type.
+	 * @return the underlying sealed entity
+	 */
 	@Nonnull
 	SealedEntity getSealedEntity();
 

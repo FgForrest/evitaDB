@@ -30,9 +30,9 @@ import java.util.Locale;
 /**
  * TODO JNO - document me
  *
+ * @param locale identification of the request locale
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public record EvitaRequestContext(
 	@Nullable Locale locale
-) implements Serializable {
-}
+) implements Serializable {}

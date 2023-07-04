@@ -26,13 +26,19 @@ package io.evitadb.api.proxy;
 import javax.annotation.Nonnull;
 
 /**
- * TODO JNO - document me
+ * Abstract superinterface for all EvitaDB proxies.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface EvitaProxy<T> {
+interface EvitaProxy {
 
+	/**
+	 * Returns the original proxy class what used for creating the proxy. The proxy class is usually a subclass of
+	 * this class or implementation of this interface.
+	 *
+	 * @return the proxy class
+	 */
 	@Nonnull
-	Class<? extends T> getProxyClass();
+	Class<?> getProxyClass();
 
 }

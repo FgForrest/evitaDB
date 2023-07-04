@@ -29,12 +29,12 @@ import io.evitadb.api.exception.SchemaClassInvalidException;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedData;
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
-import io.evitadb.api.requestResponse.data.annotation.Parent;
+import io.evitadb.api.requestResponse.data.annotation.ParentEntity;
+import io.evitadb.api.requestResponse.data.annotation.PriceForSale;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
 import io.evitadb.api.requestResponse.data.annotation.Reference;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
-import io.evitadb.api.requestResponse.data.annotation.SellingPrice;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
@@ -92,7 +92,7 @@ import static java.util.Optional.ofNullable;
  * @see AssociatedData
  * @see Parent
  * @see Reference
- * @see SellingPrice
+ * @see PriceForSale
  */
 @NotThreadSafe
 public class ClassSchemaAnalyzer {
@@ -129,7 +129,7 @@ public class ClassSchemaAnalyzer {
 	 */
 	private boolean hierarchyDefined = false;
 	/**
-	 * Temporary flag - true when annotation SellingPrice is used in the entity class.
+	 * Temporary flag - true when annotation PriceForSale is used in the entity class.
 	 */
 	private boolean sellingPriceDefined = false;
 
@@ -512,10 +512,10 @@ public class ClassSchemaAnalyzer {
 					referenceType
 				);
 			}
-			ofNullable(reflectionLookup.getAnnotationInstance(getter, Parent.class))
+			ofNullable(reflectionLookup.getAnnotationInstance(getter, ParentEntity.class))
 				.ifPresent(it -> defineHierarchy(entityBuilder));
 
-			ofNullable(reflectionLookup.getAnnotationInstance(getter, SellingPrice.class))
+			ofNullable(reflectionLookup.getAnnotationInstance(getter, PriceForSale.class))
 				.ifPresent(it -> definePrice(entityBuilder, it));
 		}
 	}
@@ -564,10 +564,10 @@ public class ClassSchemaAnalyzer {
 				);
 			}
 
-			ofNullable(recordComponent.getAnnotation(Parent.class))
+			ofNullable(recordComponent.getAnnotation(ParentEntity.class))
 				.ifPresent(it -> defineHierarchy(entityBuilder));
 
-			ofNullable(recordComponent.getAnnotation(SellingPrice.class))
+			ofNullable(recordComponent.getAnnotation(PriceForSale.class))
 				.ifPresent(it -> definePrice(entityBuilder, it));
 		}
 	}
@@ -620,10 +620,10 @@ public class ClassSchemaAnalyzer {
 						referenceType
 					);
 				}
-				if (annotation instanceof Parent) {
+				if (annotation instanceof ParentEntity) {
 					defineHierarchy(entityBuilder);
 				}
-				if (annotation instanceof SellingPrice sellingPriceAnnotation) {
+				if (annotation instanceof PriceForSale sellingPriceAnnotation) {
 					definePrice(entityBuilder, sellingPriceAnnotation);
 				}
 			}
@@ -664,12 +664,12 @@ public class ClassSchemaAnalyzer {
 	}
 
 	/**
-	 * Method defines that entity contains price definitions according to {@link SellingPrice} annotation.
+	 * Method defines that entity contains price definitions according to {@link PriceForSale} annotation.
 	 */
-	private void definePrice(@Nonnull EntitySchemaBuilder entityBuilder, @Nonnull SellingPrice sellingPriceAnnotation) {
+	private void definePrice(@Nonnull EntitySchemaBuilder entityBuilder, @Nonnull PriceForSale sellingPriceAnnotation) {
 		Assert.isTrue(
 			!sellingPriceDefined,
-			"Class `" + modelClass + "` contains multiple methods marked with `@SellingPrice` annotation," +
+			"Class `" + modelClass + "` contains multiple methods marked with `@PriceForSale` annotation," +
 				" which is not allowed!"
 		);
 		entityBuilder.withPriceInCurrency(

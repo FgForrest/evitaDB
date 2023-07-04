@@ -29,24 +29,16 @@ import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 import lombok.experimental.Delegate;
 import one.edee.oss.proxycian.recipe.ProxyRecipe;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.IOException;
-import java.io.ObjectInputStream;
 import java.io.Serial;
-import java.io.Serializable;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
-import static io.evitadb.api.proxy.impl.ProxycianFactory.DEFAULT_ENTITY_RECIPE;
 
 /**
  * TODO JNO - document me
@@ -54,17 +46,12 @@ import static io.evitadb.api.proxy.impl.ProxycianFactory.DEFAULT_ENTITY_RECIPE;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@EqualsAndHashCode(of = {"context", "sealedEntity", "reference", "proxyClass"})
-public class SealedEntityReferenceProxyState implements EntityClassifier, SealedEntityReferenceProxy, Serializable, AttributesContract {
+@EqualsAndHashCode(of = {"reference"}, callSuper = true)
+public class SealedEntityReferenceProxyState
+	extends AbstractEntityProxyState
+	implements EntityClassifier, SealedEntityReferenceProxy, AttributesContract {
 	@Serial private static final long serialVersionUID = 586508293856395550L;
-	@Delegate(types = {AttributesContract.class})
-	@Getter @Nonnull private final SealedEntity sealedEntity;
-	@Getter @Nonnull private final ReferenceContract reference;
-	@Getter @Nonnull private final EvitaRequestContext context;
-	@Getter @Nonnull private final Class<?> proxyClass;
-	@Nonnull private final Map<ProxyRecipeCacheKey, ProxyRecipe> recipes;
-	@Nonnull private transient Map<ProxyRecipeCacheKey, ProxyRecipe> collectedRecipes;
-	@Nonnull private transient ReflectionLookup reflectionLookup;
+	@Nonnull private final ReferenceContract reference;
 
 	public SealedEntityReferenceProxyState(
 		@Nonnull EvitaRequestContext context,
@@ -75,23 +62,15 @@ public class SealedEntityReferenceProxyState implements EntityClassifier, Sealed
 		@Nonnull Map<ProxyRecipeCacheKey, ProxyRecipe> collectedRecipes,
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
-		this.context = context;
-		this.sealedEntity = sealedEntity;
+		super(sealedEntity, context, proxyClass, recipes, collectedRecipes, reflectionLookup);
 		this.reference = reference;
-		this.proxyClass = proxyClass;
-		this.recipes = recipes;
-		this.collectedRecipes = collectedRecipes;
-		this.reflectionLookup = reflectionLookup;
 	}
 
+	@Delegate(types = {AttributesContract.class})
+	@Override
 	@Nonnull
-	public ReflectionLookup getReflectionLookup() {
-		return reflectionLookup;
-	}
-
-	@Nonnull
-	public EntitySchemaContract getEntitySchema() {
-		return sealedEntity.getSchema();
+	public ReferenceContract getReference() {
+		return reference;
 	}
 
 	@Nullable
@@ -116,17 +95,4 @@ public class SealedEntityReferenceProxyState implements EntityClassifier, Sealed
 		return reference.toString();
 	}
 
-	public <T extends EntityClassifier> T wrapTo(@Nonnull Class<T> entityContract, @Nonnull SealedEntity sealedEntity) {
-		return ProxycianFactory.createProxy(
-			entityContract, recipes, collectedRecipes, sealedEntity, context, getReflectionLookup(),
-			cacheKey -> collectedRecipes.computeIfAbsent(cacheKey, DEFAULT_ENTITY_RECIPE)
-		);
-	}
-
-	@Serial
-	private void readObject(@Nonnull ObjectInputStream ois) throws ClassNotFoundException, IOException {
-		ois.defaultReadObject();
-		this.reflectionLookup = ReflectionLookup.NO_CACHE_INSTANCE;
-		this.collectedRecipes = new ConcurrentHashMap<>(recipes);
-	}
 }

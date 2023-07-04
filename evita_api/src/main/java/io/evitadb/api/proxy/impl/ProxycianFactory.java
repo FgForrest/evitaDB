@@ -90,7 +90,7 @@ public class ProxycianFactory implements ProxyFactory {
 	private final Map<ProxyRecipeCacheKey, ProxyRecipe> collectedRecipes = new ConcurrentHashMap<>(64);
 	private final ReflectionLookup reflectionLookup;
 
-	static <T extends EntityClassifier> T createProxy(
+	static <T> T createProxy(
 		@Nonnull Class<T> expectedType,
 		@Nonnull Map<ProxyRecipeCacheKey, ProxyRecipe> recipes,
 		@Nonnull Map<ProxyRecipeCacheKey, ProxyRecipe> collectedRecipes,
@@ -349,8 +349,9 @@ public class ProxycianFactory implements ProxyFactory {
 		collectedRecipes.put(key, theRecipe);
 	}
 
+	@Nonnull
 	@Override
-	public <T extends EntityClassifier> T createProxy(
+	public <T> T createProxy(
 		@Nonnull Class<T> expectedType,
 		@Nonnull SealedEntity sealedEntity,
 		@Nonnull EvitaRequestContext context

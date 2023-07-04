@@ -70,7 +70,7 @@ public class PriceDataFetcher implements DataFetcher<DataFetcherResult<PriceCont
                 .orElse(entity.getAlignedNow());
 
             pickedPrice = possiblePrices.stream()
-                .filter(p -> p.getValidity() == null || p.isValid(priceValidIn))
+                .filter(p -> p.getValidity() == null || p.isValidAt(priceValidIn))
                 .findFirst()
                 .orElse(null);
         }

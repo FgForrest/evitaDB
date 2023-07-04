@@ -28,12 +28,17 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import javax.annotation.Nonnull;
 
 /**
- * TODO JNO - document me
+ * This interface is implemented by all proxy types that wrap a sealed entity reference and provide access to
+ * an instance of the {@link ReferenceContract} trapped in the proxy state object.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface SealedEntityReferenceProxy extends EvitaProxy<Object> {
+public interface SealedEntityReferenceProxy extends EvitaProxy {
 
+	/**
+	 * Returns the underlying sealed entity reference that is wrapped into a requested proxy type.
+	 * @return the underlying sealed entity reference
+	 */
 	@Nonnull
 	ReferenceContract getReference();
 

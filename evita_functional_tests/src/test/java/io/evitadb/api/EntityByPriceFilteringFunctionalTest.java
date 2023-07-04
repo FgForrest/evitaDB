@@ -1417,7 +1417,7 @@ public class EntityByPriceFilteringFunctionalTest {
 	 * Returns true if there is any indexed price for passed currency and price list.
 	 */
 	protected static boolean hasAnySellablePrice(@Nonnull SealedEntity entity, @Nonnull Currency currency, @Nonnull String priceList, @Nonnull OffsetDateTime atTheMoment) {
-		return entity.getPrices(currency, priceList).stream().filter(PriceContract::isSellable).anyMatch(it -> it.isValid(atTheMoment));
+		return entity.getPrices(currency, priceList).stream().filter(PriceContract::isSellable).anyMatch(it -> it.isValidAt(atTheMoment));
 	}
 
 	/**

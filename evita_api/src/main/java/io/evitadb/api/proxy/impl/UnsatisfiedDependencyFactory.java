@@ -23,6 +23,7 @@
 
 package io.evitadb.api.proxy.impl;
 
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.exception.UnsatisfiedDependencyException;
 import io.evitadb.api.proxy.ProxyFactory;
@@ -32,15 +33,20 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import javax.annotation.Nonnull;
 
 /**
- * TODO JNO - document me
+ * This {@link ProxyFactory} implementation throws an {@link UnsatisfiedDependencyException} when
+ * {@link EvitaSessionContract} is asked for creating a object of type that is neither {@link EntityClassifier}
+ * nor {@link SealedEntity}.
+ *
+ * The implementation is used when Proxycian is not present on the classpath.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class UnsatisfiedDependencyFactory implements ProxyFactory {
 	public static final UnsatisfiedDependencyFactory INSTANCE = new UnsatisfiedDependencyFactory();
 
+	@Nonnull
 	@Override
-	public <T extends EntityClassifier> T createProxy(
+	public <T> T createProxy(
 		@Nonnull Class<T> expectedType,
 		@Nonnull SealedEntity sealedEntity,
 		@Nonnull EvitaRequestContext context

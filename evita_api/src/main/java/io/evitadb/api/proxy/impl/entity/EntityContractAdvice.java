@@ -46,7 +46,9 @@ public class EntityContractAdvice implements Advice<SealedEntityProxy> {
 			GetEntityTypeMethodClassifier.INSTANCE,
 			GetAttributeMethodClassifier.INSTANCE,
 			GetAssociatedDataMethodClassifier.INSTANCE,
-			GetReferenceMethodClassifier.INSTANCE
+			GetReferenceMethodClassifier.INSTANCE,
+			GetParentEntityMethodClassifier.INSTANCE,
+			GetPriceMethodClassifier.INSTANCE
 		}
 	);
 

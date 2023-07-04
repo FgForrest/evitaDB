@@ -23,32 +23,36 @@
 
 package io.evitadb.api.proxy;
 
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.proxy.impl.EvitaRequestContext;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 
 import javax.annotation.Nonnull;
 
 /**
- * TODO JNO - document me
+ * Interface is used to create proxy instances of sealed entities when client code calls query method on
+ * {@link EvitaSessionContract} interface providing their custom class/contract as requested type.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public interface ProxyFactory {
 
 	/**
-	 * TODO JNO - document me
-	 * @param expectedType
-	 * @param sealedEntity
-	 * @return
-	 * @param <T>
+	 * Creates proxy instance of sealed entity that implements `expectedType` contract. Entity proxy respects
+	 * request context used in the query that fetched {@link SealedEntity}.
+	 *
+	 * @param expectedType contract that the proxy should implement
+	 * @param sealedEntity sealed entity to create proxy for
+	 * @return proxy instance of sealed entity
+	 * @param <T> type of contract that the proxy should implement
+	 * @throws EntityClassInvalidException if the proxy contract is not valid
 	 */
-	<T extends EntityClassifier>  T createProxy(
+	@Nonnull
+	<T> T createProxy(
 		@Nonnull Class<T> expectedType,
 		@Nonnull SealedEntity sealedEntity,
 		@Nonnull EvitaRequestContext context
-	)
-		throws EntityClassInvalidException;
+	) throws EntityClassInvalidException;
 
 }

@@ -27,12 +27,11 @@ import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedData;
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
-import io.evitadb.api.requestResponse.data.annotation.Parent;
+import io.evitadb.api.requestResponse.data.annotation.PriceForSale;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
 import io.evitadb.api.requestResponse.data.annotation.Reference;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
-import io.evitadb.api.requestResponse.data.annotation.SellingPrice;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -102,10 +101,9 @@ public record RecordBasedEntityWithNonDefaults(
 	@Nullable
 	LocalizedTexts localizedTexts,
 
-	@Parent
 	int parentEntity,
 
-	@SellingPrice(
+	@PriceForSale(
 		indexedPricePlaces = 4,
 		allowedCurrencies = {"CZK", "EUR"}
 	)
