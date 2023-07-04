@@ -1,13 +1,13 @@
 mutation {
-	updateProductSchema(
-		mutations: [
-			{
-				modifyEntitySchemaDescriptionMutation: {
-					description: "New awesome description of product collection."
-				}
-			}
-		]
-	) {
-		version
-	}
+  updateProductSchema(
+    mutations: [
+      {
+        modifyEntitySchemaDescriptionMutation: {
+          description: "New awesome description of product collection."
+        }
+      }
+    ]
+  ) {
+    version
+  }
 }
