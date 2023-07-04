@@ -128,33 +128,33 @@ or class you use for declarative schema definition. This feature request is reco
 <LanguageSpecific to="graphql">
 
 Unlike the Java approach, the GraphQL API supports only an imperative schema definition. The schema is defined using
-atomic mutations where each mutation adds, modify or removes small part of the entire schema. To define an entire schema,
-you usually need to pass a collection of several mutations. 
+atomic mutations where each mutation adds, changes or removes a small part of the entire schema. To define an entire schema,
+you typically need to pass a collection of multiple mutations. 
 
 <Note type="question">
 
 <NoteTitle toggles="true">
 
-##### Why we use the mutation approach for schema definition?
+##### Why do we use the mutation approach for schema definition?
 </NoteTitle>
 
-This approach is not very user-friendly. The idea behind this approach is to provide a simple and versatile
-way to define a schema programmatically with transactions in mind (in fact, this is how evitaDB works internally as well, 
-thus the collection of mutations are directly passed into the engine on the server). It is expected that the developer 
-using the GraphQL API will create a library with e.g. entity schema builders that will produce the collection of mutations for 
+We know that this approach is not very user-friendly. However, the idea behind this approach is to provide a simple and versatile
+way to programmatically define a schema with transactions in mind (in fact, this is how evitaDB works internally, 
+so the collection of mutations is passed directly to the engine on the server). It is expected that the developer 
+using the GraphQL API will create a library with e.g. entity schema builders that will generate the collection of mutations for 
 the schema definition.
 
 </Note>
 
-You can define new or update existing schema of the catalog using the 
+You can define a new catalog schema or update an existing one using the 
 [catalog schema API](/docs/user/en/use/connectors/graphql.md#graphql-api-instances)
-at `https://your-server:5555/gql/test-catalog/schema` URL:
+at the `https://your-server:5555/gql/test-catalog/schema` URL:
 
 <SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
 [Imperative catalog schema definition via GraphQL API](/docs/user/en/use/api/example/imperative-catalog-schema-definition.graphql)
 </SourceCodeTabs>
 
-or update schema of specific entity collection at the same URL using GraphQL mutation of chosen collection like this:
+or update the schema of a specific entity collection at the same URL using a GraphQL mutation of the selected collection like this:
 
 <SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
 [Imperative collection schema definition via GraphQL API](/docs/user/en/use/api/example/imperative-collection-schema-definition.graphql)
@@ -165,34 +165,34 @@ or update schema of specific entity collection at the same URL using GraphQL mut
 <LanguageSpecific to="rest">
 
 Unlike the Java approach, the REST API supports only an imperative schema definition. The schema is defined using
-atomic mutations where each mutation adds, modify or removes small part of the entire schema. To define an entire schema,
-you usually need to pass a collection of several mutations.
+atomic mutations where each mutation adds, changes or removes a small part of the entire schema. To define an entire schema,
+you typically need to pass a collection of multiple mutations.
 
 <Note type="question">
 
 <NoteTitle toggles="true">
 
-##### Why we use the mutation approach for schema definition?
+##### Why do we use the mutation approach for schema definition?
 </NoteTitle>
 
-This approach is not very user-friendly. The idea behind this approach is to provide a simple and versatile
-way to define a schema programmatically with transactions in mind (in fact, this is how evitaDB works internally as well,
-thus the collection of mutations are directly passed into the engine on the server). It is expected that the developer
-using the REST API will create a library with e.g. entity schema builders that will produce the collection of mutations for
+We know that this approach is not very user-friendly. However, the idea behind this approach is to provide a simple and versatile
+way to programmatically define a schema with transactions in mind (in fact, this is how evitaDB works internally,
+so the collection of mutations is passed directly to the engine on the server). It is expected that the developer
+using the REST API will create a library with e.g. entity schema builders that will generate the collection of mutations for
 the schema definition.
 
 </Note>
 
-You can define new or update existing schema of the catalog using the
+You can define a new catalog schema or update an existing one using the
 [catalog schema API](/docs/user/en/use/connectors/rest.md#rest-api-instances)
-at `https://your-server:5555/rest/test-catalog/schema` URL:
+at the `https://your-server:5555/rest/test-catalog/schema` URL:
 
 <SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
 [Imperative catalog schema definition via REST API](/docs/user/en/use/api/example/imperative-catalog-schema-definition.rest)
 </SourceCodeTabs>
 
-or update schema of specific entity collection at e.g. `https://your-server:5555/rest/test-catalog/product/schema` URL 
-for collection `Product` using REST mutation of chosen collection like this:
+or update the schema of a specific entity collection at e.g. an `https://your-server:5555/rest/test-catalog/product/schema` URL 
+for the collection `Product` using a REST mutation of the selected collection like this:
 
 <SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
 [Imperative collection schema definition via REST API](/docs/user/en/use/api/example/imperative-collection-schema-definition.rest)

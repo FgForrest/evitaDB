@@ -176,7 +176,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 			.e(EntityDescriptor.PRICE.name(), map()
 				.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
 				.e(PriceDescriptor.CURRENCY.name(), currency.toString())
-				.e(PriceDescriptor.PRICE_LIST.name(), prices)
+				.e(PriceDescriptor.PRICE_LIST.name(), priceList)
 				.e(PriceDescriptor.PRICE_WITH_TAX.name(), prices.iterator().next().getPriceWithTax().toString())
 				.build())
 			.build();

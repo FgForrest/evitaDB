@@ -1,186 +1,186 @@
 mutation {
-	updateCatalogSchema(
-		mutations: [
-			{
-				createEntitySchemaMutation: {
-					entityType: "Product"
-				}
-			},
-			{
-				modifyEntitySchemaMutation: {
-					entityType: "Product"
-					schemaMutations: [
-						# all is strictly verified but associated data and references can be added on the fly
-						{
-							disallowEvolutionModeInEntitySchemaMutation: {
-								evolutionModes: [
-									ADAPT_PRIMARY_KEY_GENERATION,
-									ADDING_ATTRIBUTES,
-									ADDING_PRICES,
-									ADDING_LOCALES,
-									ADDING_CURRENCIES,
-									ADDING_HIERARCHY
-								]
-							}
-						},
-						{
-							allowEvolutionModeInEntitySchemaMutation: {
-								evolutionModes: [
-									ADDING_ASSOCIATED_DATA,
-									ADDING_REFERENCES
-								]
-							}
-						},
-						# products are not organized in the tree
-						{
-							setEntitySchemaWithHierarchyMutation: {
-								withHierarchy: false
-							}
-						},
-						# prices are referencing another entity stored in Evita
-						{
-							setEntitySchemaWithPriceMutation: {
-								withPrice: true
-								indexedPricePlaces: 2
-							}
-						},
-						# en + cs localized attributes and associated data are allowed only
-						{
-							allowLocaleInEntitySchemaMutation: {
-								locales: ["en", "cs-CZ"]
-							}
-						},
-						# here we define list of attributes with indexes for search / sort
-						{
-							createAttributeSchemaMutation: {
-								name: "code",
-								type: String
-								unique: true
-							}
-						},
-						{
-							createAttributeSchemaMutation: {
-								name: "url"
-								type: String
-								unique: true
-								localized: true
-							}
-						},
-						{
-							createAttributeSchemaMutation: {
-								name: "oldEntityUrls"
-								type: StringArray
-								filterable: true
-								localized: true
-							}
-						},
-						{
-							createAttributeSchemaMutation: {
-								name: "name"
-								type: String
-								filterable: true
-								sortable: true
-							}
-						},
-						{
-							createAttributeSchemaMutation: {
-								name: "ean"
-								type: String
-								filterable: true
-							}
-						},
-						{
-							createAttributeSchemaMutation: {
-								name: "priority"
-								type: Long
-								sortable: true
-							}
-						},
-						{
-							createAttributeSchemaMutation: {
-								name: "validity"
-								type: DateTimeRange
-								filterable: true
-							}
-						},
-						{
-							createAttributeSchemaMutation: {
-								name: "quantity"
-								type: BigDecimal
-								filterable: true
-								indexedDecimalPlaces: 2
-							}
-						},
-						{
-							createAttributeSchemaMutation: {
-								name: "alias"
-								type: Boolean
-								filterable: true
-							}
-						},
-						# here we define set of associated data, that can be stored along with entity
-						{
-							createAssociatedDataSchemaMutation: {
-								name: "referencedFiles"
-								type: ComplexDataObject
-							}
-						},
-						{
-							createAssociatedDataSchemaMutation: {
-								name: "labels"
-								type: ComplexDataObject
-								localized: true
-							}
-						},
-						# here we define references that relate to another entities stored in Evita
-						{
-							createReferenceSchemaMutation: {
-								name: "categories"
-								referencedEntityType: "Category"
-								referencedEntityTypeManaged: true
-								cardinality: ZERO_OR_MORE
-								indexed: true
-							}
-						},
-						{
-							modifyReferenceAttributeSchemaMutation: {
-								name: "categories"
-								attributeSchemaMutation: {
-									createAttributeSchemaMutation: {
-										name: "categoryPriority"
-										type: Long
-										sortable: true
-									}
-								}
-							}
-						},
-						# for faceted references we can compute "counts"
-						{
-							createReferenceSchemaMutation: {
-								name: "brand"
-								referencedEntityType: "Brand"
-								referencedEntityTypeManaged: true
-								cardinality: ZERO_OR_ONE
-								indexed: true
-								faceted: true
-							}
-						},
-						# references may be also represented be entities unknown to Evita
-						{
-							createReferenceSchemaMutation: {
-								name: "stock"
-								referencedEntityType: "stock"
-								referencedEntityTypeManaged: false
-								cardinality: ZERO_OR_MORE
-								indexed: true
-								faceted: true
-							}
-						}
-					]
-				}
-			}
-		]
-	) {
-		version
-	}
+  updateCatalogSchema(
+    mutations: [
+      {
+        createEntitySchemaMutation: {
+          entityType: "Product"
+        }
+      },
+      {
+        modifyEntitySchemaMutation: {
+          entityType: "Product"
+          schemaMutations: [
+            # all is strictly verified but associated data and references can be added on the fly
+            {
+              disallowEvolutionModeInEntitySchemaMutation: {
+                evolutionModes: [
+                  ADAPT_PRIMARY_KEY_GENERATION,
+                  ADDING_ATTRIBUTES,
+                  ADDING_PRICES,
+                  ADDING_LOCALES,
+                  ADDING_CURRENCIES,
+                  ADDING_HIERARCHY
+                ]
+              }
+            },
+            {
+              allowEvolutionModeInEntitySchemaMutation: {
+                evolutionModes: [
+                  ADDING_ASSOCIATED_DATA,
+                  ADDING_REFERENCES
+                ]
+              }
+            },
+            # products are not organized in the tree
+            {
+              setEntitySchemaWithHierarchyMutation: {
+                withHierarchy: false
+              }
+            },
+            # prices are referencing another entity stored in Evita
+            {
+              setEntitySchemaWithPriceMutation: {
+                withPrice: true
+                indexedPricePlaces: 2
+              }
+            },
+            # en + cs localized attributes and associated data are allowed only
+            {
+              allowLocaleInEntitySchemaMutation: {
+                locales: ["en", "cs-CZ"]
+              }
+            },
+            # here we define list of attributes with indexes for search / sort
+            {
+              createAttributeSchemaMutation: {
+                name: "code",
+                type: String
+                unique: true
+              }
+            },
+            {
+              createAttributeSchemaMutation: {
+                name: "url"
+                type: String
+                unique: true
+                localized: true
+              }
+            },
+            {
+              createAttributeSchemaMutation: {
+                name: "oldEntityUrls"
+                type: StringArray
+                filterable: true
+                localized: true
+              }
+            },
+            {
+              createAttributeSchemaMutation: {
+                name: "name"
+                type: String
+                filterable: true
+                sortable: true
+              }
+            },
+            {
+              createAttributeSchemaMutation: {
+                name: "ean"
+                type: String
+                filterable: true
+              }
+            },
+            {
+              createAttributeSchemaMutation: {
+                name: "priority"
+                type: Long
+                sortable: true
+              }
+            },
+            {
+              createAttributeSchemaMutation: {
+                name: "validity"
+                type: DateTimeRange
+                filterable: true
+              }
+            },
+            {
+              createAttributeSchemaMutation: {
+                name: "quantity"
+                type: BigDecimal
+                filterable: true
+                indexedDecimalPlaces: 2
+              }
+            },
+            {
+              createAttributeSchemaMutation: {
+                name: "alias"
+                type: Boolean
+                filterable: true
+              }
+            },
+            # here we define set of associated data, that can be stored along with entity
+            {
+              createAssociatedDataSchemaMutation: {
+                name: "referencedFiles"
+                type: ComplexDataObject
+              }
+            },
+            {
+              createAssociatedDataSchemaMutation: {
+                name: "labels"
+                type: ComplexDataObject
+                localized: true
+              }
+            },
+            # here we define references that relate to another entities stored in Evita
+            {
+              createReferenceSchemaMutation: {
+                name: "categories"
+                referencedEntityType: "Category"
+                referencedEntityTypeManaged: true
+                cardinality: ZERO_OR_MORE
+                indexed: true
+              }
+            },
+            {
+              modifyReferenceAttributeSchemaMutation: {
+                name: "categories"
+                attributeSchemaMutation: {
+                  createAttributeSchemaMutation: {
+                    name: "categoryPriority"
+                    type: Long
+                    sortable: true
+                  }
+                }
+              }
+            },
+            # for faceted references we can compute "counts"
+            {
+              createReferenceSchemaMutation: {
+                name: "brand"
+                referencedEntityType: "Brand"
+                referencedEntityTypeManaged: true
+                cardinality: ZERO_OR_ONE
+                indexed: true
+                faceted: true
+              }
+            },
+            # references may be also represented be entities unknown to Evita
+            {
+              createReferenceSchemaMutation: {
+                name: "stock"
+                referencedEntityType: "stock"
+                referencedEntityTypeManaged: false
+                cardinality: ZERO_OR_MORE
+                indexed: true
+                faceted: true
+              }
+            }
+          ]
+        }
+      }
+    ]
+  ) {
+    version
+  }
 }
