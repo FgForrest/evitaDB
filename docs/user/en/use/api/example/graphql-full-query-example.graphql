@@ -1,0 +1,68 @@
+{
+  queryProduct(
+    filterBy: {
+      hierarchyCategoriesWithin: {
+        ofParent: {
+          attributeUrlEquals: "/local-food"
+        }
+      }
+      entityLocaleEquals: cs
+      priceValidInNow: true
+      priceInCurrency: CZK
+      priceInPriceLists: ["vip", "loyal-customer", "regular-prices"]
+      userFilter: {
+        facetParameterValuesHaving: {
+          entityHaving: {
+            attributeCodeInSet: ["gluten-free", "original-recipe"]
+          }
+        }
+        priceBetween: ["600", "1600"]
+      }
+    }
+    require: {
+      priceType: WITH_TAX
+    }
+  ) {
+    recordPage(number: 1, size: 20) {
+      data {
+        primaryKey
+        attributes {
+          code
+        }
+        categories {
+          referencedPrimaryKey
+        }
+      }
+    }
+    extraResults {
+      facetSummary {
+        parameterValues {
+          groupEntity {
+            primaryKey
+          }
+          facetStatistics {
+            facetEntity {
+              primaryKey
+            }
+            count
+            impact {
+              difference
+              hasSense
+              matchCount
+            }
+          }
+        }
+      }
+      priceHistogram {
+        min
+        max
+        overallCount
+        buckets(requestedCount: 30) {
+          index
+          threshold
+          occurrences
+        }
+      }
+    }
+  }
+}

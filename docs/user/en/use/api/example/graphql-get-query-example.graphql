@@ -1,0 +1,11 @@
+{
+  getProduct(primaryKey: 1) {
+    primaryKey
+    attributes {
+      code
+    }
+    categories {
+      referencedPrimaryKey
+    }
+  }
+}

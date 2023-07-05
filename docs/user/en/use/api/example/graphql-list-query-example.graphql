@@ -1,0 +1,31 @@
+{
+  listProduct(
+    filterBy: {
+      hierarchyCategoriesWithin: {
+        ofParent: {
+          attributeUrlEquals: "/local-food"
+        }
+      }
+      entityLocaleEquals: cs
+      priceValidInNow: true
+      priceInCurrency: CZK
+      priceInPriceLists: ["vip", "loyal-customer", "regular-prices"]
+      userFilter: {
+        facetParameterValuesHaving: {
+          entityHaving: {
+            attributeCodeInSet: ["gluten-free", "original-recipe"]
+          }
+        }
+        priceBetween: ["600", "1600"]
+      }
+    }
+  ) {
+    primaryKey
+    attributes {
+      code
+    }
+    categories {
+      referencedPrimaryKey
+    }
+  }
+}
