@@ -1,4 +1,4 @@
-POST /rest/evita/product/list
+POST /rest/evita/product/query
 
 {
   "filterBy": {
@@ -27,6 +27,8 @@ POST /rest/evita/product/list
     "entityFetch": {
       "attributeContent": "code",
       "referenceCategoriesContent": {}
-    }
+    },
+    "facetSummary": {},
+    "priceHistogram": 30
   }
 }
