@@ -1,0 +1,30 @@
+mutation {
+	upsertProduct(
+		primaryKey: 1
+		entityExistence: MUST_EXIST
+		mutations: [
+			{
+				upsertAttributeMutation: {
+					name: "name"
+					locale: "en"
+					value: "ASUS Vivobook 16 X1605EA-MB044W Indie Black"
+				}
+			},
+			{
+				upsertAttributeMutation: {
+					name: "name"
+					locale: "de"
+					value: "ASUS Vivobook 16 X1605EA-MB044W Indie Schwarz"
+				}
+			}
+		]
+	) {
+		primaryKey
+		enAttributes: attributes(locale: en) {
+			name
+		}
+		deAttributes: attributes(locale: de) {
+			name
+		}
+	}
+}

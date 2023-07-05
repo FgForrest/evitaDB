@@ -35,6 +35,8 @@ If the database crashes during this initial bulk indexing, the state and consist
 corrupted, and the entire catalog should be dumped and rebuilt from scratch. Since there is no client other than the 
 one writing the data, we can afford to do this.
 
+<LanguageSpecific to="java">
+
 Any newly created catalog starts in `WARMUP` state and must be manually switched to *transactional* mode by executing:
 
 <SourceCodeTabs requires="/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/define-test-catalog.java">
@@ -43,6 +45,18 @@ Any newly created catalog starts in `WARMUP` state and must be manually switched
 
 The `goLiveAndClose` method sets the catalog to `ALIVE` (transactional) state and closes the current session. From this 
 moment on, multiple clients can open read-only or read-write sessions in parallel to this particular catalog.
+
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+<Note type="warning">
+Unfortunately, right now the GraphQL API does not support bulk indexing, only the [incremental indexing](#incremental-indexing).
+</Note>
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+<Note type="warning">
+Unfortunately, right now the REST API does not support bulk indexing, only the [incremental indexing](#incremental-indexing).
+</Note>
+</LanguageSpecific>
 
 ### Incremental indexing
 
@@ -66,6 +80,8 @@ Our model has a few features that you should keep in mind to use to your advanta
 All model classes are **designed to be immutable**. The reason for this is simplicity, implicitly correct behavior in
 concurrent access (in other words, entities can be cached without fear of race conditions), and easy identity checking
 (where only the primary key and version are needed to claim that two data objects of the same type are identical).
+
+<LanguageSpecific to="java">
 
 All model classes are described by interfaces, and there should be no reason to use or instantiate direct classes. 
 Interfaces follow this structure:
@@ -95,6 +111,28 @@ for updating the data:
 [Retrieving existing entity returns a sealed entity](/docs/user/en/use/api/example/update-existing-entity-shortened.java)
 </SourceCodeTabs>
 
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+In GraphQL API, the immutability is implicit by design. You may be able to modify the returned entity objects in your client
+application but these changes cannot be propagated to the evitaDB server, so it is encouraged to make your client model
+immutable as well (see the Java API for inspiration). The only way to modify the data is to use the
+[catalog data API](/docs/user/en/use/connectors/graphql.md#graphql-api-instances) and manually send evitaDB mutations
+with individual changes using one of the `updateCollectionName` GraphQL mutation specific to your selected 
+[entity collection](/docs/user/en/use/data-model.md#collection).
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+In REST API, the immutability is implicit by design. You may be able to modify the returned entity objects in your client
+application but these changes cannot be propagated to the evitaDB server, so it is encouraged to make your client model
+immutable as well (see the Java API for inspiration). The only way to modify the data is to use the
+[catalog API](/docs/user/en/use/connectors/rest.md#rest-api-instances) and manually send evitaDB mutations
+with individual changes using one of the REST endpoint for modifying data of your selected
+[entity collection](/docs/user/en/use/data-model.md#collection).
+
+</LanguageSpecific>
+
 ### Versioning
 
 All model classes are versioned - in other words, when a model instance is modified, the version number of the new 
@@ -116,6 +154,8 @@ The version information serves two purposes:
 2. **optimistic locking:** if there is a concurrent update of the same entity, we could automatically resolve the 
    conflict, provided that the changes themselves do not overlap.
 
+<LanguageSpecific to="java">
+
 <Note type="info">
 Since the entity is *immutable* and *versioned* the default implementation of the `hashCode` and `equals` takes these 
 three components into account:
@@ -130,7 +170,11 @@ interface and implemented by the
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityContract.java</SourceClass>.
 </Note>
 
+</LanguageSpecific>
+
 ## Session & transaction
+
+<LanguageSpecific to="java">
 
 The communication with the evitaDB instance always takes place via the
 <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass> interface.
@@ -170,6 +214,36 @@ committed. If the transaction is marked as *rollback only*, all changes will be 
 will never reach the shared database state. There can be at most one active transaction in a session, but there can 
 be multiple successor transactions during the session's lifetime.
 
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+The communication with the evitaDB instance using the GraphQL API always uses some kind of session. In the case of the GraphQL API,
+a session is a per-request communication channel that is used in the background.
+
+A transaction is an envelope for a "unit of work" with evitaDB. 
+In the GraphQL API, a transaction exists for the duration of a session, or more precisely a GraphQL API request, and it is 
+guaranteed to have [the snapshot isolation level](https://en.wikipedia.org/wiki/Snapshot_isolation) for reads. The changes in
+a transaction are always isolated from other transactions and become visible only after the transaction has been
+committed, i.e. the request to the GraphQL API has been processed and was successful. If a GraphQL API request results in 
+any kind of error, the transaction is automatically rolled back.
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+The communication with the evitaDB instance using the REST API always uses some kind of session. In the case of the REST API,
+a session is a per-request communication channel that is used in the background.
+
+A transaction is an envelope for a "unit of work" with evitaDB.
+In the REST API, a transaction exists for the duration of a session, or more precisely a REST API request, and it is
+guaranteed to have [the snapshot isolation level](https://en.wikipedia.org/wiki/Snapshot_isolation) for reads. The changes in
+a transaction are always isolated from other transactions and become visible only after the transaction has been
+committed, i.e. the request to the REST API has been processed and was successful. If a GraphQL API request results in
+any kind of error, the transaction is automatically rolled back.
+
+</LanguageSpecific>
+
+<LanguageSpecific to="java,graphql,rest">
+
 <Note type="warning">
 Parallel transaction handling hasn't been finalized yet, and is scheduled to be finalized in 
 [issue #16](https://github.com/FgForrest/evitaDB/issues/16). Until this issue is resolved, you must ensure that only 
@@ -177,9 +251,13 @@ a single client is writing to the catalog in parallel. Other clients may have be
 sessions, but the writer must be only one.
 </Note>
 
+</LanguageSpecific>
+
 ### Read-only vs. Read-Write sessions
 
 evitaDB recognizes two types of sessions:
+
+<LanguageSpecific to="java">
 
 <dl>
     <dt>read-only (default)</dt>
@@ -189,8 +267,37 @@ evitaDB recognizes two types of sessions:
     <dd>Read-write sessions are opened by calling the `updateCatalog` method</dd>
 </dl>
 
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+<dl>
+    <dt>read-only</dt>
+    <dd>Read-only sessions are opened by calling GraphQL queries, i.e. `getCollectionName`, `listCollectionName`,
+    `queryCollectionName` and so on. No write operations are allowed in a read-only session. 
+    This also allows evitaDB to optimize its behavior when working with the database.</dd>
+    <dt>read-write</dt>
+    <dd>Read-write sessions are opened by calling GraphQL mutations, i.e. `upsertCollectionName`, `deleteCollectionName`
+    and so on.</dd>
+</dl>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<dl>
+    <dt>read-only</dt>
+    <dd>Read-only sessions are opened by calling endpoints then only return data, typically endpoints ending with `/get`,
+    `/list`, `/query` and so on. No write operations are allowed in a read-only session. 
+    This also allows evitaDB to optimize its behavior when working with the database.</dd>
+    <dt>read-write</dt>
+    <dd>Read-write sessions are opened by calling endpoints modify any data.</dd>
+</dl>
+
+</LanguageSpecific>
+
 In the future, the read-only sessions can be distributed to multiple read nodes, while the read-write sessions must 
 talk to the master node.
+
+<LanguageSpecific to="java">
 
 #### Unsafe session lifecycle
 
@@ -236,7 +343,11 @@ to set the rollback flag manually. This fact greatly simplifies
 implementing your tests, or can be useful if you want to ensure that the changes are not committed in a particular 
 session, and you don't have easy access to the places where the transaction is opened.
 
+</LanguageSpecific>
+
 ### Upsert
+
+<LanguageSpecific to="java">
 
 It's expected that most of the entity instances will be created by the evitaDB service classes - such as
 <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass>
@@ -244,7 +355,7 @@ Anyway, there is also the [possibility of creating them directly](#creating-enti
 
 Usually the entity creation will look like this:
 
-<SourceCodeTabs requires="/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/define-test-catalog.java">
+<SourceCodeTabs requires="/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
 [Creating new entity example](/docs/user/en/use/api/example/create-new-entity.java)
 </SourceCodeTabs>
 
@@ -254,7 +365,7 @@ and it may be split into several parts, which will reveal the "builder" used in 
 When you need to alter existing entity, you first fetch it from the server, open for writing (which converts it to
 the builder wrapper), modify it, and finally collect the changes and send them to the server. 
 
-<SourceCodeTabs requires="/docs/user/en/use/api/example/finalization-of-warmup-mode.java,/docs/user/en/get-started/example/create-small-dataset.java">
+<SourceCodeTabs requires="/docs/user/en/use/api/example/finalization-of-warmup-mode.java,/docs/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
 [Updating existing entity example](/docs/user/en/use/api/example/update-existing-entity.java)
 </SourceCodeTabs>
 
@@ -299,34 +410,117 @@ There is an analogous builder that takes an existing entity and tracks changes m
 [Detached existing entity example](/docs/user/en/use/api/example/detached-existing-entity-instantiation.java)
 </SourceCodeTabs>
 
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+In the GraphQL API, there is no way to send full entity object to the server to be stored. Instead, you send a collection 
+of mutations that add, change, or remove individual data from an entity (new or existing one). Similarly to how the schema 
+is defined in the GraphQL API.
+
+<Note type="question">
+
+<NoteTitle toggles="true">
+
+##### Why do we use the mutation approach for entity definition?
+</NoteTitle>
+
+We know that this approach is not very user-friendly. However, the idea behind this approach is to provide a simple and versatile
+way to programmatically build an entity with transactions in mind (in fact, this is how evitaDB works internally,
+so the collection of mutations is passed directly to the engine on the server). It is expected that the developer
+using the GraphQL API will create a library with e.g. entity builders that will generate the collection of mutations for
+the entity definition (see Java API for inspiration).
+
+</Note>
+
+You can create a new entity or update an existing one using the [catalog data API](/docs/user/en/use/connectors/graphql.md#graphql-api-instances)
+at the `https://your-server:5555/gql/test-catalog` URL. This API contains `upsertCollectionName` GraphQL mutations for each
+[entity collection](/docs/user/en/use/data-model.md#collection) that are customized to collections'
+[schemas](/docs/user/en/use/schema.md#entity). These mutations take a collection of evitaDB mutations which define
+the changes to be applied to an entity. In one go, you can then retrieve the entity with the changes applied by defining
+return data.
+
+<SourceCodeTabs requires="/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
+[Creating new entity example](/docs/user/en/use/api/example/create-new-entity.graphql)
+</SourceCodeTabs>
+
+Because these GraphQL mutations are also for updating existing ones, evitaDB will automatically
+either create a new entity with specified mutations (and possibly a primary key) or update an existing one if a primary key
+of an existing entity is specified. You can further customize the behavior of the mutation by specifying the `entityExistence`
+argument.
+
+<SourceCodeTabs requires="/docs/user/en/use/api/example/finalization-of-warmup-mode.java,/docs/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
+[Updating existing entity example](/docs/user/en/use/api/example/update-existing-entity.graphql)
+</SourceCodeTabs>
+
+</LanguageSpecific>
+
 ### Removal
 
 The easiest way how to remove an entity is by its *primary key*. However, if you need to remove multiple entities at
 once you need to define a query that will match all the entities to remove:
 
-<SourceCodeTabs requires="/docs/user/en/use/api/example/finalization-of-warmup-mode.java,/docs/user/en/get-started/example/create-small-dataset.java">
+<SourceCodeTabs requires="/docs/user/en/use/api/example/finalization-of-warmup-mode.java,/docs/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
 [Removing all entities which name starts with `A`](/docs/user/en/use/api/example/delete-entities-by-query.java)
 </SourceCodeTabs>
+
+<LangaugeSpecific to="java">
 
 The `deleteEntities` method returns the count of removed entities. If you want to return bodies of deleted entities,
 you can use alternative method `deleteEntitiesAndReturnBodies`.
 
+</LangaugeSpecific>
+<LanguageSpecific to="graphql">
+
+Both deletion mutations return entity bodies, so you can define the return structure of data as you need as if you were fetching
+entities in usual way.
+
+<Note type="warning">
+
+evitaDB may not remove all entities matched by the filter part of the query. The removal of entities is subject to the 
+logic of the pagination arguments `offset` and `limit`. Even if you omit the 
+these arguments completely, implicit pagination (`offset: 1, limit: 20`) will be used. If the number of entities removed is equal to the 
+size of the defined paging, you should repeat the removal command.
+
+Massive entity removal is better to execute in multiple transactional rounds rather than in one big transaction, i.e. multiple 
+GraphQL requests. This is at least a
+good practice, because large and long-running transactions increase probability of conflicts that lead to
+rollbacks of other transactions.
+
+</Note>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+Both deletion endpoints can return entity bodies, so you can define the return requirements as you need as if you were fetching
+entities in usual way.
+
+</LanguageSpecific>
+
+<LanguageSpecific to="java,rest">
+
 <Note type="warning">
 evitaDB may not remove all entities matched by the filter part of the query. The removal of entities is subject to the 
 logic of the `require` conditions [`page` or `strip`](../../query/requirements/paging.md). Even if you omit the 
-`require` part completely, implicit paging (`page(1, 20)`) is used. If the number of removed entities is equal to the 
+`require` part completely, implicit pagination (`page(1, 20)`) will be used. If the number of entities removed is equal to the 
 size of the defined paging, you should repeat the removal command.
 
-Massive entity removal is better to execute in multiple transactional rounds and not in one big transaction. This is a
-good practice at least, because large and long-lasting transactions increase probability of conflicts that lead to 
-rollback of other transactions.
+Massive entity removal is better to execute in multiple transactional rounds rather than in one big transaction. This is
+at least a good practice, because large and long-running transactions increase the probability of conflicts that lead to
+rollbacks of other transactions.
+
 </Note>
 
+</LanguageSpecific>
+
+<LanguageSpecific to="java">
+
 If you are removing a hierarchical entity, and you need to remove not only the entity itself, but its entire subtree,
-you can take advantage of `deleteEntityAndItsHierarchy` method. By default, the method returns the number of entities 
-removed, but alternatively it can return the body of the removed root entity with the size and form you specify in 
-its `require` argument. If you remove only the root node without removing its children, the children will become 
-[orphans](../schema.md#orphan-hierarchy-nodes), and you will need to reattach them to another existing parent. 
+you can take advantage of `deleteEntityAndItsHierarchy` method. By default, the method returns the number of entities
+removed, but alternatively it can return the body of the removed root entity with the size and form you specify in
+its `require` argument. If you remove only the root node without removing its children, the children will become
+[orphans](../schema.md#orphan-hierarchy-nodes), and you will need to reattach them to another existing parent.
+
+</LanguageSpecific>
 
 <Note type="question">
 

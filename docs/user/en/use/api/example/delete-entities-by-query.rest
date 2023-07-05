@@ -1,0 +1,14 @@
+DELETE /rest/test-catalog/brand
+
+{
+  "filterBy": {
+	"attributeNameStartsWith": "A",
+	"entityLocaleEquals": "en"
+  },
+  "require": {
+	"page": {
+	  "number": 1,
+	  "size": 20
+	}
+  }
+}

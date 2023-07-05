@@ -1,0 +1,86 @@
+PUT /rest/test-catalog/product
+
+{
+  "entityExistence": "MUST_NOT_EXIST",
+  "mutations": [
+	{
+	  "upsertAttributeMutation": {
+		"name": "name",
+		"locale": "en",
+		"value": "ASUS Vivobook 16 X1605EA-MB044W Indie Black"
+	  }
+	},
+	{
+	  "upsertAttributeMutation": {
+		"name": "name",
+		"locale": "de",
+		"value": "ASUS Vivobook 16 X1605EA-MB044W Indie Schwarz"
+	  }
+	},
+	{
+	  "upsertAttributeMutation": {
+		"name": "catalogName",
+		"value": "X1605EA-MB044W"
+	  }
+	},
+	{
+	  "upsertAttributeMutation": {
+		"name": "stockQuantity",
+		"value": 1
+	  }
+	},
+	{
+	  "upsertAssociatedDataMutation": {
+		"name": "gallery",
+		"value": [
+		  "https://cdn.alza.cz/ImgW.ashx?fd=f4&cd=NA579p8e0&i=1.jpg",
+		  "https://cdn.alza.cz/ImgW.ashx?fd=FotoAddOrig&cd=NA579p8e0-04&i=1.jpg"
+		]
+	  }
+	},
+	{
+	  "upsertPriceMutation": {
+		"priceId": 1,
+		"priceList": "basic",
+		"currency": "EUR",
+		"priceWithoutTax": "345.9",
+		"taxRate": "22",
+		"priceWithTax": "422",
+		"sellable": true
+	  }
+	},
+	{
+	  "upsertPriceMutation": {
+		"priceId": 2,
+		"priceList": "basic",
+		"currency": "USD",
+		"priceWithoutTax": "365.57",
+		"taxRate": "22",
+		"priceWithTax": "446",
+		"sellable": true
+	  }
+	},
+	{
+	  "insertReferenceMutation": {
+		"name": "brand",
+		"referencedEntityType": "Brand",
+		"cardinality": "ZERO_OR_ONE",
+		"primaryKey": 3
+	  }
+	},
+	{
+	  "insertReferenceMutation": {
+		"name": "categories",
+		"referencedEntityType": "Category",
+		"cardinality": "ZERO_OR_MORE",
+		"primaryKey": 3
+	  }
+	}
+  ],
+  "require": {
+	"entityFetch": {
+	  "attributeContent": [],
+	  "dataInLocales": []
+	}
+  }
+}
