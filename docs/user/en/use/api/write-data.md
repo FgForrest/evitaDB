@@ -114,21 +114,21 @@ for updating the data:
 </LanguageSpecific>
 <LanguageSpecific to="graphql">
 
-In GraphQL API, the immutability is implicit by design. You may be able to modify the returned entity objects in your client
-application but these changes cannot be propagated to the evitaDB server, so it is encouraged to make your client model
+In the GraphQL API, the immutability is implicit by design. You may be able to modify the returned entity objects in your client
+application, but these changes cannot be propagated to the evitaDB server, so it is recommended to make your client model
 immutable as well (see the Java API for inspiration). The only way to modify the data is to use the
 [catalog data API](/docs/user/en/use/connectors/graphql.md#graphql-api-instances) and manually send evitaDB mutations
-with individual changes using one of the `updateCollectionName` GraphQL mutation specific to your selected 
+with individual changes using one of the `updateCollectionName` GraphQL mutations specific to your selected 
 [entity collection](/docs/user/en/use/data-model.md#collection).
 
 </LanguageSpecific>
 <LanguageSpecific to="rest">
 
-In REST API, the immutability is implicit by design. You may be able to modify the returned entity objects in your client
-application but these changes cannot be propagated to the evitaDB server, so it is encouraged to make your client model
+In the REST API, the immutability is implicit by design. You may be able to modify the returned entity objects in your client
+application, but these changes cannot be propagated to the evitaDB server, so it is encouraged to make your client model
 immutable as well (see the Java API for inspiration). The only way to modify the data is to use the
 [catalog API](/docs/user/en/use/connectors/rest.md#rest-api-instances) and manually send evitaDB mutations
-with individual changes using one of the REST endpoint for modifying data of your selected
+with individual changes using one of the REST endpoints for modifying data of your selected
 [entity collection](/docs/user/en/use/data-model.md#collection).
 
 </LanguageSpecific>
@@ -136,7 +136,10 @@ with individual changes using one of the REST endpoint for modifying data of you
 ### Versioning
 
 All model classes are versioned - in other words, when a model instance is modified, the version number of the new 
-instance created from that modified state is incremented by one. Version information is available not only at 
+instance created from that modified state is incremented by one.
+
+<LanguageSpecific to="java">
+Version information is available not only at 
 the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityContract.java</SourceClass> level, 
 but also at more granular levels (such as 
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/AttributesContract.java</SourceClass>,
@@ -148,11 +151,13 @@ All model classes that support versioning implement the
 
 The version information serves two purposes:
 
-1. **fast hashing & equality check:** only the primaryKey + version information is enough to tell if two instances 
-   are the same, and we can say this with enough confidence even in situation, when only 
+1. **fast hashing & equality check:** only the primaryKey + version information is enough to tell if two instances
+   are the same, and we can say this with enough confidence even in situation, when only
    [a part of the entity](query-data.md#lazy-fetching-enrichment) was actually loaded from persistent storage
-2. **optimistic locking:** if there is a concurrent update of the same entity, we could automatically resolve the 
+2. **optimistic locking:** if there is a concurrent update of the same entity, we could automatically resolve the
    conflict, provided that the changes themselves do not overlap.
+
+</LanguageSpecific>
 
 <LanguageSpecific to="java">
 
