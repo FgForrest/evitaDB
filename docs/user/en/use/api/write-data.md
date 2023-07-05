@@ -242,7 +242,7 @@ A transaction is an envelope for a "unit of work" with evitaDB.
 In the REST API, a transaction exists for the duration of a session, or more precisely a REST API request, and it is
 guaranteed to have [the snapshot isolation level](https://en.wikipedia.org/wiki/Snapshot_isolation) for reads. The changes in
 a transaction are always isolated from other transactions and become visible only after the transaction has been
-committed, i.e. the request to the REST API has been processed and was successful. If a GraphQL API request results in
+committed, i.e. the request to the REST API has been processed and was successful. If a REST API request results in
 any kind of error, the transaction is automatically rolled back.
 
 </LanguageSpecific>
@@ -455,6 +455,47 @@ argument.
 
 <SourceCodeTabs requires="/docs/user/en/use/api/example/finalization-of-warmup-mode.java,/docs/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
 [Updating existing entity example](/docs/user/en/use/api/example/update-existing-entity.graphql)
+</SourceCodeTabs>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+In the REST API, there is no way to send full entity object to the server to be stored. Instead, you send a collection
+of mutations that add, change, or remove individual data from an entity (new or existing one). Similarly to how the schema
+is defined in the REST API.
+
+<Note type="question">
+
+<NoteTitle toggles="true">
+
+##### Why do we use the mutation approach for entity definition?
+</NoteTitle>
+
+We know that this approach is not very user-friendly. However, the idea behind this approach is to provide a simple and versatile
+way to programmatically build an entity with transactions in mind (in fact, this is how evitaDB works internally,
+so the collection of mutations is passed directly to the engine on the server). It is expected that the developer
+using the REST API will create a library with e.g. entity builders that will generate the collection of mutations for
+the entity definition (see Java API for inspiration).
+
+</Note>
+
+You can create a new entity or update an existing one using the [catalog API](/docs/user/en/use/connectors/rest.md#rest-api-instances)
+at a collection endpoint, for example `https://your-server:5555/test/test-catalog/product` with `PUT` HTTP method. 
+There endpoints are customized to collections' [schemas](/docs/user/en/use/schema.md#entity). These endpoints take a 
+collection of evitaDB mutations which define the changes to be applied to an entity. In one go, you can then retrieve the 
+entity with the changes applied by defining requirements.
+
+<SourceCodeTabs requires="/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
+[Creating new entity example](/docs/user/en/use/api/example/create-new-entity.rest)
+</SourceCodeTabs>
+
+Because these endpoints are also for updating existing entities, evitaDB will automatically
+either create a new entity with specified mutations (and possibly a primary key) or update an existing one if a primary key
+of an existing entity is specified. You can further customize the behavior of the mutation by specifying the `entityExistence`
+argument.
+
+<SourceCodeTabs requires="/docs/user/en/use/api/example/finalization-of-warmup-mode.java,/docs/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
+[Updating existing entity example](/docs/user/en/use/api/example/update-existing-entity.rest)
 </SourceCodeTabs>
 
 </LanguageSpecific>
