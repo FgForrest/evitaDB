@@ -542,9 +542,13 @@ To remove one or multiple entities, you need to define a query that will match a
 
 </LanguageSpecific>
 
+<LanguageSpecific to="java,graphql,rest">
+
 <SourceCodeTabs requires="/docs/user/en/use/api/example/finalization-of-warmup-mode.java,/docs/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
 [Removing all entities which name starts with `A`](/docs/user/en/use/api/example/delete-entities-by-query.java)
 </SourceCodeTabs>
+
+</LanguageSpecific>
 
 <LanguageSpecific to="java">
 
