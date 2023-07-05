@@ -278,8 +278,8 @@ evitaDB recognizes two types of sessions:
 <dl>
     <dt>read-only</dt>
     <dd>Read-only sessions are opened by calling GraphQL queries, i.e. `getCollectionName`, `listCollectionName`,
-    `queryCollectionName` and so on. No write operations are allowed in a read-only session. 
-    This also allows evitaDB to optimize its behavior when working with the database.</dd>
+    `queryCollectionName` and so on. No write operations are allowed in a read-only session 
+    which allows evitaDB to optimize its behavior when working with the database.</dd>
     <dt>read-write</dt>
     <dd>Read-write sessions are opened by calling GraphQL mutations, i.e. `upsertCollectionName`, `deleteCollectionName`
     and so on.</dd>
@@ -291,8 +291,8 @@ evitaDB recognizes two types of sessions:
 <dl>
     <dt>read-only</dt>
     <dd>Read-only sessions are opened by calling endpoints then only return data, typically endpoints ending with `/get`,
-    `/list`, `/query` and so on. No write operations are allowed in a read-only session. 
-    This also allows evitaDB to optimize its behavior when working with the database.</dd>
+    `/list`, `/query` and so on. No write operations are allowed in a read-only session
+    which allows evitaDB to optimize its behavior when working with the database.</dd>
     <dt>read-write</dt>
     <dd>Read-write sessions are opened by calling endpoints modify any data.</dd>
 </dl>
@@ -448,7 +448,7 @@ return data.
 [Creating new entity example](/docs/user/en/use/api/example/create-new-entity.graphql)
 </SourceCodeTabs>
 
-Because these GraphQL mutations are also for updating existing ones, evitaDB will automatically
+Because these GraphQL mutations are also for updating existing entities, evitaDB will automatically
 either create a new entity with specified mutations (and possibly a primary key) or update an existing one if a primary key
 of an existing entity is specified. You can further customize the behavior of the mutation by specifying the `entityExistence`
 argument.
