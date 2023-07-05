@@ -463,12 +463,12 @@ once you need to define a query that will match all the entities to remove:
 [Removing all entities which name starts with `A`](/docs/user/en/use/api/example/delete-entities-by-query.java)
 </SourceCodeTabs>
 
-<LangaugeSpecific to="java">
+<LanguageSpecific to="java">
 
 The `deleteEntities` method returns the count of removed entities. If you want to return bodies of deleted entities,
 you can use alternative method `deleteEntitiesAndReturnBodies`.
 
-</LangaugeSpecific>
+</LanguageSpecific>
 <LanguageSpecific to="graphql">
 
 Both deletion mutations return entity bodies, so you can define the return structure of data as you need as if you were fetching
