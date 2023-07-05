@@ -461,8 +461,17 @@ argument.
 
 ### Removal
 
+<LanguageSpecific to="java,rest">
+
 The easiest way how to remove an entity is by its *primary key*. However, if you need to remove multiple entities at
 once you need to define a query that will match all the entities to remove:
+
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+To remove one or multiple entities, you need to define a query that will match all the entities to remove:
+
+</LanguageSpecific>
 
 <SourceCodeTabs requires="/docs/user/en/use/api/example/finalization-of-warmup-mode.java,/docs/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
 [Removing all entities which name starts with `A`](/docs/user/en/use/api/example/delete-entities-by-query.java)
@@ -476,7 +485,7 @@ you can use alternative method `deleteEntitiesAndReturnBodies`.
 </LanguageSpecific>
 <LanguageSpecific to="graphql">
 
-Both deletion mutations return entity bodies, so you can define the return structure of data as you need as if you were fetching
+The delete mutation can return entity bodies, so you can define the return structure of data as you need as if you were fetching
 entities in usual way.
 
 <Note type="warning">
