@@ -8,6 +8,8 @@ author: 'Ing. Jan Novotný'
 proofreading: 'needed'
 ---
 
+<LanguageSpecific to="java,graphql,rest">
+
 ## Indexing modes
 
 evitaDB assumes that it will not be the primary data store for your data. Because evitaDB is a relatively new database 
@@ -35,6 +37,8 @@ If the database crashes during this initial bulk indexing, the state and consist
 corrupted, and the entire catalog should be dumped and rebuilt from scratch. Since there is no client other than the 
 one writing the data, we can afford to do this.
 
+</LanguageSpecific>
+
 <LanguageSpecific to="java">
 
 Any newly created catalog starts in `WARMUP` state and must be manually switched to *transactional* mode by executing:
@@ -58,6 +62,8 @@ Unfortunately, right now the REST API does not support bulk indexing, only the [
 </Note>
 </LanguageSpecific>
 
+<LanguageSpecific to="java,graphql,rest">
+
 ### Incremental indexing
 
 The incremental indexing mode is used to keep the index up to date with the primary data store during its lifetime.
@@ -80,6 +86,8 @@ Our model has a few features that you should keep in mind to use to your advanta
 All model classes are **designed to be immutable**. The reason for this is simplicity, implicitly correct behavior in
 concurrent access (in other words, entities can be cached without fear of race conditions), and easy identity checking
 (where only the primary key and version are needed to claim that two data objects of the same type are identical).
+
+</LanguageSpecific>
 
 <LanguageSpecific to="java">
 
@@ -133,10 +141,14 @@ with individual changes using one of the REST endpoints for modifying data of yo
 
 </LanguageSpecific>
 
+<LanguageSpecific to="java,graphql,rest">
+
 ### Versioning
 
 All model classes are versioned - in other words, when a model instance is modified, the version number of the new 
 instance created from that modified state is incremented by one.
+
+</LanguageSpecific>
 
 <LanguageSpecific to="java">
 Version information is available not only at 
@@ -177,7 +189,11 @@ interface and implemented by the
 
 </LanguageSpecific>
 
+<LanguageSpecific to="java,graphql,rest">
+
 ## Session & transaction
+
+</LanguageSpecific>
 
 <LanguageSpecific to="java">
 
@@ -256,11 +272,11 @@ a single client is writing to the catalog in parallel. Other clients may have be
 sessions, but the writer must be only one.
 </Note>
 
-</LanguageSpecific>
-
 ### Read-only vs. Read-Write sessions
 
 evitaDB recognizes two types of sessions:
+
+</LanguageSpecific>
 
 <LanguageSpecific to="java">
 
@@ -299,8 +315,12 @@ evitaDB recognizes two types of sessions:
 
 </LanguageSpecific>
 
+<LanguageSpecific to="java,graphql,rest">
+
 In the future, the read-only sessions can be distributed to multiple read nodes, while the read-write sessions must 
 talk to the master node.
+
+</LanguageSpecific>
 
 <LanguageSpecific to="java">
 
@@ -350,7 +370,11 @@ session, and you don't have easy access to the places where the transaction is o
 
 </LanguageSpecific>
 
+<LanguageSpecific to="java,graphql,rest">
+
 ### Upsert
+
+</LanguageSpecific>
 
 <LanguageSpecific to="java">
 
@@ -500,7 +524,11 @@ argument.
 
 </LanguageSpecific>
 
+<LanguageSpecific to="java,graphql,rest">
+
 ### Removal
+
+</LanguageSpecific>
 
 <LanguageSpecific to="java,rest">
 
@@ -577,6 +605,8 @@ its `require` argument. If you remove only the root node without removing its ch
 
 </LanguageSpecific>
 
+<LanguageSpecific to="java,graphql,rest">
+
 <Note type="question">
 
 <NoteTitle toggles="true">
@@ -597,3 +627,12 @@ There are a few reasons for this decision:
 3. it is consistent with our *append-only* storage approach where we need to write 
    [tombstones](https://en.wikipedia.org/wiki/Tombstone_(data_store)) in case of entity or other object removals
 </Note>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="evitaql">
+
+Unfortunately, it is currently not possible to write data using EvitaQL. This extension is also not planned to be
+implemented in the near future, because we believe that sufficient options (Java, GraphQL, REST API) are available.
+
+</LanguageSpecific>
