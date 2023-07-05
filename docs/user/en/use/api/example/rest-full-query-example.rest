@@ -1,0 +1,32 @@
+POST /rest/evita/product/list
+
+{
+  "filterBy": {
+    "hierarchyCategoriesWithin": {
+      "ofParent": {
+        "attributeUrlEquals": "/local-food"
+      }
+    },
+    "entityLocaleEquals": "cs",
+    "priceValidInNow": true,
+    "priceInCurrency": "CZK",
+    "priceInPriceLists": ["vip", "loyal-customer", "regular-prices"],
+    "userFilter": {
+      "facetParameterValuesHaving": {
+        "entityHaving": {
+          "attributeCodeInSet": ["gluten-free", "original-recipe"]
+        }
+      },
+      "priceBetween": ["600", "1600"]
+    }
+  },
+  "orderBy": {
+    "attributeCodeNatural": "ASC"
+  },
+  "require": {
+    "entityFetch": {
+      "attributeContent": "code",
+      "referenceCategoriesContent": {}
+    }
+  }
+}

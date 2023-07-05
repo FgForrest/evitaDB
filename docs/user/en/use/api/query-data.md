@@ -228,43 +228,78 @@ that are not in the cache with a separate request. So instead of one network req
 of the local cache is therefore somewhat questionable.
 
 </LanguageSpecific>
-
 <LanguageSpecific to="graphql">
 
 ## Defining queries in GraphQL API
 
 In the GraphQL API, the original evitaDB query is split into two parts, each with its own syntax:
 
-- filtering and ordering parts (and tiny portion of requirements) are defined as GraphQL query arguments
-  - these contain constraints in similar form to the original evitaQL language 
+- filtering and ordering parts (and a tiny portion of requirements) are defined as GraphQL query arguments
+  - these contain constraints in a form similar to the original evitaQL language 
 - requirements are defined as GraphQL query output fields 
-  - these output fields doesn't share syntax similarity with the original evitaDB language, they only share what is possible to return from the server
+  - these output fields don't share syntax similarity with the original evitaDB language, they only share what can be returned from the server
 
 Each GraphQL query use some form of the idea mentioned above. Each [entity collection](/docs/user/en/use/data-model.md#collection)
-has following GraphQL queries available:
+has the following GraphQL queries available:
 
 - `getCollecionName`
 - `listCollectionName`
 - `queryCollectionName`
 
-The `getCollecionName` query supports only very simplified variant of filtering part of a query but supports full entity 
+The `getCollecionName` query supports only a very simplified variant of filtering part of a query but supports full entity 
 requirements.
 
 <SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
 [Java query example](/docs/user/en/use/api/example/graphql-get-query-example.java)
 </SourceCodeTabs>
 
-The `listCollectionName` query supports full filtering and ordering part of a query and full entity requirements.
+The `listCollectionName` query supports full filtering and ordering as part of a query arguments and full entity requirements.
 
 <SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
 [Java query example](/docs/user/en/use/api/example/graphql-list-query-example.java)
 </SourceCodeTabs>
 
-The `queryCollectionName` query supports full filtering, ordering and requirements parts of a query.
-This query support even extra results which is not possible in the two previous queries.
+The `queryCollectionName` query supports the full filtering, ordering, and requirements parts of a query.
+This GraphQL query even supports extra results, which is not possible with the two previous queries.
 
 <SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
 [Java query example](/docs/user/en/use/api/example/graphql-full-query-example.java)
+</SourceCodeTabs>
+
+### Automatic query cleaning
+
+The query may also contain "dirty" parts - that is, null constraints and unnecessary parts.
+The query is automatically cleaned and unnecessary constraints are removed before it is processed by the evitaDB engine.
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+## Defining queries in REST API
+
+In the REST API, there are several entity fetching endpoints that accept evitaQL queries in some form or another. These
+endpoints have the following URL forms:
+
+- `/rest/catalog-name/entity-collection/get`
+- `/rest/catalog-name/entity-collection/list`
+- `/rest/catalog-name/entity-collection/query`
+
+The `/get` endpoints only supports a very simplified and limited variant of filtering and requirements parts of a query using URL query parameters.
+
+<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+[Java query example](/docs/user/en/use/api/example/rest-get-query-example.rest)
+</SourceCodeTabs>
+
+The `/list` query supports full filtering and ordering but only a limited entity requirements.
+
+<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+[Java query example](/docs/user/en/use/api/example/rest-list-query-example.rest)
+</SourceCodeTabs>
+
+The `/query` query supports the full filtering, ordering, and requirements.
+This endpoint even supports extra results, which is not possible with the two previous queries.
+
+<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+[Java query example](/docs/user/en/use/api/example/rest-full-query-example.rest)
 </SourceCodeTabs>
 
 ### Automatic query cleaning

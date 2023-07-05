@@ -19,6 +19,9 @@
         priceBetween: ["600", "1600"]
       }
     }
+    orderBy: {
+      attributeCodeNatural: ASC
+    }
     require: {
       priceType: WITH_TAX
     }
