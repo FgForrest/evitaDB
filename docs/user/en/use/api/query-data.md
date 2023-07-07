@@ -236,9 +236,9 @@ In the GraphQL API, the original evitaDB query is split into two places, each wi
 
 - query field arguments
   - contains mainly filter and order parts of the original evitaDB query
-  - also may contain requirements that change settings for the query processing and don't affect the query output directly, for example `facetGroupsConjuction`
+  - also, may contain requirements that change settings for the query processing and don't directly affect the query output, e.g. `facetGroupsConjuction`
 - query output fields
-  - by defining output fields, i.e. data structure to return, GraphQL API automatically translates requested fields into evitaDB requirements, so you don't have to specify them manually
+  - by defining output fields, i.e. the data structure to be returned, GraphQL API automatically translates requested fields into evitaDB requirements, so you don't have to specify them manually
 
 Each GraphQL query use some form of the syntax mentioned above. Each [entity collection](/docs/user/en/use/data-model.md#collection)
 has the following GraphQL queries available:
@@ -247,32 +247,31 @@ has the following GraphQL queries available:
 - `listCollectionName`
 - `queryCollectionName`
 
-where the `CollectionName` would be a name of a concrete [entity collection](/docs/user/en/use/data-model.md#collection), for
-example `queryProduct` or `queryCategory`.
+where the `CollectionName` would be the name of a concrete [entity collection](/docs/user/en/use/data-model.md#collection), e.g. `queryProduct` or `queryCategory`.
 
-The `getCollecionName` queries support only a very simplified variant of filter part of a query but supports fetching of 
-rich entity objects.  As result, you receive a specific entity object only without unnecessary data around it.
-These simplified queries are mainly meant to be used when developing or exploring the API by unique keys,
+The `getCollecionName` queries support only a very simplified variant of the filter part of a query, but support fetching of 
+rich entity objects. As a result, you will only get a specific entity object without unnecessary data around it.
+These simplified queries are primarily intended to be used when developing or exploring the API by unique keys,
 as they provide quick access to entities.
 
 <SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
 [Java query example](/docs/user/en/use/api/example/graphql-get-query-example.java)
 </SourceCodeTabs>
 
-The `listCollectionName` queries support full filter and order parts of a evitaDB query as a query arguments and fetching
-of rich entity objects. As result, you receive simple list of entities without needing to dig
-through rather complex full-blown response with pagination and extra results as you would with of the `queryCollectionName` query.
-These queries are meant to be used as a quick way/shortcut for fetching list of entities, when no extra results or more advanced pagination
+The `listCollectionName` queries support full filter and order parts of an evitaDB query as a query arguments and fetching
+of rich entity objects. As a result, you will get a simple list of entities without having to deal
+with the more complex full response with pagination and extra results as you would with of the `queryCollectionName` query.
+These queries are meant to be used as a quick way/shortcut to get a list of entities, when no extra results or more advanced pagination
 requirements are needed.
 
 <SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
 [Java query example](/docs/user/en/use/api/example/graphql-list-query-example.java)
 </SourceCodeTabs>
 
-The `queryCollectionName` queries are full-featured queries that are the main queries one should want to use when
-number of entities is not known beforehand or extra results are needed as they support
-all the evitaDB querying features. Because of all the features, the responses of these queries are more complex than for 
-the other two query types. However, besides entity bodies, you can fetch pagination metadata and extra results in
+The `queryCollectionName` queries are full-featured queries, which are the main queries you should use when
+the number of entities is not known in advance or extra results are needed, as they support
+all evitaDB query features. Because of all the features, the responses of these queries are more complex than for 
+the other two query types. However, in addition to entity bodies, you can retrieve pagination metadata and extra results in
 one query.
 
 <SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
@@ -291,33 +290,33 @@ endpoints have the following URL forms:
 - `/rest/catalog-name/entity-collection/list`
 - `/rest/catalog-name/entity-collection/query`
 
-where the `catalog-name` would be a name of a concrete [catalog](/docs/user/en/use/data-model.md#catalog), and the 
-`entity-collection` would be a name of a concrete [entity collection](/docs/user/en/use/data-model.md#collection),
+where the `catalog-name` would be the name of a concrete [catalog](/docs/user/en/use/data-model.md#catalog), and the 
+`entity-collection` would be the name of a concrete [entity collection](/docs/user/en/use/data-model.md#collection),
 for example `/rest/evita/product/get` or `/rest/evita/category/query`.
 
-The `/get` endpoints only support a very simplified variant of filter and requirements part of a query using URL query
-parameters. As result, you receive a specific entity object only without unnecessary data around it.
-These simplified endpoints are mainly meant to be used when developing or exploring the API by unique keys,
+The `/get` endpoints only support a very simplified variant of the filter and requirements part of a query using URL query
+parameters. As a result, you will only get a specific entity object without unnecessary data around it.
+These simplified endpoints are primarily intended to be used when developing or exploring the API by unique keys,
 as they provide quick access to entities.
 
 <SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
 [Java query example](/docs/user/en/use/api/example/rest-get-query-example.rest)
 </SourceCodeTabs>
 
-The `/list` endpoints support full filter and order parts of a evitaDB query but the requirement part is limited only
-to fetching entity bodies, not extra results. As result, you receive simple list of entities without needing to dig
-through rather complex full-blown response with pagination and extra results as you would with the `/query` endpoint.
-These queries are meant to be used as a quick way/shortcut for fetching list of entities, when no extra results or more advanced pagination
+The `/list` endpoints support full filter and order parts of an evitaDB query, but the requirement part is limited only
+to fetching entity bodies, not extra results. As a result, you will get a simple list of entities without having to deal
+with the more complex full response with pagination and extra results as you would with the `/query` endpoint.
+These queries are meant to be used as a quick way/shortcut to get a list of entities, when no extra results or more advanced pagination
 requirements are needed.
 
 <SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
 [Java query example](/docs/user/en/use/api/example/rest-list-query-example.rest)
 </SourceCodeTabs>
 
-The `/query` endpoints support full-featured queries that are the main queries one should want to use when
-number of entities is not known beforehand or extra results are needed as they support
-all the evitaDB querying features. Because of all the features, the responses of these queries are more complex than for
-the other two endpoint types. However, besides entity bodies, you receive pagination metadata and extra results in
+The `/query` endpoints support full-featured queries, which are the main queries you should use when
+the number of entities is not known in advance or extra results are needed, as they support
+all evitaDB query features. Because of all the features, the responses of these queries are more complex than for
+the other two endpoint types. However, in additions to entity bodies, you receive pagination metadata and extra results in
 one query.
 
 <SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
