@@ -459,17 +459,6 @@
         "priceInnerRecordHandling" : "FIRST_OCCURRENCE",
         "prices" : [
           {
-            "priceId" : 7693,
-            "priceList" : "basic",
-            "currency" : "EUR",
-            "innerRecordId" : 111153,
-            "sellable" : true,
-            "priceWithoutTax" : "3866.94",
-            "priceWithTax" : "4679.0",
-            "taxRate" : "21.0",
-            "validity" : null
-          },
-          {
             "priceId" : 7683,
             "priceList" : "basic",
             "currency" : "EUR",
@@ -477,61 +466,6 @@
             "sellable" : true,
             "priceWithoutTax" : "3933.06",
             "priceWithTax" : "4759.0",
-            "taxRate" : "21.0",
-            "validity" : null
-          },
-          {
-            "priceId" : 7697,
-            "priceList" : "basic",
-            "currency" : "EUR",
-            "innerRecordId" : 111155,
-            "sellable" : true,
-            "priceWithoutTax" : "3792.56",
-            "priceWithTax" : "4589.0",
-            "taxRate" : "21.0",
-            "validity" : null
-          },
-          {
-            "priceId" : 7687,
-            "priceList" : "basic",
-            "currency" : "EUR",
-            "innerRecordId" : 111150,
-            "sellable" : true,
-            "priceWithoutTax" : "3899.17",
-            "priceWithTax" : "4718.0",
-            "taxRate" : "21.0",
-            "validity" : null
-          },
-          {
-            "priceId" : 7701,
-            "priceList" : "basic",
-            "currency" : "EUR",
-            "innerRecordId" : 111157,
-            "sellable" : true,
-            "priceWithoutTax" : "3751.24",
-            "priceWithTax" : "4539.0",
-            "taxRate" : "21.0",
-            "validity" : null
-          },
-          {
-            "priceId" : 7691,
-            "priceList" : "basic",
-            "currency" : "EUR",
-            "innerRecordId" : 111152,
-            "sellable" : true,
-            "priceWithoutTax" : "3966.12",
-            "priceWithTax" : "4799.0",
-            "taxRate" : "21.0",
-            "validity" : null
-          },
-          {
-            "priceId" : 7695,
-            "priceList" : "basic",
-            "currency" : "EUR",
-            "innerRecordId" : 111154,
-            "sellable" : true,
-            "priceWithoutTax" : "3866.94",
-            "priceWithTax" : "4679.0",
             "taxRate" : "21.0",
             "validity" : null
           },
@@ -547,13 +481,13 @@
             "validity" : null
           },
           {
-            "priceId" : 7699,
+            "priceId" : 7687,
             "priceList" : "basic",
             "currency" : "EUR",
-            "innerRecordId" : 111156,
+            "innerRecordId" : 111150,
             "sellable" : true,
-            "priceWithoutTax" : "3792.56",
-            "priceWithTax" : "4589.0",
+            "priceWithoutTax" : "3899.17",
+            "priceWithTax" : "4718.0",
             "taxRate" : "21.0",
             "validity" : null
           },
@@ -565,6 +499,72 @@
             "sellable" : true,
             "priceWithoutTax" : "3966.12",
             "priceWithTax" : "4799.0",
+            "taxRate" : "21.0",
+            "validity" : null
+          },
+          {
+            "priceId" : 7691,
+            "priceList" : "basic",
+            "currency" : "EUR",
+            "innerRecordId" : 111152,
+            "sellable" : true,
+            "priceWithoutTax" : "3966.12",
+            "priceWithTax" : "4799.0",
+            "taxRate" : "21.0",
+            "validity" : null
+          },
+          {
+            "priceId" : 7693,
+            "priceList" : "basic",
+            "currency" : "EUR",
+            "innerRecordId" : 111153,
+            "sellable" : true,
+            "priceWithoutTax" : "3866.94",
+            "priceWithTax" : "4679.0",
+            "taxRate" : "21.0",
+            "validity" : null
+          },
+          {
+            "priceId" : 7695,
+            "priceList" : "basic",
+            "currency" : "EUR",
+            "innerRecordId" : 111154,
+            "sellable" : true,
+            "priceWithoutTax" : "3866.94",
+            "priceWithTax" : "4679.0",
+            "taxRate" : "21.0",
+            "validity" : null
+          },
+          {
+            "priceId" : 7697,
+            "priceList" : "basic",
+            "currency" : "EUR",
+            "innerRecordId" : 111155,
+            "sellable" : true,
+            "priceWithoutTax" : "3792.56",
+            "priceWithTax" : "4589.0",
+            "taxRate" : "21.0",
+            "validity" : null
+          },
+          {
+            "priceId" : 7699,
+            "priceList" : "basic",
+            "currency" : "EUR",
+            "innerRecordId" : 111156,
+            "sellable" : true,
+            "priceWithoutTax" : "3792.56",
+            "priceWithTax" : "4589.0",
+            "taxRate" : "21.0",
+            "validity" : null
+          },
+          {
+            "priceId" : 7701,
+            "priceList" : "basic",
+            "currency" : "EUR",
+            "innerRecordId" : 111157,
+            "sellable" : true,
+            "priceWithoutTax" : "3751.24",
+            "priceWithTax" : "4539.0",
             "taxRate" : "21.0",
             "validity" : null
           },

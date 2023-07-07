@@ -309,9 +309,10 @@ public class EntityJsonSerializer {
 		if (!prices.isEmpty()) {
 			final ArrayNode pricesNode = objectJsonSerializer.arrayNode();
 			rootNode.putIfAbsent(RestEntityDescriptor.PRICES.name(), pricesNode);
-			for (PriceContract price : prices) {
-				pricesNode.add(objectJsonSerializer.serializeObject(price));
-			}
+
+			prices.stream()
+				.sorted(Comparator.comparing(PriceContract::getPriceKey))
+				.forEach(price -> pricesNode.add(objectJsonSerializer.serializeObject(price)));
 		}
 
 		entity.getPriceForSaleIfAvailable()
