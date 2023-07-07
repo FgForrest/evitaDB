@@ -1,0 +1,1 @@
+GET /rest/evita/product/1?attributeContent=code&referenceContent=true
