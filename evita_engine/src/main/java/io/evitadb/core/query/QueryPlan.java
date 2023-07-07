@@ -31,7 +31,6 @@ import io.evitadb.api.requestResponse.EvitaEntityResponse;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -104,7 +103,7 @@ public class QueryPlan {
 	 * Method is expected to be called only once per request.
 	 */
 	@Nonnull
-	public <S extends EntityClassifier, T extends EvitaResponse<S>> T execute() {
+	public <S extends Serializable, T extends EvitaResponse<S>> T execute() {
 		queryContext.pushStep(QueryPhase.EXECUTION);
 
 		try {

@@ -32,6 +32,7 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.exception.SchemaNotFoundException;
+import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.requestResponse.EvitaEntityReferenceResponse;
@@ -81,6 +82,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.sequence.SequenceType;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
@@ -116,6 +118,7 @@ import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Collection;
@@ -194,10 +197,6 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 	 */
 	private final CatalogPersistenceService catalogPersistenceService;
 	/**
-	 * Service containing I/O related methods.
-	 */
-	private EntityCollectionPersistenceService persistenceService;
-	/**
 	 * Collection of search indexes prepared to handle queries.
 	 */
 	private final TransactionalMap<EntityIndexKey, EntityIndex> indexes;
@@ -224,6 +223,10 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 	 * it.
 	 */
 	private final Function<PersistentStorageDescriptor, EntityCollectionHeader> catalogEntityHeaderFactory;
+	/**
+	 * Service containing I/O related methods.
+	 */
+	private EntityCollectionPersistenceService persistenceService;
 
 	public EntityCollection(
 		@Nonnull Catalog catalog,
@@ -316,7 +319,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 
 	@Override
 	@Nonnull
-	public <S extends EntityClassifier, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+	public <S extends Serializable, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final QueryPlan queryPlan = QueryPlanner.planQuery(
 			createQueryContext(evitaRequest, session)
 		);
@@ -389,7 +392,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 			);
 
 		return enrichEntity(
-			referenceFetcher.initReferenceIndex((EntityDecorator)sealedEntity, this),
+			referenceFetcher.initReferenceIndex((EntityDecorator) sealedEntity, this),
 			evitaRequest, referenceFetcher
 		);
 	}
@@ -568,11 +571,11 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		final QueryPlan queryPlan = QueryPlanner.planQuery(
 			createQueryContext(evitaRequest, session)
 		);
-		final EvitaResponse<? extends EntityClassifier> result = queryPlan.execute();
+		final EvitaResponse<? extends Serializable> result = queryPlan.execute();
 		return result
 			.getRecordData()
 			.stream()
-			.map(it -> getFullEntityById(Objects.requireNonNull(it.getPrimaryKey())))
+			.map(it -> getFullEntityById(getPrimaryKey(it)))
 			.filter(Objects::nonNull)
 			.map(it -> {
 				final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
@@ -880,9 +883,9 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 	public Optional<GlobalEntityIndex> getGlobalIndexIfExists() {
 		final Optional<EntityIndex> globalIndex = ofNullable(getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL)));
 		return globalIndex.map(it -> {
-			Assert.isPremiseValid(it instanceof GlobalEntityIndex, "Global index not found in entity collection of `" + getSchema().getName() + "`.");
-			return ofNullable((GlobalEntityIndex) it);
-		})
+				Assert.isPremiseValid(it instanceof GlobalEntityIndex, "Global index not found in entity collection of `" + getSchema().getName() + "`.");
+				return ofNullable((GlobalEntityIndex) it);
+			})
 			.orElse(empty());
 	}
 
@@ -923,14 +926,14 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		);
 	}
 
-	/*
-		TransactionalLayerProducer implementation
-	 */
-
 	@Override
 	public DataSourceChanges<EntityIndexKey, EntityIndex> createLayer() {
 		return new DataSourceChanges<>();
 	}
+
+	/*
+		TransactionalLayerProducer implementation
+	 */
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
@@ -1006,6 +1009,22 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 	 */
 	void updateReferenceToCatalog(@Nonnull Catalog catalog) {
 		this.catalogAccessor.set(catalog);
+	}
+
+	/**
+	 * Retrieves the primary key of the given entity or throws an unified exception.
+	 */
+	private int getPrimaryKey(@Nonnull Serializable entity) {
+		if (entity instanceof EntityClassifier entityClassifier) {
+			return Objects.requireNonNull(entityClassifier.getPrimaryKey());
+		} else if (entity instanceof SealedEntityProxy sealedEntityProxy) {
+			return Objects.requireNonNull(sealedEntityProxy.getSealedEntity().getPrimaryKey());
+		} else {
+			throw new EvitaInvalidUsageException(
+				"Unsupported entity type `" + entity.getClass() + "`! The class doesn't implement EntityClassifier nor represents a SealedEntityProxy!",
+				"Unsupported entity type!"
+			);
+		}
 	}
 
 	/*

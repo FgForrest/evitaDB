@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassUtils;
+import io.evitadb.utils.CollectorUtils;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.ReflectionLookup;
 import one.edee.oss.proxycian.CurriedMethodContextInvocationHandler;
@@ -56,7 +57,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * TODO JNO - document me
@@ -119,7 +119,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 			theState.getSealedEntity().getReferences(cleanReferenceName)
 				.stream()
 				.map(it -> new EntityReference(it.getReferencedEntityType(), it.getReferencedPrimaryKey()))
-				.collect(Collectors.toUnmodifiableSet());
+				.collect(CollectorUtils.toUnmodifiableLinkedHashSet());
 	}
 
 	@Nonnull
@@ -161,7 +161,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 			theState.getSealedEntity().getReferences(cleanReferenceName)
 				.stream()
 				.map(ReferenceContract::getReferencedPrimaryKey)
-				.collect(Collectors.toUnmodifiableSet());
+				.collect(CollectorUtils.toUnmodifiableLinkedHashSet());
 	}
 
 	@Nonnull
@@ -230,7 +230,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 			theState.getSealedEntity().getReferences(cleanReferenceName)
 				.stream()
 				.map(it -> wrapToType(it.getReferenceName(), itemType, theState, it, entityExtractor))
-				.collect(Collectors.toUnmodifiableSet());
+				.collect(CollectorUtils.toUnmodifiableLinkedHashSet());
 	}
 
 	@Nonnull
@@ -304,7 +304,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 			theState.getSealedEntity().getReferences(cleanReferenceName)
 				.stream()
 				.map(it -> theState.wrapReferenceTo(itemType, it))
-				.collect(Collectors.toUnmodifiableSet());
+				.collect(CollectorUtils.toUnmodifiableLinkedHashSet());
 	}
 
 	@Nonnull

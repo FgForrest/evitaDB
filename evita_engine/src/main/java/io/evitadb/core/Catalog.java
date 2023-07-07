@@ -38,7 +38,6 @@ import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.proxy.impl.UnsatisfiedDependencyFactory;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
@@ -99,6 +98,7 @@ import net.openhft.hashing.LongHashFunction;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
+import java.io.Serializable;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.Map.Entry;
@@ -457,7 +457,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 
 	@Override
 	@Nonnull
-	public <S extends EntityClassifier, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+	public <S extends Serializable, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final QueryPlan queryPlan = QueryPlanner.planQuery(
 			createQueryContext(evitaRequest, session)
 		);

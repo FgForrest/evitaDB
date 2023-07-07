@@ -31,7 +31,6 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
-import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.dataType.Range;
@@ -56,7 +55,6 @@ import java.util.Map.Entry;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer.separateAttributeKeysByLocale;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 
 /**
  * Ancestor for tests for REST catalog endpoint.
@@ -179,8 +177,6 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 	protected ArrayList<Map<String, Object>> createPricesDto(@Nonnull SealedEntity entity) {
 		final ArrayList<Map<String, Object>> prices = new ArrayList<>();
 		entity.getPrices()
-			.stream()
-			.sorted(Comparator.comparing(PriceContract::getPriceKey))
 			.forEach(price -> {
 					prices.add(map()
 						.e(PriceDescriptor.PRICE_ID.name(), price.getPriceId())

@@ -45,7 +45,6 @@ import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
 import io.evitadb.api.query.require.Strip;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.EvitaResponse;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -66,6 +65,7 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -89,6 +89,8 @@ import static io.evitadb.api.query.QueryConstraints.require;
  * EvitaSession transactions behave like <a href="https://en.wikipedia.org/wiki/Snapshot_isolation">Snapshot</a>
  * transactions. When no transaction is explicitly opened - each query to Evita behaves as one small transaction. Data
  * updates are not allowed without explicitly opened transaction.
+ *
+ * TODO JNO - zvážit vynechání entityType s tím, že by se to vybralo z expectedClass
  *
  * Don't forget to {@link #close()} when your work with Evita is finished.
  *
@@ -272,7 +274,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @see QueryConstraints for list of available filtering and ordering constraints and requirements
 	 */
 	@Nonnull
-	<S extends EntityClassifier> Optional<S> queryOne(@Nonnull Query query, @Nonnull Class<S> expectedType)
+	<S extends Serializable> Optional<S> queryOne(@Nonnull Query query, @Nonnull Class<S> expectedType)
 		throws UnexpectedResultException, UnexpectedResultCountException, InstanceTerminatedException;
 
 	/**
@@ -343,7 +345,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @see QueryConstraints for list of available filtering and ordering constraints and requirements
 	 */
 	@Nonnull
-	<S extends EntityClassifier> List<S> queryList(@Nonnull Query query, @Nonnull Class<S> expectedType)
+	<S extends Serializable> List<S> queryList(@Nonnull Query query, @Nonnull Class<S> expectedType)
 		throws UnexpectedResultException, InstanceTerminatedException;
 
 	/**
@@ -425,7 +427,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @see QueryConstraints for list of available filtering and ordering constraints and requirements
 	 */
 	@Nonnull
-	<S extends EntityClassifier, T extends EvitaResponse<S>> T query(@Nonnull Query query, @Nonnull Class<S> expectedType)
+	<S extends Serializable, T extends EvitaResponse<S>> T query(@Nonnull Query query, @Nonnull Class<S> expectedType)
 		throws UnexpectedResultException, InstanceTerminatedException;
 
 	/**
@@ -473,7 +475,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * annotations.
 	 */
 	@Nonnull
-	<T extends EntityClassifier> Optional<T> getEntity(
+	<T extends Serializable> Optional<T> getEntity(
 		@Nonnull String entityType,
 		@Nonnull Class<T> expectedType,
 		int primaryKey,
@@ -489,7 +491,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @throws EntityAlreadyRemovedException when the entity has been already removed
 	 */
 	@Nonnull
-	<T extends EntityClassifier> T enrichEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require)
+	<T extends Serializable> T enrichEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require)
 		throws EntityAlreadyRemovedException;
 
 	/**
@@ -501,7 +503,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @throws EntityAlreadyRemovedException when the entity has been already removed
 	 */
 	@Nonnull
-	<T extends EntityClassifier> T enrichOrLimitEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require)
+	<T extends Serializable> T enrichOrLimitEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require)
 		throws EntityAlreadyRemovedException;
 
 	/**

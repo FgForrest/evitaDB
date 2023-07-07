@@ -95,6 +95,7 @@ import lombok.ToString;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
+import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -187,7 +188,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 */
 	private long lastCall;
 
-	private static <S extends EntityClassifier> void assertRequestMakesSense(@Nonnull Query query, @Nonnull Class<S> expectedType) {
+	private static <S extends Serializable> void assertRequestMakesSense(@Nonnull Query query, @Nonnull Class<S> expectedType) {
 		if (EntityContract.class.isAssignableFrom(expectedType) &&
 			(query.getRequire() == null ||
 				FinderVisitor.findConstraints(query.getRequire(), EntityFetch.class::isInstance, SeparateEntityContentRequireContainer.class::isInstance).isEmpty())) {
@@ -331,7 +332,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
-	public <S extends EntityClassifier> Optional<S> queryOne(@Nonnull Query query, @Nonnull Class<S> expectedType) throws UnexpectedResultException, UnexpectedResultCountException, InstanceTerminatedException {
+	public <S extends Serializable> Optional<S> queryOne(@Nonnull Query query, @Nonnull Class<S> expectedType) throws UnexpectedResultException, UnexpectedResultCountException, InstanceTerminatedException {
 		final EvitaRequest evitaRequest = new EvitaRequest(
 			query,
 			OffsetDateTime.now(),
@@ -343,7 +344,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
-	public <S extends EntityClassifier> List<S> queryList(@Nonnull Query query, @Nonnull Class<S> expectedType) throws UnexpectedResultException, InstanceTerminatedException {
+	public <S extends Serializable> List<S> queryList(@Nonnull Query query, @Nonnull Class<S> expectedType) throws UnexpectedResultException, InstanceTerminatedException {
 		final EvitaRequest evitaRequest = new EvitaRequest(
 			query,
 			OffsetDateTime.now(),
@@ -355,7 +356,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
-	public <S extends EntityClassifier, T extends EvitaResponse<S>> T query(@Nonnull Query query, @Nonnull Class<S> expectedType) throws UnexpectedResultException, InstanceTerminatedException {
+	public <S extends Serializable, T extends EvitaResponse<S>> T query(@Nonnull Query query, @Nonnull Class<S> expectedType) throws UnexpectedResultException, InstanceTerminatedException {
 		assertActive();
 		assertRequestMakesSense(query, expectedType);
 
@@ -469,7 +470,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
-	public <T extends EntityClassifier> Optional<T> getEntity(@Nonnull String entityType, @Nonnull Class<T> expectedType, int primaryKey, EntityContentRequire... require) {
+	public <T extends Serializable> Optional<T> getEntity(@Nonnull String entityType, @Nonnull Class<T> expectedType, int primaryKey, EntityContentRequire... require) {
 		final EvitaRequest evitaRequest = new EvitaRequest(
 			Query.query(
 				collection(entityType),
@@ -486,12 +487,24 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
-	public <T extends EntityClassifier> T enrichEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require) {
+	public <T extends Serializable> T enrichEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require) {
 		assertActive();
 
 		/* TOBEDONE https://gitlab.fg.cz/hv/evita/-/issues/118 */
-		final String entityType = partiallyLoadedEntity.getType();
-		final Integer entityPk = partiallyLoadedEntity.getPrimaryKey();
+		final String entityType;
+		final Integer entityPk;
+		if (partiallyLoadedEntity instanceof EntityClassifier entityClassifier) {
+			entityType = entityClassifier.getType();
+			entityPk = entityClassifier.getPrimaryKey();
+		} else if (partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy) {
+			entityType = sealedEntityProxy.getSealedEntity().getType();
+			entityPk = sealedEntityProxy.getSealedEntity().getPrimaryKey();
+		} else {
+			throw new EvitaInvalidUsageException(
+				"Unsupported entity type `" + partiallyLoadedEntity.getClass() + "`! The class doesn't implement EntityClassifier nor represents a SealedEntityProxy!",
+				"Unsupported entity type!"
+			);
+		}
 
 		final EvitaRequest evitaRequest = new EvitaRequest(
 			Query.query(
@@ -513,12 +526,24 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
-	public <T extends EntityClassifier> T enrichOrLimitEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require) {
+	public <T extends Serializable> T enrichOrLimitEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require) {
 		assertActive();
 
 		/* TOBEDONE https://gitlab.fg.cz/hv/evita/-/issues/118 */
-		final String entityType = partiallyLoadedEntity.getType();
-		final Integer entityPk = partiallyLoadedEntity.getPrimaryKey();
+		final String entityType;
+		final Integer entityPk;
+		if (partiallyLoadedEntity instanceof EntityClassifier entityClassifier) {
+			entityType = entityClassifier.getType();
+			entityPk = entityClassifier.getPrimaryKey();
+		} else if (partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy) {
+			entityType = sealedEntityProxy.getSealedEntity().getType();
+			entityPk = sealedEntityProxy.getSealedEntity().getPrimaryKey();
+		} else {
+			throw new EvitaInvalidUsageException(
+				"Unsupported entity type `" + partiallyLoadedEntity.getClass() + "`! The class doesn't implement EntityClassifier nor represents a SealedEntityProxy!",
+				"Unsupported entity type!"
+			);
+		}
 
 		final EvitaRequest evitaRequest = new EvitaRequest(
 			Query.query(
@@ -1076,7 +1101,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	}
 
 	@Nonnull
-	private <T extends EntityClassifier> Optional<T> getEntityInternal(
+	private <T extends Serializable> Optional<T> getEntityInternal(
 		@Nonnull String entityType,
 		int primaryKey,
 		@Nonnull EvitaRequest evitaRequest,
@@ -1116,7 +1141,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	}
 
 	@Nonnull
-	private <S extends EntityClassifier> List<S> queryListInternal(
+	private <S extends Serializable> List<S> queryListInternal(
 		@Nonnull Query query,
 		@Nonnull Class<S> expectedType,
 		@Nonnull EvitaRequest evitaRequest
@@ -1186,7 +1211,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	}
 
 	@Nonnull
-	private <S extends EntityClassifier> Optional<S> queryOneInternal(
+	private <S extends Serializable> Optional<S> queryOneInternal(
 		@Nonnull Query query,
 		@Nonnull Class<S> expectedType,
 		@Nonnull EvitaRequest evitaRequest

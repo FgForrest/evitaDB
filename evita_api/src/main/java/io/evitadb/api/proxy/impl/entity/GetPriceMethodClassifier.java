@@ -34,6 +34,7 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.CollectorUtils;
 import io.evitadb.utils.ReflectionLookup;
 import one.edee.oss.proxycian.CurriedMethodContextInvocationHandler;
 import one.edee.oss.proxycian.DirectMethodClassification;
@@ -52,7 +53,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
 
@@ -245,7 +245,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 				theState.getSealedEntity()
 					.getAllPricesForSale()
 					.stream()
-					.collect(Collectors.toUnmodifiableSet());
+					.collect(CollectorUtils.toUnmodifiableLinkedHashSet());
 		} else {
 			final Map<Class<?>, Function<Object[], Object>> argumentFetchers = collectArgumentFetchers(proxyClass, method);
 			return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
@@ -253,8 +253,8 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 
 				final List<PriceContract> allPricesForSale = theState.getSealedEntity().getAllPricesForSale();
 				return pricePredicate == null ?
-					allPricesForSale.stream().collect(Collectors.toUnmodifiableSet()) :
-					allPricesForSale.stream().filter(pricePredicate).collect(Collectors.toUnmodifiableSet());
+					allPricesForSale.stream().collect(CollectorUtils.toUnmodifiableLinkedHashSet()) :
+					allPricesForSale.stream().filter(pricePredicate).collect(CollectorUtils.toUnmodifiableLinkedHashSet());
 			};
 		}
 	}
@@ -391,13 +391,13 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 				return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getSealedEntity()
 					.getPrices()
 					.stream()
-					.collect(Collectors.toUnmodifiableSet());
+					.collect(CollectorUtils.toUnmodifiableLinkedHashSet());
 			} else {
 				return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getSealedEntity()
 					.getPrices()
 					.stream()
 					.filter(it -> priceList.equals(it.getPriceList()))
-					.collect(Collectors.toUnmodifiableSet());
+					.collect(CollectorUtils.toUnmodifiableLinkedHashSet());
 			}
 		} else {
 			final Map<Class<?>, Function<Object[], Object>> argumentFetchers = collectArgumentFetchers(proxyClass, method);
@@ -412,8 +412,8 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 				final Collection<PriceContract> allPrices = theState.getSealedEntity().getPrices();
 
 				return pricePredicate == null ?
-					allPrices.stream().collect(Collectors.toUnmodifiableSet()) :
-					allPrices.stream().filter(pricePredicate).collect(Collectors.toUnmodifiableSet());
+					allPrices.stream().collect(CollectorUtils.toUnmodifiableLinkedHashSet()) :
+					allPrices.stream().filter(pricePredicate).collect(CollectorUtils.toUnmodifiableLinkedHashSet());
 			};
 		}
 	}

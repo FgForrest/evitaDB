@@ -31,7 +31,6 @@ import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
@@ -42,6 +41,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.Set;
@@ -100,7 +100,7 @@ public final class CorruptedCatalog implements CatalogContract {
 
 	@Nonnull
 	@Override
-	public <S extends EntityClassifier, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+	public <S extends Serializable, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		throw new CatalogCorruptedException(this);
 	}
 
