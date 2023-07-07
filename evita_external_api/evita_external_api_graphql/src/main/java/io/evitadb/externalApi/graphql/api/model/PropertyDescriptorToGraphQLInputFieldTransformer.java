@@ -54,6 +54,9 @@ public class PropertyDescriptorToGraphQLInputFieldTransformer implements Propert
 			final GraphQLInputType graphQLType = (GraphQLInputType) propertyDataTypeTransformer.apply(propertyDescriptor.type());
 			fieldBuilder.type(graphQLType);
 		}
+		if (propertyDescriptor.defaultValue() != null) {
+			fieldBuilder.defaultValueProgrammatic(propertyDescriptor.defaultValue());
+		}
 
 		return fieldBuilder;
 	}

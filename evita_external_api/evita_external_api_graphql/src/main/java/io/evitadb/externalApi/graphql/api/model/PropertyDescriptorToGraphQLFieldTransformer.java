@@ -30,6 +30,8 @@ import io.evitadb.externalApi.api.model.PropertyDataTypeDescriptorTransformer;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptorTransformer;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.FieldDecorator;
+import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
+import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -57,6 +59,10 @@ public class PropertyDescriptorToGraphQLFieldTransformer implements PropertyDesc
 		final GraphQLFieldDefinition.Builder fieldBuilder = GraphQLFieldDefinition.newFieldDefinition()
 			.name(propertyDescriptor.name())
 			.description(propertyDescriptor.description());
+		Assert.isPremiseValid(
+			propertyDescriptor.defaultValue() == null,
+			() -> new GraphQLSchemaBuildingError("GraphQL fields do not support default values but property `" +  propertyDescriptor.name() + "` has one.")
+		);
 
 		if (propertyDescriptor.type() != null) {
 			final GraphQLOutputType graphQLType = (GraphQLOutputType) propertyDataTypeTransformer.apply(propertyDescriptor.type());

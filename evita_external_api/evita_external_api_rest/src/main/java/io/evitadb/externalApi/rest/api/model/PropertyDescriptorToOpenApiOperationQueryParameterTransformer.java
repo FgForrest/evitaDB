@@ -28,6 +28,8 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptorTransformer;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
+import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
+import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -52,6 +54,9 @@ public class PropertyDescriptorToOpenApiOperationQueryParameterTransformer imple
 		if (propertyDescriptor.type() != null) {
 			final OpenApiSimpleType openApiType = propertyDataTypeDescriptorTransformer.apply(propertyDescriptor.type());
 			parameterBuilder.type(openApiType);
+		}
+		if (propertyDescriptor.defaultValue() != null) {
+			parameterBuilder.defaultValue(propertyDescriptor.defaultValue());
 		}
 
 		return parameterBuilder;

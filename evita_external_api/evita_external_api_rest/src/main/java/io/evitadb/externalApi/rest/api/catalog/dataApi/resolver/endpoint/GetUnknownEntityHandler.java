@@ -35,22 +35,21 @@ import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 /**
- * Handles requests for multiple unknown entities identified by their URLs or codes.
+ * Handle requests for unknown entity when entity is identified only by its URL or Code.
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class UnknownEntityListHandler extends RestHandler<CatalogRestHandlingContext> {
+public class GetUnknownEntityHandler extends RestHandler<CatalogRestHandlingContext> {
 
 	@Nonnull
 	private final EntityJsonSerializer entityJsonSerializer;
 
-	public UnknownEntityListHandler(@Nonnull CatalogRestHandlingContext restHandlingContext) {
+	public GetUnknownEntityHandler(@Nonnull CatalogRestHandlingContext restHandlingContext) {
 		super(restHandlingContext);
 		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
 	}
@@ -66,22 +65,21 @@ public class UnknownEntityListHandler extends RestHandler<CatalogRestHandlingCon
 		return true;
 	}
 
-
 	@Override
 	@Nonnull
 	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
 		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
 
 		final Query query = Query.query(
-			FilterByConstraintFromRequestQueryBuilder.buildFilterByForUnknownEntityList(parametersFromRequest, restApiHandlingContext.getCatalogSchema()),
+			FilterByConstraintFromRequestQueryBuilder.buildFilterByForUnknownEntity(parametersFromRequest, restApiHandlingContext.getCatalogSchema()),
 			RequireConstraintFromRequestQueryBuilder.buildRequire(parametersFromRequest)
 		);
 
-		log.debug("Generated evitaDB query for unknown entity list fetch is `{}`.", query);
+		log.debug("Generated evitaDB query for single unknown entity fetch is `{}`.", query);
 
-		final List<EntityClassifier> entities = restApiHandlingContext.queryCatalog(session ->
-			session.queryList(query, EntityClassifier.class));
+		final Optional<EntityClassifier> entity = restApiHandlingContext.queryCatalog(session ->
+			session.queryOne(query, EntityClassifier.class));
 
-		return Optional.of(entityJsonSerializer.serialize(entities));
+		return entity.map(entityJsonSerializer::serialize);
 	}
 }

@@ -89,23 +89,23 @@ public class ObjectJsonSerializer {
 		if(value instanceof Object[] values) return serializeArray(values);
 		if (value.getClass().isArray()) return serializeArray(value);
 		if (value instanceof String string) return jsonNodeFactory.textNode(string);
-		if (value instanceof Character character) return jsonNodeFactory.textNode(character.toString());
+		if (value instanceof Character character) return jsonNodeFactory.textNode(serialize(character));
 		if (value instanceof Integer integer) return jsonNodeFactory.numberNode(integer);
 		if (value instanceof Short shortNumber) return jsonNodeFactory.numberNode(shortNumber);
-		if (value instanceof Long longNumber) return jsonNodeFactory.textNode(String.valueOf(longNumber));
+		if (value instanceof Long longNumber) return jsonNodeFactory.textNode(serialize(longNumber));
 		if (value instanceof Boolean bool) return jsonNodeFactory.booleanNode(bool);
-		if (value instanceof Byte byteVal) return serialize(byteVal);
-		if (value instanceof BigDecimal bigDecimal) return serialize(bigDecimal);
-		if (value instanceof Locale locale) return serialize(locale);
-		if (value instanceof Currency currency) return serialize(currency);
-		if (value instanceof OffsetDateTime offsetDateTime) return serialize(offsetDateTime);
-		if (value instanceof LocalDateTime localDateTime) return serialize(localDateTime);
-		if (value instanceof LocalDate dateTime) return serialize(dateTime);
-		if (value instanceof LocalTime localTime) return serialize(localTime);
+		if (value instanceof Byte byteVal) return jsonNodeFactory.numberNode(byteVal);
+		if (value instanceof BigDecimal bigDecimal) return jsonNodeFactory.textNode(serialize(bigDecimal));
+		if (value instanceof Locale locale) return jsonNodeFactory.textNode(serialize(locale));
+		if (value instanceof Currency currency) return jsonNodeFactory.textNode(serialize(currency));
+		if (value instanceof OffsetDateTime offsetDateTime) return jsonNodeFactory.textNode(serialize(offsetDateTime));
+		if (value instanceof LocalDateTime localDateTime) return jsonNodeFactory.textNode(serialize(localDateTime));
+		if (value instanceof LocalDate dateTime) return jsonNodeFactory.textNode(serialize(dateTime));
+		if (value instanceof LocalTime localTime) return jsonNodeFactory.textNode(serialize(localTime));
 		if (value instanceof ComplexDataObject complexDataObject) return serialize(complexDataObject);
 		if (value instanceof Range<?> range) return serialize(range);
 		if (value instanceof PriceContract price) return serialize(price);
-		if (value.getClass().isEnum()) return serialize((Enum<?>) value);
+		if (value.getClass().isEnum()) return jsonNodeFactory.textNode(serialize((Enum<?>) value));
 
 		throw new RestInternalError("Serialization of value of class: " + value.getClass().getName() + " is not implemented yet.");
 	}
@@ -155,40 +155,54 @@ public class ObjectJsonSerializer {
 		return arrayNode;
 	}
 
-	private JsonNode serialize(@Nonnull BigDecimal bigDecimal) {
-		return jsonNodeFactory.textNode(bigDecimal.toPlainString());
+	@Nonnull
+	private String serialize(@Nonnull Long longNumber) {
+		return String.valueOf(longNumber);
 	}
 
-	private JsonNode serialize(@Nonnull Byte byteValue) {
-		return jsonNodeFactory.numberNode(byteValue);
+	@Nonnull
+	private String serialize(@Nonnull Character character) {
+		return character.toString();
 	}
 
-	private JsonNode serialize(@Nonnull Locale locale) {
-		return jsonNodeFactory.textNode(locale.toLanguageTag());
+	@Nonnull
+	private String serialize(@Nonnull BigDecimal bigDecimal) {
+		return bigDecimal.toPlainString();
 	}
 
-	private JsonNode serialize(@Nonnull Currency currency) {
-		return jsonNodeFactory.textNode(currency.getCurrencyCode());
+	@Nonnull
+	private String serialize(@Nonnull Locale locale) {
+		return locale.toLanguageTag();
 	}
 
-	private JsonNode serialize(@Nonnull OffsetDateTime offsetDateTime) {
-		return jsonNodeFactory.textNode(DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(offsetDateTime));
+	@Nonnull
+	private String serialize(@Nonnull Currency currency) {
+		return currency.getCurrencyCode();
 	}
 
-	private JsonNode serialize(@Nonnull LocalDateTime localDateTime) {
-		return jsonNodeFactory.textNode(DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(localDateTime));
+	@Nonnull
+	private String serialize(@Nonnull OffsetDateTime offsetDateTime) {
+		return DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(offsetDateTime);
 	}
 
-	private JsonNode serialize(@Nonnull LocalDate localDate) {
-		return jsonNodeFactory.textNode(DateTimeFormatter.ISO_LOCAL_DATE.format(localDate));
+	@Nonnull
+	private String serialize(@Nonnull LocalDateTime localDateTime) {
+		return DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(localDateTime);
 	}
 
-	private JsonNode serialize(@Nonnull LocalTime localTime) {
-		return jsonNodeFactory.textNode(DateTimeFormatter.ISO_LOCAL_TIME.format(localTime));
+	@Nonnull
+	private String serialize(@Nonnull LocalDate localDate) {
+		return DateTimeFormatter.ISO_LOCAL_DATE.format(localDate);
 	}
 
-	private JsonNode serialize(@Nonnull Enum<?> e) {
-		return jsonNodeFactory.textNode(e.name());
+	@Nonnull
+	private String serialize(@Nonnull LocalTime localTime) {
+		return DateTimeFormatter.ISO_LOCAL_TIME.format(localTime);
+	}
+
+	@Nonnull
+	private String serialize(@Nonnull Enum<?> e) {
+		return e.name();
 	}
 
 	private JsonNode serialize(@Nonnull ComplexDataObject complexDataObject) {

@@ -178,7 +178,9 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 	@Nonnull
 	protected ArrayList<Map<String, Object>> createPricesDto(@Nonnull SealedEntity entity) {
 		final ArrayList<Map<String, Object>> prices = new ArrayList<>();
-		entity.getPrices().stream()
+		entity.getPrices()
+			.stream()
+			.sorted(Comparator.comparing(PriceContract::getPriceKey))
 			.forEach(price -> {
 					prices.add(map()
 						.e(PriceDescriptor.PRICE_ID.name(), price.getPriceId())

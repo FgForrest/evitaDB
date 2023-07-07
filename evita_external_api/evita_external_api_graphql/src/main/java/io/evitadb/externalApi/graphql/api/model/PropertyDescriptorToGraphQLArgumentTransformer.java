@@ -54,6 +54,9 @@ public class PropertyDescriptorToGraphQLArgumentTransformer implements PropertyD
 			final GraphQLInputType graphQLType = (GraphQLInputType) propertyDataTypeTransformer.apply(propertyDescriptor.type());
 			argumentBuilder.type(graphQLType);
 		}
+		if (propertyDescriptor.defaultValue() != null) {
+			argumentBuilder.defaultValueProgrammatic(propertyDescriptor.defaultValue());
+		}
 
 		return argumentBuilder;
 	}
