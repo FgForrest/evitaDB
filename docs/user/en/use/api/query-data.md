@@ -260,7 +260,7 @@ The `listCollectionName` query supports full filtering and ordering as part of a
 </SourceCodeTabs>
 
 The `queryCollectionName` query supports the full filtering, ordering, and requirements parts of a query.
-This GraphQL query even supports extra results, which is not possible with the two previous queries.
+This GraphQL query even supports extra results, which is not possible with the previous two queries.
 
 <SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
 [Java query example](/docs/user/en/use/api/example/graphql-full-query-example.java)
@@ -276,27 +276,27 @@ The query is automatically cleaned and unnecessary constraints are removed befor
 
 ## Defining queries in REST API
 
-In the REST API, there are several entity fetching endpoints that accept evitaQL queries in some form or another. These
+In the REST API, there are several entity fetching endpoints that accept evitaQL queries in one form or another. These
 endpoints have the following URL forms:
 
 - `/rest/catalog-name/entity-collection/get`
 - `/rest/catalog-name/entity-collection/list`
 - `/rest/catalog-name/entity-collection/query`
 
-The `/get` endpoints only supports a very simplified and limited variant of filtering and requirements parts of a query using URL query parameters.
+The `/get` endpoints only support a very simplified and limited variant of filtering and requirements parts of a query using URL query parameters.
 
 <SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
 [Java query example](/docs/user/en/use/api/example/rest-get-query-example.rest)
 </SourceCodeTabs>
 
-The `/list` query supports full filtering and ordering but only a limited entity requirements.
+The `/list` query supports full filtering and ordering, but only a limited entity requirements.
 
 <SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
 [Java query example](/docs/user/en/use/api/example/rest-list-query-example.rest)
 </SourceCodeTabs>
 
 The `/query` query supports the full filtering, ordering, and requirements.
-This endpoint even supports extra results, which is not possible with the two previous queries.
+This endpoint even supports extra results, which is not possible with the previous two queries.
 
 <SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
 [Java query example](/docs/user/en/use/api/example/rest-full-query-example.rest)
