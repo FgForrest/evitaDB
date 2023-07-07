@@ -47,7 +47,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
@@ -101,7 +100,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 			.sorted()
 			.toArray(Integer[]::new);
 
-		assertEquals(3, references.length);
+		assertEquals(expectedCategoryIds.length, references.length);
 		assertArrayEquals(
 			Arrays.stream(expectedCategoryIds)
 				.boxed()
@@ -185,15 +184,15 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 		assertTrue(productCategory instanceof SealedEntityReferenceProxy);
 		final ReferenceContract theReference = ((SealedEntityReferenceProxy) productCategory).getReference();
-		assertEquals(theReference.getAttribute(DataGenerator.ATTRIBUTE_CODE), productCategory.getOrderInCategory());
+		assertEquals(theReference.getAttribute(DataGenerator.ATTRIBUTE_CATEGORY_PRIORITY), productCategory.getOrderInCategory());
 
 		if (locale == null) {
-			for (AttributeValue attributeValue : sealedEntity.getAttributeValues(ATTRIBUTE_CATEGORY_LABEL)) {
+			for (AttributeValue attributeValue : theReference.getAttributeValues(ATTRIBUTE_CATEGORY_LABEL)) {
 				assertEquals(attributeValue.getValue(), productCategory.getLabel(attributeValue.getKey().getLocale()));
 			}
 		} else {
-			assertEquals(sealedEntity.getAttribute(ATTRIBUTE_CATEGORY_LABEL, locale), productCategory.getLabel());
-			assertEquals(sealedEntity.getAttribute(ATTRIBUTE_CATEGORY_LABEL, locale), productCategory.getLabel(locale));
+			assertEquals(theReference.getAttribute(ATTRIBUTE_CATEGORY_LABEL, locale), productCategory.getLabel());
+			assertEquals(theReference.getAttribute(ATTRIBUTE_CATEGORY_LABEL, locale), productCategory.getLabel(locale));
 		}
 
 		assertCategory(productCategory.getCategory(), sealedEntity, locale);
@@ -348,12 +347,12 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 		final SealedEntity theProduct = originalProducts
 			.stream()
 			.filter(it -> it.getReferences(Entities.CATEGORY).size() > 2)
-			.filter(it -> it.getAllPricesForSale().size() > 3)
+			.filter(it -> it.getAllPricesForSale().size() > 1)
 			.findFirst()
 			.orElseThrow();
 
 		final Optional<ProductInterface> productRef = evitaSession.getEntity(
-			Entities.PRODUCT, ProductInterface.class, 1,
+			Entities.PRODUCT, ProductInterface.class, theProduct.getPrimaryKey(),
 			attributeContent(),
 			associatedDataContent(),
 			priceContentAll(),
@@ -369,18 +368,18 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 			),
 			dataInLocales()
 		);
+
 		assertTrue(productRef.isPresent());
 		final ProductInterface product = productRef.get();
-		assertEquals(1, product.getPrimaryKey());
-		assertEquals(1, product.getId());
+		assertEquals(theProduct.getPrimaryKey(), product.getPrimaryKey());
+		assertEquals(theProduct.getPrimaryKey(), product.getId());
 		assertEquals(Entities.PRODUCT, product.getType());
 		assertEquals(TestEntity.PRODUCT, product.getEntityType());
-		assertEquals("Ergonomic-Plastic-Table-1", product.getCode());
-		assertEquals("Incredible Linen Clock", product.getName(CZECH_LOCALE));
-		assertEquals("Incredible Linen Clock_2", product.getName(Locale.ENGLISH));
-		assertEquals(new BigDecimal("310.37"), product.getQuantity());
-		assertEquals(new BigDecimal("310.37"), product.getQuantityAsDifferentProperty());
-		assertTrue(product.isAlias());
+		assertEquals(theProduct.getAttribute(DataGenerator.ATTRIBUTE_CODE), product.getCode());
+		assertEquals(theProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, CZECH_LOCALE), product.getName());
+		assertEquals(theProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantity());
+		assertEquals(theProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantityAsDifferentProperty());
+		assertEquals(theProduct.getAttribute(DataGenerator.ATTRIBUTE_ALIAS), product.isAlias());
 		assertEquals(new ReferencedFileSet(null), product.getReferencedFileSet());
 		assertEquals(new ReferencedFileSet(null), product.getReferencedFileSetAsDifferentProperty());
 

@@ -50,14 +50,13 @@ public class SealedEntityProxyState
 	@Serial private static final long serialVersionUID = 586508293856395550L;
 
 	public SealedEntityProxyState(
-		@Nonnull EvitaRequestContext context,
 		@Nonnull SealedEntity sealedEntity,
 		@Nonnull Class<?> proxyClass,
 		@Nonnull Map<ProxyRecipeCacheKey, ProxyRecipe> recipes,
 		@Nonnull Map<ProxyRecipeCacheKey, ProxyRecipe> collectedRecipes,
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
-		super(sealedEntity, context, proxyClass, recipes, collectedRecipes, reflectionLookup);
+		super(sealedEntity, proxyClass, recipes, collectedRecipes, reflectionLookup);
 	}
 
 	@Nonnull

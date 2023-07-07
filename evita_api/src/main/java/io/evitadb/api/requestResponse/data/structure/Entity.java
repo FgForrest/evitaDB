@@ -570,16 +570,18 @@ public class Entity implements SealedEntity {
 		if (newAttributes.isEmpty()) {
 			newAttributeContainer = possibleEntity
 				.map(it -> it.attributes)
-				.orElseGet(() -> new Attributes(entitySchema));
+				.orElseGet(() -> new Attributes(entitySchema, null));
 		} else {
 			newAttributeContainer = new Attributes(
 				entitySchema,
+				null,
 				Stream.concat(
 					possibleEntity.map(Entity::getAttributeValues).orElseGet(Collections::emptyList)
 						.stream()
 						.filter(it -> !newAttributes.containsKey(it.getKey())),
 					newAttributes.values().stream()
-				).toList()
+				).toList(),
+				entitySchema.getAttributes()
 			);
 		}
 		return newAttributeContainer;
@@ -770,7 +772,7 @@ public class Entity implements SealedEntity {
 		this.primaryKey = primaryKey;
 		this.parent = null;
 		this.references = Collections.emptyMap();
-		this.attributes = new Attributes(this.schema);
+		this.attributes = new Attributes(this.schema, null);
 		this.associatedData = new AssociatedData(this.schema);
 		this.prices = new io.evitadb.api.requestResponse.data.structure.Prices(1, Collections.emptySet(), PriceInnerRecordHandling.NONE);
 		this.locales = Collections.emptySet();

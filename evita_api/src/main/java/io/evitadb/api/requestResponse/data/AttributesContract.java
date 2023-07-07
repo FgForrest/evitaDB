@@ -23,6 +23,9 @@
 
 package io.evitadb.api.requestResponse.data;
 
+import io.evitadb.api.exception.AttributeNotFoundException;
+import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.requestResponse.data.structure.Attributes;
 import io.evitadb.api.requestResponse.data.structure.Entity;
@@ -94,9 +97,13 @@ public interface AttributesContract extends Serializable {
 	 * ```
 	 *
 	 * @throws ClassCastException when attribute is of different type than expected
+	 * @throws ContextMissingException when attribute is localized and entity is not related to any {@link Query} or
+	 *                                 the query lacks locale identifier
+	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 */
 	@Nullable
-	<T extends Serializable> T getAttribute(@Nonnull String attributeName);
+	<T extends Serializable> T getAttribute(@Nonnull String attributeName)
+		throws ContextMissingException, AttributeNotFoundException;
 
 	/**
 	 * Returns value associated with the key or null when the attribute is missing.
@@ -105,9 +112,13 @@ public interface AttributesContract extends Serializable {
 	 * used in {@link Optional} or {@link Stream} contexts.
 	 *
 	 * @throws ClassCastException when attribute is of different type than expected
+	 * @throws ContextMissingException when attribute is localized and entity is not related to any {@link Query} or
+	 *                                 the query lacks locale identifier
+	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 */
 	@Nullable
-	default <T extends Serializable> T getAttribute(@Nonnull String attributeName, @Nonnull Class<T> expectedClass) {
+	default <T extends Serializable> T getAttribute(@Nonnull String attributeName, @Nonnull Class<T> expectedClass)
+		throws ContextMissingException, AttributeNotFoundException {
 		return getAttribute(attributeName);
 	}
 
@@ -117,9 +128,13 @@ public interface AttributesContract extends Serializable {
 	 * variable type inference. It's shorted, but it can't be used on every place.
 	 *
 	 * @throws ClassCastException when attribute is of different type than expected or is not an array
+	 * @throws ContextMissingException when attribute is localized and entity is not related to any {@link Query} or
+	 *                                 the query lacks locale identifier
+	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 */
 	@Nullable
-	<T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName);
+	<T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName)
+		throws ContextMissingException, AttributeNotFoundException;
 
 	/**
 	 * Returns array of values associated with the key or null when the attribute is missing.
@@ -127,19 +142,26 @@ public interface AttributesContract extends Serializable {
 	 * type as an input argument and doesn't rely on Java local variable type inference.
 	 *
 	 * @throws ClassCastException when attribute is of different type than expected or is not an array
+	 * @throws ContextMissingException when attribute is localized and entity is not related to any {@link Query} or
+	 *                                 the query lacks locale identifier
+	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 */
 	@Nullable
-	default <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName, @Nonnull Class<T> expectedType) {
+	default <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName, @Nonnull Class<T> expectedType)
+		throws ContextMissingException, AttributeNotFoundException {
 		return getAttributeArray(attributeName);
 	}
 
 	/**
-	 * Returns value associated with the key or null when the attribute is missing.
+	 * Returns value associated with the key or null when the attribute is missing. This method doesn't throw any
+	 * {@link ContextMissingException}, but instead it returns an empty value even for localized attributes.
 	 *
 	 * Method returns wrapper dto for the attribute that contains information about the attribute version and state.
+	 *
+	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 */
 	@Nonnull
-	Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName);
+	Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName) throws AttributeNotFoundException;
 
 	/**
 	 * Returns value associated with the key or null when the attribute is missing.
@@ -147,9 +169,11 @@ public interface AttributesContract extends Serializable {
 	 * method the safest way how to lookup for attribute if caller doesn't know whether it is localized or not.
 	 *
 	 * @throws ClassCastException when attribute is of different type than expected
+	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 */
 	@Nullable
-	<T extends Serializable> T getAttribute(@Nonnull String attributeName, @Nonnull Locale locale);
+	<T extends Serializable> T getAttribute(@Nonnull String attributeName, @Nonnull Locale locale)
+		throws AttributeNotFoundException;
 
 	/**
 	 * Returns value associated with the key or null when the attribute is missing.
@@ -159,8 +183,10 @@ public interface AttributesContract extends Serializable {
 	 * type as an input argument and doesn't rely on Java local variable type inference.
 	 *
 	 * @throws ClassCastException when attribute is of different type than expected
+	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 */
-	default <T extends Serializable> T getAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nonnull Class<T> expectedType) {
+	default <T extends Serializable> T getAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nonnull Class<T> expectedType)
+		throws AttributeNotFoundException {
 		return getAttribute(attributeName, locale);
 	}
 
@@ -170,9 +196,11 @@ public interface AttributesContract extends Serializable {
 	 * method the safest way how to lookup for attribute if caller doesn't know whether it is localized or not.
 	 *
 	 * @throws ClassCastException when attribute is of different type than expected or is not an array
+	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 */
 	@Nullable
-	<T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName, @Nonnull Locale locale);
+	<T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName, @Nonnull Locale locale)
+		throws AttributeNotFoundException;
 
 	/**
 	 * Returns array of values associated with the key or null when the attribute is missing.
@@ -182,8 +210,10 @@ public interface AttributesContract extends Serializable {
 	 * type as an input argument and doesn't rely on Java local variable type inference.
 	 *
 	 * @throws ClassCastException when attribute is of different type than expected or is not an array
+	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 */
-	default <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName, @Nonnull Locale locale, @Nonnull Class<T> expectedType) {
+	default <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName, @Nonnull Locale locale, @Nonnull Class<T> expectedType)
+		throws AttributeNotFoundException {
 		return getAttributeArray(attributeName, locale);
 	}
 
@@ -193,9 +223,12 @@ public interface AttributesContract extends Serializable {
 	 * method the safest way how to lookup for attribute if caller doesn't know whether it is localized or not.
 	 *
 	 * Method returns wrapper dto for the attribute that contains information about the attribute version and state.
+	 *
+	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 */
 	@Nonnull
-	Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName, @Nonnull Locale locale);
+	Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName, @Nonnull Locale locale)
+		throws AttributeNotFoundException;
 
 	/**
 	 * Returns definition for the attribute of specified name.
@@ -249,6 +282,7 @@ public interface AttributesContract extends Serializable {
 
 	/**
 	 * Inner implementation used in {@link Attributes} to represent a proper key in hash map.
+	 * TODO JNO - CHANGE TO A RECORD?!
 	 *
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
 	 */
@@ -320,6 +354,8 @@ public interface AttributesContract extends Serializable {
 	 * Represents single attribute og the {@link Entity}. AttributeValue serves as wrapper for the attribute value
 	 * that also carries current version of the value for the sake of optimistic locking and the locale (in case attribute
 	 * is localized).
+	 *
+	 * TODO JNO - CHANGE TO A RECORD?!
 	 *
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
 	 */

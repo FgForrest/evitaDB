@@ -50,12 +50,11 @@ import static io.evitadb.api.proxy.impl.ProxycianFactory.DEFAULT_ENTITY_REFERENC
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@EqualsAndHashCode(of = {"context", "sealedEntity", "proxyClass"})
+@EqualsAndHashCode(of = {"sealedEntity", "proxyClass"})
 @RequiredArgsConstructor(access = AccessLevel.PROTECTED)
 class AbstractEntityProxyState implements Serializable {
 	@Serial private static final long serialVersionUID = -6935480192166155348L;
 	@Nonnull protected final SealedEntity sealedEntity;
-	@Nonnull protected final EvitaRequestContext context;
 	@Nonnull protected final Class<?> proxyClass;
 	@Nonnull protected final Map<ProxyRecipeCacheKey, ProxyRecipe> recipes;
 	@Nonnull protected transient Map<ProxyRecipeCacheKey, ProxyRecipe> collectedRecipes;
@@ -64,11 +63,6 @@ class AbstractEntityProxyState implements Serializable {
 	@Nonnull
 	public SealedEntity getSealedEntity() {
 		return sealedEntity;
-	}
-
-	@Nonnull
-	public EvitaRequestContext getContext() {
-		return context;
 	}
 
 	@Nonnull
@@ -88,14 +82,14 @@ class AbstractEntityProxyState implements Serializable {
 
 	public <T extends EntityClassifier> T wrapTo(@Nonnull Class<T> entityContract, @Nonnull SealedEntity sealedEntity) {
 		return ProxycianFactory.createProxy(
-			entityContract, recipes, collectedRecipes, sealedEntity, context, getReflectionLookup(),
+			entityContract, recipes, collectedRecipes, sealedEntity, getReflectionLookup(),
 			cacheKey -> collectedRecipes.computeIfAbsent(cacheKey, DEFAULT_ENTITY_RECIPE)
 		);
 	}
 
 	public <T> T wrapReferenceTo(@Nonnull Class<T> referenceContract, @Nonnull ReferenceContract reference) {
 		return ProxycianFactory.createProxy(
-			referenceContract, recipes, collectedRecipes, sealedEntity, reference, context, getReflectionLookup(),
+			referenceContract, recipes, collectedRecipes, sealedEntity, reference, getReflectionLookup(),
 			cacheKey -> collectedRecipes.computeIfAbsent(cacheKey, DEFAULT_ENTITY_REFERENCE_RECIPE)
 		);
 	}

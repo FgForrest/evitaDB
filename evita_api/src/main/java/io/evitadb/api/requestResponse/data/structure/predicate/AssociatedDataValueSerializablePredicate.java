@@ -23,6 +23,8 @@
 
 package io.evitadb.api.requestResponse.data.structure.predicate;
 
+import io.evitadb.api.EntityCollectionContract;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
@@ -40,6 +42,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -48,8 +51,18 @@ import java.util.Set;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class AssociatedDataValueSerializablePredicate implements SerializablePredicate<AssociatedDataValue> {
-	public static final AssociatedDataValueSerializablePredicate DEFAULT_INSTANCE = new AssociatedDataValueSerializablePredicate(Collections.emptySet(), Collections.emptySet(), true);
+	public static final AssociatedDataValueSerializablePredicate DEFAULT_INSTANCE = new AssociatedDataValueSerializablePredicate(
+		null, Collections.emptySet(), Collections.emptySet(), true
+	);
 	@Serial private static final long serialVersionUID = 85644932696677698L;
+	/**
+	 * Contains information about single locale defined for the entity.
+	 */
+	@Nullable @Getter private final Locale locale;
+	/**
+	 * Contains information about implicitly derived locale during entity fetch.
+	 */
+	@Nullable @Getter private final Locale implicitLocale;
 	/**
 	 * Contains information about all locales of the associated data that has been fetched / requested for the entity.
 	 */
@@ -65,12 +78,14 @@ public class AssociatedDataValueSerializablePredicate implements SerializablePre
 	/**
 	 * Contains information about underlying predicate that is bound to the {@link EntityDecorator}. This underlying
 	 * predicate represents the scope of the fetched (enriched) entity in its true form (i.e. {@link Entity}) and needs
-	 * to be carried around even if {@link io.evitadb.api.EntityCollectionContract#limitEntity(SealedEntity, EvitaRequest)}
+	 * to be carried around even if {@link EntityCollectionContract#limitEntity(SealedEntity, EvitaRequest, EvitaSessionContract)}
 	 * is invoked on the entity.
 	 */
 	@Nullable @Getter private final AssociatedDataValueSerializablePredicate underlyingPredicate;
 
 	public AssociatedDataValueSerializablePredicate() {
+		this.locale = null;
+		this.implicitLocale = null;
 		this.locales = null;
 		this.associatedDataSet = Collections.emptySet();
 		this.requiresEntityAssociatedData = false;
@@ -84,28 +99,46 @@ public class AssociatedDataValueSerializablePredicate implements SerializablePre
 				"Underlying predicate composition expects to be maximally one: " +
 				"limited view -> complete view and never limited view -> limited view -> complete view."
 		);
+		this.implicitLocale = evitaRequest.getImplicitLocale();
 		this.locales = evitaRequest.getRequiredLocales();
+		this.locale = Optional.ofNullable(implicitLocale)
+			.orElseGet(() -> locales != null && locales.size() == 1 ? locales.iterator().next() : null);
 		this.associatedDataSet = evitaRequest.getEntityAssociatedDataSet();
 		this.requiresEntityAssociatedData = evitaRequest.isRequiresEntityAssociatedData();
 		this.underlyingPredicate = underlyingPredicate;
 	}
 
 	public AssociatedDataValueSerializablePredicate(@Nonnull EvitaRequest evitaRequest) {
+		this.implicitLocale = evitaRequest.getImplicitLocale();
 		this.locales = evitaRequest.getRequiredLocales();
+		this.locale = Optional.ofNullable(implicitLocale)
+			.orElseGet(() -> locales != null && locales.size() == 1 ? locales.iterator().next() : null);
 		this.associatedDataSet = evitaRequest.getEntityAssociatedDataSet();
 		this.requiresEntityAssociatedData = evitaRequest.isRequiresEntityAssociatedData();
 		this.underlyingPredicate = null;
 	}
 
-	AssociatedDataValueSerializablePredicate(@Nullable Set<Locale> locales, @Nonnull Set<String> associatedDataSet, boolean requiresEntityAssociatedData) {
+	AssociatedDataValueSerializablePredicate(
+		@Nullable Locale implicitLocale,
+		@Nullable Set<Locale> locales,
+		@Nonnull Set<String> associatedDataSet,
+		boolean requiresEntityAssociatedData
+	) {
+		this.implicitLocale = implicitLocale;
 		this.locales = locales;
+		this.locale = Optional.ofNullable(implicitLocale)
+			.orElseGet(() -> locales != null && locales.size() == 1 ? locales.iterator().next() : null);
 		this.associatedDataSet = associatedDataSet;
 		this.requiresEntityAssociatedData = requiresEntityAssociatedData;
 		this.underlyingPredicate = null;
 	}
 
+	public boolean isLocaleSet() {
+		return this.locale != null || this.implicitLocale != null || this.locales != null;
+	}
+
 	@Override
-	public boolean test(@Nonnull AssociatedDataValue associatedDataValue) {
+	public boolean test(AssociatedDataValue associatedDataValue) {
 		if (requiresEntityAssociatedData) {
 			final AssociatedDataKey key = associatedDataValue.getKey();
 			return associatedDataValue.exists() &&
@@ -128,6 +161,7 @@ public class AssociatedDataValueSerializablePredicate implements SerializablePre
 			return this;
 		} else {
 			return new AssociatedDataValueSerializablePredicate(
+				implicitLocale,
 				requiredLanguages,
 				requiredAssociatedDataSet,
 				evitaRequest.isRequiresEntityAssociatedData() || this.requiresEntityAssociatedData

@@ -27,7 +27,6 @@ import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityCollectionRequiredException;
 import io.evitadb.api.exception.UnexpectedResultException;
-import io.evitadb.api.proxy.impl.EvitaRequestContext;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
@@ -45,7 +44,6 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
-import io.evitadb.function.TriFunction;
 import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
 
@@ -55,6 +53,7 @@ import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.*;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
@@ -74,7 +73,7 @@ import static java.util.Optional.ofNullable;
  * @see EvitaResponse examples in super class
  */
 public class EvitaRequest {
-	public static final TriFunction<Class<?>, SealedEntity, EvitaRequestContext, ?> CONVERSION_NOT_SUPPORTED = (aClass, sealedEntity, request) -> {
+	public static final BiFunction<Class<?>, SealedEntity, ?> CONVERSION_NOT_SUPPORTED = (aClass, sealedEntity) -> {
 		throw new UnsupportedOperationException();
 	};
 	private static final int[] EMPTY_INTS = new int[0];
@@ -83,7 +82,7 @@ public class EvitaRequest {
 	private final String entityType;
 	private final Locale implicitLocale;
 	private final Class<?> expectedType;
-	private final TriFunction<Class<?>, SealedEntity, EvitaRequestContext, ?> converter;
+	private final BiFunction<Class<?>, SealedEntity, ?> converter;
 	private int[] primaryKeys;
 	private boolean localeExamined;
 	private Locale locale;
@@ -146,7 +145,7 @@ public class EvitaRequest {
 		@Nonnull Query query,
 		@Nonnull OffsetDateTime alignedNow,
 		@Nonnull Class<?> expectedType,
-		@Nonnull TriFunction<Class<?>, SealedEntity, EvitaRequestContext, ?> converter
+		@Nonnull BiFunction<Class<?>, SealedEntity, ?> converter
 	) {
 		final Collection header = query.getCollection();
 		this.entityType = ofNullable(header).map(Collection::getEntityType).orElse(null);
@@ -841,7 +840,7 @@ public class EvitaRequest {
 					//noinspection unchecked
 					data = (List<T>) data.stream()
 						.map(SealedEntity.class::cast)
-						.map(it -> converter.apply(expectedType, it, getContext()))
+						.map(it -> converter.apply(expectedType, it))
 						.toList();
 				} else {
 					throw new UnexpectedResultException(expectedType, data.get(0).getClass());
@@ -883,17 +882,6 @@ public class EvitaRequest {
 		return new EvitaRequest(
 			this,
 			entityType, filterConstraint, orderConstraint
-		);
-	}
-
-	/**
-	 * TODO JNO - document me, OTÁZKA JESTLI TO NĚJAK NEZPROPAGOVAT I DO EVITA REQUESTU
-	 * TODO JNO - cachovat
-	 */
-	@Nonnull
-	public EvitaRequestContext getContext() {
-		return new EvitaRequestContext(
-			getRequiredOrImplicitLocale()
 		);
 	}
 

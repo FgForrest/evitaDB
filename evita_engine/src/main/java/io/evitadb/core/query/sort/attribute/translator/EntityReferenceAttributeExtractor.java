@@ -32,7 +32,7 @@ import javax.annotation.Nullable;
 import java.util.Locale;
 import java.util.Objects;
 
-import static io.evitadb.api.query.QueryConstraints.referenceContent;
+import static io.evitadb.api.query.QueryConstraints.referenceContentWithAttributes;
 
 /**
  * This implementation of {@link AttributeExtractor} extracts the attribute values from specific
@@ -42,12 +42,12 @@ import static io.evitadb.api.query.QueryConstraints.referenceContent;
  */
 @RequiredArgsConstructor
 public final class EntityReferenceAttributeExtractor implements AttributeExtractor {
-	private final String referencedEntity;
+	private final String referenceName;
 
 	@Nullable
 	@Override
 	public Comparable<?> extract(@Nonnull EntityContract entity, @Nonnull String attributeName) {
-		return entity.getReferences(referencedEntity)
+		return entity.getReferences(referenceName)
 			.stream()
 			.map(it -> (Comparable<?>)it.getAttribute(attributeName))
 			.filter(Objects::nonNull)
@@ -59,7 +59,7 @@ public final class EntityReferenceAttributeExtractor implements AttributeExtract
 	@Override
 	public Comparable<?> extract(@Nonnull EntityContract entity, @Nonnull String attributeName, @Nonnull Locale locale) {
 		//noinspection ConstantConditions
-		return entity.getReferences(referencedEntity)
+		return entity.getReferences(referenceName)
 			.stream()
 			.map(it -> (Comparable<?>)it.getAttribute(attributeName, locale))
 			.findFirst()
@@ -69,7 +69,7 @@ public final class EntityReferenceAttributeExtractor implements AttributeExtract
 	@Nonnull
 	@Override
 	public EntityContentRequire getRequirements() {
-		return referenceContent(referencedEntity);
+		return referenceContentWithAttributes(referenceName);
 	}
 
 }

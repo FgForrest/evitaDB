@@ -43,6 +43,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -66,6 +67,10 @@ class InitialAttributesBuilder implements AttributesBuilder {
 	 * Entity schema if available.
 	 */
 	private final EntitySchemaContract entitySchema;
+	/**
+	 * Definition of the reference schema.
+	 */
+	private final ReferenceSchemaContract referenceSchema;
 	/**
 	 * When this flag is set to true - verification on store is suppressed. It can be set to true only when verification
 	 * is encured by calling logic.
@@ -183,8 +188,12 @@ class InitialAttributesBuilder implements AttributesBuilder {
 	/**
 	 * AttributesBuilder constructor that will be used for building brand new {@link Attributes} container.
 	 */
-	InitialAttributesBuilder(@Nonnull EntitySchemaContract entitySchema) {
+	InitialAttributesBuilder(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema
+	) {
 		this.entitySchema = entitySchema;
+		this.referenceSchema = referenceSchema;
 		this.attributeValues = new HashMap<>();
 		this.suppressVerification = false;
 	}
@@ -192,8 +201,13 @@ class InitialAttributesBuilder implements AttributesBuilder {
 	/**
 	 * AttributesBuilder constructor that will be used for building brand new {@link Attributes} container.
 	 */
-	InitialAttributesBuilder(@Nonnull EntitySchemaContract entitySchema, boolean suppressVerification) {
+	InitialAttributesBuilder(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		boolean suppressVerification
+	) {
 		this.entitySchema = entitySchema;
+		this.referenceSchema = referenceSchema;
 		this.attributeValues = new HashMap<>();
 		this.suppressVerification = suppressVerification;
 	}
@@ -394,15 +408,14 @@ class InitialAttributesBuilder implements AttributesBuilder {
 	@Nonnull
 	@Override
 	public Attributes build() {
-		return new Attributes(
-			this.entitySchema,
-			this.attributeValues.values(),
-			this.attributeValues
-			.values()
+		final Map<String, AttributeSchemaContract> newAttributes = this.attributeValues
+			.entrySet()
 			.stream()
+			.filter(entry -> this.entitySchema.getAttribute(entry.getKey().getAttributeName()).isEmpty())
+			.map(Entry::getValue)
 			.map(this::createImplicitSchema)
 			.collect(
-				Collectors.toMap(
+				Collectors.toUnmodifiableMap(
 					AttributeSchemaContract::getName,
 					Function.identity(),
 					(attributeType, attributeType2) -> {
@@ -415,7 +428,24 @@ class InitialAttributesBuilder implements AttributesBuilder {
 						return attributeType;
 					}
 				)
-			)
+			);
+		return new Attributes(
+			this.entitySchema,
+			this.referenceSchema,
+			this.attributeValues.values(),
+			newAttributes.isEmpty() ?
+				this.entitySchema.getAttributes() :
+				Stream.concat(
+						this.entitySchema.getAttributes().entrySet().stream(),
+						newAttributes.entrySet().stream()
+					)
+					.collect(
+						Collectors.toUnmodifiableMap(
+							Entry::getKey,
+							Entry::getValue
+						)
+					)
+
 		);
 	}
 

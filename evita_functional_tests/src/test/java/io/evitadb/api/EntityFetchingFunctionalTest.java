@@ -2702,7 +2702,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 						require(
 							page(1, Integer.MAX_VALUE),
 							entityFetch(
-								referenceContent(
+								referenceContentWithAttributes(
 									Entities.PARAMETER,
 									filterBy(
 										attributeGreaterThanEquals(ATTRIBUTE_CATEGORY_PRIORITY, secondCategoryPriority)
@@ -2710,7 +2710,10 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 									orderBy(
 										attributeNatural(ATTRIBUTE_CATEGORY_PRIORITY, OrderDirection.DESC)
 									),
-									entityFetch(attributeContent(), associatedDataContent())
+									entityFetch(
+										attributeContent(),
+										associatedDataContent()
+									)
 								)
 							)
 						)
@@ -2803,7 +2806,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 						require(
 							page(1, Integer.MAX_VALUE),
 							entityFetch(
-								referenceContent(
+								referenceContentWithAttributes(
 									Entities.PARAMETER,
 									filterBy(
 										and(

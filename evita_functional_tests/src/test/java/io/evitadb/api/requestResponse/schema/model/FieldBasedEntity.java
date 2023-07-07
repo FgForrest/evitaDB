@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedData;
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
+import io.evitadb.api.requestResponse.data.annotation.ParentEntity;
 import io.evitadb.api.requestResponse.data.annotation.PriceForSale;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
 import io.evitadb.api.requestResponse.data.annotation.Reference;
@@ -70,6 +71,7 @@ public class FieldBasedEntity {
 	@Nonnull
 	private ReferencedFiles referencedFiles;
 
+	@ParentEntity
 	private int parentEntity;
 
 	@PriceForSale

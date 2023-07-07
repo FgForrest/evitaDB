@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMut
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
@@ -68,6 +69,10 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	 */
 	private final EntitySchemaContract entitySchema;
 	/**
+	 * Definition of the reference schema.
+	 */
+	private final ReferenceSchemaContract referenceSchema;
+	/**
 	 * Initial set of attributes that is going to be modified by this builder.
 	 */
 	private final Attributes baseAttributes;
@@ -90,9 +95,11 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	 */
 	public ExistingAttributesBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull Attributes baseAttributes
 	) {
 		this.entitySchema = entitySchema;
+		this.referenceSchema = referenceSchema;
 		this.attributeMutations = new HashMap<>();
 		this.baseAttributes = baseAttributes;
 		this.suppressVerification = false;
@@ -104,11 +111,14 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	 */
 	public ExistingAttributesBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull Collection<AttributeValue> attributes
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull Collection<AttributeValue> attributes,
+		@Nonnull Map<String, AttributeSchemaContract> attributeTypes
 	) {
 		this.entitySchema = entitySchema;
+		this.referenceSchema = referenceSchema;
 		this.attributeMutations = new HashMap<>();
-		this.baseAttributes = new Attributes(entitySchema, attributes);
+		this.baseAttributes = new Attributes(entitySchema, referenceSchema, attributes, attributeTypes);
 		this.suppressVerification = false;
 		this.attributePredicate = Droppable::exists;
 	}
@@ -118,10 +128,12 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	 */
 	public ExistingAttributesBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull Attributes baseAttributes,
 		@Nonnull SerializablePredicate<AttributeValue> attributePredicate
 	) {
 		this.entitySchema = entitySchema;
+		this.referenceSchema = referenceSchema;
 		this.attributeMutations = new HashMap<>();
 		this.baseAttributes = baseAttributes;
 		this.suppressVerification = false;
@@ -133,12 +145,15 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	 */
 	ExistingAttributesBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull Collection<AttributeValue> attributes,
+		@Nonnull Map<String, AttributeSchemaContract> attributeTypes,
 		boolean suppressVerification
 	) {
 		this.entitySchema = entitySchema;
+		this.referenceSchema = referenceSchema;
 		this.attributeMutations = new HashMap<>();
-		this.baseAttributes = new Attributes(entitySchema, attributes);
+		this.baseAttributes = new Attributes(entitySchema, referenceSchema, attributes, attributeTypes);
 		this.suppressVerification = suppressVerification;
 		this.attributePredicate = Droppable::exists;
 	}
@@ -146,8 +161,14 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	/**
 	 * AttributesBuilder constructor that will be used for building brand new {@link Attributes} container.
 	 */
-	ExistingAttributesBuilder(@Nonnull EntitySchemaContract entitySchema, @Nonnull Attributes baseAttributes, boolean suppressVerification) {
+	ExistingAttributesBuilder(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull Attributes baseAttributes,
+		boolean suppressVerification
+	) {
 		this.entitySchema = entitySchema;
+		this.referenceSchema = referenceSchema;
 		this.attributeMutations = new HashMap<>();
 		this.baseAttributes = baseAttributes;
 		this.suppressVerification = suppressVerification;
@@ -220,7 +241,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 						.map(this::createImplicitSchema)
 				)
 				.collect(
-					Collectors.toMap(
+					Collectors.toUnmodifiableMap(
 						AttributeSchemaContract::getName,
 						Function.identity(),
 						(attributeSchema, attributeSchema2) -> {
@@ -234,6 +255,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 				);
 			return new Attributes(
 				baseAttributes.entitySchema,
+				baseAttributes.referenceSchema,
 				newAttributeValues,
 				newAttributeTypes
 			);

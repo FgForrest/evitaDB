@@ -429,7 +429,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			primaryKey,
 			evitaRequest,
 			this
-		).map(it -> this.proxyFactory.createProxy(expectedType, it, evitaRequest.getContext()));
+		).map(it -> this.proxyFactory.createProxy(expectedType, it));
 	}
 
 	@Nonnull
@@ -480,8 +480,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					sealedEntityProxy.getSealedEntity(),
 					evitaRequest,
 					this
-				),
-				evitaRequest.getContext()
+				)
 			);
 		} else {
 			Assert.isTrue(partiallyLoadedEntity instanceof EntityDecorator, "Expected entity decorator in the input.");
@@ -525,8 +524,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 						this
 					),
 					evitaRequest, this
-				),
-				evitaRequest.getContext()
+				)
 			);
 		} else {
 			Assert.isTrue(partiallyLoadedEntity instanceof EntityDecorator, "Expected entity decorator in the input.");

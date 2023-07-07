@@ -48,8 +48,7 @@ public class UnsatisfiedDependencyFactory implements ProxyFactory {
 	@Override
 	public <T> T createProxy(
 		@Nonnull Class<T> expectedType,
-		@Nonnull SealedEntity sealedEntity,
-		@Nonnull EvitaRequestContext context
+		@Nonnull SealedEntity sealedEntity
 	) throws EntityClassInvalidException {
 		throw new UnsatisfiedDependencyException(
 			"ProxyFactory requires a Proxycian (https://github.com/FgForrest/Proxycian) and " +

@@ -39,6 +39,14 @@ import java.io.Serial;
 public class ContextMissingException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = 2082957443834244040L;
 
+	public static ContextMissingException attributeContextMissing(@Nonnull String attributeName) {
+		return new ContextMissingException(
+			"Attribute " + attributeName + " is localized. You need to use `entityLocaleEquals` constraint in " +
+				"your filter part of the query, or you need to call `getAttribute()` method " +
+				"with explicit locale argument!"
+		);
+	}
+
 	public ContextMissingException() {
 		super(
 			"Query context is missing. You need to use method getPriceForSale(Currency, OffsetDateTime, Serializable...) " +

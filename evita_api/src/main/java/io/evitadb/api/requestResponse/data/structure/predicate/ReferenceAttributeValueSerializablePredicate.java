@@ -34,6 +34,7 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -43,6 +44,10 @@ import java.util.Set;
  */
 public class ReferenceAttributeValueSerializablePredicate implements SerializablePredicate<AttributeValue> {
 	@Serial private static final long serialVersionUID = 2628834850476260927L;
+	/**
+	 * Contains information about single locale defined for the entity.
+	 */
+	@Nullable @Getter private final Locale locale;
 	/**
 	 * Contains information about implicitly derived locale during entity fetch.
 	 */
@@ -61,13 +66,15 @@ public class ReferenceAttributeValueSerializablePredicate implements Serializabl
 		@Nullable Set<Locale> locales,
 		@Nonnull AttributeRequest referenceAttributes
 	) {
+		this.locale = Optional.ofNullable(implicitLocale)
+			.orElseGet(() -> locales != null && locales.size() == 1 ? locales.iterator().next() : null);
 		this.implicitLocale = implicitLocale;
 		this.locales = locales;
 		this.referenceAttributes = referenceAttributes;
 	}
 
 	public boolean isLocaleSet() {
-		return this.implicitLocale != null || this.locales != null;
+		return this.locale != null || this.implicitLocale != null || this.locales != null;
 	}
 
 	@Override
@@ -87,5 +94,4 @@ public class ReferenceAttributeValueSerializablePredicate implements Serializabl
 			return false;
 		}
 	}
-
 }

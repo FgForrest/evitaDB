@@ -54,7 +54,6 @@ public class SealedEntityReferenceProxyState
 	@Nonnull private final ReferenceContract reference;
 
 	public SealedEntityReferenceProxyState(
-		@Nonnull EvitaRequestContext context,
 		@Nonnull SealedEntity sealedEntity,
 		@Nonnull ReferenceContract reference,
 		@Nonnull Class<?> proxyClass,
@@ -62,7 +61,7 @@ public class SealedEntityReferenceProxyState
 		@Nonnull Map<ProxyRecipeCacheKey, ProxyRecipe> collectedRecipes,
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
-		super(sealedEntity, context, proxyClass, recipes, collectedRecipes, reflectionLookup);
+		super(sealedEntity, proxyClass, recipes, collectedRecipes, reflectionLookup);
 		this.reference = reference;
 	}
 

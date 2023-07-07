@@ -125,10 +125,12 @@ public class EntityConverter {
 					.collect(Collectors.toList()),
 				new Attributes(
 					entitySchema,
+					null,
 					toAttributeValues(
 						grpcEntity.getGlobalAttributesMap(),
 						grpcEntity.getLocalizedAttributesMap()
-					)
+					),
+					entitySchema.getAttributes()
 				),
 				new AssociatedData(
 					entitySchema,

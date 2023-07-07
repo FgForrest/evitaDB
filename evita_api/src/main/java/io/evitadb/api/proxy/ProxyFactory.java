@@ -25,7 +25,6 @@ package io.evitadb.api.proxy;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityClassInvalidException;
-import io.evitadb.api.proxy.impl.EvitaRequestContext;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 
 import javax.annotation.Nonnull;
@@ -51,8 +50,7 @@ public interface ProxyFactory {
 	@Nonnull
 	<T> T createProxy(
 		@Nonnull Class<T> expectedType,
-		@Nonnull SealedEntity sealedEntity,
-		@Nonnull EvitaRequestContext context
+		@Nonnull SealedEntity sealedEntity
 	) throws EntityClassInvalidException;
 
 }

@@ -33,7 +33,6 @@ import java.util.function.Function;
  * <p>This is a <a href="package-summary.html">functional interface</a>
  * whose functional method is {@link #apply(Object, Object)}.
  *
- * @param <T> the type of the first argument to the function
  * @param <U> the type of the second argument to the function
  * @param <R> the type of the result of the function
  *
@@ -43,16 +42,15 @@ import java.util.function.Function;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @FunctionalInterface
-public interface ExceptionRethrowingBiFunction<T, U, R> {
+public interface ExceptionRethrowingFunction<U, R> {
 
 	/**
 	 * Applies this function to the given arguments.
 	 *
-	 * @param t the first function argument
 	 * @param u the second function argument
 	 * @return the function result
 	 */
-	R apply(T t, U u) throws Exception;
+	R apply(U u) throws Exception;
 
 	/**
 	 * Returns a composed function that first applies this function to
@@ -67,9 +65,9 @@ public interface ExceptionRethrowingBiFunction<T, U, R> {
 	 * applies the {@code after} function
 	 * @throws NullPointerException if after is null
 	 */
-	default <V> ExceptionRethrowingBiFunction<T, U, V> andThen(Function<? super R, ? extends V> after) {
+	default <V> ExceptionRethrowingFunction<U, V> andThen(Function<? super R, ? extends V> after) {
 		Objects.requireNonNull(after);
-		return (T t, U u) -> after.apply(apply(t, u));
+		return (U u) -> after.apply(apply(u));
 	}
 
 }

@@ -118,9 +118,10 @@ For a better idea, let's demonstrate a sample of the interface design of the pro
 </SourceCodeTabs>
 
 <Note type="info">
-This approach is planned to be extended in the future. We plan to provide automatic implementation for the interfaces
-or class you use for declarative schema definition. This feature request is recorded in 
-[issue #43](https://github.com/FgForrest/evitaDB/issues/43).
+You can also use the contract for the schema definition in the [query API](./query-data.md) as an expected result type
+and evitaDB will automatically generate an appropriate proxy class that maps the generic underlying data structure 
+to the contract of your imagination. You can find more information on this topic in 
+the [Java Connector chapter](../connectors/java.md#custom-contracts). 
 </Note>
 
 </LanguageSpecific>

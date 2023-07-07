@@ -21,18 +21,33 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.proxy.impl;
+package io.evitadb.function;
 
-import javax.annotation.Nullable;
-import java.io.Serializable;
-import java.util.Locale;
+import java.util.function.Function;
 
 /**
- * TODO JNO - document me
+ * Represents a function that accepts two arguments and produces a result.
+ * This is the two-arity specialization of {@link Function}.
  *
- * @param locale identification of the request locale
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * <p>This is a <a href="package-summary.html">functional interface</a>
+ * whose functional method is {@link #apply(int, Object)}.
+ *
+ * @param <U> the type of the second argument to the function
+ * @param <R> the type of the result of the function
+ *
+ * @see Function
+ * @apiNote inspired by the JDK interface
  */
-public record EvitaRequestContext(
-	@Nullable Locale locale
-) implements Serializable {}
+@FunctionalInterface
+public interface ExceptionRethrowingIntBiFunction<U, R> {
+
+	/**
+	 * Applies this function to the given arguments.
+	 *
+	 * @param t the first function argument
+	 * @param u the second function argument
+	 * @return the function result
+	 */
+	R apply(int t, U u) throws Exception;
+
+}

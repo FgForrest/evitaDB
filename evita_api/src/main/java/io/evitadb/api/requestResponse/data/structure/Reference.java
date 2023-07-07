@@ -30,9 +30,11 @@ import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -45,6 +47,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -120,6 +123,23 @@ public class Reference implements ReferenceContract {
 	 */
 	@Getter private final boolean dropped;
 
+	/**
+	 * Creates new reference with given parameters. This method is used only as a temporal schema until it's created.
+	 */
+	@Nonnull
+	public static ReferenceSchema createImplicitSchema(
+		@Nonnull String referenceName,
+		@Nullable String referencedEntityType,
+		@Nullable Cardinality cardinality,
+		@Nullable GroupEntityReference group
+	) {
+		return ReferenceSchema._internalBuild(
+			referenceName, referencedEntityType, false, cardinality,
+			ofNullable(group).map(GroupEntityReference::getType).orElse(null), false,
+			false, false
+		);
+	}
+
 	public Reference(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull String referenceName,
@@ -134,7 +154,17 @@ public class Reference implements ReferenceContract {
 		this.referenceCardinality = cardinality;
 		this.referencedEntityType = referencedEntityType;
 		this.group = group;
-		this.attributes = new Attributes(entitySchema);
+		final Optional<ReferenceSchemaContract> reference = entitySchema.getReference(referenceName);
+		this.attributes = new Attributes(
+			entitySchema,
+			reference.orElseGet(
+				() -> createImplicitSchema(referenceName, referencedEntityType, cardinality, group)
+			),
+			Collections.emptyList(),
+			reference
+				.map(AttributeSchemaProvider::getAttributes)
+				.orElse(Collections.emptyMap())
+		);
 		this.dropped = false;
 	}
 
@@ -154,7 +184,17 @@ public class Reference implements ReferenceContract {
 		this.referenceCardinality = cardinality;
 		this.referencedEntityType = referencedEntityType;
 		this.group = group;
-		this.attributes = new Attributes(entitySchema);
+		final Optional<ReferenceSchemaContract> reference = entitySchema.getReference(referenceName);
+		this.attributes = new Attributes(
+			entitySchema,
+			reference.orElseGet(
+				() -> createImplicitSchema(referenceName, referencedEntityType, cardinality, group)
+			),
+			Collections.emptyList(),
+			reference
+				.map(AttributeSchemaProvider::getAttributes)
+				.orElse(Collections.emptyMap())
+		);
 		this.dropped = dropped;
 	}
 
@@ -196,7 +236,17 @@ public class Reference implements ReferenceContract {
 		this.referenceCardinality = cardinality;
 		this.referencedEntityType = referencedEntityType;
 		this.group = group;
-		this.attributes = new Attributes(entitySchema, attributes);
+		final Optional<ReferenceSchemaContract> reference = entitySchema.getReference(referenceName);
+		this.attributes = new Attributes(
+			entitySchema,
+			reference.orElseGet(
+				() -> createImplicitSchema(referenceName, referencedEntityType, cardinality, group)
+			),
+			attributes,
+			reference
+				.map(AttributeSchemaProvider::getAttributes)
+				.orElse(Collections.emptyMap())
+		);
 		this.dropped = dropped;
 	}
 
@@ -227,18 +277,18 @@ public class Reference implements ReferenceContract {
 
 	@Nonnull
 	@Override
+	public Optional<SealedEntity> getReferencedEntity() {
+		return Optional.empty();
+	}
+
+	@Nonnull
+	@Override
 	public String getReferencedEntityType() {
 		return Objects.requireNonNull(
 			getReferenceSchema()
 				.map(ReferenceSchemaContract::getReferencedEntityType)
 				.orElse(referencedEntityType)
 		);
-	}
-
-	@Nonnull
-	@Override
-	public Optional<SealedEntity> getReferencedEntity() {
-		return Optional.empty();
 	}
 
 	@Nonnull

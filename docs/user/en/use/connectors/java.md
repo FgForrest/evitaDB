@@ -16,6 +16,8 @@ describe the usage from the client point of view.
 
 This chapter should contain description both for embedded and for remote evitaDB server.
 
+## Custom contracts
+
 ****************************************************************
 
 ## Notes
