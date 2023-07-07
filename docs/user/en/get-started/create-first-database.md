@@ -121,8 +121,8 @@ Let's see how you can retrieve the entity you just created in another read-only 
 ## Open session to catalog and insert your first entity
 
 Once the catalog is created and the schema is known, you can insert a first entity to the catalog via the
-[catalog data API](/docs/user/en/use/connectors/graphql.md#graphql-api-instances) at the URL
-`https://your-server:5555/gql/test-catalog`:
+[catalog data API](/docs/user/en/use/connectors/graphql.md#graphql-api-instances) at the
+`https://your-server:5555/gql/test-catalog` URL:
 
 <SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
 [Example of inserting an entity](/docs/user/en/get-started/example/create-first-entity.graphql)
