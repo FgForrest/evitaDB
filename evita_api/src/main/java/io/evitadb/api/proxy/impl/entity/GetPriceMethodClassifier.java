@@ -350,11 +350,16 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 	) {
 		// TODO JNO - we should provide our own set, that reflects the entity builder state, but is immutable
 		if (method.getParameterCount() == 0) {
-			return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getSealedEntity()
-				.getPrices()
-				.stream()
-				.filter(it -> priceList.equals(it.getPriceList()))
-				.toList();
+			if (priceList == null) {
+				return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getSealedEntity()
+					.getPrices();
+			} else {
+				return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getSealedEntity()
+					.getPrices()
+					.stream()
+					.filter(it -> priceList.equals(it.getPriceList()))
+					.toList();
+			}
 		} else {
 			final Map<Class<?>, Function<Object[], Object>> argumentFetchers = collectArgumentFetchers(proxyClass, method);
 			return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
@@ -382,11 +387,18 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 	) {
 		// TODO JNO - we should provide our own set, that reflects the entity builder state, but is immutable
 		if (method.getParameterCount() == 0) {
-			return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getSealedEntity()
-				.getPrices()
-				.stream()
-				.filter(it -> priceList.equals(it.getPriceList()))
-				.collect(Collectors.toUnmodifiableSet());
+			if (priceList == null) {
+				return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getSealedEntity()
+					.getPrices()
+					.stream()
+					.collect(Collectors.toUnmodifiableSet());
+			} else {
+				return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getSealedEntity()
+					.getPrices()
+					.stream()
+					.filter(it -> priceList.equals(it.getPriceList()))
+					.collect(Collectors.toUnmodifiableSet());
+			}
 		} else {
 			final Map<Class<?>, Function<Object[], Object>> argumentFetchers = collectArgumentFetchers(proxyClass, method);
 			return (entityClassifier, theMethod, args, theState, invokeSuper) -> {

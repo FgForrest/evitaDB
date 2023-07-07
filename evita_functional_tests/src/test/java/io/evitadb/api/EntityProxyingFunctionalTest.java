@@ -328,12 +328,57 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 		assertThrows(ContextMissingException.class, product::getPriceForSale);
 
 		final PriceContract[] allPricesForSale = product.getAllPricesForSale();
-		assertEquals(theProduct.getAllPricesForSale().size(), allPricesForSale.length);
-		assertArrayEquals(theProduct.getAllPricesForSale().toArray(PriceContract[]::new), allPricesForSale);
+		final PriceContract[] expectedAllPricesForSale = theProduct.getAllPricesForSale().toArray(PriceContract[]::new);
+		assertEquals(expectedAllPricesForSale.length, allPricesForSale.length);
+		assertArrayEquals(expectedAllPricesForSale, allPricesForSale);
 
-		final PriceContract[] allPrices = product.getAllPricesAsArray();
-		assertEquals(theProduct.getPrices().size(), allPrices.length);
-		assertArrayEquals(theProduct.getPrices().toArray(PriceContract[]::new), allPrices);
+		assertEquals(expectedAllPricesForSale[0], product.getPriceForSale(expectedAllPricesForSale[0].getPriceList(), expectedAllPricesForSale[0].getCurrency()));
+		assertEquals(
+			expectedAllPricesForSale[1],
+			product.getPriceForSale(expectedAllPricesForSale[1].getPriceList(), expectedAllPricesForSale[1].getCurrency(), expectedAllPricesForSale[1].getValidity().getPreciseFrom())
+		);
+
+		assertArrayEquals(
+			theProduct.getAllPricesForSale()
+				.stream()
+				.filter(it -> it.getPriceList().equals(expectedAllPricesForSale[0].getPriceList()))
+				.toArray(PriceContract[]::new),
+			product.getAllPricesForSale(expectedAllPricesForSale[0].getPriceList())
+		);
+
+		assertArrayEquals(
+			theProduct.getAllPricesForSale()
+				.stream()
+				.filter(it -> it.getCurrency().equals(expectedAllPricesForSale[0].getCurrency()))
+				.toArray(PriceContract[]::new),
+			product.getAllPricesForSale(expectedAllPricesForSale[0].getCurrency())
+		);
+
+		assertArrayEquals(
+			theProduct.getAllPricesForSale()
+				.stream()
+				.filter(it -> it.getCurrency().equals(expectedAllPricesForSale[0].getCurrency()) && it.getPriceList().equals(expectedAllPricesForSale[0].getPriceList()))
+				.toArray(PriceContract[]::new),
+			product.getAllPricesForSale(expectedAllPricesForSale[0].getPriceList(), expectedAllPricesForSale[0].getCurrency())
+		);
+
+		final PriceContract[] allPrices = Arrays.stream(product.getAllPricesAsArray())
+			.sorted(Comparator.naturalOrder())
+			.toArray(PriceContract[]::new);;
+		final PriceContract[] expectedAllPrices = theProduct.getPrices()
+			.stream()
+			.sorted(Comparator.naturalOrder())
+			.toArray(PriceContract[]::new);
+		assertEquals(expectedAllPrices.length, allPrices.length);
+		assertArrayEquals(expectedAllPrices, allPrices);
+		assertArrayEquals(expectedAllPrices, product.getAllPricesAsList().stream().sorted(Comparator.naturalOrder()).toArray(PriceContract[]::new));
+		assertArrayEquals(expectedAllPrices, product.getAllPricesAsSet().stream().sorted(Comparator.naturalOrder()).toArray(PriceContract[]::new));
+		assertArrayEquals(expectedAllPrices, product.getAllPrices().stream().sorted(Comparator.naturalOrder()).toArray(PriceContract[]::new));
+
+		assertEquals(
+			Arrays.stream(expectedAllPrices).filter(it -> "basic".equals(it.getPriceList())).findFirst().orElseThrow(),
+			product.getBasicPrice()
+		);
 	}
 
 	@DisplayName("Should wrap an interface and load all data")
@@ -409,6 +454,59 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 		assertCategoryReferences(product.getProductCategoriesAsList().stream(), originalCategories, expectedCategoryIds, null);
 		assertCategoryReferences(product.getProductCategoriesAsSet().stream(), originalCategories, expectedCategoryIds, null);
 		assertCategoryReferences(Arrays.stream(product.getProductCategoriesAsArray()), originalCategories, expectedCategoryIds, null);
+
+		final PriceContract[] allPricesForSale = product.getAllPricesForSale();
+		final PriceContract[] expectedAllPricesForSale = theProduct.getAllPricesForSale().toArray(PriceContract[]::new);
+		assertEquals(expectedAllPricesForSale.length, allPricesForSale.length);
+		assertArrayEquals(expectedAllPricesForSale, allPricesForSale);
+
+		assertEquals(expectedAllPricesForSale[0], product.getPriceForSale(expectedAllPricesForSale[0].getPriceList(), expectedAllPricesForSale[0].getCurrency()));
+		assertEquals(
+			expectedAllPricesForSale[1],
+			product.getPriceForSale(expectedAllPricesForSale[1].getPriceList(), expectedAllPricesForSale[1].getCurrency(), expectedAllPricesForSale[1].getValidity().getPreciseFrom())
+		);
+
+		assertArrayEquals(
+			theProduct.getAllPricesForSale()
+				.stream()
+				.filter(it -> it.getPriceList().equals(expectedAllPricesForSale[0].getPriceList()))
+				.toArray(PriceContract[]::new),
+			product.getAllPricesForSale(expectedAllPricesForSale[0].getPriceList())
+		);
+
+		assertArrayEquals(
+			theProduct.getAllPricesForSale()
+				.stream()
+				.filter(it -> it.getCurrency().equals(expectedAllPricesForSale[0].getCurrency()))
+				.toArray(PriceContract[]::new),
+			product.getAllPricesForSale(expectedAllPricesForSale[0].getCurrency())
+		);
+
+		assertArrayEquals(
+			theProduct.getAllPricesForSale()
+				.stream()
+				.filter(it -> it.getCurrency().equals(expectedAllPricesForSale[0].getCurrency()) && it.getPriceList().equals(expectedAllPricesForSale[0].getPriceList()))
+				.toArray(PriceContract[]::new),
+			product.getAllPricesForSale(expectedAllPricesForSale[0].getPriceList(), expectedAllPricesForSale[0].getCurrency())
+		);
+
+		final PriceContract[] allPrices = Arrays.stream(product.getAllPricesAsArray())
+			.sorted(Comparator.naturalOrder())
+			.toArray(PriceContract[]::new);;
+		final PriceContract[] expectedAllPrices = theProduct.getPrices()
+			.stream()
+			.sorted(Comparator.naturalOrder())
+			.toArray(PriceContract[]::new);
+		assertEquals(expectedAllPrices.length, allPrices.length);
+		assertArrayEquals(expectedAllPrices, allPrices);
+		assertArrayEquals(expectedAllPrices, product.getAllPricesAsList().stream().sorted(Comparator.naturalOrder()).toArray(PriceContract[]::new));
+		assertArrayEquals(expectedAllPrices, product.getAllPricesAsSet().stream().sorted(Comparator.naturalOrder()).toArray(PriceContract[]::new));
+		assertArrayEquals(expectedAllPrices, product.getAllPrices().stream().sorted(Comparator.naturalOrder()).toArray(PriceContract[]::new));
+
+		assertEquals(
+			Arrays.stream(expectedAllPrices).filter(it -> "basic".equals(it.getPriceList())).findFirst().orElseThrow(),
+			product.getBasicPrice()
+		);
 	}
 
 	private void assertCategoryParents(
