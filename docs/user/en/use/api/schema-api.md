@@ -140,7 +140,7 @@ you typically need to pass a collection of multiple mutations.
 </NoteTitle>
 
 We know that this approach is not very user-friendly. However, the idea behind this approach is to provide a simple and versatile
-way to programmatically define a schema with transactions in mind (in fact, this is how evitaDB works internally, 
+way to programmatically define a schema (in fact, this is how evitaDB works internally, 
 so the collection of mutations is passed directly to the engine on the server). It is expected that the developer 
 using the GraphQL API will create a library with e.g. entity schema builders that will generate the collection of mutations for 
 the schema definition.
@@ -185,7 +185,7 @@ the schema definition.
 </Note>
 
 You can define a new catalog schema or update an existing one using the
-[catalog schema API](/docs/user/en/use/connectors/rest.md#rest-api-instances)
+[catalog API](/docs/user/en/use/connectors/rest.md#rest-api-instances)
 at the `https://your-server:5555/rest/test-catalog/schema` URL:
 
 <SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>

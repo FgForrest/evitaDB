@@ -81,6 +81,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.text.NumberFormat;
 import java.util.Arrays;
+import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -370,11 +371,17 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 			.addRow((Object[]) headers);
 
 		// prepare price formatter
-		final EntityLocaleEquals entityLocale = QueryUtils.findConstraint(query.getFilterBy(), EntityLocaleEquals.class);
-		final PriceInCurrency currency = QueryUtils.findConstraint(query.getFilterBy(), PriceInCurrency.class);
-		final Locale locale = entityLocale == null ? Locale.ENGLISH : entityLocale.getLocale();
+		final Locale locale = Optional.ofNullable(query.getFilterBy())
+			.map(f -> QueryUtils.findConstraint(f, EntityLocaleEquals.class))
+			.map(EntityLocaleEquals::getLocale)
+			.orElse(Locale.ENGLISH);
+
+		final Currency currency = Optional.ofNullable(query.getFilterBy())
+			.map(f -> QueryUtils.findConstraint(f, PriceInCurrency.class))
+			.map(PriceInCurrency::getCurrency)
+			.orElse(Currency.getInstance("EUR"));
 		final NumberFormat priceFormatter = NumberFormat.getCurrencyInstance(locale);
-		priceFormatter.setCurrency(currency.getCurrency());
+		priceFormatter.setCurrency(currency);
 		final NumberFormat percentFormatter = NumberFormat.getNumberInstance(locale);
 
 		// add rows

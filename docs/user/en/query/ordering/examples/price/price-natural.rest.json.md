@@ -3,38 +3,6 @@
   "recordPage" : {
     "data" : [
       {
-        "primaryKey" : 111500,
-        "type" : "Product",
-        "allLocales" : [
-          "en"
-        ],
-        "priceInnerRecordHandling" : "NONE",
-        "prices" : [
-          {
-            "priceId" : 8318,
-            "priceList" : "basic",
-            "currency" : "CZK",
-            "innerRecordId" : null,
-            "sellable" : true,
-            "priceWithoutTax" : "100806.61",
-            "priceWithTax" : "121976.0",
-            "taxRate" : "21.0",
-            "validity" : null
-          }
-        ],
-        "priceForSale" : {
-          "priceId" : 8318,
-          "priceList" : "basic",
-          "currency" : "CZK",
-          "innerRecordId" : null,
-          "sellable" : true,
-          "priceWithoutTax" : "100806.61",
-          "priceWithTax" : "121976.0",
-          "taxRate" : "21.0",
-          "validity" : null
-        }
-      },
-      {
         "primaryKey" : 113629,
         "type" : "Product",
         "allLocales" : [
@@ -43,25 +11,57 @@
         "priceInnerRecordHandling" : "NONE",
         "prices" : [
           {
-            "priceId" : 8736,
+            "priceId" : 8737,
             "priceList" : "basic",
-            "currency" : "CZK",
+            "currency" : "EUR",
             "innerRecordId" : null,
             "sellable" : true,
-            "priceWithoutTax" : "99090.91",
-            "priceWithTax" : "119900.0",
+            "priceWithoutTax" : "4161.98",
+            "priceWithTax" : "5036.0",
             "taxRate" : "21.0",
             "validity" : null
           }
         ],
         "priceForSale" : {
-          "priceId" : 8736,
+          "priceId" : 8737,
           "priceList" : "basic",
-          "currency" : "CZK",
+          "currency" : "EUR",
           "innerRecordId" : null,
           "sellable" : true,
-          "priceWithoutTax" : "99090.91",
-          "priceWithTax" : "119900.0",
+          "priceWithoutTax" : "4161.98",
+          "priceWithTax" : "5036.0",
+          "taxRate" : "21.0",
+          "validity" : null
+        }
+      },
+      {
+        "primaryKey" : 111500,
+        "type" : "Product",
+        "allLocales" : [
+          "en"
+        ],
+        "priceInnerRecordHandling" : "NONE",
+        "prices" : [
+          {
+            "priceId" : 8319,
+            "priceList" : "basic",
+            "currency" : "EUR",
+            "innerRecordId" : null,
+            "sellable" : true,
+            "priceWithoutTax" : "4131.41",
+            "priceWithTax" : "4999.0",
+            "taxRate" : "21.0",
+            "validity" : null
+          }
+        ],
+        "priceForSale" : {
+          "priceId" : 8319,
+          "priceList" : "basic",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "sellable" : true,
+          "priceWithoutTax" : "4131.41",
+          "priceWithTax" : "4999.0",
           "taxRate" : "21.0",
           "validity" : null
         }
@@ -75,25 +75,25 @@
         "priceInnerRecordHandling" : "NONE",
         "prices" : [
           {
-            "priceId" : 4450,
+            "priceId" : 4451,
             "priceList" : "basic",
-            "currency" : "CZK",
+            "currency" : "EUR",
             "innerRecordId" : null,
             "sellable" : true,
-            "priceWithoutTax" : "96773.55",
-            "priceWithTax" : "117096.0",
+            "priceWithoutTax" : "3966.12",
+            "priceWithTax" : "4799.0",
             "taxRate" : "21.0",
             "validity" : null
           }
         ],
         "priceForSale" : {
-          "priceId" : 4450,
+          "priceId" : 4451,
           "priceList" : "basic",
-          "currency" : "CZK",
+          "currency" : "EUR",
           "innerRecordId" : null,
           "sellable" : true,
-          "priceWithoutTax" : "96773.55",
-          "priceWithTax" : "117096.0",
+          "priceWithoutTax" : "3966.12",
+          "priceWithTax" : "4799.0",
           "taxRate" : "21.0",
           "validity" : null
         }
@@ -107,25 +107,25 @@
         "priceInnerRecordHandling" : "NONE",
         "prices" : [
           {
-            "priceId" : 7688,
+            "priceId" : 7689,
             "priceList" : "basic",
-            "currency" : "CZK",
+            "currency" : "EUR",
             "innerRecordId" : null,
             "sellable" : true,
-            "priceWithoutTax" : "96773.55",
-            "priceWithTax" : "117096.0",
+            "priceWithoutTax" : "3966.12",
+            "priceWithTax" : "4799.0",
             "taxRate" : "21.0",
             "validity" : null
           }
         ],
         "priceForSale" : {
-          "priceId" : 7688,
+          "priceId" : 7689,
           "priceList" : "basic",
-          "currency" : "CZK",
+          "currency" : "EUR",
           "innerRecordId" : null,
           "sellable" : true,
-          "priceWithoutTax" : "96773.55",
-          "priceWithTax" : "117096.0",
+          "priceWithoutTax" : "3966.12",
+          "priceWithTax" : "4799.0",
           "taxRate" : "21.0",
           "validity" : null
         }
@@ -139,25 +139,25 @@
         "priceInnerRecordHandling" : "NONE",
         "prices" : [
           {
-            "priceId" : 7690,
+            "priceId" : 7691,
             "priceList" : "basic",
-            "currency" : "CZK",
+            "currency" : "EUR",
             "innerRecordId" : null,
             "sellable" : true,
-            "priceWithoutTax" : "96773.55",
-            "priceWithTax" : "117096.0",
+            "priceWithoutTax" : "3966.12",
+            "priceWithTax" : "4799.0",
             "taxRate" : "21.0",
             "validity" : null
           }
         ],
         "priceForSale" : {
-          "priceId" : 7690,
+          "priceId" : 7691,
           "priceList" : "basic",
-          "currency" : "CZK",
+          "currency" : "EUR",
           "innerRecordId" : null,
           "sellable" : true,
-          "priceWithoutTax" : "96773.55",
-          "priceWithTax" : "117096.0",
+          "priceWithoutTax" : "3966.12",
+          "priceWithTax" : "4799.0",
           "taxRate" : "21.0",
           "validity" : null
         }
@@ -171,25 +171,25 @@
         "priceInnerRecordHandling" : "NONE",
         "prices" : [
           {
-            "priceId" : 7682,
+            "priceId" : 7683,
             "priceList" : "basic",
-            "currency" : "CZK",
+            "currency" : "EUR",
             "innerRecordId" : null,
             "sellable" : true,
-            "priceWithoutTax" : "95966.94",
-            "priceWithTax" : "116120.0",
+            "priceWithoutTax" : "3933.06",
+            "priceWithTax" : "4759.0",
             "taxRate" : "21.0",
             "validity" : null
           }
         ],
         "priceForSale" : {
-          "priceId" : 7682,
+          "priceId" : 7683,
           "priceList" : "basic",
-          "currency" : "CZK",
+          "currency" : "EUR",
           "innerRecordId" : null,
           "sellable" : true,
-          "priceWithoutTax" : "95966.94",
-          "priceWithTax" : "116120.0",
+          "priceWithoutTax" : "3933.06",
+          "priceWithTax" : "4759.0",
           "taxRate" : "21.0",
           "validity" : null
         }
@@ -203,25 +203,25 @@
         "priceInnerRecordHandling" : "NONE",
         "prices" : [
           {
-            "priceId" : 7684,
+            "priceId" : 7685,
             "priceList" : "basic",
-            "currency" : "CZK",
+            "currency" : "EUR",
             "innerRecordId" : null,
             "sellable" : true,
-            "priceWithoutTax" : "95139.67",
-            "priceWithTax" : "115119.0",
+            "priceWithoutTax" : "3899.17",
+            "priceWithTax" : "4718.0",
             "taxRate" : "21.0",
             "validity" : null
           }
         ],
         "priceForSale" : {
-          "priceId" : 7684,
+          "priceId" : 7685,
           "priceList" : "basic",
-          "currency" : "CZK",
+          "currency" : "EUR",
           "innerRecordId" : null,
           "sellable" : true,
-          "priceWithoutTax" : "95139.67",
-          "priceWithTax" : "115119.0",
+          "priceWithoutTax" : "3899.17",
+          "priceWithTax" : "4718.0",
           "taxRate" : "21.0",
           "validity" : null
         }
@@ -235,25 +235,25 @@
         "priceInnerRecordHandling" : "NONE",
         "prices" : [
           {
-            "priceId" : 7686,
+            "priceId" : 7687,
             "priceList" : "basic",
-            "currency" : "CZK",
+            "currency" : "EUR",
             "innerRecordId" : null,
             "sellable" : true,
-            "priceWithoutTax" : "95139.67",
-            "priceWithTax" : "115119.0",
+            "priceWithoutTax" : "3899.17",
+            "priceWithTax" : "4718.0",
             "taxRate" : "21.0",
             "validity" : null
           }
         ],
         "priceForSale" : {
-          "priceId" : 7686,
+          "priceId" : 7687,
           "priceList" : "basic",
-          "currency" : "CZK",
+          "currency" : "EUR",
           "innerRecordId" : null,
           "sellable" : true,
-          "priceWithoutTax" : "95139.67",
-          "priceWithTax" : "115119.0",
+          "priceWithoutTax" : "3899.17",
+          "priceWithTax" : "4718.0",
           "taxRate" : "21.0",
           "validity" : null
         }
@@ -267,25 +267,25 @@
         "priceInnerRecordHandling" : "NONE",
         "prices" : [
           {
-            "priceId" : 4446,
+            "priceId" : 4447,
             "priceList" : "basic",
-            "currency" : "CZK",
+            "currency" : "EUR",
             "innerRecordId" : null,
             "sellable" : true,
-            "priceWithoutTax" : "94757.02",
-            "priceWithTax" : "114656.0",
+            "priceWithoutTax" : "3883.47",
+            "priceWithTax" : "4699.0",
             "taxRate" : "21.0",
             "validity" : null
           }
         ],
         "priceForSale" : {
-          "priceId" : 4446,
+          "priceId" : 4447,
           "priceList" : "basic",
-          "currency" : "CZK",
+          "currency" : "EUR",
           "innerRecordId" : null,
           "sellable" : true,
-          "priceWithoutTax" : "94757.02",
-          "priceWithTax" : "114656.0",
+          "priceWithoutTax" : "3883.47",
+          "priceWithTax" : "4699.0",
           "taxRate" : "21.0",
           "validity" : null
         }
@@ -299,25 +299,25 @@
         "priceInnerRecordHandling" : "NONE",
         "prices" : [
           {
-            "priceId" : 7692,
+            "priceId" : 7693,
             "priceList" : "basic",
-            "currency" : "CZK",
+            "currency" : "EUR",
             "innerRecordId" : null,
             "sellable" : true,
-            "priceWithoutTax" : "94353.72",
-            "priceWithTax" : "114168.0",
+            "priceWithoutTax" : "3866.94",
+            "priceWithTax" : "4679.0",
             "taxRate" : "21.0",
             "validity" : null
           }
         ],
         "priceForSale" : {
-          "priceId" : 7692,
+          "priceId" : 7693,
           "priceList" : "basic",
-          "currency" : "CZK",
+          "currency" : "EUR",
           "innerRecordId" : null,
           "sellable" : true,
-          "priceWithoutTax" : "94353.72",
-          "priceWithTax" : "114168.0",
+          "priceWithoutTax" : "3866.94",
+          "priceWithTax" : "4679.0",
           "taxRate" : "21.0",
           "validity" : null
         }
@@ -331,25 +331,25 @@
         "priceInnerRecordHandling" : "NONE",
         "prices" : [
           {
-            "priceId" : 7694,
+            "priceId" : 7695,
             "priceList" : "basic",
-            "currency" : "CZK",
+            "currency" : "EUR",
             "innerRecordId" : null,
             "sellable" : true,
-            "priceWithoutTax" : "94353.72",
-            "priceWithTax" : "114168.0",
+            "priceWithoutTax" : "3866.94",
+            "priceWithTax" : "4679.0",
             "taxRate" : "21.0",
             "validity" : null
           }
         ],
         "priceForSale" : {
-          "priceId" : 7694,
+          "priceId" : 7695,
           "priceList" : "basic",
-          "currency" : "CZK",
+          "currency" : "EUR",
           "innerRecordId" : null,
           "sellable" : true,
-          "priceWithoutTax" : "94353.72",
-          "priceWithTax" : "114168.0",
+          "priceWithoutTax" : "3866.94",
+          "priceWithTax" : "4679.0",
           "taxRate" : "21.0",
           "validity" : null
         }
@@ -363,25 +363,25 @@
         "priceInnerRecordHandling" : "NONE",
         "prices" : [
           {
-            "priceId" : 4444,
+            "priceId" : 4445,
             "priceList" : "basic",
-            "currency" : "CZK",
+            "currency" : "EUR",
             "innerRecordId" : null,
             "sellable" : true,
-            "priceWithoutTax" : "92740.5",
-            "priceWithTax" : "112216.0",
+            "priceWithoutTax" : "3800.83",
+            "priceWithTax" : "4599.0",
             "taxRate" : "21.0",
             "validity" : null
           }
         ],
         "priceForSale" : {
-          "priceId" : 4444,
+          "priceId" : 4445,
           "priceList" : "basic",
-          "currency" : "CZK",
+          "currency" : "EUR",
           "innerRecordId" : null,
           "sellable" : true,
-          "priceWithoutTax" : "92740.5",
-          "priceWithTax" : "112216.0",
+          "priceWithoutTax" : "3800.83",
+          "priceWithTax" : "4599.0",
           "taxRate" : "21.0",
           "validity" : null
         }
@@ -395,25 +395,25 @@
         "priceInnerRecordHandling" : "NONE",
         "prices" : [
           {
-            "priceId" : 7696,
+            "priceId" : 7697,
             "priceList" : "basic",
-            "currency" : "CZK",
+            "currency" : "EUR",
             "innerRecordId" : null,
             "sellable" : true,
-            "priceWithoutTax" : "92538.84",
-            "priceWithTax" : "111972.0",
+            "priceWithoutTax" : "3792.56",
+            "priceWithTax" : "4589.0",
             "taxRate" : "21.0",
             "validity" : null
           }
         ],
         "priceForSale" : {
-          "priceId" : 7696,
+          "priceId" : 7697,
           "priceList" : "basic",
-          "currency" : "CZK",
+          "currency" : "EUR",
           "innerRecordId" : null,
           "sellable" : true,
-          "priceWithoutTax" : "92538.84",
-          "priceWithTax" : "111972.0",
+          "priceWithoutTax" : "3792.56",
+          "priceWithTax" : "4589.0",
           "taxRate" : "21.0",
           "validity" : null
         }
@@ -427,25 +427,25 @@
         "priceInnerRecordHandling" : "NONE",
         "prices" : [
           {
-            "priceId" : 7698,
+            "priceId" : 7699,
             "priceList" : "basic",
-            "currency" : "CZK",
+            "currency" : "EUR",
             "innerRecordId" : null,
             "sellable" : true,
-            "priceWithoutTax" : "92538.84",
-            "priceWithTax" : "111972.0",
+            "priceWithoutTax" : "3792.56",
+            "priceWithTax" : "4589.0",
             "taxRate" : "21.0",
             "validity" : null
           }
         ],
         "priceForSale" : {
-          "priceId" : 7698,
+          "priceId" : 7699,
           "priceList" : "basic",
-          "currency" : "CZK",
+          "currency" : "EUR",
           "innerRecordId" : null,
           "sellable" : true,
-          "priceWithoutTax" : "92538.84",
-          "priceWithTax" : "111972.0",
+          "priceWithoutTax" : "3792.56",
+          "priceWithTax" : "4589.0",
           "taxRate" : "21.0",
           "validity" : null
         }
@@ -459,135 +459,135 @@
         "priceInnerRecordHandling" : "FIRST_OCCURRENCE",
         "prices" : [
           {
-            "priceId" : 7684,
+            "priceId" : 7683,
             "priceList" : "basic",
-            "currency" : "CZK",
-            "innerRecordId" : 111149,
-            "sellable" : true,
-            "priceWithoutTax" : "95139.67",
-            "priceWithTax" : "115119.0",
-            "taxRate" : "21.0",
-            "validity" : null
-          },
-          {
-            "priceId" : 7698,
-            "priceList" : "basic",
-            "currency" : "CZK",
-            "innerRecordId" : 111156,
-            "sellable" : true,
-            "priceWithoutTax" : "92538.84",
-            "priceWithTax" : "111972.0",
-            "taxRate" : "21.0",
-            "validity" : null
-          },
-          {
-            "priceId" : 7688,
-            "priceList" : "basic",
-            "currency" : "CZK",
-            "innerRecordId" : 111151,
-            "sellable" : true,
-            "priceWithoutTax" : "96773.55",
-            "priceWithTax" : "117096.0",
-            "taxRate" : "21.0",
-            "validity" : null
-          },
-          {
-            "priceId" : 7702,
-            "priceList" : "basic",
-            "currency" : "CZK",
-            "innerRecordId" : 111158,
-            "sellable" : true,
-            "priceWithoutTax" : "91530.58",
-            "priceWithTax" : "110752.0",
-            "taxRate" : "21.0",
-            "validity" : null
-          },
-          {
-            "priceId" : 7692,
-            "priceList" : "basic",
-            "currency" : "CZK",
-            "innerRecordId" : 111153,
-            "sellable" : true,
-            "priceWithoutTax" : "94353.72",
-            "priceWithTax" : "114168.0",
-            "taxRate" : "21.0",
-            "validity" : null
-          },
-          {
-            "priceId" : 7682,
-            "priceList" : "basic",
-            "currency" : "CZK",
+            "currency" : "EUR",
             "innerRecordId" : 111147,
             "sellable" : true,
-            "priceWithoutTax" : "95966.94",
-            "priceWithTax" : "116120.0",
+            "priceWithoutTax" : "3933.06",
+            "priceWithTax" : "4759.0",
             "taxRate" : "21.0",
             "validity" : null
           },
           {
-            "priceId" : 7696,
+            "priceId" : 7685,
             "priceList" : "basic",
-            "currency" : "CZK",
-            "innerRecordId" : 111155,
+            "currency" : "EUR",
+            "innerRecordId" : 111149,
             "sellable" : true,
-            "priceWithoutTax" : "92538.84",
-            "priceWithTax" : "111972.0",
+            "priceWithoutTax" : "3899.17",
+            "priceWithTax" : "4718.0",
             "taxRate" : "21.0",
             "validity" : null
           },
           {
-            "priceId" : 7686,
+            "priceId" : 7687,
             "priceList" : "basic",
-            "currency" : "CZK",
+            "currency" : "EUR",
             "innerRecordId" : 111150,
             "sellable" : true,
-            "priceWithoutTax" : "95139.67",
-            "priceWithTax" : "115119.0",
+            "priceWithoutTax" : "3899.17",
+            "priceWithTax" : "4718.0",
             "taxRate" : "21.0",
             "validity" : null
           },
           {
-            "priceId" : 7700,
+            "priceId" : 7689,
             "priceList" : "basic",
-            "currency" : "CZK",
-            "innerRecordId" : 111157,
+            "currency" : "EUR",
+            "innerRecordId" : 111151,
             "sellable" : true,
-            "priceWithoutTax" : "91530.58",
-            "priceWithTax" : "110752.0",
+            "priceWithoutTax" : "3966.12",
+            "priceWithTax" : "4799.0",
             "taxRate" : "21.0",
             "validity" : null
           },
           {
-            "priceId" : 7690,
+            "priceId" : 7691,
             "priceList" : "basic",
-            "currency" : "CZK",
+            "currency" : "EUR",
             "innerRecordId" : 111152,
             "sellable" : true,
-            "priceWithoutTax" : "96773.55",
-            "priceWithTax" : "117096.0",
+            "priceWithoutTax" : "3966.12",
+            "priceWithTax" : "4799.0",
             "taxRate" : "21.0",
             "validity" : null
           },
           {
-            "priceId" : 7694,
+            "priceId" : 7693,
             "priceList" : "basic",
-            "currency" : "CZK",
+            "currency" : "EUR",
+            "innerRecordId" : 111153,
+            "sellable" : true,
+            "priceWithoutTax" : "3866.94",
+            "priceWithTax" : "4679.0",
+            "taxRate" : "21.0",
+            "validity" : null
+          },
+          {
+            "priceId" : 7695,
+            "priceList" : "basic",
+            "currency" : "EUR",
             "innerRecordId" : 111154,
             "sellable" : true,
-            "priceWithoutTax" : "94353.72",
-            "priceWithTax" : "114168.0",
+            "priceWithoutTax" : "3866.94",
+            "priceWithTax" : "4679.0",
+            "taxRate" : "21.0",
+            "validity" : null
+          },
+          {
+            "priceId" : 7697,
+            "priceList" : "basic",
+            "currency" : "EUR",
+            "innerRecordId" : 111155,
+            "sellable" : true,
+            "priceWithoutTax" : "3792.56",
+            "priceWithTax" : "4589.0",
+            "taxRate" : "21.0",
+            "validity" : null
+          },
+          {
+            "priceId" : 7699,
+            "priceList" : "basic",
+            "currency" : "EUR",
+            "innerRecordId" : 111156,
+            "sellable" : true,
+            "priceWithoutTax" : "3792.56",
+            "priceWithTax" : "4589.0",
+            "taxRate" : "21.0",
+            "validity" : null
+          },
+          {
+            "priceId" : 7701,
+            "priceList" : "basic",
+            "currency" : "EUR",
+            "innerRecordId" : 111157,
+            "sellable" : true,
+            "priceWithoutTax" : "3751.24",
+            "priceWithTax" : "4539.0",
+            "taxRate" : "21.0",
+            "validity" : null
+          },
+          {
+            "priceId" : 7703,
+            "priceList" : "basic",
+            "currency" : "EUR",
+            "innerRecordId" : 111158,
+            "sellable" : true,
+            "priceWithoutTax" : "3751.24",
+            "priceWithTax" : "4539.0",
             "taxRate" : "21.0",
             "validity" : null
           }
         ],
         "priceForSale" : {
-          "priceId" : 7700,
+          "priceId" : 7701,
           "priceList" : "basic",
-          "currency" : "CZK",
+          "currency" : "EUR",
           "innerRecordId" : 111157,
           "sellable" : true,
-          "priceWithoutTax" : "91530.58",
-          "priceWithTax" : "110752.0",
+          "priceWithoutTax" : "3751.24",
+          "priceWithTax" : "4539.0",
           "taxRate" : "21.0",
           "validity" : null
         }
@@ -601,25 +601,25 @@
         "priceInnerRecordHandling" : "NONE",
         "prices" : [
           {
-            "priceId" : 7700,
+            "priceId" : 7701,
             "priceList" : "basic",
-            "currency" : "CZK",
+            "currency" : "EUR",
             "innerRecordId" : null,
             "sellable" : true,
-            "priceWithoutTax" : "91530.58",
-            "priceWithTax" : "110752.0",
+            "priceWithoutTax" : "3751.24",
+            "priceWithTax" : "4539.0",
             "taxRate" : "21.0",
             "validity" : null
           }
         ],
         "priceForSale" : {
-          "priceId" : 7700,
+          "priceId" : 7701,
           "priceList" : "basic",
-          "currency" : "CZK",
+          "currency" : "EUR",
           "innerRecordId" : null,
           "sellable" : true,
-          "priceWithoutTax" : "91530.58",
-          "priceWithTax" : "110752.0",
+          "priceWithoutTax" : "3751.24",
+          "priceWithTax" : "4539.0",
           "taxRate" : "21.0",
           "validity" : null
         }
@@ -633,25 +633,25 @@
         "priceInnerRecordHandling" : "NONE",
         "prices" : [
           {
-            "priceId" : 7702,
+            "priceId" : 7703,
             "priceList" : "basic",
-            "currency" : "CZK",
+            "currency" : "EUR",
             "innerRecordId" : null,
             "sellable" : true,
-            "priceWithoutTax" : "91530.58",
-            "priceWithTax" : "110752.0",
+            "priceWithoutTax" : "3751.24",
+            "priceWithTax" : "4539.0",
             "taxRate" : "21.0",
             "validity" : null
           }
         ],
         "priceForSale" : {
-          "priceId" : 7702,
+          "priceId" : 7703,
           "priceList" : "basic",
-          "currency" : "CZK",
+          "currency" : "EUR",
           "innerRecordId" : null,
           "sellable" : true,
-          "priceWithoutTax" : "91530.58",
-          "priceWithTax" : "110752.0",
+          "priceWithoutTax" : "3751.24",
+          "priceWithTax" : "4539.0",
           "taxRate" : "21.0",
           "validity" : null
         }
@@ -665,25 +665,25 @@
         "priceInnerRecordHandling" : "NONE",
         "prices" : [
           {
-            "priceId" : 4430,
+            "priceId" : 4431,
             "priceList" : "basic",
-            "currency" : "CZK",
+            "currency" : "EUR",
             "innerRecordId" : null,
             "sellable" : true,
-            "priceWithoutTax" : "90723.97",
-            "priceWithTax" : "109776.0",
+            "priceWithoutTax" : "3718.18",
+            "priceWithTax" : "4499.0",
             "taxRate" : "21.0",
             "validity" : null
           }
         ],
         "priceForSale" : {
-          "priceId" : 4430,
+          "priceId" : 4431,
           "priceList" : "basic",
-          "currency" : "CZK",
+          "currency" : "EUR",
           "innerRecordId" : null,
           "sellable" : true,
-          "priceWithoutTax" : "90723.97",
-          "priceWithTax" : "109776.0",
+          "priceWithoutTax" : "3718.18",
+          "priceWithTax" : "4499.0",
           "taxRate" : "21.0",
           "validity" : null
         }
@@ -697,25 +697,25 @@
         "priceInnerRecordHandling" : "NONE",
         "prices" : [
           {
-            "priceId" : 4434,
+            "priceId" : 4435,
             "priceList" : "basic",
-            "currency" : "CZK",
+            "currency" : "EUR",
             "innerRecordId" : null,
             "sellable" : true,
-            "priceWithoutTax" : "90723.97",
-            "priceWithTax" : "109776.0",
+            "priceWithoutTax" : "3718.18",
+            "priceWithTax" : "4499.0",
             "taxRate" : "21.0",
             "validity" : null
           }
         ],
         "priceForSale" : {
-          "priceId" : 4434,
+          "priceId" : 4435,
           "priceList" : "basic",
-          "currency" : "CZK",
+          "currency" : "EUR",
           "innerRecordId" : null,
           "sellable" : true,
-          "priceWithoutTax" : "90723.97",
-          "priceWithTax" : "109776.0",
+          "priceWithoutTax" : "3718.18",
+          "priceWithTax" : "4499.0",
           "taxRate" : "21.0",
           "validity" : null
         }
@@ -729,32 +729,32 @@
         "priceInnerRecordHandling" : "NONE",
         "prices" : [
           {
-            "priceId" : 4454,
+            "priceId" : 4455,
             "priceList" : "basic",
-            "currency" : "CZK",
+            "currency" : "EUR",
             "innerRecordId" : null,
             "sellable" : true,
-            "priceWithoutTax" : "90723.97",
-            "priceWithTax" : "109776.0",
+            "priceWithoutTax" : "3718.18",
+            "priceWithTax" : "4499.0",
             "taxRate" : "21.0",
             "validity" : null
           }
         ],
         "priceForSale" : {
-          "priceId" : 4454,
+          "priceId" : 4455,
           "priceList" : "basic",
-          "currency" : "CZK",
+          "currency" : "EUR",
           "innerRecordId" : null,
           "sellable" : true,
-          "priceWithoutTax" : "90723.97",
-          "priceWithTax" : "109776.0",
+          "priceWithoutTax" : "3718.18",
+          "priceWithTax" : "4499.0",
           "taxRate" : "21.0",
           "validity" : null
         }
       }
     ],
     "type" : "PAGE",
-    "totalRecordCount" : 4144,
+    "totalRecordCount" : 4125,
     "first" : true,
     "last" : false,
     "hasPrevious" : false,
@@ -763,7 +763,7 @@
     "empty" : false,
     "pageSize" : 20,
     "pageNumber" : 1,
-    "lastPageNumber" : 208,
+    "lastPageNumber" : 207,
     "firstPageItemNumber" : 0,
     "lastPageItemNumber" : 19
   }

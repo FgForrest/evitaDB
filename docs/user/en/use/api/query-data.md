@@ -10,6 +10,8 @@ proofreading: 'needed'
 
 The query in evitaDB is represented by a tree of nested "constraints" divided into for parts:
 
+<LanguageSpecific to="evitaql,java,rest">
+
 <dl>
     <dt>`collection`</dt>
     <dd>it identifies the collection to query</dd>
@@ -23,13 +25,27 @@ The query in evitaDB is represented by a tree of nested "constraints" divided in
     performed on them</dd>
 </dl>
 
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+<dl>
+    <dt>`filterBy`</dt>
+    <dd>it limits the number of results returned</dd>
+    <dt>`orderBy`</dt>
+    <dd>it specifies the order in which the results are returned</dd>
+    <dt>`require`</dt>
+    <dd>it allows you to pass additional information, e.g. some additional query-scoped options</dd>
+</dl>
+
+</LanguageSpecific>
+
 The *evitaQL* (evitaDB Query Language) entry point is represented by 
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> class, and looks like this 
 a [Lisp flavored language](https://en.wikipedia.org/wiki/Lisp_(programming_language)). It always starts with 
 the name of the function, followed by a set of arguments in parentheses. You can even use other functions 
 in those arguments. An example of such a query might look like this:
 
-<SourceCodeTabs requires="/docs/user/en/get-started/example/connect-demo-server.java">
+<SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [EvitaQL example](/docs/user/en/use/api/example/evita-query-example.java)
 </SourceCodeTabs>
 
@@ -103,7 +119,7 @@ which allows the use of the `?` character in the query and returns an array of c
 It also supports so-called 
 [named queries](https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/jdbc/core/namedparam/NamedParameterJdbcTemplate.html),
 which are widely used in the [Spring framework](https://spring.io/projects/spring-data-jdbc), using variables in the
-query with the format `:name` and providing a [map](https://docs.oracle.com/javase/8/docs/api/java/util/Map.html) with
+query with the format `@name` and providing a [map](https://docs.oracle.com/javase/8/docs/api/java/util/Map.html) with
 the named input parameters.
 
 In the opposite direction, it offers the `toStringWithParameterExtraction` method on the
@@ -210,5 +226,85 @@ implementing the local cache may save you network costs and give you better late
 invalidation. You'd have to query only the entity references that contain version information and fetch the entities 
 that are not in the cache with a separate request. So instead of one network request, you have to make two. The benefit 
 of the local cache is therefore somewhat questionable.
+
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+## Defining queries in GraphQL API
+
+In the GraphQL API, the original evitaDB query is split into two parts, each with its own syntax:
+
+- filtering and ordering parts (and a tiny portion of requirements) are defined as GraphQL query arguments
+  - these contain constraints in a form similar to the original evitaQL language 
+- requirements are defined as GraphQL query output fields 
+  - these output fields don't share syntax similarity with the original evitaDB language, they only share what can be returned from the server
+
+Each GraphQL query use some form of the idea mentioned above. Each [entity collection](/docs/user/en/use/data-model.md#collection)
+has the following GraphQL queries available:
+
+- `getCollecionName`
+- `listCollectionName`
+- `queryCollectionName`
+
+The `getCollecionName` query supports only a very simplified variant of filtering part of a query but supports full entity 
+requirements.
+
+<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+[Java query example](/docs/user/en/use/api/example/graphql-get-query-example.java)
+</SourceCodeTabs>
+
+The `listCollectionName` query supports full filtering and ordering as part of a query arguments and full entity requirements.
+
+<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+[Java query example](/docs/user/en/use/api/example/graphql-list-query-example.java)
+</SourceCodeTabs>
+
+The `queryCollectionName` query supports the full filtering, ordering, and requirements parts of a query.
+This GraphQL query even supports extra results, which is not possible with the previous two queries.
+
+<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+[Java query example](/docs/user/en/use/api/example/graphql-full-query-example.java)
+</SourceCodeTabs>
+
+### Automatic query cleaning
+
+The query may also contain "dirty" parts - that is, null constraints and unnecessary parts.
+The query is automatically cleaned and unnecessary constraints are removed before it is processed by the evitaDB engine.
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+## Defining queries in REST API
+
+In the REST API, there are several entity fetching endpoints that accept evitaQL queries in one form or another. These
+endpoints have the following URL forms:
+
+- `/rest/catalog-name/entity-collection/get`
+- `/rest/catalog-name/entity-collection/list`
+- `/rest/catalog-name/entity-collection/query`
+
+The `/get` endpoints only support a very simplified and limited variant of filtering and requirements parts of a query using URL query parameters.
+
+<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+[Java query example](/docs/user/en/use/api/example/rest-get-query-example.rest)
+</SourceCodeTabs>
+
+The `/list` query supports full filtering and ordering, but only a limited entity requirements.
+
+<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+[Java query example](/docs/user/en/use/api/example/rest-list-query-example.rest)
+</SourceCodeTabs>
+
+The `/query` query supports the full filtering, ordering, and requirements.
+This endpoint even supports extra results, which is not possible with the previous two queries.
+
+<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+[Java query example](/docs/user/en/use/api/example/rest-full-query-example.rest)
+</SourceCodeTabs>
+
+### Automatic query cleaning
+
+The query may also contain "dirty" parts - that is, null constraints and unnecessary parts.
+The query is automatically cleaned and unnecessary constraints are removed before it is processed by the evitaDB engine.
 
 </LanguageSpecific>
