@@ -42,12 +42,14 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ListUnknownEntitiesQueryHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryHeaderArgumentsJoinType;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
+import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import io.evitadb.utils.Assert;
@@ -177,11 +179,13 @@ public class ListUnknownEntitiesDataFetcher extends ReadDataFetcher<DataFetcherR
             filterConstraints.add(attributeInSet(attributeSchema.getName(), attributeValues));
         }
 
-        return filterBy(
-            and(
-                filterConstraints.toArray(FilterConstraint[]::new)
-            )
-        );
+        if (arguments.join() == QueryHeaderArgumentsJoinType.AND) {
+            return filterBy(and(filterConstraints.toArray(FilterConstraint[]::new)));
+        } else if (arguments.join() == QueryHeaderArgumentsJoinType.OR) {
+            return filterBy(or(filterConstraints.toArray(FilterConstraint[]::new)));
+        } else {
+            throw new GraphQLInternalError("Unsupported join type `" + arguments.join() + "`.");
+        }
     }
 
     @Nonnull
@@ -219,12 +223,14 @@ public class ListUnknownEntitiesDataFetcher extends ReadDataFetcher<DataFetcherR
      * Holds parsed GraphQL query arguments relevant for single entity query
      */
     private record Arguments(@Nullable Integer limit,
+                             @Nonnull QueryHeaderArgumentsJoinType join,
                              @Nonnull Map<GlobalAttributeSchemaContract, List<Object>> globallyUniqueAttributes) {
 
         private static Arguments from(@Nonnull DataFetchingEnvironment environment, @Nonnull CatalogSchemaContract catalogSchema) {
             final HashMap<String, Object> arguments = new HashMap<>(environment.getArguments());
 
             final Integer limit = (Integer) arguments.remove(ListUnknownEntitiesQueryHeaderDescriptor.LIMIT.name());
+            final QueryHeaderArgumentsJoinType join = (QueryHeaderArgumentsJoinType) arguments.get(ListUnknownEntitiesQueryHeaderDescriptor.JOIN.name());
 
             // left over arguments are globally unique attribute filters as defined by schema
             final Map<GlobalAttributeSchemaContract, List<Object>> globallyUniqueAttributes = extractUniqueAttributesFromArguments(arguments, catalogSchema);
@@ -234,7 +240,7 @@ public class ListUnknownEntitiesDataFetcher extends ReadDataFetcher<DataFetcherR
                 throw new GraphQLInvalidArgumentException("Missing globally unique attribute to identify entity.");
             }
 
-            return new Arguments(limit, globallyUniqueAttributes);
+            return new Arguments(limit, join, globallyUniqueAttributes);
         }
 
         private static Map<GlobalAttributeSchemaContract, List<Object>> extractUniqueAttributesFromArguments(

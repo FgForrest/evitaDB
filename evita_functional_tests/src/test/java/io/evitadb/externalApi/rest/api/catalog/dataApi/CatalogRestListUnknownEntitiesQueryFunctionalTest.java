@@ -31,6 +31,7 @@ import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAssociatedDataDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.ListUnknownEntitiesEndpointHeaderDescriptor;
 import io.evitadb.test.tester.RestTester;
 import io.evitadb.test.tester.RestTester.Request;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
@@ -100,6 +101,81 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 							.build(),
 						map()
 							.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithCode2.getPrimaryKey())
+							.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+							.build()
+					)
+				)
+			);
+	}
+
+	@Test
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return unknown entity list with multiple different global attributes")
+	void shouldReturnUnknownEntityListWithMultipleGlobalAttributes(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
+		final String codeAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 5);
+		final SealedEntity entityWithCode = originalProductEntities.stream()
+			.filter(it -> Objects.equals(it.getAttribute(ATTRIBUTE_CODE), codeAttribute))
+			.findFirst()
+			.orElseThrow(() -> new EvitaInternalError("Missing entity with code attribute"));
+		final String urlAttribute = entityWithCode.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/entity/list")
+			.httpMethod(Request.METHOD_GET)
+			.requestParams(map()
+				.e(ATTRIBUTE_CODE, List.of(codeAttribute))
+				.e(ATTRIBUTE_URL, List.of(urlAttribute))
+				.build())
+			.executeAndThen()
+			.statusCode(200)
+			.body(
+				"",
+				equalTo(
+					List.of(
+						map()
+							.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithCode.getPrimaryKey())
+							.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+							.build()
+					)
+				)
+			);
+	}
+
+	@Test
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return unknown entity list by multiple different global attributes")
+	void shouldReturnUnknownEntityListByMultipleDifferentGlobalAttributes(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
+		final String codeAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 5);
+		final SealedEntity entityWithCode = originalProductEntities.stream()
+			.filter(it -> Objects.equals(it.getAttribute(ATTRIBUTE_CODE), codeAttribute))
+			.findFirst()
+			.orElseThrow(() -> new EvitaInternalError("Missing entity with code attribute"));
+		final String urlAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_URL, Locale.ENGLISH, 7);
+		final SealedEntity entityWithUrl = originalProductEntities.stream()
+			.filter(it -> Objects.equals(it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH), urlAttribute))
+			.findFirst()
+			.orElseThrow(() -> new EvitaInternalError("Missing entity with url attribute"));
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/entity/list")
+			.httpMethod(Request.METHOD_GET)
+			.requestParams(map()
+				.e(ATTRIBUTE_CODE, List.of(codeAttribute))
+				.e(ATTRIBUTE_URL, List.of(urlAttribute))
+				.e(ListUnknownEntitiesEndpointHeaderDescriptor.FILTER_JOIN.name(), "OR")
+				.build())
+			.executeAndThen()
+			.statusCode(200)
+			.body(
+				"",
+				equalTo(
+					List.of(
+						map()
+							.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithCode.getPrimaryKey())
+							.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+							.build(),
+						map()
+							.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithUrl.getPrimaryKey())
 							.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 							.build()
 					)

@@ -26,6 +26,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import graphql.schema.GraphQLEnumType;
 import graphql.schema.GraphQLFieldDefinition;
+import graphql.schema.GraphQLFieldDefinition.Builder;
 import graphql.schema.GraphQLInputObjectType;
 import graphql.schema.GraphQLInputType;
 import graphql.schema.GraphQLObjectType;
@@ -55,6 +56,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GetEntityQueryHe
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ListEntitiesQueryHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ListUnknownEntitiesQueryHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryEntitiesQueryHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.UnknownEntityQueryHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.UpsertEntityMutationHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.CollectionSizeDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.CollectionsDataFetcher;
@@ -168,32 +170,32 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		// "collections" field
 		buildingContext.registerQueryField(buildCollectionsField());
 
-		// "get_entity" field
-		buildingContext.registerQueryField(buildUnknownSingleEntityField());
+		// "getEntity" field
+		buildingContext.registerQueryField(buildGetUnknownEntityField());
 
-		// "list_entity" field
-		buildingContext.registerQueryField(buildUnknownEntityListField());
+		// "listEntity" field
+		buildingContext.registerQueryField(buildListUnknownEntityField());
 
 		// collection-specific fields
 		buildingContext.getEntitySchemas().forEach(entitySchema -> {
 			final CollectionGraphQLSchemaBuildingContext collectionBuildingContext = setupForCollection(entitySchema);
 
-			// collection specific "get_entity" field
-			buildingContext.registerQueryField(buildSingleEntityField(collectionBuildingContext));
+			// collection specific "getEntity" field
+			buildingContext.registerQueryField(buildGetEntityField(collectionBuildingContext));
 
-			// collection specific "list_entity" field
-			buildingContext.registerQueryField(buildEntityListField(collectionBuildingContext));
+			// collection specific "listEntity" field
+			buildingContext.registerQueryField(buildListEntityField(collectionBuildingContext));
 
-			// collection specific "query_entity" field
-			buildingContext.registerQueryField(buildEntityQueryField(collectionBuildingContext));
+			// collection specific "queryEntity" field
+			buildingContext.registerQueryField(buildQueryEntityField(collectionBuildingContext));
 
-			// collection specific "count_entity" field
-			buildingContext.registerQueryField(buildCollectionSizeField(collectionBuildingContext));
+			// collection specific "countEntity" field
+			buildingContext.registerQueryField(buildCountCollectionField(collectionBuildingContext));
 
-			// collection specific "upsert_entity" field
+			// collection specific "upsertEntity" field
 			buildingContext.registerMutationField(buildUpsertEntityField(collectionBuildingContext));
 
-			// collection specific "delete_entity" field
+			// collection specific "deleteEntity" field
 			buildingContext.registerMutationField(buildDeleteEntitiesField(collectionBuildingContext));
 		});
 
@@ -264,8 +266,8 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nullable
-	private BuiltFieldDescriptor buildUnknownSingleEntityField() {
-		final GraphQLFieldDefinition.Builder unknownSingleEntityFieldBuilder = CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY
+	private BuiltFieldDescriptor buildGetUnknownEntityField() {
+		final GraphQLFieldDefinition.Builder getUnknownEntityFieldBuilder = CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY
 			.to(staticEndpointBuilderTransformer)
  			.type(typeRef(EntityDescriptor.THIS_INTERFACE.name()));
 
@@ -289,10 +291,12 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.description(as.getDescription())
 				.deprecate(as.getDeprecationNotice())
 				.build())
-			.forEach(unknownSingleEntityFieldBuilder::argument);
+			.forEach(getUnknownEntityFieldBuilder::argument);
+
+		getUnknownEntityFieldBuilder.argument(UnknownEntityQueryHeaderDescriptor.JOIN.to(argumentBuilderTransformer));
 
 		return new BuiltFieldDescriptor(
-			unknownSingleEntityFieldBuilder.build(),
+			getUnknownEntityFieldBuilder.build(),
 			new GetUnknownEntityDataFetcher(
 				buildingContext.getEvitaExecutor().orElse(null),
 				buildingContext.getSchema(),
@@ -302,8 +306,8 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nullable
-	private BuiltFieldDescriptor buildUnknownEntityListField() {
-		final GraphQLFieldDefinition.Builder unknownEntityListFieldBuilder = CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY
+	private BuiltFieldDescriptor buildListUnknownEntityField() {
+		final Builder listUnknownEntityFieldBuilder = CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY
 			.to(staticEndpointBuilderTransformer)
 			.type(list(nonNull(typeRef(EntityDescriptor.THIS_INTERFACE.name()))))
 			.argument(ListUnknownEntitiesQueryHeaderDescriptor.LIMIT.to(argumentBuilderTransformer));
@@ -328,10 +332,12 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.description(as.getDescription())
 				.deprecate(as.getDeprecationNotice())
 				.build())
-			.forEach(unknownEntityListFieldBuilder::argument);
+			.forEach(listUnknownEntityFieldBuilder::argument);
+
+		listUnknownEntityFieldBuilder.argument(ListUnknownEntitiesQueryHeaderDescriptor.JOIN.to(argumentBuilderTransformer));
 
 		return new BuiltFieldDescriptor(
-			unknownEntityListFieldBuilder.build(),
+			listUnknownEntityFieldBuilder.build(),
 			new ListUnknownEntitiesDataFetcher(
 				buildingContext.getEvitaExecutor().orElse(null),
 				buildingContext.getSchema(),
@@ -341,7 +347,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildSingleEntityField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
+	private BuiltFieldDescriptor buildGetEntityField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
 		final GraphQLFieldDefinition.Builder singleEntityFieldBuilder = CatalogDataApiRootDescriptor.GET_ENTITY
@@ -395,7 +401,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildEntityListField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
+	private BuiltFieldDescriptor buildListEntityField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
 		final GraphQLFieldDefinition.Builder entityListFieldBuilder = CatalogDataApiRootDescriptor.LIST_ENTITY
@@ -422,7 +428,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildEntityQueryField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
+	private BuiltFieldDescriptor buildQueryEntityField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
 		final GraphQLObjectType entityFullResponseObject = fullResponseObjectBuilder.build(collectionBuildingContext.getSchema());
@@ -457,7 +463,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildCollectionSizeField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
+	private BuiltFieldDescriptor buildCountCollectionField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 		return new BuiltFieldDescriptor(
 			CatalogDataApiRootDescriptor.COUNT_COLLECTION

@@ -23,24 +23,23 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.model;
 
-import io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * Descriptor for header arguments of {@link CatalogDataApiRootDescriptor#LIST_UNKNOWN_ENTITY}
- * query.
+ * Ancestor for query header arguments for queries that return unknown entities.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface ListUnknownEntitiesQueryHeaderDescriptor extends UnknownEntityQueryHeaderDescriptor {
+public interface UnknownEntityQueryHeaderDescriptor {
 
-	PropertyDescriptor LIMIT = PropertyDescriptor.builder()
-		.name("limit")
+	PropertyDescriptor JOIN = PropertyDescriptor.builder()
+		.name("join")
 		.description("""
-            Argument for adjusting default number of maximum results. It is shortcut for full paging.
+			Defines how the filtering arguments are joined together into a single filter. By default, `AND` is used.
 			""")
-		.type(nullable(Integer.class))
+		.type(nullable(QueryHeaderArgumentsJoinType.class))
+		.defaultValue(QueryHeaderArgumentsJoinType.AND)
 		.build();
 }

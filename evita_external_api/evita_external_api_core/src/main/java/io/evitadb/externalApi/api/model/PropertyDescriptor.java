@@ -45,7 +45,8 @@ import javax.annotation.Nullable;
 @Builder
 public record PropertyDescriptor(@Nonnull String name,
                                  @Nonnull String description,
-                                 @Nullable PropertyDataTypeDescriptor type) {
+                                 @Nullable PropertyDataTypeDescriptor type,
+                                 @Nullable Object defaultValue) {
 
 	public PropertyDescriptor {
 		Assert.isPremiseValid(
@@ -59,7 +60,7 @@ public record PropertyDescriptor(@Nonnull String name,
 	}
 
 	public PropertyDescriptor(@Nonnull String name, @Nonnull String description) {
-		this(name, description, null);
+		this(name, description, null, null);
 	}
 
 	@Nonnull
