@@ -384,7 +384,7 @@ Anyway, there is also the [possibility of creating them directly](#creating-enti
 
 Usually the entity creation will look like this:
 
-<SourceCodeTabs requires="/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
 [Creating new entity example](/docs/user/en/use/api/example/create-new-entity.java)
 </SourceCodeTabs>
 
@@ -394,7 +394,7 @@ and it may be split into several parts, which will reveal the "builder" used in 
 When you need to alter existing entity, you first fetch it from the server, open for writing (which converts it to
 the builder wrapper), modify it, and finally collect the changes and send them to the server. 
 
-<SourceCodeTabs requires="/docs/user/en/use/api/example/finalization-of-warmup-mode.java,/docs/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest,/docs/user/en/use/api/example/finalization-of-warmup-mode.java,/docs/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
 [Updating existing entity example](/docs/user/en/use/api/example/update-existing-entity.java)
 </SourceCodeTabs>
 
@@ -468,7 +468,7 @@ at the `https://your-server:5555/gql/test-catalog` URL. This API contains `upser
 the changes to be applied to an entity. In one go, you can then retrieve the entity with the changes applied by defining
 return data.
 
-<SourceCodeTabs requires="/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
 [Creating new entity example](/docs/user/en/use/api/example/create-new-entity.graphql)
 </SourceCodeTabs>
 
@@ -477,7 +477,7 @@ either create a new entity with specified mutations (and possibly a primary key)
 of an existing entity is specified. You can further customize the behavior of the mutation by specifying the `entityExistence`
 argument.
 
-<SourceCodeTabs requires="/docs/user/en/use/api/example/finalization-of-warmup-mode.java,/docs/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest,/docs/user/en/use/api/example/finalization-of-warmup-mode.java,/docs/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
 [Updating existing entity example](/docs/user/en/use/api/example/update-existing-entity.graphql)
 </SourceCodeTabs>
 
@@ -509,7 +509,7 @@ There endpoints are customized to collections' [schemas](/docs/user/en/use/schem
 collection of evitaDB mutations which define the changes to be applied to an entity. In one go, you can then retrieve the 
 entity with the changes applied by defining requirements.
 
-<SourceCodeTabs requires="/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
 [Creating new entity example](/docs/user/en/use/api/example/create-new-entity.rest)
 </SourceCodeTabs>
 
@@ -518,7 +518,7 @@ either create a new entity with specified mutations (and possibly a primary key)
 of an existing entity is specified. You can further customize the behavior of the mutation by specifying the `entityExistence`
 argument.
 
-<SourceCodeTabs requires="/docs/user/en/use/api/example/finalization-of-warmup-mode.java,/docs/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest,/docs/user/en/use/api/example/finalization-of-warmup-mode.java,/docs/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
 [Updating existing entity example](/docs/user/en/use/api/example/update-existing-entity.rest)
 </SourceCodeTabs>
 
@@ -544,7 +544,7 @@ To remove one or multiple entities, you need to define a query that will match a
 
 <LanguageSpecific to="java,graphql,rest">
 
-<SourceCodeTabs requires="/docs/user/en/use/api/example/finalization-of-warmup-mode.java,/docs/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest,/docs/user/en/use/api/example/finalization-of-warmup-mode.java,/docs/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
 [Removing all entities which name starts with `A`](/docs/user/en/use/api/example/delete-entities-by-query.java)
 </SourceCodeTabs>
 

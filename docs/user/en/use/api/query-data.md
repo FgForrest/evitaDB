@@ -45,7 +45,7 @@ a [Lisp flavored language](https://en.wikipedia.org/wiki/Lisp_(programming_langu
 the name of the function, followed by a set of arguments in parentheses. You can even use other functions 
 in those arguments. An example of such a query might look like this:
 
-<SourceCodeTabs requires="/docs/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [EvitaQL example](/docs/user/en/use/api/example/evita-query-example.java)
 </SourceCodeTabs>
 
