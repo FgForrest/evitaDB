@@ -96,7 +96,7 @@ The name validation logic and reserved words are present in the class
 <SourceClass>evita_common/src/main/java/io/evitadb/utils/ClassifierUtils.java</SourceClass>.
 
 There is also a special property called `nameVariants` in the schema of each named object. It contains variants
-of the object name in different "developer" notations such as *camel case*, *pascal case*, *snake case* and so on. See
+of the object name in different "developer" notations such as *camelCase*, *PascalCase*, *snake_case* and so on. See
 <SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/api/catalog/schemaApi/model/NameVariantsDescriptor.java</SourceClass>
 for a complete listing.
 </Note>
