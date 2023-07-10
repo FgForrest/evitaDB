@@ -23,6 +23,8 @@ There are two categories of data types:
 
 evitaDB data types are limited to following list:
 
+<LanguageSpecific to="evitaql,java">
+
 - [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html), 
     formatted as `'string'`
 - [Byte](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Byte.html), 
@@ -60,9 +62,60 @@ evitaDB data types are limited to following list:
 - [ByteNumberRange](#numberrange), 
     formatted as `[5,9]`
 - [Locale](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Locale.html), 
-    formatted as language tag `` `cs-CZ` `` (enclosed in backticks)
+    formatted as language tag `'cs-CZ'`
 - [Currency](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Currency.html), 
-    formatted as `` `CZK` `` (enclosed in backticks)
+    formatted as `'CZK'`
+
+</LanguageSpecific>
+<LanguageSpecific to="graphql,rest">
+
+The data types are based on the Java data types because that's how they are stored under the hood. The only difference
+is how they are formatted:
+
+- [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html), 
+    formatted as `'string'`
+- [Byte](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Byte.html), 
+    formatted as `5`
+- [Short](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Short.html), 
+    formatted as `5`
+- [Integer](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Integer.html), 
+    formatted as `5`
+- [Long](#long), 
+    formatted as `"5"`
+- [Boolean](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Boolean.html), 
+    formatted as `true`
+- [Character](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Character.html),
+    formatted as `"c"`
+- [BigDecimal](#bigdecimal), 
+    formatted as `"1.124"`
+- [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html), 
+    formatted as `"2021-01-01T00:00:00+01:00"`
+- [LocalDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalDateTime.html), 
+    formatted as `"2021-01-01T00:00:00"`
+- [LocalDate](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalDate.html), 
+    formatted as `"00:00:00"`
+- [LocalTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalTime.html), 
+    formatted as `"2021-01-01"`
+- [DateTimeRange](#datetimerange), 
+    formatted as `["2021-01-01T00:00:00+01:00", "2022-01-01T00:00:00+01:00"]`
+- [BigDecimalNumberRange](#numberrange), 
+    formatted as `["1.24", "78"]`
+- [LongNumberRange](#numberrange), 
+    formatted as `["5", "9"]`
+- [IntegerNumberRange](#numberrange), 
+    formatted as `[5, 9]`
+- [ShortNumberRange](#numberrange),
+    formatted as `[5, 9]`
+- [ByteNumberRange](#numberrange), 
+    formatted as `[5, 9]`
+- [Locale](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Locale.html), 
+    formatted as language tag `"cs-CZ"`
+- [Currency](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Currency.html), 
+    formatted as `"CZK"`
+
+</LanguageSpecific>
+
+<LanguageSpecific to="java,graphql,rest">
 
 An array of a simple type is still a simple data type. All simple types can be wrapped in an array. You cannot mix
 arrays and non-array types in a single *attribute* / *associated data* schema. Once an *attribute* or *associated
@@ -75,6 +128,8 @@ that can accommodate your data. We do our best to minimize the memory footprint 
 decisions are on your side, so think carefully which data type you choose and whether you make it filterable/sortable 
 so that it requires a memory index.
 </Note>
+
+</LanguageSpecific>
 
 <LanguageSpecific to="java">
 
@@ -91,12 +146,32 @@ class.
 The string type is internally encoded with the character set [UTF-8](https://en.wikipedia.org/wiki/UTF-8). evitaDB
 query language and other I/O methods of evitaDB implicitly use this encoding.
 
+<LanguageSpecific to="graphql,rest">
+
+### Long
+
+Because the [64-bit long integer](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Long.html) data type comes from Java,
+some languages (e.g., [JavaScript](https://stackoverflow.com/a/17320771)) may have problems with its size when
+parsing large numbers from JSON into their default number data types.
+That's why we decided to format the long integer data type as a string. This way, there is no size limit, and
+a client can always parse the long number without worrying that the default number data type is not large enough for the parsed number.
+
+### BigDecimal
+
+evitaDB supports the [BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html) data type
+instead of the basic float or double data types found in most programming languages. The main reason is that the float and double data types
+are not precise enough for financial calculations. This is the same reason why BigDecimal values are formatted as strings.
+Even though the JSON format has its ways to ensure correct precision to some degree, we cannot guarantee that the client programming language
+parsing the number will use the correct data type that preserves the precision.
+
+</LanguageSpecific>
+
 ### Dates and times
 
 Although evitaDB supports *local* variants of the date time like 
 [LocalDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalDateTime.html), it's always 
 converted to [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html) 
-using the system default timezone. You can control the default Java timezone in 
+using the evitaDB server system default timezone. You can control the default Java timezone in 
 [several ways](https://www.baeldung.com/java-jvm-time-zone). If your data is time zone specific, we recommend to work 
 directly with the [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html) 
 on the client side and be explicit about the offset from the first day.
@@ -127,21 +202,54 @@ types. The offset date times are written in the ISO format.
 
 - when both boundaries are specified:
 
+<LanguageSpecific to="evitaql,java">
+
 ```plain
 [2021-01-01T00:00:00+01:00,2022-01-01T00:00:00+01:00]
 ```
 
+</LanguageSpecific>
+<LanguageSpecific to="graphql,rest">
+
+```json
+["2021-01-01T00:00:00+01:00","2022-01-01T00:00:00+01:00"]
+```
+
+</LanguageSpecific>
+
 - when a left boundary (since) is specified:
+
+<LanguageSpecific to="evitaql,java">
 
 ```plain
 [2021-01-01T00:00:00+01:00,]
 ```
 
+</LanguageSpecific>
+<LanguageSpecific to="graphql,rest">
+
+```json
+["2021-01-01T00:00:00+01:00",null]
+```
+
+</LanguageSpecific>
+
 - when a right boundary (until) is specified:
+
+<LanguageSpecific to="evitaql,java">
 
 ```plain
 [,2022-01-01T00:00:00+01:00]
 ```
+
+</LanguageSpecific>
+<LanguageSpecific to="graphql,rest">
+
+```json
+[null,"2022-01-01T00:00:00+01:00"]
+```
+
+</LanguageSpecific>
 
 ### NumberRange
 
@@ -157,23 +265,57 @@ and Byte as upper bound.
 
 - when both boundaries are specified:
 
+<LanguageSpecific to="evitaql,java">
+
 ```plain
 [1,3.256]
 ```
 
+</LanguageSpecific>
+<LanguageSpecific to="graphql,rest">
+
+```json
+["1","3.256"]
+```
+</LanguageSpecific>
+
 - when a left boundary (since) is specified:
+
+<LanguageSpecific to="evitaql,java">
 
 ```plain
 [1,]
 ```
 
+</LanguageSpecific>
+<LanguageSpecific to="graphql,rest">
+
+```json
+["1",null]
+```
+
+</LanguageSpecific>
+
 - when a right boundary (until) is specified:
+
+<LanguageSpecific to="evitaql,java">
 
 ```plain
 [,3.256]
 ```
 
+</LanguageSpecific>
+<LanguageSpecific to="graphql,rest">
+
+```json
+[null,"3.256"]
+```
+
+</LanguageSpecific>
+
 ## Complex data types
+
+<LanguageSpecific to="evitaql,java">
 
 The complex types are all types that don't qualify as [simple evitaDB types](#simple-data-types) (or an array of simple 
 evitaDB types). Complex types are stored in a 
@@ -181,12 +323,29 @@ evitaDB types). Complex types are stored in a
 intentionally similar to the JSON data structure so that it can be easily converted to JSON format and can also accept 
 and store any valid JSON document.
 
-<LanguageSpecific to="java">
-The complex type in Java is a class that implements the serializable interface and does not belong to a `java` package
-(i.e. `java.lang.URL` is forbidden to be stored in evitaDB, even if it is serializable, because it belongs to the `java` 
-package and is not directly supported by the basic data types). The complex types are intended for the client POJO 
-classes to carry larger data or to associate simple logic with the data.
 </LanguageSpecific>
+<LanguageSpecific to="graphql,rest">
+
+The complex types are all types that don't qualify as [simple evitaDB types](#simple-data-types) (or an array of simple
+evitaDB types). Complex types are written as JSON objects to allow any object structure with easy serialization and deserialization.
+However, this comes with caveats - data types of properties of a complex type are currently limited only to the data types
+supported by plain JSON. This means that you can store e.g. date time as a string as you would normally do with 
+[simple data types](#simple-data-types), but internally, it will be stored as a plain string (because we don't have
+any information about the concrete data type), and it is up to you to do a manual conversion on the client side. 
+
+</LanguageSpecific>
+
+<LanguageSpecific to="java">
+
+The complex type in Java is a class that implements the serializable interface and does not belong to a `java` package
+or is not directly supported by the [simple data types](#simple-data-types)(i.e. `java.lang.URL` is forbidden to be 
+stored in evitaDB, even if it is serializable and belongs to a `java` package, because it is not directly supported by
+the [simple data types](#simple-data-types)). The complex types are intended for the client POJO 
+classes to carry larger data or to associate simple logic with the data.
+
+</LanguageSpecific>
+
+<LanguageSpecific to="evitaql,java">
 
 <Note type="info">
 Associated data may even contain array of complex objects. Such data will be automatically converted to an array of
@@ -201,6 +360,16 @@ Associated data may even contain array of complex objects. Such data will be aut
 - generic [Sets](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Set.html)
 - generic [Maps](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Map.html)
 - any array of [simple evitaDB types](#simple-data-types) or [complex types](#complex-data-types)
+
+</LanguageSpecific>
+<LanguageSpecific to="graphql,rest">
+
+<Note type="info">
+Associated data may even contain array of complex objects. Such data will be automatically converted to an array of
+`ComplexDataObject` types - i.e. `ComplexDataObjectArray`.
+</Note>
+
+</LanguageSpecific>
 
 <LanguageSpecific to="java">
 
