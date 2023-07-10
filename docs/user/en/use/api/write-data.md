@@ -122,7 +122,7 @@ Interfaces follow this structure:
 When you create new entity using evitaDB API, you obtain a builder, and you can immediately start setting the data 
 to the entity and then store the entity to the database:
 
-<SourceCodeTabs requires="/docs/user/en/use/api/example/finalization-of-warmup-mode.java,/docs/user/en/use/api/example/open-session-manually.java">
+<SourceCodeTabs requires="ignoreTest,/docs/user/en/use/api/example/finalization-of-warmup-mode.java,/docs/user/en/use/api/example/open-session-manually.java">
 [Creating new entity returns a builder](/docs/user/en/use/api/example/create-new-entity-shortened.java)
 </SourceCodeTabs>
 
@@ -131,7 +131,7 @@ When you read existing entity from the catalog, you obtain read-only
 basically a contract interface with a few methods allowing you to convert it to the builder instance that can be used
 for updating the data:
 
-<SourceCodeTabs requires="/docs/user/en/use/api/example/finalization-of-warmup-mode.java,/docs/user/en/get-started/example/create-small-dataset.java,/docs/user/en/use/api/example/open-session-manually.java">
+<SourceCodeTabs requires="ignoreTest,/docs/user/en/use/api/example/finalization-of-warmup-mode.java,/docs/user/en/get-started/example/create-small-dataset.java,/docs/user/en/use/api/example/open-session-manually.java">
 [Retrieving existing entity returns a sealed entity](/docs/user/en/use/api/example/update-existing-entity-shortened.java)
 </SourceCodeTabs>
 
@@ -350,7 +350,7 @@ the lambda function.
 
 That's why there is an alternative - not so secure - approach to handling sessions and transactions:
 
-<SourceCodeTabs requires="/docs/user/en/use/api/example/finalization-of-warmup-mode.java">
+<SourceCodeTabs requires="ignoreTest,/docs/user/en/use/api/example/finalization-of-warmup-mode.java">
 [Manual session and transaction handling](/docs/user/en/use/api/example/manual-transaction-management.java)
 </SourceCodeTabs>
 
