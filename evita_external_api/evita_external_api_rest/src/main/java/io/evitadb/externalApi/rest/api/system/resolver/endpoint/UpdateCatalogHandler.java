@@ -24,16 +24,23 @@
 package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.CatalogState;
+import io.evitadb.core.Evita;
 import io.evitadb.externalApi.rest.api.system.dto.UpdateCatalogRequestDto;
 import io.evitadb.externalApi.rest.api.system.model.CatalogsHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.system.resolver.serializer.CatalogJsonSerializer;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
+import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.io.RestHandler;
+import io.evitadb.utils.Assert;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.Optional;
+
+import static io.evitadb.externalApi.api.ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION;
 
 /**
  * Updates and returns single evitaDB catalog by its name.
@@ -73,21 +80,63 @@ public class UpdateCatalogHandler extends RestHandler<SystemRestHandlingContext>
 		final UpdateCatalogRequestDto requestBody = parseRequestBody(exchange, UpdateCatalogRequestDto.class);
 
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
-		final Optional<CatalogContract> catalog = restApiHandlingContext.getCatalog(catalogName);
+		final Optional<CatalogContract> catalog = restApiHandlingContext.getCatalog(catalogName, URL_NAME_NAMING_CONVENTION);
 		if (catalog.isEmpty()) {
 			return Optional.empty();
 		}
 
-		final String newCatalogName = requestBody.name();
-		final boolean overwriteTarget = Optional.ofNullable(requestBody.overwriteTarget()).orElse(false);
+		final Optional<String> newCatalogName = renameCatalog(catalog.get(), requestBody);
+		switchCatalogToAliveState(catalog.get(), requestBody);
 
-		if (overwriteTarget) {
-			restApiHandlingContext.getEvita().replaceCatalog(catalog.get().getName(), newCatalogName);
-		} else {
-			restApiHandlingContext.getEvita().renameCatalog(catalog.get().getName(), newCatalogName);
+		final String nameOfUpdateCatalog = newCatalogName.orElse(catalogName);
+		final CatalogContract updatedCatalog = restApiHandlingContext.getCatalog(
+				nameOfUpdateCatalog,
+				newCatalogName.isPresent() ? null : URL_NAME_NAMING_CONVENTION
+			)
+				.orElseThrow(() -> new RestInternalError("Couldn't find updated catalog `" + nameOfUpdateCatalog + "`"));
+		return Optional.of(updatedCatalog).map(catalogJsonSerializer::serialize);
+	}
+
+	@Nonnull
+	private Optional<String> renameCatalog(@Nonnull CatalogContract catalog,
+	                                       @Nonnull UpdateCatalogRequestDto requestBody) {
+		final Evita evita = restApiHandlingContext.getEvita();
+
+		final Optional<String> newCatalogName = Optional.ofNullable(requestBody.name());
+		if (newCatalogName.isEmpty()) {
+			return Optional.empty();
 		}
 
-		final CatalogContract updatedCatalog = restApiHandlingContext.getEvita().getCatalogInstanceOrThrowException(newCatalogName);
-		return Optional.of(updatedCatalog).map(catalogJsonSerializer::serialize);
+		final boolean overwriteTarget = Optional.ofNullable(requestBody.overwriteTarget()).orElse(false);
+		if (overwriteTarget) {
+			evita.replaceCatalog(catalog.getName(), newCatalogName.get());
+		} else {
+			evita.renameCatalog(catalog.getName(), newCatalogName.get());
+		}
+
+		return newCatalogName;
+	}
+
+	private void switchCatalogToAliveState(@Nonnull CatalogContract catalog,
+	                                       @Nonnull UpdateCatalogRequestDto requestBody) {
+		final Optional<CatalogState> newCatalogState = Optional.ofNullable(requestBody.catalogState());
+		if (newCatalogState.isEmpty()) {
+			return;
+		}
+
+		Assert.isTrue(
+			newCatalogState.get() == CatalogState.ALIVE,
+			() -> new RestInvalidArgumentException("A catalog can be switched only to the `ALIVE` state.")
+		);
+		Assert.isTrue(
+			catalog.getCatalogState() == CatalogState.WARMING_UP,
+			() -> new RestInvalidArgumentException("Only a catalog in the `WARMING_UP` state can be switched to the `ALIVE` state.")
+		);
+
+		final boolean switched = catalog.goLive();
+		Assert.isTrue(
+			switched,
+			() -> new RestInvalidArgumentException("A catalog couldn't be switched to the `ALIVE` state.")
+		);
 	}
 }

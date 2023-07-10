@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.system.model;
 
+import io.evitadb.api.CatalogState;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
@@ -53,11 +54,19 @@ public interface UpdateCatalogRequestDescriptor {
 		.type(nullable(Boolean.class))
 		.build();
 
+	PropertyDescriptor CATALOG_STATE = PropertyDescriptor.builder()
+		.name("catalogState")
+		.description("""
+			New state of selected catalog. Can be used only for switching from `WARMING_UP` to `ALIVE` state.
+			""")
+		.type(nonNull(CatalogState.class))
+		.build();
+
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("UpdateCatalogRequest")
 		.description("""
 			Requests creation of new catalog.
 			""")
-		.staticFields(List.of(NAME))
+		.staticFields(List.of(NAME, OVERWRITE_TARGET, CATALOG_STATE))
 		.build();
 }
