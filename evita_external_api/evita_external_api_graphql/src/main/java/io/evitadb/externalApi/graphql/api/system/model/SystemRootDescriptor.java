@@ -68,7 +68,9 @@ public interface SystemRootDescriptor {
     EndpointDescriptor CREATE_CATALOG = EndpointDescriptor.builder()
         .operation("createCatalog")
         .description("""
-            Creates new catalog of particular name if it doesn't exist. New empty catalog is returned.
+            Creates new catalog of particular name if it doesn't exist. New empty catalog is returned. The catalog
+            is created in `WARMING_UP` state and must be switched to `ALIVE` state by calling `switchCatalogToAliveState`
+            after all bulk index operations are finished.
             """)
         .type(nonNullRef(CatalogDescriptor.THIS))
         .build();
@@ -83,6 +85,16 @@ public interface SystemRootDescriptor {
             and the `newName` will not be present.
             """)
         .type(nonNullRef(CatalogDescriptor.THIS))
+        .build();
+    EndpointDescriptor SWITCH_CATALOG_TO_ALIVE_STATE = EndpointDescriptor.builder()
+        .operation("switchCatalogToAliveState")
+        .description("""
+            Switches catalog to the `ALIVE` state so that next request is operating in the new catalog state.
+            
+            Catalog's state is switched only when the state transition successfully occurs and this is signalized
+            by return value.
+            """)
+        .type(nonNull(Boolean.class))
         .build();
     EndpointDescriptor REPLACE_CATALOG = EndpointDescriptor.builder()
         .operation("replaceCatalog")

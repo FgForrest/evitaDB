@@ -28,28 +28,25 @@ import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.graphql.api.system.model.CreateCatalogMutationHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.system.model.SwitchCatalogToAliveStateMutationHeaderDescriptor;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 
 /**
- * Returns single catalog dto by name.
+ * Tries to switch a {@link CatalogContract} to {@link io.evitadb.api.CatalogState#ALIVE} state.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class CreateCatalogMutatingDataFetcher implements DataFetcher<CatalogContract> {
+public class SwitchCatalogToAliveStateMutatingDataFetcher implements DataFetcher<Boolean> {
 
     private final Evita evita;
 
     @Nonnull
     @Override
-    public CatalogContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-        final String catalogName = environment.getArgument(CreateCatalogMutationHeaderDescriptor.NAME.name());
-
-        evita.defineCatalog(catalogName);
-        final CatalogContract newCatalog = evita.getCatalogInstanceOrThrowException(catalogName);
-
-        return newCatalog;
+    public Boolean get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+        final String catalogName = environment.getArgument(SwitchCatalogToAliveStateMutationHeaderDescriptor.NAME.name());
+        return evita.getCatalogInstanceOrThrowException(catalogName).goLive();
     }
 }
