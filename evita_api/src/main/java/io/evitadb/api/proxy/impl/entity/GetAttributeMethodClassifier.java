@@ -109,9 +109,11 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Ent
 					if (attributeSchema.isLocalized()) {
 						//noinspection unchecked
 						return method.getParameterCount() == 0 ?
-							(entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
-								theState.getAttribute(cleanAttributeName), returnType, indexedDecimalPlaces
-							) :
+							(entityClassifier, theMethod, args, theState, invokeSuper) -> {
+								return EvitaDataTypes.toTargetType(
+									theState.getAttribute(cleanAttributeName), returnType, indexedDecimalPlaces
+								);
+							} :
 							(entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
 								theState.getAttribute(cleanAttributeName, (Locale) args[0]), returnType, indexedDecimalPlaces
 							);

@@ -45,7 +45,7 @@ class AttributeValueSerializablePredicateTest {
 	@Test
 	void shouldCreateRicherCopyForNoAttributes() {
 		final AttributeValueSerializablePredicate noAttributesRequired = new AttributeValueSerializablePredicate(
-			null, Collections.emptySet(), Collections.emptySet(), false
+			null, null, Collections.emptySet(), Collections.emptySet(), false
 		);
 
 		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
@@ -58,7 +58,7 @@ class AttributeValueSerializablePredicateTest {
 	@Test
 	void shouldNotCreateRicherCopyForNoAttributes() {
 		final AttributeValueSerializablePredicate noAttributesRequired = new AttributeValueSerializablePredicate(
-			null, Collections.emptySet(), Collections.emptySet(), false
+			null, null, Collections.emptySet(), Collections.emptySet(), false
 		);
 
 		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
@@ -71,7 +71,7 @@ class AttributeValueSerializablePredicateTest {
 	@Test
 	void shouldNotCreateRicherCopyForNoAttributesWhenAttributesPresent() {
 		final AttributeValueSerializablePredicate noAttributesRequired = new AttributeValueSerializablePredicate(
-			null, Collections.emptySet(), Collections.emptySet(), true
+			null, null, Collections.emptySet(), Collections.emptySet(), true
 		);
 
 		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
@@ -84,7 +84,7 @@ class AttributeValueSerializablePredicateTest {
 	@Test
 	void shouldCreateRicherCopyForGlobalAttributes() {
 		final AttributeValueSerializablePredicate globalAttributesRequired = new AttributeValueSerializablePredicate(
-			null, Collections.emptySet(), Collections.emptySet(), true
+			null, null, Collections.emptySet(), Collections.emptySet(), true
 		);
 
 		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
@@ -97,7 +97,7 @@ class AttributeValueSerializablePredicateTest {
 	@Test
 	void shouldNotCreateRicherCopyForGlobalAttributes() {
 		final AttributeValueSerializablePredicate globalAttributesRequired = new AttributeValueSerializablePredicate(
-			null, Collections.emptySet(), Collections.emptySet(), true
+			null, null, Collections.emptySet(), Collections.emptySet(), true
 		);
 
 		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
@@ -110,7 +110,7 @@ class AttributeValueSerializablePredicateTest {
 	@Test
 	void shouldCreateRicherCopyForGlobalAndLocalizedAttributes() {
 		final AttributeValueSerializablePredicate localizedAttributesRequired = new AttributeValueSerializablePredicate(
-			null, new HashSet<>(Collections.singletonList(Locale.ENGLISH)), Collections.emptySet(), true
+			null, null, new HashSet<>(Collections.singletonList(Locale.ENGLISH)), Collections.emptySet(), true
 		);
 
 		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
@@ -123,7 +123,7 @@ class AttributeValueSerializablePredicateTest {
 	@Test
 	void shouldNotCreateRicherCopyForGlobalAndLocalizedAttributes() {
 		final AttributeValueSerializablePredicate localizedAttributesRequired = new AttributeValueSerializablePredicate(
-			null, new HashSet<>(Arrays.asList(Locale.ENGLISH, Locale.CANADA)), Collections.emptySet(), true
+			null, null, new HashSet<>(Arrays.asList(Locale.ENGLISH, Locale.CANADA)), Collections.emptySet(), true
 		);
 
 		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
@@ -136,7 +136,7 @@ class AttributeValueSerializablePredicateTest {
 	@Test
 	void shouldNotCreateRicherCopyForGlobalAndLocalizedAttributesSubset() {
 		final AttributeValueSerializablePredicate localizedAttributesRequired = new AttributeValueSerializablePredicate(
-			null, new HashSet<>(Arrays.asList(Locale.ENGLISH, Locale.CANADA)), Collections.emptySet(), true
+			null, null, new HashSet<>(Arrays.asList(Locale.ENGLISH, Locale.CANADA)), Collections.emptySet(), true
 		);
 
 		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
@@ -149,7 +149,7 @@ class AttributeValueSerializablePredicateTest {
 	@Test
 	void shouldCreateRicherCopyForGlobalAndLocalizedAttributesByName() {
 		final AttributeValueSerializablePredicate localizedAttributesRequired = new AttributeValueSerializablePredicate(
-			null,
+			null, null,
 			new HashSet<>(Collections.singletonList(Locale.ENGLISH)),
 			new HashSet<>(Collections.singletonList("A")),
 			true
@@ -165,7 +165,7 @@ class AttributeValueSerializablePredicateTest {
 	@Test
 	void shouldNotCreateRicherCopyForGlobalAndLocalizedAttributesByName() {
 		final AttributeValueSerializablePredicate localizedAttributesRequired = new AttributeValueSerializablePredicate(
-			null,
+			null, null,
 			new HashSet<>(Arrays.asList(Locale.ENGLISH, Locale.CANADA)),
 			new HashSet<>(Arrays.asList("A", "B")),
 			true
@@ -181,7 +181,7 @@ class AttributeValueSerializablePredicateTest {
 	@Test
 	void shouldNotCreateRicherCopyForGlobalAndLocalizedAttributesSubsetByName() {
 		final AttributeValueSerializablePredicate localizedAttributesRequired = new AttributeValueSerializablePredicate(
-			null,
+			null, null,
 			new HashSet<>(Arrays.asList(Locale.ENGLISH, Locale.CANADA)),
 			new HashSet<>(Arrays.asList("A", "B")),
 			true

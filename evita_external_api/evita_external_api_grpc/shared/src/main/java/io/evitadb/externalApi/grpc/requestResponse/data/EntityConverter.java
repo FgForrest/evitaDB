@@ -490,10 +490,11 @@ public class EntityConverter {
 	 * client.
 	 */
 	@Nonnull
-	public static List<SealedEntity> toSealedEntities(
+	public static <S> List<S> toEntities(
 		@Nonnull List<GrpcSealedEntity> sealedEntitiesList,
 		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull BiFunction<String, Integer, SealedEntitySchema> entitySchemaProvider
+		@Nonnull BiFunction<String, Integer, SealedEntitySchema> entitySchemaProvider,
+		@Nonnull Class<S> expectedType
 	) {
 		return sealedEntitiesList
 			.stream()
@@ -502,14 +503,14 @@ public class EntityConverter {
 					entity -> entitySchemaProvider.apply(entity.getEntityType(), entity.getSchemaVersion()),
 					evitaRequest,
 					it,
-					SealedEntity.class
+					expectedType
 				)
 			)
 			.toList();
 	}
 
 	@Nonnull
-	public static SealedEntity parseBinaryEntity(@Nonnull GrpcBinaryEntity binaryEntity) {
+	public static <T> T parseBinaryEntity(@Nonnull GrpcBinaryEntity binaryEntity) {
 		/* TOBEDONE JNO https://github.com/FgForrest/evitaDB/issues/13 */
 		return null;
 	}
