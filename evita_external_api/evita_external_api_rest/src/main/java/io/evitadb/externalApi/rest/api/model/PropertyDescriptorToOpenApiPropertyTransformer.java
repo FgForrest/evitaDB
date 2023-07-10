@@ -28,6 +28,8 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptorTransformer;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiProperty;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
+import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
+import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -48,6 +50,10 @@ public class PropertyDescriptorToOpenApiPropertyTransformer implements PropertyD
 		final OpenApiProperty.Builder propertyBuilder = OpenApiProperty.newProperty()
 			.name(propertyDescriptor.name())
 			.description(propertyDescriptor.description());
+		Assert.isPremiseValid(
+			propertyDescriptor.defaultValue() == null,
+			() -> new OpenApiBuildingError("Default values are not supported in REST API right now.")
+		);
 
 		if (propertyDescriptor.type() != null) {
 			final OpenApiSimpleType openApiType = propertyDataTypeDescriptorTransformer.apply(propertyDescriptor.type());

@@ -38,7 +38,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GetEntityQueryHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GetEntityHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
@@ -197,16 +197,16 @@ public class GetEntityDataFetcher extends ReadDataFetcher<DataFetcherResult<Enti
 		private static Arguments from(@Nonnull DataFetchingEnvironment environment, @Nonnull EntitySchemaContract entitySchema) {
 			final HashMap<String, Object> arguments = new HashMap<>(environment.getArguments());
 
-			final Integer primaryKey = (Integer) arguments.remove(GetEntityQueryHeaderDescriptor.PRIMARY_KEY.name());
+			final Integer primaryKey = (Integer) arguments.remove(GetEntityHeaderDescriptor.PRIMARY_KEY.name());
 
 			//noinspection DuplicatedCode
-			final Locale locale = (Locale) arguments.remove(GetEntityQueryHeaderDescriptor.LOCALE.name());
+			final Locale locale = (Locale) arguments.remove(GetEntityHeaderDescriptor.LOCALE.name());
 
-            final Currency priceInCurrency = (Currency) arguments.remove(GetEntityQueryHeaderDescriptor.PRICE_IN_CURRENCY.name());
+            final Currency priceInCurrency = (Currency) arguments.remove(GetEntityHeaderDescriptor.PRICE_IN_CURRENCY.name());
             //noinspection unchecked
-            final List<String> priceInPriceLists = (List<String>) arguments.remove(GetEntityQueryHeaderDescriptor.PRICE_IN_PRICE_LISTS.name());
-            final OffsetDateTime priceValidIn = (OffsetDateTime) arguments.remove(GetEntityQueryHeaderDescriptor.PRICE_VALID_IN.name());
-            final boolean priceValidInNow = (boolean) Optional.ofNullable(arguments.remove(GetEntityQueryHeaderDescriptor.PRICE_VALID_NOW.name()))
+            final List<String> priceInPriceLists = (List<String>) arguments.remove(GetEntityHeaderDescriptor.PRICE_IN_PRICE_LISTS.name());
+            final OffsetDateTime priceValidIn = (OffsetDateTime) arguments.remove(GetEntityHeaderDescriptor.PRICE_VALID_IN.name());
+            final boolean priceValidInNow = (boolean) Optional.ofNullable(arguments.remove(GetEntityHeaderDescriptor.PRICE_VALID_NOW.name()))
                 .orElse(false);
 
 			// left over arguments are unique attribute filters as defined by schema

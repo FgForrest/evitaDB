@@ -32,6 +32,9 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.GetEntityEndpointHeaderDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.ListUnknownEntitiesEndpointHeaderDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.QueryHeaderFilterArgumentsJoinType;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.UnknownEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -50,6 +53,7 @@ import java.util.Map;
 import static io.evitadb.api.query.QueryConstraints.and;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.or;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.ARGUMENT_NAME_NAMING_CONVENTION;
 
 /**
@@ -131,15 +135,22 @@ public class FilterByConstraintFromRequestQueryBuilder {
 				}
 			});
 
+		final QueryHeaderFilterArgumentsJoinType filterJoin = (QueryHeaderFilterArgumentsJoinType) parameters.getOrDefault(
+			UnknownEntityEndpointHeaderDescriptor.FILTER_JOIN.name(),
+			QueryHeaderFilterArgumentsJoinType.AND
+		);
+
 		if (filterConstraints.isEmpty()) {
 			return null;
 		}
 
-		return filterBy(
-			and(
-				filterConstraints.toArray(FilterConstraint[]::new)
-			)
-		);
+		if (filterJoin == QueryHeaderFilterArgumentsJoinType.AND) {
+			return filterBy(and(filterConstraints.toArray(FilterConstraint[]::new)));
+		} else if (filterJoin == QueryHeaderFilterArgumentsJoinType.OR) {
+			return filterBy(or(filterConstraints.toArray(FilterConstraint[]::new)));
+		} else {
+			throw new RestInternalError("Unsupported filter join type `" + filterJoin + "`.");
+		}
 	}
 
 	/**
@@ -168,15 +179,22 @@ public class FilterByConstraintFromRequestQueryBuilder {
 				}
 			});
 
+		final QueryHeaderFilterArgumentsJoinType filterJoin = (QueryHeaderFilterArgumentsJoinType) parameters.getOrDefault(
+			ListUnknownEntitiesEndpointHeaderDescriptor.FILTER_JOIN.name(),
+			QueryHeaderFilterArgumentsJoinType.AND
+		);
+
 		if (filterConstraints.isEmpty()) {
 			return null;
 		}
 
-		return filterBy(
-			and(
-				filterConstraints.toArray(FilterConstraint[]::new)
-			)
-		);
+		if (filterJoin == QueryHeaderFilterArgumentsJoinType.AND) {
+			return filterBy(and(filterConstraints.toArray(FilterConstraint[]::new)));
+		} else if (filterJoin == QueryHeaderFilterArgumentsJoinType.OR) {
+			return filterBy(or(filterConstraints.toArray(FilterConstraint[]::new)));
+		} else {
+			throw new RestInternalError("Unsupported filter join type `" + filterJoin + "`.");
+		}
 	}
 
 	@Nonnull

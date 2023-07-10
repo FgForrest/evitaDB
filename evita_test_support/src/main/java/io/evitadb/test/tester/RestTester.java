@@ -193,6 +193,14 @@ public class RestTester extends JsonExternalApiTester<Request> {
 		}
 
 		/**
+		 * Executes configured request against REST API, validates that status code is 204 and returns response with
+		 * validation methods.
+		 */
+		public ValidatableResponse executeAndExpectOkWithoutBodyAndThen() {
+			return executeAndThen(204);
+		}
+
+		/**
 		 * Executes configured request against REST API, validates that status code is 400 and returns response with
 		 * validation methods.
 		 */

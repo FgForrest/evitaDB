@@ -49,8 +49,6 @@ public class CreateCatalogMutatingDataFetcher implements DataFetcher<CatalogCont
 
         evita.defineCatalog(catalogName);
         final CatalogContract newCatalog = evita.getCatalogInstanceOrThrowException(catalogName);
-        // we don't have a way to use benefits of warming up state in GQL
-        newCatalog.goLive();
 
         return newCatalog;
     }

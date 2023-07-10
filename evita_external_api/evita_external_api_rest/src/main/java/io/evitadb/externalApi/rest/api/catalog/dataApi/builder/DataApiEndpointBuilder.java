@@ -37,15 +37,16 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.DeleteEntity
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.GetEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.ListUnknownEntitiesEndpointHeaderDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.UnknownEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.UpsertEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionsHandler;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.DeleteEntitiesByQueryHandler;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.DeleteEntityHandler;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.GetEntityHandler;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.GetUnknownEntityHandler;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.ListEntitiesHandler;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.QueryEntitiesHandler;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.UnknownEntityHandler;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.UnknownEntityListHandler;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.ListUnknownEntitiesHandler;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.UpsertEntityHandler;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiOperationPathParameterTransformer;
@@ -189,6 +190,9 @@ public class DataApiEndpointBuilder {
 					.build())
 				.toList()
 		);
+		queryParameters.add(UnknownEntityEndpointHeaderDescriptor.FILTER_JOIN
+			.to(operationQueryParameterBuilderTransformer)
+			.build());
 		queryParameters.addAll(buildFetchQueryParametersForUnknownEntity(localized));
 
 		return Optional.of(
@@ -201,7 +205,7 @@ public class DataApiEndpointBuilder {
 				.description(CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY.description())
 				.queryParameters(queryParameters)
 				.successResponse(typeRefTo(localized ? EntityUnion.THIS_LOCALIZED.name() : EntityUnion.THIS.name()))
-				.handler(UnknownEntityHandler::new)
+				.handler(GetUnknownEntityHandler::new)
 				.build()
 		);
 	}
@@ -228,6 +232,9 @@ public class DataApiEndpointBuilder {
 					.build())
 				.toList()
 		);
+		queryParameters.add(ListUnknownEntitiesEndpointHeaderDescriptor.FILTER_JOIN
+			.to(operationQueryParameterBuilderTransformer)
+			.build());
 		queryParameters.addAll(buildFetchQueryParametersForUnknownEntity(localized));
 
 		return Optional.of(
@@ -240,7 +247,7 @@ public class DataApiEndpointBuilder {
 				.description(CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY.description())
 				.queryParameters(queryParameters)
 				.successResponse(nonNull(arrayOf(typeRefTo(localized ? EntityUnion.THIS_LOCALIZED.name() : EntityUnion.THIS.name()))))
-				.handler(UnknownEntityListHandler::new)
+				.handler(ListUnknownEntitiesHandler::new)
 				.build()
 		);
 	}

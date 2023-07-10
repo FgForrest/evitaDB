@@ -55,11 +55,9 @@ import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRA
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -184,6 +182,95 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 								.e(ATTRIBUTE_NAME, entityWithUrl2.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH))
 								.build())
 							.build()
+					)
+				)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return unknown entity with multiple different global attributes")
+	void shouldReturnUnknownEntityWithMultipleDifferentGlobalAttributes(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final String codeAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 5);
+		final SealedEntity entityWithCode = originalProductEntities.stream()
+			.filter(it -> Objects.equals(it.getAttribute(ATTRIBUTE_CODE), codeAttribute))
+			.findFirst()
+			.orElseThrow(() -> new EvitaInternalError("Missing entity with code attribute"));
+		final String urlAttribute = entityWithCode.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listEntity(code: "%s", url: "%s") {
+	                        primaryKey
+	                    }
+	                }
+					""",
+				codeAttribute,
+				urlAttribute
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				ENTITY_LIST_PATH,
+				equalTo(
+					List.of(
+						map()
+							.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithCode.getPrimaryKey())
+							.build()
+					)
+				)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return unknown entity list by multiple different global attributes")
+	void shouldReturnUnknownEntityListByMultipleDifferentGlobalAttributes(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final String codeAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 5);
+		final SealedEntity entityWithCode = originalProductEntities.stream()
+			.filter(it -> Objects.equals(it.getAttribute(ATTRIBUTE_CODE), codeAttribute))
+			.findFirst()
+			.orElseThrow(() -> new EvitaInternalError("Missing entity with code attribute"));
+		final String urlAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_URL, Locale.ENGLISH, 7);
+		final SealedEntity entityWithUrl = originalProductEntities.stream()
+			.filter(it -> Objects.equals(it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH), urlAttribute))
+			.findFirst()
+			.orElseThrow(() -> new EvitaInternalError("Missing entity with url attribute"));
+
+		assertNotEquals(entityWithCode.getPrimaryKey(), entityWithUrl.getPrimaryKey());
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listEntity(code: "%s", url: "%s", join: OR) {
+	                        primaryKey
+	                    }
+	                }
+					""",
+				codeAttribute,
+				urlAttribute
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				ENTITY_LIST_PATH,
+				containsInAnyOrder(
+					List.of(
+						equalTo(
+							map()
+								.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithCode.getPrimaryKey())
+								.build()
+						),
+						equalTo(
+							map()
+								.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithUrl.getPrimaryKey())
+								.build()
+						)
 					)
 				)
 			);

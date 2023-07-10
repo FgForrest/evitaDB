@@ -152,6 +152,77 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return entity with multiple different global attributes")
+	void shouldReturnUnknownEntityWithMultipleDifferentGlobalAttributes(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final String urlAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_URL, Locale.ENGLISH);
+		final SealedEntity entity = findEntity(
+			originalProductEntities,
+			it -> Objects.equals(it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH), urlAttribute)
+		);
+		final String codeAttribute = entity.getAttribute(ATTRIBUTE_CODE);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    getEntity(url: "%s", code: "%s") {
+	                        primaryKey
+	                    }
+	                }
+					""",
+				urlAttribute,
+				codeAttribute
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				GET_ENTITY_PATH,
+				equalTo(
+					map()
+						.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+						.build()
+				)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return entity by multiple different global attributes")
+	void shouldReturnUnknownEntityByMultipleDifferentGlobalAttributes(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final String urlAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_URL, Locale.ENGLISH);
+		final SealedEntity entity = findEntity(
+			originalProductEntities,
+			it -> Objects.equals(it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH), urlAttribute)
+		);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    getEntity(url: "%s", code: "%s", join: OR) {
+	                        primaryKey
+	                    }
+	                }
+					""",
+				urlAttribute,
+				"somethingWhichDoesntExist"
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				GET_ENTITY_PATH,
+				equalTo(
+					map()
+						.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+						.build()
+				)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for invalid argument in unknown entity query")
 	void shouldReturnErrorForInvalidArgumentInUnknownEntityQuery(GraphQLTester tester) {
 		tester.test(TEST_CATALOG)

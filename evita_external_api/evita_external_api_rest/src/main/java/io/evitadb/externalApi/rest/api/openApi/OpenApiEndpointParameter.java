@@ -23,6 +23,8 @@
 
 package io.evitadb.externalApi.rest.api.openApi;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.parameters.Parameter;
@@ -48,6 +50,8 @@ import javax.annotation.Nullable;
 @ToString
 public class OpenApiEndpointParameter {
 
+	private static final ObjectJsonSerializer DEFAULT_VALUE_SERIALIZER = new ObjectJsonSerializer(new ObjectMapper());
+
 	@Nonnull
 	@Getter
 	private final ParameterLocation location;
@@ -60,6 +64,8 @@ public class OpenApiEndpointParameter {
 	private final String deprecationNotice;
 	@Nonnull
 	private final OpenApiSimpleType type;
+	@Nullable
+	private final Object defaultValue;
 
 	@Nonnull
 	public static OpenApiEndpointParameter.Builder newPathParameter() {
@@ -84,6 +90,9 @@ public class OpenApiEndpointParameter {
 			parameter.required(true); // openapi doesn't support false here
 		}
 		parameter.schema(this.type.toSchema());
+		if (defaultValue != null) {
+			parameter.getSchema().setDefault(DEFAULT_VALUE_SERIALIZER.serializeObject(defaultValue));
+		}
 		return parameter;
 	}
 
@@ -99,6 +108,8 @@ public class OpenApiEndpointParameter {
 		private String deprecationNotice;
 		@Nullable
 		private OpenApiSimpleType type;
+		@Nullable
+		private Object defaultValue;
 
 		public Builder(@Nonnull ParameterLocation location) {
 			this.location = location;
@@ -141,6 +152,19 @@ public class OpenApiEndpointParameter {
 			return this;
 		}
 
+		/**
+		 * Sets default value of the parameter. It is supported only for query parameters.
+		 */
+		@Nonnull
+		public Builder defaultValue(@Nonnull Object defaultValue) {
+			Assert.isPremiseValid(
+				this.location == ParameterLocation.QUERY,
+				() -> new OpenApiBuildingError("Default value is supported only for query parameters.")
+			);
+			this.defaultValue = defaultValue;
+			return this;
+		}
+
 		@Nonnull
 		public OpenApiEndpointParameter build() {
 			Assert.isPremiseValid(
@@ -151,7 +175,7 @@ public class OpenApiEndpointParameter {
 				type != null,
 				() -> new OpenApiBuildingError("Parameter `" + name + "` is missing type.")
 			);
-			return new OpenApiEndpointParameter(location, name, description, deprecationNotice, type);
+			return new OpenApiEndpointParameter(location, name, description, deprecationNotice, type, defaultValue);
 		}
 	}
 
