@@ -23,45 +23,38 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.model;
 
-import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
-
 /**
- * Descriptor for header arguments of {@link CatalogDataApiRootDescriptor#UPSERT_ENTITY}
- * mutation.
+ * Descriptor for header arguments of {@link CatalogDataApiRootDescriptor#QUERY_ENTITY}
+ * query.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface UpsertEntityMutationHeaderDescriptor {
+public interface QueryEntitiesHeaderDescriptor {
 
-	PropertyDescriptor PRIMARY_KEY = PropertyDescriptor.builder()
-		.name("primaryKey")
+	PropertyDescriptor FILTER_BY = PropertyDescriptor.builder()
+		.name("filterBy")
 		.description("""
-			Identification of upserted entity. If null or entity with passed primary key doesn't exist, new one is created.
+			Complex filter query to filter result entities by.
 			""")
-		// type is expected to be an integer
+		// type is expected to be tree of filter constraints
 		.build();
-	PropertyDescriptor ENTITY_EXISTENCE = PropertyDescriptor.builder()
-		.name("entityExistence")
+	PropertyDescriptor ORDER_BY = PropertyDescriptor.builder()
+		.name("orderBy")
 		.description("""
-			Controls behaviour of the upsert operation.
+			Complex order query to order result entities by.
 			""")
-		.type(nonNull(EntityExistence.class))
-		.build();
-	PropertyDescriptor MUTATIONS = PropertyDescriptor.builder()
-		.name("mutations")
-		.description("""
-			Individual mutations to apply to entity selected by primary key parameter.
-			""")
-		// type is expected to be a `LocalMutationAggregate` object
+		// type is expected to be tree of order constraints
 		.build();
 	PropertyDescriptor REQUIRE = PropertyDescriptor.builder()
 		.name("require")
 		.description("""
-			Limited require query to specify content of mutated entity
+			Complex require query to alter query behaviour.
+			Because most of require constraints are resolved from client-defined output objects structure we need only
+			few left constraints that cannot be resolved from output structure because they usually change whole evitaDB
+			query behaviour.
 			""")
 		// type is expected to be tree of require constraints
 		.build();

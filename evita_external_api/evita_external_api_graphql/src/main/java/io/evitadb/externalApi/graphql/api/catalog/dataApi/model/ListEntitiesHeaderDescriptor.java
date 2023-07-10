@@ -29,17 +29,31 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * Descriptor for header arguments of {@link CatalogDataApiRootDescriptor#LIST_UNKNOWN_ENTITY}
+ * Descriptor for header arguments of {@link CatalogDataApiRootDescriptor#LIST_ENTITY}
  * query.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface ListUnknownEntitiesQueryHeaderDescriptor extends UnknownEntityQueryHeaderDescriptor {
+public interface ListEntitiesHeaderDescriptor {
 
+	PropertyDescriptor FILTER_BY = PropertyDescriptor.builder()
+		.name("filterBy")
+		.description("""
+			Complex filter query to filter result entities by.
+			""")
+		// type is expected to be tree of filter constraints
+		.build();
+	PropertyDescriptor ORDER_BY = PropertyDescriptor.builder()
+		.name("orderBy")
+		.description("""
+			Complex order query to order result entities by.
+			""")
+		// type is expected to be tree of order constraints
+		.build();
 	PropertyDescriptor LIMIT = PropertyDescriptor.builder()
 		.name("limit")
 		.description("""
-            Argument for adjusting default number of maximum results. It is shortcut for full paging.
+			Argument for adjusting default number of maximum results. It is shortcut for full paging.
 			""")
 		.type(nullable(Integer.class))
 		.build();

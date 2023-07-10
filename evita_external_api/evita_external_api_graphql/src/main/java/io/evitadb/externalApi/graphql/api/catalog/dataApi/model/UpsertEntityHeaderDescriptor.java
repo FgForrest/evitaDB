@@ -23,38 +23,46 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.model;
 
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor for header arguments of {@link CatalogDataApiRootDescriptor#LIST_ENTITY}
- * query.
+ * Descriptor for header arguments of {@link CatalogDataApiRootDescriptor#UPSERT_ENTITY}
+ * mutation.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface ListEntitiesQueryHeaderDescriptor {
+public interface UpsertEntityHeaderDescriptor {
 
-	PropertyDescriptor FILTER_BY = PropertyDescriptor.builder()
-		.name("filterBy")
+	PropertyDescriptor PRIMARY_KEY = PropertyDescriptor.builder()
+		.name("primaryKey")
 		.description("""
-			Complex filter query to filter result entities by.
+			Identification of upserted entity. If null or entity with passed primary key doesn't exist, new one is created.
 			""")
-		// type is expected to be tree of filter constraints
+		// type is expected to be an integer
 		.build();
-	PropertyDescriptor ORDER_BY = PropertyDescriptor.builder()
-		.name("orderBy")
+	PropertyDescriptor ENTITY_EXISTENCE = PropertyDescriptor.builder()
+		.name("entityExistence")
 		.description("""
-			Complex order query to order result entities by.
+			Controls behaviour of the upsert operation.
 			""")
-		// type is expected to be tree of order constraints
+		.type(nonNull(EntityExistence.class))
 		.build();
-	PropertyDescriptor LIMIT = PropertyDescriptor.builder()
-		.name("limit")
+	PropertyDescriptor MUTATIONS = PropertyDescriptor.builder()
+		.name("mutations")
 		.description("""
-			Argument for adjusting default number of maximum results. It is shortcut for full paging.
+			Individual mutations to apply to entity selected by primary key parameter.
 			""")
-		.type(nullable(Integer.class))
+		// type is expected to be a `LocalMutationAggregate` object
+		.build();
+	PropertyDescriptor REQUIRE = PropertyDescriptor.builder()
+		.name("require")
+		.description("""
+			Limited require query to specify content of mutated entity
+			""")
+		// type is expected to be tree of require constraints
 		.build();
 }

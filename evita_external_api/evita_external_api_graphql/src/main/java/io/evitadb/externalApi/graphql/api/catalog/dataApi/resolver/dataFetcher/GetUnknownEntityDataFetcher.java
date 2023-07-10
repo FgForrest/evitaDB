@@ -39,9 +39,8 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ListUnknownEntitiesQueryHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryHeaderArgumentsJoinType;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.UnknownEntityQueryHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.UnknownEntityHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
@@ -211,7 +210,7 @@ public class GetUnknownEntityDataFetcher extends ReadDataFetcher<DataFetcherResu
                 throw new GraphQLInvalidArgumentException("Missing globally unique attribute to identify entity.");
             }
 
-            final QueryHeaderArgumentsJoinType join = environment.getArgument(UnknownEntityQueryHeaderDescriptor.JOIN.name());
+            final QueryHeaderArgumentsJoinType join = environment.getArgument(UnknownEntityHeaderDescriptor.JOIN.name());
 
             return new Arguments(join, globallyUniqueAttributes);
         }

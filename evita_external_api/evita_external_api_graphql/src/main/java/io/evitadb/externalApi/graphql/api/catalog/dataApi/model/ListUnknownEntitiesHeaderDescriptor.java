@@ -26,36 +26,21 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.model;
 import io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
+
 /**
- * Descriptor for header arguments of {@link CatalogDataApiRootDescriptor#QUERY_ENTITY}
+ * Descriptor for header arguments of {@link CatalogDataApiRootDescriptor#LIST_UNKNOWN_ENTITY}
  * query.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface QueryEntitiesQueryHeaderDescriptor {
+public interface ListUnknownEntitiesHeaderDescriptor extends UnknownEntityHeaderDescriptor {
 
-	PropertyDescriptor FILTER_BY = PropertyDescriptor.builder()
-		.name("filterBy")
+	PropertyDescriptor LIMIT = PropertyDescriptor.builder()
+		.name("limit")
 		.description("""
-			Complex filter query to filter result entities by.
+            Argument for adjusting default number of maximum results. It is shortcut for full paging.
 			""")
-		// type is expected to be tree of filter constraints
-		.build();
-	PropertyDescriptor ORDER_BY = PropertyDescriptor.builder()
-		.name("orderBy")
-		.description("""
-			Complex order query to order result entities by.
-			""")
-		// type is expected to be tree of order constraints
-		.build();
-	PropertyDescriptor REQUIRE = PropertyDescriptor.builder()
-		.name("require")
-		.description("""
-			Complex require query to alter query behaviour.
-			Because most of require constraints are resolved from client-defined output objects structure we need only
-			few left constraints that cannot be resolved from output structure because they usually change whole evitaDB
-			query behaviour.
-			""")
-		// type is expected to be tree of require constraints
+		.type(nullable(Integer.class))
 		.build();
 }
