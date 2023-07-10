@@ -39,7 +39,7 @@ one writing the data, we can afford to do this.
 
 </LanguageSpecific>
 
-<LanguageSpecific to="java,graphql,java">
+<LanguageSpecific to="java">
 
 Any newly created catalog starts in `WARMUP` state and must be manually switched to *transactional* mode by executing:
 
@@ -47,21 +47,31 @@ Any newly created catalog starts in `WARMUP` state and must be manually switched
 [Termination of warm-up mode](/docs/user/en/use/api/example/finalization-of-warmup-mode.java)
 </SourceCodeTabs>
 
-</LanguageSpecific>
-
-<LanguageSpecific to="java">
-
 The `goLiveAndClose` method sets the catalog to `ALIVE` (transactional) state and closes the current session. From this 
 moment on, multiple clients can open read-only or read-write sessions in parallel to this particular catalog.
 
 </LanguageSpecific>
 <LanguageSpecific to="graphql">
 
+Any newly created catalog starts in `WARMUP` state and must be manually switched to *transactional* mode using the 
+[system API](/docs/user/en/use/connectors/graphql.md#graphql-api-instances) by executing:
+
+<SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
+[Termination of warm-up mode](/docs/user/en/use/api/example/finalization-of-warmup-mode.graphql)
+</SourceCodeTabs>
+
 The `switchCatalogToAliveState` mutation sets the catalog to `ALIVE` (transactional) state. From this
 moment on, multiple clients can send queries or mutations requests in parallel to this particular catalog.
 
 </LanguageSpecific>
 <LanguageSpecific to="rest">
+
+Any newly created catalog starts in `WARMUP` state and must be manually switched to *transactional* mode using the
+[system API](/docs/user/en/use/connectors/rest.md#rest-api-instances) by executing:
+
+<SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
+[Termination of warm-up mode](/docs/user/en/use/api/example/finalization-of-warmup-mode.graphql)
+</SourceCodeTabs>
 
 The `/catalogs/{catalog-name}` endpoint with `PATCH` method sets the catalog to `ALIVE` (transactional) state. From this
 moment on, multiple clients can send fetching or mutating requests in parallel to this particular catalog.
