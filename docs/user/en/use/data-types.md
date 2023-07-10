@@ -21,12 +21,12 @@ There are two categories of data types:
 
 ## Simple data types
 
-evitaDB data types are limited to following list:
-
 <LanguageSpecific to="evitaql,java">
 
-- [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html), 
-    formatted as `'string'`
+evitaDB data types are limited to following list:
+
+- [String](#string), 
+    formatted as `"string"`
 - [Byte](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Byte.html), 
     formatted as `5`
 - [Short](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Short.html), 
@@ -70,9 +70,9 @@ evitaDB data types are limited to following list:
 <LanguageSpecific to="graphql,rest">
 
 The data types are based on the Java data types because that's how they are stored under the hood. The only difference
-is how they are formatted:
+is how they are formatted. evitaDB data types are limited to following list:
 
-- [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html), 
+- [String](#string), 
     formatted as `'string'`
 - [Byte](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Byte.html), 
     formatted as `5`
@@ -143,7 +143,7 @@ class.
 
 ### String
 
-The string type is internally encoded with the character set [UTF-8](https://en.wikipedia.org/wiki/UTF-8). evitaDB
+The [string type](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) is internally encoded with the character set [UTF-8](https://en.wikipedia.org/wiki/UTF-8). evitaDB
 query language and other I/O methods of evitaDB implicitly use this encoding.
 
 <LanguageSpecific to="graphql,rest">
@@ -317,7 +317,7 @@ and Byte as upper bound.
 
 <LanguageSpecific to="evitaql,java">
 
-The complex types are all types that don't qualify as [simple evitaDB types](#simple-data-types) (or an array of simple 
+The complex types are types that don't qualify as [simple evitaDB types](#simple-data-types) (or an array of simple 
 evitaDB types). Complex types are stored in a 
 <SourceClass>evita_common/src/main/java/io/evitadb/dataType/ComplexDataObject.java</SourceClass> data structure that is 
 intentionally similar to the JSON data structure so that it can be easily converted to JSON format and can also accept 
