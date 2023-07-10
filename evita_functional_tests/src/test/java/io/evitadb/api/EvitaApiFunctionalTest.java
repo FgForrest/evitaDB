@@ -998,7 +998,7 @@ class EvitaApiFunctionalTest {
 				final SealedEntity removedCategory = getCategoryById(session, 1).orElseThrow();
 
 				// delete the root entity
-				final DeletedHierarchy deletionResult = session.deleteEntityAndItsHierarchy(CATEGORY, 1, entityFetchAllContent());
+				final DeletedHierarchy<SealedEntity> deletionResult = session.deleteEntityAndItsHierarchy(CATEGORY, 1, entityFetchAllContent());
 				assertEquals(3, deletionResult.deletedEntities());
 				assertExactlyEquals(removedCategory, deletionResult.deletedRootEntity());
 
@@ -1157,7 +1157,7 @@ class EvitaApiFunctionalTest {
 				assertEquals(3, existingEntities.size());
 
 				// delete the root entity
-				final SealedEntity[] deletedEntities = session.deleteEntitiesAndReturnBodies(
+				final SealedEntity[] deletedEntities = session.deleteSealedEntitiesAndReturnBodies(
 					query(
 						collection(CATEGORY),
 						filterBy(

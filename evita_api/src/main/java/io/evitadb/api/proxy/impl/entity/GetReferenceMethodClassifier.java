@@ -216,6 +216,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 			theState.getSealedEntity().getReferences(cleanReferenceName)
 				.stream()
 				.map(it -> wrapToType(it.getReferenceName(), itemType, theState, it, entityExtractor))
+				.filter(Objects::nonNull)
 				.toList();
 	}
 
@@ -230,6 +231,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 			theState.getSealedEntity().getReferences(cleanReferenceName)
 				.stream()
 				.map(it -> wrapToType(it.getReferenceName(), itemType, theState, it, entityExtractor))
+				.filter(Objects::nonNull)
 				.collect(CollectorUtils.toUnmodifiableLinkedHashSet());
 	}
 
@@ -243,6 +245,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 			theState.getSealedEntity().getReferences(cleanReferenceName)
 				.stream()
 				.map(it -> wrapToType(it.getReferenceName(), itemType, theState, it, entityExtractor))
+				.filter(Objects::nonNull)
 				.toArray(count -> (Object[]) Array.newInstance(itemType, count));
 	}
 

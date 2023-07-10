@@ -222,28 +222,6 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 	}
 
 	/**
-	 * Returns a single {@link UseDataSet} defined on a method parameter or returns the annotation found on the method.
-	 */
-	@Nullable
-	private static UseDataSet resolveUseDataSetAnnotation(@Nonnull ExtensionContext extensionContext, UseDataSet methodUseDataSet) {
-		UseDataSet useDataSet = methodUseDataSet;
-		if (useDataSet == null) {
-			for (Annotation[] parameterAnnotation : extensionContext.getRequiredTestMethod().getParameterAnnotations()) {
-				for (Annotation annotation : parameterAnnotation) {
-					if (annotation instanceof UseDataSet parameterUseDataSet) {
-						if (useDataSet == null) {
-							useDataSet = parameterUseDataSet;
-						} else {
-							throw new ParameterResolutionException("Test method may have maximum of one parameter annotated with @UseDataSet annotation!");
-						}
-					}
-				}
-			}
-		}
-		return useDataSet;
-	}
-
-	/**
 	 * Tries to find `annotationClass` annotation on an similar method on superclass.
 	 */
 	@Nullable

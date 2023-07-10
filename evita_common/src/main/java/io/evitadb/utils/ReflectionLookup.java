@@ -44,6 +44,8 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -73,6 +75,7 @@ public class ReflectionLookup {
 	private final WeakConcurrentMap<Class<?>, List<Method>> gettersWithCorrespondingSetterOrConstructor = new WeakConcurrentMap<>();
 	private final WeakConcurrentMap<Class<?>, Set<Class<?>>> interfacesCache = new WeakConcurrentMap<>();
 	private final WeakConcurrentMap<MethodAndPackage, Boolean> samePackageAnnotation = new WeakConcurrentMap<>();
+	private final WeakConcurrentMap<Class<?>, Map<Object, Object>> extractorCache = new WeakConcurrentMap<>();
 	private final ReflectionCachingBehaviour cachingBehaviour;
 
 	/**
@@ -695,6 +698,24 @@ public class ReflectionLookup {
 				}
 			}
 			return allAnnotations;
+		}
+	}
+
+	/**
+	 * Applies logic in `extractor` lambda and caches result if caching is enabled for the combination of
+	 * the `modelClass` and `cacheKey`.
+	 */
+	@Nullable
+	public <S, T> T extractFromClass(@Nonnull Class<S> modelClass, @Nonnull Object cacheKey, @Nonnull Function<Class<S>, T> extractor) {
+		if (cachingBehaviour == ReflectionCachingBehaviour.CACHE) {
+			//noinspection unchecked
+			return (T) extractorCache.computeIfAbsent(
+				modelClass, aClass -> new ConcurrentHashMap<>()
+			).computeIfAbsent(
+				cacheKey, key -> extractor.apply(modelClass)
+			);
+		} else {
+			return extractor.apply(modelClass);
 		}
 	}
 

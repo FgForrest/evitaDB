@@ -83,7 +83,7 @@ import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
 
 /**
- * This service contains methods that could be called by gRPC clients on {@link GrpcEvitaSession}
+ * This service contains methods that could be called by gRPC clients on {@link GrpcEvitaSessionAPI}.
  *
  * @author Tomáš Pozler, 2022
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
@@ -462,12 +462,15 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 * @param responseObserver observer on which errors might be thrown and result returned
 	 */
 	@Override
-	public void deleteEntityAndItsHierarchy(@Nonnull GrpcDeleteEntityRequest request, @Nonnull StreamObserver<GrpcDeleteEntityAndItsHierarchyResponse> responseObserver) {
+	public void deleteEntityAndItsHierarchy(
+		@Nonnull GrpcDeleteEntityRequest request,
+		@Nonnull StreamObserver<GrpcDeleteEntityAndItsHierarchyResponse> responseObserver
+	) {
 		final EvitaInternalSessionContract session = ServerSessionInterceptor.SESSION.get();
 		final String entityType = request.getEntityType();
 		final int primaryKey = request.getPrimaryKey().getValue();
 		final String require = request.getRequire();
-		final DeletedHierarchy deletedHierarchy;
+		final DeletedHierarchy<SealedEntity> deletedHierarchy;
 		final EntityContentRequire[] entityContentRequires = require.isEmpty() ?
 			new EntityContentRequire[0] :
 			QueryUtil.parseEntityRequiredContents(
@@ -478,7 +481,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			);
 
 		if (ArrayUtils.isEmpty(entityContentRequires)) {
-			deletedHierarchy = new DeletedHierarchy(
+			deletedHierarchy = new DeletedHierarchy<>(
 				session.deleteEntityAndItsHierarchy(entityType, primaryKey),
 				null
 			);
@@ -522,7 +525,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				deletedEntities = session.deleteEntities(query);
 				deletedEntityBodies = null;
 			} else {
-				deletedEntityBodies = session.deleteEntitiesAndReturnBodies(query);
+				deletedEntityBodies = session.deleteSealedEntitiesAndReturnBodies(query);
 				deletedEntities = deletedEntityBodies.length;
 			}
 

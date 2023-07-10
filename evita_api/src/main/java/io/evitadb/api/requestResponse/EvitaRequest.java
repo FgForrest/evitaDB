@@ -82,7 +82,7 @@ public class EvitaRequest {
 	private final String entityType;
 	private final Locale implicitLocale;
 	private final Class<?> expectedType;
-	private final BiFunction<Class<?>, SealedEntity, ?> converter;
+	@Getter private final BiFunction<Class<?>, SealedEntity, ?> converter;
 	private int[] primaryKeys;
 	private boolean localeExamined;
 	private Locale locale;

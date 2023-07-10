@@ -23,22 +23,29 @@
 
 package io.evitadb.api;
 
+import io.evitadb.api.EvitaSessionContract.DeletedHierarchy;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.mock.CategoryInterface;
 import io.evitadb.api.mock.ProductCategoryInterface;
 import io.evitadb.api.mock.ProductInterface;
 import io.evitadb.api.mock.TestEntity;
 import io.evitadb.api.proxy.SealedEntityReferenceProxy;
+import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
+import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
+import io.evitadb.utils.ArrayUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -59,6 +66,7 @@ import java.util.stream.Stream;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
+import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -71,6 +79,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
 public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctionalTest {
+	private static final String FIFTY_PRODUCTS = "FiftyProxyProducts";
 	private static final Locale CZECH_LOCALE = new Locale("cs", "CZ");
 
 	private static void assertCategoryEntityReferences(
@@ -82,7 +91,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 			.sorted()
 			.toArray(EntityReference[]::new);
 
-		assertEquals(3, references.length);
+		assertEquals(expectedCategoryIds.length, references.length);
 		assertArrayEquals(
 			Arrays.stream(expectedCategoryIds)
 				.mapToObj(it -> new EntityReference(Entities.CATEGORY, it))
@@ -156,7 +165,8 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 		@Nonnull Stream<ProductCategoryInterface> categoryReferences,
 		@Nonnull Map<Integer, SealedEntity> originalCategories,
 		@Nonnull int[] expectedCategoryIds,
-		@Nullable Locale locale
+		@Nullable Locale locale,
+		boolean externalEntities
 	) {
 		assertNotNull(categoryReferences);
 		final ProductCategoryInterface[] references = categoryReferences
@@ -170,7 +180,8 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 				originalCategories.computeIfAbsent(reference.getPrimaryKey(), id -> {
 					throw new AssertionError("Category with id " + id + " not found");
 				}),
-				locale
+				locale,
+				externalEntities
 			);
 		}
 	}
@@ -178,7 +189,8 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 	private static void assertCategoryReference(
 		@Nonnull ProductCategoryInterface productCategory,
 		@Nonnull SealedEntity sealedEntity,
-		@Nullable Locale locale
+		@Nullable Locale locale,
+		boolean externalEntities
 	) {
 		assertEquals(sealedEntity.getPrimaryKey(), productCategory.getPrimaryKey());
 
@@ -195,9 +207,13 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 			assertEquals(theReference.getAttribute(ATTRIBUTE_CATEGORY_LABEL, locale), productCategory.getLabel(locale));
 		}
 
-		assertCategory(productCategory.getCategory(), sealedEntity, locale);
-		assertEquals(new EntityReference(Entities.CATEGORY, sealedEntity.getPrimaryKey()), productCategory.getCategoryReference());
-		assertEquals(sealedEntity.getPrimaryKey(), productCategory.getCategoryReferencePrimaryKey());
+		if (externalEntities) {
+			assertCategory(productCategory.getCategory(), sealedEntity, locale);
+			assertEquals(new EntityReference(Entities.CATEGORY, sealedEntity.getPrimaryKey()), productCategory.getCategoryReference());
+			assertEquals(sealedEntity.getPrimaryKey(), productCategory.getCategoryReferencePrimaryKey());
+		} else {
+			assertNull(productCategory.getCategory());
+		}
 
 	}
 
@@ -226,16 +242,470 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 		}
 	}
 
-	@DisplayName("Should downgrade from SealedEntity to EntityReference")
+	private static void assertCategoryParents(
+		@Nonnull Collection<CategoryInterface> categories,
+		@Nonnull Map<Integer, SealedEntity> originalCategories,
+		@Nullable Locale locale
+	) {
+		for (CategoryInterface category : categories) {
+			assertCategoryParent(originalCategories, category, locale);
+		}
+	}
+
+	private static void assertProduct(
+		@Nonnull SealedEntity originalProduct,
+		@Nullable ProductInterface product,
+		@Nonnull Map<Integer, SealedEntity> originalCategories,
+		@Nullable Locale locale,
+		boolean externalEntities
+	) {
+		assertProductBasicData(originalProduct, product);
+		assertProductAttributes(originalProduct, product, locale);
+		assertEquals(new ReferencedFileSet(null), product.getReferencedFileSet());
+		assertEquals(new ReferencedFileSet(null), product.getReferencedFileSetAsDifferentProperty());
+
+		assertCategoryParents(product.getCategories(), originalCategories, locale);
+
+		final int[] expectedCategoryIds = originalProduct.getReferences(Entities.CATEGORY)
+			.stream()
+			.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+			.toArray();
+
+		assertCategoryIds(product.getCategoryIds().stream(), expectedCategoryIds);
+		assertCategoryIds(product.getCategoryIdsAsList().stream(), expectedCategoryIds);
+		assertCategoryIds(product.getCategoryIdsAsSet().stream(), expectedCategoryIds);
+		assertCategoryIds(Arrays.stream(product.getCategoryIdsAsArray()).boxed(), expectedCategoryIds);
+
+		assertCategoryEntityReferences(product.getCategoryReferences().stream(), expectedCategoryIds);
+		assertCategoryEntityReferences(product.getCategoryReferencesAsList().stream(), expectedCategoryIds);
+		assertCategoryEntityReferences(product.getCategoryReferencesAsSet().stream(), expectedCategoryIds);
+		assertCategoryEntityReferences(Arrays.stream(product.getCategoryReferencesAsArray()), expectedCategoryIds);
+
+		if (externalEntities) {
+			assertCategories(product.getCategories().stream(), originalCategories, expectedCategoryIds, locale);
+			assertCategories(product.getCategoriesAsList().stream(), originalCategories, expectedCategoryIds, locale);
+			assertCategories(product.getCategoriesAsSet().stream(), originalCategories, expectedCategoryIds, locale);
+			assertCategories(Arrays.stream(product.getCategoriesAsArray()), originalCategories, expectedCategoryIds, locale);
+		} else {
+			assertTrue(product.getCategories().isEmpty());
+			assertTrue(product.getCategoriesAsList().isEmpty());
+			assertTrue(product.getCategoriesAsSet().isEmpty());
+			assertTrue(ArrayUtils.isEmpty(product.getCategoriesAsArray()));
+		}
+
+		assertCategoryReferences(product.getProductCategories().stream(), originalCategories, expectedCategoryIds, locale, externalEntities);
+		assertCategoryReferences(product.getProductCategoriesAsList().stream(), originalCategories, expectedCategoryIds, locale, externalEntities);
+		assertCategoryReferences(product.getProductCategoriesAsSet().stream(), originalCategories, expectedCategoryIds, locale, externalEntities);
+		assertCategoryReferences(Arrays.stream(product.getProductCategoriesAsArray()), originalCategories, expectedCategoryIds, locale, externalEntities);
+
+		assertThrows(ContextMissingException.class, product::getPriceForSale);
+
+		final PriceContract[] allPricesForSale = product.getAllPricesForSale();
+		final PriceContract[] expectedAllPricesForSale = originalProduct.getAllPricesForSale().toArray(PriceContract[]::new);
+		assertEquals(expectedAllPricesForSale.length, allPricesForSale.length);
+		assertArrayEquals(expectedAllPricesForSale, allPricesForSale);
+
+		if (expectedAllPricesForSale.length > 0) {
+			final PriceContract expectedPrice = expectedAllPricesForSale[0];
+			assertEquals(
+				expectedPrice,
+				product.getPriceForSale(expectedPrice.getPriceList(), expectedPrice.getCurrency())
+			);
+			assertEquals(
+				expectedPrice,
+				product.getPriceForSale(expectedPrice.getPriceList(), expectedPrice.getCurrency(), expectedPrice.getValidity().getPreciseFrom())
+			);
+
+			assertArrayEquals(
+				originalProduct.getAllPricesForSale()
+					.stream()
+					.filter(it -> it.getPriceList().equals(expectedPrice.getPriceList()))
+					.toArray(PriceContract[]::new),
+				product.getAllPricesForSale(expectedPrice.getPriceList())
+			);
+
+			assertArrayEquals(
+				originalProduct.getAllPricesForSale()
+					.stream()
+					.filter(it -> it.getCurrency().equals(expectedPrice.getCurrency()))
+					.toArray(PriceContract[]::new),
+				product.getAllPricesForSale(expectedPrice.getCurrency())
+			);
+
+			assertArrayEquals(
+				originalProduct.getAllPricesForSale()
+					.stream()
+					.filter(it -> it.getCurrency().equals(expectedPrice.getCurrency()) && it.getPriceList().equals(expectedPrice.getPriceList()))
+					.toArray(PriceContract[]::new),
+				product.getAllPricesForSale(expectedPrice.getPriceList(), expectedPrice.getCurrency())
+			);
+		}
+
+		final PriceContract[] expectedAllPrices = originalProduct.getPrices().toArray(PriceContract[]::new);
+		final PriceContract[] allPrices = Arrays.stream(product.getAllPricesAsArray())
+			.toArray(PriceContract[]::new);
+
+		assertEquals(expectedAllPrices.length, allPrices.length);
+		assertArrayEquals(expectedAllPrices, allPrices);
+
+		assertArrayEquals(expectedAllPrices, product.getAllPricesAsList().toArray(PriceContract[]::new));
+		assertArrayEquals(expectedAllPrices, product.getAllPricesAsSet().toArray(PriceContract[]::new));
+		assertArrayEquals(expectedAllPrices, product.getAllPrices().toArray(PriceContract[]::new));
+
+		final Optional<PriceContract> first = Arrays.stream(expectedAllPrices).filter(it -> "basic".equals(it.getPriceList())).findFirst();
+		if (first.isEmpty()) {
+			assertNull(product.getBasicPrice());
+		} else {
+			assertEquals(
+				first.get(),
+				product.getBasicPrice()
+			);
+		}
+	}
+
+	private static void assertProductBasicData(@Nonnull SealedEntity originalProduct, @Nullable ProductInterface product) {
+		assertNotNull(product);
+		assertEquals(originalProduct.getPrimaryKey(), product.getPrimaryKey());
+		assertEquals(originalProduct.getPrimaryKey(), product.getId());
+		assertEquals(Entities.PRODUCT, product.getType());
+		assertEquals(TestEntity.PRODUCT, product.getEntityType());
+	}
+
+	private static void assertProductAttributes(@Nonnull SealedEntity originalProduct, @Nonnull ProductInterface product, @Nullable Locale locale) {
+		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_CODE), product.getCode());
+		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, locale), product.getName());
+		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantity());
+		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantityAsDifferentProperty());
+		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_ALIAS), product.isAlias());
+	}
+
+	@DataSet(value = FIFTY_PRODUCTS, destroyAfterClass = true, readOnly = false)
+	@Override
+	DataCarrier setUp(Evita evita) {
+		return super.setUp(evita);
+	}
+
+	@DisplayName("Should return entity schema directly or via model class")
 	@Test
 	@UseDataSet(FIFTY_PRODUCTS)
-	void shouldProxyToEntityReference(EvitaSessionContract evitaSession) {
-		final Optional<EntityReference> theReference = evitaSession.getEntity(
-			Entities.PRODUCT, EntityReference.class, 1, entityFetchAllContent()
+	void shouldReturnEntitySchema(EvitaSessionContract evitaSession) {
+		assertNotNull(evitaSession.getEntitySchema(Entities.PRODUCT));
+		assertNotNull(evitaSession.getEntitySchema(ProductInterface.class));
+		assertEquals(
+			evitaSession.getEntitySchema(Entities.PRODUCT),
+			evitaSession.getEntitySchema(ProductInterface.class)
 		);
-		assertTrue(theReference.isPresent());
-		assertEquals(1, theReference.get().getPrimaryKey());
-		assertEquals(Entities.PRODUCT, theReference.get().getType());
+
+		assertNotNull(evitaSession.getEntitySchemaOrThrow(Entities.PRODUCT));
+		assertNotNull(evitaSession.getEntitySchemaOrThrow(ProductInterface.class));
+		assertEquals(
+			evitaSession.getEntitySchemaOrThrow(Entities.PRODUCT),
+			evitaSession.getEntitySchemaOrThrow(ProductInterface.class)
+		);
+	}
+
+	@DisplayName("Should get sealed entity")
+	@Test
+	@UseDataSet(FIFTY_PRODUCTS)
+	void getSealedEntity(EvitaSessionContract evitaSession, List<SealedEntity> originalProducts) {
+		final SealedEntity theProduct = originalProducts
+			.stream()
+			.filter(it -> it.getPrimaryKey() == 1)
+			.findFirst()
+			.orElseThrow();
+		assertEquals(theProduct, evitaSession.getEntity(Entities.PRODUCT, 1, entityFetchAllContent()).orElseThrow());
+	}
+
+	@DisplayName("Should get custom entity model instance")
+	@Test
+	@UseDataSet(FIFTY_PRODUCTS)
+	void getCustomEntity(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts,
+		Map<Integer, SealedEntity> originalCategories
+	) {
+		final SealedEntity theProduct = originalProducts
+			.stream()
+			.filter(it -> it.getPrimaryKey() == 1)
+			.findFirst()
+			.orElseThrow();
+
+		assertProduct(
+			theProduct,
+			evitaSession.getEntity(ProductInterface.class, 1, entityFetchAllContent()).orElse(null),
+			originalCategories,
+			null, false
+		);
+	}
+
+	@DisplayName("Should enrich custom entity model instance")
+	@Test
+	@UseDataSet(FIFTY_PRODUCTS)
+	void enrichCustomEntity(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts,
+		Map<Integer, SealedEntity> originalCategories
+	) {
+		final SealedEntity theProduct = originalProducts
+			.stream()
+			.filter(it -> it.getPrimaryKey() == 1)
+			.findFirst()
+			.orElseThrow();
+
+		final ProductInterface partiallyLoadedEntity = evitaSession
+			.getEntity(ProductInterface.class, 1)
+			.orElse(null);
+		assertProduct(
+			theProduct,
+			evitaSession.enrichEntity(
+				partiallyLoadedEntity,
+				entityFetchAllContent()
+			),
+			originalCategories,
+			null, false
+		);
+	}
+
+	@DisplayName("Should limit custom entity model instance")
+	@Test
+	@UseDataSet(FIFTY_PRODUCTS)
+	void limitCustomEntity(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		final SealedEntity originalProduct = originalProducts
+			.stream()
+			.filter(it -> it.getPrimaryKey() == 1)
+			.findFirst()
+			.orElseThrow();
+
+		final ProductInterface partiallyLoadedEntity = evitaSession
+			.getEntity(ProductInterface.class, 1, entityFetchAllContent())
+			.orElse(null);
+
+
+		final ProductInterface limitedProduct = evitaSession.enrichOrLimitEntity(
+			partiallyLoadedEntity,
+			attributeContentAll()
+		);
+
+		assertProductBasicData(originalProduct, limitedProduct);
+		assertProductAttributes(originalProduct, limitedProduct, null);
+		assertNull(limitedProduct.getReferencedFileSet());
+		assertNull(limitedProduct.getReferencedFileSetAsDifferentProperty());
+	}
+
+	@DisplayName("Should return entity reference")
+	@Test
+	@UseDataSet(FIFTY_PRODUCTS)
+	void queryOneEntityReference(EvitaSessionContract evitaSession) {
+		final Query query = query(
+			collection(Entities.PRODUCT),
+			filterBy(
+				entityPrimaryKeyInSet(1)
+			)
+		);
+		assertEquals(new EntityReference(Entities.PRODUCT, 1), evitaSession.queryOneEntityReference(query).orElseThrow());
+		assertEquals(new EntityReference(Entities.PRODUCT, 1), evitaSession.queryOne(query, EntityReference.class).orElseThrow());
+	}
+
+	@DisplayName("Should return sealed entity")
+	@Test
+	@UseDataSet(FIFTY_PRODUCTS)
+	void queryOneSealedEntity(EvitaSessionContract evitaSession, List<SealedEntity> originalProducts) {
+		final Query query = query(
+			collection(Entities.PRODUCT),
+			filterBy(entityPrimaryKeyInSet(1)),
+			require(entityFetchAll())
+		);
+
+		final SealedEntity theProduct = originalProducts
+			.stream()
+			.filter(it -> it.getPrimaryKey() == 1)
+			.findFirst()
+			.orElseThrow();
+		assertEquals(theProduct, evitaSession.queryOneSealedEntity(query).orElseThrow());
+		assertEquals(theProduct, evitaSession.queryOne(query, SealedEntity.class).orElseThrow());
+	}
+
+	@DisplayName("Should return custom entity model instance")
+	@Test
+	@UseDataSet(FIFTY_PRODUCTS)
+	void queryOneCustomEntity(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts,
+		Map<Integer, SealedEntity> originalCategories
+	) {
+		final Query query = query(
+			collection(Entities.PRODUCT),
+			filterBy(entityPrimaryKeyInSet(1)),
+			require(entityFetchAll())
+		);
+
+		final SealedEntity theProduct = originalProducts
+			.stream()
+			.filter(it -> it.getPrimaryKey() == 1)
+			.findFirst()
+			.orElseThrow();
+
+		assertProduct(
+			theProduct,
+			evitaSession.queryOne(query, ProductInterface.class).orElse(null),
+			originalCategories,
+			null, false
+		);
+	}
+
+	@DisplayName("Should return list of entity references")
+	@Test
+	@UseDataSet(FIFTY_PRODUCTS)
+	void queryListOfEntityReference(EvitaSessionContract evitaSession) {
+		final Query query = query(
+			collection(Entities.PRODUCT),
+			filterBy(
+				entityPrimaryKeyInSet(1, 2)
+			)
+		);
+		assertArrayEquals(
+			new EntityReference[] {
+				new EntityReference(Entities.PRODUCT, 1),
+				new EntityReference(Entities.PRODUCT, 2)
+			},
+			evitaSession.queryListOfEntityReferences(query).toArray()
+		);
+		assertArrayEquals(
+			new EntityReference[] {
+				new EntityReference(Entities.PRODUCT, 1),
+				new EntityReference(Entities.PRODUCT, 2)
+			},
+			evitaSession.queryList(query, EntityReference.class).toArray()
+		);
+	}
+
+	@DisplayName("Should return list of sealed entities")
+	@Test
+	@UseDataSet(FIFTY_PRODUCTS)
+	void queryListOfSealedEntities(EvitaSessionContract evitaSession, List<SealedEntity> originalProducts) {
+		final Query query = query(
+			collection(Entities.PRODUCT),
+			filterBy(entityPrimaryKeyInSet(1, 2)),
+			require(entityFetchAll())
+		);
+
+		final List<SealedEntity> theProducts = originalProducts
+			.stream()
+			.filter(it -> it.getPrimaryKey() == 1 || it.getPrimaryKey() == 2)
+			.toList();
+		assertEquals(theProducts, evitaSession.queryListOfSealedEntities(query));
+		assertEquals(theProducts, evitaSession.queryList(query, SealedEntity.class));
+	}
+
+	@DisplayName("Should return list of custom entity model instances")
+	@Test
+	@UseDataSet(FIFTY_PRODUCTS)
+	void queryListOfCustomEntities(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts,
+		Map<Integer, SealedEntity> originalCategories
+	) {
+		final Query query = query(
+			collection(Entities.PRODUCT),
+			filterBy(entityPrimaryKeyInSet(1, 2)),
+			require(entityFetchAll())
+		);
+
+		final List<SealedEntity> theProducts = originalProducts
+			.stream()
+			.filter(it -> it.getPrimaryKey() == 1 || it.getPrimaryKey() == 2)
+			.toList();
+
+		final List<ProductInterface> products = evitaSession.queryList(query, ProductInterface.class);
+		for (int i = 0; i < theProducts.size(); i++) {
+			final SealedEntity expectedProduct = theProducts.get(i);
+			final ProductInterface actualProduct = products.get(i);
+			assertProduct(
+				expectedProduct,
+				actualProduct,
+				originalCategories,
+				null, false
+			);
+		}
+	}
+
+	@DisplayName("Should query entity references")
+	@Test
+	@UseDataSet(FIFTY_PRODUCTS)
+	void queryEntityReferences(EvitaSessionContract evitaSession) {
+		final Query query = query(
+			collection(Entities.PRODUCT),
+			filterBy(
+				entityPrimaryKeyInSet(1, 2)
+			)
+		);
+		assertArrayEquals(
+			new EntityReference[] {
+				new EntityReference(Entities.PRODUCT, 1),
+				new EntityReference(Entities.PRODUCT, 2)
+			},
+			evitaSession.queryEntityReference(query).getRecordData().toArray()
+		);
+		assertArrayEquals(
+			new EntityReference[] {
+				new EntityReference(Entities.PRODUCT, 1),
+				new EntityReference(Entities.PRODUCT, 2)
+			},
+			evitaSession.query(query, EntityReference.class).getRecordData().toArray()
+		);
+	}
+
+	@DisplayName("Should query sealed entities")
+	@Test
+	@UseDataSet(FIFTY_PRODUCTS)
+	void querySealedEntities(EvitaSessionContract evitaSession, List<SealedEntity> originalProducts) {
+		final Query query = query(
+			collection(Entities.PRODUCT),
+			filterBy(entityPrimaryKeyInSet(1, 2)),
+			require(entityFetchAll())
+		);
+
+		final List<SealedEntity> theProducts = originalProducts
+			.stream()
+			.filter(it -> it.getPrimaryKey() == 1 || it.getPrimaryKey() == 2)
+			.toList();
+		assertEquals(theProducts, evitaSession.querySealedEntity(query).getRecordData());
+		assertEquals(theProducts, evitaSession.query(query, SealedEntity.class).getRecordData());
+	}
+
+	@DisplayName("Should query custom entity model instances")
+	@Test
+	@UseDataSet(FIFTY_PRODUCTS)
+	void queryCustomEntities(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts,
+		Map<Integer, SealedEntity> originalCategories
+	) {
+		final Query query = query(
+			collection(Entities.PRODUCT),
+			filterBy(entityPrimaryKeyInSet(1, 2)),
+			require(entityFetchAll())
+		);
+
+		final List<SealedEntity> theProducts = originalProducts
+			.stream()
+			.filter(it -> it.getPrimaryKey() == 1 || it.getPrimaryKey() == 2)
+			.toList();
+
+		final List<ProductInterface> products = evitaSession.query(query, ProductInterface.class).getRecordData();
+		for (int i = 0; i < theProducts.size(); i++) {
+			final SealedEntity expectedProduct = theProducts.get(i);
+			final ProductInterface actualProduct = products.get(i);
+			assertProduct(
+				expectedProduct,
+				actualProduct,
+				originalCategories,
+				null, false
+			);
+		}
 	}
 
 	@DisplayName("Should wrap an interface and load data in single localization")
@@ -284,97 +754,12 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 			ProductInterface.class
 		);
 
-		assertTrue(productRef.isPresent());
-		final ProductInterface product = productRef.get();
-		assertEquals(theProduct.getPrimaryKey(), product.getPrimaryKey());
-		assertEquals(theProduct.getPrimaryKey(), product.getId());
-		assertEquals(Entities.PRODUCT, product.getType());
-		assertEquals(TestEntity.PRODUCT, product.getEntityType());
-		assertEquals(theProduct.getAttribute(DataGenerator.ATTRIBUTE_CODE), product.getCode());
-		assertEquals(theProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, CZECH_LOCALE), product.getName());
-		assertEquals(theProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantity());
-		assertEquals(theProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantityAsDifferentProperty());
-		assertEquals(theProduct.getAttribute(DataGenerator.ATTRIBUTE_ALIAS), product.isAlias());
-		assertEquals(new ReferencedFileSet(null), product.getReferencedFileSet());
-		assertEquals(new ReferencedFileSet(null), product.getReferencedFileSetAsDifferentProperty());
-
-		assertCategoryParents(product.getCategories(), originalCategories, CZECH_LOCALE);
-
-		final int[] expectedCategoryIds = theProduct.getReferences(Entities.CATEGORY)
-			.stream()
-			.mapToInt(ReferenceContract::getReferencedPrimaryKey)
-			.toArray();
-
-		assertCategoryIds(product.getCategoryIds().stream(), expectedCategoryIds);
-		assertCategoryIds(product.getCategoryIdsAsList().stream(), expectedCategoryIds);
-		assertCategoryIds(product.getCategoryIdsAsSet().stream(), expectedCategoryIds);
-		assertCategoryIds(Arrays.stream(product.getCategoryIdsAsArray()).boxed(), expectedCategoryIds);
-
-		assertCategoryEntityReferences(product.getCategoryReferences().stream(), expectedCategoryIds);
-		assertCategoryEntityReferences(product.getCategoryReferencesAsList().stream(), expectedCategoryIds);
-		assertCategoryEntityReferences(product.getCategoryReferencesAsSet().stream(), expectedCategoryIds);
-		assertCategoryEntityReferences(Arrays.stream(product.getCategoryReferencesAsArray()), expectedCategoryIds);
-
-		assertCategories(product.getCategories().stream(), originalCategories, expectedCategoryIds, CZECH_LOCALE);
-		assertCategories(product.getCategoriesAsList().stream(), originalCategories, expectedCategoryIds, CZECH_LOCALE);
-		assertCategories(product.getCategoriesAsSet().stream(), originalCategories, expectedCategoryIds, CZECH_LOCALE);
-		assertCategories(Arrays.stream(product.getCategoriesAsArray()), originalCategories, expectedCategoryIds, CZECH_LOCALE);
-
-		assertCategoryReferences(product.getProductCategories().stream(), originalCategories, expectedCategoryIds, CZECH_LOCALE);
-		assertCategoryReferences(product.getProductCategoriesAsList().stream(), originalCategories, expectedCategoryIds, CZECH_LOCALE);
-		assertCategoryReferences(product.getProductCategoriesAsSet().stream(), originalCategories, expectedCategoryIds, CZECH_LOCALE);
-		assertCategoryReferences(Arrays.stream(product.getProductCategoriesAsArray()), originalCategories, expectedCategoryIds, CZECH_LOCALE);
-
-		assertThrows(ContextMissingException.class, product::getPriceForSale);
-
-		final PriceContract[] allPricesForSale = product.getAllPricesForSale();
-		final PriceContract[] expectedAllPricesForSale = theProduct.getAllPricesForSale().toArray(PriceContract[]::new);
-		assertEquals(expectedAllPricesForSale.length, allPricesForSale.length);
-		assertArrayEquals(expectedAllPricesForSale, allPricesForSale);
-
-		assertEquals(expectedAllPricesForSale[0], product.getPriceForSale(expectedAllPricesForSale[0].getPriceList(), expectedAllPricesForSale[0].getCurrency()));
-		assertEquals(
-			expectedAllPricesForSale[1],
-			product.getPriceForSale(expectedAllPricesForSale[1].getPriceList(), expectedAllPricesForSale[1].getCurrency(), expectedAllPricesForSale[1].getValidity().getPreciseFrom())
-		);
-
-		assertArrayEquals(
-			theProduct.getAllPricesForSale()
-				.stream()
-				.filter(it -> it.getPriceList().equals(expectedAllPricesForSale[0].getPriceList()))
-				.toArray(PriceContract[]::new),
-			product.getAllPricesForSale(expectedAllPricesForSale[0].getPriceList())
-		);
-
-		assertArrayEquals(
-			theProduct.getAllPricesForSale()
-				.stream()
-				.filter(it -> it.getCurrency().equals(expectedAllPricesForSale[0].getCurrency()))
-				.toArray(PriceContract[]::new),
-			product.getAllPricesForSale(expectedAllPricesForSale[0].getCurrency())
-		);
-
-		assertArrayEquals(
-			theProduct.getAllPricesForSale()
-				.stream()
-				.filter(it -> it.getCurrency().equals(expectedAllPricesForSale[0].getCurrency()) && it.getPriceList().equals(expectedAllPricesForSale[0].getPriceList()))
-				.toArray(PriceContract[]::new),
-			product.getAllPricesForSale(expectedAllPricesForSale[0].getPriceList(), expectedAllPricesForSale[0].getCurrency())
-		);
-
-		final PriceContract[] allPrices = Arrays.stream(product.getAllPricesAsArray())
-			
-			.toArray(PriceContract[]::new);;
-		final PriceContract[] expectedAllPrices = theProduct.getPrices().toArray(PriceContract[]::new);
-		assertEquals(expectedAllPrices.length, allPrices.length);
-		assertArrayEquals(expectedAllPrices, allPrices);
-		assertArrayEquals(expectedAllPrices, product.getAllPricesAsList().toArray(PriceContract[]::new));
-		assertArrayEquals(expectedAllPrices, product.getAllPricesAsSet().toArray(PriceContract[]::new));
-		assertArrayEquals(expectedAllPrices, product.getAllPrices().toArray(PriceContract[]::new));
-
-		assertEquals(
-			Arrays.stream(expectedAllPrices).filter(it -> "basic".equals(it.getPriceList())).findFirst().orElseThrow(),
-			product.getBasicPrice()
+		assertProduct(
+			theProduct,
+			productRef.orElse(null),
+			originalCategories,
+			CZECH_LOCALE,
+			true
 		);
 	}
 
@@ -394,7 +779,8 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 			.orElseThrow();
 
 		final Optional<ProductInterface> productRef = evitaSession.getEntity(
-			Entities.PRODUCT, ProductInterface.class, theProduct.getPrimaryKey(),
+			ProductInterface.class,
+			theProduct.getPrimaryKey(),
 			attributeContent(),
 			associatedDataContent(),
 			priceContentAll(),
@@ -411,106 +797,95 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 			dataInLocales()
 		);
 
-		assertTrue(productRef.isPresent());
-		final ProductInterface product = productRef.get();
-		assertEquals(theProduct.getPrimaryKey(), product.getPrimaryKey());
-		assertEquals(theProduct.getPrimaryKey(), product.getId());
-		assertEquals(Entities.PRODUCT, product.getType());
-		assertEquals(TestEntity.PRODUCT, product.getEntityType());
-		assertEquals(theProduct.getAttribute(DataGenerator.ATTRIBUTE_CODE), product.getCode());
-		assertEquals(theProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, CZECH_LOCALE), product.getName());
-		assertEquals(theProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantity());
-		assertEquals(theProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantityAsDifferentProperty());
-		assertEquals(theProduct.getAttribute(DataGenerator.ATTRIBUTE_ALIAS), product.isAlias());
-		assertEquals(new ReferencedFileSet(null), product.getReferencedFileSet());
-		assertEquals(new ReferencedFileSet(null), product.getReferencedFileSetAsDifferentProperty());
-
-		assertCategoryParents(product.getCategories(), originalCategories, null);
-
-		final int[] expectedCategoryIds = theProduct.getReferences(Entities.CATEGORY)
-			.stream()
-			.mapToInt(ReferenceContract::getReferencedPrimaryKey)
-			.toArray();
-
-		assertCategoryIds(product.getCategoryIds().stream(), expectedCategoryIds);
-		assertCategoryIds(product.getCategoryIdsAsList().stream(), expectedCategoryIds);
-		assertCategoryIds(product.getCategoryIdsAsSet().stream(), expectedCategoryIds);
-		assertCategoryIds(Arrays.stream(product.getCategoryIdsAsArray()).boxed(), expectedCategoryIds);
-
-		assertCategoryEntityReferences(product.getCategoryReferences().stream(), expectedCategoryIds);
-		assertCategoryEntityReferences(product.getCategoryReferencesAsList().stream(), expectedCategoryIds);
-		assertCategoryEntityReferences(product.getCategoryReferencesAsSet().stream(), expectedCategoryIds);
-		assertCategoryEntityReferences(Arrays.stream(product.getCategoryReferencesAsArray()), expectedCategoryIds);
-
-		assertCategories(product.getCategories().stream(), originalCategories, expectedCategoryIds, null);
-		assertCategories(product.getCategoriesAsList().stream(), originalCategories, expectedCategoryIds, null);
-		assertCategories(product.getCategoriesAsSet().stream(), originalCategories, expectedCategoryIds, null);
-		assertCategories(Arrays.stream(product.getCategoriesAsArray()), originalCategories, expectedCategoryIds, null);
-
-		assertCategoryReferences(product.getProductCategories().stream(), originalCategories, expectedCategoryIds, null);
-		assertCategoryReferences(product.getProductCategoriesAsList().stream(), originalCategories, expectedCategoryIds, null);
-		assertCategoryReferences(product.getProductCategoriesAsSet().stream(), originalCategories, expectedCategoryIds, null);
-		assertCategoryReferences(Arrays.stream(product.getProductCategoriesAsArray()), originalCategories, expectedCategoryIds, null);
-
-		final PriceContract[] allPricesForSale = product.getAllPricesForSale();
-		final PriceContract[] expectedAllPricesForSale = theProduct.getAllPricesForSale().toArray(PriceContract[]::new);
-		assertEquals(expectedAllPricesForSale.length, allPricesForSale.length);
-		assertArrayEquals(expectedAllPricesForSale, allPricesForSale);
-
-		assertEquals(expectedAllPricesForSale[0], product.getPriceForSale(expectedAllPricesForSale[0].getPriceList(), expectedAllPricesForSale[0].getCurrency()));
-		assertEquals(
-			expectedAllPricesForSale[1],
-			product.getPriceForSale(expectedAllPricesForSale[1].getPriceList(), expectedAllPricesForSale[1].getCurrency(), expectedAllPricesForSale[1].getValidity().getPreciseFrom())
-		);
-
-		assertArrayEquals(
-			theProduct.getAllPricesForSale()
-				.stream()
-				.filter(it -> it.getPriceList().equals(expectedAllPricesForSale[0].getPriceList()))
-				.toArray(PriceContract[]::new),
-			product.getAllPricesForSale(expectedAllPricesForSale[0].getPriceList())
-		);
-
-		assertArrayEquals(
-			theProduct.getAllPricesForSale()
-				.stream()
-				.filter(it -> it.getCurrency().equals(expectedAllPricesForSale[0].getCurrency()))
-				.toArray(PriceContract[]::new),
-			product.getAllPricesForSale(expectedAllPricesForSale[0].getCurrency())
-		);
-
-		assertArrayEquals(
-			theProduct.getAllPricesForSale()
-				.stream()
-				.filter(it -> it.getCurrency().equals(expectedAllPricesForSale[0].getCurrency()) && it.getPriceList().equals(expectedAllPricesForSale[0].getPriceList()))
-				.toArray(PriceContract[]::new),
-			product.getAllPricesForSale(expectedAllPricesForSale[0].getPriceList(), expectedAllPricesForSale[0].getCurrency())
-		);
-
-		final PriceContract[] allPrices = Arrays.stream(product.getAllPricesAsArray())
-			
-			.toArray(PriceContract[]::new);
-		final PriceContract[] expectedAllPrices = theProduct.getPrices().toArray(PriceContract[]::new);
-		assertEquals(expectedAllPrices.length, allPrices.length);
-		assertArrayEquals(expectedAllPrices, allPrices);
-		assertArrayEquals(expectedAllPrices, product.getAllPricesAsList().toArray(PriceContract[]::new));
-		assertArrayEquals(expectedAllPrices, product.getAllPricesAsSet().toArray(PriceContract[]::new));
-		assertArrayEquals(expectedAllPrices, product.getAllPrices().toArray(PriceContract[]::new));
-
-		assertEquals(
-			Arrays.stream(expectedAllPrices).filter(it -> "basic".equals(it.getPriceList())).findFirst().orElseThrow(),
-			product.getBasicPrice()
+		assertProduct(
+			theProduct,
+			productRef.orElse(null),
+			originalCategories,
+			null, true
 		);
 	}
 
-	private void assertCategoryParents(
-		@Nonnull Collection<CategoryInterface> categories,
-		@Nonnull Map<Integer, SealedEntity> originalCategories,
-		@Nullable Locale locale
+	@DisplayName("Should delete entity")
+	@Test
+	@UseDataSet(FIFTY_PRODUCTS)
+	void deleteEntity(
+		EvitaContract evita,
+		List<SealedEntity> originalProducts
 	) {
-		for (CategoryInterface category : categories) {
-			assertCategoryParent(originalCategories, category, locale);
-		}
+		final SealedEntity theProduct = originalProducts
+			.stream()
+			.filter(it -> it.getPrimaryKey() == 50)
+			.findFirst()
+			.orElseThrow();
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity productToDelete = session.queryOneSealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(50)
+						),
+						require(
+							entityFetchAll()
+						)
+					)
+				).orElseThrow();
+				assertEquals(theProduct, productToDelete);
+
+				final SealedEntity deletedProduct = session.deleteEntity(
+					Entities.PRODUCT,
+					50,
+					entityFetchAllContent()
+				).orElseThrow();
+				assertEquals(theProduct, deletedProduct);
+
+				assertTrue(session.getEntity(Entities.PRODUCT, 50, entityFetchAllContent()).isEmpty());
+			}
+		);
+	}
+
+	@DisplayName("Should delete entity with hierarchy")
+	@Test
+	@UseDataSet(FIFTY_PRODUCTS)
+	void deleteEntityWithHierarchy(
+		EvitaContract evita,
+		Map<Integer, SealedEntity> originalCategories
+	) {
+		final SealedEntity theCategory = originalCategories
+			.values()
+			.stream()
+			.max(Comparator.comparingInt(EntityContract::getPrimaryKey))
+			.orElseThrow();
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity categoryToDelete = session.queryOneSealedEntity(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(theCategory.getPrimaryKey())
+						),
+						require(
+							entityFetchAll()
+						)
+					)
+				).orElseThrow();
+				assertEquals(theCategory, categoryToDelete);
+
+				final DeletedHierarchy<SealedEntity> deletedHierarchy = session.deleteEntityAndItsHierarchy(
+					Entities.CATEGORY,
+					theCategory.getPrimaryKey(),
+					entityFetchAllContent()
+				);
+				assertEquals(theCategory, deletedHierarchy.deletedRootEntity());
+				assertEquals(1, deletedHierarchy.deletedEntities());
+
+				assertTrue(session.getEntity(Entities.CATEGORY, theCategory.getPrimaryKey(), entityFetchAllContent()).isEmpty());
+			}
+		);
 	}
 
 }

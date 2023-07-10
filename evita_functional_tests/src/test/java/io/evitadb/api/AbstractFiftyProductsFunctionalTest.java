@@ -30,7 +30,6 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
-import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.test.generator.DataGenerator.Labels;
@@ -56,13 +55,11 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_PRIORITY;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class AbstractFiftyProductsFunctionalTest {
-	protected static final String FIFTY_PRODUCTS = "FiftyProducts";
 	public static final String ATTRIBUTE_CATEGORY_LABEL = "label";
 	public static final String ATTRIBUTE_CATEGORY_SHADOW = "shadow";
 	private static final int SEED = 40;
 	private final DataGenerator dataGenerator = new DataGenerator();
 
-	@DataSet(value = FIFTY_PRODUCTS, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita) {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
 			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {

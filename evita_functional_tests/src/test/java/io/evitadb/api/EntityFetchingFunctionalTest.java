@@ -50,7 +50,9 @@ import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
+import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import lombok.extern.slf4j.Slf4j;
 import one.edee.oss.pmptt.model.Hierarchy;
@@ -104,6 +106,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
 public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctionalTest {
+	private static final String FIFTY_PRODUCTS = "FiftyProducts";
 	private static final Locale LOCALE_CZECH = CZECH_LOCALE;
 	private final static BiFunction<SealedEntity, String, int[]> REFERENCED_ID_EXTRACTOR =
 		(entity, referencedType) -> entity.getReferences(referencedType)
@@ -209,6 +212,12 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 		}
 
 		return workingNode;
+	}
+
+	@DataSet(value = FIFTY_PRODUCTS, destroyAfterClass = true)
+	@Override
+	DataCarrier setUp(Evita evita) {
+		return super.setUp(evita);
 	}
 
 	@DisplayName("Should check existence of the entity")

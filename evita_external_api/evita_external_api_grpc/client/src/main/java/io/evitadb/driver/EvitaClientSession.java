@@ -30,6 +30,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
+import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.exception.TransactionNotSupportedException;
@@ -55,6 +56,8 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.annotation.Entity;
+import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
@@ -105,6 +108,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -135,6 +139,24 @@ public class EvitaClientSession implements EvitaSessionContract {
 		new ModifyEntitySchemaMutationConverter();
 	private static final EntityMutationConverter<EntityMutation, GrpcEntityMutation> ENTITY_MUTATION_CONVERTER =
 		new DelegatingEntityMutationConverter();
+
+	/**
+	 * Function that extracts the entityType from the entity class in an optimized (memoized) way.
+	 */
+	private static final BiFunction<ReflectionLookup, Class<?>, String> ENTITY_TYPE_EXTRACTOR = (reflectionLookup, theClass) -> reflectionLookup.extractFromClass(
+		theClass, EntityRef.class,
+		clazz -> {
+			final EntityRef entityRef = reflectionLookup.getClassAnnotation(clazz, EntityRef.class);
+			if (entityRef != null) {
+				return entityRef.value();
+			}
+			final Entity entity = reflectionLookup.getClassAnnotation(clazz, Entity.class);
+			if (entity != null) {
+				return entity.name();
+			}
+			return null;
+		}
+	);
 
 	/**
 	 * Reflection lookup is used to speed up reflection operation by memoizing the results for examined classes.
@@ -312,10 +334,22 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
+	public Optional<SealedEntitySchema> getEntitySchema(@Nonnull Class<?> modelClass) throws EntityClassInvalidException {
+		return getEntitySchema(ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, modelClass));
+	}
+
+	@Nonnull
+	@Override
 	public SealedEntitySchema getEntitySchemaOrThrow(@Nonnull String entityType) {
 		assertActive();
 		return getEntitySchema(entityType)
 			.orElseThrow(() -> new CollectionNotFoundException(entityType));
+	}
+
+	@Nonnull
+	@Override
+	public SealedEntitySchema getEntitySchemaOrThrow(@Nonnull Class<?> modelClass) throws CollectionNotFoundException, EntityClassInvalidException {
+		return getEntitySchemaOrThrow(ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, modelClass));
 	}
 
 	@Nonnull
@@ -383,7 +417,6 @@ public class EvitaClientSession implements EvitaSessionContract {
 			return (T) new EvitaEntityReferenceResponse(
 				query, recordPage,
 				getEvitaResponseExtraResults(
-					query,
 					grpcResponse,
 					new EvitaRequest(
 						query,
@@ -426,7 +459,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			//noinspection unchecked
 			return (T) new EvitaEntityResponse(
 				query, recordPage,
-				getEvitaResponseExtraResults(query, grpcResponse, new EvitaRequest(query, OffsetDateTime.now(), EntityReference.class, this.proxyFactory::createProxy))
+				getEvitaResponseExtraResults(grpcResponse, new EvitaRequest(query, OffsetDateTime.now(), EntityReference.class, this.proxyFactory::createProxy))
 			);
 		} else {
 			throw new EvitaInvalidUsageException("Unsupported return type `" + expectedType + "`!");
@@ -465,12 +498,13 @@ public class EvitaClientSession implements EvitaSessionContract {
 			SealedEntity.class,
 			this.proxyFactory::createProxy
 		);
-		return getEntityInternal(entityType, primaryKey, evitaRequest, require);
+		return getEntityInternal(entityType, SealedEntity.class, primaryKey, evitaRequest, require);
 	}
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> Optional<T> getEntity(@Nonnull String entityType, @Nonnull Class<T> expectedType, int primaryKey, EntityContentRequire... require) {
+	public <T extends Serializable> Optional<T> getEntity(@Nonnull Class<T> expectedType, int primaryKey, EntityContentRequire... require) throws EntityClassInvalidException {
+		final String entityType = ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType);
 		final EvitaRequest evitaRequest = new EvitaRequest(
 			Query.query(
 				collection(entityType),
@@ -482,7 +516,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			expectedType,
 			this.proxyFactory::createProxy
 		);
-		return getEntityInternal(entityType, primaryKey, evitaRequest, require);
+		return getEntityInternal(entityType, expectedType, primaryKey, evitaRequest, require);
 	}
 
 	@Nonnull
@@ -506,6 +540,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 			);
 		}
 
+		final Class<?> expectedType = partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy ?
+			sealedEntityProxy.getProxyClass() : partiallyLoadedEntity.getClass();
 		final EvitaRequest evitaRequest = new EvitaRequest(
 			Query.query(
 				collection(entityType),
@@ -514,13 +550,12 @@ public class EvitaClientSession implements EvitaSessionContract {
 				)
 			),
 			OffsetDateTime.now(),
-			partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy ?
-				sealedEntityProxy.getProxyClass() : partiallyLoadedEntity.getClass(),
+			expectedType,
 			this.proxyFactory::createProxy
 		);
 
 		//noinspection unchecked
-		return (T) getEntityInternal(entityType, entityPk, evitaRequest, require)
+		return (T) getEntityInternal(entityType, expectedType, entityPk, evitaRequest, require)
 			.orElseThrow(() -> new EntityAlreadyRemovedException(entityType, entityPk));
 	}
 
@@ -545,6 +580,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 			);
 		}
 
+		final Class<?> expectedType = partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy ?
+			sealedEntityProxy.getProxyClass() : partiallyLoadedEntity.getClass();
+
 		final EvitaRequest evitaRequest = new EvitaRequest(
 			Query.query(
 				collection(entityType),
@@ -553,13 +591,12 @@ public class EvitaClientSession implements EvitaSessionContract {
 				)
 			),
 			OffsetDateTime.now(),
-			partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy ?
-				sealedEntityProxy.getProxyClass() : partiallyLoadedEntity.getClass(),
+			expectedType,
 			this.proxyFactory::createProxy
 		);
 
 		//noinspection unchecked
-		return (T) getEntityInternal(entityType, entityPk, evitaRequest, require)
+		return (T) getEntityInternal(entityType, expectedType, entityPk, evitaRequest, require)
 			.orElseThrow(() -> new EntityAlreadyRemovedException(entityType, entityPk));
 	}
 
@@ -683,6 +720,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 				return grpcResponse.getDeleted();
 			}
 		);
+	}
+
+	@Override
+	public boolean deleteCollection(@Nonnull Class<?> modelClass) throws EntityClassInvalidException {
+		return deleteCollection(ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, modelClass));
 	}
 
 	@Override
@@ -817,7 +859,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 						.build()
 				)
 			);
-			return EntityConverter.toSealedEntity(
+			return EntityConverter.toEntity(
 				entity -> schemaCache.getEntitySchemaOrThrow(
 					entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
 				),
@@ -832,7 +874,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 					SealedEntity.class,
 					this.proxyFactory::createProxy
 				),
-				grpcResponse.getEntity()
+				grpcResponse.getEntity(),
+				SealedEntity.class
 			);
 		});
 	}
@@ -854,49 +897,21 @@ public class EvitaClientSession implements EvitaSessionContract {
 		});
 	}
 
+	@Override
+	public boolean deleteEntity(@Nonnull Class<?> modelClass, int primaryKey) throws EntityClassInvalidException {
+		return deleteEntity(ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, modelClass), primaryKey);
+	}
+
 	@Nonnull
 	@Override
 	public Optional<SealedEntity> deleteEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require) {
-		assertActive();
-		return executeInTransactionIfPossible(session -> {
-			final StringWithParameters stringWithParameters = PrettyPrintingVisitor.toStringWithParameterExtraction(require);
-			final GrpcDeleteEntityResponse grpcResponse = executeWithEvitaSessionService(evitaSessionService ->
-				evitaSessionService.deleteEntity(
-					GrpcDeleteEntityRequest
-						.newBuilder()
-						.setEntityType(entityType)
-						.setPrimaryKey(Int32Value.newBuilder().setValue(primaryKey).build())
-						.setRequire(stringWithParameters.query())
-						.addAllPositionalQueryParams(
-							stringWithParameters.parameters()
-								.stream()
-								.map(QueryConverter::convertQueryParam)
-								.toList()
-						)
-						.build()
-				)
-			);
-			return grpcResponse.hasEntity() ?
-				of(
-					EntityConverter.toSealedEntity(
-						entity -> schemaCache.getEntitySchemaOrThrow(
-							entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
-						),
-						new EvitaRequest(
-							Query.query(
-								collection(entityType),
-								require(
-									entityFetch(require)
-								)
-							),
-							OffsetDateTime.now(),
-							SealedEntity.class,
-							this.proxyFactory::createProxy
-						),
-						grpcResponse.getEntity()
-					)
-				) : empty();
-		});
+		return deleteEntityInternal(entityType, SealedEntity.class, primaryKey, require);
+	}
+
+	@Nonnull
+	@Override
+	public <T extends Serializable> Optional<T> deleteEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require) throws EntityClassInvalidException {
+		return deleteEntityInternal(ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, modelClass), modelClass, primaryKey, require);
 	}
 
 	@Override
@@ -918,48 +933,14 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
-	public DeletedHierarchy deleteEntityAndItsHierarchy(@Nonnull String entityType, int primaryKey, EntityContentRequire... require) {
-		assertActive();
-		return executeInTransactionIfPossible(session -> {
-			final StringWithParameters stringWithParameters = PrettyPrintingVisitor.toStringWithParameterExtraction(require);
-			final GrpcDeleteEntityAndItsHierarchyResponse grpcResponse = executeWithEvitaSessionService(evitaSessionService ->
-				evitaSessionService.deleteEntityAndItsHierarchy(
-					GrpcDeleteEntityRequest
-						.newBuilder()
-						.setEntityType(entityType)
-						.setPrimaryKey(Int32Value.newBuilder().setValue(primaryKey).build())
-						.setRequire(stringWithParameters.query())
-						.addAllPositionalQueryParams(
-							stringWithParameters.parameters()
-								.stream()
-								.map(QueryConverter::convertQueryParam)
-								.toList()
-						)
-						.build()
-				)
-			);
-			return new DeletedHierarchy(
-				grpcResponse.getDeletedEntities(),
-				grpcResponse.hasDeletedRootEntity() ?
-					EntityConverter.toSealedEntity(
-						entity -> schemaCache.getEntitySchemaOrThrow(
-							entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
-						),
-						new EvitaRequest(
-							Query.query(
-								collection(entityType),
-								require(
-									entityFetch(require)
-								)
-							),
-							OffsetDateTime.now(),
-							SealedEntity.class,
-							this.proxyFactory::createProxy
-						),
-						grpcResponse.getDeletedRootEntity()
-					) : null
-			);
-		});
+	public DeletedHierarchy<SealedEntity> deleteEntityAndItsHierarchy(@Nonnull String entityType, int primaryKey, EntityContentRequire... require) {
+		return deleteEntityHierarchyInternal(entityType, SealedEntity.class, primaryKey, require);
+	}
+
+	@Nonnull
+	@Override
+	public <T extends Serializable> DeletedHierarchy<T> deleteEntityAndItsHierarchy(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require) throws EvitaInvalidUsageException, EntityClassInvalidException {
+		return deleteEntityHierarchyInternal(ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, modelClass), modelClass, primaryKey, require);
 	}
 
 	@Override
@@ -987,7 +968,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
-	public SealedEntity[] deleteEntitiesAndReturnBodies(@Nonnull Query query) {
+	public SealedEntity[] deleteSealedEntitiesAndReturnBodies(@Nonnull Query query) {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
 			final EvitaRequest evitaRequest = new EvitaRequest(
@@ -1013,13 +994,16 @@ public class EvitaClientSession implements EvitaSessionContract {
 			);
 			return grpcResponse.getDeletedEntityBodiesList()
 				.stream()
-				.map(it -> EntityConverter.toSealedEntity(
-					entity -> schemaCache.getEntitySchemaOrThrow(
-						entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
-					),
-					evitaRequest,
-					it
-				))
+				.map(
+					it -> EntityConverter.toEntity(
+						entity -> schemaCache.getEntitySchemaOrThrow(
+							entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
+						),
+						evitaRequest,
+						it,
+						SealedEntity.class
+					)
+				)
 				.toArray(SealedEntity[]::new);
 		});
 	}
@@ -1101,8 +1085,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 	}
 
 	@Nonnull
-	private <T extends Serializable> Optional<T> getEntityInternal(
+	private <T> Optional<T> getEntityInternal(
 		@Nonnull String entityType,
+		@Nonnull Class<T> expectedType,
 		int primaryKey,
 		@Nonnull EvitaRequest evitaRequest,
 		EntityContentRequire... require
@@ -1127,15 +1112,15 @@ public class EvitaClientSession implements EvitaSessionContract {
 			)
 		);
 
-		//noinspection unchecked
 		return grpcResponse.hasEntity() ?
 			Optional.of(
-				(T) EntityConverter.toSealedEntity(
+				(T) EntityConverter.toEntity(
 					entity -> schemaCache.getEntitySchemaOrThrow(
 						entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
 					),
 					evitaRequest,
-					grpcResponse.getEntity()
+					grpcResponse.getEntity(),
+					expectedType
 				)
 			) : Optional.empty();
 	}
@@ -1254,14 +1239,13 @@ public class EvitaClientSession implements EvitaSessionContract {
 				}
 				// convert to Sealed entity
 				final GrpcSealedEntity sealedEntity = grpcResponse.getSealedEntity();
-				//noinspection unchecked
-
-				return (Optional<S>) of(EntityConverter.toSealedEntity(
+				return of(EntityConverter.toEntity(
 					entity -> schemaCache.getEntitySchemaOrThrow(
 						entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
 					),
 					evitaRequest,
-					sealedEntity
+					sealedEntity,
+					expectedType
 				));
 			}
 		} else {
@@ -1270,7 +1254,106 @@ public class EvitaClientSession implements EvitaSessionContract {
 	}
 
 	@Nonnull
-	private EvitaResponseExtraResult[] getEvitaResponseExtraResults(@Nonnull Query query, @Nonnull GrpcQueryResponse grpcResponse, @Nonnull EvitaRequest request) {
+	private <T> Optional<T> deleteEntityInternal(@Nonnull String entityType, @Nonnull Class<T> expectedType, int primaryKey, EntityContentRequire[] require) {
+		assertActive();
+		return executeInTransactionIfPossible(session -> {
+			final StringWithParameters stringWithParameters = PrettyPrintingVisitor.toStringWithParameterExtraction(require);
+			final GrpcDeleteEntityResponse grpcResponse = executeWithEvitaSessionService(evitaSessionService ->
+				evitaSessionService.deleteEntity(
+					GrpcDeleteEntityRequest
+						.newBuilder()
+						.setEntityType(entityType)
+						.setPrimaryKey(Int32Value.newBuilder().setValue(primaryKey).build())
+						.setRequire(stringWithParameters.query())
+						.addAllPositionalQueryParams(
+							stringWithParameters.parameters()
+								.stream()
+								.map(QueryConverter::convertQueryParam)
+								.toList()
+						)
+						.build()
+				)
+			);
+			return grpcResponse.hasEntity() ?
+				of(
+					EntityConverter.toEntity(
+						entity -> schemaCache.getEntitySchemaOrThrow(
+							entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
+						),
+						new EvitaRequest(
+							Query.query(
+								collection(entityType),
+								require(
+									entityFetch(require)
+								)
+							),
+							OffsetDateTime.now(),
+							expectedType,
+							this.proxyFactory::createProxy
+						),
+						grpcResponse.getEntity(),
+						expectedType
+					)
+				) : empty();
+		});
+	}
+
+	@Nonnull
+	private <T> DeletedHierarchy<T> deleteEntityHierarchyInternal(
+		@Nonnull String entityType,
+		@Nonnull Class<T> expectedType,
+		int primaryKey,
+		EntityContentRequire... require
+	) {
+		assertActive();
+		return executeInTransactionIfPossible(session -> {
+			final StringWithParameters stringWithParameters = PrettyPrintingVisitor.toStringWithParameterExtraction(require);
+			final GrpcDeleteEntityAndItsHierarchyResponse grpcResponse = executeWithEvitaSessionService(evitaSessionService ->
+				evitaSessionService.deleteEntityAndItsHierarchy(
+					GrpcDeleteEntityRequest
+						.newBuilder()
+						.setEntityType(entityType)
+						.setPrimaryKey(Int32Value.newBuilder().setValue(primaryKey).build())
+						.setRequire(stringWithParameters.query())
+						.addAllPositionalQueryParams(
+							stringWithParameters.parameters()
+								.stream()
+								.map(QueryConverter::convertQueryParam)
+								.toList()
+						)
+						.build()
+				)
+			);
+			return new DeletedHierarchy<>(
+				grpcResponse.getDeletedEntities(),
+				grpcResponse.hasDeletedRootEntity() ?
+					EntityConverter.toEntity(
+						entity -> schemaCache.getEntitySchemaOrThrow(
+							entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
+						),
+						new EvitaRequest(
+							Query.query(
+								collection(entityType),
+								require(
+									entityFetch(require)
+								)
+							),
+							OffsetDateTime.now(),
+							expectedType,
+							this.proxyFactory::createProxy
+						),
+						grpcResponse.getDeletedRootEntity(),
+						expectedType
+					) : null
+			);
+		});
+	}
+
+	@Nonnull
+	private EvitaResponseExtraResult[] getEvitaResponseExtraResults(
+		@Nonnull GrpcQueryResponse grpcResponse,
+		@Nonnull EvitaRequest request
+	) {
 		return grpcResponse.hasExtraResults() ?
 			ResponseConverter.toExtraResults(
 				(sealedEntity) -> schemaCache.getEntitySchemaOrThrow(

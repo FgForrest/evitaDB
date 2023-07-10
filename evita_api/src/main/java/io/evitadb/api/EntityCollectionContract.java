@@ -194,7 +194,7 @@ public interface EntityCollectionContract {
 	 * @return removed entity fetched according to `require` definition
 	 */
 	@Nonnull
-	Optional<SealedEntity> deleteEntity(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
+	<T extends Serializable> Optional<T> deleteEntity(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
 
 	/**
 	 * Method removes existing hierarchical entity in collection by its primary key. Method also removes all entities
@@ -217,7 +217,7 @@ public interface EntityCollectionContract {
 	 * @return number of removed entities and the body of the deleted root entity
 	 * @throws EvitaInvalidUsageException when entity type has not hierarchy support enabled in schema
 	 */
-	DeletedHierarchy deleteEntityAndItsHierarchy(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
+	<T extends Serializable> DeletedHierarchy<T> deleteEntityAndItsHierarchy(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
 
 	/**
 	 * Method removes all entities that match passed query. All entities of other entity types that reference removed

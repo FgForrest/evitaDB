@@ -1135,7 +1135,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 				);
 				newProductId.set(updatedEntity.getPrimaryKey());
 
-				final SealedEntity[] deletedEntities = session.deleteEntitiesAndReturnBodies(
+				final SealedEntity[] deletedEntities = session.deleteSealedEntitiesAndReturnBodies(
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(entityPrimaryKeyInSet(newProductId.get())),
@@ -1200,7 +1200,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 				createSomeNewCategory(session, 52, 51);
 				createSomeNewCategory(session, 53, 50);
 
-				final DeletedHierarchy deletedHierarchy = session.deleteEntityAndItsHierarchy(
+				final DeletedHierarchy<SealedEntity> deletedHierarchy = session.deleteEntityAndItsHierarchy(
 					Entities.CATEGORY, 50, entityFetchAllContent()
 				);
 

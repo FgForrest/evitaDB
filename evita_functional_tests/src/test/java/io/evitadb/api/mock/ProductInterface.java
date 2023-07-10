@@ -25,15 +25,7 @@ package io.evitadb.api.mock;
 
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.PriceContract;
-import io.evitadb.api.requestResponse.data.annotation.AssociatedData;
-import io.evitadb.api.requestResponse.data.annotation.AssociatedDataRef;
-import io.evitadb.api.requestResponse.data.annotation.Attribute;
-import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
-import io.evitadb.api.requestResponse.data.annotation.Price;
-import io.evitadb.api.requestResponse.data.annotation.PriceForSale;
-import io.evitadb.api.requestResponse.data.annotation.PriceForSaleRef;
-import io.evitadb.api.requestResponse.data.annotation.PrimaryKeyRef;
-import io.evitadb.api.requestResponse.data.annotation.ReferenceRef;
+import io.evitadb.api.requestResponse.data.annotation.*;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.test.Entities;
 import io.evitadb.test.generator.DataGenerator;
@@ -53,6 +45,7 @@ import java.util.Set;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@EntityRef(Entities.PRODUCT)
 public interface ProductInterface extends EntityClassifier {
 
 	@PrimaryKeyRef
