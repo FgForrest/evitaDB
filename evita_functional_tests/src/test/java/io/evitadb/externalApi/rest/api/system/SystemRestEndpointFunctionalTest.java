@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest.api.system;
 
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.CatalogState;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
@@ -174,8 +175,7 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 					}
 					"""
 			)
-			.executeAndThen()
-			.statusCode(200)
+			.executeAndExpectOkAndThen()
 			.body(
 				"",
 				equalTo(
@@ -187,8 +187,46 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 		tester.test(SYSTEM_URL)
 			.urlPathSuffix("/catalogs/temporary-catalog2")
 			.httpMethod(Request.METHOD_DELETE)
-			.executeAndThen()
-			.statusCode(204);
+			.executeAndExpectOkWithoutBodyAndThen();
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_REPLACE)
+	@DisplayName("Should create, switch to alive and delete catalog")
+	void shouldCreateSwitchToAliveAndDeleteCatalog(Evita evita, RestTester tester) {
+		// prepare temp catalog
+		tester.test(SYSTEM_URL)
+			.urlPathSuffix("/catalogs")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+					{
+						"name": "temporaryCatalog"
+					}
+					"""
+			)
+			.executeAndExpectOkAndThen()
+			.body("catalogState", equalTo(CatalogState.WARMING_UP.name()));
+
+		// switch to alive
+		tester.test(SYSTEM_URL)
+			.urlPathSuffix("/catalogs/temporary-catalog")
+			.httpMethod(Request.METHOD_PATCH)
+			.requestBody(
+				"""
+					{
+						"catalogState": "ALIVE"
+					}
+					"""
+			)
+			.executeAndExpectOkAndThen()
+			.body("catalogState", equalTo(CatalogState.ALIVE.name()));
+
+		// delete
+		tester.test(SYSTEM_URL)
+			.urlPathSuffix("/catalogs/temporary-catalog")
+			.httpMethod(Request.METHOD_DELETE)
+			.executeAndExpectOkWithoutBodyAndThen();
 	}
 
 	@Test

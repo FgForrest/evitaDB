@@ -27,10 +27,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
+import io.evitadb.utils.NamingConvention;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.Optional;
 
@@ -55,10 +57,13 @@ public class SystemRestHandlingContext extends RestHandlingContext {
 	}
 
 	@Nonnull
-	public Optional<CatalogContract> getCatalog(@Nonnull String name) {
+	public Optional<CatalogContract> getCatalog(@Nonnull String name, @Nullable NamingConvention namingConvention) {
+		if (namingConvention == null) {
+			return evita.getCatalogInstance(name);
+		}
 		return evita.getCatalogs()
 			.stream()
-			.filter(c -> c.getSchema().getNameVariant(URL_NAME_NAMING_CONVENTION).equals(name))
+			.filter(c -> c.getSchema().getNameVariant(namingConvention).equals(name))
 			.findFirst();
 	}
 }

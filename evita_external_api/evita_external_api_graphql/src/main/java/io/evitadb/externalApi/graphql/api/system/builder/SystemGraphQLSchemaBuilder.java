@@ -46,6 +46,7 @@ import io.evitadb.externalApi.graphql.api.system.model.CreateCatalogMutationHead
 import io.evitadb.externalApi.graphql.api.system.model.DeleteCatalogIfExistsMutationHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.system.model.RenameCatalogMutationHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.system.model.ReplaceCatalogMutationHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.system.model.SwitchCatalogToAliveStateMutationHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.system.model.SystemRootDescriptor;
 import io.evitadb.externalApi.graphql.api.system.resolver.dataFetcher.CatalogDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.dataFetcher.CatalogsDataFetcher;
@@ -54,6 +55,7 @@ import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.Cr
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.DeleteCatalogIfExistsMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.RenameCatalogMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.ReplaceCatalogMutatingDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.SwitchCatalogToAliveStateMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.utils.NamingConvention;
 
@@ -90,6 +92,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		buildingContext.registerQueryField(buildCatalogsField());
 
 		buildingContext.registerMutationField(buildCreateCatalogField());
+		buildingContext.registerMutationField(buildSwitchCatalogToAliveStateField());
 		buildingContext.registerMutationField(buildRenameCatalogField());
 		buildingContext.registerMutationField(buildReplaceCatalogField());
 		buildingContext.registerMutationField(buildDeleteCatalogIfExistsField());
@@ -233,6 +236,19 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		return new BuiltFieldDescriptor(
 			createCatalogField,
 			new CreateCatalogMutatingDataFetcher(evita)
+		);
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildSwitchCatalogToAliveStateField() {
+		final GraphQLFieldDefinition swithcCatalogToAliveStateField = SystemRootDescriptor.SWITCH_CATALOG_TO_ALIVE_STATE
+			.to(staticEndpointBuilderTransformer)
+			.argument(SwitchCatalogToAliveStateMutationHeaderDescriptor.NAME.to(argumentBuilderTransformer))
+			.build();
+
+		return new BuiltFieldDescriptor(
+			swithcCatalogToAliveStateField,
+			new SwitchCatalogToAliveStateMutatingDataFetcher(evita)
 		);
 	}
 

@@ -37,7 +37,7 @@ import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExisten
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.UpsertEntityMutationHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.UpsertEntityHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
@@ -131,9 +131,9 @@ public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherR
 	                         @Nonnull List<Map<String, Object>> mutations) {
 
 		private static Arguments from(@Nonnull DataFetchingEnvironment environment) {
-			final Integer primaryKey = environment.getArgument(UpsertEntityMutationHeaderDescriptor.PRIMARY_KEY.name());
-			final EntityExistence entityExistence = environment.getArgument(UpsertEntityMutationHeaderDescriptor.ENTITY_EXISTENCE.name());
-			final List<Map<String, Object>> mutations = environment.getArgumentOrDefault(UpsertEntityMutationHeaderDescriptor.MUTATIONS.name(), List.of());
+			final Integer primaryKey = environment.getArgument(UpsertEntityHeaderDescriptor.PRIMARY_KEY.name());
+			final EntityExistence entityExistence = environment.getArgument(UpsertEntityHeaderDescriptor.ENTITY_EXISTENCE.name());
+			final List<Map<String, Object>> mutations = environment.getArgumentOrDefault(UpsertEntityHeaderDescriptor.MUTATIONS.name(), List.of());
 
 			return new Arguments(primaryKey, entityExistence, mutations);
 		}
