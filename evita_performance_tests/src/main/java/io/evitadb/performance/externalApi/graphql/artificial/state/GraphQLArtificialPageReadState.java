@@ -141,7 +141,7 @@ public class GraphQLArtificialPageReadState extends AbstractGraphQLArtificialSta
 		);
 		filterConstraints.add("entityLocaleEquals: " + randomExistingLocale);
 
-		this.requestBody =
+		setRequestBody(
 			String.format(
 				"""
 				query {
@@ -163,7 +163,8 @@ public class GraphQLArtificialPageReadState extends AbstractGraphQLArtificialSta
 				pageNumber,
 				pageSize,
 				String.join("\n", outputFields)
-			);
+			)
+		);
 	}
 
 }

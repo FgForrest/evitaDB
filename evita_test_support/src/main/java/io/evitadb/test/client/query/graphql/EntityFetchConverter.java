@@ -75,8 +75,7 @@ public class EntityFetchConverter extends RequireConverter {
 		super(catalogSchema, inputJsonPrinter);
 	}
 
-	public void convert(@Nonnull CatalogSchemaContract catalogSchema,
-	                    @Nonnull GraphQLOutputFieldsBuilder fieldsBuilder,
+	public void convert(@Nonnull GraphQLOutputFieldsBuilder fieldsBuilder,
 	                    @Nonnull String entityType,
 						@Nullable Locale locale,
 	                    @Nullable EntityFetchRequire entityFetch) {
@@ -99,7 +98,7 @@ public class EntityFetchConverter extends RequireConverter {
 
 		convertAttributeContent(fieldsBuilder, entityFetch);
 		convertPriceContent(fieldsBuilder, locale, entityFetch);
-		convertReferenceContents(catalogSchema, fieldsBuilder, entityType, locale, entityFetch, entitySchema);
+		convertReferenceContents(fieldsBuilder, entityType, locale, entityFetch, entitySchema);
 	}
 
 	private static void convertAttributeContent(@Nonnull GraphQLOutputFieldsBuilder entityFieldsBuilder,
@@ -181,8 +180,7 @@ public class EntityFetchConverter extends RequireConverter {
 		};
 	}
 
-	private void convertReferenceContents(@Nonnull CatalogSchemaContract catalogSchema,
-	                                      @Nonnull GraphQLOutputFieldsBuilder entityFieldsBuilder,
+	private void convertReferenceContents(@Nonnull GraphQLOutputFieldsBuilder entityFieldsBuilder,
 	                                      @Nonnull String entityType,
 										  @Nullable Locale locale,
 	                                      @Nonnull EntityFetchRequire entityFetch,
@@ -190,13 +188,12 @@ public class EntityFetchConverter extends RequireConverter {
 		final List<ReferenceContent> referenceContents = QueryUtils.findConstraints(entityFetch, ReferenceContent.class, SeparateEntityContentRequireContainer.class);
 		referenceContents.forEach(referenceContent -> {
 			for (String referenceName : referenceContent.getReferenceNames()) {
-				convertReferenceContent(catalogSchema, entityFieldsBuilder, entityType, locale, entitySchema, referenceContent, referenceName);
+				convertReferenceContent(entityFieldsBuilder, entityType, locale, entitySchema, referenceContent, referenceName);
 			}
 		});
 	}
 
-	private void convertReferenceContent(@Nonnull CatalogSchemaContract catalogSchema,
-	                                     @Nonnull GraphQLOutputFieldsBuilder entityFieldsBuilder,
+	private void convertReferenceContent(@Nonnull GraphQLOutputFieldsBuilder entityFieldsBuilder,
 	                                     @Nonnull String entityType,
 										 @Nullable Locale locale,
 	                                     @Nonnull EntitySchemaContract entitySchema,
@@ -225,7 +222,6 @@ public class EntityFetchConverter extends RequireConverter {
 					referenceBuilder.addObjectField(
 						ReferenceDescriptor.REFERENCED_ENTITY,
 						referencedEntityBuilder -> convert(
-							catalogSchema,
 							referencedEntityBuilder,
 							referenceSchema.getReferencedEntityType(),
 							locale,
@@ -237,7 +233,6 @@ public class EntityFetchConverter extends RequireConverter {
 					referenceBuilder.addObjectField(
 						ReferenceDescriptor.GROUP_ENTITY,
 						referencedGroupEntityBuilder -> convert(
-							catalogSchema,
 							referencedGroupEntityBuilder,
 							referenceSchema.getReferencedGroupType(),
 							locale,

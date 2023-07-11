@@ -181,7 +181,6 @@ public class HierarchyOfConverter extends RequireConverter {
 			HierarchyOfDescriptor.CHILDREN,
 			argumentsBuilder,
 			childrenBuilder -> buildLevelInfoFields(
-				catalogSchema,
 				childrenBuilder,
 				hierarchyEntityType,
 				locale,
@@ -212,7 +211,6 @@ public class HierarchyOfConverter extends RequireConverter {
 			HierarchyOfDescriptor.FROM_NODE,
 			argumentsBuilder,
 			fromNodeBuilder -> buildLevelInfoFields(
-				catalogSchema,
 				fromNodeBuilder,
 				hierarchyEntityType,
 				locale,
@@ -241,7 +239,6 @@ public class HierarchyOfConverter extends RequireConverter {
 			HierarchyOfDescriptor.FROM_ROOT,
 			argumentsBuilder,
 			fromRootBuilder -> buildLevelInfoFields(
-				catalogSchema,
 				fromRootBuilder,
 				hierarchyEntityType,
 				locale,
@@ -289,7 +286,6 @@ public class HierarchyOfConverter extends RequireConverter {
 			HierarchyOfDescriptor.PARENTS,
 			argumentsBuilder,
 			parentsBuilder -> buildLevelInfoFields(
-				catalogSchema,
 				parentsBuilder,
 				hierarchyEntityType,
 				locale,
@@ -318,7 +314,6 @@ public class HierarchyOfConverter extends RequireConverter {
 			HierarchyOfDescriptor.SIBLINGS,
 			argumentsBuilder,
 			siblingsBuilder -> buildLevelInfoFields(
-				catalogSchema,
 				siblingsBuilder,
 				hierarchyEntityType,
 				locale,
@@ -349,8 +344,7 @@ public class HierarchyOfConverter extends RequireConverter {
 		};
 	}
 
-	private void buildLevelInfoFields(@Nonnull CatalogSchemaContract catalogSchema,
-	                                  @Nonnull GraphQLOutputFieldsBuilder levelInfoBuilder,
+	private void buildLevelInfoFields(@Nonnull GraphQLOutputFieldsBuilder levelInfoBuilder,
 									  @Nonnull String entityType,
                                       @Nullable Locale locale,
 	                                  @Nullable EntityFetch entityFetch,
@@ -359,7 +353,7 @@ public class HierarchyOfConverter extends RequireConverter {
 			.addPrimitiveField(LevelInfoDescriptor.PARENT_PRIMARY_KEY)
 			.addPrimitiveField(LevelInfoDescriptor.LEVEL)
 			.addObjectField(LevelInfoDescriptor.ENTITY, entityBuilder ->
-				entityFetchBuilder.convert(catalogSchema, entityBuilder, entityType, locale, entityFetch));
+				entityFetchBuilder.convert(entityBuilder, entityType, locale, entityFetch));
 
 		if (statistics != null) {
 			if (statistics.getStatisticsType().contains(StatisticsType.QUERIED_ENTITY_COUNT)) {

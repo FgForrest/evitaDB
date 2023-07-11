@@ -25,11 +25,13 @@ package io.evitadb.performance.externalApi.graphql.artificial.state;
 
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.performance.externalApi.graphql.artificial.GraphQLArtificialEntitiesBenchmark;
-import io.evitadb.performance.generators.GraphQLRandomQueryGenerator;
+import io.evitadb.performance.generators.RandomQueryGenerator;
 import io.evitadb.test.Entities;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.infra.Blackhole;
+
+import static io.evitadb.test.TestConstants.TEST_CATALOG;
 
 /**
  * Base state class for {@link GraphQLArtificialEntitiesBenchmark#facetAndHierarchyFilteringAndSummarizingImpact(GraphQLArtificialFacetBenchmarkState, GraphQLArtificialFacetAndHierarchyFilteringAndSummarizingImpactState, Blackhole)}.
@@ -37,20 +39,23 @@ import org.openjdk.jmh.infra.Blackhole;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class GraphQLArtificialFacetAndHierarchyFilteringAndSummarizingImpactState extends AbstractGraphQLArtificialState implements GraphQLRandomQueryGenerator {
+public class GraphQLArtificialFacetAndHierarchyFilteringAndSummarizingImpactState extends AbstractGraphQLArtificialState implements RandomQueryGenerator {
 
 	/**
 	 * Prepares artificial product for the next operation that is measured in the benchmark.
 	 */
 	@Setup(Level.Invocation)
 	public void prepareCall(GraphQLArtificialFacetBenchmarkState benchmarkState) {
-		this.requestBody = generateRandomHierarchyQuery(
-			generateRandomFacetSummaryQuery(
-				generateRandomFacetQuery(benchmarkState.getRandom(), benchmarkState.getProductSchema(), benchmarkState.getFacetedReferences()),
-				benchmarkState.getRandom(), benchmarkState.getProductSchema(), FacetStatisticsDepth.IMPACT, benchmarkState.getFacetGroupsIndex()
-			),
-			benchmarkState.getRandom(), benchmarkState.getCategoryIds(), Entities.CATEGORY
-		).toString();
+		setRequestBody(
+			benchmarkState,
+			generateRandomHierarchyQuery(
+				generateRandomFacetSummaryQuery(
+					generateRandomFacetQuery(benchmarkState.getRandom(), benchmarkState.getProductSchema(), benchmarkState.getFacetedReferences()),
+					benchmarkState.getRandom(), benchmarkState.getProductSchema(), FacetStatisticsDepth.IMPACT, benchmarkState.getFacetGroupsIndex()
+				),
+				benchmarkState.getRandom(), benchmarkState.getCategoryIds(), Entities.CATEGORY
+			)
+		);
 	}
 
 }
