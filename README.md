@@ -43,13 +43,13 @@ NoSQL database solutions on the same hardware specification. evitaDB should not 
 ## Why should you consider using evitaDB instead of Elasticsearch, MongoDB or relational database?
 
 - evitaDB is a database specialized for e-commerce tasks and has everything you need to implement an e-commerce catalog
-- evitaDB is [more performant](docs/performance/performance_comparison.md) than Elasticsearch or PostgreSQL on the same
+- evitaDB is [more performant](documentation/performance/performance_comparison.md) than Elasticsearch or PostgreSQL on the same
   HW sizing in typical e-commerce scenarios
 - evitaDB has a ready to use API from the day one:
 
-    - [GraphQL](docs/user/en/use/connectors/graphql.md) - targets rich JavaScript front-ends
-    - [REST](docs/user/en/use/connectors/rest.md) - targets server side applications
-    - [gRPC](docs/user/en/use/connectors/grpc.md) - targets fast inter-server communication used in microservices 
+    - [GraphQL](documentation/user/en/use/connectors/graphql.md) - targets rich JavaScript front-ends
+    - [REST](documentation/user/en/use/connectors/rest.md) - targets server side applications
+    - [gRPC](documentation/user/en/use/connectors/grpc.md) - targets fast inter-server communication used in microservices 
       architecture and is used for the evitaDB client drivers
 
 ## What's current status of evitaDB?
