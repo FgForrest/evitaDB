@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.documentation.constraint;
+package io.evitadb.test.client.query;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -36,7 +36,7 @@ import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.documentation.constraint.ConstraintDescriptorResolver.ParsedConstraintDescriptor;
+import io.evitadb.test.client.query.ConstraintDescriptorResolver.ParsedConstraintDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintKeyBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintProcessingUtils;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintValueStructure;
@@ -49,7 +49,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Stream;

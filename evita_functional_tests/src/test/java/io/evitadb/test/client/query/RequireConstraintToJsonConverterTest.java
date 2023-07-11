@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.documentation.constraint;
+package io.evitadb.test.client.query;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;

@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.documentation.graphql;
+package io.evitadb.test.client.query.graphql;
 
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
@@ -31,10 +31,10 @@ import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.documentation.constraint.FilterConstraintToJsonConverter;
-import io.evitadb.documentation.constraint.JsonConstraint;
-import io.evitadb.documentation.constraint.OrderConstraintToJsonConverter;
-import io.evitadb.documentation.constraint.RequireConstraintToJsonConverter;
+import io.evitadb.test.client.query.FilterConstraintToJsonConverter;
+import io.evitadb.test.client.query.JsonConstraint;
+import io.evitadb.test.client.query.OrderConstraintToJsonConverter;
+import io.evitadb.test.client.query.RequireConstraintToJsonConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;

@@ -21,14 +21,13 @@
  *   limitations under the License.
  */
 
-package io.evitadb.documentation.constraint;
+package io.evitadb.test.client.query;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.test.Entities;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -54,7 +53,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 
 	@Test
 	void shouldResolveValueFilterConstraint() {
-		Assertions.assertEquals(
+		assertEquals(
 			new JsonConstraint(
 				"attributeCodeEquals",
 				jsonNodeFactory.numberNode(123)

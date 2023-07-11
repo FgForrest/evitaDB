@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.documentation.rest;
+package io.evitadb.test.client.query.rest;
 
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -29,10 +29,10 @@ import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.documentation.constraint.FilterConstraintToJsonConverter;
-import io.evitadb.documentation.constraint.JsonConstraint;
-import io.evitadb.documentation.constraint.OrderConstraintToJsonConverter;
-import io.evitadb.documentation.constraint.RequireConstraintToJsonConverter;
+import io.evitadb.test.client.query.FilterConstraintToJsonConverter;
+import io.evitadb.test.client.query.JsonConstraint;
+import io.evitadb.test.client.query.OrderConstraintToJsonConverter;
+import io.evitadb.test.client.query.RequireConstraintToJsonConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.utils.Assert;

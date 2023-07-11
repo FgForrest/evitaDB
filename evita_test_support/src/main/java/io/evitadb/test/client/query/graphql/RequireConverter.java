@@ -21,16 +21,16 @@
  *   limitations under the License.
  */
 
-package io.evitadb.documentation.graphql;
+package io.evitadb.test.client.query.graphql;
 
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.documentation.constraint.FilterConstraintToJsonConverter;
-import io.evitadb.documentation.constraint.OrderConstraintToJsonConverter;
-import io.evitadb.documentation.constraint.RequireConstraintToJsonConverter;
+import io.evitadb.test.client.query.FilterConstraintToJsonConverter;
+import io.evitadb.test.client.query.OrderConstraintToJsonConverter;
+import io.evitadb.test.client.query.RequireConstraintToJsonConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 
 import javax.annotation.Nonnull;

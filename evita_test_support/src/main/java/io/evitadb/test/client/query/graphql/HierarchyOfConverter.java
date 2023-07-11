@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.documentation.graphql;
+package io.evitadb.test.client.query.graphql;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.query.require.*;

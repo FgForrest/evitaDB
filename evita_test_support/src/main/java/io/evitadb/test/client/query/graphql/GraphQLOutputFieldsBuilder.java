@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.documentation.graphql;
+package io.evitadb.test.client.query.graphql;
 
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.utils.Assert;
