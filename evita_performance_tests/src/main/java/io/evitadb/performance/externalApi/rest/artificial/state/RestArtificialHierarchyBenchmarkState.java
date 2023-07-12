@@ -26,7 +26,7 @@ package io.evitadb.performance.externalApi.rest.artificial.state;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.performance.externalApi.rest.artificial.RestArtificialFullDatabaseBenchmarkState;
-import io.evitadb.performance.generators.RestRandomQueryGenerator;
+import io.evitadb.performance.generators.RandomQueryGenerator;
 import io.evitadb.performance.setup.EvitaCatalogReusableSetup;
 import io.evitadb.test.Entities;
 import lombok.Getter;
@@ -40,7 +40,7 @@ import java.util.Set;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 public class RestArtificialHierarchyBenchmarkState extends RestArtificialFullDatabaseBenchmarkState
-	implements RestRandomQueryGenerator, EvitaCatalogReusableSetup {
+	implements RandomQueryGenerator, EvitaCatalogReusableSetup {
 
 	/**
 	 * Set contains all `entityTypes` that are hierarchical.

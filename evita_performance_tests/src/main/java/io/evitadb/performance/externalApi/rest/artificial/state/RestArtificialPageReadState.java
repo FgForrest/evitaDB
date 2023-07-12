@@ -149,20 +149,23 @@ public class RestArtificialPageReadState extends AbstractRestArtificialState {
 		);
 		filterConstraints.add("\"entityLocaleEquals\": \"" + randomExistingLocale.toLanguageTag() + "\"");
 
-		this.resource = "product/list";
-		this.requestBody = String.format(
-			"""
-				{
-					"filterBy": {
-						%s
-					},
-					"require": {
-						%s
+		setRequest(
+			"POST",
+			"product/list",
+			String.format(
+				"""
+					{
+						"filterBy": {
+							%s
+						},
+						"require": {
+							%s
+						}
 					}
-				}
-				""",
-			String.join(",\n", filterConstraints),
-			String.join(",\n", requireConstraints)
+					""",
+				String.join(",\n", filterConstraints),
+				String.join(",\n", requireConstraints)
+			)
 		);
 	}
 

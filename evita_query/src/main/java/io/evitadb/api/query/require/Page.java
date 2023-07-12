@@ -25,6 +25,7 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
@@ -73,6 +74,7 @@ public class Page extends AbstractRequireConstraintLeaf implements GenericConstr
 	/**
 	 * Returns page number to return in the response.
 	 */
+	@AliasForParameter("number")
 	public int getPageNumber() {
 		return (Integer) getArguments()[0];
 	}
@@ -80,6 +82,7 @@ public class Page extends AbstractRequireConstraintLeaf implements GenericConstr
 	/**
 	 * Returns page size to return in the response.
 	 */
+	@AliasForParameter("size")
 	public int getPageSize() {
 		return (Integer) getArguments()[1];
 	}

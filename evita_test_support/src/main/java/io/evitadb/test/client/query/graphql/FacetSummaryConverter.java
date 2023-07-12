@@ -26,8 +26,6 @@ package io.evitadb.test.client.query.graphql;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.FacetSummary;
 import io.evitadb.api.query.require.FacetSummaryOfReference;
-import io.evitadb.api.query.require.HierarchyOfReference;
-import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -137,7 +135,7 @@ public class FacetSummaryConverter extends RequireConverter {
 			})
 			.orElse(new FacetSummaryOfReference(
 				referenceSchema.getName(),
-				defaultRequest.getFacetStatisticsDepth(),
+				defaultRequest.getStatisticsDepth(),
 				defaultRequest.getFilterBy().orElse(null),
 				defaultRequest.getFilterGroupBy().orElse(null),
 				defaultRequest.getOrderBy().orElse(null),

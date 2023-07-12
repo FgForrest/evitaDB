@@ -74,8 +74,8 @@ public class AttributeHistogram extends AbstractRequireConstraintLeaf implements
 
 	@Creator
 	public AttributeHistogram(@Value int requestedBucketCount,
-	                          @Nonnull @Value String... attributeName) {
-		super(ArrayUtils.mergeArrays(new Serializable[]{requestedBucketCount}, attributeName));
+	                          @Nonnull @Value String... attributeNames) {
+		super(ArrayUtils.mergeArrays(new Serializable[]{requestedBucketCount}, attributeNames));
 	}
 
 	/**
