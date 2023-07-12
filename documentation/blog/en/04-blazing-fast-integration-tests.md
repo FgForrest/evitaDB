@@ -96,13 +96,13 @@ dataset instance in its own subfolder with a randomly generated name. When you r
 different subfolders appearing and disappearing in the `/tmp/evita` folder.
 
 The same principle is applied to an evitaDB web server, which generates self-signed 
-<Term location="docs/user/en/operate/tls.md">certificate authority</Term> and server and client 
-<Term location="docs/user/en/operate/tls.md" name="certificate">certificates</Term>. 
+<Term location="/documentation/user/en/operate/tls.md">certificate authority</Term> and server and client 
+<Term location="/documentation/user/en/operate/tls.md" name="certificate">certificates</Term>. 
 All of these are stored in a randomly named folder that is isolated from other instances.
 
 The evitaDB client, which has to pass the [mTLS verification](/documentation/operate/tls?codelang=java#mutual-tls-for-grpc)
 and download the generic client certificate, stores the 
-<Term location="docs/user/en/operate/tls.md" name="certificate">certificates</Term> in the separate isolated folder.
+<Term location="/documentation/user/en/operate/tls.md" name="certificate">certificates</Term> in the separate isolated folder.
 
 Without this principle, some tests could (and will) start rewriting the dataset/certificate contents while other tests 
 running in parallel are still using it.

@@ -78,9 +78,9 @@ If you are working with a similar setup and your Markdown files are hosted on **
 ##### Markup
 
 ```md
-<SourceCodeTabs requires="/docs/user/en/get-started/example/connect-demo-server.java">[EvitaQL example](/documentation/user/en/use/api/example/evita-query-example.java)</SourceCodeTabs>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java">[EvitaQL example](/documentation/user/en/use/api/example/evita-query-example.java)</SourceCodeTabs>
 
-<SourceCodeTabs requires="/docs/user/en/get-started/example/connect-demo-server.java"> // notice the empty line after the opening custom tag
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java"> // notice the empty line after the opening custom tag
 
 [EvitaQL example](/documentation/user/en/use/api/example/evita-query-example.java)
 </SourceCodeTabs>
@@ -88,7 +88,7 @@ If you are working with a similar setup and your Markdown files are hosted on **
 
 ##### Result
 
-<SourceCodeTabs requires="/docs/user/en/get-started/example/connect-demo-server.java">[EvitaQL example](/documentation/user/en/use/api/example/evita-query-example.java)</SourceCodeTabs>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java">[EvitaQL example](/documentation/user/en/use/api/example/evita-query-example.java)</SourceCodeTabs>
 
 There are more features to this specific component, but I'll get to this later.
 

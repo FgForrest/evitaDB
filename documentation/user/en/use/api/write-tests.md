@@ -115,13 +115,13 @@ The example is identical to the previous one with the only significant differenc
 with the embedded evitaDB server via direct method calls, it uses
 <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>,
 which communicates with the same embedded evitaDB server via gRPC protocol using HTTP/2 and local network. The server 
-opens a free port, generates self-signed <Term location="/docs/user/en/operate/tls.md">certificate authority</Term> 
+opens a free port, generates self-signed <Term location="/documentation/user/en/operate/tls.md">certificate authority</Term> 
 certificate. The 
 <SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DbInstanceParameterResolver.java</SourceClass>
 creates a
 <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass> 
 instance that is properly configured to communicate with this gRPC API, the client downloads the self-signed
-<Term location="/docs/user/en/operate/tls.md">certificate authority</Term> certificate and the generic client 
+<Term location="/documentation/user/en/operate/tls.md">certificate authority</Term> certificate and the generic client 
 certificate to pass [mTLS verification](../../operate/tls.md#default-mtls-behaviour-not-secure), and 
 communicates with the *embedded evitaDB* over the wire.
 
@@ -140,7 +140,7 @@ The example is similar to the previous one with the only significant difference 
 with the embedded evitaDB server via direct method calls, it uses
 exposed GraphQL API,
 which communicates with the same embedded evitaDB server via GraphQL protocol using HTTP and local network. The server
-opens a free port and generates self-signed <Term location="/docs/user/en/operate/tls.md">certificate authority</Term>
+opens a free port and generates self-signed <Term location="/documentation/user/en/operate/tls.md">certificate authority</Term>
 certificate. The
 <SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DbInstanceParameterResolver.java</SourceClass>
 creates a
@@ -167,7 +167,7 @@ The example is similar to the previous one with the only significant difference 
 with the embedded evitaDB server via direct method calls, it uses
 exposed REST API,
 which communicates with the same embedded evitaDB server via REST protocol using HTTP and local network. The server
-opens a free port and generates self-signed <Term location="/docs/user/en/operate/tls.md">certificate authority</Term>
+opens a free port and generates self-signed <Term location="/documentation/user/en/operate/tls.md">certificate authority</Term>
 certificate. The
 <SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DbInstanceParameterResolver.java</SourceClass>
 creates a

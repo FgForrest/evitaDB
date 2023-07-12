@@ -1517,7 +1517,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					"    }," +
 					"  \"attributeHistogram\": {" +
 					"     \"requestedBucketCount\": 20," +
-					"     \"attributeName\": [\"" + ATTRIBUTE_QUANTITY + "\"]" +
+					"     \"attributeNames\": [\"" + ATTRIBUTE_QUANTITY + "\"]" +
 					"    }" +
 					"  }" +
 					"}",
@@ -1547,7 +1547,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					"     \"size\": %d" +
 					"    }," +
 					"  \"attributeHistogram\": {" +
-					"     \"attributeName\": [\"" + ATTRIBUTE_QUANTITY + "\"]" +
+					"     \"attributeNames\": [\"" + ATTRIBUTE_QUANTITY + "\"]" +
 					"    }" +
 					"  }" +
 					"}",

@@ -187,7 +187,7 @@ the possibilities were endless. As developers started plugging in more content, 
 features to enhance the reader's experience.
 
 So, I started by creating Custom Components to provide developers with add-on features. When you look at
-the [raw Markdown Content](https://raw.githubusercontent.com/FgForrest/evitaDB/dev/docs/user/en/use/api/write-tests.md)
+the [raw Markdown Content](https://raw.githubusercontent.com/FgForrest/evitaDB/dev/documentation/user/en/use/api/write-tests.md)
 of one of our source files, you'll see many Custom Components we are using throughout our documentation.
 
 There are many libraries packed with components to suit our needs, and with many, we took inspiration from elsewhere and
