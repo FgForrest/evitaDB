@@ -64,8 +64,6 @@ import java.util.stream.Collectors;
 public class GraphQLQueryConverter {
 
 	private static final String DEFAULT_CATALOG_NAME = "evita";
-	private static final Set<Class<? extends Constraint<RequireConstraint>>> SUPPORTED_EXTRA_RESULTS =
-		Set.of(FacetSummary.class, FacetSummaryOfReference.class, HierarchyOfSelf.class, HierarchyOfReference.class, AttributeHistogram.class, PriceHistogram.class, QueryTelemetry.class);
 
 	@Nonnull private final Set<Class<? extends Constraint<?>>> allowedRequireConstraints = Set.of(
 		FacetGroupsConjunction.class,
@@ -187,11 +185,6 @@ public class GraphQLQueryConverter {
 
 			// build extra results
 			if (!extraResultConstraints.isEmpty()) {
-				Assert.isPremiseValid(
-					extraResultConstraints.stream().allMatch(it -> SUPPORTED_EXTRA_RESULTS.contains(it.getClass())),
-					"Unsupported extra result constraint detected."
-				);
-
 				fieldsBuilder.addObjectField(ResponseDescriptor.EXTRA_RESULTS, extraResultsBuilder -> {
 					facetSummaryConverter.convert(
 						extraResultsBuilder,

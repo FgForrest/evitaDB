@@ -53,6 +53,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -76,17 +77,17 @@ public class EntityFetchConverter extends RequireConverter {
 	}
 
 	public void convert(@Nonnull GraphQLOutputFieldsBuilder fieldsBuilder,
-	                    @Nonnull String entityType,
+	                    @Nullable String entityType,
 						@Nullable Locale locale,
 	                    @Nullable EntityFetchRequire entityFetch) {
-		final EntitySchemaContract entitySchema = catalogSchema.getEntitySchemaOrThrowException(entityType);
+		final Optional<EntitySchemaContract> entitySchema = catalogSchema.getEntitySchema(entityType);
 
 		fieldsBuilder.addPrimitiveField(EntityDescriptor.PRIMARY_KEY);
-		if (entitySchema.isWithHierarchy()) {
+		if (entitySchema.map(EntitySchemaContract::isWithHierarchy).orElse(false)) {
 			fieldsBuilder.addPrimitiveField(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY);
 		}
 
-		if (entityFetch == null || entityFetch.getRequirements().length == 0) {
+		if (entitySchema.isEmpty() || entityFetch == null || entityFetch.getRequirements().length == 0) {
 			return;
 		}
 
@@ -98,7 +99,7 @@ public class EntityFetchConverter extends RequireConverter {
 
 		convertAttributeContent(fieldsBuilder, entityFetch);
 		convertPriceContent(fieldsBuilder, locale, entityFetch);
-		convertReferenceContents(fieldsBuilder, entityType, locale, entityFetch, entitySchema);
+		convertReferenceContents(fieldsBuilder, entityType, locale, entityFetch, entitySchema.get());
 	}
 
 	private static void convertAttributeContent(@Nonnull GraphQLOutputFieldsBuilder entityFieldsBuilder,

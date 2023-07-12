@@ -61,6 +61,6 @@ public abstract class AbstractGraphQLArtificialState {
 			TEST_CATALOG,
 			query
 		);
-		log.info(this.requestBody);
+//		log.info(this.requestBody);
 	}
 }

@@ -31,8 +31,6 @@ import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.infra.Blackhole;
 
-import static io.evitadb.test.TestConstants.TEST_CATALOG;
-
 /**
  * Base state class for {@link GraphQLArtificialEntitiesBenchmark#facetAndHierarchyFilteringAndSummarizingCount(GraphQLArtificialFacetBenchmarkState, GraphQLArtificialFacetAndHierarchyFilteringAndSummarizingCountState, Blackhole)}.
  * See benchmark description on the method.
