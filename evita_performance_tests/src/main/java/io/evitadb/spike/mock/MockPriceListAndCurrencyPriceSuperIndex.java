@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.performance.spike.mock;
+package io.evitadb.spike.mock;
 
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.index.bitmap.Bitmap;

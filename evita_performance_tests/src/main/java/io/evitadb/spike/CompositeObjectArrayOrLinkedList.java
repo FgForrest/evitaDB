@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.performance.spike;
+package io.evitadb.spike;
 
 import io.evitadb.index.array.CompositeObjectArray;
 import lombok.Data;

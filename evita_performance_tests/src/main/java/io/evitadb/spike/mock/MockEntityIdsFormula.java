@@ -21,15 +21,13 @@
  *   limitations under the License.
  */
 
-package io.evitadb.performance.spike.mock;
+package io.evitadb.spike.mock;
 
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
-import io.evitadb.core.query.algebra.price.priceIndex.PriceIndexProvidingFormula;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
 import lombok.RequiredArgsConstructor;
 import net.openhft.hashing.LongHashFunction;
 
@@ -42,10 +40,10 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @RequiredArgsConstructor
-public class MockInnerRecordIdsFormula extends AbstractFormula implements PriceIndexProvidingFormula, FilteredPriceRecordAccessor {
-	private static final long CLASS_ID = -8740309489269214775L;
-	private final Bitmap innerRecordIds;
-	private final FilteredPriceRecords allPriceRecords;
+public class MockEntityIdsFormula extends AbstractFormula implements FilteredPriceRecordAccessor {
+	private static final long CLASS_ID = -8786720221479629134L;
+	private final Bitmap entityIds;
+	private final FilteredPriceRecords priceRecords;
 
 	@Nonnull
 	@Override
@@ -60,26 +58,14 @@ public class MockInnerRecordIdsFormula extends AbstractFormula implements PriceI
 
 	@Nonnull
 	@Override
-	public PriceListAndCurrencyPriceIndex getPriceIndex() {
-		throw new UnsupportedOperationException();
-	}
-
-	@Nonnull
-	@Override
-	public Formula getDelegate() {
-		throw new UnsupportedOperationException();
-	}
-
-	@Nonnull
-	@Override
 	public FilteredPriceRecords getFilteredPriceRecords() {
-		return allPriceRecords;
+		return priceRecords;
 	}
 
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {
-		return innerRecordIds;
+		return entityIds;
 	}
 
 	@Override
@@ -94,6 +80,6 @@ public class MockInnerRecordIdsFormula extends AbstractFormula implements PriceI
 
 	@Override
 	public int getEstimatedCardinality() {
-		return innerRecordIds.size();
+		return entityIds.size();
 	}
 }

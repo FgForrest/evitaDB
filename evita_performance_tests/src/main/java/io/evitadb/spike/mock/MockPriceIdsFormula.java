@@ -21,15 +21,14 @@
  *   limitations under the License.
  */
 
-package io.evitadb.performance.spike.mock;
+package io.evitadb.spike.mock;
 
-import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
-import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
+import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
 import io.evitadb.index.bitmap.Bitmap;
-import lombok.RequiredArgsConstructor;
-import net.openhft.hashing.LongHashFunction;
+import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
+import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 
 import javax.annotation.Nonnull;
 
@@ -39,11 +38,21 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@RequiredArgsConstructor
-public class MockEntityIdsFormula extends AbstractFormula implements FilteredPriceRecordAccessor {
-	private static final long CLASS_ID = -8786720221479629134L;
-	private final Bitmap entityIds;
-	private final FilteredPriceRecords priceRecords;
+public class MockPriceIdsFormula extends PriceIdContainerFormula {
+	private final Bitmap priceIds;
+	private final PriceListAndCurrencyPriceIndex priceList;
+
+	public MockPriceIdsFormula(PriceListAndCurrencyPriceIndex priceIndex, Bitmap priceIds, PriceRecordContract[] priceRecords) {
+		super(priceIndex, new ConstantFormula(priceIds));
+		this.priceIds = priceIds;
+		this.priceList = new MockPriceListAndCurrencyPriceSuperIndex(priceRecords);
+	}
+
+	@Nonnull
+	@Override
+	public PriceListAndCurrencyPriceIndex getPriceIndex() {
+		return priceList;
+	}
 
 	@Nonnull
 	@Override
@@ -58,28 +67,8 @@ public class MockEntityIdsFormula extends AbstractFormula implements FilteredPri
 
 	@Nonnull
 	@Override
-	public FilteredPriceRecords getFilteredPriceRecords() {
-		return priceRecords;
-	}
-
-	@Nonnull
-	@Override
 	protected Bitmap computeInternal() {
-		return entityIds;
+		return priceIds;
 	}
 
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return CLASS_ID;
-	}
-
-	@Override
-	protected long getClassId() {
-		return CLASS_ID;
-	}
-
-	@Override
-	public int getEstimatedCardinality() {
-		return entityIds.size();
-	}
 }

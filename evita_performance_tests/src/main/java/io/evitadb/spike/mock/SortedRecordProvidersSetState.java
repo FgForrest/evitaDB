@@ -21,11 +21,12 @@
  *   limitations under the License.
  */
 
-package io.evitadb.performance.spike.mock;
+package io.evitadb.spike.mock;
 
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.spike.FormulaCostMeasurement;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
@@ -39,7 +40,7 @@ import java.util.HashSet;
 import java.util.Random;
 
 /**
- * State object for {@link io.evitadb.performance.spike.FormulaCostMeasurement#mergedSortedRecordsSupplier(SortedRecordProvidersSetState, Blackhole)}
+ * State object for {@link FormulaCostMeasurement#mergedSortedRecordsSupplier(SortedRecordProvidersSetState, Blackhole)}
  * benchmark.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023

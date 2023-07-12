@@ -21,14 +21,17 @@
  *   limitations under the License.
  */
 
-package io.evitadb.performance.spike.mock;
+package io.evitadb.spike.mock;
 
+import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
+import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
+import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
+import io.evitadb.core.query.algebra.price.priceIndex.PriceIndexProvidingFormula;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
-import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
+import lombok.RequiredArgsConstructor;
+import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 
@@ -38,21 +41,11 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class MockPriceIdsFormula extends PriceIdContainerFormula {
-	private final Bitmap priceIds;
-	private final PriceListAndCurrencyPriceIndex priceList;
-
-	public MockPriceIdsFormula(PriceListAndCurrencyPriceIndex priceIndex, Bitmap priceIds, PriceRecordContract[] priceRecords) {
-		super(priceIndex, new ConstantFormula(priceIds));
-		this.priceIds = priceIds;
-		this.priceList = new MockPriceListAndCurrencyPriceSuperIndex(priceRecords);
-	}
-
-	@Nonnull
-	@Override
-	public PriceListAndCurrencyPriceIndex getPriceIndex() {
-		return priceList;
-	}
+@RequiredArgsConstructor
+public class MockInnerRecordIdsFormula extends AbstractFormula implements PriceIndexProvidingFormula, FilteredPriceRecordAccessor {
+	private static final long CLASS_ID = -8740309489269214775L;
+	private final Bitmap innerRecordIds;
+	private final FilteredPriceRecords allPriceRecords;
 
 	@Nonnull
 	@Override
@@ -67,8 +60,40 @@ public class MockPriceIdsFormula extends PriceIdContainerFormula {
 
 	@Nonnull
 	@Override
-	protected Bitmap computeInternal() {
-		return priceIds;
+	public PriceListAndCurrencyPriceIndex getPriceIndex() {
+		throw new UnsupportedOperationException();
 	}
 
+	@Nonnull
+	@Override
+	public Formula getDelegate() {
+		throw new UnsupportedOperationException();
+	}
+
+	@Nonnull
+	@Override
+	public FilteredPriceRecords getFilteredPriceRecords() {
+		return allPriceRecords;
+	}
+
+	@Nonnull
+	@Override
+	protected Bitmap computeInternal() {
+		return innerRecordIds;
+	}
+
+	@Override
+	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
+		return CLASS_ID;
+	}
+
+	@Override
+	protected long getClassId() {
+		return CLASS_ID;
+	}
+
+	@Override
+	public int getEstimatedCardinality() {
+		return innerRecordIds.size();
+	}
 }

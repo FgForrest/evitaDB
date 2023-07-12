@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.performance.spike.mock;
+package io.evitadb.spike.mock;
 
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.core.query.algebra.Formula;

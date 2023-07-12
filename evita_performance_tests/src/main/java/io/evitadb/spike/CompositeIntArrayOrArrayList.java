@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.performance.spike;
+package io.evitadb.spike;
 
 import com.carrotsearch.hppc.IntArrayList;
 import io.evitadb.index.array.CompositeIntArray;

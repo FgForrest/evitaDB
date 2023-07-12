@@ -21,15 +21,15 @@
  *   limitations under the License.
  */
 
-package io.evitadb.performance.spike.mock;
+package io.evitadb.spike.mock;
 
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
+import io.evitadb.core.query.algebra.base.OrFormula;
+import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords.SortingForm;
+import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
 import io.evitadb.index.array.CompositeObjectArray;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;
 import lombok.Getter;
@@ -38,8 +38,6 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Random;
 
 /**
@@ -49,15 +47,19 @@ import java.util.Random;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @State(Scope.Benchmark)
-public class PriceIdsWithPriceRecordsRecordState {
+public class EntityIdsWithPriceRecordsRecordState {
+	private static final int ENTITY_COUNT = 10_000;
 	private static final int PRICE_COUNT = 100_000;
 	private static final Random random = new Random(42);
 	private static int PRICE_ID_SEQ;
 
-	@Getter private PriceRecordContract[] entitiesPriceRecords;
-	@Getter private Bitmap priceIds;
-	@Getter private PriceListAndCurrencyPriceIndex priceIndex;
-	@Getter private Formula priceIdsFormula;
+	@Getter private PriceRecordContract[] entitiesPriceRecordsA;
+	@Getter private PriceRecordContract[] entitiesPriceRecordsB;
+	@Getter private PriceRecordContract[] entitiesPriceRecordsC;
+	@Getter private Bitmap entitiesA;
+	@Getter private Bitmap entitiesB;
+	@Getter private Bitmap entitiesC;
+	@Getter private Formula formula;
 
 	/**
 	 * This setup is called once for each `valueCount`.
@@ -65,38 +67,41 @@ public class PriceIdsWithPriceRecordsRecordState {
 	@Setup(Level.Trial)
 	public void setUp() {
 		final CompositeObjectArray<PriceRecordContract> priceRecordsA = new CompositeObjectArray<>(PriceRecordContract.class);
-		priceIds = generateBitmap(PRICE_COUNT, priceRecordsA);
-		entitiesPriceRecords = priceRecordsA.toArray();
-		Arrays.sort(entitiesPriceRecords, Comparator.comparingLong(PriceRecordContract::internalPriceId));
-		priceIndex = new MockPriceListAndCurrencyPriceSuperIndex(entitiesPriceRecords);
-		priceIdsFormula = new PriceIdContainerFormula(priceIndex, new ConstantFormula(priceIds));
+		entitiesA = generateBitmap(ENTITY_COUNT, PRICE_COUNT, priceRecordsA);
+		entitiesPriceRecordsA = priceRecordsA.toArray();
+
+		final CompositeObjectArray<PriceRecordContract> priceRecordsB = new CompositeObjectArray<>(PriceRecordContract.class);
+		entitiesB = generateBitmap(ENTITY_COUNT, PRICE_COUNT, priceRecordsB);
+		entitiesPriceRecordsB = priceRecordsB.toArray();
+
+		final CompositeObjectArray<PriceRecordContract> priceRecordsC = new CompositeObjectArray<>(PriceRecordContract.class);
+		entitiesC = generateBitmap(ENTITY_COUNT, PRICE_COUNT, priceRecordsC);
+		entitiesPriceRecordsC = priceRecordsC.toArray();
+
+		formula = new OrFormula(
+			new MockEntityIdsFormula(entitiesA, new ResolvedFilteredPriceRecords(entitiesPriceRecordsA, SortingForm.NOT_SORTED)),
+			new MockEntityIdsFormula(entitiesB, new ResolvedFilteredPriceRecords(entitiesPriceRecordsB, SortingForm.NOT_SORTED)),
+			new MockEntityIdsFormula(entitiesB, new ResolvedFilteredPriceRecords(entitiesPriceRecordsC, SortingForm.NOT_SORTED))
+		);
+		formula.compute();
 	}
 
-	private Bitmap generateBitmap(int priceCount, CompositeObjectArray<PriceRecordContract> priceRecords) {
-		final Bitmap priceIds = new BaseBitmap();
-
-		int entityId = 1;
-		int counter = 0;
-		while (counter < priceCount) {
-			entityId += random.nextInt(512);
-			int innerRecordId = 1;
-			for (int i = 0; i < random.nextInt(10); i++) {
-				final int randomPrice = random.nextInt(5000);
-				final int priceId = ++PRICE_ID_SEQ;
-				innerRecordId += random.nextInt(2);
-				final PriceRecordContract priceRecord = new PriceRecordInnerRecordSpecific(
+	private Bitmap generateBitmap(int entityCount, int priceCount, CompositeObjectArray<PriceRecordContract> priceRecords) {
+		final Bitmap bitmap = new BaseBitmap();
+		for (int i = 0; i < priceCount; i++) {
+			final int entityId = getRandomNumber(entityCount);
+			bitmap.add(entityId);
+			final int randomPrice = random.nextInt(5000);
+			final int priceId = ++PRICE_ID_SEQ;
+			final int innerRecordId = entityCount + random.nextInt(entityCount);
+			priceRecords.add(
+				new PriceRecordInnerRecordSpecific(
 					priceId, priceId, entityId, innerRecordId, (int) (randomPrice * 1.21), randomPrice
-				);
-				priceIds.add(priceRecord.internalPriceId());
-				priceRecords.add(priceRecord);
-				counter++;
-				if (counter == priceCount) {
-					break;
-				}
-			}
+				)
+			);
 		}
 
-		return priceIds;
+		return bitmap;
 	}
 
 	private int getRandomNumber(int entityCount) {

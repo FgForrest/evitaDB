@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.performance.spike;
+package io.evitadb.spike;
 
 import lombok.Data;
 import org.openjdk.jmh.annotations.Benchmark;

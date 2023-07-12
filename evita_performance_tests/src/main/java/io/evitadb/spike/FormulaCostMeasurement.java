@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.performance.spike;
+package io.evitadb.spike;
 
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
@@ -44,13 +44,13 @@ import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHist
 import io.evitadb.core.query.sort.attribute.MergedSortedRecordsSupplier;
 import io.evitadb.index.histogram.suppliers.HistogramBitmapSupplier;
 import io.evitadb.index.price.model.PriceIndexKey;
-import io.evitadb.performance.spike.mock.BucketsRecordState;
-import io.evitadb.performance.spike.mock.EntityIdsWithPriceRecordsRecordState;
-import io.evitadb.performance.spike.mock.InnerRecordIdsWithPriceRecordsRecordState;
-import io.evitadb.performance.spike.mock.IntegerBitmapState;
-import io.evitadb.performance.spike.mock.PriceBucketRecordState;
-import io.evitadb.performance.spike.mock.PriceIdsWithPriceRecordsRecordState;
-import io.evitadb.performance.spike.mock.SortedRecordProvidersSetState;
+import io.evitadb.spike.mock.BucketsRecordState;
+import io.evitadb.spike.mock.EntityIdsWithPriceRecordsRecordState;
+import io.evitadb.spike.mock.InnerRecordIdsWithPriceRecordsRecordState;
+import io.evitadb.spike.mock.IntegerBitmapState;
+import io.evitadb.spike.mock.PriceBucketRecordState;
+import io.evitadb.spike.mock.PriceIdsWithPriceRecordsRecordState;
+import io.evitadb.spike.mock.SortedRecordProvidersSetState;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;

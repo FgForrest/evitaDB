@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.performance.spike.mock;
+package io.evitadb.spike.mock;
 
 import com.carrotsearch.hppc.IntObjectHashMap;
 import io.evitadb.core.Transaction;
