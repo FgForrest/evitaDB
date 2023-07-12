@@ -5,6 +5,7 @@ module evita.query {
 
 	exports io.evitadb.api.query;
 	exports io.evitadb.api.query.descriptor;
+	exports io.evitadb.api.query.descriptor.annotation;
 	exports io.evitadb.api.query.visitor;
 	exports io.evitadb.api.query.head;
 	exports io.evitadb.api.query.filter;

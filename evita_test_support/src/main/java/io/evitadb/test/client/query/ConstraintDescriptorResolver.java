@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.documentation.constraint;
+package io.evitadb.test.client.query;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintWithSuffix;

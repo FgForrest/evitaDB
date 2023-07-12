@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.documentation.rest;
+package io.evitadb.test.client.query.rest;
 
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -29,10 +29,10 @@ import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.documentation.constraint.FilterConstraintToJsonConverter;
-import io.evitadb.documentation.constraint.JsonConstraint;
-import io.evitadb.documentation.constraint.OrderConstraintToJsonConverter;
-import io.evitadb.documentation.constraint.RequireConstraintToJsonConverter;
+import io.evitadb.test.client.query.FilterConstraintToJsonConverter;
+import io.evitadb.test.client.query.JsonConstraint;
+import io.evitadb.test.client.query.OrderConstraintToJsonConverter;
+import io.evitadb.test.client.query.RequireConstraintToJsonConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.utils.Assert;
@@ -40,6 +40,7 @@ import io.evitadb.utils.StringUtils;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -51,22 +52,32 @@ import java.util.List;
 @RequiredArgsConstructor
 public class RestQueryConverter implements AutoCloseable {
 
-	private static final String CATALOG_NAME = "evita";
+	private static final String DEFAULT_CATALOG_NAME = "evita";
 
 	@Nonnull private final RestInputJsonPrinter inputJsonPrinter = new RestInputJsonPrinter();
 	@Nonnull private final JsonNodeFactory jsonNodeFactory = new JsonNodeFactory(true);
 
-	@Nonnull private final EvitaContract evita;
+	@Nullable private final EvitaContract evita;
+
+	public RestQueryConverter() {
+		this.evita = null;
+	}
 
 	@Nonnull
 	public String convert(@Nonnull Query query) {
+		Assert.isPremiseValid(this.evita != null, "No evitaDB instance was provided.");
+		return convert(this.evita, DEFAULT_CATALOG_NAME, query);
+	}
+
+	@Nonnull
+	public String convert(@Nonnull EvitaContract evita, @Nonnull String catalogName, @Nonnull Query query) {
 		// we need active session to fetch entity schemas from catalog schema when converting constraints
-		try (final EvitaSessionContract session = evita.createReadOnlySession(CATALOG_NAME)) {
+		try (final EvitaSessionContract session = evita.createReadOnlySession(catalogName)) {
 			final CatalogSchemaContract catalogSchema = session.getCatalogSchema();
 
 			// convert query parts
 			final String collection = query.getCollection().getEntityType();
-			final String header = resolveHeader(collection);
+			final String header = resolveHeader(catalogName, collection);
 			final String body = convertBody(catalogSchema, query, collection);
 
 			return constructRequest(header, body);
@@ -79,8 +90,8 @@ public class RestQueryConverter implements AutoCloseable {
 	}
 
 	@Nonnull
-	private String resolveHeader(@Nonnull String entityType) {
-		return "/rest/" + CATALOG_NAME + "/" + StringUtils.toKebabCase(entityType) + "/query";
+	private String resolveHeader(@Nonnull String catalogName, @Nonnull String entityType) {
+		return "/rest/" + StringUtils.toKebabCase(catalogName) + "/" + StringUtils.toKebabCase(entityType) + "/query";
 	}
 
 	@Nonnull

@@ -21,29 +21,32 @@
  *   limitations under the License.
  */
 
-package io.evitadb.documentation.graphql;
+package io.evitadb.test.client.query.graphql;
 
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.documentation.constraint.FilterConstraintToJsonConverter;
-import io.evitadb.documentation.constraint.JsonConstraint;
-import io.evitadb.documentation.constraint.OrderConstraintToJsonConverter;
-import io.evitadb.documentation.constraint.RequireConstraintToJsonConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
+import io.evitadb.test.client.query.FilterConstraintToJsonConverter;
+import io.evitadb.test.client.query.JsonConstraint;
+import io.evitadb.test.client.query.OrderConstraintToJsonConverter;
+import io.evitadb.test.client.query.RequireConstraintToJsonConverter;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -58,9 +61,9 @@ import java.util.stream.Collectors;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class GraphQLQueryConverter implements AutoCloseable {
+public class GraphQLQueryConverter {
 
-	private static final String CATALOG_NAME = "evita";
+	private static final String DEFAULT_CATALOG_NAME = "evita";
 
 	@Nonnull private final Set<Class<? extends Constraint<?>>> allowedRequireConstraints = Set.of(
 		FacetGroupsConjunction.class,
@@ -70,12 +73,22 @@ public class GraphQLQueryConverter implements AutoCloseable {
 	);
 	@Nonnull private final GraphQLInputJsonPrinter inputJsonPrinter = new GraphQLInputJsonPrinter();
 
-	@Nonnull private final EvitaContract evita;
+	@Nullable private final EvitaContract evita;
+
+	public GraphQLQueryConverter() {
+		this.evita = null;
+	}
 
 	@Nonnull
 	public String convert(@Nonnull Query query) {
+		Assert.isPremiseValid(this.evita != null, "No evitaDB instance was provided.");
+		return convert(this.evita, DEFAULT_CATALOG_NAME, query);
+	}
+
+	@Nonnull
+	public String convert(@Nonnull EvitaContract evita, @Nonnull String catalogName, @Nonnull Query query) {
 		// we need active session to fetch entity schemas from catalog schema when converting constraints
-		try (final EvitaSessionContract session = evita.createReadOnlySession(CATALOG_NAME)) {
+		try (final EvitaSessionContract session = evita.createReadOnlySession(catalogName)) {
 			final CatalogSchemaContract catalogSchema = session.getCatalogSchema();
 
 			// prepare common converters and builders
@@ -88,11 +101,6 @@ public class GraphQLQueryConverter implements AutoCloseable {
 
 			return constructQuery(collection, header, outputFields);
 		}
-	}
-
-	@Override
-	public void close() throws Exception {
-		evita.close();
 	}
 
 	@Nonnull
@@ -139,7 +147,11 @@ public class GraphQLQueryConverter implements AutoCloseable {
 	private String convertOutputFields(@Nonnull CatalogSchemaContract catalogSchema,
 	                                   @Nonnull EntityFetchConverter entityFetchConverter,
 	                                   @Nonnull Query query) {
+		final FacetSummaryConverter facetSummaryConverter = new FacetSummaryConverter(catalogSchema, inputJsonPrinter);
 		final HierarchyOfConverter hierarchyOfConverter = new HierarchyOfConverter(catalogSchema, inputJsonPrinter);
+		final AttributeHistogramConverter attributeHistogramConverter = new AttributeHistogramConverter(catalogSchema, inputJsonPrinter);
+		final PriceHistogramConverter priceHistogramConverter = new PriceHistogramConverter(catalogSchema, inputJsonPrinter);
+		final QueryTelemetryConverter queryTelemetryConverter = new QueryTelemetryConverter(catalogSchema, inputJsonPrinter);
 
 		final String entityType = query.getCollection().getEntityType();
 		final Locale locale = Optional.ofNullable(query.getFilterBy())
@@ -153,19 +165,35 @@ public class GraphQLQueryConverter implements AutoCloseable {
 			fieldsBuilder
 				.addObjectField(ResponseDescriptor.RECORD_PAGE, b1 -> b1
 					.addObjectField(DataChunkDescriptor.DATA, b2 ->
-						entityFetchConverter.convert(catalogSchema, b2, entityType, locale, null)));
+						entityFetchConverter.convert(b2, entityType, locale, null)));
 		} else {
 			// build main entity fields
-			Optional.ofNullable(QueryUtils.findConstraint(require, EntityFetch.class, SeparateEntityContentRequireContainer.class))
-				.ifPresent(entityFetch -> fieldsBuilder
+			final EntityFetch entityFetch = QueryUtils.findConstraint(require, EntityFetch.class, SeparateEntityContentRequireContainer.class);
+			final List<Constraint<?>> extraResultConstraints = QueryUtils.findConstraints(require, c -> c instanceof ExtraResultRequireConstraint);
+
+			if (entityFetch != null) {
+				fieldsBuilder
 					.addObjectField(ResponseDescriptor.RECORD_PAGE, b1 -> b1
 						.addObjectField(DataChunkDescriptor.DATA, b2 ->
-							entityFetchConverter.convert(catalogSchema, b2, entityType, locale, entityFetch))));
+							entityFetchConverter.convert(b2, entityType, locale, entityFetch)));
+			} else if (extraResultConstraints.isEmpty()) {
+				fieldsBuilder
+					.addObjectField(ResponseDescriptor.RECORD_PAGE, b1 -> b1
+						.addObjectField(DataChunkDescriptor.DATA, b2 ->
+							entityFetchConverter.convert(b2, entityType, locale, null)));
+			}
 
 			// build extra results
-			final List<Constraint<?>> extraResultConstraints = QueryUtils.findConstraints(require, c -> c instanceof ExtraResultRequireConstraint);
 			if (!extraResultConstraints.isEmpty()) {
 				fieldsBuilder.addObjectField(ResponseDescriptor.EXTRA_RESULTS, extraResultsBuilder -> {
+					facetSummaryConverter.convert(
+						extraResultsBuilder,
+						entityType,
+						locale,
+						QueryUtils.findConstraint(require, FacetSummary.class),
+						QueryUtils.findConstraints(require, FacetSummaryOfReference.class)
+					);
+
 					hierarchyOfConverter.convert(
 						extraResultsBuilder,
 						entityType,
@@ -174,7 +202,18 @@ public class GraphQLQueryConverter implements AutoCloseable {
 						QueryUtils.findConstraint(require, HierarchyOfReference.class)
 					);
 
-					// todo lho add another extra results support
+					Optional.of(QueryUtils.findConstraints(require, AttributeHistogram.class))
+						.ifPresent(attributeHistograms -> attributeHistogramConverter.convert(
+							extraResultsBuilder,
+							entityType,
+							attributeHistograms
+						));
+
+					Optional.ofNullable(QueryUtils.findConstraint(require, PriceHistogram.class))
+						.ifPresent(priceHistogram -> priceHistogramConverter.convert(extraResultsBuilder, priceHistogram));
+
+					Optional.ofNullable(QueryUtils.findConstraint(require, QueryTelemetry.class))
+						.ifPresent(queryTelemetry -> queryTelemetryConverter.convert(extraResultsBuilder, queryTelemetry));
 				});
 			}
 		}

@@ -25,7 +25,7 @@ package io.evitadb.performance.externalApi.graphql.artificial.state;
 
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.performance.externalApi.graphql.artificial.GraphQLArtificialEntitiesBenchmark;
-import io.evitadb.performance.generators.GraphQLRandomQueryGenerator;
+import io.evitadb.performance.generators.RandomQueryGenerator;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.infra.Blackhole;
@@ -36,17 +36,20 @@ import org.openjdk.jmh.infra.Blackhole;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class GraphQLArtificialFacetFilteringAndSummarizingCountState extends AbstractGraphQLArtificialState implements GraphQLRandomQueryGenerator {
+public class GraphQLArtificialFacetFilteringAndSummarizingCountState extends AbstractGraphQLArtificialState implements RandomQueryGenerator {
 
 	/**
 	 * Prepares artificial product for the next operation that is measured in the benchmark.
 	 */
 	@Setup(Level.Invocation)
 	public void prepareCall(GraphQLArtificialFacetBenchmarkState benchmarkState) {
-		this.requestBody = generateRandomFacetSummaryQuery(
-			generateRandomFacetQuery(benchmarkState.getRandom(), benchmarkState.getProductSchema(), benchmarkState.getFacetedReferences()),
-			benchmarkState.getRandom(), benchmarkState.getProductSchema(), FacetStatisticsDepth.COUNTS, benchmarkState.getFacetGroupsIndex()
-		).toString();
+		setRequestBody(
+			benchmarkState,
+			generateRandomFacetSummaryQuery(
+				generateRandomFacetQuery(benchmarkState.getRandom(), benchmarkState.getProductSchema(), benchmarkState.getFacetedReferences()),
+				benchmarkState.getRandom(), benchmarkState.getProductSchema(), FacetStatisticsDepth.COUNTS, benchmarkState.getFacetGroupsIndex()
+			)
+		);
 	}
 
 }

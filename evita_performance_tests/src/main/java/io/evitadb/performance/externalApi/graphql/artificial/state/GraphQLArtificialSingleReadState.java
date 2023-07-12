@@ -125,7 +125,7 @@ public class GraphQLArtificialSingleReadState extends AbstractGraphQLArtificialS
 			.findFirst()
 			.orElseThrow(() -> new IllegalStateException("No locales found!"));
 
-		this.requestBody =
+		setRequestBody(
 			String.format(
 				"""
 				query {
@@ -142,6 +142,7 @@ public class GraphQLArtificialSingleReadState extends AbstractGraphQLArtificialS
 					"," + priceHeader
 				),
 				String.join("\n", outputFields)
-			);
+			)
+		);
 	}
 }

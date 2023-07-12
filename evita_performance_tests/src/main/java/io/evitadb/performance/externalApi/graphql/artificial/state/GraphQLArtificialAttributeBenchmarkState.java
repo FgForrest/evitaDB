@@ -26,7 +26,7 @@ package io.evitadb.performance.externalApi.graphql.artificial.state;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.performance.externalApi.graphql.artificial.GraphQLArtificialFullDatabaseBenchmarkState;
-import io.evitadb.performance.generators.GraphQLRandomQueryGenerator;
+import io.evitadb.performance.generators.RandomQueryGenerator;
 import io.evitadb.performance.setup.EvitaCatalogReusableSetup;
 import io.evitadb.test.Entities;
 import lombok.Getter;
@@ -44,7 +44,7 @@ import java.util.Set;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 public class GraphQLArtificialAttributeBenchmarkState extends GraphQLArtificialFullDatabaseBenchmarkState
-	implements GraphQLRandomQueryGenerator, EvitaCatalogReusableSetup {
+	implements RandomQueryGenerator, EvitaCatalogReusableSetup {
 
 	/**
 	 * This set contains names of all sortable attributes of the entity

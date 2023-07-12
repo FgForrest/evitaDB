@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.documentation.graphql;
+package io.evitadb.test.client.query.graphql;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.QueryUtils;
@@ -53,6 +53,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -75,19 +76,18 @@ public class EntityFetchConverter extends RequireConverter {
 		super(catalogSchema, inputJsonPrinter);
 	}
 
-	public void convert(@Nonnull CatalogSchemaContract catalogSchema,
-	                    @Nonnull GraphQLOutputFieldsBuilder fieldsBuilder,
-	                    @Nonnull String entityType,
+	public void convert(@Nonnull GraphQLOutputFieldsBuilder fieldsBuilder,
+	                    @Nullable String entityType,
 						@Nullable Locale locale,
 	                    @Nullable EntityFetchRequire entityFetch) {
-		final EntitySchemaContract entitySchema = catalogSchema.getEntitySchemaOrThrowException(entityType);
+		final Optional<EntitySchemaContract> entitySchema = catalogSchema.getEntitySchema(entityType);
 
 		fieldsBuilder.addPrimitiveField(EntityDescriptor.PRIMARY_KEY);
-		if (entitySchema.isWithHierarchy()) {
+		if (entitySchema.map(EntitySchemaContract::isWithHierarchy).orElse(false)) {
 			fieldsBuilder.addPrimitiveField(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY);
 		}
 
-		if (entityFetch == null || entityFetch.getRequirements().length == 0) {
+		if (entitySchema.isEmpty() || entityFetch == null || entityFetch.getRequirements().length == 0) {
 			return;
 		}
 
@@ -99,7 +99,7 @@ public class EntityFetchConverter extends RequireConverter {
 
 		convertAttributeContent(fieldsBuilder, entityFetch);
 		convertPriceContent(fieldsBuilder, locale, entityFetch);
-		convertReferenceContents(catalogSchema, fieldsBuilder, entityType, locale, entityFetch, entitySchema);
+		convertReferenceContents(fieldsBuilder, entityType, locale, entityFetch, entitySchema.get());
 	}
 
 	private static void convertAttributeContent(@Nonnull GraphQLOutputFieldsBuilder entityFieldsBuilder,
@@ -181,8 +181,7 @@ public class EntityFetchConverter extends RequireConverter {
 		};
 	}
 
-	private void convertReferenceContents(@Nonnull CatalogSchemaContract catalogSchema,
-	                                      @Nonnull GraphQLOutputFieldsBuilder entityFieldsBuilder,
+	private void convertReferenceContents(@Nonnull GraphQLOutputFieldsBuilder entityFieldsBuilder,
 	                                      @Nonnull String entityType,
 										  @Nullable Locale locale,
 	                                      @Nonnull EntityFetchRequire entityFetch,
@@ -190,13 +189,12 @@ public class EntityFetchConverter extends RequireConverter {
 		final List<ReferenceContent> referenceContents = QueryUtils.findConstraints(entityFetch, ReferenceContent.class, SeparateEntityContentRequireContainer.class);
 		referenceContents.forEach(referenceContent -> {
 			for (String referenceName : referenceContent.getReferenceNames()) {
-				convertReferenceContent(catalogSchema, entityFieldsBuilder, entityType, locale, entitySchema, referenceContent, referenceName);
+				convertReferenceContent(entityFieldsBuilder, entityType, locale, entitySchema, referenceContent, referenceName);
 			}
 		});
 	}
 
-	private void convertReferenceContent(@Nonnull CatalogSchemaContract catalogSchema,
-	                                     @Nonnull GraphQLOutputFieldsBuilder entityFieldsBuilder,
+	private void convertReferenceContent(@Nonnull GraphQLOutputFieldsBuilder entityFieldsBuilder,
 	                                     @Nonnull String entityType,
 										 @Nullable Locale locale,
 	                                     @Nonnull EntitySchemaContract entitySchema,
@@ -225,7 +223,6 @@ public class EntityFetchConverter extends RequireConverter {
 					referenceBuilder.addObjectField(
 						ReferenceDescriptor.REFERENCED_ENTITY,
 						referencedEntityBuilder -> convert(
-							catalogSchema,
 							referencedEntityBuilder,
 							referenceSchema.getReferencedEntityType(),
 							locale,
@@ -237,7 +234,6 @@ public class EntityFetchConverter extends RequireConverter {
 					referenceBuilder.addObjectField(
 						ReferenceDescriptor.GROUP_ENTITY,
 						referencedGroupEntityBuilder -> convert(
-							catalogSchema,
 							referencedGroupEntityBuilder,
 							referenceSchema.getReferencedGroupType(),
 							locale,

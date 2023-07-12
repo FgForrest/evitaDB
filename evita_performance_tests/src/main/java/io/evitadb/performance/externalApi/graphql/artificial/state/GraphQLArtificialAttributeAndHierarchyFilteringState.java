@@ -24,7 +24,7 @@
 package io.evitadb.performance.externalApi.graphql.artificial.state;
 
 import io.evitadb.performance.externalApi.graphql.artificial.GraphQLArtificialEntitiesBenchmark;
-import io.evitadb.performance.generators.GraphQLRandomQueryGenerator;
+import io.evitadb.performance.generators.RandomQueryGenerator;
 import io.evitadb.test.Entities;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Setup;
@@ -36,18 +36,19 @@ import org.openjdk.jmh.infra.Blackhole;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class GraphQLArtificialAttributeAndHierarchyFilteringState extends AbstractGraphQLArtificialState implements GraphQLRandomQueryGenerator {
+public class GraphQLArtificialAttributeAndHierarchyFilteringState extends AbstractGraphQLArtificialState implements RandomQueryGenerator {
 
 	/**
 	 * Prepares artificial product for the next operation that is measured in the benchmark.
 	 */
 	@Setup(Level.Invocation)
 	public void prepareCall(GraphQLArtificialAttributeBenchmarkState benchmarkState) {
-		this.requestBody = generateRandomHierarchyQuery(
-			generateRandomAttributeQuery(benchmarkState.getRandom(), benchmarkState.getProductSchema(), benchmarkState.getFilterableAttributes(), benchmarkState.getSortableAttributes()),
-			benchmarkState.getRandom(), benchmarkState.getCategoryIds(), Entities.CATEGORY
-		).toString();
+		setRequestBody(
+			benchmarkState,
+			generateRandomHierarchyQuery(
+				generateRandomAttributeQuery(benchmarkState.getRandom(), benchmarkState.getProductSchema(), benchmarkState.getFilterableAttributes(), benchmarkState.getSortableAttributes()),
+				benchmarkState.getRandom(), benchmarkState.getCategoryIds(), Entities.CATEGORY
+			)
+		);
 	}
-
-
 }

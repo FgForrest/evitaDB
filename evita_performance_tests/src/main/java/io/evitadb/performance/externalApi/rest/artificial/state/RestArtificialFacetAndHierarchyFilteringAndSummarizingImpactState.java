@@ -25,7 +25,7 @@ package io.evitadb.performance.externalApi.rest.artificial.state;
 
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.performance.externalApi.rest.artificial.RestArtificialEntitiesBenchmark;
-import io.evitadb.performance.generators.RestRandomQueryGenerator;
+import io.evitadb.performance.generators.RandomQueryGenerator;
 import io.evitadb.test.Entities;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Setup;
@@ -37,23 +37,23 @@ import org.openjdk.jmh.infra.Blackhole;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class RestArtificialFacetAndHierarchyFilteringAndSummarizingImpactState extends AbstractRestArtificialState implements RestRandomQueryGenerator {
+public class RestArtificialFacetAndHierarchyFilteringAndSummarizingImpactState extends AbstractRestArtificialState implements RandomQueryGenerator {
 
 	/**
 	 * Prepares artificial product for the next operation that is measured in the benchmark.
 	 */
 	@Setup(Level.Invocation)
 	public void prepareCall(RestArtificialFacetBenchmarkState benchmarkState) {
-		final RestQuery restQuery = generateRandomHierarchyQuery(
-			generateRandomFacetSummaryQuery(
-				generateRandomFacetQuery(benchmarkState.getRandom(), benchmarkState.getProductSchema(), benchmarkState.getFacetedReferences()),
-				benchmarkState.getRandom(), benchmarkState.getProductSchema(), FacetStatisticsDepth.IMPACT, benchmarkState.getFacetGroupsIndex()
-			),
-			benchmarkState.getRandom(), benchmarkState.getCategoryIds(), Entities.CATEGORY
+		setRequest(
+			benchmarkState,
+			generateRandomHierarchyQuery(
+				generateRandomFacetSummaryQuery(
+					generateRandomFacetQuery(benchmarkState.getRandom(), benchmarkState.getProductSchema(), benchmarkState.getFacetedReferences()),
+					benchmarkState.getRandom(), benchmarkState.getProductSchema(), FacetStatisticsDepth.IMPACT, benchmarkState.getFacetGroupsIndex()
+				),
+				benchmarkState.getRandom(), benchmarkState.getCategoryIds(), Entities.CATEGORY
+			)
 		);
-
-		this.resource = restQuery.resource();
-		this.requestBody = restQuery.bodyToString();
 	}
 
 }
