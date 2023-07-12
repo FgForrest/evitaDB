@@ -201,8 +201,7 @@ public class GraphQLHandler implements HttpHandler {
         if (bodyContentType == null) {
             return false;
         }
-        return bodyContentType.startsWith(GraphQLMimeTypes.APPLICATION_GRAPHQL_JSON) ||
-                bodyContentType.startsWith(MimeTypes.APPLICATION_JSON);
+        return bodyContentType.startsWith(MimeTypes.APPLICATION_JSON);
     }
 
     private static boolean acceptsSupportedContentType(@Nonnull HttpServerExchange exchange) {
@@ -211,7 +210,7 @@ public class GraphQLHandler implements HttpHandler {
             return true;
         }
         return acceptHeaders.anyMatch(hv -> hv.equals(MimeTypes.ALL) ||
-                        hv.equals(GraphQLMimeTypes.APPLICATION_GRAPHQL_JSON) ||
+                        hv.equals(GraphQLMimeTypes.APPLICATION_GRAPHQL_RESPONSE_JSON) ||
                         hv.equals(MimeTypes.APPLICATION_JSON));
     }
 
@@ -223,12 +222,12 @@ public class GraphQLHandler implements HttpHandler {
     private static String getPreferredResponseContentType(@Nonnull HttpServerExchange exchange) {
         final Stream<String> acceptHeaders = parseAcceptHeaders(exchange);
         if (acceptHeaders == null) {
-            return GraphQLMimeTypes.APPLICATION_GRAPHQL_JSON;
+            return GraphQLMimeTypes.APPLICATION_GRAPHQL_RESPONSE_JSON;
         }
 
         if (acceptHeaders.anyMatch(ah -> ah.equals(MimeTypes.ALL) ||
-                ah.equals(GraphQLMimeTypes.APPLICATION_GRAPHQL_JSON))) {
-            return GraphQLMimeTypes.APPLICATION_GRAPHQL_JSON;
+                ah.equals(GraphQLMimeTypes.APPLICATION_GRAPHQL_RESPONSE_JSON))) {
+            return GraphQLMimeTypes.APPLICATION_GRAPHQL_RESPONSE_JSON;
         } else {
             return MimeTypes.APPLICATION_JSON;
         }
