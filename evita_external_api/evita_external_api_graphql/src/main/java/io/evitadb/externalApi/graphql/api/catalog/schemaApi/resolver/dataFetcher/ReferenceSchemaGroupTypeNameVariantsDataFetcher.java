@@ -44,7 +44,7 @@ import java.util.function.Function;
  */
 public class ReferenceSchemaGroupTypeNameVariantsDataFetcher extends ReadDataFetcher<Map<NamingConvention, String>> {
 
-	public ReferenceSchemaGroupTypeNameVariantsDataFetcher(@Nonnull Executor executor) {
+	public ReferenceSchemaGroupTypeNameVariantsDataFetcher(@Nullable Executor executor) {
 		super(executor);
 	}
 

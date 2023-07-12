@@ -1,5 +1,5 @@
 <h1 align="center" style="border-bottom: none">
-    <a href="https://evitadb.io" target="_blank"><img src="https://raw.githubusercontent.com/FgForrest/evitaDB/dev/docs/assets/img/evita.png"/></a><br>evitaDB
+    <a href="https://evitadb.io" target="_blank"><img src="https://raw.githubusercontent.com/FgForrest/evitaDB/dev/documentation/assets/img/evita.png"/></a><br>evitaDB
 </h1>
 
 <p align="center">Visit <a href="https://evitadb.io" target="_blank">evitadb.io</a> for the full documentation,
@@ -29,6 +29,8 @@ examples and guides.</p>
   <a href="https://github.com/FgForrest/evitaDB/" title="GitHub"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/github.png" width="50px"/></a>
   &nbsp;
   <a href="https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x9d1149b0c74e939dd766c7a93de3cdccf660797f" title="PGP public key"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/fingerprint-scan.png" width="50px"/></a>
+  &nbsp;
+  <a href="https://jmh.morethan.io/?gist=abc12461f21d1cc66a541417edcb6ba7&topBar=Evita%20DB%20Latest%20performance%20results" title="Latest performance results"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/statistics.png" width="50px"/></a>
 </p>
 
 evitaDB is a specialized database with easy-to-use API for e-commerce systems. It is a low-latency NoSQL in-memory engine 
@@ -41,13 +43,13 @@ NoSQL database solutions on the same hardware specification. evitaDB should not 
 ## Why should you consider using evitaDB instead of Elasticsearch, MongoDB or relational database?
 
 - evitaDB is a database specialized for e-commerce tasks and has everything you need to implement an e-commerce catalog
-- evitaDB is [more performant](docs/performance/performance_comparison.md) than Elasticsearch or PostgreSQL on the same
+- evitaDB is [more performant](documentation/performance/performance_comparison.md) than Elasticsearch or PostgreSQL on the same
   HW sizing in typical e-commerce scenarios
 - evitaDB has a ready to use API from the day one:
 
-    - [GraphQL](docs/user/en/use/connectors/graphql.md) - targets rich JavaScript front-ends
-    - [REST](docs/user/en/use/connectors/rest.md) - targets server side applications
-    - [gRPC](docs/user/en/use/connectors/grpc.md) - targets fast inter-server communication used in microservices 
+    - [GraphQL](documentation/user/en/use/connectors/graphql.md) - targets rich JavaScript front-ends
+    - [REST](documentation/user/en/use/connectors/rest.md) - targets server side applications
+    - [gRPC](documentation/user/en/use/connectors/grpc.md) - targets fast inter-server communication used in microservices 
       architecture and is used for the evitaDB client drivers
 
 ## What's current status of evitaDB?
@@ -99,7 +101,7 @@ you might encounter, and we'll try to fix them as soon as possible.
 
 ## How this repository is organized
 
-- **docs**: research documents, documentation, specifications
+- **documentation**: research documents, documentation, specifications
 - **evita_api**: set of all supported data types in evitaDB, conversions to & from other types, common data structures, basic exception hierarchy
 - **evita_db**: Maven POM allowing to link all necessary libraries for embedded evitaDB usage scenario
 - **evita_engine**: implementation of the database engine

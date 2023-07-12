@@ -65,7 +65,7 @@ public interface CreateAttributeSchemaMutationDescriptor extends AttributeSchema
 			When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
 			having certain value of this attribute among other entities in the same collection.
 			""")
-		.type(nonNull(Boolean.class))
+		.type(nullable(Boolean.class))
 		.build();
 	PropertyDescriptor FILTERABLE = PropertyDescriptor.builder()
 		.name("filterable")
@@ -74,7 +74,7 @@ public interface CreateAttributeSchemaMutationDescriptor extends AttributeSchema
 			as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
 			(memory/disk) space in the form of index.
 			""")
-		.type(nonNull(Boolean.class))
+		.type(nullable(Boolean.class))
 		.build();
 	PropertyDescriptor SORTABLE = PropertyDescriptor.builder()
 		.name("sortable")
@@ -83,7 +83,7 @@ public interface CreateAttributeSchemaMutationDescriptor extends AttributeSchema
 			as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
 			(memory/disk) space in the form of index.
 			""")
-		.type(nonNull(Boolean.class))
+		.type(nullable(Boolean.class))
 		.build();
 	PropertyDescriptor LOCALIZED = PropertyDescriptor.builder()
 		.name("localized")
@@ -91,7 +91,7 @@ public interface CreateAttributeSchemaMutationDescriptor extends AttributeSchema
 			Localized attribute has to be ALWAYS used in connection with specific `locale`. In other
 			words - it cannot be stored unless associated locale is also provided.
 			""")
-		.type(nonNull(Boolean.class))
+		.type(nullable(Boolean.class))
 		.build();
 	PropertyDescriptor NULLABLE = PropertyDescriptor.builder()
 		.name("nullable")
@@ -99,7 +99,7 @@ public interface CreateAttributeSchemaMutationDescriptor extends AttributeSchema
 			When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
 			non-null checks upon upserting of the entity.
 			""")
-		.type(nonNull(Boolean.class))
+		.type(nullable(Boolean.class))
 		.build();
 	PropertyDescriptor TYPE = PropertyDescriptor.builder()
 		.name("type")
@@ -124,7 +124,7 @@ public interface CreateAttributeSchemaMutationDescriptor extends AttributeSchema
 			number must not ever exceed maximum limits of `Integer` type when scaling the number by the power
 			of ten using `indexedDecimalPlaces` as exponent.
 			""")
-		.type(nonNull(Integer.class))
+		.type(nullable(Integer.class))
 		.build();
 
 

@@ -1,0 +1,16 @@
+{
+  queryProduct(
+    filterBy: {
+      attributeCodeContains: "epix"
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+        }
+      }
+    }
+  }
+}

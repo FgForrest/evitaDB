@@ -1,0 +1,38 @@
+POST /rest/evita/product/query
+
+{
+  "filterBy" : {
+    "hierarchyCategoriesWithin" : {
+      "ofParent" : {
+        "attributeCodeEquals" : "true-wireless"
+      }
+    }
+  },
+  "require" : {
+    "hierarchyCategoriesOfReference" : {
+      "emptyHierarchicalEntityBehaviour" : "REMOVE_EMPTY",
+      "requirements" : [
+        {
+          "parents" : {
+            "outputName" : "parentAxis",
+            "entityFetch" : {
+              "attributeContent" : [
+                "code"
+              ]
+            },
+            "siblings" : { },
+            "requirements" : {
+              "statistics" : {
+                "statisticsBase" : "WITHOUT_USER_FILTER",
+                "statisticsType" : [
+                  "CHILDREN_COUNT",
+                  "QUERIED_ENTITY_COUNT"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

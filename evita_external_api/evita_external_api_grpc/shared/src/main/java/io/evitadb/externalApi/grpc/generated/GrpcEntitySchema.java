@@ -213,6 +213,19 @@ private static final long serialVersionUID = 0L;
             input.popLimit(oldLimit);
             break;
           }
+          case 122: {
+            if (!((mutable_bitField0_ & 0x00000040) != 0)) {
+              sortableAttributeCompounds_ = com.google.protobuf.MapField.newMapField(
+                  SortableAttributeCompoundsDefaultEntryHolder.defaultEntry);
+              mutable_bitField0_ |= 0x00000040;
+            }
+            com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema>
+            sortableAttributeCompounds__ = input.readMessage(
+                SortableAttributeCompoundsDefaultEntryHolder.defaultEntry.getParserForType(), extensionRegistry);
+            sortableAttributeCompounds_.getMutableMap().put(
+                sortableAttributeCompounds__.getKey(), sortableAttributeCompounds__.getValue());
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -257,6 +270,8 @@ private static final long serialVersionUID = 0L;
         return internalGetAssociatedData();
       case 13:
         return internalGetReferences();
+      case 15:
+        return internalGetSortableAttributeCompounds();
       default:
         throw new RuntimeException(
             "Invalid map field number: " + number);
@@ -282,7 +297,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       name_ = s;
@@ -298,7 +313,7 @@ private static final long serialVersionUID = 0L;
       getNameBytes() {
     java.lang.Object ref = name_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       name_ = b;
@@ -428,7 +443,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 9;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
       getLocalesOrBuilderList() {
     return locales_;
   }
@@ -468,7 +483,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 10;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> 
       getCurrenciesOrBuilderList() {
     return currencies_;
   }
@@ -501,7 +516,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchema_AttributesEntry_descriptor,
+                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchema_AttributesEntry_descriptor, 
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -582,7 +597,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcAssociatedDataSchema> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcAssociatedDataSchema>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchema_AssociatedDataEntry_descriptor,
+                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchema_AssociatedDataEntry_descriptor, 
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -663,7 +678,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchema_ReferencesEntry_descriptor,
+                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchema_ReferencesEntry_descriptor, 
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -796,6 +811,87 @@ private static final long serialVersionUID = 0L;
   }
   private int evolutionModeMemoizedSerializedSize;
 
+  public static final int SORTABLEATTRIBUTECOMPOUNDS_FIELD_NUMBER = 15;
+  private static final class SortableAttributeCompoundsDefaultEntryHolder {
+    static final com.google.protobuf.MapEntry<
+        java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema> defaultEntry =
+            com.google.protobuf.MapEntry
+            .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema>newDefaultInstance(
+                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchema_SortableAttributeCompoundsEntry_descriptor, 
+                com.google.protobuf.WireFormat.FieldType.STRING,
+                "",
+                com.google.protobuf.WireFormat.FieldType.MESSAGE,
+                io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema.getDefaultInstance());
+  }
+  private com.google.protobuf.MapField<
+      java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema> sortableAttributeCompounds_;
+  private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema>
+  internalGetSortableAttributeCompounds() {
+    if (sortableAttributeCompounds_ == null) {
+      return com.google.protobuf.MapField.emptyMapField(
+          SortableAttributeCompoundsDefaultEntryHolder.defaultEntry);
+    }
+    return sortableAttributeCompounds_;
+  }
+
+  public int getSortableAttributeCompoundsCount() {
+    return internalGetSortableAttributeCompounds().getMap().size();
+  }
+  /**
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 15;</code>
+   */
+
+  @java.lang.Override
+  public boolean containsSortableAttributeCompounds(
+      java.lang.String key) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    return internalGetSortableAttributeCompounds().getMap().containsKey(key);
+  }
+  /**
+   * Use {@link #getSortableAttributeCompoundsMap()} instead.
+   */
+  @java.lang.Override
+  @java.lang.Deprecated
+  public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema> getSortableAttributeCompounds() {
+    return getSortableAttributeCompoundsMap();
+  }
+  /**
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 15;</code>
+   */
+  @java.lang.Override
+
+  public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema> getSortableAttributeCompoundsMap() {
+    return internalGetSortableAttributeCompounds().getMap();
+  }
+  /**
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 15;</code>
+   */
+  @java.lang.Override
+
+  public io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema getSortableAttributeCompoundsOrDefault(
+      java.lang.String key,
+      io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaultValue) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema> map =
+        internalGetSortableAttributeCompounds().getMap();
+    return map.containsKey(key) ? map.get(key) : defaultValue;
+  }
+  /**
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 15;</code>
+   */
+  @java.lang.Override
+
+  public io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema getSortableAttributeCompoundsOrThrow(
+      java.lang.String key) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema> map =
+        internalGetSortableAttributeCompounds().getMap();
+    if (!map.containsKey(key)) {
+      throw new java.lang.IllegalArgumentException();
+    }
+    return map.get(key);
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -866,6 +962,12 @@ private static final long serialVersionUID = 0L;
     for (int i = 0; i < evolutionMode_.size(); i++) {
       output.writeEnumNoTag(evolutionMode_.get(i));
     }
+    com.google.protobuf.GeneratedMessageV3
+      .serializeStringMapTo(
+        output,
+        internalGetSortableAttributeCompounds(),
+        SortableAttributeCompoundsDefaultEntryHolder.defaultEntry,
+        15);
     unknownFields.writeTo(output);
   }
 
@@ -956,6 +1058,16 @@ private static final long serialVersionUID = 0L;
           .computeUInt32SizeNoTag(dataSize);
       }evolutionModeMemoizedSerializedSize = dataSize;
     }
+    for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema> entry
+         : internalGetSortableAttributeCompounds().getMap().entrySet()) {
+      com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema>
+      sortableAttributeCompounds__ = SortableAttributeCompoundsDefaultEntryHolder.defaultEntry.newBuilderForType()
+          .setKey(entry.getKey())
+          .setValue(entry.getValue())
+          .build();
+      size += com.google.protobuf.CodedOutputStream
+          .computeMessageSize(15, sortableAttributeCompounds__);
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -1004,6 +1116,8 @@ private static final long serialVersionUID = 0L;
     if (!internalGetReferences().equals(
         other.internalGetReferences())) return false;
     if (!evolutionMode_.equals(other.evolutionMode_)) return false;
+    if (!internalGetSortableAttributeCompounds().equals(
+        other.internalGetSortableAttributeCompounds())) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -1061,6 +1175,10 @@ private static final long serialVersionUID = 0L;
     if (getEvolutionModeCount() > 0) {
       hash = (37 * hash) + EVOLUTIONMODE_FIELD_NUMBER;
       hash = (53 * hash) + evolutionMode_.hashCode();
+    }
+    if (!internalGetSortableAttributeCompounds().getMap().isEmpty()) {
+      hash = (37 * hash) + SORTABLEATTRIBUTECOMPOUNDS_FIELD_NUMBER;
+      hash = (53 * hash) + internalGetSortableAttributeCompounds().hashCode();
     }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
@@ -1179,6 +1297,8 @@ private static final long serialVersionUID = 0L;
           return internalGetAssociatedData();
         case 13:
           return internalGetReferences();
+        case 15:
+          return internalGetSortableAttributeCompounds();
         default:
           throw new RuntimeException(
               "Invalid map field number: " + number);
@@ -1194,6 +1314,8 @@ private static final long serialVersionUID = 0L;
           return internalGetMutableAssociatedData();
         case 13:
           return internalGetMutableReferences();
+        case 15:
+          return internalGetMutableSortableAttributeCompounds();
         default:
           throw new RuntimeException(
               "Invalid map field number: " + number);
@@ -1268,6 +1390,7 @@ private static final long serialVersionUID = 0L;
       internalGetMutableReferences().clear();
       evolutionMode_ = java.util.Collections.emptyList();
       bitField0_ = (bitField0_ & ~0x00000020);
+      internalGetMutableSortableAttributeCompounds().clear();
       return this;
     }
 
@@ -1340,6 +1463,8 @@ private static final long serialVersionUID = 0L;
         bitField0_ = (bitField0_ & ~0x00000020);
       }
       result.evolutionMode_ = evolutionMode_;
+      result.sortableAttributeCompounds_ = internalGetSortableAttributeCompounds();
+      result.sortableAttributeCompounds_.makeImmutable();
       onBuilt();
       return result;
     }
@@ -1431,7 +1556,7 @@ private static final long serialVersionUID = 0L;
             localesBuilder_ = null;
             locales_ = other.locales_;
             bitField0_ = (bitField0_ & ~0x00000001);
-            localesBuilder_ =
+            localesBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getLocalesFieldBuilder() : null;
           } else {
@@ -1457,7 +1582,7 @@ private static final long serialVersionUID = 0L;
             currenciesBuilder_ = null;
             currencies_ = other.currencies_;
             bitField0_ = (bitField0_ & ~0x00000002);
-            currenciesBuilder_ =
+            currenciesBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getCurrenciesFieldBuilder() : null;
           } else {
@@ -1481,6 +1606,8 @@ private static final long serialVersionUID = 0L;
         }
         onChanged();
       }
+      internalGetMutableSortableAttributeCompounds().mergeFrom(
+          other.internalGetSortableAttributeCompounds());
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
       return this;
@@ -1536,7 +1663,7 @@ private static final long serialVersionUID = 0L;
         getNameBytes() {
       java.lang.Object ref = name_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         name_ = b;
@@ -1555,7 +1682,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-
+  
       name_ = value;
       onChanged();
       return this;
@@ -1565,7 +1692,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearName() {
-
+      
       name_ = getDefaultInstance().getName();
       onChanged();
       return this;
@@ -1581,7 +1708,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-
+      
       name_ = value;
       onChanged();
       return this;
@@ -1602,7 +1729,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setVersion(int value) {
-
+      
       version_ = value;
       onChanged();
       return this;
@@ -1612,7 +1739,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearVersion() {
-
+      
       version_ = 0;
       onChanged();
       return this;
@@ -1705,7 +1832,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue description = 3;</code>
      */
     public com.google.protobuf.StringValue.Builder getDescriptionBuilder() {
-
+      
       onChanged();
       return getDescriptionFieldBuilder().getBuilder();
     }
@@ -1724,7 +1851,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue description = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
         getDescriptionFieldBuilder() {
       if (descriptionBuilder_ == null) {
         descriptionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1824,7 +1951,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 4;</code>
      */
     public com.google.protobuf.StringValue.Builder getDeprecationNoticeBuilder() {
-
+      
       onChanged();
       return getDeprecationNoticeFieldBuilder().getBuilder();
     }
@@ -1843,7 +1970,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
         getDeprecationNoticeFieldBuilder() {
       if (deprecationNoticeBuilder_ == null) {
         deprecationNoticeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1871,7 +1998,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setWithGeneratedPrimaryKey(boolean value) {
-
+      
       withGeneratedPrimaryKey_ = value;
       onChanged();
       return this;
@@ -1881,7 +2008,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearWithGeneratedPrimaryKey() {
-
+      
       withGeneratedPrimaryKey_ = false;
       onChanged();
       return this;
@@ -1902,7 +2029,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setWithHierarchy(boolean value) {
-
+      
       withHierarchy_ = value;
       onChanged();
       return this;
@@ -1912,7 +2039,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearWithHierarchy() {
-
+      
       withHierarchy_ = false;
       onChanged();
       return this;
@@ -1933,7 +2060,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setWithPrice(boolean value) {
-
+      
       withPrice_ = value;
       onChanged();
       return this;
@@ -1943,7 +2070,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearWithPrice() {
-
+      
       withPrice_ = false;
       onChanged();
       return this;
@@ -1964,7 +2091,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setIndexedPricePlaces(int value) {
-
+      
       indexedPricePlaces_ = value;
       onChanged();
       return this;
@@ -1974,7 +2101,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearIndexedPricePlaces() {
-
+      
       indexedPricePlaces_ = 0;
       onChanged();
       return this;
@@ -2175,7 +2302,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 9;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
          getLocalesOrBuilderList() {
       if (localesBuilder_ != null) {
         return localesBuilder_.getMessageOrBuilderList();
@@ -2201,12 +2328,12 @@ private static final long serialVersionUID = 0L;
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 9;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder> 
          getLocalesBuilderList() {
       return getLocalesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
         getLocalesFieldBuilder() {
       if (localesBuilder_ == null) {
         localesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -2415,7 +2542,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 10;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> 
          getCurrenciesOrBuilderList() {
       if (currenciesBuilder_ != null) {
         return currenciesBuilder_.getMessageOrBuilderList();
@@ -2441,12 +2568,12 @@ private static final long serialVersionUID = 0L;
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 10;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder> 
          getCurrenciesBuilderList() {
       return getCurrenciesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> 
         getCurrenciesFieldBuilder() {
       if (currenciesBuilder_ == null) {
         currenciesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -2990,6 +3117,137 @@ private static final long serialVersionUID = 0L;
         evolutionMode_.add(value);
       }
       onChanged();
+      return this;
+    }
+
+    private com.google.protobuf.MapField<
+        java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema> sortableAttributeCompounds_;
+    private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema>
+    internalGetSortableAttributeCompounds() {
+      if (sortableAttributeCompounds_ == null) {
+        return com.google.protobuf.MapField.emptyMapField(
+            SortableAttributeCompoundsDefaultEntryHolder.defaultEntry);
+      }
+      return sortableAttributeCompounds_;
+    }
+    private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema>
+    internalGetMutableSortableAttributeCompounds() {
+      onChanged();;
+      if (sortableAttributeCompounds_ == null) {
+        sortableAttributeCompounds_ = com.google.protobuf.MapField.newMapField(
+            SortableAttributeCompoundsDefaultEntryHolder.defaultEntry);
+      }
+      if (!sortableAttributeCompounds_.isMutable()) {
+        sortableAttributeCompounds_ = sortableAttributeCompounds_.copy();
+      }
+      return sortableAttributeCompounds_;
+    }
+
+    public int getSortableAttributeCompoundsCount() {
+      return internalGetSortableAttributeCompounds().getMap().size();
+    }
+    /**
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 15;</code>
+     */
+
+    @java.lang.Override
+    public boolean containsSortableAttributeCompounds(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      return internalGetSortableAttributeCompounds().getMap().containsKey(key);
+    }
+    /**
+     * Use {@link #getSortableAttributeCompoundsMap()} instead.
+     */
+    @java.lang.Override
+    @java.lang.Deprecated
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema> getSortableAttributeCompounds() {
+      return getSortableAttributeCompoundsMap();
+    }
+    /**
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 15;</code>
+     */
+    @java.lang.Override
+
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema> getSortableAttributeCompoundsMap() {
+      return internalGetSortableAttributeCompounds().getMap();
+    }
+    /**
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 15;</code>
+     */
+    @java.lang.Override
+
+    public io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema getSortableAttributeCompoundsOrDefault(
+        java.lang.String key,
+        io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaultValue) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema> map =
+          internalGetSortableAttributeCompounds().getMap();
+      return map.containsKey(key) ? map.get(key) : defaultValue;
+    }
+    /**
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 15;</code>
+     */
+    @java.lang.Override
+
+    public io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema getSortableAttributeCompoundsOrThrow(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema> map =
+          internalGetSortableAttributeCompounds().getMap();
+      if (!map.containsKey(key)) {
+        throw new java.lang.IllegalArgumentException();
+      }
+      return map.get(key);
+    }
+
+    public Builder clearSortableAttributeCompounds() {
+      internalGetMutableSortableAttributeCompounds().getMutableMap()
+          .clear();
+      return this;
+    }
+    /**
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 15;</code>
+     */
+
+    public Builder removeSortableAttributeCompounds(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      internalGetMutableSortableAttributeCompounds().getMutableMap()
+          .remove(key);
+      return this;
+    }
+    /**
+     * Use alternate mutation accessors instead.
+     */
+    @java.lang.Deprecated
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema>
+    getMutableSortableAttributeCompounds() {
+      return internalGetMutableSortableAttributeCompounds().getMutableMap();
+    }
+    /**
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 15;</code>
+     */
+    public Builder putSortableAttributeCompounds(
+        java.lang.String key,
+        io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema value) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      if (value == null) {
+  throw new NullPointerException("map value");
+}
+
+      internalGetMutableSortableAttributeCompounds().getMutableMap()
+          .put(key, value);
+      return this;
+    }
+    /**
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 15;</code>
+     */
+
+    public Builder putAllSortableAttributeCompounds(
+        java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema> values) {
+      internalGetMutableSortableAttributeCompounds().getMutableMap()
+          .putAll(values);
       return this;
     }
     @java.lang.Override

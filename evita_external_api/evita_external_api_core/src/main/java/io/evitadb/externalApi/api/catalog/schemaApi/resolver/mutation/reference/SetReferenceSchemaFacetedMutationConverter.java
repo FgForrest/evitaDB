@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
@@ -53,10 +53,10 @@ public class SetReferenceSchemaFacetedMutationConverter extends ReferenceSchemaM
 
 	@Nonnull
 	@Override
-	protected SetReferenceSchemaFacetedMutation convert(@Nonnull InputMutation inputMutation) {
+	protected SetReferenceSchemaFacetedMutation convert(@Nonnull Input input) {
 		return new SetReferenceSchemaFacetedMutation(
-			inputMutation.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
-			inputMutation.getRequiredField(SetReferenceSchemaFacetedMutationDescriptor.FACETED)
+			input.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
+			input.getRequiredField(SetReferenceSchemaFacetedMutationDescriptor.FACETED)
 
 		);
 	}

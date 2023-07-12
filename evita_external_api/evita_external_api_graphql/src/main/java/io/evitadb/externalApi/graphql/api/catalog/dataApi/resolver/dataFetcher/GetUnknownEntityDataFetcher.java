@@ -39,18 +39,22 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryHeaderArgumentsJoinType;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.UnknownEntityHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
+import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -97,7 +101,7 @@ public class GetUnknownEntityDataFetcher extends ReadDataFetcher<DataFetcherResu
 
     @Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 
-    public GetUnknownEntityDataFetcher(@Nonnull Executor executor,
+    public GetUnknownEntityDataFetcher(@Nullable Executor executor,
                                        @Nonnull CatalogSchemaContract catalogSchema,
                                        @Nonnull Set<EntitySchemaContract> allEntitySchemas) {
         super(executor);
@@ -163,11 +167,13 @@ public class GetUnknownEntityDataFetcher extends ReadDataFetcher<DataFetcherResu
             filterConstraints.add(attributeEquals(attribute.getKey().getName(), (A) attribute.getValue()));
         }
 
-        return filterBy(
-            and(
-                filterConstraints.toArray(FilterConstraint[]::new)
-            )
-        );
+        if (arguments.join() == QueryHeaderArgumentsJoinType.AND) {
+            return filterBy(and(filterConstraints.toArray(FilterConstraint[]::new)));
+        } else if (arguments.join() == QueryHeaderArgumentsJoinType.OR) {
+            return filterBy(or(filterConstraints.toArray(FilterConstraint[]::new)));
+        } else {
+            throw new GraphQLInternalError("Unsupported join type `" + arguments.join() + "`.");
+        }
     }
 
     @Nonnull
@@ -190,7 +196,8 @@ public class GetUnknownEntityDataFetcher extends ReadDataFetcher<DataFetcherResu
     /**
      * Holds parsed GraphQL query arguments relevant for single entity query
      */
-    private record Arguments(@Nonnull Map<GlobalAttributeSchemaContract, Object> globallyUniqueAttributes) {
+    private record Arguments(@Nonnull QueryHeaderArgumentsJoinType join,
+                             @Nonnull Map<GlobalAttributeSchemaContract, Object> globallyUniqueAttributes) {
 
         private static Arguments from(@Nonnull DataFetchingEnvironment environment, @Nonnull CatalogSchemaContract catalogSchema) {
             final HashMap<String, Object> arguments = new HashMap<>(environment.getArguments());
@@ -203,7 +210,9 @@ public class GetUnknownEntityDataFetcher extends ReadDataFetcher<DataFetcherResu
                 throw new GraphQLInvalidArgumentException("Missing globally unique attribute to identify entity.");
             }
 
-            return new Arguments(globallyUniqueAttributes);
+            final QueryHeaderArgumentsJoinType join = environment.getArgument(UnknownEntityHeaderDescriptor.JOIN.name());
+
+            return new Arguments(join, globallyUniqueAttributes);
         }
     }
 

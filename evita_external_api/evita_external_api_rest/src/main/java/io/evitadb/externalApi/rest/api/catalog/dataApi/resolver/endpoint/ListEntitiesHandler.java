@@ -110,7 +110,7 @@ public class ListEntitiesHandler extends RestHandler<CollectionRestHandlingConte
 	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
 		final Query query = resolveQuery(exchange);
 
-		log.debug("Generated evitaDB query for entity list of type `" + restApiHandlingContext.getEntitySchema() + "` is `" + query + "`.");
+		log.debug("Generated evitaDB query for entity list of type `{}` is `{}`.", restApiHandlingContext.getEntitySchema(), query);
 
 		final List<EntityClassifier> entities = restApiHandlingContext.queryCatalog(session ->
 			session.queryList(query, EntityClassifier.class));
@@ -163,13 +163,11 @@ public class ListEntitiesHandler extends RestHandler<CollectionRestHandlingConte
 			if (filterBy != null) {
 				final EntityLocaleEquals newLocaleConstraint = entityLocaleEquals(locale);
 				return filterBy(
-					and(
 						combineConstraints(
-							((And)filterBy.getChildren()[0]).getChildren(),
+							filterBy.getChildren(),
 							newLocaleConstraint,
 							FilterConstraint.class
 						)
-					)
 				);
 			} else {
 				return filterBy(

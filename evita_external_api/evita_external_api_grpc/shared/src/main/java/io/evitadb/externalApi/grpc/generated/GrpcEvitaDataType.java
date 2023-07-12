@@ -450,7 +450,7 @@ public enum GrpcEvitaDataType
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(14);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(15);
   }
 
   private static final GrpcEvitaDataType[] VALUES = values();

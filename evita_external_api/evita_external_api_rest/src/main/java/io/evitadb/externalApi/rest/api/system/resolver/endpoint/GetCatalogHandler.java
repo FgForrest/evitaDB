@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 
+import io.evitadb.externalApi.api.ExternalApiNamingConventions;
 import io.evitadb.externalApi.rest.api.system.model.CatalogsHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.system.resolver.serializer.CatalogJsonSerializer;
 import io.evitadb.externalApi.rest.io.RestHandler;
@@ -64,7 +65,7 @@ public class GetCatalogHandler extends RestHandler<SystemRestHandlingContext> {
 	protected Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
 		final Map<String, Object> parameters = getParametersFromRequest(exchange);
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
-		return restApiHandlingContext.getCatalog(catalogName)
+		return restApiHandlingContext.getCatalog(catalogName, ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION)
 			.map(catalogJsonSerializer::serialize);
 	}
 }

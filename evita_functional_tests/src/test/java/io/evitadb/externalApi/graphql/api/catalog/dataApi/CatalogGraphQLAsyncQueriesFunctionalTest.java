@@ -41,6 +41,11 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
@@ -131,6 +136,87 @@ public class CatalogGraphQLAsyncQueriesFunctionalTest extends CatalogGraphQLData
 			final QueryExecution previousQueryExecution = queryExecutions.get(i - 1);
 			final QueryExecution currentQueryExecution = queryExecutions.get(i);
 			assertTrue(previousQueryExecution.end() > currentQueryExecution.start(), "Execution " + i + " doesn't overlap previous one.");
+		}
+	}
+
+	@SneakyThrows
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should correctly handle large amount of parallel queries")
+	// todo lho
+	@Disabled
+	void shouldCorrectlyHandleLargeAmountOfParallelQueries(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final int numberOfThreads = 10;
+		final int iterations = 100;
+		final ExecutorService service = Executors.newFixedThreadPool(numberOfThreads);
+		final CountDownLatch latch = new CountDownLatch(numberOfThreads);
+
+		final AtomicReference<Exception> thrownException = new AtomicReference<>();
+		for (int i = 0; i < numberOfThreads; i++) {
+			service.execute(() -> {
+				try {
+					for (int j = 0; j < iterations; j++) {
+						final String singleQueryTemplate = """
+							product%d: queryProduct(
+								filterBy: {
+									entityPrimaryKeyInSet: %d
+								}
+							) {
+								recordPage {
+									data {
+										primaryKey
+										attributes(locale: cs_CZ) {
+											code
+											name
+										}
+									}
+								}
+								extraResults {
+									queryTelemetry
+								}
+							}
+						""";
+
+						final StringBuilder queryBuilder = new StringBuilder("query {\n");
+						final var expectedBody = createHashMap(originalProductEntities.size());
+						originalProductEntities
+							.stream()
+							.limit(100)
+							.sorted(Comparator.comparing(EntityContract::getPrimaryKey))
+							.forEach(product -> {
+								queryBuilder
+									.append(String.format(
+										singleQueryTemplate,
+										product.getPrimaryKey(),
+										product.getPrimaryKey()))
+									.append("\n");
+								expectedBody.put(
+									"product" + product.getPrimaryKey(),
+									map()
+										.e(EntityDescriptor.PRIMARY_KEY.name(), product.getPrimaryKey())
+										.build()
+								);
+							});
+						queryBuilder.append("}");
+
+						tester.test(TEST_CATALOG)
+							.document(queryBuilder.toString())
+							.executeAndThen()
+							.statusCode(200)
+							.body(ERRORS_PATH, nullValue());
+					}
+					latch.countDown();
+				} catch (Exception ex) {
+					thrownException.set(ex);
+					latch.countDown();
+				}
+			});
+		}
+
+		assertTrue(latch.await(45, TimeUnit.SECONDS), "Timeouted!");
+
+		if (thrownException.get() != null) {
+			throw thrownException.get();
 		}
 	}
 

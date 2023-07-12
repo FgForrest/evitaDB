@@ -574,7 +574,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 
 		final var expectedBody = createBasicPageResponse(
 			List.of(product),
-			entity -> createEntityWithReferencedParentsDto(entity,  Entities.CATEGORY, false)
+			entity -> createEntityWithReferencedParentsDto(entity,  Entities.CATEGORY, false, new String[0])
 		);
 
 		tester.test(TEST_CATALOG)
@@ -661,7 +661,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 
 		final var expectedBody = createBasicPageResponse(
 			List.of(product),
-			entity -> createEntityWithReferencedParentsDto(entity,  Entities.CATEGORY, true)
+			entity -> createEntityWithReferencedParentsDto(entity,  Entities.CATEGORY, true, new String[0])
 		);
 
 		tester.test(TEST_CATALOG)
@@ -750,7 +750,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 
 		final var expectedBody = createBasicPageResponse(
 			List.of(product),
-			entity -> createEntityWithReferencedParentsDto(entity,  Entities.CATEGORY, false)
+			entity -> createEntityWithReferencedParentsDto(entity,  Entities.CATEGORY, false, new String[0])
 		);
 
 		tester.test(TEST_CATALOG)
@@ -1020,10 +1020,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.map(entity -> map()
 				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 				.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-				.e(EntityDescriptor.LOCALES.name(), new ArrayList<>(0))
 				.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-				.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
-				.e(Entities.BRAND.toLowerCase(), createReferenceDto(entity, Entities.BRAND, true, true))
+				.e(Entities.BRAND.toLowerCase(), createReferenceDto(entity, Entities.BRAND, true, true, new String[0]))
 				.build()
 			)
 			.toList();
@@ -1066,10 +1064,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.map(entity -> map()
 				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 				.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-				.e(EntityDescriptor.LOCALES.name(), new ArrayList<>(0))
 				.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-				.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
-				.e(Entities.STORE.toLowerCase(), createReferencesDto(entity, Entities.STORE, true, true))
+				.e(Entities.STORE.toLowerCase(), createReferencesDto(entity, Entities.STORE, true, true, new String[0]))
 				.build()
 			)
 			.toList();
@@ -1161,8 +1157,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 					.e(EntityDescriptor.LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag()))
 					.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-					.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
-					.e(Entities.STORE.toLowerCase(), createReferencesDto(references, false, false))
+					.e(Entities.STORE.toLowerCase(), createReferencesDto(references, false, false, new String[0]))
 					.build();
 			})
 			.toList();
@@ -1522,7 +1517,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					"    }," +
 					"  \"attributeHistogram\": {" +
 					"     \"requestedBucketCount\": 20," +
-					"     \"attributeName\": [\"" + ATTRIBUTE_QUANTITY + "\"]" +
+					"     \"attributeNames\": [\"" + ATTRIBUTE_QUANTITY + "\"]" +
 					"    }" +
 					"  }" +
 					"}",
@@ -1552,7 +1547,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					"     \"size\": %d" +
 					"    }," +
 					"  \"attributeHistogram\": {" +
-					"     \"attributeName\": [\"" + ATTRIBUTE_QUANTITY + "\"]" +
+					"     \"attributeNames\": [\"" + ATTRIBUTE_QUANTITY + "\"]" +
 					"    }" +
 					"  }" +
 					"}",
@@ -2612,7 +2607,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		final PriceHistogram priceHistogram = response.getExtraResult(PriceHistogram.class);
 
 		return map()
+			.e(HistogramDescriptor.MIN.name(), priceHistogram.getMin().toString())
 			.e(HistogramDescriptor.MAX.name(), priceHistogram.getMax().toString())
+			.e(HistogramDescriptor.OVERALL_COUNT.name(), priceHistogram.getOverallCount())
 			.e(HistogramDescriptor.BUCKETS.name(), Arrays.stream(priceHistogram.getBuckets())
 				.map(bucket -> map()
 					.e(BucketDescriptor.INDEX.name(), bucket.getIndex())
@@ -2865,9 +2862,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 								.e(FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
 									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
 									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
-									.e(EntityDescriptor.LOCALES.name(), new ArrayList<>())
 									.e(EntityDescriptor.ALL_LOCALES.name(), Arrays.asList(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-									.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 									.e(EntityDescriptor.ATTRIBUTES.name(), map()
 										.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
 											.e(ATTRIBUTE_CODE, ((SealedEntity) facetStatistics.getFacetEntity()).getAttribute(ATTRIBUTE_CODE))

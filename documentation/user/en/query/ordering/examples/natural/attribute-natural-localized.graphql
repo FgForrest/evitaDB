@@ -1,0 +1,19 @@
+{
+  queryProduct(
+    filterBy: {
+      entityLocaleEquals: cs
+    },
+    orderBy: {
+      attributeNameNatural: ASC
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          name
+        }
+      }
+    }
+  }
+}

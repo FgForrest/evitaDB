@@ -54,6 +54,7 @@ import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.maintenance.SessionKiller;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.scheduling.RejectingExecutor;
 import io.evitadb.core.scheduling.Scheduler;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
@@ -67,7 +68,6 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.openhft.hashing.LongHashFunction;
 import org.jboss.threads.EnhancedQueueExecutor;
-import org.jboss.threads.JBossExecutors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -171,15 +171,22 @@ public final class Evita implements EvitaContract {
 
 	public Evita(@Nonnull EvitaConfiguration configuration) {
 		this.configuration = configuration;
+		final RejectingExecutor handoffExecutor = new RejectingExecutor();
 		this.executor = new EnhancedQueueExecutor.Builder()
 			.setCorePoolSize(configuration.server().coreThreadCount())
 			.setMaximumPoolSize(configuration.server().maxThreadCount())
 			.setExceptionHandler((t, e) -> log.error("Uncaught error in thread `" + t.getName() + "`: " + e.getMessage(), e))
-			.setHandoffExecutor(JBossExecutors.rejectingExecutor())
+			.setHandoffExecutor(handoffExecutor)
 			.setThreadFactory(new EvitaThreadFactory(configuration.server().threadPriority()))
 			.setMaximumQueueSize(configuration.server().queueSize())
 			.setRegisterMBean(false)
 			.build();
+		// TODO JNO - temporary debugging
+		handoffExecutor.setAdditionalLogger(
+			() -> "\n" + Arrays.stream(this.executor.getRunningThreads())
+				.map(it -> Arrays.stream(it.getStackTrace()).map(StackTraceElement::toString).collect(Collectors.joining("\n")))
+				.collect(Collectors.joining("\n\n"))
+		);
 		this.executor.prestartAllCoreThreads();
 		this.scheduler = new Scheduler(executor);
 		this.sessionKiller = of(configuration.server().closeSessionsAfterSecondsOfInactivity())

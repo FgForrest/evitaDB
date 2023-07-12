@@ -24,6 +24,11 @@ enum GrpcOrderDirection {
   DESC = 1;
 }
 
+enum GrpcOrderBehaviour {
+    NULLS_FIRST = 0;
+    NULLS_LAST = 1;
+}
+
 enum GrpcAttributeSpecialValue {
   NULL = 0;
   NOT_NULL = 1;

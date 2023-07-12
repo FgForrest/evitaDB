@@ -27,6 +27,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.ConstraintLeaf;
 import io.evitadb.api.query.ConstraintVisitor;
+import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.Query;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ByteNumberRange;
@@ -316,6 +317,9 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 		final StringBuilder argumentString = new StringBuilder();
 		for (int i = 0; i < arguments.length; i++) {
 			final Serializable argument = arguments[i];
+			if (constraint instanceof ConstraintWithSuffix constraintWithSuffix && constraintWithSuffix.isArgumentImplicitForSuffix(argument)) {
+				continue;
+			}
 			argumentString.append(formatValue(argument));
 			if (i + 1 < arguments.length) {
 				argumentString.append(", ");

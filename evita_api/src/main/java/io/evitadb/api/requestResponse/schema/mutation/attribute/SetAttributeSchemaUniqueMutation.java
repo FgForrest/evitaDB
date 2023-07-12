@@ -168,7 +168,7 @@ public class SetAttributeSchemaUniqueMutation
 	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
 		Assert.isTrue(
-			referenceSchema.isFilterable(),
+			referenceSchema.isIndexed(),
 			() -> new InvalidSchemaMutationException(
 				"The reference `" + name + "` is in entity `" + entitySchema.getName() + "` is not indexed! " +
 					"Non-indexed references must not contain unique attribute!"

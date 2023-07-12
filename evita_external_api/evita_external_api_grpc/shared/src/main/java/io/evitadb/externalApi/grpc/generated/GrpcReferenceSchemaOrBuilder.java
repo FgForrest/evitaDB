@@ -167,4 +167,38 @@ public interface GrpcReferenceSchemaOrBuilder extends
 
   io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema getAttributesOrThrow(
       java.lang.String key);
+
+  /**
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 12;</code>
+   */
+  int getSortableAttributeCompoundsCount();
+  /**
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 12;</code>
+   */
+  boolean containsSortableAttributeCompounds(
+      java.lang.String key);
+  /**
+   * Use {@link #getSortableAttributeCompoundsMap()} instead.
+   */
+  @java.lang.Deprecated
+  java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema>
+  getSortableAttributeCompounds();
+  /**
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 12;</code>
+   */
+  java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema>
+  getSortableAttributeCompoundsMap();
+  /**
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 12;</code>
+   */
+
+  io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema getSortableAttributeCompoundsOrDefault(
+      java.lang.String key,
+      io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaultValue);
+  /**
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 12;</code>
+   */
+
+  io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema getSortableAttributeCompoundsOrThrow(
+      java.lang.String key);
 }

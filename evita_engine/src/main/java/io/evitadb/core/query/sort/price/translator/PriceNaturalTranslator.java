@@ -39,6 +39,7 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
+import java.util.stream.Stream;
 
 /**
  * This implementation of {@link OrderingConstraintTranslator} converts {@link PriceNatural} to {@link Sorter}.
@@ -49,7 +50,7 @@ public class PriceNaturalTranslator implements OrderingConstraintTranslator<Pric
 
 	@Nonnull
 	@Override
-	public Sorter createSorter(@Nonnull PriceNatural priceNatural, @Nonnull OrderByVisitor orderByVisitor) {
+	public Stream<Sorter> createSorter(@Nonnull PriceNatural priceNatural, @Nonnull OrderByVisitor orderByVisitor) {
 		if (orderByVisitor.isEntityTypeKnown()) {
 			final EntitySchemaContract schema = orderByVisitor.getSchema();
 			Assert.isTrue(
@@ -77,13 +78,8 @@ public class PriceNaturalTranslator implements OrderingConstraintTranslator<Pric
 			// otherwise, we cannot sort the entities by price
 			thisSorter = NoSorter.INSTANCE;
 		}
-		// if there was defined primary sorter, append this sorter after it
-		final Sorter lastUsedSorter = orderByVisitor.getLastUsedSorter();
-		if (lastUsedSorter == null) {
-			return thisSorter;
-		} else {
-			return lastUsedSorter.andThen(thisSorter);
-		}
+
+		return Stream.of(thisSorter);
 	}
 
 }

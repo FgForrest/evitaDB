@@ -178,7 +178,9 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 	@Nonnull
 	protected ArrayList<Map<String, Object>> createPricesDto(@Nonnull SealedEntity entity) {
 		final ArrayList<Map<String, Object>> prices = new ArrayList<>();
-		entity.getPrices().stream()
+		entity.getPrices()
+			.stream()
+			.sorted(Comparator.comparing(PriceContract::getPriceKey))
 			.forEach(price -> {
 					prices.add(map()
 						.e(PriceDescriptor.PRICE_ID.name(), price.getPriceId())
@@ -267,7 +269,6 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 			.e(EntityDescriptor.LOCALES.name(), entityLocales)
 			.e(EntityDescriptor.ALL_LOCALES.name(), entity.getAllLocales().stream().map(Locale::toLanguageTag).toList())
-			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 			.e(EntityDescriptor.ASSOCIATED_DATA.name(), associatedData)
 			.build();
 	}
@@ -280,10 +281,11 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 	protected List<Map<String, Object>> createReferencesDto(@Nonnull SealedEntity entity,
 	                                                        @Nonnull String entityName,
 															boolean withReferencedEntityBody,
-	                                                        boolean withLocales) {
+	                                                        boolean withLocales,
+	                                                        @Nullable String[] referenceAttributes) {
 		final Collection<ReferenceContract> referenceContracts = entity.getReferences(entityName);
 		return referenceContracts.stream()
-			.map(reference -> createSingleReferenceDto(reference, withReferencedEntityBody, withLocales).build())
+			.map(reference -> createSingleReferenceDto(reference, withReferencedEntityBody, withLocales, referenceAttributes).build())
 			.toList();
 	}
 
@@ -294,9 +296,10 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 	@Nonnull
 	protected List<Map<String, Object>> createReferencesDto(@Nonnull List<ReferenceContract> referenceContracts,
 	                                                        boolean withReferencedEntityBody,
-	                                                        boolean withLocales) {
+	                                                        boolean withLocales,
+	                                                        @Nullable String[] referenceAttributes) {
 		return referenceContracts.stream()
-			.map(reference -> createSingleReferenceDto(reference, withReferencedEntityBody, withLocales).build())
+			.map(reference -> createSingleReferenceDto(reference, withReferencedEntityBody, withLocales, referenceAttributes).build())
 			.toList();
 	}
 
@@ -306,13 +309,14 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 	 */
 	@Nonnull
 	protected MapBuilder createReferenceDto(@Nonnull SealedEntity entity,
-	                                                 @Nonnull String entityName,
-	                                                 boolean withReferencedEntityBody,
-	                                                 boolean withLocales) {
+	                                        @Nonnull String entityName,
+	                                        boolean withReferencedEntityBody,
+	                                        boolean withLocales,
+	                                        @Nullable String[] referenceAttributes) {
 		final Collection<ReferenceContract> referenceContracts = entity.getReferences(entityName);
 		final ReferenceContract reference = referenceContracts.stream().findFirst().orElseThrow();
 
-		return createSingleReferenceDto(reference, withReferencedEntityBody, withLocales);
+		return createSingleReferenceDto(reference, withReferencedEntityBody, withLocales, referenceAttributes);
 	}
 
 	protected Map<String, ?> createEntityAttributes(@Nonnull EntityContract entity, boolean distinguishLocalized, @Nullable Locale locale) {
@@ -366,12 +370,16 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 
 	protected MapBuilder createSingleReferenceDto(@Nonnull ReferenceContract reference,
 	                                              boolean withReferencedEntityBody,
-	                                              boolean withLocales) {
+	                                              boolean withLocales,
+	                                              @Nullable String[] referenceAttributes) {
 
 
 		final MapBuilder referenceBuilder = map()
-			.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), reference.getReferencedPrimaryKey())
-			.e(ReferenceDescriptor.ATTRIBUTES.name(), convertAttributesIntoMap(reference));
+			.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), reference.getReferencedPrimaryKey());
+
+		if (referenceAttributes == null || referenceAttributes.length > 0) {
+			referenceBuilder.e(ReferenceDescriptor.ATTRIBUTES.name(), convertAttributesIntoMap(reference, referenceAttributes));
+		}
 
 		if (withReferencedEntityBody) {
 			final MapBuilder referenceAttributesBuilder = map()
@@ -379,9 +387,7 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 				.e(EntityDescriptor.TYPE.name(), reference.getReferencedEntityType());
 			if (withLocales) {
 				referenceAttributesBuilder
-					.e(EntityDescriptor.LOCALES.name(), List.of())
-					.e(EntityDescriptor.ALL_LOCALES.name(), Arrays.asList(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-					.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name());
+					.e(EntityDescriptor.ALL_LOCALES.name(), Arrays.asList(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()));
 			}
 			referenceBuilder.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), referenceAttributesBuilder);
 		}
@@ -389,9 +395,11 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 		return referenceBuilder;
 	}
 
-	protected MapBuilder convertAttributesIntoMap(ReferenceContract reference) {
+	protected MapBuilder convertAttributesIntoMap(@Nonnull ReferenceContract reference, @Nullable String[] referenceAttributes) {
 		final MapBuilder attrsMap = map();
 		reference.getAttributeValues()
+			.stream()
+			.filter(it -> referenceAttributes == null || Arrays.asList(referenceAttributes).contains(it.getKey().getAttributeName()))
 			.forEach(attributeValue ->
 				attrsMap.e(attributeValue.getKey().getAttributeName(), serializeToJsonValue(attributeValue.getValue())));
 		return attrsMap;
@@ -405,10 +413,14 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 			.e(EntityDescriptor.TYPE.name(), entityClassifier.getType());
 
 		if (entityClassifier instanceof EntityContract entity) {
-			dto
-				.e(EntityDescriptor.LOCALES.name(), Arrays.stream(expectedLocales).map(Locale::toLanguageTag).toList())
-				.e(EntityDescriptor.ALL_LOCALES.name(), entity.getAllLocales().stream().map(Locale::toLanguageTag).toList())
-				.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name()); // default state, may be overridden
+			final List<String> locales = Arrays.stream(expectedLocales).map(Locale::toLanguageTag).toList();
+			if (!locales.isEmpty()) {
+				dto.e(EntityDescriptor.LOCALES.name(), locales);
+			}
+			final List<String> allLocales = entity.getAllLocales().stream().map(Locale::toLanguageTag).toList();
+			if (!allLocales.isEmpty()) {
+				dto.e(EntityDescriptor.ALL_LOCALES.name(), allLocales);
+			}
 		}
 
 		return dto;
@@ -425,10 +437,15 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 		hierarchicalEntity.getParentEntity()
 			.ifPresent(parent -> dto.e(RestEntityDescriptor.PARENT_ENTITY.name(), createParentEntityDto(parent, withBody)));
 
-		dto
-			.e(EntityDescriptor.LOCALES.name(), Arrays.stream(expectedLocales).map(Locale::toLanguageTag).toList())
-			.e(EntityDescriptor.ALL_LOCALES.name(), hierarchicalEntity.getAllLocales().stream().map(Locale::toLanguageTag).toList())
-			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name()); // default state, may be overridden
+
+		final List<String> locales = Arrays.stream(expectedLocales).map(Locale::toLanguageTag).toList();
+		if (!locales.isEmpty()) {
+			dto.e(EntityDescriptor.LOCALES.name(), locales);
+		}
+		final List<String> allLocales = hierarchicalEntity.getAllLocales().stream().map(Locale::toLanguageTag).toList();
+		if (!allLocales.isEmpty()) {
+			dto.e(EntityDescriptor.ALL_LOCALES.name(), allLocales);
+		}
 
 		return dto;
 	}
@@ -449,9 +466,7 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 		if (withBody) {
 			final SealedEntity entity = (SealedEntity) entityClassifier;
 			dto
-				.e(EntityDescriptor.LOCALES.name(), List.of())
 				.e(EntityDescriptor.ALL_LOCALES.name(), entity.getAllLocales().stream().map(Locale::toLanguageTag).toList())
-				.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 				.e(RestEntityDescriptor.ATTRIBUTES.name(), map()
 					.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
 						.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))));
@@ -463,23 +478,24 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 	@Nonnull
 	protected MapBuilder createEntityWithReferencedParentsDto(@Nonnull SealedEntity entity,
 	                                                          @Nonnull String referenceName,
-	                                                          boolean withBody) {
+	                                                          boolean withBody,
+	                                                          @Nullable String[] referenceAttributes) {
 
 		return map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), entity.getType())
-			.e(EntityDescriptor.LOCALES.name(), List.of())
 			.e(EntityDescriptor.ALL_LOCALES.name(), entity.getAllLocales().stream().map(Locale::toLanguageTag).toList())
-			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name()) // default state, may be overridden
 			.e(StringUtils.toCamelCase(referenceName), entity.getReferences(referenceName)
 				.stream()
 				.map(it -> {
 					final SealedEntity referencedEntity = it.getReferencedEntity().orElseThrow();
-					return map()
+					final MapBuilder builder = map()
 						.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), it.getReferencedPrimaryKey())
-						.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), createEntityWithSelfParentsDto(referencedEntity, withBody))
-						.e(ReferenceDescriptor.ATTRIBUTES.name(), convertAttributesIntoMap(it))
-						.build();
+						.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), createEntityWithSelfParentsDto(referencedEntity, withBody));
+					if (referenceAttributes != null && referenceAttributes.length > 0) {
+						builder.e(ReferenceDescriptor.ATTRIBUTES.name(), convertAttributesIntoMap(it, referenceAttributes));
+					}
+					return builder.build();
 				})
 				.toList());
 	}

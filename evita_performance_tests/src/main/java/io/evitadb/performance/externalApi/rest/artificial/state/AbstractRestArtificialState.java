@@ -23,9 +23,21 @@
 
 package io.evitadb.performance.externalApi.rest.artificial.state;
 
+import io.evitadb.api.query.Query;
+import io.evitadb.performance.artificial.AbstractArtificialBenchmarkState;
+import io.evitadb.test.client.query.rest.RestQueryConverter;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import static io.evitadb.test.TestConstants.TEST_CATALOG;
 
 /**
  * Common ancestor for thread-scoped state objects.
@@ -36,12 +48,42 @@ import org.openjdk.jmh.annotations.State;
 public abstract class AbstractRestArtificialState {
 
 	/**
+	 * Regex pattern to parse input request into URL and query (request body)
+	 */
+	private static final Pattern REQUEST_PATTERN = Pattern.compile("([A-Z]+)\\s((/[\\w\\-]+)+)(\\s+([.\\s\\S]+))?");
+	@Nonnull private final RestQueryConverter queryConverter = new RestQueryConverter();
+
+	/**
+	 * HTTP method to use for executing the request.
+	 */
+	@Getter private String method;
+	/**
 	 * Resource url prepared for the measured invocation.
 	 */
-	@Getter protected String resource;
-
+	@Getter private String resource;
 	/**
 	 * Request body prepared for the measured invocation.
 	 */
-	@Getter protected String requestBody;
+	@Getter private String requestBody;
+
+	protected void setRequest(@Nonnull String method, @Nonnull String resource) {
+		this.method = method;
+		this.resource = resource;
+	}
+
+	protected void setRequest(@Nonnull String method, @Nonnull String resource, @Nonnull String requestBody) {
+		this.method = method;
+		this.resource = resource;
+		this.requestBody = requestBody;
+	}
+
+	protected void setRequest(@Nonnull AbstractArtificialBenchmarkState<?> benchmarkState, @Nonnull Query query) {
+		final String request = queryConverter.convert(benchmarkState.getEvita(), TEST_CATALOG, query);
+
+		final Matcher requestMatcher = REQUEST_PATTERN.matcher(request);
+		Assert.isPremiseValid(requestMatcher.matches(), "Invalid request format.");
+		this.method = requestMatcher.group(1);
+		this.resource = requestMatcher.group(2);
+		this.requestBody = requestMatcher.group(5);
+	}
 }

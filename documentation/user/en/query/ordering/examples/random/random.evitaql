@@ -1,0 +1,11 @@
+query(
+    collection('Product'),
+    orderBy(
+        random()
+    ),
+    require(
+        entityFetch(
+            attributeContent('code')
+        )
+    )
+)

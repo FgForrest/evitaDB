@@ -55,11 +55,7 @@ public class FilterGroupBy extends AbstractFilterConstraintContainer implements 
 	}
 
 	@Creator
-	public FilterGroupBy(@Nonnull @Child FilterConstraint children) {
-		super(children);
-	}
-
-	public FilterGroupBy(@Nonnull FilterConstraint... children) {
+	public FilterGroupBy(@Nonnull @Child(uniqueChildren = true) FilterConstraint... children) {
 		super(children);
 	}
 

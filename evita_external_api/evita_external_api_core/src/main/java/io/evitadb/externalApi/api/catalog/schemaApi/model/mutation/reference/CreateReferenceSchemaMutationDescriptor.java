@@ -98,21 +98,21 @@ public interface CreateReferenceSchemaMutationDescriptor extends ReferenceSchema
 			Whether `referencedGroupType` refers to any existing `EntitySchema.name` that is
 			maintained by Evita.
 			""")
-		.type(nonNull(Boolean.class))
+		.type(nullable(Boolean.class))
 		.build();
-	PropertyDescriptor FILTERABLE = PropertyDescriptor.builder()
-		.name("filterable")
+	PropertyDescriptor INDEXED = PropertyDescriptor.builder()
+		.name("indexed")
 		.description("""
 			Whether the index for this reference should be created and maintained allowing to filter by
 			`reference_{reference name}_having` filtering constraints. Index is also required when reference is
 			`faceted`.
 			
-			Do not mark reference as faceted unless you know that you'll need to filter entities by this reference. Each
-			indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed, the entity
-			cannot be looked up by reference attributes or relation existence itself, but the data is loaded alongside
-			other references if requested.
+			Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+			Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+			the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+			alongside other references if requested.
 			""")
-		.type(nonNull(Boolean.class))
+		.type(nullable(Boolean.class))
 		.build();
 	PropertyDescriptor FACETED = PropertyDescriptor.builder()
 		.name("faceted")
@@ -125,7 +125,7 @@ public interface CreateReferenceSchemaMutationDescriptor extends ReferenceSchema
 			occupies (memory/disk) space in the form of index.
 			Reference that was marked as faceted is called Facet.
 			""")
-		.type(nonNull(Boolean.class))
+		.type(nullable(Boolean.class))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
@@ -143,7 +143,7 @@ public interface CreateReferenceSchemaMutationDescriptor extends ReferenceSchema
 			REFERENCED_ENTITY_TYPE_MANAGED,
 			REFERENCED_GROUP_TYPE,
 			REFERENCED_GROUP_TYPE_MANAGED,
-			FILTERABLE,
+			INDEXED,
 			FACETED
 		))
 		.build();

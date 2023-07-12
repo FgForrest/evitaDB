@@ -163,7 +163,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 									Entities.BRAND,
 									Entities.BRAND,
 									Cardinality.ZERO_OR_ONE,
-									whichIs -> whichIs.filterable()
+									whichIs -> whichIs.indexed()
 										.withAttribute(ATTRIBUTE_MARKET_SHARE, BigDecimal.class, thatIs -> thatIs.filterable().sortable())
 										.withAttribute(ATTRIBUTE_FOUNDED, OffsetDateTime.class, thatIs -> thatIs.filterable().sortable())
 								)

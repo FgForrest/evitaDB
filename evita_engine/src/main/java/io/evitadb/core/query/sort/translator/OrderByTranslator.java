@@ -31,6 +31,7 @@ import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
 
 import javax.annotation.Nonnull;
+import java.util.stream.Stream;
 
 /**
  * This implementation of {@link FilteringConstraintTranslator} converts {@link FilterBy} to {@link AbstractFormula}.
@@ -41,8 +42,8 @@ public class OrderByTranslator implements OrderingConstraintTranslator<OrderBy> 
 
 	@Nonnull
 	@Override
-	public Sorter createSorter(@Nonnull OrderBy orderConstraints, @Nonnull OrderByVisitor orderByVisitor) {
-		return orderByVisitor.getLastUsedSorter();
+	public Stream<Sorter> createSorter(@Nonnull OrderBy orderConstraints, @Nonnull OrderByVisitor orderByVisitor) {
+		return Stream.empty();
 	}
 
 }

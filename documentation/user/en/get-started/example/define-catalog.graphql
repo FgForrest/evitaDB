@@ -1,0 +1,5 @@
+mutation {
+  createCatalog(name: "testCatalog") {
+    name
+  }
+}

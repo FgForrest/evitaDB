@@ -36,13 +36,17 @@ import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMut
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.IndexType;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.mutation.AttributeIndexMutator.EntityAttributeValueSupplier;
+import io.evitadb.index.mutation.AttributeIndexMutator.ExistingAttributeValueSupplier;
 import io.evitadb.store.entity.model.entity.AttributesStoragePart;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
 import io.evitadb.store.entity.model.entity.PricesStoragePart;
@@ -54,19 +58,20 @@ import lombok.Data;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static java.util.Optional.of;
-import static java.util.Optional.ofNullable;
 
 /**
  * This interface is used to co-locate reference mutating routines which are rather procedural and long to avoid excessive
@@ -92,11 +97,26 @@ import static java.util.Optional.ofNullable;
  */
 public interface ReferenceIndexMutator {
 
-	Supplier<AttributeValue> NON_EXISTING_SUPPLIER = () -> null;
+	/**
+	 * Empty implementation of the {@link ExistingAttributeValueSupplier} interface.
+	 */
+	ExistingAttributeValueSupplier NON_EXISTING_SUPPLIER = new ExistingAttributeValueSupplier() {
+		@Nonnull
+		@Override
+		public Set<Locale> getEntityAttributeLocales() {
+			return Collections.emptySet();
+		}
+
+		@Nonnull
+		@Override
+		public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
+			return Optional.empty();
+		}
+	};
 
 	/**
 	 * Method allows to process all attribute mutations in referenced entities of the entity. Method uses
-	 * {@link EntityIndexLocalMutationExecutor#updateAttributes(AttributeMutation, Function, Supplier, EntityIndex, boolean)}
+	 * {@link EntityIndexLocalMutationExecutor#updateAttributes(AttributeMutation, Function, Function, ExistingAttributeValueSupplier, EntityIndex, boolean, boolean)}
 	 * to do that.
 	 */
 	static void attributeUpdate(
@@ -112,25 +132,27 @@ public interface ReferenceIndexMutator {
 		final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(referenceKey.referenceName());
 
 		// use different existing attribute value accessor - attributes needs to be looked up in ReferencesStoragePart
-		final Supplier<AttributeValue> existingValueAccessorFactory = new ExistingReferenceAttributeAccessor(
-			executor, entityType, entityPrimaryKey, referenceKey, attributeMutation.getAttributeKey()
+		final ReferenceAttributeValueSupplier existingValueAccessorFactory = new ReferenceAttributeValueSupplier(
+			executor.getContainerAccessor(), referenceKey, entityType, entityPrimaryKey
 		);
 		// we need to index referenced entity primary key into the reference type index for all attributes
+		final Function<String, AttributeSchema> attributeSchemaProvider =
+			attributeName -> referenceSchema.getAttribute(attributeName).map(AttributeSchema.class::cast).orElse(null);
+		final Function<String, Stream<SortableAttributeCompoundSchema>> compoundSchemaProvider =
+			attributeName -> referenceSchema.getSortableAttributeCompoundsForAttribute(attributeName).stream().map(SortableAttributeCompoundSchema.class::cast);
+
 		executor.executeWithDifferentPrimaryKeyToIndex(
-			indexType -> {
-				if (indexType == IndexType.ATTRIBUTE_SORT_INDEX) {
-					// only sort indexes here target primary key of the main entity - we need monotonic row of all entity primary keys for this type
-					return entityPrimaryKey;
-				} else {
-					// all other indexes target referenced entity primary key - we use them for looking up referenced type indexes (type + referenced entity key)
-					return referenceKey.primaryKey();
-				}
-			},
+			// the sort index of reference type index is not maintained, because the entity might reference multiple
+			// entities and the sort index couldn't handle multiple values
+			indexType -> indexType != IndexType.ATTRIBUTE_SORT_INDEX,
+			indexType -> referenceKey.primaryKey(),
 			() -> executor.updateAttributes(
 				attributeMutation,
-				attributeName -> referenceSchema.getAttribute(attributeName).orElse(null),
+				attributeSchemaProvider,
+				compoundSchemaProvider,
 				existingValueAccessorFactory,
 				referenceTypeIndex,
+				false,
 				false
 			)
 		);
@@ -138,10 +160,12 @@ public interface ReferenceIndexMutator {
 		// we need to index entity primary key into the referenced entity index for all attributes
 		executor.updateAttributes(
 			attributeMutation,
-			attributeName -> referenceSchema.getAttribute(attributeName).orElse(null),
+			attributeSchemaProvider,
+			compoundSchemaProvider,
 			existingValueAccessorFactory,
 			referenceIndex,
-			false
+			false,
+			true
 		);
 	}
 
@@ -158,14 +182,14 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferenceKey referenceKey
 	) {
 		// we need to index referenced entity primary key into the reference type index
-		referenceTypeIndex.insertPrimaryKeyIfMissing(referenceKey.primaryKey());
+		referenceTypeIndex.insertPrimaryKeyIfMissing(referenceKey.primaryKey(), executor.getContainerAccessor());
 
 		// add facet to global index
 		addFacetToIndex(entityIndex, referenceKey, null, executor, entityPrimaryKey);
 
 		if (referenceIndex != null) {
 			// we need to index entity primary key into the referenced entity index
-			referenceIndex.insertPrimaryKeyIfMissing(entityPrimaryKey);
+			referenceIndex.insertPrimaryKeyIfMissing(entityPrimaryKey, executor.getContainerAccessor());
 			addFacetToIndex(referenceIndex, referenceKey, null, executor, entityPrimaryKey);
 
 			// we need to index all previously added global entity attributes and prices
@@ -186,13 +210,13 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferenceKey referenceKey
 	) {
 		// we need to remove referenced entity primary key from the reference type index
-		referenceTypeIndex.removePrimaryKey(referenceKey.primaryKey());
+		referenceTypeIndex.removePrimaryKey(referenceKey.primaryKey(), executor.getContainerAccessor());
 
 		// remove facet from global and index
 		removeFacetInIndex(entityIndex, referenceKey, executor, entityType, entityPrimaryKey);
 
 		// we need to remove entity primary key from the referenced entity index
-		referenceIndex.removePrimaryKey(entityPrimaryKey);
+		referenceIndex.removePrimaryKey(entityPrimaryKey, executor.getContainerAccessor());
 
 		// remove all attributes that are present on the reference relation
 		final ReferencesStoragePart referencesStorageContainer = executor.getContainerAccessor().getReferencesStoragePart(entityType, entityPrimaryKey);
@@ -230,64 +254,24 @@ public interface ReferenceIndexMutator {
 		@Nonnull String entityType,
 		int entityPrimaryKey
 	) {
-		indexFacets(executor, targetIndex, entityType, entityPrimaryKey);
+		indexAllFacets(executor, targetIndex, entityType, entityPrimaryKey);
 
 		final EntityStoragePartAccessor containerAccessor = executor.getContainerAccessor();
 		final EntityBodyStoragePart entityCnt = containerAccessor.getEntityStoragePart(entityType, entityPrimaryKey, EntityExistence.MUST_EXIST);
 
 		for (Locale locale : entityCnt.getLocales()) {
-			targetIndex.upsertLanguage(locale, entityPrimaryKey);
+			targetIndex.upsertLanguage(locale, entityPrimaryKey, containerAccessor);
 		}
 
-		final AttributesStoragePart attributeCnt = containerAccessor.getAttributeStoragePart(entityType, entityPrimaryKey);
-		for (AttributeValue attribute : attributeCnt.getAttributes()) {
-			if (attribute.exists()) {
-				AttributeIndexMutator.executeAttributeUpsert(
-					executor,
-					attributeName -> executor.getEntitySchema().getAttribute(attributeName).orElse(null),
-					NON_EXISTING_SUPPLIER,
-					targetIndex,
-					attribute.getKey(), Objects.requireNonNull(attribute.getValue()), false
-				);
-			}
-		}
-		for (Locale locale : entityCnt.getAttributeLocales()) {
-			final AttributesStoragePart localizedAttributeCnt = containerAccessor.getAttributeStoragePart(entityType, entityPrimaryKey, locale);
-			for (AttributeValue attribute : localizedAttributeCnt.getAttributes()) {
-				if (attribute.exists()) {
-					AttributeIndexMutator.executeAttributeUpsert(
-						executor,
-						attributeName -> executor.getEntitySchema().getAttribute(attributeName).orElse(null),
-						NON_EXISTING_SUPPLIER,
-						targetIndex,
-						attribute.getKey(), Objects.requireNonNull(attribute.getValue()), false
-					);
-				}
-			}
-		}
-		final PricesStoragePart priceContainer = containerAccessor.getPriceStoragePart(entityType, entityPrimaryKey);
-		for (PriceWithInternalIds price : priceContainer.getPrices()) {
-			if (price.exists()) {
-				PriceIndexMutator.priceUpsert(
-					entityType, executor, targetIndex,
-					price.getPriceKey(),
-					price.getInnerRecordId(),
-					price.getValidity(),
-					price.getPriceWithoutTax(),
-					price.getPriceWithTax(),
-					price.isSellable(),
-					null,
-					priceContainer.getPriceInnerRecordHandling(),
-					PriceIndexMutator.createPriceProvider(price)
-				);
-			}
-		}
+		indexAllCompounds(executor, targetIndex, entityPrimaryKey);
+		indexAllAttributes(executor, targetIndex, entityType, entityPrimaryKey, entityCnt);
+		indexAllPrices(executor, targetIndex, entityType, entityPrimaryKey);
 	}
 
 	/**
 	 * Method indexes all facets data for passed entity in passed index.
 	 */
-	private static void indexFacets(
+	private static void indexAllFacets(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex targetIndex,
 		@Nonnull String entityType,
@@ -313,6 +297,102 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
+	 * Method indexes all prices of the entity in passed index.
+	 */
+	private static void indexAllPrices(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull EntityIndex targetIndex,
+		@Nonnull String entityType,
+		int entityPrimaryKey
+	) {
+		final EntityStoragePartAccessor containerAccessor = executor.getContainerAccessor();
+		final PricesStoragePart priceContainer = containerAccessor.getPriceStoragePart(entityType, entityPrimaryKey);
+		for (PriceWithInternalIds price : priceContainer.getPrices()) {
+			if (price.exists()) {
+				PriceIndexMutator.priceUpsert(
+					entityType, executor, targetIndex,
+					price.getPriceKey(),
+					price.getInnerRecordId(),
+					price.getValidity(),
+					price.getPriceWithoutTax(),
+					price.getPriceWithTax(),
+					price.isSellable(),
+					null,
+					priceContainer.getPriceInnerRecordHandling(),
+					PriceIndexMutator.createPriceProvider(price)
+				);
+			}
+		}
+	}
+
+	/**
+	 * Method indexes all sortable attribute compounds of the entity in passed index.
+	 */
+	private static void indexAllCompounds(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull EntityIndex targetIndex,
+		int entityPrimaryKey
+	) {
+		final EntitySchema entitySchema = executor.getEntitySchema();
+		final EntityStoragePartAccessor containerAccessor = executor.getContainerAccessor();
+
+		AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
+			targetIndex, null, entityPrimaryKey, entitySchema, null, containerAccessor
+		);
+	}
+
+	/**
+	 * Method indexes all attributes of the entity in passed index.
+	 */
+	private static void indexAllAttributes(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull EntityIndex targetIndex,
+		@Nonnull String entityType,
+		int entityPrimaryKey,
+		@Nonnull EntityBodyStoragePart entityCnt
+	) {
+		final EntitySchema entitySchema = executor.getEntitySchema();
+		final EntityStoragePartAccessor containerAccessor = executor.getContainerAccessor();
+		final AttributesStoragePart attributeCnt = containerAccessor.getAttributeStoragePart(entityType, entityPrimaryKey);
+		final Function<String, AttributeSchema> attributeSchemaProvider =
+			attributeName -> entitySchema.getAttribute(attributeName).map(AttributeSchema.class::cast).orElse(null);
+		final Function<String, Stream<SortableAttributeCompoundSchema>> compoundsSchemaProvider =
+			attributeName -> entitySchema.getSortableAttributeCompoundsForAttribute(attributeName).stream().map(SortableAttributeCompoundSchema.class::cast);
+
+		for (AttributeValue attribute : attributeCnt.getAttributes()) {
+			if (attribute.exists()) {
+				AttributeIndexMutator.executeAttributeUpsert(
+					executor,
+					attributeSchemaProvider,
+					compoundsSchemaProvider,
+					NON_EXISTING_SUPPLIER,
+					targetIndex,
+					attribute.getKey(), Objects.requireNonNull(attribute.getValue()),
+					false,
+					false
+				);
+			}
+		}
+		for (Locale locale : entityCnt.getAttributeLocales()) {
+			final AttributesStoragePart localizedAttributeCnt = containerAccessor.getAttributeStoragePart(entityType, entityPrimaryKey, locale);
+			for (AttributeValue attribute : localizedAttributeCnt.getAttributes()) {
+				if (attribute.exists()) {
+					AttributeIndexMutator.executeAttributeUpsert(
+						executor,
+						attributeSchemaProvider,
+						compoundsSchemaProvider,
+						NON_EXISTING_SUPPLIER,
+						targetIndex,
+						attribute.getKey(), Objects.requireNonNull(attribute.getValue()),
+						false,
+						false
+					);
+				}
+			}
+		}
+	}
+
+	/**
 	 * Method removes all indexed data for passed entity / referenced entity combination in passed indexes.
 	 */
 	private static void removeAllExistingData(
@@ -321,50 +401,18 @@ public interface ReferenceIndexMutator {
 		@Nonnull String entityType,
 		int entityPrimaryKey
 	) {
-		removeFacets(executor, targetIndex, entityType, entityPrimaryKey);
+		removeAllFacets(executor, targetIndex, entityType, entityPrimaryKey);
 
 		final EntityStoragePartAccessor containerAccessor = executor.getContainerAccessor();
 		final EntityBodyStoragePart entityCnt = containerAccessor.getEntityStoragePart(entityType, entityPrimaryKey, EntityExistence.MUST_EXIST);
 
 		for (Locale locale : entityCnt.getLocales()) {
-			targetIndex.removeLanguage(locale, entityPrimaryKey);
+			targetIndex.removeLanguage(locale, entityPrimaryKey, executor.getContainerAccessor());
 		}
 
-		final AttributesStoragePart attributeCnt = containerAccessor.getAttributeStoragePart(entityType, entityPrimaryKey);
-		for (AttributeValue attribute : attributeCnt.getAttributes()) {
-			if (attribute.exists()) {
-				AttributeIndexMutator.executeAttributeRemoval(
-					executor,
-					attributeName -> executor.getEntitySchema().getAttribute(attributeName).orElse(null),
-					() -> attribute,
-					targetIndex,
-					attribute.getKey(), false
-				);
-			}
-		}
-		for (Locale locale : entityCnt.getLocales()) {
-			final AttributesStoragePart localizedAttributeCnt = containerAccessor.getAttributeStoragePart(entityType, entityPrimaryKey, locale);
-			for (AttributeValue attribute : localizedAttributeCnt.getAttributes()) {
-				if (attribute.exists()) {
-					AttributeIndexMutator.executeAttributeRemoval(
-						executor,
-						attributeName -> executor.getEntitySchema().getAttribute(attributeName).orElse(null),
-						() -> attribute,
-						targetIndex,
-						attribute.getKey(), false
-					);
-				}
-			}
-		}
-		final PricesStoragePart priceContainer = containerAccessor.getPriceStoragePart(entityType, entityPrimaryKey);
-		for (PriceContract price : priceContainer.getPrices()) {
-			if (price.exists()) {
-				PriceIndexMutator.priceRemove(
-					entityType, executor, targetIndex,
-					price.getPriceKey()
-				);
-			}
-		}
+		removeAllAttributes(executor, targetIndex, entityType, entityPrimaryKey);
+		removeAllPrices(executor, targetIndex, entityType, entityPrimaryKey);
+		removeAllCompounds(executor, targetIndex, entityPrimaryKey);
 
 		// if target index is empty, remove it completely
 		if (targetIndex.isEmpty()) {
@@ -375,7 +423,7 @@ public interface ReferenceIndexMutator {
 	/**
 	 * Method removes all facets for passed entity from passed index.
 	 */
-	private static void removeFacets(
+	private static void removeAllFacets(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex targetIndex,
 		@Nonnull String entityType,
@@ -394,6 +442,87 @@ public interface ReferenceIndexMutator {
 				targetIndex.removeFacet(referenceKey, groupId, entityPrimaryKey);
 			}
 		}
+	}
+
+	/**
+	 * Method removes all attributes of the entity from passed index.
+	 */
+	private static void removeAllAttributes(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull EntityIndex targetIndex,
+		@Nonnull String entityType,
+		int entityPrimaryKey
+	) {
+		final EntityAttributeValueSupplier attributeValueSupplier = new EntityAttributeValueSupplier(executor.getContainerAccessor(), entityType, entityPrimaryKey);
+		final Function<String, AttributeSchema> attributeSchemaProvider =
+			attributeName -> executor.getEntitySchema().getAttribute(attributeName).map(AttributeSchema.class::cast).orElse(null);
+		final Function<String, Stream<SortableAttributeCompoundSchema>> compoundsSchemaProvider =
+			attributeName -> executor.getEntitySchema().getSortableAttributeCompoundsForAttribute(attributeName).stream().map(SortableAttributeCompoundSchema.class::cast);
+
+		attributeValueSupplier.getAttributeValues()
+			.forEach(
+				attribute -> AttributeIndexMutator.executeAttributeRemoval(
+					executor,
+					attributeSchemaProvider,
+					compoundsSchemaProvider,
+					attributeValueSupplier,
+					targetIndex,
+					attribute.getKey(),
+					false,
+					false
+				));
+
+		for (Locale locale : attributeValueSupplier.getEntityAttributeLocales()) {
+			attributeValueSupplier.getAttributeValues(locale)
+				.forEach(
+					attribute -> AttributeIndexMutator.executeAttributeRemoval(
+						executor,
+						attributeSchemaProvider,
+						compoundsSchemaProvider,
+						attributeValueSupplier,
+						targetIndex,
+						attribute.getKey(),
+						false,
+						false
+					));
+		}
+	}
+
+	/**
+	 * Method removes all prices of the entity from passed index.
+	 */
+	private static void removeAllPrices(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull EntityIndex targetIndex,
+		@Nonnull String entityType,
+		int entityPrimaryKey
+	) {
+		final EntityStoragePartAccessor containerAccessor = executor.getContainerAccessor();
+		final PricesStoragePart priceContainer = containerAccessor.getPriceStoragePart(entityType, entityPrimaryKey);
+		for (PriceContract price : priceContainer.getPrices()) {
+			if (price.exists()) {
+				PriceIndexMutator.priceRemove(
+					entityType, executor, targetIndex,
+					price.getPriceKey()
+				);
+			}
+		}
+	}
+
+	/**
+	 * Method removes all sortable attribute compounds of the entity from passed index.
+	 */
+	private static void removeAllCompounds(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull EntityIndex targetIndex,
+		int entityPrimaryKey
+	) {
+		final EntitySchema entitySchema = executor.getEntitySchema();
+		final EntityStoragePartAccessor containerAccessor = executor.getContainerAccessor();
+
+		AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
+			targetIndex, null, entityPrimaryKey, entitySchema, null, containerAccessor
+		);
 	}
 
 	/**
@@ -463,7 +592,7 @@ public interface ReferenceIndexMutator {
 	 */
 	private static boolean isIndexed(@Nonnull ReferenceContract reference) {
 		return reference.getReferenceSchema()
-			.map(ReferenceSchemaContract::isFilterable)
+			.map(ReferenceSchemaContract::isIndexed)
 			.orElse(false);
 	}
 
@@ -593,35 +722,47 @@ public interface ReferenceIndexMutator {
 	/**
 	 * This implementation of attribute accessor looks up for attribute in {@link ReferencesStoragePart}.
 	 */
+	@NotThreadSafe
 	@Data
-	class ExistingReferenceAttributeAccessor implements Supplier<AttributeValue> {
-		private final EntityIndexLocalMutationExecutor executor;
+	class ReferenceAttributeValueSupplier implements ExistingAttributeValueSupplier {
+		private final EntityStoragePartAccessor containerAccessor;
+		private final ReferenceKey referenceKey;
 		private final String entityType;
 		private final int entityPrimaryKey;
-		private final ReferenceKey referenceKey;
-		private final AttributeKey affectedAttribute;
-		private AtomicReference<AttributeValue> memoizedValue;
+		private Set<Locale> memoizedLocales;
+		private AttributeKey memoizedKey;
+		@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
+		private Optional<AttributeValue> memoizedValue;
 
+		@Nonnull
 		@Override
-		public AttributeValue get() {
-			if (memoizedValue == null) {
-				final EntityStoragePartAccessor containerAccessor = executor.getContainerAccessor();
+		public Set<Locale> getEntityAttributeLocales() {
+			if (memoizedLocales == null) {
+				this.memoizedLocales = containerAccessor.getEntityStoragePart(
+					entityType, entityPrimaryKey, EntityExistence.MUST_EXIST
+				).getAttributeLocales();
+			}
+			return memoizedLocales;
+		}
+
+		@Nonnull
+		@Override
+		public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
+			if (!Objects.equals(memoizedKey, attributeKey)) {
 				final ReferencesStoragePart referencesStorageContainer = containerAccessor.getReferencesStoragePart(entityType, entityPrimaryKey);
 
-				this.memoizedValue = new AtomicReference<>(
-					of(referencesStorageContainer)
-						.flatMap(it ->
-							it.getReferencesAsCollection()
-								.stream()
-								.filter(ref -> Objects.equals(ref.getReferenceKey(), referenceKey))
-								.findFirst()
-						)
-						.flatMap(it -> ofNullable(affectedAttribute.getLocale()).map(loc -> it.getAttributeValue(affectedAttribute.getAttributeName(), loc)).orElseGet(() -> it.getAttributeValue(affectedAttribute.getAttributeName())))
-						.filter(Droppable::exists)
-						.orElse(null)
-				);
+				this.memoizedKey = attributeKey;
+				this.memoizedValue = of(referencesStorageContainer)
+					.flatMap(it ->
+						it.getReferencesAsCollection()
+							.stream()
+							.filter(ref -> Objects.equals(ref.getReferenceKey(), referenceKey))
+							.findFirst()
+					)
+					.flatMap(it -> it.getAttributeValue(attributeKey))
+					.filter(Droppable::exists);
 			}
-			return memoizedValue.get();
+			return memoizedValue;
 		}
 	}
 }

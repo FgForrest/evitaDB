@@ -1,0 +1,15 @@
+query(
+    collection('Product'),
+    filterBy(
+        hierarchyWithin(
+            'categories',
+            attributeEquals('code', 'vouchers-for-shareholders')
+        ),
+        entityLocaleEquals('en')
+    ),
+    require(
+       entityFetch(
+           attributeContent('code', 'name')
+       )
+    )
+)

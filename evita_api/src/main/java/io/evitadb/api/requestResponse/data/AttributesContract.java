@@ -217,6 +217,16 @@ public interface AttributesContract extends Serializable {
 	Set<AttributeKey> getAttributeKeys();
 
 	/**
+	 * Returns array of values associated with the key or null when the attribute is missing.
+	 * When localized attribute is not found it is looked up in generic (non-localized) attributes. This makes this
+	 * method the safest way how to lookup for attribute if caller doesn't know whether it is localized or not.
+	 *
+	 * Method returns wrapper dto for the attribute that contains information about the attribute version and state.
+	 */
+	@Nonnull
+	Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey);
+
+	/**
 	 * Returns collection of all values present in this object.
 	 */
 	@Nonnull

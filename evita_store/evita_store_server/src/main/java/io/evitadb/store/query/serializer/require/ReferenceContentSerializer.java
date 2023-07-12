@@ -28,7 +28,10 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.ReferenceContent;
 import lombok.RequiredArgsConstructor;
 
@@ -48,9 +51,12 @@ public class ReferenceContentSerializer extends Serializer<ReferenceContent> {
 			output.writeString(refEntityType);
 		}
 
-		kryo.writeClassAndObject(output, object.getEntityRequirement());
+		kryo.writeClassAndObject(output, object.getAttributeContent().orElse(null));
+		kryo.writeClassAndObject(output, object.getEntityRequirement().orElse(null));
+		kryo.writeClassAndObject(output, object.getGroupEntityRequirement().orElse(null));
 
-		kryo.writeClassAndObject(output, object.getFilterBy());
+		kryo.writeClassAndObject(output, object.getFilterBy().orElse(null));
+		kryo.writeClassAndObject(output, object.getOrderBy().orElse(null));
 	}
 
 	@Override
@@ -61,14 +67,14 @@ public class ReferenceContentSerializer extends Serializer<ReferenceContent> {
 			referencedEntityTypes[i] = input.readString();
 		}
 
+		final AttributeContent attributeContent = (AttributeContent) kryo.readClassAndObject(input);
 		final EntityFetch entityFetch = (EntityFetch) kryo.readClassAndObject(input);
+		final EntityGroupFetch groupEntityFetch = (EntityGroupFetch) kryo.readClassAndObject(input);
 
 		final FilterBy filter = (FilterBy) kryo.readClassAndObject(input);
+		final OrderBy orderBy = (OrderBy) kryo.readClassAndObject(input);
 
-		if (filter == null) {
-			return new ReferenceContent(referencedEntityTypes, entityFetch);
-		}
-		return new ReferenceContent(referencedEntityTypes[0], filter, entityFetch);
+		return new ReferenceContent(referencedEntityTypes[0], filter, orderBy, attributeContent, entityFetch, groupEntityFetch);
 	}
 
 }

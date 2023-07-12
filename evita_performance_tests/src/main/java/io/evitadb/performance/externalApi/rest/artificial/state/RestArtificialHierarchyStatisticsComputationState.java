@@ -24,7 +24,7 @@
 package io.evitadb.performance.externalApi.rest.artificial.state;
 
 import io.evitadb.performance.externalApi.rest.artificial.RestArtificialEntitiesBenchmark;
-import io.evitadb.performance.generators.RestRandomQueryGenerator;
+import io.evitadb.performance.generators.RandomQueryGenerator;
 import io.evitadb.utils.Assert;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Setup;
@@ -39,7 +39,7 @@ import java.util.Set;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class RestArtificialHierarchyStatisticsComputationState extends AbstractRestArtificialState implements RestRandomQueryGenerator {
+public class RestArtificialHierarchyStatisticsComputationState extends AbstractRestArtificialState implements RandomQueryGenerator {
 
 	/**
 	 * Set contains all `entityTypes` that are hierarchical and are referenced from product entity.
@@ -61,12 +61,12 @@ public class RestArtificialHierarchyStatisticsComputationState extends AbstractR
 				});
 			Assert.isTrue(!referencedHierarchicalEntities.isEmpty(), "No referenced entity is hierarchical!");
 		}
-		final RestQuery restQuery = generateRandomHierarchyQuery(
-			benchmarkState.getRandom(), benchmarkState.getProductSchema(), referencedHierarchicalEntities
+		setRequest(
+			benchmarkState,
+			generateRandomParentSummaryQuery(
+				benchmarkState.getRandom(), benchmarkState.getProductSchema(), referencedHierarchicalEntities
+			)
 		);
-
-		this.resource = restQuery.resource();
-		this.requestBody = restQuery.bodyToString();
 	}
 
 

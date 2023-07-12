@@ -88,9 +88,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 					map()
 						.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-						.e(EntityDescriptor.LOCALES.name(), List.of())
 						.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-						.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 						.e(EntityDescriptor.ATTRIBUTES.name(), map()
 							.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
 								.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))
@@ -134,7 +132,6 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 						.e(EntityDescriptor.LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag()))
 						.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-						.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 						.e(EntityDescriptor.ATTRIBUTES.name(),
 							map()
 								.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
@@ -184,7 +181,6 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 						.e(EntityDescriptor.LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag()))
 						.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-						.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 						.e(EntityDescriptor.ATTRIBUTES.name(),
 							map()
 								.e(ATTRIBUTE_CODE, codeAttribute)
@@ -269,7 +265,6 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 						.e(EntityDescriptor.LOCALES.name(), List.of(Locale.ENGLISH.toLanguageTag()))
 						.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-						.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 						.e(EntityDescriptor.ATTRIBUTES.name(),
 							map()
 								.e(SectionedAttributesDescriptor.LOCALIZED.name(), map()
@@ -468,7 +463,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 			.statusCode(200)
 			.body(
 				Entities.STORE.toLowerCase(),
-				equalTo(createReferencesDto(entity, Entities.STORE, false, false))
+				equalTo(createReferencesDto(entity, Entities.STORE, false, false, null))
 			);
 	}
 

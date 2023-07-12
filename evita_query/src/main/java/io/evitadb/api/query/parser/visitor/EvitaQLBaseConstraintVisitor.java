@@ -29,6 +29,7 @@ import io.evitadb.utils.Assert;
 import org.antlr.v4.runtime.ParserRuleContext;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 
 /**
  * Base visitor for all constraint visitor implementations. Provides common helper methods.
@@ -90,6 +91,45 @@ public abstract class EvitaQLBaseConstraintVisitor<T extends Constraint<?>> exte
 		Assert.notNull(constraint, () -> new EvitaQLInvalidQueryError(arg, "Child constraint is required."));
 		Assert.isTrue(
 			constraintClass.isAssignableFrom(constraint.getClass()),
+			() -> new EvitaQLInvalidQueryError(arg, "Invalid child constraint `" + constraint.getName() + "`.")
+		);
+		//noinspection unchecked
+		return (C) constraint;
+	}
+
+	/**
+	 * Parses child constraints and validates it against expected constraint class. Uses same visitor as parent constraint.
+	 *
+	 * @param arg argument containing raw constraint value
+	 * @param constraintClasses type of expected child constraint
+	 * @return parsed child constraint
+	 * @param <C> type of expected child constraint
+	 */
+	@Nonnull
+	protected <C> C visitChildConstraint(@Nonnull ParserRuleContext arg,
+	                                     @Nonnull Class<?>... constraintClasses) {
+
+		return visitChildConstraint(this, arg, constraintClasses);
+	}
+
+	/**
+	 * Parses child constraints and validates it against expected constraint class.
+	 *
+	 * @param visitor visitor responsible for parsing child constraint value
+	 * @param arg argument containing raw constraint value
+	 * @param constraintClasses types of expected child constraint, at least one class must match the parsed constraint
+	 * @return parsed child constraint
+	 * @param <C> type of expected child constraint
+	 */
+	@Nonnull
+	protected <C> C visitChildConstraint(@Nonnull EvitaQLBaseVisitor<? extends Constraint<?>> visitor,
+	                                     @Nonnull ParserRuleContext arg,
+	                                     @Nonnull Class<?>... constraintClasses) {
+		final Constraint<?> constraint = arg.accept(visitor);
+		Assert.notNull(constraint, () -> new EvitaQLInvalidQueryError(arg, "Child constraint is required."));
+		Assert.isTrue(
+			Arrays.stream(constraintClasses)
+				.anyMatch(c -> c.isAssignableFrom(constraint.getClass())),
 			() -> new EvitaQLInvalidQueryError(arg, "Invalid child constraint `" + constraint.getName() + "`.")
 		);
 		//noinspection unchecked

@@ -26,7 +26,7 @@ package io.evitadb.performance.externalApi.graphql.artificial.state;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.performance.externalApi.graphql.artificial.GraphQLArtificialFullDatabaseBenchmarkState;
-import io.evitadb.performance.generators.GraphQLRandomQueryGenerator;
+import io.evitadb.performance.generators.RandomQueryGenerator;
 import io.evitadb.performance.setup.EvitaCatalogReusableSetup;
 import io.evitadb.test.Entities;
 import lombok.Getter;
@@ -45,7 +45,7 @@ import java.util.Set;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 public class GraphQLArtificialFacetBenchmarkState extends GraphQLArtificialFullDatabaseBenchmarkState
-	implements GraphQLRandomQueryGenerator, EvitaCatalogReusableSetup {
+	implements RandomQueryGenerator, EvitaCatalogReusableSetup {
 
 	/**
 	 * Map contains set of all faceted referenced entities, that could be used to create random queries.

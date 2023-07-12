@@ -26,7 +26,7 @@ package io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.reference;
 import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMutation;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.InsertReferenceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 
@@ -52,11 +52,11 @@ public class InsertReferenceMutationConverter extends ReferenceMutationConverter
 
 	@Nonnull
 	@Override
-	protected InsertReferenceMutation convert(@Nonnull InputMutation inputMutation) {
+	protected InsertReferenceMutation convert(@Nonnull Input input) {
 		return new InsertReferenceMutation(
-			resolveReferenceKey(inputMutation),
-			inputMutation.getOptionalField(InsertReferenceMutationDescriptor.CARDINALITY),
-			inputMutation.getOptionalField(InsertReferenceMutationDescriptor.REFERENCED_ENTITY_TYPE)
+			resolveReferenceKey(input),
+			input.getOptionalField(InsertReferenceMutationDescriptor.CARDINALITY),
+			input.getOptionalField(InsertReferenceMutationDescriptor.REFERENCED_ENTITY_TYPE)
 		);
 	}
 }

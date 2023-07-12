@@ -218,13 +218,6 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	}
 
 	/**
-	 * Determines if children constraints are unique.
-	 */
-	protected boolean isChildrenUnique(@Nonnull ChildParameterDescriptor childParameter) {
-		return childParameter.uniqueChildren();
-	}
-
-	/**
 	 * Returns predicate filtering allowed child constraints restricted by globally allowed and forbidden constraints.
 	 */
 	@Nonnull
@@ -325,7 +318,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	protected List<OBJECT_FIELD> buildGenericChildren(@Nonnull ConstraintBuildContext buildContext,
 	                                                  @Nonnull AllowedConstraintPredicate allowedChildrenPredicate) {
 		return buildBasicChildren(
-			buildContext,
+			buildContext.switchToChildContext(buildContext.dataLocator()),
 			allowedChildrenPredicate,
 			ConstraintPropertyType.GENERIC
 		);
@@ -511,33 +504,58 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 			return List.of();
 		}
 
-		// build constraint with dynamic classifier only, others are currently not needed
 		final Set<ConstraintDescriptor> referenceConstraints = ConstraintDescriptorProvider.getConstraints(
-				getConstraintType(),
-				ConstraintPropertyType.REFERENCE,
-				buildContext.dataLocator().targetDomain()
+			getConstraintType(),
+			ConstraintPropertyType.REFERENCE,
+			buildContext.dataLocator().targetDomain()
+		);
+
+		final List<OBJECT_FIELD> fields = new LinkedList<>();
+
+		// build constraint with dynamic classifier only, others are currently not needed
+		final Set<ConstraintDescriptor> referenceConstraintsWithoutClassifier = referenceConstraints.stream()
+			.filter(cd -> !cd.creator().hasClassifierParameter())
+			.collect(Collectors.toUnmodifiableSet());
+
+		fields.addAll(
+			buildChildren(
+				allowedChildrenPredicate,
+				referenceConstraintsWithoutClassifier,
+				constraintDescriptor -> buildFieldFromConstraintDescriptor(
+					buildContext, // references without classifier cannot be container and thus shouldn't use reference domain
+					constraintDescriptor,
+					null,
+					null
+				)
 			)
-			.stream()
+		);
+
+		// build constraint with dynamic classifier only, others are currently not needed
+		final Set<ConstraintDescriptor> referenceConstraintsWithDynamicClassifier = referenceConstraints.stream()
 			.filter(cd -> cd.creator().hasClassifierParameter())
 			.collect(Collectors.toUnmodifiableSet());
 
-		return referenceSchemas
-			.stream()
-			.filter(ReferenceSchemaContract::isFilterable)
-			.flatMap(referenceSchema -> {
-				final FieldFromConstraintDescriptorBuilder<OBJECT_FIELD> fieldBuilder = constraintDescriptor -> buildFieldFromConstraintDescriptor(
-					buildContext.switchToChildContext(new ReferenceDataLocator(
-						buildContext.dataLocator().entityType(),
-						referenceSchema.getName()
-					)),
-					constraintDescriptor,
-					() -> referenceSchema.getNameVariant(CLASSIFIER_NAMING_CONVENTION),
-					null
-				);
+		fields.addAll(
+			referenceSchemas
+				.stream()
+				.filter(ReferenceSchemaContract::isIndexed)
+				.flatMap(referenceSchema -> {
+					final FieldFromConstraintDescriptorBuilder<OBJECT_FIELD> fieldBuilder = constraintDescriptor -> buildFieldFromConstraintDescriptor(
+						buildContext.switchToChildContext(new ReferenceDataLocator(
+							buildContext.dataLocator().entityType(),
+							referenceSchema.getName()
+						)),
+						constraintDescriptor,
+						() -> referenceSchema.getNameVariant(CLASSIFIER_NAMING_CONVENTION),
+						null
+					);
 
-				return buildChildren(allowedChildrenPredicate, referenceConstraints, fieldBuilder).stream();
-			})
-			.toList();
+					return buildChildren(allowedChildrenPredicate, referenceConstraintsWithDynamicClassifier, fieldBuilder).stream();
+				})
+				.toList()
+		);
+
+		return fields;
 	}
 
 	/**

@@ -272,7 +272,7 @@ public class CatalogIndex implements Index<CatalogIndexKey>, TransactionalLayerP
 		@Nonnull Object value
 	) {
 		if (attributeSchema.isLocalized()) {
-			verifyLocalizedAttribute(attributeSchema, allowedLocales, locale, value);
+			verifyLocalizedAttribute(attributeSchema.getName(), allowedLocales, locale, value);
 		}
 		return new AttributeKey(attributeSchema.getName());
 	}

@@ -135,7 +135,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcFacetGroupStatisticsType_FacetGroupStatisticsEntry_descriptor,
+                io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcFacetGroupStatisticsType_FacetGroupStatisticsEntry_descriptor, 
                 com.google.protobuf.WireFormat.FieldType.INT32,
                 0,
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -162,7 +162,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public boolean containsFacetGroupStatistics(
       int key) {
-
+    
     return internalGetFacetGroupStatistics().getMap().containsKey(key);
   }
   /**
@@ -189,7 +189,7 @@ private static final long serialVersionUID = 0L;
   public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics getFacetGroupStatisticsOrDefault(
       int key,
       io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics defaultValue) {
-
+    
     java.util.Map<java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics> map =
         internalGetFacetGroupStatistics().getMap();
     return map.containsKey(key) ? map.get(key) : defaultValue;
@@ -201,7 +201,7 @@ private static final long serialVersionUID = 0L;
 
   public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics getFacetGroupStatisticsOrThrow(
       int key) {
-
+    
     java.util.Map<java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics> map =
         internalGetFacetGroupStatistics().getMap();
     if (!map.containsKey(key)) {
@@ -579,7 +579,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public boolean containsFacetGroupStatistics(
         int key) {
-
+      
       return internalGetFacetGroupStatistics().getMap().containsKey(key);
     }
     /**
@@ -606,7 +606,7 @@ private static final long serialVersionUID = 0L;
     public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics getFacetGroupStatisticsOrDefault(
         int key,
         io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics defaultValue) {
-
+      
       java.util.Map<java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics> map =
           internalGetFacetGroupStatistics().getMap();
       return map.containsKey(key) ? map.get(key) : defaultValue;
@@ -618,7 +618,7 @@ private static final long serialVersionUID = 0L;
 
     public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics getFacetGroupStatisticsOrThrow(
         int key) {
-
+      
       java.util.Map<java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics> map =
           internalGetFacetGroupStatistics().getMap();
       if (!map.containsKey(key)) {
@@ -638,7 +638,7 @@ private static final long serialVersionUID = 0L;
 
     public Builder removeFacetGroupStatistics(
         int key) {
-
+      
       internalGetMutableFacetGroupStatistics().getMutableMap()
           .remove(key);
       return this;
@@ -657,7 +657,7 @@ private static final long serialVersionUID = 0L;
     public Builder putFacetGroupStatistics(
         int key,
         io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics value) {
-
+      
       if (value == null) {
   throw new NullPointerException("map value");
 }

@@ -28,6 +28,7 @@ import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
+import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
@@ -90,6 +91,7 @@ public class FacetGroupsNegation extends AbstractRequireConstraintContainer impl
 	/**
 	 * Returns filter constraint that can be resolved to array of facet groups primary keys.
 	 */
+	@AliasForParameter("filterBy")
 	@Nonnull
 	public FilterBy getFacetGroups() {
 		return Arrays.stream(getAdditionalChildren())

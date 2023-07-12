@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.CreateReferenceSchemaMutationDescriptor;
@@ -53,18 +53,18 @@ public class CreateReferenceSchemaMutationConverter extends ReferenceSchemaMutat
 
 	@Nonnull
 	@Override
-	protected CreateReferenceSchemaMutation convert(@Nonnull InputMutation inputMutation) {
+	protected CreateReferenceSchemaMutation convert(@Nonnull Input input) {
 		return new CreateReferenceSchemaMutation(
-			inputMutation.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
-			inputMutation.getOptionalField(CreateReferenceSchemaMutationDescriptor.DESCRIPTION),
-			inputMutation.getOptionalField(CreateReferenceSchemaMutationDescriptor.DEPRECATION_NOTICE),
-			inputMutation.getOptionalField(CreateReferenceSchemaMutationDescriptor.CARDINALITY),
-			inputMutation.getRequiredField(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE),
-			inputMutation.getRequiredField(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED),
-			inputMutation.getOptionalField(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE),
-			inputMutation.getRequiredField(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED),
-			inputMutation.getRequiredField(CreateReferenceSchemaMutationDescriptor.FILTERABLE),
-			inputMutation.getRequiredField(CreateReferenceSchemaMutationDescriptor.FACETED)
+			input.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
+			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.DESCRIPTION),
+			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.DEPRECATION_NOTICE),
+			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.CARDINALITY),
+			input.getRequiredField(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE),
+			input.getRequiredField(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED),
+			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE),
+			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED, false),
+			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.INDEXED, false),
+			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.FACETED, false)
 		);
 	}
 }

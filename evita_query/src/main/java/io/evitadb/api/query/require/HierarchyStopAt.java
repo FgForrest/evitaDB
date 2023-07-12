@@ -38,7 +38,17 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * TOBEDONE JNO: docs
+ * The stopAt container constraint is a service wrapping constraint container that only makes sense in combination with
+ * one of the allowed nested constraints. See the usage examples for specific nested constraints.
+ *
+ * It accepts one of the following inner constraints:
+ *
+ * - {@link HierarchyDistance}
+ * - {@link HierarchyLevel}
+ * - {@link HierarchyNode}
+ *
+ * which define the constraint that stops traversing the hierarchy tree when it's satisfied by a currently traversed
+ * node.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -56,12 +66,12 @@ public class HierarchyStopAt extends AbstractRequireConstraintContainer implemen
 	}
 
 	@Creator
-	public HierarchyStopAt(@Nonnull @Child(uniqueChildren = true) HierarchyStopAtRequireConstraint genericHierarchyOutput) {
-		super(CONSTRAINT_NAME, genericHierarchyOutput);
+	public HierarchyStopAt(@Nonnull @Child(uniqueChildren = true) HierarchyStopAtRequireConstraint stopAtDefinition) {
+		super(CONSTRAINT_NAME, stopAtDefinition);
 	}
 
 	@Nonnull
-	public HierarchyStopAtRequireConstraint getGenericHierarchyOutputRequireConstraint() {
+	public HierarchyStopAtRequireConstraint getStopAtDefinition() {
 		return (HierarchyStopAtRequireConstraint) getChildren()[0];
 	}
 

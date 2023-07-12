@@ -23,8 +23,12 @@
 
 package io.evitadb.performance.externalApi.graphql.artificial;
 
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.performance.artificial.AbstractArtificialBenchmarkState;
+import io.evitadb.test.client.GraphQLClient;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.function.Supplier;
 
 /**
@@ -38,7 +42,16 @@ public abstract class GraphQLArtificialBenchmarkState extends AbstractArtificial
 	 * Returns an existing session unique for the thread or creates new one.
 	 */
 	public GraphQLClient getSession() {
-		return getSession(GraphQLClient::new);
+		return getSession(() -> {
+			try {
+				return new GraphQLClient(
+					"https://" + InetAddress.getByName("localhost").getHostAddress() + ":5555/gql/test-catalog",
+					false
+				);
+			} catch (UnknownHostException e) {
+				throw new EvitaInternalError("Unknown host.", e);
+			}
+		});
 	}
 
 	/**

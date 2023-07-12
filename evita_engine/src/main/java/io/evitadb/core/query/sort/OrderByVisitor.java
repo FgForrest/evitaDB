@@ -37,14 +37,18 @@ import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.query.order.Random;
 import io.evitadb.api.query.order.ReferenceProperty;
+import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
+import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.PrefetchRequirementCollector;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
+import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.attribute.translator.AttributeExtractor;
 import io.evitadb.core.query.sort.attribute.translator.AttributeNaturalTranslator;
 import io.evitadb.core.query.sort.attribute.translator.AttributeSetExactTranslator;
@@ -67,12 +71,14 @@ import lombok.experimental.Delegate;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Deque;
+import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static io.evitadb.utils.Assert.isPremiseValid;
-import static java.util.Optional.ofNullable;
 
 /**
  * This {@link ConstraintVisitor} translates tree of {@link OrderConstraint} to a composition of {@link Sorter}
@@ -83,6 +89,7 @@ import static java.util.Optional.ofNullable;
  */
 public class OrderByVisitor implements ConstraintVisitor {
 	private static final Map<Class<? extends OrderConstraint>, OrderingConstraintTranslator<? extends OrderConstraint>> TRANSLATORS;
+	private static final EntityIndex[] EMPTY_INDEX_ARRAY = new EntityIndex[0];
 
 	/* initialize list of all FilterableConstraint handlers once for a lifetime */
 	static {
@@ -103,6 +110,13 @@ public class OrderByVisitor implements ConstraintVisitor {
 	 */
 	@Getter @Delegate private final QueryContext queryContext;
 	/**
+	 * Collection contains all alternative {@link TargetIndexes} sets that might already contain precalculated information
+	 * related to {@link EntityIndex} that can be used to partially resolve input filter although the target index set
+	 * is not used to resolve entire query filter.
+	 */
+	@Getter @Nonnull
+	private final List<TargetIndexes> targetIndexes;
+	/**
 	 * Reference to the collector of requirements for entity prefetch phase.
 	 */
 	@Delegate
@@ -119,30 +133,37 @@ public class OrderByVisitor implements ConstraintVisitor {
 	/**
 	 * Contains the created sorter from the ordering query source tree.
 	 */
-	private Sorter sorter;
+	private final LinkedList<Sorter> sorters = new LinkedList<>();
 
 	public OrderByVisitor(
 		@Nonnull QueryContext queryContext,
+		@Nonnull List<TargetIndexes> targetIndexes,
 		@Nonnull PrefetchRequirementCollector prefetchRequirementCollector,
 		@Nonnull Formula filteringFormula
 	) {
 		this(
-			queryContext, prefetchRequirementCollector, filteringFormula,
+			queryContext, targetIndexes, prefetchRequirementCollector, filteringFormula,
 			new AttributeSchemaAccessor(queryContext)
 		);
 	}
 
 	public OrderByVisitor(
 		@Nonnull QueryContext queryContext,
+		@Nonnull List<TargetIndexes> targetIndexes,
 		@Nonnull PrefetchRequirementCollector prefetchRequirementCollector,
 		@Nonnull Formula filteringFormula,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor) {
 		this.queryContext = queryContext;
+		this.targetIndexes = targetIndexes;
 		this.prefetchRequirementCollector = prefetchRequirementCollector;
 		this.filteringFormula = filteringFormula;
 		scope.push(
 			new ProcessingScope(
-				this.queryContext.getGlobalEntityIndexIfExists().orElse(null),
+				this.queryContext.getGlobalEntityIndexIfExists()
+					.map(it -> new EntityIndex[] {it})
+					.orElse(EMPTY_INDEX_ARRAY),
+				this.queryContext.isEntityTypeKnown() ?
+					this.queryContext.getSchema().getName() : null,
 				attributeSchemaAccessor,
 				EntityAttributeExtractor.INSTANCE
 			)
@@ -154,23 +175,36 @@ public class OrderByVisitor implements ConstraintVisitor {
 	 */
 	@Nonnull
 	public Sorter getSorter() {
-		return ofNullable(sorter).orElse(NoSorter.INSTANCE);
-	}
+		if (sorters.isEmpty()) {
+			return NoSorter.INSTANCE;
+		} else {
+			boolean canUseCache = !queryContext.isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES) &&
+				queryContext.isEntityTypeKnown();
 
-	/**
-	 * Returns last computed sorter. Method is targeted for internal usage by translators and is not expected to be
-	 * called from anywhere else.
-	 */
-	@Nullable
-	public Sorter getLastUsedSorter() {
-		return sorter;
+			final CacheSupervisor cacheSupervisor = queryContext.getCacheSupervisor();
+			Sorter composedSorter = null;
+			final Iterator<Sorter> it = sorters.descendingIterator();
+			while (it.hasNext()) {
+				final Sorter nextSorter = it.next();
+				final Sorter possiblyCachedSorter = canUseCache && nextSorter instanceof CacheableSorter cacheableSorter ?
+					cacheSupervisor.analyse(
+						queryContext.getEvitaSession(),
+						queryContext.getSchema().getName(),
+						cacheableSorter
+					) : nextSorter;
+				composedSorter = composedSorter == null ? possiblyCachedSorter : possiblyCachedSorter.andThen(composedSorter);
+			}
+
+			return composedSorter;
+		}
 	}
 
 	/**
 	 * Sets different {@link EntityIndex} to be used in scope of lambda.
 	 */
 	public final <T> T executeInContext(
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull EntityIndex[] entityIndex,
+		@Nullable String entityType,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nonnull AttributeExtractor attributeSchemaEntityAccessor,
 		@Nonnull Supplier<T> lambda
@@ -179,6 +213,7 @@ public class OrderByVisitor implements ConstraintVisitor {
 			this.scope.push(
 				new ProcessingScope(
 					entityIndex,
+					entityType,
 					attributeSchemaAccessor,
 					attributeSchemaEntityAccessor
 				)
@@ -204,7 +239,7 @@ public class OrderByVisitor implements ConstraintVisitor {
 	/**
 	 * Returns index which is best suited for supplying {@link SortIndex}.
 	 */
-	public EntityIndex getIndexForSort() {
+	public EntityIndex[] getIndexesForSort() {
 		final ProcessingScope theScope = this.scope.peek();
 		isPremiseValid(theScope != null, "Scope is unexpectedly empty!");
 		return theScope.entityIndex();
@@ -222,6 +257,7 @@ public class OrderByVisitor implements ConstraintVisitor {
 		);
 
 		// if query is a container query
+		final Stream<Sorter> currentSorters;
 		if (orderConstraint instanceof ConstraintContainer) {
 			@SuppressWarnings("unchecked") final ConstraintContainer<OrderConstraint> container = (ConstraintContainer<OrderConstraint>) orderConstraint;
 			// process children constraints
@@ -231,14 +267,16 @@ public class OrderByVisitor implements ConstraintVisitor {
 				}
 			}
 			// process the container query itself
-			sorter = translator.createSorter(orderConstraint, this);
+			currentSorters = translator.createSorter(orderConstraint, this);
 		} else if (orderConstraint instanceof ConstraintLeaf) {
 			// process the leaf query
-			sorter = translator.createSorter(orderConstraint, this);
+			currentSorters = translator.createSorter(orderConstraint, this);
 		} else {
 			// sanity check only
 			throw new EvitaInternalError("Should never happen");
 		}
+		// compose sorters one after another
+		currentSorters.forEach(this.sorters::add);
 	}
 
 	/**
@@ -246,12 +284,14 @@ public class OrderByVisitor implements ConstraintVisitor {
 	 * implementations to exchange indexes that are being used, suppressing certain query evaluation or accessing
 	 * attribute schema information.
 	 *
-	 * @param entityIndex             Contains index, that should be used for accessing {@link SortIndex}.
+	 * @param entityIndex             contains index, that should be used for accessing {@link SortIndex}.
+	 * @param entityType              contains entity type the context refers to
 	 * @param attributeSchemaAccessor consumer verifies prerequisites in attribute schema via {@link AttributeSchemaContract}
 	 * @param attributeEntityAccessor function provides access to the attribute content via {@link EntityContract}
 	 */
 	public record ProcessingScope(
-		@Nullable EntityIndex entityIndex,
+		@Nonnull EntityIndex[] entityIndex,
+		@Nullable String entityType,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nonnull AttributeExtractor attributeEntityAccessor
 	) {
@@ -262,6 +302,14 @@ public class OrderByVisitor implements ConstraintVisitor {
 		@Nonnull
 		public AttributeSchemaContract getAttributeSchema(@Nonnull String theAttributeName, @Nonnull AttributeTrait... attributeTraits) {
 			return attributeSchemaAccessor.getAttributeSchema(theAttributeName, attributeTraits);
+		}
+
+		/**
+		 * Returns sortable attribute compound or sortable attribute schema for attribute of passed name.
+		 */
+		@Nonnull
+		public NamedSchemaContract getAttributeSchemaOrSortableAttributeCompound(@Nonnull String theAttributeName) {
+			return attributeSchemaAccessor.getAttributeSchemaOrSortableAttributeCompound(theAttributeName);
 		}
 
 		/**

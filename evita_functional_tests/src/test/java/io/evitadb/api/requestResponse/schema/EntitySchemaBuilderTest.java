@@ -28,7 +28,10 @@ import io.evitadb.api.exception.AssociatedDataAlreadyPresentInEntitySchemaExcept
 import io.evitadb.api.exception.AttributeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.exception.AttributeAlreadyPresentInEntitySchemaException;
 import io.evitadb.api.exception.ReferenceAlreadyPresentInEntitySchemaException;
+import io.evitadb.api.exception.SortableAttributeCompoundSchemaException;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
@@ -45,6 +48,7 @@ import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Optional;
 
+import static io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement.attributeElement;
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -105,6 +109,22 @@ class EntitySchemaBuilderTest {
 			/* here we define set of associated data, that can be stored along with entity */
 			.withAssociatedData("referencedFiles", ReferencedFileSet.class)
 			.withAssociatedData("labels", Labels.class, whichIs -> whichIs.localized())
+			/* here we define sortable attribute compounds */
+			.withSortableAttributeCompound(
+				"codeWithEan",
+				attributeElement("code"),
+				attributeElement("ean")
+			)
+			.withSortableAttributeCompound(
+				"priorityAndQuantity",
+				new AttributeElement[]{
+					attributeElement("priority", OrderDirection.DESC),
+					attributeElement("quantity", OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
+				},
+				whichIs -> whichIs
+					.withDescription("Priority and quantity in descending order.")
+					.deprecated("Already deprecated.")
+			)
 			/* here we define references that relate to another entities stored in Evita */
 			.withReferenceToEntity(
 				Entities.CATEGORY,
@@ -112,7 +132,7 @@ class EntitySchemaBuilderTest {
 				Cardinality.ZERO_OR_MORE,
 				whichIs ->
 					/* we can specify special attributes on relation */
-					whichIs.filterable().withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+					whichIs.indexed().withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
 			)
 			/* for faceted references we can compute "counts" */
 			.withReferenceToEntity(
@@ -182,6 +202,44 @@ class EntitySchemaBuilderTest {
 	}
 
 	@Test
+	void shouldWorkWithSortableAttributeCompoundsInNamingConventionsWorkProperly() {
+		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			productSchema
+		);
+
+		schemaBuilder
+			.withAttribute("attribute", String.class)
+			.withAttribute("code", String.class)
+			.withSortableAttributeCompound("some-compound-1", attributeElement("attribute"), attributeElement("code"))
+			.withSortableAttributeCompound("compound", attributeElement("code"), attributeElement("attribute"))
+			.withSortableAttributeCompound("anotherCompound", attributeElement("code", OrderDirection.DESC), attributeElement("attribute"));
+
+		assertNotNull(schemaBuilder.getSortableAttributeCompoundByName("someCompound1", NamingConvention.CAMEL_CASE).orElse(null));
+		assertNotNull(schemaBuilder.getSortableAttributeCompoundByName("compound", NamingConvention.CAMEL_CASE).orElse(null));
+		assertNotNull(schemaBuilder.getSortableAttributeCompoundByName("compound", NamingConvention.KEBAB_CASE).orElse(null));
+		assertNotNull(schemaBuilder.getSortableAttributeCompoundByName("compound", NamingConvention.SNAKE_CASE).orElse(null));
+
+		schemaBuilder.withoutSortableAttributeCompound("compound");
+
+		assertNotNull(schemaBuilder.getSortableAttributeCompoundByName("someCompound1", NamingConvention.CAMEL_CASE).orElse(null));
+		assertNull(schemaBuilder.getSortableAttributeCompoundByName("compound", NamingConvention.CAMEL_CASE).orElse(null));
+		assertNull(schemaBuilder.getSortableAttributeCompoundByName("compound", NamingConvention.KEBAB_CASE).orElse(null));
+		assertNull(schemaBuilder.getSortableAttributeCompoundByName("compound", NamingConvention.SNAKE_CASE).orElse(null));
+		assertNotNull(schemaBuilder.getSortableAttributeCompoundByName("anotherCompound", NamingConvention.CAMEL_CASE).orElse(null));
+		assertNotNull(schemaBuilder.getSortableAttributeCompoundByName("another_compound", NamingConvention.SNAKE_CASE).orElse(null));
+
+		final EntitySchemaContract updatedSchema = schemaBuilder.toInstance();
+
+		assertNotNull(updatedSchema.getSortableAttributeCompoundByName("someCompound1", NamingConvention.CAMEL_CASE).orElse(null));
+		assertNull(updatedSchema.getSortableAttributeCompoundByName("compound", NamingConvention.CAMEL_CASE).orElse(null));
+		assertNull(updatedSchema.getSortableAttributeCompoundByName("compound", NamingConvention.KEBAB_CASE).orElse(null));
+		assertNull(updatedSchema.getSortableAttributeCompoundByName("compound", NamingConvention.SNAKE_CASE).orElse(null));
+		assertNotNull(updatedSchema.getSortableAttributeCompoundByName("anotherCompound", NamingConvention.CAMEL_CASE).orElse(null));
+		assertNotNull(updatedSchema.getSortableAttributeCompoundByName("another_compound", NamingConvention.SNAKE_CASE).orElse(null));
+	}
+
+	@Test
 	void shouldWorkWithReferenceAttributesInNamingConventionsWorkProperly() {
 		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
 			catalogSchema,
@@ -226,6 +284,155 @@ class EntitySchemaBuilderTest {
 		assertNull(testReference.getAttributeByName("attribute", NamingConvention.SNAKE_CASE).orElse(null));
 		assertNotNull(testReference.getAttributeByName("code", NamingConvention.CAMEL_CASE).orElse(null));
 		assertNotNull(testReference.getAttributeByName("code", NamingConvention.SNAKE_CASE).orElse(null));
+	}
+
+	@Test
+	void shouldWorkWithReferenceAttributesInNamingConventionsWorkProperlyBuildingInstanceInTheMiddle() {
+		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			productSchema
+		);
+
+		final EntitySchemaContract instance = schemaBuilder
+			.withReferenceTo("testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE, thatIs -> {
+					thatIs.withAttribute("some-attribute-1", String.class)
+						.withAttribute("attribute", String.class)
+						.withAttribute("code", String.class);
+
+					assertNotNull(thatIs.getAttributeByName("someAttribute1", NamingConvention.CAMEL_CASE).orElse(null));
+					assertNotNull(thatIs.getAttributeByName("attribute", NamingConvention.CAMEL_CASE).orElse(null));
+					assertNotNull(thatIs.getAttributeByName("attribute", NamingConvention.KEBAB_CASE).orElse(null));
+					assertNotNull(thatIs.getAttributeByName("attribute", NamingConvention.SNAKE_CASE).orElse(null));
+					assertNotNull(thatIs.getAttributeByName("code", NamingConvention.CAMEL_CASE).orElse(null));
+					assertNotNull(thatIs.getAttributeByName("code", NamingConvention.SNAKE_CASE).orElse(null));
+				}
+			)
+			.toInstance();
+
+		final EntitySchemaContract updatedSchema = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			instance
+		)
+			.withReferenceTo("testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE, thatIs -> {
+					thatIs.withoutAttribute("attribute");
+
+					assertNotNull(thatIs.getAttributeByName("someAttribute1", NamingConvention.CAMEL_CASE).orElse(null));
+					assertNull(thatIs.getAttributeByName("attribute", NamingConvention.CAMEL_CASE).orElse(null));
+					assertNull(thatIs.getAttributeByName("attribute", NamingConvention.KEBAB_CASE).orElse(null));
+					assertNull(thatIs.getAttributeByName("attribute", NamingConvention.SNAKE_CASE).orElse(null));
+					assertNotNull(thatIs.getAttributeByName("code", NamingConvention.CAMEL_CASE).orElse(null));
+					assertNotNull(thatIs.getAttributeByName("code", NamingConvention.SNAKE_CASE).orElse(null));
+				}
+			)
+			.toInstance();
+
+		final ReferenceSchemaContract testReference = updatedSchema.getReferenceOrThrowException("testReference");
+
+		assertNotNull(testReference.getAttributeByName("someAttribute1", NamingConvention.CAMEL_CASE).orElse(null));
+		assertNull(testReference.getAttributeByName("attribute", NamingConvention.CAMEL_CASE).orElse(null));
+		assertNull(testReference.getAttributeByName("attribute", NamingConvention.KEBAB_CASE).orElse(null));
+		assertNull(testReference.getAttributeByName("attribute", NamingConvention.SNAKE_CASE).orElse(null));
+		assertNotNull(testReference.getAttributeByName("code", NamingConvention.CAMEL_CASE).orElse(null));
+		assertNotNull(testReference.getAttributeByName("code", NamingConvention.SNAKE_CASE).orElse(null));
+	}
+
+	@Test
+	void shouldWorkWithReferenceSortableAttributeCompoundsInNamingConventionsWorkProperly() {
+		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			productSchema
+		);
+
+		schemaBuilder
+			.withReferenceTo("testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE, thatIs -> {
+					thatIs.withAttribute("attribute", String.class)
+						.withAttribute("code", String.class)
+						.withSortableAttributeCompound("some-compound-1", attributeElement("attribute"), attributeElement("code"))
+						.withSortableAttributeCompound("compound", attributeElement("code"), attributeElement("attribute"))
+						.withSortableAttributeCompound("anotherCompound", attributeElement("code", OrderDirection.DESC), attributeElement("attribute"));
+
+					assertNotNull(thatIs.getSortableAttributeCompoundByName("someCompound1", NamingConvention.CAMEL_CASE).orElse(null));
+					assertNotNull(thatIs.getSortableAttributeCompoundByName("compound", NamingConvention.CAMEL_CASE).orElse(null));
+					assertNotNull(thatIs.getSortableAttributeCompoundByName("compound", NamingConvention.KEBAB_CASE).orElse(null));
+					assertNotNull(thatIs.getSortableAttributeCompoundByName("compound", NamingConvention.SNAKE_CASE).orElse(null));
+					assertNotNull(thatIs.getSortableAttributeCompoundByName("anotherCompound", NamingConvention.CAMEL_CASE).orElse(null));
+					assertNotNull(thatIs.getSortableAttributeCompoundByName("another_compound", NamingConvention.SNAKE_CASE).orElse(null));
+				}
+			);
+
+		schemaBuilder
+			.withReferenceTo("testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE, thatIs -> {
+					thatIs.withoutSortableAttributeCompound("compound");
+
+					assertNotNull(thatIs.getSortableAttributeCompoundByName("someCompound1", NamingConvention.CAMEL_CASE).orElse(null));
+					assertNull(thatIs.getSortableAttributeCompoundByName("compound", NamingConvention.CAMEL_CASE).orElse(null));
+					assertNull(thatIs.getSortableAttributeCompoundByName("compound", NamingConvention.KEBAB_CASE).orElse(null));
+					assertNull(thatIs.getSortableAttributeCompoundByName("compound", NamingConvention.SNAKE_CASE).orElse(null));
+					assertNotNull(thatIs.getSortableAttributeCompoundByName("anotherCompound", NamingConvention.CAMEL_CASE).orElse(null));
+					assertNotNull(thatIs.getSortableAttributeCompoundByName("another_compound", NamingConvention.SNAKE_CASE).orElse(null));
+				}
+			);
+
+		final EntitySchemaContract updatedSchema = schemaBuilder.toInstance();
+
+		final ReferenceSchemaContract testReference = updatedSchema.getReferenceOrThrowException("testReference");
+
+		assertNotNull(testReference.getSortableAttributeCompoundByName("someCompound1", NamingConvention.CAMEL_CASE).orElse(null));
+		assertNull(testReference.getSortableAttributeCompoundByName("compound", NamingConvention.CAMEL_CASE).orElse(null));
+		assertNull(testReference.getSortableAttributeCompoundByName("compound", NamingConvention.KEBAB_CASE).orElse(null));
+		assertNull(testReference.getSortableAttributeCompoundByName("compound", NamingConvention.SNAKE_CASE).orElse(null));
+		assertNotNull(testReference.getSortableAttributeCompoundByName("anotherCompound", NamingConvention.CAMEL_CASE).orElse(null));
+		assertNotNull(testReference.getSortableAttributeCompoundByName("another_compound", NamingConvention.SNAKE_CASE).orElse(null));
+	}
+
+	@Test
+	void shouldWorkWithReferenceSortableAttributeCompoundsInNamingConventionsWorkProperlyBuildingInstanceInTheMiddle() {
+		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			productSchema
+		);
+
+		final EntitySchemaContract instance = schemaBuilder
+			.withReferenceTo("testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE, thatIs -> {
+					thatIs.withAttribute("attribute", String.class)
+						.withAttribute("code", String.class)
+						.withSortableAttributeCompound("some-compound-1", attributeElement("attribute"), attributeElement("code"))
+						.withSortableAttributeCompound("compound", attributeElement("code"), attributeElement("attribute"))
+						.withSortableAttributeCompound("anotherCompound", attributeElement("code", OrderDirection.DESC), attributeElement("attribute"));
+
+					assertNotNull(thatIs.getSortableAttributeCompoundByName("someCompound1", NamingConvention.CAMEL_CASE).orElse(null));
+					assertNotNull(thatIs.getSortableAttributeCompoundByName("compound", NamingConvention.CAMEL_CASE).orElse(null));
+					assertNotNull(thatIs.getSortableAttributeCompoundByName("compound", NamingConvention.KEBAB_CASE).orElse(null));
+					assertNotNull(thatIs.getSortableAttributeCompoundByName("compound", NamingConvention.SNAKE_CASE).orElse(null));
+					assertNotNull(thatIs.getSortableAttributeCompoundByName("anotherCompound", NamingConvention.CAMEL_CASE).orElse(null));
+					assertNotNull(thatIs.getSortableAttributeCompoundByName("another_compound", NamingConvention.SNAKE_CASE).orElse(null));
+				}
+			).toInstance();
+
+		final EntitySchemaContract updatedSchema = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			instance
+		)
+			.withReferenceTo("testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE, thatIs -> {
+					thatIs.withoutSortableAttributeCompound("compound");
+
+					assertNotNull(thatIs.getSortableAttributeCompoundByName("someCompound1", NamingConvention.CAMEL_CASE).orElse(null));
+					assertNull(thatIs.getSortableAttributeCompoundByName("compound", NamingConvention.CAMEL_CASE).orElse(null));
+					assertNull(thatIs.getSortableAttributeCompoundByName("compound", NamingConvention.KEBAB_CASE).orElse(null));
+					assertNull(thatIs.getSortableAttributeCompoundByName("compound", NamingConvention.SNAKE_CASE).orElse(null));
+					assertNotNull(thatIs.getSortableAttributeCompoundByName("anotherCompound", NamingConvention.CAMEL_CASE).orElse(null));
+					assertNotNull(thatIs.getSortableAttributeCompoundByName("another_compound", NamingConvention.SNAKE_CASE).orElse(null));
+				}
+			);
+
+		final ReferenceSchemaContract testReference = updatedSchema.getReferenceOrThrowException("testReference");
+
+		assertNotNull(testReference.getSortableAttributeCompoundByName("someCompound1", NamingConvention.CAMEL_CASE).orElse(null));
+		assertNull(testReference.getSortableAttributeCompoundByName("compound", NamingConvention.CAMEL_CASE).orElse(null));
+		assertNull(testReference.getSortableAttributeCompoundByName("compound", NamingConvention.KEBAB_CASE).orElse(null));
+		assertNull(testReference.getSortableAttributeCompoundByName("compound", NamingConvention.SNAKE_CASE).orElse(null));
+		assertNotNull(testReference.getSortableAttributeCompoundByName("anotherCompound", NamingConvention.CAMEL_CASE).orElse(null));
+		assertNotNull(testReference.getSortableAttributeCompoundByName("another_compound", NamingConvention.SNAKE_CASE).orElse(null));
 	}
 
 	@Test
@@ -342,6 +549,384 @@ class EntitySchemaBuilderTest {
 	}
 
 	@Test
+	void shouldFailToDefineProductSchemaWithConflictingSortableAttributeCompounds() {
+		final EntitySchema theSchema = (EntitySchema) new InternalEntitySchemaBuilder(
+			catalogSchema,
+			productSchema
+		)
+			.withAttribute("code", String.class)
+			.withAttribute("name", String.class)
+			.withSortableAttributeCompound(
+				"codeName",
+				attributeElement("code"), attributeElement("name")
+			)
+			.toInstance();
+
+
+		assertThrows(
+			AttributeAlreadyPresentInEntitySchemaException.class,
+			() -> new InternalEntitySchemaBuilder(
+				catalogSchema,
+				theSchema
+			)
+				.withSortableAttributeCompound(
+					"codeName",
+					attributeElement("name"), attributeElement("code")
+				)
+		);
+	}
+
+	@Test
+	void shouldFailToDefineProductSchemaWithConflictingSortableAttributeCompoundsInSpecificNamingConvention() {
+		final EntitySchema theSchema = (EntitySchema) new InternalEntitySchemaBuilder(
+			catalogSchema,
+			productSchema
+		)
+			.withAttribute("code", String.class)
+			.withAttribute("name", String.class)
+			.withSortableAttributeCompound(
+				"code-name",
+				attributeElement("code"), attributeElement("name")
+			)
+			.toInstance();
+
+
+		assertThrows(
+			AttributeAlreadyPresentInEntitySchemaException.class,
+			() -> new InternalEntitySchemaBuilder(
+				catalogSchema,
+				theSchema
+			)
+				.withSortableAttributeCompound(
+					"codeName",
+					attributeElement("name"), attributeElement("code")
+				)
+		);
+	}
+
+	@Test
+	void shouldFailToDefineProductSchemaWithConflictingAttributeAndSortableAttributeCompound() {
+		final EntitySchema theSchema = (EntitySchema) new InternalEntitySchemaBuilder(
+			catalogSchema,
+			productSchema
+		)
+			.withAttribute("code", String.class)
+			.withAttribute("name", String.class)
+			.withSortableAttributeCompound(
+				"codeName",
+				attributeElement("code"), attributeElement("name")
+			)
+			.toInstance();
+
+
+		assertThrows(
+			AttributeAlreadyPresentInEntitySchemaException.class,
+			() -> new InternalEntitySchemaBuilder(
+				catalogSchema,
+				theSchema
+			)
+				.withSortableAttributeCompound(
+					"name",
+					attributeElement("name"), attributeElement("code")
+				)
+		);
+	}
+
+	@Test
+	void shouldFailToDefineProductSchemaWithConflictingAttributeAndSortableAttributeCompoundInSpecificNamingConvention() {
+		final EntitySchema theSchema = (EntitySchema) new InternalEntitySchemaBuilder(
+			catalogSchema,
+			productSchema
+		)
+			.withAttribute("code", String.class)
+			.withAttribute("name", String.class)
+			.withSortableAttributeCompound(
+				"codeName",
+				attributeElement("code"), attributeElement("name")
+			)
+			.toInstance();
+
+		assertThrows(
+			AttributeAlreadyPresentInEntitySchemaException.class,
+			() -> new InternalEntitySchemaBuilder(
+				catalogSchema,
+				theSchema
+			)
+				.withAttribute(
+					"codeName",
+					String.class
+				)
+		);
+	}
+
+	@Test
+	void shouldFailToDefineProductSchemaWithSortableAttributeCompoundWithSingleAttributeElement() {
+		assertThrows(
+			SortableAttributeCompoundSchemaException.class,
+			() -> new InternalEntitySchemaBuilder(
+				catalogSchema,
+				productSchema
+			)
+				.withAttribute("code", String.class)
+				.withAttribute("name", String.class)
+				.withSortableAttributeCompound(
+					"codeName",
+					attributeElement("code")
+				)
+				.toInstance()
+		);
+	}
+
+	@Test
+	void shouldFailToDefineProductSchemaWithSortableAttributeCompoundWithMultipleAttributeElementsOfSameName() {
+		assertThrows(
+			SortableAttributeCompoundSchemaException.class,
+			() -> new InternalEntitySchemaBuilder(
+				catalogSchema,
+				productSchema
+			)
+				.withAttribute("code", String.class)
+				.withAttribute("name", String.class)
+				.withSortableAttributeCompound(
+					"codeName",
+					attributeElement("code"),
+					attributeElement("code")
+				)
+				.toInstance()
+		);
+	}
+
+	@Test
+	void shouldFailToDefineProductSchemaWithSortableAttributeCompoundWithNonExistingAttributeElement() {
+		assertThrows(
+			SortableAttributeCompoundSchemaException.class,
+			() -> new InternalEntitySchemaBuilder(
+				catalogSchema,
+				productSchema
+			)
+				.withAttribute("code", String.class)
+				.withAttribute("name", String.class)
+				.withSortableAttributeCompound(
+					"codeName",
+					attributeElement("notExisting"),
+					attributeElement("code")
+				)
+				.toInstance()
+		);
+	}
+
+	@Test
+	void shouldFailToRemoveAttributePresentInSortableAttributeCompound() {
+		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			productSchema
+		)
+			.withAttribute("code", String.class)
+			.withAttribute("name", String.class)
+			.withSortableAttributeCompound(
+				"codeName",
+				attributeElement("code"),
+				attributeElement("name")
+			);
+
+		final EntitySchemaContract instance = schemaBuilder.toInstance();
+
+		assertThrows(
+			SortableAttributeCompoundSchemaException.class,
+			() -> schemaBuilder.withoutAttribute("code")
+		);
+
+		assertThrows(
+			SortableAttributeCompoundSchemaException.class,
+			() -> new InternalEntitySchemaBuilder(
+				catalogSchema,
+				instance
+			)
+				.withoutAttribute("code")
+				.toInstance()
+		);
+	}
+
+	@Test
+	void shouldFailToDefineProductSchemaWithConflictingReferenceSortableAttributeCompounds() {
+		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			productSchema
+		);
+
+		final EntitySchemaContract instance = schemaBuilder
+			.withReferenceTo("testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE, thatIs -> thatIs.withAttribute("code", String.class)
+				.withAttribute("name", String.class)
+				.withSortableAttributeCompound(
+					"codeName",
+					attributeElement("code"), attributeElement("name")
+				)
+			)
+			.toInstance();
+
+		assertThrows(
+			AttributeAlreadyPresentInEntitySchemaException.class,
+			() -> new InternalEntitySchemaBuilder(
+				catalogSchema,
+				instance
+			)
+				.withReferenceTo("testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE, thatIs -> thatIs.withSortableAttributeCompound(
+						"codeName",
+						attributeElement("name"), attributeElement("code")
+					)
+				)
+				.toInstance()
+		);
+
+		assertThrows(
+			AttributeAlreadyPresentInEntitySchemaException.class,
+			() -> schemaBuilder.withReferenceTo("testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE, thatIs -> thatIs.withSortableAttributeCompound(
+						"codeName",
+						attributeElement("name"), attributeElement("code")
+					)
+				)
+				.toInstance()
+		);
+	}
+
+	@Test
+	void shouldFailToDefineProductSchemaWithConflictingReferenceAttributeAndSortableAttributeCompound() {
+		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			productSchema
+		);
+
+		final EntitySchemaContract instance = schemaBuilder
+			.withReferenceTo("testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE, thatIs -> thatIs.withAttribute("code", String.class)
+				.withAttribute("name", String.class)
+				.withSortableAttributeCompound(
+					"codeName",
+					attributeElement("code"), attributeElement("name")
+				)
+			)
+			.toInstance();
+
+		assertThrows(
+			AttributeAlreadyPresentInEntitySchemaException.class,
+			() -> new InternalEntitySchemaBuilder(
+				catalogSchema,
+				instance
+			)
+				.withReferenceTo("testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE, thatIs -> thatIs.withAttribute("codeName", String.class)
+				)
+				.toInstance()
+		);
+
+		assertThrows(
+			AttributeAlreadyPresentInEntitySchemaException.class,
+			() -> schemaBuilder.withReferenceTo("testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE, thatIs -> thatIs.withAttribute("codeName", String.class)
+				)
+				.toInstance()
+		);
+	}
+
+	@Test
+	void shouldFailToDefineProductSchemaWithReferenceSortableAttributeCompoundWithSingleAttributeElement() {
+		assertThrows(
+			SortableAttributeCompoundSchemaException.class,
+			() -> new InternalEntitySchemaBuilder(
+				catalogSchema,
+				productSchema
+			)
+				.withReferenceTo("testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE,
+					thatIs -> thatIs.withAttribute("code", String.class)
+						.withAttribute("name", String.class)
+						.withSortableAttributeCompound(
+							"codeName",
+							attributeElement("code")
+						)
+				)
+				.toInstance()
+		);
+	}
+
+	@Test
+	void shouldFailToDefineProductSchemaWithReferenceSortableAttributeCompoundWithMultipleAttributeElementsOfSameName() {
+		assertThrows(
+			SortableAttributeCompoundSchemaException.class,
+			() -> new InternalEntitySchemaBuilder(
+				catalogSchema,
+				productSchema
+			)
+				.withReferenceTo("testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE,
+					thatIs -> thatIs.withAttribute("code", String.class)
+						.withAttribute("name", String.class)
+						.withSortableAttributeCompound(
+							"codeName",
+							attributeElement("code"), attributeElement("code")
+						)
+				)
+				.toInstance()
+		);
+	}
+
+	@Test
+	void shouldFailToDefineProductSchemaWithReferenceSortableAttributeCompoundWithNonExistingAttributeElement() {
+		assertThrows(
+			SortableAttributeCompoundSchemaException.class,
+			() -> new InternalEntitySchemaBuilder(
+				catalogSchema,
+				productSchema
+			)
+				.withReferenceTo("testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE,
+					thatIs -> thatIs.withAttribute("code", String.class)
+						.withAttribute("name", String.class)
+						.withSortableAttributeCompound(
+							"codeName",
+							attributeElement("code"), attributeElement("nonExisting")
+						)
+				)
+				.toInstance()
+		);
+	}
+
+	@Test
+	void shouldFailToRemoveReferenceAttributePresentInSortableAttributeCompound() {
+		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			productSchema
+		)
+			.withReferenceTo("testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE,
+				thatIs -> thatIs.withAttribute("code", String.class)
+					.withAttribute("name", String.class)
+					.withSortableAttributeCompound(
+						"codeName",
+						attributeElement("code"), attributeElement("name")
+					)
+			);
+
+		final EntitySchemaContract schema = schemaBuilder.toInstance();
+
+		assertThrows(
+			SortableAttributeCompoundSchemaException.class,
+			() -> schemaBuilder.withReferenceToEntity(
+				"testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE,
+				thatIs -> {
+					thatIs.withoutAttribute("code");
+				}
+			)
+		);
+
+		assertThrows(
+			SortableAttributeCompoundSchemaException.class,
+			() -> new InternalEntitySchemaBuilder(
+				catalogSchema,
+				schema
+			).withReferenceToEntity(
+				"testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE,
+				thatIs -> {
+					thatIs.withoutAttribute("code");
+				}
+			)
+		);
+	}
+
+	@Test
 	void shouldDefineProductSchemaWithSharedAttributes() {
 		final CatalogSchemaContract updatedCatalogSchema = new InternalCatalogSchemaBuilder(catalogSchema)
 			.withAttribute("code", String.class, whichIs -> whichIs.unique())
@@ -372,6 +957,22 @@ class EntitySchemaBuilderTest {
 			.withAttribute("validity", DateTimeRange.class, whichIs -> whichIs.filterable())
 			.withAttribute("quantity", BigDecimal.class, whichIs -> whichIs.filterable().indexDecimalPlaces(2))
 			.withAttribute("alias", Boolean.class, whichIs -> whichIs.filterable())
+			/* here we define sortable attribute compounds */
+			.withSortableAttributeCompound(
+				"codeWithEan",
+				attributeElement("code"),
+				attributeElement("ean")
+			)
+			.withSortableAttributeCompound(
+				"priorityAndQuantity",
+				new AttributeElement[]{
+					attributeElement("priority", OrderDirection.DESC),
+					attributeElement("quantity", OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
+				},
+				whichIs -> whichIs
+					.withDescription("Priority and quantity in descending order.")
+					.deprecated("Already deprecated.")
+			)
 			/* here we define set of associated data, that can be stored along with entity */
 			.withAssociatedData("referencedFiles", ReferencedFileSet.class)
 			.withAssociatedData("labels", Labels.class, whichIs -> whichIs.localized())
@@ -382,7 +983,7 @@ class EntitySchemaBuilderTest {
 				Cardinality.ZERO_OR_MORE,
 				whichIs ->
 					/* we can specify special attributes on relation */
-					whichIs.filterable().withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+					whichIs.indexed().withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
 			)
 			/* for faceted references we can compute "counts" */
 			.withReferenceToEntity(
@@ -525,6 +1126,19 @@ class EntitySchemaBuilderTest {
 		assertAttribute(updatedSchema.getAttribute("quantity").orElseThrow(), false, true, false, false, 2, BigDecimal.class);
 		assertAttribute(updatedSchema.getAttribute("priority").orElseThrow(), false, false, true, false, 0, Long.class);
 
+		assertEquals(2, updatedSchema.getSortableAttributeCompounds().size());
+		assertSortableAttributeCompound(
+			updatedSchema.getSortableAttributeCompound("codeWithEan").orElse(null),
+			attributeElement("code"), attributeElement("ean")
+		);
+		assertSortableAttributeCompound(
+			updatedSchema.getSortableAttributeCompound("priorityAndQuantity").orElse(null),
+			"Priority and quantity in descending order.",
+			"Already deprecated.",
+			attributeElement("priority", OrderDirection.DESC),
+			attributeElement("quantity", OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
+		);
+
 		assertEquals(2, updatedSchema.getAssociatedData().size());
 		assertAssociatedData(updatedSchema.getAssociatedData("referencedFiles"), false, ComplexDataObject.class);
 		assertAssociatedData(updatedSchema.getAssociatedData("labels"), true, ComplexDataObject.class);
@@ -538,6 +1152,27 @@ class EntitySchemaBuilderTest {
 
 		assertReference(updatedSchema.getReference(Entities.BRAND), true);
 		assertReference(updatedSchema.getReference("stock"), true);
+	}
+
+	private void assertSortableAttributeCompound(SortableAttributeCompoundSchemaContract compound, AttributeElement... elements) {
+		assertSortableAttributeCompound(compound, null, null, elements);
+	}
+
+	private void assertSortableAttributeCompound(SortableAttributeCompoundSchemaContract compound, String description, String deprecation, AttributeElement... elements) {
+		assertNotNull(compound);
+		if (description == null) {
+			assertNull(compound.getDescription());
+		} else {
+			assertEquals(description, compound.getDescription());
+		}
+
+		if (deprecation == null) {
+			assertNull(compound.getDeprecationNotice());
+		} else {
+			assertEquals(deprecation, compound.getDeprecationNotice());
+		}
+
+		assertArrayEquals(compound.getAttributeElements().toArray(), elements);
 	}
 
 	@SuppressWarnings("OptionalUsedAsFieldOrParameterType")

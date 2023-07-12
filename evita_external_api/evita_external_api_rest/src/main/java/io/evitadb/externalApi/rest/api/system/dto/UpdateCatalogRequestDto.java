@@ -23,7 +23,8 @@
 
 package io.evitadb.externalApi.rest.api.system.dto;
 
-import javax.annotation.Nonnull;
+import io.evitadb.api.CatalogState;
+
 import javax.annotation.Nullable;
 
 /**
@@ -31,5 +32,7 @@ import javax.annotation.Nullable;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public record UpdateCatalogRequestDto(@Nonnull String name, @Nullable Boolean overwriteTarget) {
+public record UpdateCatalogRequestDto(@Nullable String name,
+                                      @Nullable Boolean overwriteTarget,
+                                      @Nullable CatalogState catalogState) {
 }

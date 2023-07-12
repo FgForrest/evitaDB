@@ -47,7 +47,7 @@ public class FacetSummarySerializer extends Serializer<FacetSummary> {
 
 	@Override
 	public void write(Kryo kryo, Output output, FacetSummary object) {
-		kryo.writeObject(output, object.getFacetStatisticsDepth());
+		kryo.writeObject(output, object.getStatisticsDepth());
 
 		final FilterBy filterBy = object.getFilterBy().orElse(null);
 		kryo.writeObjectOrNull(output, filterBy, FilterBy.class);

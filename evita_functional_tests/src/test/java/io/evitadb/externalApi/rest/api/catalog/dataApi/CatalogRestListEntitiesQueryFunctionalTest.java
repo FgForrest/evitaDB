@@ -30,11 +30,11 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAttributesDescriptor;
-import io.evitadb.test.tester.RestTester;
-import io.evitadb.test.tester.RestTester.Request;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.tester.RestTester;
+import io.evitadb.test.tester.RestTester.Request;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -83,9 +83,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 				map()
 					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-					.e(EntityDescriptor.LOCALES.name(), List.of())
 					.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-					.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 					.e(EntityDescriptor.ATTRIBUTES.name(), map()
 						.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
 							.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))
@@ -136,7 +134,6 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 					.e(EntityDescriptor.LOCALES.name(), List.of(Locale.ENGLISH.toLanguageTag()))
 					.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-					.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 					.e(EntityDescriptor.ATTRIBUTES.name(), map()
 						.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
 							.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))
@@ -195,7 +192,6 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 					.e(EntityDescriptor.LOCALES.name(), List.of(Locale.ENGLISH.toLanguageTag()))
 					.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-					.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 					.e(EntityDescriptor.ATTRIBUTES.name(), map()
 							.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))
 							.e(ATTRIBUTE_NAME, entity.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH))
@@ -244,7 +240,6 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 					.e(EntityDescriptor.LOCALES.name(), List.of(Locale.ENGLISH.toLanguageTag()))
 					.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-					.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 					.e(EntityDescriptor.ATTRIBUTES.name(), map()
 						.e(SectionedAttributesDescriptor.LOCALIZED.name(), map()
 							.e(Locale.ENGLISH.toLanguageTag(),
@@ -498,7 +493,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 
 		final var expectedBody = Stream.of(product)
-			.map(entity -> createEntityWithReferencedParentsDto(entity,  Entities.CATEGORY, false).build())
+			.map(entity -> createEntityWithReferencedParentsDto(entity,  Entities.CATEGORY, false, new String[0]).build())
 			.toList();
 
 		tester.test(TEST_CATALOG)
@@ -581,7 +576,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 
 		final var expectedBody = Stream.of(product)
-			.map(entity -> createEntityWithReferencedParentsDto(entity,  Entities.CATEGORY, true).build())
+			.map(entity -> createEntityWithReferencedParentsDto(entity,  Entities.CATEGORY, true, new String[0]).build())
 			.toList();
 
 		tester.test(TEST_CATALOG)
@@ -666,7 +661,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 
 		final var expectedBody = Stream.of(product)
-			.map(entity -> createEntityWithReferencedParentsDto(entity,  Entities.CATEGORY, false).build())
+			.map(entity -> createEntityWithReferencedParentsDto(entity,  Entities.CATEGORY, false, new String[0]).build())
 			.toList();
 
 		tester.test(TEST_CATALOG)
@@ -992,10 +987,8 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 				return map()
 					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-					.e(EntityDescriptor.LOCALES.name(), new ArrayList<>(0))
 					.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-					.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
-					.e(Entities.BRAND.toLowerCase(), createReferenceDto(entity, Entities.BRAND, true, true))
+					.e(Entities.BRAND.toLowerCase(), createReferenceDto(entity, Entities.BRAND, true, true, new String[0]))
 					.build();
 			})
 			.toList();

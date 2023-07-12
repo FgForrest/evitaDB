@@ -1,0 +1,19 @@
+{
+  queryCategory(
+    filterBy: {
+      hierarchyWithinRootSelf: {
+        directRelation: true
+      }
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        parentPrimaryKey
+        attributes {
+          code
+        }
+      }
+    }
+  }
+}

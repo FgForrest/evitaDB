@@ -44,18 +44,18 @@ import java.io.Serializable;
  *
  * Example:
  *
- * ```
+ * <pre>
  * contains('code', 'eve')
- * ```
+ * </pre>
  *
- * Function supports attribute arrays and when attribute is of array type `contains` returns true if *any of attribute* values
- * contains the value in the query. If we have the attribute `code` with value `['cat','mouse','dog']` all these constraints will
- * match:
+ * Function supports attribute arrays and when attribute is of array type `contains` returns true if any of attribute
+ * values contains the value in the query. If we have the attribute `code` with value `['cat','mouse','dog']` all these
+ * constraints will match:
  *
- * ```
+ * <pre>
  * contains('code','mou')
  * contains('code','o')
- * ```
+ * </pre>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

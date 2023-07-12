@@ -1,0 +1,25 @@
+POST /rest/evita/product/query
+
+{
+  "filterBy" : {
+    "hierarchyCategoriesWithin" : {
+      "ofParent" : {
+        "attributeCodeEquals" : "accessories"
+      },
+      "with" : {
+        "excluding" : [
+          {
+            "attributeCodeEquals" : "wireless-headphones"
+          }
+        ]
+      }
+    }
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ]
+    }
+  }
+}

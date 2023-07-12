@@ -24,21 +24,26 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.builder;
 
 import graphql.schema.GraphQLFieldDefinition.Builder;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.BigDecimalDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.BigDecimalFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars;
+import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLArgumentTransformer;
+import lombok.RequiredArgsConstructor;
+
+import javax.annotation.Nonnull;
 
 /**
  * Sets field to nullable big decimal and adds parameter for formatting the output value.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@RequiredArgsConstructor
 public class NullableBigDecimalFieldDecorator implements FieldDecorator {
+
+	@Nonnull private final PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer;
 
 	@Override
 	public void accept(Builder builder) {
 		builder.type(GraphQLScalars.BIG_DECIMAL);
-		builder.argument(a -> a
-			.name(BigDecimalDataFetcher.FORMATTED_PARAMETER)
-			.type(GraphQLScalars.BOOLEAN));
+		builder.argument(BigDecimalFieldHeaderDescriptor.FORMATTED.to(argumentBuilderTransformer));
 	}
 }

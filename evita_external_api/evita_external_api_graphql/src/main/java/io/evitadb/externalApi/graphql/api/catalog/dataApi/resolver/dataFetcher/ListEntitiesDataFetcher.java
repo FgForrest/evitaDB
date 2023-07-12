@@ -43,7 +43,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ListEntitiesQueryHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ListEntitiesHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
@@ -87,7 +87,7 @@ public class ListEntitiesDataFetcher extends ReadDataFetcher<DataFetcherResult<L
     @Nonnull private final OrderConstraintResolver orderConstraintResolver;
     @Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 
-    public ListEntitiesDataFetcher(@Nonnull Executor executor,
+    public ListEntitiesDataFetcher(@Nullable Executor executor,
                                    @Nonnull CatalogSchemaContract catalogSchema,
                                    @Nonnull EntitySchemaContract entitySchema) {
         super(executor);
@@ -141,7 +141,7 @@ public class ListEntitiesDataFetcher extends ReadDataFetcher<DataFetcherResult<L
         }
         return (FilterBy) filterConstraintResolver.resolve(
             entitySchema.getName(),
-            ListEntitiesQueryHeaderDescriptor.FILTER_BY.name(),
+            ListEntitiesHeaderDescriptor.FILTER_BY.name(),
             arguments.filterBy()
         );
     }
@@ -153,7 +153,7 @@ public class ListEntitiesDataFetcher extends ReadDataFetcher<DataFetcherResult<L
         }
         return (OrderBy) orderConstraintResolver.resolve(
             entitySchema.getName(),
-            ListEntitiesQueryHeaderDescriptor.ORDER_BY.name(),
+            ListEntitiesHeaderDescriptor.ORDER_BY.name(),
             arguments.orderBy()
         );
     }
@@ -228,9 +228,9 @@ public class ListEntitiesDataFetcher extends ReadDataFetcher<DataFetcherResult<L
                              @Nullable Integer limit) {
 
         private static Arguments from(@Nonnull DataFetchingEnvironment environment) {
-            final Object filterBy = environment.getArgument(ListEntitiesQueryHeaderDescriptor.FILTER_BY.name());
-            final Object orderBy = environment.getArgument(ListEntitiesQueryHeaderDescriptor.ORDER_BY.name());
-            final Integer limit = environment.getArgument(ListEntitiesQueryHeaderDescriptor.LIMIT.name());
+            final Object filterBy = environment.getArgument(ListEntitiesHeaderDescriptor.FILTER_BY.name());
+            final Object orderBy = environment.getArgument(ListEntitiesHeaderDescriptor.ORDER_BY.name());
+            final Integer limit = environment.getArgument(ListEntitiesHeaderDescriptor.LIMIT.name());
 
             return new Arguments(filterBy, orderBy, limit);
         }

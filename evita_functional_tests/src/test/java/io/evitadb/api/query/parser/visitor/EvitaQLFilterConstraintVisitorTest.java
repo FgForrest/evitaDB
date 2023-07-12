@@ -102,6 +102,49 @@ class EvitaQLFilterConstraintVisitorTest {
     }
 
     @Test
+    void shouldParseFilterGroupByConstraint() {
+        final FilterConstraint constraint1 = parseFilterConstraintUnsafe("filterGroupBy(attributeEquals('a',1))");
+        assertEquals(filterGroupBy(attributeEquals("a", 1L)), constraint1);
+
+        final FilterConstraint constraint2 = parseFilterConstraintUnsafe("filterGroupBy ( attributeEquals('a',1)  )");
+        assertEquals(filterGroupBy(attributeEquals("a", 1L)), constraint2);
+
+        final FilterConstraint constraint3 = parseFilterConstraintUnsafe("filterGroupBy(attributeEquals('a',1),entityPrimaryKeyInSet(1))");
+        assertEquals(filterGroupBy(attributeEquals("a", 1L), entityPrimaryKeyInSet(1)), constraint3);
+
+        final FilterConstraint constraint4 = parseFilterConstraint(
+            "filterGroupBy(attributeEquals(?,?))",
+            "a", 1L
+        );
+        assertEquals(filterGroupBy(attributeEquals("a", 1L)), constraint4);
+
+        final FilterConstraint constraint5 = parseFilterConstraint(
+            "filterGroupBy(attributeEquals(?,?),entityPrimaryKeyInSet(?))",
+            "a", 1L, 1L
+        );
+        assertEquals(filterGroupBy(attributeEquals("a", 1L), entityPrimaryKeyInSet(1)), constraint5);
+
+        final FilterConstraint constraint6 = parseFilterConstraint(
+            "filterGroupBy(attributeEquals(@name,@val))",
+            Map.of("name", "a", "val", 1L)
+        );
+        assertEquals(filterGroupBy(attributeEquals("a", 1L)), constraint6);
+
+        final FilterConstraint constraint7 = parseFilterConstraint(
+            "filterGroupBy(attributeEquals(@name,@val),entityPrimaryKeyInSet(@pk))",
+            Map.of("name", "a", "val", 1L, "pk", 1L)
+        );
+        assertEquals(filterGroupBy(attributeEquals("a", 1L), entityPrimaryKeyInSet(1)), constraint7);
+    }
+
+    @Test
+    void shouldNotParseFilterGroupByConstraint() {
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("filterGroupBy"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("filterGroupBy()"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("filterGroupBy(collection('a'))"));
+    }
+
+    @Test
     void shouldParseAndConstraint() {
         final FilterConstraint constraint1 = parseFilterConstraintUnsafe("and(attributeEquals('a',1))");
         assertEquals(and(attributeEquals("a", 1L)), constraint1);

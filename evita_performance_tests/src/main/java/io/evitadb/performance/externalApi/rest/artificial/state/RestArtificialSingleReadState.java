@@ -117,11 +117,14 @@ public class RestArtificialSingleReadState extends AbstractRestArtificialState {
 			.findFirst()
 			.orElseThrow(() -> new IllegalStateException("No locales found!"));
 
-		this.resource = String.format(
-			"%s/product/get?primaryKey=%d%s",
-			randomExistingLocale.toLanguageTag(),
-			benchmarkState.getRandom().nextInt(PRODUCT_COUNT) + 1,
-			!parameters.isEmpty() ? "&" + String.join("&", parameters) : ""
+		setRequest(
+			"GET",
+			String.format(
+				"%s/product/get?primaryKey=%d%s",
+				randomExistingLocale.toLanguageTag(),
+				benchmarkState.getRandom().nextInt(PRODUCT_COUNT) + 1,
+				!parameters.isEmpty() ? "&" + String.join("&", parameters) : ""
+			)
 		);
 	}
 }

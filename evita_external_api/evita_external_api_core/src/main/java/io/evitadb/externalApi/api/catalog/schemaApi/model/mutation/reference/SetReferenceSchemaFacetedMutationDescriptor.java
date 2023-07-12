@@ -40,7 +40,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
 public interface SetReferenceSchemaFacetedMutationDescriptor extends ReferenceSchemaMutationDescriptor {
 
 	PropertyDescriptor FACETED = PropertyDescriptor.builder()
-		.name("filterable")
+		.name("faceted")
 		.description("""
 			Whether the statistics data for this reference should be maintained and this allowing to get
 			`facetSummary` for this reference or use `facet_{reference name}_inSet`

@@ -26,21 +26,23 @@ package io.evitadb.api.query.order;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `random` is ordering that sorts returned entities in random order.
+ * Random ordering is useful in situations where you want to present the end user with the unique entity listing every
+ * time he/she accesses it. The constraint makes the order of the entities in the result random and does not take any
+ * arguments.
  *
  * Example:
  *
- * ```
+ * <pre>
  * random()
- * ```
+ * </pre>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

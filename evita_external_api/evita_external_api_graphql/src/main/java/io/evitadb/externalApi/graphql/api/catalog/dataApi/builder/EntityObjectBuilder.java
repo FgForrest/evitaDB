@@ -91,8 +91,6 @@ import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRoo
  */
 public class EntityObjectBuilder {
 
-	private static final PriceBigDecimalFieldDecorator PRICE_FIELD_DECORATOR = new PriceBigDecimalFieldDecorator();
-
 	@Nonnull private final CatalogGraphQLSchemaBuildingContext buildingContext;
 	@Nonnull private final FilterConstraintSchemaBuilder filterConstraintSchemaBuilder;
 	@Nonnull private final OrderConstraintSchemaBuilder orderConstraintSchemaBuilder;
@@ -102,6 +100,8 @@ public class EntityObjectBuilder {
 	@Nonnull private final ObjectDescriptorToGraphQLInterfaceTransformer interfaceBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer;
 	@Nonnull private final PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer;
+
+	@Nonnull private final PriceBigDecimalFieldDecorator priceFieldDecorator;
 
 	public EntityObjectBuilder(@Nonnull CatalogGraphQLSchemaBuildingContext buildingContext,
 							   @Nonnull GraphQLConstraintSchemaBuildingContext constraintSchemaBuildingContext,
@@ -124,6 +124,8 @@ public class EntityObjectBuilder {
 		this.interfaceBuilderTransformer = interfaceBuilderTransformer;
 		this.objectBuilderTransformer = objectBuilderTransformer;
 		this.fieldBuilderTransformer = fieldBuilderTransformer;
+
+		this.priceFieldDecorator = new PriceBigDecimalFieldDecorator(argumentBuilderTransformer);
 	}
 
 	public void buildCommonTypes() {
@@ -141,20 +143,20 @@ public class EntityObjectBuilder {
 
 	@Nonnull
 	public GraphQLObjectType build(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
-		return build(collectionBuildingContext, EntityObjectVersion.DEFAULT);
+		return build(collectionBuildingContext, EntityObjectVariant.DEFAULT);
 	}
 
 
 	@Nonnull
 	public GraphQLObjectType build(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
-	                               @Nonnull EntityObjectVersion version) {
+	                               @Nonnull EntityObjectVariant variant) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
 		// build specific entity object
-		final ObjectDescriptor entityDescriptor = switch (version) {
+		final ObjectDescriptor entityDescriptor = switch (variant) {
 			case DEFAULT -> GraphQLEntityDescriptor.THIS;
 			case NON_HIERARCHICAL -> GraphQLEntityDescriptor.THIS_NON_HIERARCHICAL;
-			default -> throw new GraphQLSchemaBuildingError("Unsupported version `" + version + "`.");
+			default -> throw new GraphQLSchemaBuildingError("Unsupported version `" + variant + "`.");
 		};
 		final String objectName = entityDescriptor.name(entitySchema);
 		final GraphQLObjectType.Builder entityObjectBuilder = entityDescriptor
@@ -171,18 +173,26 @@ public class EntityObjectBuilder {
 
 		// build hierarchy fields
 		if (entitySchema.isWithHierarchy()) {
-			buildingContext.registerFieldToObject(
-				objectName,
-				entityObjectBuilder,
-				buildEntityParentPrimaryKeyField()
-			);
+			if (variant == EntityObjectVariant.DEFAULT) {
+				buildingContext.registerFieldToObject(
+					objectName,
+					entityObjectBuilder,
+					buildEntityParentPrimaryKeyField()
+				);
 
-			if (version == EntityObjectVersion.DEFAULT) {
 				buildingContext.registerFieldToObject(
 					objectName,
 					entityObjectBuilder,
 					buildEntityParentsField(collectionBuildingContext)
 				);
+			} else if (variant == EntityObjectVariant.NON_HIERARCHICAL) {
+				buildingContext.registerFieldToObject(
+					objectName,
+					entityObjectBuilder,
+					buildNonHierarchicalEntityParentPrimaryKeyField()
+				);
+			} else {
+				throw new GraphQLSchemaBuildingError("Unsupported entity object variant `" + variant + "`.");
 			}
 		}
 
@@ -214,7 +224,7 @@ public class EntityObjectBuilder {
 			buildingContext.registerFieldToObject(
 				objectName,
 				entityObjectBuilder,
-				buildEntityAttributesField(collectionBuildingContext, version)
+				buildEntityAttributesField(collectionBuildingContext, variant)
 			);
 		}
 
@@ -223,13 +233,13 @@ public class EntityObjectBuilder {
 			buildingContext.registerFieldToObject(
 				objectName,
 				entityObjectBuilder,
-				buildEntityAssociatedDataField(collectionBuildingContext, version)
+				buildEntityAssociatedDataField(collectionBuildingContext, variant)
 			);
 		}
 
 		// build reference fields
 		if (!entitySchema.getReferences().isEmpty()) {
-			final List<BuiltFieldDescriptor> referenceFieldDescriptors = buildEntityReferenceFields(collectionBuildingContext, version);
+			final List<BuiltFieldDescriptor> referenceFieldDescriptors = buildEntityReferenceFields(collectionBuildingContext, variant);
 			referenceFieldDescriptors.forEach(referenceFieldDescriptor -> buildingContext.registerFieldToObject(
 				objectName,
 				entityObjectBuilder,
@@ -245,6 +255,14 @@ public class EntityObjectBuilder {
 		return new BuiltFieldDescriptor(
 			GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.to(fieldBuilderTransformer).build(),
 			new ParentPrimaryKeyDataFetcher()
+		);
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildNonHierarchicalEntityParentPrimaryKeyField() {
+		return new BuiltFieldDescriptor(
+			GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.to(fieldBuilderTransformer).build(),
+			new NonHierarchicalParentPrimaryKeyDataFetcher()
 		);
 	}
 
@@ -335,7 +353,7 @@ public class EntityObjectBuilder {
 
 	@Nonnull
 	private BuiltFieldDescriptor buildEntityAttributesField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
-	                                                        @Nonnull EntityObjectVersion version) {
+	                                                        @Nonnull EntityObjectVariant version) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 		final GraphQLType attributesObject = switch (version) {
 			case DEFAULT -> buildAttributesObject(
@@ -381,7 +399,7 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
-	private static BuiltFieldDescriptor buildAttributeField(@Nonnull AttributeSchemaContract attributeSchema) {
+	private BuiltFieldDescriptor buildAttributeField(@Nonnull AttributeSchemaContract attributeSchema) {
 		final GraphQLFieldDefinition.Builder attributeFieldBuilder = newFieldDefinition()
 			.name(attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 			.description(attributeSchema.getDescription())
@@ -391,9 +409,9 @@ public class EntityObjectBuilder {
 		final Class<? extends Serializable> attributeType = attributeSchema.getType();
 		if (BigDecimal.class.isAssignableFrom(attributeType)) {
 			if (attributeSchema.isNullable()) {
-				new NullableBigDecimalFieldDecorator().accept(attributeFieldBuilder);
+				new NullableBigDecimalFieldDecorator(argumentBuilderTransformer).accept(attributeFieldBuilder);
 			} else {
-				new NonNullBigDecimalFieldDecorator().accept(attributeFieldBuilder);
+				new NonNullBigDecimalFieldDecorator(argumentBuilderTransformer).accept(attributeFieldBuilder);
 			}
 
 			attributeFieldDataFetcher = new BigDecimalDataFetcher(new AttributeValueDataFetcher<>(attributeSchema));
@@ -412,7 +430,7 @@ public class EntityObjectBuilder {
 
 	@Nonnull
 	private BuiltFieldDescriptor buildEntityAssociatedDataField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
-	                                                            @Nonnull EntityObjectVersion version) {
+	                                                            @Nonnull EntityObjectVariant version) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 		final GraphQLType associatedDataObject = switch (version) {
 			case DEFAULT -> buildAssociatedDataObject(collectionBuildingContext);
@@ -462,9 +480,9 @@ public class EntityObjectBuilder {
 		final Class<? extends Serializable> associatedDataType = associatedDataSchema.getType();
 		if (BigDecimal.class.isAssignableFrom(associatedDataType)) {
 			if (associatedDataSchema.isNullable()) {
-				new NullableBigDecimalFieldDecorator().accept(associatedDataFieldBuilder);
+				new NullableBigDecimalFieldDecorator(argumentBuilderTransformer).accept(associatedDataFieldBuilder);
 			} else {
-				new NonNullBigDecimalFieldDecorator().accept(associatedDataFieldBuilder);
+				new NonNullBigDecimalFieldDecorator(argumentBuilderTransformer).accept(associatedDataFieldBuilder);
 			}
 
 			associatedDataFieldDataFetcher = new BigDecimalDataFetcher(new AssociatedDataValueDataFetcher<>(cdoObjectMapper, associatedDataSchema));
@@ -488,7 +506,7 @@ public class EntityObjectBuilder {
 
 	@Nonnull
 	private List<BuiltFieldDescriptor> buildEntityReferenceFields(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
-	                                                              @Nonnull EntityObjectVersion version) {
+	                                                              @Nonnull EntityObjectVariant version) {
 		final Collection<ReferenceSchemaContract> referenceSchemas = collectionBuildingContext.getSchema().getReferences().values();
 
 		return referenceSchemas.stream()
@@ -668,16 +686,16 @@ public class EntityObjectBuilder {
 
 		return PriceDescriptor.THIS
 			.to(objectBuilderTransformer)
-			.field(PriceDescriptor.PRICE_WITHOUT_TAX.to(fieldBuilderTransformer.with(PRICE_FIELD_DECORATOR)))
-			.field(PriceDescriptor.PRICE_WITH_TAX.to(fieldBuilderTransformer.with(PRICE_FIELD_DECORATOR)))
-			.field(PriceDescriptor.TAX_RATE.to(fieldBuilderTransformer.with(PRICE_FIELD_DECORATOR)))
+			.field(PriceDescriptor.PRICE_WITHOUT_TAX.to(fieldBuilderTransformer.with(priceFieldDecorator)))
+			.field(PriceDescriptor.PRICE_WITH_TAX.to(fieldBuilderTransformer.with(priceFieldDecorator)))
+			.field(PriceDescriptor.TAX_RATE.to(fieldBuilderTransformer.with(priceFieldDecorator)))
 			.build();
 	}
 
 	/**
 	 * Defines if entity object will have all possible fields for specified schema or there will be some restrictions.
 	 */
-	public enum EntityObjectVersion {
+	public enum EntityObjectVariant {
 		/**
 		 * Full entity object with all possible fields.
 		 */

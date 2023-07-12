@@ -30,33 +30,46 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.require.ReferenceContent;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `referenceAttribute` container is ordering that sorts returned entities by reference attributes. Ordering is
- * specified by inner constraints. Price related orderings cannot be used here, because references don't posses of prices.
+ * The `entityProperty` ordering constraint can only be used within the {@link ReferenceContent} requirement. It allows
+ * to change the context of the reference ordering from attributes of the reference itself to attributes of the entity
+ * the reference points to.
+ *
+ * In other words, if the `Product` entity has multiple references to `Parameter` entities, you can sort those references
+ * by, for example, the `priority` or `name` attribute of the `Parameter` entity.
  *
  * Example:
  *
- * ```
- * referenceAttribute(
- * 'CATEGORY',
- * ascending('categoryPriority')
+ * <pre>
+ * query(
+ *     collection('Product'),
+ *     filterBy(
+ *         attributeEquals('code', 'garmin-vivoactive-4')
+ *     ),
+ *     require(
+ *         entityFetch(
+ *             attributeContent('code'),
+ *             referenceContent(
+ *                 'parameterValues',
+ *                 orderBy(
+ *                     entityProperty(
+ *                         attributeNatural('code', DESC)
+ *                     )
+ *                 ),
+ *                 entityFetch(
+ *                     attributeContent('code')
+ *                 )
+ *             )
+ *         )
+ *     )
  * )
- * ```
- *
- * or
- *
- * ```
- * referenceAttribute(
- * 'CATEGORY',
- * ascending('categoryPriority'),
- * descending('stockPriority')
- * )
- * ```
+ * </pre>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -74,7 +87,7 @@ public class EntityProperty extends AbstractOrderConstraintContainer implements 
 	}
 
 	@Creator
-	public EntityProperty(@Nonnull @Child OrderConstraint... children) {
+	public EntityProperty(@Nonnull @Child(uniqueChildren = true) OrderConstraint... children) {
 		super(children);
 	}
 

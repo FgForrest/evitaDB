@@ -1,0 +1,21 @@
+{
+  queryCategory(
+    filterBy: {
+      hierarchyWithinSelf: {
+        ofParent: {
+          attributeCodeStartsWith: "wire"
+        }
+      }
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        parentPrimaryKey
+        attributes {
+          code
+        }
+      }
+    }
+  }
+}

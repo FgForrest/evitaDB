@@ -93,7 +93,10 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 		this.underlyingPredicate = null;
 	}
 
-	public AttributeValueSerializablePredicate(@Nonnull EvitaRequest evitaRequest, @Nonnull AttributeValueSerializablePredicate underlyingPredicate) {
+	public AttributeValueSerializablePredicate(
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull AttributeValueSerializablePredicate underlyingPredicate
+	) {
 		Assert.isPremiseValid(
 			underlyingPredicate.getUnderlyingPredicate() == null,
 			"Underlying predicates cannot be nested! " +
@@ -107,7 +110,12 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 		this.underlyingPredicate = underlyingPredicate;
 	}
 
-	AttributeValueSerializablePredicate(@Nullable Locale implicitLocale, @Nullable Set<Locale> locales, @Nonnull Set<String> attributeSet, boolean requiresEntityAttributes) {
+	AttributeValueSerializablePredicate(
+		@Nullable Locale implicitLocale,
+		@Nullable Set<Locale> locales,
+		@Nonnull Set<String> attributeSet,
+		boolean requiresEntityAttributes
+	) {
 		this.implicitLocale = implicitLocale;
 		this.locales = locales;
 		this.attributeSet = attributeSet;

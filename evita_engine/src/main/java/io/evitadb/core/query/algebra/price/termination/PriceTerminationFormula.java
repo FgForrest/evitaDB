@@ -25,6 +25,7 @@ package io.evitadb.core.query.algebra.price.termination;
 
 import io.evitadb.api.query.require.PriceHistogram;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.NonCacheableFormula;
 import io.evitadb.core.query.algebra.NonCacheableFormulaScope;
 import io.evitadb.core.query.algebra.price.CacheablePriceFormula;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramProducer;
@@ -40,7 +41,7 @@ import javax.annotation.Nullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface PriceTerminationFormula extends PriceWrappingFormula, CacheablePriceFormula, NonCacheableFormulaScope {
+public interface PriceTerminationFormula extends PriceWrappingFormula, CacheablePriceFormula, NonCacheableFormulaScope, NonCacheableFormula {
 
 	/**
 	 * Returns bitmap that contains set of entity primary keys that were excluded due to {@link PricePredicate}.

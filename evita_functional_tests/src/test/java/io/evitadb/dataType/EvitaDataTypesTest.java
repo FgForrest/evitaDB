@@ -153,12 +153,6 @@ class EvitaDataTypesTest {
 	}
 
 	@Test
-	void shouldFormatMultiple() {
-		final Multiple multiple = new Multiple(1, 2);
-		assertEquals("{1,2}", formatValue(multiple));
-	}
-
-	@Test
 	void shouldReturnWrapperClass() {
 		assertEquals(Integer.class, getWrappingPrimitiveClass(int.class));
 		assertEquals(Character.class, getWrappingPrimitiveClass(char.class));

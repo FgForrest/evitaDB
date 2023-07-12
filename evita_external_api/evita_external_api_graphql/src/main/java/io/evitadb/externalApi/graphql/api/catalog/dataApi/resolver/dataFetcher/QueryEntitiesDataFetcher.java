@@ -49,7 +49,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryEntitiesQueryHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryEntitiesHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.*;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
@@ -113,7 +113,7 @@ public class QueryEntitiesDataFetcher extends ReadDataFetcher<DataFetcherResult<
 			.orElse(null);
 	}
 
-	public QueryEntitiesDataFetcher(@Nonnull Executor executor,
+	public QueryEntitiesDataFetcher(@Nullable Executor executor,
                                     @Nonnull CatalogSchemaContract catalogSchema,
 	                                @Nonnull EntitySchemaContract entitySchema) {
         super(executor);
@@ -192,7 +192,7 @@ public class QueryEntitiesDataFetcher extends ReadDataFetcher<DataFetcherResult<
 		}
 		return (FilterBy) filterConstraintResolver.resolve(
 			entitySchema.getName(),
-			QueryEntitiesQueryHeaderDescriptor.FILTER_BY.name(),
+			QueryEntitiesHeaderDescriptor.FILTER_BY.name(),
 			arguments.filterBy()
 		);
 	}
@@ -204,7 +204,7 @@ public class QueryEntitiesDataFetcher extends ReadDataFetcher<DataFetcherResult<
 		}
 		return (OrderBy) orderConstraintResolver.resolve(
 			entitySchema.getName(),
-			QueryEntitiesQueryHeaderDescriptor.ORDER_BY.name(),
+			QueryEntitiesHeaderDescriptor.ORDER_BY.name(),
 			arguments.orderBy()
 		);
 	}
@@ -219,7 +219,7 @@ public class QueryEntitiesDataFetcher extends ReadDataFetcher<DataFetcherResult<
 		if (arguments.require() != null) {
 			final Require explicitRequire = (Require) requireConstraintResolver.resolve(
 				entitySchema.getName(),
-				QueryEntitiesQueryHeaderDescriptor.REQUIRE.name(),
+				QueryEntitiesHeaderDescriptor.REQUIRE.name(),
 				arguments.require()
 			);
 			if (explicitRequire != null) {
@@ -320,9 +320,9 @@ public class QueryEntitiesDataFetcher extends ReadDataFetcher<DataFetcherResult<
 	                         @Nullable Object require) {
 
 		private static Arguments from(@Nonnull DataFetchingEnvironment environment) {
-			final Object filterBy = environment.getArgument(QueryEntitiesQueryHeaderDescriptor.FILTER_BY.name());
-			final Object orderBy = environment.getArgument(QueryEntitiesQueryHeaderDescriptor.ORDER_BY.name());
-			final Object require = environment.getArgument(QueryEntitiesQueryHeaderDescriptor.REQUIRE.name());
+			final Object filterBy = environment.getArgument(QueryEntitiesHeaderDescriptor.FILTER_BY.name());
+			final Object orderBy = environment.getArgument(QueryEntitiesHeaderDescriptor.ORDER_BY.name());
+			final Object require = environment.getArgument(QueryEntitiesHeaderDescriptor.REQUIRE.name());
 
 			return new Arguments(filterBy, orderBy, require);
 		}

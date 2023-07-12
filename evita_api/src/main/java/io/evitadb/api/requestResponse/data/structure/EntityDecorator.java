@@ -28,7 +28,6 @@ import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.PriceContract;
@@ -339,7 +338,7 @@ public class EntityDecorator implements SealedEntity {
 				referenceContract, referenceSchema, entityFetcher, entityGroupFetcher
 			);
 		}
-		if (referenceSchema != null) {
+		if (referenceSchema != null && fetchedReferenceComparator != null) {
 			sortAndFilterSubList(
 				entityPrimaryKey,
 				fetchedAndFilteredReferences, fetchedReferenceComparator,
@@ -654,6 +653,13 @@ public class EntityDecorator implements SealedEntity {
 			.stream()
 			.map(AttributeValue::getKey)
 			.collect(Collectors.toSet());
+	}
+
+	@Nonnull
+	@Override
+	public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
+		return delegate.getAttributeValue(attributeKey)
+			.filter(attributePredicate);
 	}
 
 	@Nonnull
@@ -989,14 +995,9 @@ public class EntityDecorator implements SealedEntity {
 			filteredReferences = delegate.getReferences()
 				.stream()
 				.filter(referencePredicate)
-				.sorted(
-					Comparator.comparing(ReferenceContract::getReferenceName)
-						.thenComparingInt(ReferenceContract::getReferencedPrimaryKey)
-				)
 				.map(
 					it -> new ReferenceDecorator(
-						it, null, null,
-						referencePredicate.getAttributePredicate()
+						it, referencePredicate.getAttributePredicate(it.getReferenceKey().referenceName())
 					)
 				)
 				.collect(
@@ -1037,7 +1038,9 @@ public class EntityDecorator implements SealedEntity {
 			reference,
 			referencedEntity,
 			referencedGroupEntity,
-			referencePredicate.getAttributePredicate()
+			referencePredicate.getAttributePredicate(
+				referenceSchema.getName()
+			)
 		);
 	}
 

@@ -42,7 +42,6 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceBlockingStub;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor;
-import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
@@ -453,61 +452,56 @@ public class EvitaClient implements EvitaContract {
 		public Object invoke(Object proxy, Method method, Object[] args) {
 			// invoke original method on delegate
 			try {
-				SessionIdHolder.setSessionId(evitaSession.getCatalogName(), evitaSession.getId().toString());
-				try {
-					return method.invoke(evitaSession, args);
-				} catch (InvocationTargetException ex) {
-					// handle the error
-					final Throwable targetException = ex.getTargetException();
-					if (targetException instanceof StatusRuntimeException statusRuntimeException) {
-						final Code statusCode = statusRuntimeException.getStatus().getCode();
-						final String description = ofNullable(statusRuntimeException.getStatus().getDescription())
-							.orElse("No description.");
-						if (statusCode == Code.UNAUTHENTICATED) {
-							// close session and rethrow
-							evitaSession.closeInternally();
-							throw new InstanceTerminatedException("session");
-						} else if (statusCode == Code.INVALID_ARGUMENT) {
-							final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
-							if (expectedFormat.matches()) {
-								throw EvitaInvalidUsageException.createExceptionWithErrorCode(
-									expectedFormat.group(2), expectedFormat.group(1)
-								);
-							} else {
-								throw new EvitaInvalidUsageException(description);
-							}
+				return method.invoke(evitaSession, args);
+			} catch (InvocationTargetException ex) {
+				// handle the error
+				final Throwable targetException = ex.getTargetException();
+				if (targetException instanceof StatusRuntimeException statusRuntimeException) {
+					final Code statusCode = statusRuntimeException.getStatus().getCode();
+					final String description = ofNullable(statusRuntimeException.getStatus().getDescription())
+						.orElse("No description.");
+					if (statusCode == Code.UNAUTHENTICATED) {
+						// close session and rethrow
+						evitaSession.closeInternally();
+						throw new InstanceTerminatedException("session");
+					} else if (statusCode == Code.INVALID_ARGUMENT) {
+						final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
+						if (expectedFormat.matches()) {
+							throw EvitaInvalidUsageException.createExceptionWithErrorCode(
+								expectedFormat.group(2), expectedFormat.group(1)
+							);
 						} else {
-							final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
-							if (expectedFormat.matches()) {
-								throw EvitaInternalError.createExceptionWithErrorCode(
-									expectedFormat.group(2), expectedFormat.group(1)
-								);
-							} else {
-								throw new EvitaInternalError(description);
-							}
+							throw new EvitaInvalidUsageException(description);
 						}
-					} else if (targetException instanceof EvitaInvalidUsageException) {
-						throw (EvitaInvalidUsageException) targetException;
-					} else if (targetException instanceof EvitaInternalError) {
-						throw (EvitaInternalError) targetException;
 					} else {
-						log.error("Unexpected internal Evita error occurred: {}", ex.getMessage(), ex);
-						throw new EvitaInternalError(
-							"Unexpected internal Evita error occurred: " + ex.getMessage(),
-							"Unexpected internal Evita error occurred.",
-							targetException
-						);
+						final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
+						if (expectedFormat.matches()) {
+							throw EvitaInternalError.createExceptionWithErrorCode(
+								expectedFormat.group(2), expectedFormat.group(1)
+							);
+						} else {
+							throw new EvitaInternalError(description);
+						}
 					}
-				} catch (Throwable ex) {
-					log.error("Unexpected system error occurred: {}", ex.getMessage(), ex);
+				} else if (targetException instanceof EvitaInvalidUsageException) {
+					throw (EvitaInvalidUsageException) targetException;
+				} else if (targetException instanceof EvitaInternalError) {
+					throw (EvitaInternalError) targetException;
+				} else {
+					log.error("Unexpected internal Evita error occurred: {}", ex.getMessage(), ex);
 					throw new EvitaInternalError(
-						"Unexpected system error occurred: " + ex.getMessage(),
-						"Unexpected system error occurred.",
-						ex
+						"Unexpected internal Evita error occurred: " + ex.getMessage(),
+						"Unexpected internal Evita error occurred.",
+						targetException
 					);
 				}
-			} finally {
-				SessionIdHolder.reset();
+			} catch (Throwable ex) {
+				log.error("Unexpected system error occurred: {}", ex.getMessage(), ex);
+				throw new EvitaInternalError(
+					"Unexpected system error occurred: " + ex.getMessage(),
+					"Unexpected system error occurred.",
+					ex
+				);
 			}
 		}
 	}

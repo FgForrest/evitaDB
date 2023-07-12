@@ -38,8 +38,9 @@ import java.io.Serializable;
 
 /**
  * This `between` is query that compares value of the attribute with name passed in first argument with the value passed
- * in the second argument and value passed in third argument. First argument must be {@link String},
- * second and third argument may be any of {@link Comparable} type.
+ * in the second argument and value passed in third argument. First argument must be {@link String}, second and third 
+ * argument may be any of {@link Comparable} type.
+ * 
  * Type of the attribute value and second argument must be convertible one to another otherwise `between` function
  * returns false.
  *
@@ -48,37 +49,37 @@ import java.io.Serializable;
  *
  * Example:
  *
- * ```
+ * <pre>
  * between('age', 20, 25)
- * ```
+ * </pre>
  *
  * Function supports attribute arrays and when attribute is of array type `between` returns true if *any of attribute* values
  * is between the passed interval the value in the query. If we have the attribute `amount` with value `[1, 9]` all
  * these constraints will match:
  *
- * ```
+ * <pre>
  * between('amount', 0, 50)
  * between('amount', 0, 5)
  * between('amount', 8, 10)
- * ```
+ * </pre>
  *
  * If attribute is of `Range` type `between` query behaves like overlap - it returns true if examined range and
  * any of the attribute ranges (see previous paragraph about array types) share anything in common. All of following
  * constraints return true when we have the attribute `validity` with following `NumberRange` values: `[[2,5],[8,10]]`:
  *
- * ```
+ * <pre>
  * between(`validity`, 0, 3)
  * between(`validity`, 0, 100)
  * between(`validity`, 9, 10)
- * ```
+ * </pre>
  *
  * ... but these constraints will return false:
  *
- * ```
+ * <pre>
  * between(`validity`, 11, 15)
  * between(`validity`, 0, 1)
  * between(`validity`, 6, 7)
- * ```
+ * </pre>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

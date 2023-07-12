@@ -1,3 +1,26 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2023
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
 // Generated from EvitaQL.g4 by ANTLR 4.9.2
 
 package io.evitadb.api.query.parser.grammar;
@@ -123,6 +146,18 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitFilterByConstraint(EvitaQLParser.FilterByConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code filterGroupByConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterFilterGroupByConstraint(EvitaQLParser.FilterGroupByConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code filterGroupByConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitFilterGroupByConstraint(EvitaQLParser.FilterGroupByConstraintContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code andConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
@@ -592,6 +627,18 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitOrderByConstraint(EvitaQLParser.OrderByConstraintContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code orderGroupByConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterOrderGroupByConstraint(EvitaQLParser.OrderGroupByConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code orderGroupByConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitOrderGroupByConstraint(EvitaQLParser.OrderGroupByConstraintContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code attributeNaturalConstraint}
 	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
 	 * @param ctx the parse tree
@@ -844,53 +891,281 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitMultipleRefsReferenceContentConstraint(EvitaQLParser.MultipleRefsReferenceContentConstraintContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code singleRefReferenceContentConstraint}
+	 * Enter a parse tree produced by the {@code singleRefReferenceContent1Constraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 */
-	void enterSingleRefReferenceContentConstraint(EvitaQLParser.SingleRefReferenceContentConstraintContext ctx);
+	void enterSingleRefReferenceContent1Constraint(EvitaQLParser.SingleRefReferenceContent1ConstraintContext ctx);
 	/**
-	 * Exit a parse tree produced by the {@code singleRefReferenceContentConstraint}
+	 * Exit a parse tree produced by the {@code singleRefReferenceContent1Constraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 */
-	void exitSingleRefReferenceContentConstraint(EvitaQLParser.SingleRefReferenceContentConstraintContext ctx);
+	void exitSingleRefReferenceContent1Constraint(EvitaQLParser.SingleRefReferenceContent1ConstraintContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code singleRefWithFilterReferenceContentConstraint}
+	 * Enter a parse tree produced by the {@code singleRefReferenceContent2Constraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 */
-	void enterSingleRefWithFilterReferenceContentConstraint(EvitaQLParser.SingleRefWithFilterReferenceContentConstraintContext ctx);
+	void enterSingleRefReferenceContent2Constraint(EvitaQLParser.SingleRefReferenceContent2ConstraintContext ctx);
 	/**
-	 * Exit a parse tree produced by the {@code singleRefWithFilterReferenceContentConstraint}
+	 * Exit a parse tree produced by the {@code singleRefReferenceContent2Constraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 */
-	void exitSingleRefWithFilterReferenceContentConstraint(EvitaQLParser.SingleRefWithFilterReferenceContentConstraintContext ctx);
+	void exitSingleRefReferenceContent2Constraint(EvitaQLParser.SingleRefReferenceContent2ConstraintContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code singleRefWithOrderReferenceContentConstraint}
+	 * Enter a parse tree produced by the {@code singleRefReferenceContent3Constraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 */
-	void enterSingleRefWithOrderReferenceContentConstraint(EvitaQLParser.SingleRefWithOrderReferenceContentConstraintContext ctx);
+	void enterSingleRefReferenceContent3Constraint(EvitaQLParser.SingleRefReferenceContent3ConstraintContext ctx);
 	/**
-	 * Exit a parse tree produced by the {@code singleRefWithOrderReferenceContentConstraint}
+	 * Exit a parse tree produced by the {@code singleRefReferenceContent3Constraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 */
-	void exitSingleRefWithOrderReferenceContentConstraint(EvitaQLParser.SingleRefWithOrderReferenceContentConstraintContext ctx);
+	void exitSingleRefReferenceContent3Constraint(EvitaQLParser.SingleRefReferenceContent3ConstraintContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code singleRefWithFilterAndOrderReferenceContentConstraint}
+	 * Enter a parse tree produced by the {@code singleRefReferenceContent4Constraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 */
-	void enterSingleRefWithFilterAndOrderReferenceContentConstraint(EvitaQLParser.SingleRefWithFilterAndOrderReferenceContentConstraintContext ctx);
+	void enterSingleRefReferenceContent4Constraint(EvitaQLParser.SingleRefReferenceContent4ConstraintContext ctx);
 	/**
-	 * Exit a parse tree produced by the {@code singleRefWithFilterAndOrderReferenceContentConstraint}
+	 * Exit a parse tree produced by the {@code singleRefReferenceContent4Constraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 */
-	void exitSingleRefWithFilterAndOrderReferenceContentConstraint(EvitaQLParser.SingleRefWithFilterAndOrderReferenceContentConstraintContext ctx);
+	void exitSingleRefReferenceContent4Constraint(EvitaQLParser.SingleRefReferenceContent4ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code singleRefReferenceContent5Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContent5Constraint(EvitaQLParser.SingleRefReferenceContent5ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code singleRefReferenceContent5Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContent5Constraint(EvitaQLParser.SingleRefReferenceContent5ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code singleRefReferenceContent6Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContent6Constraint(EvitaQLParser.SingleRefReferenceContent6ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code singleRefReferenceContent6Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContent6Constraint(EvitaQLParser.SingleRefReferenceContent6ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code singleRefReferenceContent7Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContent7Constraint(EvitaQLParser.SingleRefReferenceContent7ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code singleRefReferenceContent7Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContent7Constraint(EvitaQLParser.SingleRefReferenceContent7ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code singleRefReferenceContent8Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContent8Constraint(EvitaQLParser.SingleRefReferenceContent8ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code singleRefReferenceContent8Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContent8Constraint(EvitaQLParser.SingleRefReferenceContent8ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code allRefsWithAttributesReferenceContent1Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterAllRefsWithAttributesReferenceContent1Constraint(EvitaQLParser.AllRefsWithAttributesReferenceContent1ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code allRefsWithAttributesReferenceContent1Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitAllRefsWithAttributesReferenceContent1Constraint(EvitaQLParser.AllRefsWithAttributesReferenceContent1ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code allRefsWithAttributesReferenceContent2Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterAllRefsWithAttributesReferenceContent2Constraint(EvitaQLParser.AllRefsWithAttributesReferenceContent2ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code allRefsWithAttributesReferenceContent2Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitAllRefsWithAttributesReferenceContent2Constraint(EvitaQLParser.AllRefsWithAttributesReferenceContent2ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code allRefsWithAttributesReferenceContent3Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterAllRefsWithAttributesReferenceContent3Constraint(EvitaQLParser.AllRefsWithAttributesReferenceContent3ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code allRefsWithAttributesReferenceContent3Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitAllRefsWithAttributesReferenceContent3Constraint(EvitaQLParser.AllRefsWithAttributesReferenceContent3ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code singleRefReferenceContentWithAttributes1Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContentWithAttributes1Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes1ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code singleRefReferenceContentWithAttributes1Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContentWithAttributes1Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes1ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code singleRefReferenceContentWithAttributes2Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContentWithAttributes2Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes2ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code singleRefReferenceContentWithAttributes2Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContentWithAttributes2Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes2ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code singleRefReferenceContentWithAttributes3Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContentWithAttributes3Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes3ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code singleRefReferenceContentWithAttributes3Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContentWithAttributes3Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes3ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code singleRefReferenceContentWithAttributes4Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContentWithAttributes4Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes4ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code singleRefReferenceContentWithAttributes4Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContentWithAttributes4Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes4ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code singleRefReferenceContentWithAttributes5Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContentWithAttributes5Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes5ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code singleRefReferenceContentWithAttributes5Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContentWithAttributes5Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes5ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code singleRefReferenceContentWithAttributes6Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContentWithAttributes6Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes6ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code singleRefReferenceContentWithAttributes6Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContentWithAttributes6Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes6ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code singleRefReferenceContentWithAttributes7Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContentWithAttributes7Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes7ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code singleRefReferenceContentWithAttributes7Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContentWithAttributes7Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes7ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code singleRefReferenceContentWithAttributes8Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContentWithAttributes8Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes8ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code singleRefReferenceContentWithAttributes8Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContentWithAttributes8Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes8ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code singleRefReferenceContentWithAttributes9Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContentWithAttributes9Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes9ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code singleRefReferenceContentWithAttributes9Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContentWithAttributes9Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes9ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code singleRefReferenceContentWithAttributes10Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContentWithAttributes10Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes10ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code singleRefReferenceContentWithAttributes10Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContentWithAttributes10Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes10ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code singleRefReferenceContentWithAttributes11Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContentWithAttributes11Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes11ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code singleRefReferenceContentWithAttributes11Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContentWithAttributes11Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes11ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code singleRefReferenceContentWithAttributes12Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContentWithAttributes12Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes12ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code singleRefReferenceContentWithAttributes12Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContentWithAttributes12Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes12ConstraintContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code emptyHierarchyContentConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
@@ -952,29 +1227,53 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitDataInLocalesConstraint(EvitaQLParser.DataInLocalesConstraintContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code facetSummaryConstraint}
+	 * Enter a parse tree produced by the {@code facetSummary1Constraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 */
-	void enterFacetSummaryConstraint(EvitaQLParser.FacetSummaryConstraintContext ctx);
+	void enterFacetSummary1Constraint(EvitaQLParser.FacetSummary1ConstraintContext ctx);
 	/**
-	 * Exit a parse tree produced by the {@code facetSummaryConstraint}
+	 * Exit a parse tree produced by the {@code facetSummary1Constraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 */
-	void exitFacetSummaryConstraint(EvitaQLParser.FacetSummaryConstraintContext ctx);
+	void exitFacetSummary1Constraint(EvitaQLParser.FacetSummary1ConstraintContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code facetSummaryOfReferenceConstraint}
+	 * Enter a parse tree produced by the {@code facetSummary2Constraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 */
-	void enterFacetSummaryOfReferenceConstraint(EvitaQLParser.FacetSummaryOfReferenceConstraintContext ctx);
+	void enterFacetSummary2Constraint(EvitaQLParser.FacetSummary2ConstraintContext ctx);
 	/**
-	 * Exit a parse tree produced by the {@code facetSummaryOfReferenceConstraint}
+	 * Exit a parse tree produced by the {@code facetSummary2Constraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 */
-	void exitFacetSummaryOfReferenceConstraint(EvitaQLParser.FacetSummaryOfReferenceConstraintContext ctx);
+	void exitFacetSummary2Constraint(EvitaQLParser.FacetSummary2ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code facetSummaryOfReference1Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterFacetSummaryOfReference1Constraint(EvitaQLParser.FacetSummaryOfReference1ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code facetSummaryOfReference1Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitFacetSummaryOfReference1Constraint(EvitaQLParser.FacetSummaryOfReference1ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code facetSummaryOfReference2Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterFacetSummaryOfReference2Constraint(EvitaQLParser.FacetSummaryOfReference2ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code facetSummaryOfReference2Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitFacetSummaryOfReference2Constraint(EvitaQLParser.FacetSummaryOfReference2ConstraintContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code facetGroupsConjunctionConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
@@ -1584,45 +1883,165 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitPriceContentArgs(EvitaQLParser.PriceContentArgsContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentArgs}.
+	 * Enter a parse tree produced by {@link EvitaQLParser#singleRefReferenceContent1Args}.
 	 * @param ctx the parse tree
 	 */
-	void enterSingleRefReferenceContentArgs(EvitaQLParser.SingleRefReferenceContentArgsContext ctx);
+	void enterSingleRefReferenceContent1Args(EvitaQLParser.SingleRefReferenceContent1ArgsContext ctx);
 	/**
-	 * Exit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentArgs}.
+	 * Exit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContent1Args}.
 	 * @param ctx the parse tree
 	 */
-	void exitSingleRefReferenceContentArgs(EvitaQLParser.SingleRefReferenceContentArgsContext ctx);
+	void exitSingleRefReferenceContent1Args(EvitaQLParser.SingleRefReferenceContent1ArgsContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link EvitaQLParser#singleRefWithFilterReferenceContentArgs}.
+	 * Enter a parse tree produced by {@link EvitaQLParser#singleRefReferenceContent2Args}.
 	 * @param ctx the parse tree
 	 */
-	void enterSingleRefWithFilterReferenceContentArgs(EvitaQLParser.SingleRefWithFilterReferenceContentArgsContext ctx);
+	void enterSingleRefReferenceContent2Args(EvitaQLParser.SingleRefReferenceContent2ArgsContext ctx);
 	/**
-	 * Exit a parse tree produced by {@link EvitaQLParser#singleRefWithFilterReferenceContentArgs}.
+	 * Exit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContent2Args}.
 	 * @param ctx the parse tree
 	 */
-	void exitSingleRefWithFilterReferenceContentArgs(EvitaQLParser.SingleRefWithFilterReferenceContentArgsContext ctx);
+	void exitSingleRefReferenceContent2Args(EvitaQLParser.SingleRefReferenceContent2ArgsContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link EvitaQLParser#singleRefWithOrderReferenceContentArgs}.
+	 * Enter a parse tree produced by {@link EvitaQLParser#singleRefReferenceContent3Args}.
 	 * @param ctx the parse tree
 	 */
-	void enterSingleRefWithOrderReferenceContentArgs(EvitaQLParser.SingleRefWithOrderReferenceContentArgsContext ctx);
+	void enterSingleRefReferenceContent3Args(EvitaQLParser.SingleRefReferenceContent3ArgsContext ctx);
 	/**
-	 * Exit a parse tree produced by {@link EvitaQLParser#singleRefWithOrderReferenceContentArgs}.
+	 * Exit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContent3Args}.
 	 * @param ctx the parse tree
 	 */
-	void exitSingleRefWithOrderReferenceContentArgs(EvitaQLParser.SingleRefWithOrderReferenceContentArgsContext ctx);
+	void exitSingleRefReferenceContent3Args(EvitaQLParser.SingleRefReferenceContent3ArgsContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link EvitaQLParser#singleRefWithFilterAndOrderReferenceContentArgs}.
+	 * Enter a parse tree produced by {@link EvitaQLParser#singleRefReferenceContent4Args}.
 	 * @param ctx the parse tree
 	 */
-	void enterSingleRefWithFilterAndOrderReferenceContentArgs(EvitaQLParser.SingleRefWithFilterAndOrderReferenceContentArgsContext ctx);
+	void enterSingleRefReferenceContent4Args(EvitaQLParser.SingleRefReferenceContent4ArgsContext ctx);
 	/**
-	 * Exit a parse tree produced by {@link EvitaQLParser#singleRefWithFilterAndOrderReferenceContentArgs}.
+	 * Exit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContent4Args}.
 	 * @param ctx the parse tree
 	 */
-	void exitSingleRefWithFilterAndOrderReferenceContentArgs(EvitaQLParser.SingleRefWithFilterAndOrderReferenceContentArgsContext ctx);
+	void exitSingleRefReferenceContent4Args(EvitaQLParser.SingleRefReferenceContent4ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#singleRefReferenceContent5Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContent5Args(EvitaQLParser.SingleRefReferenceContent5ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContent5Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContent5Args(EvitaQLParser.SingleRefReferenceContent5ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#singleRefReferenceContent6Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContent6Args(EvitaQLParser.SingleRefReferenceContent6ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContent6Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContent6Args(EvitaQLParser.SingleRefReferenceContent6ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#singleRefReferenceContent7Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContent7Args(EvitaQLParser.SingleRefReferenceContent7ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContent7Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContent7Args(EvitaQLParser.SingleRefReferenceContent7ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#singleRefReferenceContent8Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContent8Args(EvitaQLParser.SingleRefReferenceContent8ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContent8Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContent8Args(EvitaQLParser.SingleRefReferenceContent8ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes1Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContentWithAttributes1Args(EvitaQLParser.SingleRefReferenceContentWithAttributes1ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes1Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContentWithAttributes1Args(EvitaQLParser.SingleRefReferenceContentWithAttributes1ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes2Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContentWithAttributes2Args(EvitaQLParser.SingleRefReferenceContentWithAttributes2ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes2Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContentWithAttributes2Args(EvitaQLParser.SingleRefReferenceContentWithAttributes2ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes3Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContentWithAttributes3Args(EvitaQLParser.SingleRefReferenceContentWithAttributes3ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes3Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContentWithAttributes3Args(EvitaQLParser.SingleRefReferenceContentWithAttributes3ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes4Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContentWithAttributes4Args(EvitaQLParser.SingleRefReferenceContentWithAttributes4ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes4Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContentWithAttributes4Args(EvitaQLParser.SingleRefReferenceContentWithAttributes4ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes5Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContentWithAttributes5Args(EvitaQLParser.SingleRefReferenceContentWithAttributes5ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes5Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContentWithAttributes5Args(EvitaQLParser.SingleRefReferenceContentWithAttributes5ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes6Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContentWithAttributes6Args(EvitaQLParser.SingleRefReferenceContentWithAttributes6ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes6Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContentWithAttributes6Args(EvitaQLParser.SingleRefReferenceContentWithAttributes6ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes7Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContentWithAttributes7Args(EvitaQLParser.SingleRefReferenceContentWithAttributes7ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes7Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContentWithAttributes7Args(EvitaQLParser.SingleRefReferenceContentWithAttributes7ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes8Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContentWithAttributes8Args(EvitaQLParser.SingleRefReferenceContentWithAttributes8ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes8Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContentWithAttributes8Args(EvitaQLParser.SingleRefReferenceContentWithAttributes8ArgsContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link EvitaQLParser#multipleRefsReferenceContentArgs}.
 	 * @param ctx the parse tree
@@ -1644,6 +2063,36 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitAllRefsReferenceContentArgs(EvitaQLParser.AllRefsReferenceContentArgsContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#allRefsWithAttributesReferenceContent1Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterAllRefsWithAttributesReferenceContent1Args(EvitaQLParser.AllRefsWithAttributesReferenceContent1ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#allRefsWithAttributesReferenceContent1Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitAllRefsWithAttributesReferenceContent1Args(EvitaQLParser.AllRefsWithAttributesReferenceContent1ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#allRefsWithAttributesReferenceContent2Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterAllRefsWithAttributesReferenceContent2Args(EvitaQLParser.AllRefsWithAttributesReferenceContent2ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#allRefsWithAttributesReferenceContent2Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitAllRefsWithAttributesReferenceContent2Args(EvitaQLParser.AllRefsWithAttributesReferenceContent2ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#allRefsWithAttributesReferenceContent3Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterAllRefsWithAttributesReferenceContent3Args(EvitaQLParser.AllRefsWithAttributesReferenceContent3ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#allRefsWithAttributesReferenceContent3Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitAllRefsWithAttributesReferenceContent3Args(EvitaQLParser.AllRefsWithAttributesReferenceContent3ArgsContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link EvitaQLParser#singleRequireHierarchyContentArgs}.
 	 * @param ctx the parse tree
 	 */
@@ -1664,25 +2113,75 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitAllRequiresHierarchyContentArgs(EvitaQLParser.AllRequiresHierarchyContentArgsContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link EvitaQLParser#facetSummaryArgs}.
+	 * Enter a parse tree produced by {@link EvitaQLParser#facetSummary1Args}.
 	 * @param ctx the parse tree
 	 */
-	void enterFacetSummaryArgs(EvitaQLParser.FacetSummaryArgsContext ctx);
+	void enterFacetSummary1Args(EvitaQLParser.FacetSummary1ArgsContext ctx);
 	/**
-	 * Exit a parse tree produced by {@link EvitaQLParser#facetSummaryArgs}.
+	 * Exit a parse tree produced by {@link EvitaQLParser#facetSummary1Args}.
 	 * @param ctx the parse tree
 	 */
-	void exitFacetSummaryArgs(EvitaQLParser.FacetSummaryArgsContext ctx);
+	void exitFacetSummary1Args(EvitaQLParser.FacetSummary1ArgsContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link EvitaQLParser#facetSummaryOfReferenceArgs}.
+	 * Enter a parse tree produced by {@link EvitaQLParser#facetSummary2Args}.
 	 * @param ctx the parse tree
 	 */
-	void enterFacetSummaryOfReferenceArgs(EvitaQLParser.FacetSummaryOfReferenceArgsContext ctx);
+	void enterFacetSummary2Args(EvitaQLParser.FacetSummary2ArgsContext ctx);
 	/**
-	 * Exit a parse tree produced by {@link EvitaQLParser#facetSummaryOfReferenceArgs}.
+	 * Exit a parse tree produced by {@link EvitaQLParser#facetSummary2Args}.
 	 * @param ctx the parse tree
 	 */
-	void exitFacetSummaryOfReferenceArgs(EvitaQLParser.FacetSummaryOfReferenceArgsContext ctx);
+	void exitFacetSummary2Args(EvitaQLParser.FacetSummary2ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#facetSummaryOfReference1Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterFacetSummaryOfReference1Args(EvitaQLParser.FacetSummaryOfReference1ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#facetSummaryOfReference1Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitFacetSummaryOfReference1Args(EvitaQLParser.FacetSummaryOfReference1ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#facetSummaryOfReference2Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterFacetSummaryOfReference2Args(EvitaQLParser.FacetSummaryOfReference2ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#facetSummaryOfReference2Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitFacetSummaryOfReference2Args(EvitaQLParser.FacetSummaryOfReference2ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#facetSummaryRequirementsArgs}.
+	 * @param ctx the parse tree
+	 */
+	void enterFacetSummaryRequirementsArgs(EvitaQLParser.FacetSummaryRequirementsArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#facetSummaryRequirementsArgs}.
+	 * @param ctx the parse tree
+	 */
+	void exitFacetSummaryRequirementsArgs(EvitaQLParser.FacetSummaryRequirementsArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#facetSummaryFilterArgs}.
+	 * @param ctx the parse tree
+	 */
+	void enterFacetSummaryFilterArgs(EvitaQLParser.FacetSummaryFilterArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#facetSummaryFilterArgs}.
+	 * @param ctx the parse tree
+	 */
+	void exitFacetSummaryFilterArgs(EvitaQLParser.FacetSummaryFilterArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#facetSummaryOrderArgs}.
+	 * @param ctx the parse tree
+	 */
+	void enterFacetSummaryOrderArgs(EvitaQLParser.FacetSummaryOrderArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#facetSummaryOrderArgs}.
+	 * @param ctx the parse tree
+	 */
+	void exitFacetSummaryOrderArgs(EvitaQLParser.FacetSummaryOrderArgsContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link EvitaQLParser#hierarchyStatisticsArgs}.
 	 * @param ctx the parse tree
@@ -2059,16 +2558,4 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitEnumValueToken(EvitaQLParser.EnumValueTokenContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code multipleValueToken}
-	 * labeled alternative in {@link EvitaQLParser#valueToken}.
-	 * @param ctx the parse tree
-	 */
-	void enterMultipleValueToken(EvitaQLParser.MultipleValueTokenContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code multipleValueToken}
-	 * labeled alternative in {@link EvitaQLParser#valueToken}.
-	 * @param ctx the parse tree
-	 */
-	void exitMultipleValueToken(EvitaQLParser.MultipleValueTokenContext ctx);
 }

@@ -1,0 +1,50 @@
+{
+  queryCategory(
+    filterBy: {
+      hierarchyWithinSelf: {
+        ofParent: {
+          attributeCodeEquals: "audio"
+        }
+      }
+    }
+  ) {
+    extraResults {
+      hierarchy {
+        self {
+          directChildren: children(
+            stopAt: {
+              distance: 1
+            }
+          ) {
+            parentPrimaryKey
+            level
+            entity {
+              primaryKey
+              parentPrimaryKey
+              attributes {
+                code
+              }
+            }
+            hasChildren
+          }
+          directParent: parents(
+            stopAt: {
+              distance: 1
+            }
+          ) {
+            parentPrimaryKey
+            level
+            entity {
+              primaryKey
+              parentPrimaryKey
+              attributes {
+                code
+              }
+            }
+            hasChildren
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,33 @@
+POST /rest/evita/product/query
+
+{
+  "filterBy" : {
+    "referenceBrandHaving" : [
+      {
+        "entityHaving" : {
+          "attributeCodeInSet" : [
+            "sony",
+            "google"
+          ]
+        }
+      }
+    ]
+  },
+  "orderBy" : {
+    "referenceBrandProperty" : {
+      "attributeOrderInBrandNatural" : "ASC"
+    }
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ],
+      "referenceBrandContentWithAttributes" : {
+        "attributeContent" : [
+          "orderInBrand"
+        ]
+      }
+    }
+  }
+}

@@ -108,10 +108,10 @@ public @interface Reference {
 	boolean allowEmpty() default true;
 
 	/**
-	 * Enables filtering by reference of this name.
-	 * Propagates to {@link ReferenceSchemaContract#isFilterable()}.
+	 * Enables filtering / sorting by attributes of reference of this name.
+	 * Propagates to {@link ReferenceSchemaContract#isIndexed()}.
 	 */
-	boolean filterable() default false;
+	boolean indexed() default false;
 
 	/**
 	 * Enables facet computation for reference of this name.

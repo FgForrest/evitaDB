@@ -105,7 +105,7 @@ public interface EntityEditor<W extends EntityEditor<W>> extends EntityContract,
 	 * If no {@link ReferenceSchemaContract} exists yet - new one is created. New reference will have these properties
 	 * automatically set up:
 	 *
-	 * - {@link ReferenceSchemaContract#isFilterable()} TRUE - you'll be able to filter by presence of this reference
+	 * - {@link ReferenceSchemaContract#isIndexed()} TRUE - you'll be able to filter by presence of this reference
 	 *   (but this setting also consumes more memory)
 	 * - {@link ReferenceSchemaContract#isFaceted()} FALSE - reference data will not be part of the {@link FacetSummary}
 	 * - {@link ReferenceSchemaContract#isReferencedEntityTypeManaged()} TRUE if there already is entity with matching
@@ -134,7 +134,7 @@ public interface EntityEditor<W extends EntityEditor<W>> extends EntityContract,
 	 * If no {@link ReferenceSchemaContract} exists yet - new one is created. New reference will have these properties
 	 * automatically set up:
 	 *
-	 * - {@link ReferenceSchemaContract#isFilterable()} TRUE - you'll be able to filter by presence of this reference
+	 * - {@link ReferenceSchemaContract#isIndexed()} TRUE - you'll be able to filter by presence of this reference
 	 *   (but this setting also consumes more memory)
 	 * - {@link ReferenceSchemaContract#isFaceted()} FALSE - reference data will not be part of the {@link FacetSummary}
 	 * - {@link ReferenceSchemaContract#isReferencedEntityTypeManaged()} TRUE if there already is entity with matching

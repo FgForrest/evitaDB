@@ -44,7 +44,8 @@ import java.util.function.Consumer;
 public interface AttributeProviderSchemaEditor<S, T extends AttributeSchemaContract, U extends AttributeSchemaEditor<U>> extends AttributeSchemaProvider<T> {
 
 	/**
-	 * Adds new {@link AttributeSchemaContract} to the set of allowed attributes of the entity or updates existing.
+	 * Adds new {@link AttributeSchemaContract} to the set of allowed attributes of the entity/reference schema or
+	 * updates existing.
 	 *
 	 * If you update existing associated data type all data must be specified again, nothing is preserved.
 	 *
@@ -66,7 +67,8 @@ public interface AttributeProviderSchemaEditor<S, T extends AttributeSchemaContr
 	S withAttribute(@Nonnull String attributeName, @Nonnull Class<? extends Serializable> ofType);
 
 	/**
-	 * Adds new {@link AttributeSchemaContract} to the set of allowed attributes of the entity or updates existing.
+	 * Adds new {@link AttributeSchemaContract} to the set of allowed attributes of the entity/reference schema or
+	 * updates existing.
 	 *
 	 * If you update existing associated data type all data must be specified again, nothing is preserved.
 	 *
@@ -93,7 +95,8 @@ public interface AttributeProviderSchemaEditor<S, T extends AttributeSchemaContr
 	);
 
 	/**
-	 * Removes specific {@link AttributeSchemaContract} from the set of allowed attributes of the entity.
+	 * Removes specific {@link AttributeSchemaContract} from the set of allowed attributes of the entity or reference
+	 * schema.
 	 */
 	@Nonnull
 	S withoutAttribute(@Nonnull String attributeName);

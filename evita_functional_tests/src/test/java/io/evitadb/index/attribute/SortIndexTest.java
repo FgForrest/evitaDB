@@ -23,7 +23,12 @@
 
 package io.evitadb.index.attribute;
 
+import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.index.attribute.SortIndex.ComparableArray;
+import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
@@ -49,10 +54,7 @@ import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static java.text.Normalizer.Form;
 import static java.text.Normalizer.normalize;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies contract of {@link SortIndex}.
@@ -75,15 +77,50 @@ class SortIndexTest implements TimeBoundedTestSupport {
 	}
 
 	@Test
+	void shouldCreateCompoundIndexWithDifferentCardinalities() {
+		final SortIndex sortIndex = createCompoundIndexWithBaseCardinalities();
+		assertNull(sortIndex.valueCardinalities.get(new ComparableArray(new Comparable<?>[] {"Z", 1})));
+		assertNull(sortIndex.valueCardinalities.get(new ComparableArray(new Comparable<?>[] {"A", 2})));
+		assertEquals(2, sortIndex.valueCardinalities.get(new ComparableArray(new Comparable<?>[] {"B", 1})));
+		assertEquals(2, sortIndex.valueCardinalities.get(new ComparableArray(new Comparable<?>[] {"C", 9})));
+		assertArrayEquals(
+			new ComparableArray[]{
+				new ComparableArray(new Comparable<?>[]{null, 3}),
+				new ComparableArray(new Comparable<?>[]{"A", 4}),
+				new ComparableArray(new Comparable<?>[]{"B", 1}),
+				new ComparableArray(new Comparable<?>[]{"C", 9}),
+				new ComparableArray(new Comparable<?>[]{"C", 6}),
+				new ComparableArray(new Comparable<?>[]{"C", null}),
+				new ComparableArray(new Comparable<?>[]{"E", null})
+			},
+			sortIndex.sortedRecordsValues.getArray()
+		);
+		assertArrayEquals(new int[]{8, 6, 4, 5, 1, 7, 3, 2, 9}, sortIndex.sortedRecords.getArray());
+	}
+
+	@Test
 	void shouldReturnCorrectBitmapForCardinalityOne() {
 		final SortIndex sortIndex = createIndexWithBaseCardinalities();
 		assertEquals(new BaseBitmap(9), sortIndex.getRecordsEqualTo("E"));
 	}
 
 	@Test
+	void shouldReturnCorrectBitmapForCardinalityOneAndCompoundIndex() {
+		final SortIndex sortIndex = createCompoundIndexWithBaseCardinalities();
+		assertEquals(new BaseBitmap(9), sortIndex.getRecordsEqualTo(new Object[] {"E", null}));
+		assertThrows(EvitaInvalidUsageException.class, () -> sortIndex.getRecordsEqualTo(new Object[] {"E", 1}));
+	}
+
+	@Test
 	void shouldReturnCorrectBitmapForCardinalityMoreThanOne() {
 		final SortIndex sortIndex = createIndexWithBaseCardinalities();
 		assertEquals(new BaseBitmap(1, 2, 3, 7), sortIndex.getRecordsEqualTo("C"));
+	}
+
+	@Test
+	void shouldReturnCorrectBitmapForCardinalityMoreThanOneAndCompoundIndex() {
+		final SortIndex sortIndex = createCompoundIndexWithBaseCardinalities();
+		assertEquals(new BaseBitmap(1, 7), sortIndex.getRecordsEqualTo(new Object[] {"C", 9}));
 	}
 
 	@Test
@@ -116,6 +153,12 @@ class SortIndexTest implements TimeBoundedTestSupport {
 	}
 
 	@Test
+	void shouldIndexCompoundRecordsAndReturnInAscendingOrder() {
+		final SortIndex sortIndex = createCompoundIndexWithBaseCardinalities();
+		assertArrayEquals(new int[]{8, 6, 4, 5, 1, 7, 3, 2, 9}, sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds());
+	}
+
+	@Test
 	void shouldIndexRecordsAndReturnInDescendingOrder() {
 		final SortIndex sortIndex = new SortIndex(Integer.class, null);
 		sortIndex.addRecord(7, 2);
@@ -128,6 +171,12 @@ class SortIndexTest implements TimeBoundedTestSupport {
 			new int[]{1, 2, 3, 4, 5},
 			ascendingOrderRecordsSupplier.getSortedRecordIds()
 		);
+	}
+
+	@Test
+	void shouldIndexCompoundRecordsAndReturnInDescendingOrder() {
+		final SortIndex sortIndex = createCompoundIndexWithBaseCardinalities();
+		assertArrayEquals(new int[]{9, 2, 3, 7, 1, 5, 4, 6, 8}, sortIndex.getDescendingOrderRecordsSupplier().getSortedRecordIds());
 	}
 
 	@Test
@@ -251,7 +300,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 
 						committedResult.set(
 							new SortIndex(
-								committed.getType(),
+								committed.comparatorBase,
 								committed.getLocale(),
 								committed.sortedRecords.getArray(),
 								committed.sortedRecordsValues.getArray(),
@@ -280,6 +329,28 @@ class SortIndexTest implements TimeBoundedTestSupport {
 		sortIndex.addRecord("C", 1);
 		sortIndex.addRecord("E", 9);
 		sortIndex.addRecord("C", 7);
+		return sortIndex;
+	}
+
+	@Nonnull
+	private SortIndex createCompoundIndexWithBaseCardinalities() {
+		final SortIndex sortIndex = new SortIndex(
+			new ComparatorSource[] {
+				new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
+				new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
+			},
+			Locale.ENGLISH
+		);
+
+		sortIndex.addRecord(new Object[] {"B", 1}, 5);
+		sortIndex.addRecord(new Object[] {"A", 4}, 6);
+		sortIndex.addRecord(new Object[] {"C", 6}, 3);
+		sortIndex.addRecord(new Object[] {"C", null}, 2);
+		sortIndex.addRecord(new Object[] {"B", 1}, 4);
+		sortIndex.addRecord(new Object[] {"C", 9}, 1);
+		sortIndex.addRecord(new Object[] {"E", null}, 9);
+		sortIndex.addRecord(new Object[] {"C", 9}, 7);
+		sortIndex.addRecord(new Object[] {null, 3}, 8);
 		return sortIndex;
 	}
 

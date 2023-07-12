@@ -23,15 +23,14 @@
 
 package io.evitadb.externalApi.graphql.api.system;
 
+import io.evitadb.api.CatalogState;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.test.tester.GraphQLTester;
-import io.evitadb.server.EvitaServer;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
-import io.evitadb.test.tester.GraphQLTester;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -48,8 +47,10 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointFunctionalTest {
 
+	private static final String CATALOG_PATH = "data.catalog";
 	private static final String CREATE_CATALOG_PATH = "data.createCatalog";
 	private static final String RENAME_CATALOG_PATH = "data.renameCatalog";
+	private static final String SWITCH_CATALOG_PATH = "data.switchCatalogToAliveState";
 	private static final String REPLACE_CATALOG_PATH = "data.replaceCatalog";
 	private static final String DELETE_CATALOG_PATH = "data.deleteCatalogIfExists";
 	public static final String GRAPHQL_THOUSAND_PRODUCTS_SYSTEM_REPLACE = GRAPHQL_THOUSAND_PRODUCTS + "forReplace";
@@ -70,18 +71,56 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 					mutation {
 						createCatalog(name: "temporaryCatalog") {
 							name
+							catalogState
 						}
 					}
 					"""
 			)
-			.executeAndThen()
-			.statusCode(200)
-			.body(ERRORS_PATH, nullValue())
+			.executeAndExpectOkAndThen()
 			.body(
 				CREATE_CATALOG_PATH,
 				equalTo(
 					map()
 						.e(CatalogDescriptor.NAME.name(), "temporaryCatalog")
+						.e(CatalogDescriptor.CATALOG_STATE.name(), CatalogState.WARMING_UP.name())
+						.build()
+				)
+			);
+
+		tester.test(SYSTEM_URL)
+			.document(
+				"""
+					mutation {
+						switchCatalogToAliveState(name: "temporaryCatalog")
+					}
+					"""
+			)
+			.executeAndExpectOkAndThen()
+			.body(
+				SWITCH_CATALOG_PATH,
+				equalTo(true)
+			);
+
+		tester.test(SYSTEM_URL)
+			.document(
+				"""
+					query {
+						catalog(name: "temporaryCatalog") {
+							... on Catalog {
+								name
+								catalogState
+							}
+						}
+					}
+					"""
+			)
+			.executeAndExpectOkAndThen()
+			.body(
+				CATALOG_PATH,
+				equalTo(
+					map()
+						.e(CatalogDescriptor.NAME.name(), "temporaryCatalog")
+						.e(CatalogDescriptor.CATALOG_STATE.name(), CatalogState.ALIVE.name())
 						.build()
 				)
 			);
@@ -96,9 +135,7 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 					}
 					"""
 			)
-			.executeAndThen()
-			.statusCode(200)
-			.body(ERRORS_PATH, nullValue())
+			.executeAndExpectOkAndThen()
 			.body(
 				RENAME_CATALOG_PATH,
 				equalTo(
@@ -116,9 +153,7 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 					}
 					"""
 			)
-			.executeAndThen()
-			.statusCode(200)
-			.body(ERRORS_PATH, nullValue())
+			.executeAndExpectOkAndThen()
 			.body(DELETE_CATALOG_PATH, equalTo(true));
 	}
 

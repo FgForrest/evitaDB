@@ -72,8 +72,8 @@ public class EntityPrimaryKeyExact extends AbstractOrderConstraintLeaf implement
 	}
 
 	@Creator(implicitClassifier = "primaryKey")
-	public EntityPrimaryKeyExact(@Nonnull @Value Integer... primaryKey) {
-		super(primaryKey);
+	public EntityPrimaryKeyExact(@Nonnull @Value Integer... primaryKeys) {
+		super(primaryKeys);
 	}
 
 	/**

@@ -350,6 +350,24 @@ class EvitaQLRequireConstraintVisitorTest {
 		final RequireConstraint constraint1 = parseRequireConstraint("referenceContent('a')");
 		assertEquals(referenceContent("a"), constraint1);
 
+		final RequireConstraint constraint1a = parseRequireConstraint("referenceContentWithAttributes('a', attributeContent('order'))");
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				attributeContent("order")
+			),
+			constraint1a
+		);
+
+		final RequireConstraint constraint1b = parseRequireConstraint("referenceContentWithAttributes('a')");
+		assertEquals(referenceContentWithAttributes("a"), constraint1b);
+
+		final RequireConstraint constraint1c = parseRequireConstraint("referenceContentAllWithAttributes()");
+		assertEquals(referenceContentAllWithAttributes(), constraint1c);
+
+		final RequireConstraint constraint1d = parseRequireConstraint("referenceContentAllWithAttributes(attributeContent('a'))");
+		assertEquals(referenceContentAllWithAttributes(attributeContent("a")), constraint1d);
+
 		final RequireConstraint constraint2 = parseRequireConstraint("referenceContent('a','b','c')");
 		assertEquals(referenceContent("a", "b", "c"), constraint2);
 
@@ -452,6 +470,48 @@ class EvitaQLRequireConstraintVisitorTest {
 			constraint21
 		);
 
+		final RequireConstraint constraint21a = parseRequireConstraint("referenceContentWithAttributes('a', filterBy(attributeEqualsTrue('code')), attributeContent('order'), entityFetch(attributeContentAll()), entityGroupFetch())");
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				filterBy(attributeEqualsTrue("code")),
+				attributeContent("order"),
+				entityFetch(attributeContent()),
+				entityGroupFetch()
+			),
+			constraint21a
+		);
+
+		final RequireConstraint constraint21b = parseRequireConstraint("referenceContentWithAttributes('a', filterBy(attributeEqualsTrue('code')), entityFetch(attributeContentAll()), entityGroupFetch())");
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				filterBy(attributeEqualsTrue("code")),
+				entityFetch(attributeContent()),
+				entityGroupFetch()
+			),
+			constraint21b
+		);
+
+		final RequireConstraint constraint21c = parseRequireConstraint("referenceContentAllWithAttributes(entityFetch(attributeContentAll()), entityGroupFetch())");
+		assertEquals(
+			referenceContentAllWithAttributes(
+				entityFetch(attributeContent()),
+				entityGroupFetch()
+			),
+			constraint21c
+		);
+
+		final RequireConstraint constraint21d = parseRequireConstraint("referenceContentAllWithAttributes(attributeContent('a'), entityFetch(attributeContentAll()), entityGroupFetch())");
+		assertEquals(
+			referenceContentAllWithAttributes(
+				attributeContent("a"),
+				entityFetch(attributeContent()),
+				entityGroupFetch()
+			),
+			constraint21d
+		);
+
 		final RequireConstraint constraint22 = parseRequireConstraint("referenceContent('a', filterBy(attributeEqualsTrue('code')), entityGroupFetch(attributeContentAll()))");
 		assertEquals(
 			referenceContent(
@@ -460,6 +520,44 @@ class EvitaQLRequireConstraintVisitorTest {
 				entityGroupFetch(attributeContent())
 			),
 			constraint22
+		);
+
+		final RequireConstraint constraint22a = parseRequireConstraint("referenceContentWithAttributes('a', filterBy(attributeEqualsTrue('code')), attributeContent('order'), entityGroupFetch(attributeContentAll()))");
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				filterBy(attributeEqualsTrue("code")),
+				attributeContent("order"),
+				entityGroupFetch(attributeContent())
+			),
+			constraint22a
+		);
+
+		final RequireConstraint constraint22b = parseRequireConstraint("referenceContentWithAttributes('a', filterBy(attributeEqualsTrue('code')), entityGroupFetch(attributeContentAll()))");
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				filterBy(attributeEqualsTrue("code")),
+				entityGroupFetch(attributeContent())
+			),
+			constraint22b
+		);
+
+		final RequireConstraint constraint22c = parseRequireConstraint("referenceContentAllWithAttributes(entityGroupFetch(attributeContentAll()))");
+		assertEquals(
+			referenceContentAllWithAttributes(
+				entityGroupFetch(attributeContent())
+			),
+			constraint22c
+		);
+
+		final RequireConstraint constraint22d = parseRequireConstraint("referenceContentAllWithAttributes(attributeContent('a'), entityGroupFetch(attributeContentAll()))");
+		assertEquals(
+			referenceContentAllWithAttributes(
+				attributeContent("a"),
+				entityGroupFetch(attributeContent())
+			),
+			constraint22d
 		);
 
 		final RequireConstraint constraint23 = parseRequireConstraint("referenceContentAll(entityFetch(priceContentRespectingFilter()), entityGroupFetch(attributeContentAll()))");
@@ -523,6 +621,44 @@ class EvitaQLRequireConstraintVisitorTest {
 			constraint28
 		);
 
+		final RequireConstraint constraint28a = parseRequireConstraint("referenceContentWithAttributes('a', orderBy(attributeNatural('code')), attributeContent('order'), entityFetch(attributeContentAll()))");
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				orderBy(attributeNatural("code")),
+				attributeContent("order"),
+				entityFetch(attributeContent())
+			),
+			constraint28a
+		);
+
+		final RequireConstraint constraint28b = parseRequireConstraint("referenceContentWithAttributes('a', orderBy(attributeNatural('code')), entityFetch(attributeContentAll()))");
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				orderBy(attributeNatural("code")),
+				entityFetch(attributeContent())
+			),
+			constraint28b
+		);
+
+		final RequireConstraint constraint28c = parseRequireConstraint("referenceContentAllWithAttributes(entityFetch(attributeContentAll()))");
+		assertEquals(
+			referenceContentAllWithAttributes(
+				entityFetch(attributeContent())
+			),
+			constraint28c
+		);
+
+		final RequireConstraint constraint28d = parseRequireConstraint("referenceContentAllWithAttributes(attributeContent('a'), entityFetch(attributeContentAll()))");
+		assertEquals(
+			referenceContentAllWithAttributes(
+				attributeContent("a"),
+				entityFetch(attributeContent())
+			),
+			constraint28d
+		);
+
 		final RequireConstraint constraint29 = parseRequireConstraint("referenceContent('a', filterBy(attributeEqualsTrue('code')), orderBy(attributeNatural('code')), entityFetch(attributeContentAll()))");
 		assertEquals(
 			referenceContent(
@@ -532,6 +668,29 @@ class EvitaQLRequireConstraintVisitorTest {
 				entityFetch(attributeContent())
 			),
 			constraint29
+		);
+
+		final RequireConstraint constraint29a = parseRequireConstraint("referenceContentWithAttributes('a', filterBy(attributeEqualsTrue('code')), orderBy(attributeNatural('code')), attributeContent('order'), entityFetch(attributeContentAll()))");
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				filterBy(attributeEquals("code", true)),
+				orderBy(attributeNatural("code")),
+				attributeContent("order"),
+				entityFetch(attributeContent())
+			),
+			constraint29a
+		);
+
+		final RequireConstraint constraint29b = parseRequireConstraint("referenceContentWithAttributes('a', filterBy(attributeEqualsTrue('code')), orderBy(attributeNatural('code')), entityFetch(attributeContentAll()))");
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				filterBy(attributeEquals("code", true)),
+				orderBy(attributeNatural("code")),
+				entityFetch(attributeContent())
+			),
+			constraint29b
 		);
 
 		final RequireConstraint constraint30 = parseRequireConstraint("referenceContent('a', filterBy(attributeEqualsTrue('code')), orderBy(attributeNatural('code')))");
@@ -544,6 +703,27 @@ class EvitaQLRequireConstraintVisitorTest {
 			constraint30
 		);
 
+		final RequireConstraint constraint30a = parseRequireConstraint("referenceContentWithAttributes('a', filterBy(attributeEqualsTrue('code')), orderBy(attributeNatural('code')), attributeContent('order'))");
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				filterBy(attributeEquals("code", true)),
+				orderBy(attributeNatural("code")),
+				attributeContent("order")
+			),
+			constraint30a
+		);
+
+		final RequireConstraint constraint30b = parseRequireConstraint("referenceContentWithAttributes('a', filterBy(attributeEqualsTrue('code')), orderBy(attributeNatural('code')))");
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				filterBy(attributeEquals("code", true)),
+				orderBy(attributeNatural("code"))
+			),
+			constraint30b
+		);
+
 		final RequireConstraint constraint31 = parseRequireConstraint("referenceContent('a', orderBy(attributeNatural('code')))");
 		assertEquals(
 			referenceContent(
@@ -551,6 +731,25 @@ class EvitaQLRequireConstraintVisitorTest {
 				orderBy(attributeNatural("code"))
 			),
 			constraint31
+		);
+
+		final RequireConstraint constraint31a = parseRequireConstraint("referenceContentWithAttributes('a', orderBy(attributeNatural('code')), attributeContent('order'))");
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				orderBy(attributeNatural("code")),
+				attributeContent("order")
+			),
+			constraint31a
+		);
+
+		final RequireConstraint constraint31b = parseRequireConstraint("referenceContentWithAttributes('a', orderBy(attributeNatural('code')))");
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				orderBy(attributeNatural("code"))
+			),
+			constraint31b
 		);
 	}
 
@@ -737,6 +936,51 @@ class EvitaQLRequireConstraintVisitorTest {
 
 		final RequireConstraint constraint9 = parseRequireConstraintUnsafe("facetSummary(IMPACT, entityGroupFetch  ( associatedDataContentAll (  ) ) )");
 		assertEquals(facetSummary(IMPACT, entityGroupFetch(associatedDataContent())), constraint9);
+
+		final RequireConstraint constraint10 = parseRequireConstraint(
+			"facetSummary(?, filterBy(attributeEquals(?, ?)), filterGroupBy(attributeEquals(?, ?)), orderBy(random()), orderGroupBy(attributeNatural(?)), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll()))",
+			COUNTS, "a", "b", "c", "d", "e"
+		);
+		assertEquals(
+			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), orderBy(random()), orderGroupBy(attributeNatural("e")), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll())),
+			constraint10
+		);
+
+		final RequireConstraint constraint11 = parseRequireConstraint(
+			"facetSummary(?, filterBy(attributeEquals(?, ?)), filterGroupBy(attributeEquals(?, ?)), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll()))",
+			COUNTS, "a", "b", "c", "d"
+		);
+		assertEquals(
+			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), null, null, entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll())),
+			constraint11
+		);
+
+		final RequireConstraint constraint12 = parseRequireConstraint(
+			"facetSummary(?, orderBy(random()), orderGroupBy(attributeNatural(?)), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll()))",
+			COUNTS, "e"
+		);
+		assertEquals(
+			facetSummary(COUNTS, null, null, orderBy(random()), orderGroupBy(attributeNatural("e")), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll())),
+			constraint12
+		);
+
+		final RequireConstraint constraint13 = parseRequireConstraint(
+			"facetSummary(?, filterGroupBy(attributeEquals(?, ?)), orderGroupBy(attributeNatural(?)), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll()))",
+			COUNTS, "c", "d", "e"
+		);
+		assertEquals(
+			facetSummary(COUNTS, null, filterGroupBy(attributeEquals("c", "d")), null, orderGroupBy(attributeNatural("e")), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll())),
+			constraint13
+		);
+
+		final RequireConstraint constraint14 = parseRequireConstraint(
+			"facetSummary(?, filterBy(attributeEquals(?, ?)), filterGroupBy(attributeEquals(?, ?)), orderBy(random()), orderGroupBy(attributeNatural(?)))",
+			COUNTS, "a", "b", "c", "d", "e"
+		);
+		assertEquals(
+			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), orderBy(random()), orderGroupBy(attributeNatural("e"))),
+			constraint14
+		);
 	}
 
 	@Test
@@ -780,6 +1024,51 @@ class EvitaQLRequireConstraintVisitorTest {
 
 		final RequireConstraint constraint9 = parseRequireConstraintUnsafe("facetSummaryOfReference('parameter', IMPACT,   entityGroupFetch  ( associatedDataContentAll (  ) ) )");
 		assertEquals(facetSummaryOfReference("parameter", IMPACT, entityGroupFetch(associatedDataContent())), constraint9);
+
+		final RequireConstraint constraint10 = parseRequireConstraint(
+			"facetSummaryOfReference(?, ?, filterBy(attributeEquals(?, ?)), filterGroupBy(attributeEquals(?, ?)), orderBy(random()), orderGroupBy(attributeNatural(?)), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll()))",
+			"parameter", COUNTS, "a", "b", "c", "d", "e"
+		);
+		assertEquals(
+			facetSummaryOfReference("parameter", COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), orderBy(random()), orderGroupBy(attributeNatural("e")), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll())),
+			constraint10
+		);
+
+		final RequireConstraint constraint11 = parseRequireConstraint(
+			"facetSummaryOfReference(?, ?, filterBy(attributeEquals(?, ?)), filterGroupBy(attributeEquals(?, ?)), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll()))",
+			"parameter", COUNTS, "a", "b", "c", "d"
+		);
+		assertEquals(
+			facetSummaryOfReference("parameter", COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), null, null, entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll())),
+			constraint11
+		);
+
+		final RequireConstraint constraint12 = parseRequireConstraint(
+			"facetSummaryOfReference(?, ?, orderBy(random()), orderGroupBy(attributeNatural(?)), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll()))",
+			"parameter", COUNTS, "e"
+		);
+		assertEquals(
+			facetSummaryOfReference("parameter", COUNTS, null, null, orderBy(random()), orderGroupBy(attributeNatural("e")), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll())),
+			constraint12
+		);
+
+		final RequireConstraint constraint13 = parseRequireConstraint(
+			"facetSummaryOfReference(?, ?, filterGroupBy(attributeEquals(?, ?)), orderGroupBy(attributeNatural(?)), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll()))",
+			"parameter", COUNTS, "c", "d", "e"
+		);
+		assertEquals(
+			facetSummaryOfReference("parameter", COUNTS, null, filterGroupBy(attributeEquals("c", "d")), null, orderGroupBy(attributeNatural("e")), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll())),
+			constraint13
+		);
+
+		final RequireConstraint constraint14 = parseRequireConstraint(
+			"facetSummaryOfReference(?, ?, filterBy(attributeEquals(?, ?)), filterGroupBy(attributeEquals(?, ?)), orderBy(random()), orderGroupBy(attributeNatural(?)))",
+			"parameter", COUNTS, "a", "b", "c", "d", "e"
+		);
+		assertEquals(
+			facetSummaryOfReference("parameter", COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), orderBy(random()), orderGroupBy(attributeNatural("e"))),
+			constraint14
+		);
 	}
 
 	@Test

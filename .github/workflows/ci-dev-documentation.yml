@@ -7,13 +7,22 @@ on:
     branches: [ "dev" ]            # trap each push to dev branch
     paths:                         # but react only to changes in code or pipeline definition
       - .github/workflows/ci-dev-documentation.yml
-      - docs/user/**.*
+      - documentation/user/**.*
 
-  pull_request:
+  pull_request_target:
     branches: [ "dev" ]            # also trap pull requests to dev branch
     paths:                         # but react only to changes in code or pipeline definition
       - .github/workflows/ci-dev-documentation.yml
-      - docs/user/**.*
+      - documentation/user/**.*
+
+permissions:
+  id-token: write
+  contents: write
+  actions: read
+  checks: write
+  pull-requests: read
+  security-events: write
+  statuses: write
 
 concurrency:
   group: ${{ format('{0}_documentation', github.head_ref || github.ref_name) }}  # for the same branch (dev or PR)

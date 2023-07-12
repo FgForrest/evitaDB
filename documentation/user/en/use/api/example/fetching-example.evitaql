@@ -1,0 +1,19 @@
+query(
+    collection('Product'),
+    filterBy(
+        and(
+            entityPrimaryKeyInSet(1),
+            entityLocaleEquals('en'),
+            priceInPriceLists('basic'),
+            priceInCurrency('CZK')
+        )
+    ),
+    require(
+        entityFetch(
+            attributeContent('name'),
+            associatedDataContentAll(),
+            priceContentRespectingFilter(),
+            referenceContent('brand')
+        )
+    )
+)

@@ -25,6 +25,7 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
@@ -34,6 +35,7 @@ import io.evitadb.dataType.ByteNumberRange;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
+import io.evitadb.dataType.Range;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.utils.Assert;
 
@@ -45,29 +47,29 @@ import java.time.OffsetDateTime;
 
 /**
  * This `inRange` is query that compares value of the attribute with name passed in first argument with the date
- * and time passed in the second argument. First argument must be {@link String}, second argument must be {@link OffsetDateTime}
- * type. If second argument is not passed - current date and time (now) is used.
- * Type of the attribute value must implement [Range](classes/range_interface.md) interface.
+ * and time passed in the second argument. First argument must be {@link String}, second argument must be
+ * {@link OffsetDateTime} type. If second argument is not passed - current date and time (now) is used.
+ * Type of the attribute value must implement {@link Range} interface.
  *
  * Function returns true if second argument is greater than or equal to range start (from), and is lesser than
  * or equal to range end (to).
  *
  * Example:
  *
- * ```
+ * <pre>
  * inRange('valid', 2020-07-30T20:37:50+00:00)
  * inRange('age', 18)
- * ```
+ * </pre>
  *
- * Function supports attribute arrays and when attribute is of array type `inRange` returns true if *any of attribute* values
- * has range, that envelopes the passed value the value in the query. If we have the attribute `age` with value
+ * Function supports attribute arrays and when attribute is of array type `inRange` returns true if any of attribute
+ * values has range, that envelopes the passed value the value in the query. If we have the attribute `age` with value
  * `[[18, 25],[60,65]]` all these constraints will match:
  *
- * ```
+ * <pre>
  * inRange('age', 18)
  * inRange('age', 24)
  * inRange('age', 63)
- * ```
+ * </pre>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -120,6 +122,7 @@ public class AttributeInRange extends AbstractAttributeFilterConstraintLeaf impl
 	/**
 	 * Returns {@link Serializable} argument that should be verified whether is within the range (inclusive) of attribute validity.
 	 */
+	@AliasForParameter("value")
 	@Nullable
 	public Serializable getUnknownArgument() {
 		final boolean argsReady = getArguments().length == 2;

@@ -54,7 +54,7 @@ class EvitaQLOrderConstraintVisitorTest {
         assertEquals(orderBy(attributeNatural("a")), constraint1);
 
         final OrderConstraint constraint2 = parseOrderConstraintUnsafe("orderBy(attributeNatural('a'),attributeNatural('b',DESC))");
-        assertEquals(orderBy(attributeNatural("a"), attributeNatural("b", DESC)), constraint2);
+        assertEquals(orderBy(attributeNatural("a"), attributeNatural("b",DESC )), constraint2);
 
         final OrderConstraint constraint3 = parseOrderConstraintUnsafe("orderBy( attributeNatural('a') ,  attributeNatural('b',  DESC ) )");
         assertEquals(orderBy(attributeNatural("a"), attributeNatural("b", DESC)), constraint3);
@@ -67,6 +67,27 @@ class EvitaQLOrderConstraintVisitorTest {
     void shouldNotParseOrderByConstraint() {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("orderBy"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("orderBy(attributeEquals('a',1))"));
+    }
+
+    @Test
+    void shouldParseOrderGroupByConstraint() {
+        final OrderConstraint constraint1 = parseOrderConstraint("orderGroupBy(attributeNatural('a'))");
+        assertEquals(orderGroupBy(attributeNatural("a")), constraint1);
+
+        final OrderConstraint constraint2 = parseOrderConstraintUnsafe("orderGroupBy(attributeNatural('a'),attributeNatural('b',DESC))");
+        assertEquals(orderGroupBy(attributeNatural("a"), attributeNatural("b", DESC)), constraint2);
+
+        final OrderConstraint constraint3 = parseOrderConstraintUnsafe("orderGroupBy( attributeNatural('a') ,  attributeNatural('b',  DESC ) )");
+        assertEquals(orderGroupBy(attributeNatural("a"), attributeNatural("b", DESC)), constraint3);
+
+        final OrderConstraint constraint4 = parseOrderConstraint("orderGroupBy()");
+        assertEquals(orderGroupBy(), constraint4);
+    }
+
+    @Test
+    void shouldNotParseOrderGroupByConstraint() {
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("orderGroupBy"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("orderGroupBy(attributeEquals('a',1))"));
     }
 
     @Test
@@ -232,7 +253,7 @@ class EvitaQLOrderConstraintVisitorTest {
                 referenceProperty(
                     "a",
                     attributeNatural("b"),
-                    attributeNatural("c",DESC)
+                    attributeNatural("c", DESC)
                 ),
                 constraint3
         );
@@ -336,7 +357,7 @@ class EvitaQLOrderConstraintVisitorTest {
         assertEquals(
             entityProperty(
                 attributeNatural("b"),
-                attributeNatural("c",DESC)
+                attributeNatural("c", DESC)
             ),
             constraint3
         );

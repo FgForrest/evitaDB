@@ -62,7 +62,7 @@ public class CreateReferenceSchemaMutationConverter implements SchemaMutationCon
 			.setReferencedEntityType(mutation.getReferencedEntityType())
 			.setReferencedEntityTypeManaged(mutation.isReferencedEntityTypeManaged())
 			.setReferencedGroupTypeManaged(mutation.isReferencedGroupTypeManaged())
-			.setFilterable(mutation.isFilterable())
+			.setFilterable(mutation.isIndexed())
 			.setFaceted(mutation.isFaceted());
 
 		if (mutation.getDescription() != null) {

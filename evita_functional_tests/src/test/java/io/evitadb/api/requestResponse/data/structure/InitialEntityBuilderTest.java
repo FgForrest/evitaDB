@@ -24,7 +24,6 @@
 package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
-import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import org.junit.jupiter.api.Test;
@@ -64,25 +63,6 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 
 		final InitialEntityBuilder builder = new InitialEntityBuilder(schema);
 		assertThrows(IllegalArgumentException.class, () -> builder.setAttribute(SORTABLE_ATTRIBUTE, new String[]{"abc", "def"}));
-	}
-
-	@Test
-	void shouldFailToAddMultipleSortableAttributesToSingleReferencedType() {
-		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
-			CATALOG_SCHEMA,
-			PRODUCT_SCHEMA
-		)
-			.withReferenceTo(
-				BRAND_TYPE,
-				BRAND_TYPE,
-				Cardinality.ZERO_OR_ONE,
-				whichIs -> whichIs.filterable().withAttribute(SORTABLE_ATTRIBUTE, String.class, AttributeSchemaEditor::sortable)
-			)
-			.toInstance();
-
-		final InitialEntityBuilder builder = new InitialEntityBuilder(schema);
-		builder.setReference(BRAND_TYPE, 1, thatIs -> thatIs.setAttribute(SORTABLE_ATTRIBUTE, "abc"));
-		assertThrows(IllegalArgumentException.class, () -> builder.setReference(BRAND_TYPE, 3, thatIs -> thatIs.setAttribute(SORTABLE_ATTRIBUTE, "def")));
 	}
 
 }

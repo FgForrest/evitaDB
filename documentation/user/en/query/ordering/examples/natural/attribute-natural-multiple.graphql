@@ -1,0 +1,19 @@
+{
+  queryProduct(
+    orderBy: {
+      attributeEanNatural: ASC,
+      attributeCatalogNumberNatural: DESC
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+          ean
+          catalogNumber
+        }
+      }
+    }
+  }
+}

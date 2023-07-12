@@ -28,6 +28,7 @@ import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
 
 import javax.annotation.Nonnull;
+import java.util.stream.Stream;
 
 /**
  * Implementations of this interface translate specific {@link OrderConstraint}s to a {@link Sorter} that can return
@@ -42,6 +43,6 @@ public interface OrderingConstraintTranslator<T extends OrderConstraint> {
 	 * Method creates the appropriate {@link Sorter} implementation for passed constraint.
 	 */
 	@Nonnull
-	Sorter createSorter(@Nonnull T t, @Nonnull OrderByVisitor orderByVisitor);
+	Stream<Sorter> createSorter(@Nonnull T t, @Nonnull OrderByVisitor orderByVisitor);
 
 }

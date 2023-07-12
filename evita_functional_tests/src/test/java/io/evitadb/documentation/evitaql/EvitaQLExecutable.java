@@ -32,11 +32,17 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import io.evitadb.api.EvitaContract;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.filter.EntityLocaleEquals;
+import io.evitadb.api.query.filter.PriceInCurrency;
 import io.evitadb.api.query.parser.DefaultQueryParser;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.api.query.require.PriceContent;
+import io.evitadb.api.query.require.PriceContentMode;
+import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
@@ -45,12 +51,16 @@ import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
+import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import io.evitadb.documentation.JavaPrettyPrintingVisitor;
 import io.evitadb.documentation.UserDocumentationTest.CreateSnippets;
 import io.evitadb.documentation.UserDocumentationTest.OutputSnippet;
 import io.evitadb.documentation.markdown.Table;
+import io.evitadb.documentation.markdown.Table.Builder;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.ReflectionLookup;
@@ -69,11 +79,16 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.text.NumberFormat;
 import java.util.Arrays;
+import java.util.Currency;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -86,7 +101,6 @@ import static io.evitadb.documentation.evitaql.CustomJsonVisibilityChecker.allow
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
@@ -102,6 +116,11 @@ import static org.junit.jupiter.api.Assertions.fail;
  */
 @RequiredArgsConstructor
 public class EvitaQLExecutable implements Executable, EvitaTestSupport {
+	private static final String REF_LINK = "\uD83D\uDD17 ";
+	private static final String ATTR_LINK = ": ";
+	public static final String PRICE_LINK = "\uD83E\uDE99 ";
+	private static final String PRICE_FOR_SALE = PRICE_LINK + "Price for sale";
+
 	/**
 	 * Mandatory header column with entity primary key.
 	 */
@@ -126,6 +145,10 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 	 * Object used for reflection access when `sourceVariable` is evaluated.
 	 */
 	private static final ReflectionLookup REFLECTION_LOOKUP = new ReflectionLookup(ReflectionCachingBehaviour.CACHE);
+	/**
+	 * Regex pattern for parsing the reference link from the attribute value.
+	 */
+	private static final Pattern ATTR_LINK_PARSER = Pattern.compile(ATTR_LINK);
 
 	/*
 	  Initializes the Java code template to be used when {@link CreateSnippets#JAVA} is requested.
@@ -137,7 +160,7 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 				allow(EntityClassifier.class),
 				allow(EntityClassifierWithParent.class),
 				allow(Hierarchy.class),
-				allow(Hierarchy.LevelInfo.class)
+				allow(LevelInfo.class)
 			)
 		);
 		OBJECT_MAPPER.registerModule(new Jdk8Module());
@@ -236,24 +259,37 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 	}
 
 	/**
+	 * Generates the GraphQL code snippet for the given query.
+	 */
+	@Nonnull
+	private String generateGraphQLSnippet(@Nonnull Query theQuery) {
+		return testContextAccessor.get().getGraphQLQueryConverter().convert(theQuery);
+	}
+
+	/**
+	 * Generates the GraphQL code snippet for the given query.
+	 */
+	@Nonnull
+	private String generateRestSnippet(@Nonnull Query theQuery) {
+		return testContextAccessor.get().getRestQueryConverter().convert(theQuery);
+	}
+
+	/**
 	 * Generates the MarkDown output with the results of the given query.
 	 */
 	@Nonnull
 	private static String generateMarkdownSnippet(
+		@Nonnull EvitaSessionContract session,
 		@Nonnull Query query,
 		@Nonnull EvitaResponse<SealedEntity> response,
 		@Nullable OutputSnippet outputSnippet
 	) {
 		final String outputFormat = ofNullable(outputSnippet).map(OutputSnippet::forFormat).orElse("md");
 		if (outputFormat.equals("md")) {
-			return generateMarkDownAttributeTable(query, response);
+			return generateMarkDownTable(session, query, response);
 		} else if (outputFormat.equals("json")) {
 			final String sourceVariable = outputSnippet.sourceVariable();
-			assertTrue(
-				sourceVariable != null && !sourceVariable.isEmpty(),
-				"Cannot generate `" + outputSnippet.path() + "`. The attribute `sourceVariable` is missing!"
-			);
-			return generateMarkDownJsonBlock(query, response, sourceVariable);
+			return generateMarkDownJsonBlock(response, sourceVariable);
 		} else {
 			throw new UnsupportedOperationException("Unsupported output format: " + outputFormat);
 		}
@@ -263,7 +299,8 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 	 * Generates output table that contains {@link SealedEntity#getPrimaryKey()} and list of attributes.
 	 */
 	@Nonnull
-	private static String generateMarkDownAttributeTable(
+	private static String generateMarkDownTable(
+		@Nonnull EvitaSessionContract session,
 		@Nonnull Query query,
 		@Nonnull EvitaResponse<SealedEntity> response
 	) {
@@ -277,43 +314,112 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 			);
 
 		// collect headers for the MarkDown table
-		final String[] headers = Stream.concat(
-			Stream.of(ENTITY_PRIMARY_KEY),
-			entityFetch
-				.map(it -> QueryUtils.findConstraints(
-						it, AttributeContent.class, SeparateEntityContentRequireContainer.class
+		final String[] headers = Stream.of(
+				Stream.of(ENTITY_PRIMARY_KEY),
+				entityFetch
+					.map(it -> QueryUtils.findConstraints(
+							it, AttributeContent.class, SeparateEntityContentRequireContainer.class
+						)
+						.stream()
+						.map(AttributeContent::getAttributeNames)
+						.flatMap(Arrays::stream)
+						.distinct())
+					.orElse(Stream.empty()),
+				entityFetch
+					.map(it -> QueryUtils.findConstraints(
+							it, ReferenceContent.class, SeparateEntityContentRequireContainer.class
+						)
+						.stream()
+						.flatMap(refCnt -> {
+							final SealedEntitySchema schema = session.getEntitySchemaOrThrow(query.getCollection().getEntityType());
+							return Arrays.stream(refCnt.getReferenceNames()).filter(Objects::nonNull)
+								.map(schema::getReferenceOrThrowException)
+								.flatMap(ref -> {
+									final AttributeContent attributeContent = QueryUtils.findConstraint(refCnt, AttributeContent.class, SeparateEntityContentRequireContainer.class);
+									if (attributeContent != null) {
+										return Arrays.stream(attributeContent.getAttributeNames())
+											.map(attr -> REF_LINK + ref.getName() + ATTR_LINK + attr);
+									} else {
+										return Stream.empty();
+									}
+								});
+						})
+						.distinct())
+					.orElse(Stream.empty()),
+				entityFetch
+					.map(it -> QueryUtils.findConstraints(
+							it, PriceContent.class, SeparateEntityContentRequireContainer.class
+						)
+						.stream()
+						.map(priceCnt -> {
+							if (priceCnt.getFetchMode() == PriceContentMode.RESPECTING_FILTER) {
+								return PRICE_FOR_SALE;
+							} else {
+								return null;
+							}
+						})
+						.filter(Objects::nonNull)
 					)
-					.stream()
-					.map(AttributeContent::getAttributeNames)
-					.flatMap(Arrays::stream)
-					.distinct())
-				.orElse(Stream.empty())
-		).toArray(String[]::new);
+					.orElse(Stream.empty())
+			)
+			.flatMap(Function.identity())
+			.toArray(String[]::new);
 
 		// define the table with header line
-		Table.Builder tableBuilder = new Table.Builder()
+		Builder tableBuilder = new Builder()
 			.withAlignment(Table.ALIGN_LEFT)
 			.addRow((Object[]) headers);
+
+		// prepare price formatter
+		final Locale locale = Optional.ofNullable(query.getFilterBy())
+			.map(f -> QueryUtils.findConstraint(f, EntityLocaleEquals.class))
+			.map(EntityLocaleEquals::getLocale)
+			.orElse(Locale.ENGLISH);
+
+		final Currency currency = Optional.ofNullable(query.getFilterBy())
+			.map(f -> QueryUtils.findConstraint(f, PriceInCurrency.class))
+			.map(PriceInCurrency::getCurrency)
+			.orElse(Currency.getInstance("EUR"));
+		final NumberFormat priceFormatter = NumberFormat.getCurrencyInstance(locale);
+		priceFormatter.setCurrency(currency);
+		final NumberFormat percentFormatter = NumberFormat.getNumberInstance(locale);
 
 		// add rows
 		for (SealedEntity sealedEntity : response.getRecordData()) {
 			tableBuilder.addRow(
-				(Object[]) Stream.concat(
+				(Object[]) Stream.of(
 						Stream.of(String.valueOf(sealedEntity.getPrimaryKey())),
 						Arrays.stream(headers)
-							.filter(it -> !ENTITY_PRIMARY_KEY.equals(it))
+							.filter(it -> !ENTITY_PRIMARY_KEY.equals(it) && !it.startsWith(REF_LINK))
 							.map(sealedEntity::getAttributeValue)
 							.filter(Optional::isPresent)
 							.map(Optional::get)
 							.map(AttributeValue::getValue)
-							.map(EvitaDataTypes::formatValue)
+							.map(EvitaDataTypes::formatValue),
+						Arrays.stream(headers)
+							.filter(it -> it.startsWith(REF_LINK))
+							.map(it -> {
+								final String[] refAttr = ATTR_LINK_PARSER.split(it.substring(REF_LINK.length()));
+								return sealedEntity.getReferences(refAttr[0])
+									.stream()
+									.filter(ref -> ref.getAttributeValue(refAttr[1]).isPresent())
+									.map(ref -> REF_LINK + ref.getReferenceKey().primaryKey() + ATTR_LINK + EvitaDataTypes.formatValue(ref.getAttribute(refAttr[1])))
+									.collect(Collectors.joining(", "));
+							}),
+						Arrays.stream(headers)
+							.filter(PRICE_FOR_SALE::equals)
+							.map(it -> sealedEntity.getPriceForSale()
+								.map(price -> PRICE_LINK + priceFormatter.format(price.getPriceWithTax()) + " (with " + percentFormatter.format(price.getTaxRate()) + "% tax) / " + priceFormatter.format(price.getPriceWithoutTax()))
+								.orElse("N/A"))
 					)
+					.flatMap(Function.identity())
 					.toArray(String[]::new)
 			);
 		}
 
 		// generate MarkDown
-		return tableBuilder.build().serialize() + "\n\n###### **Total number of results:** " + response.getTotalRecordCount();
+		final PaginatedList<SealedEntity> recordPage = (PaginatedList<SealedEntity>) response.getRecordPage();
+		return tableBuilder.build().serialize() + "\n\n###### **Page** " + recordPage.getPageNumber() + "/" + recordPage.getLastPageNumber() + " **(Total number of results: "  + response.getTotalRecordCount() + ")**";
 	}
 
 	/**
@@ -321,12 +427,16 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 	 */
 	@Nonnull
 	private static String generateMarkDownJsonBlock(
-		@Nonnull Query query,
 		@Nonnull EvitaResponse<SealedEntity> response,
-		@Nonnull String sourceVariable
+		@Nullable String sourceVariable
 	) {
-		final String[] sourceVariableParts = sourceVariable.split("\\.");
-		final Object theValue = extractValueFrom(response, sourceVariableParts);
+		final Object theValue;
+		if (sourceVariable == null || sourceVariable.isBlank()) {
+			theValue = response;
+		} else {
+			final String[] sourceVariableParts = sourceVariable.split("\\.");
+			theValue = extractValueFrom(response, sourceVariableParts);
+		}
 		final String json = ofNullable(theValue)
 			.map(it -> {
 				try {
@@ -372,6 +482,24 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 				}
 			}
 			return null;
+		} else if (theObject instanceof List<?> list) {
+			try {
+				int index = Integer.parseInt(sourceVariableParts[0]);
+				final Object theValue = list.get(index);
+				if (theValue == null) {
+					return null;
+				} else if (sourceVariableParts.length > 1) {
+					return extractValueFrom(
+						theValue,
+						Arrays.copyOfRange(sourceVariableParts, 1, sourceVariableParts.length)
+					);
+				} else {
+					return theValue;
+				}
+			} catch (Exception e) {
+				fail(e);
+				return null;
+			}
 		} else {
 			final Method getter = REFLECTION_LOOKUP.findGetter(theObject.getClass(), sourceVariableParts[0]);
 			assertNotNull(getter, "Cannot find getter for " + sourceVariableParts[0] + " on `" + theObject.getClass() + "`");
@@ -425,11 +553,24 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 		);
 
 		if (resource != null) {
-			final String markdownSnippet = generateMarkdownSnippet(theQuery, theResult, outputSnippet);
+			final String markdownSnippet = evitaContract.queryCatalog(
+				"evita",
+				session -> {
+					return generateMarkdownSnippet(session, theQuery, theResult, outputSnippet);
+				}
+			);
 
 			if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.JAVA)) {
 				final String javaSnippet = generateJavaSnippet(theQuery);
 				writeFile(resource, "java", javaSnippet);
+			}
+			if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.GRAPHQL)) {
+				final String graphQLSnippet = generateGraphQLSnippet(theQuery);
+				writeFile(resource, "graphql", graphQLSnippet);
+			}
+			if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.REST)) {
+				final String restSnippet = generateRestSnippet(theQuery);
+				writeFile(resource, "rest", restSnippet);
 			}
 			// generate Markdown snippet from the result if required
 			final String outputFormat = ofNullable(outputSnippet).map(OutputSnippet::forFormat).orElse("md");
@@ -447,8 +588,8 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 			markDownFile.ifPresent(
 				content -> {
 					assertEquals(
-						markdownSnippet,
-						content
+						content,
+						markdownSnippet
 					);
 
 					final Path assertSource = outputSnippet == null ?

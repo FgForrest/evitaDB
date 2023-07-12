@@ -69,11 +69,7 @@ public class RemoveReferenceSchemaMutation implements ReferenceSchemaMutation, C
 	@Override
 	public MutationCombinationResult<EntitySchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull EntitySchemaContract currentEntitySchema, @Nonnull EntitySchemaMutation existingMutation) {
 		if (existingMutation instanceof ReferenceSchemaMutation referenceSchemaMutation && Objects.equals(name, referenceSchemaMutation.getName())) {
-			if (existingMutation instanceof CreateReferenceSchemaMutation) {
-				return new MutationCombinationResult<>(null);
-			} else {
-				return new MutationCombinationResult<>(null, existingMutation);
-			}
+			return new MutationCombinationResult<>(true, null, this);
 		} else {
 			return null;
 		}
@@ -119,7 +115,8 @@ public class RemoveReferenceSchemaMutation implements ReferenceSchemaMutation, C
 							Function.identity()
 						)
 					),
-				entitySchema.getEvolutionMode()
+				entitySchema.getEvolutionMode(),
+				entitySchema.getSortableAttributeCompounds()
 			);
 		}
 	}

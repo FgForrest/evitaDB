@@ -304,6 +304,27 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldBeAbleToRunParallelClients(EvitaClient evitaClient) {
+		final EvitaClient anotherParallelClient = new EvitaClient(evitaClient.getConfiguration());
+		shouldListCatalogNames(anotherParallelClient);
+		shouldListCatalogNames(evitaClient);
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldAbleToFetchNonCachedEntitySchemaFromCatalogSchema(EvitaClient evitaClient) {
+		final EvitaClient clientWithEmptyCache = new EvitaClient(evitaClient.getConfiguration());
+		clientWithEmptyCache.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Optional<EntitySchemaContract> productSchema = session.getCatalogSchema().getEntitySchema(Entities.PRODUCT);
+				assertNotNull(productSchema);
+			}
+		);
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldListCatalogNames(EvitaClient evitaClient) {
 		final Set<String> catalogNames = evitaClient.getCatalogNames();
 		assertEquals(1, catalogNames.size());

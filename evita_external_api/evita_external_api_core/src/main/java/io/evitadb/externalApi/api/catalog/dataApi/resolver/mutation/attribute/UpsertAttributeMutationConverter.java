@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.UpsertAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.utils.Assert;
@@ -63,10 +63,10 @@ public class UpsertAttributeMutationConverter extends AttributeMutationConverter
 
 	@Nonnull
 	@Override
-	protected UpsertAttributeMutation convert(@Nonnull InputMutation inputMutation) {
-		final AttributeKey attributeKey = resolveAttributeKey(inputMutation);
+	protected UpsertAttributeMutation convert(@Nonnull Input input) {
+		final AttributeKey attributeKey = resolveAttributeKey(input);
 
-		final Class<? extends Serializable> valueType = inputMutation.getOptionalField(
+		final Class<? extends Serializable> valueType = input.getOptionalField(
 			UpsertAttributeMutationDescriptor.VALUE_TYPE.name(),
 			new ValueTypeMapper(getExceptionFactory(), UpsertAttributeMutationDescriptor.VALUE_TYPE)
 		);
@@ -82,7 +82,7 @@ public class UpsertAttributeMutationConverter extends AttributeMutationConverter
 		}
 		final Class<? extends Serializable> targetDataType = valueType != null ? valueType : attributeSchema.getType();
 
-		final Serializable targetValue = inputMutation.getRequiredField(UpsertAttributeMutationDescriptor.VALUE.name(), targetDataType);
+		final Serializable targetValue = input.getRequiredField(UpsertAttributeMutationDescriptor.VALUE.name(), targetDataType);
 		return new UpsertAttributeMutation(attributeKey, targetValue);
 	}
 }

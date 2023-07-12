@@ -55,7 +55,7 @@ class CatalogSchemaConverterTest {
 		);
 		assertCatalogSchema(
 			catalogSchema,
-			CatalogSchemaConverter.convert(s -> null, CatalogSchemaConverter.convert(catalogSchema))
+			CatalogSchemaConverter.convert(CatalogSchemaConverter.convert(catalogSchema))
 		);
 	}
 
@@ -92,7 +92,7 @@ class CatalogSchemaConverterTest {
 		);
 		assertCatalogSchema(
 			catalogSchema,
-			CatalogSchemaConverter.convert(s -> null, CatalogSchemaConverter.convert(catalogSchema))
+			CatalogSchemaConverter.convert(CatalogSchemaConverter.convert(catalogSchema))
 		);
 	}
 

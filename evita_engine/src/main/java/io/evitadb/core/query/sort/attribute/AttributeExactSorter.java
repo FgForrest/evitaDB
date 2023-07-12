@@ -104,6 +104,17 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 		);
 	}
 
+	@Nonnull
+	@Override
+	public Sorter cloneInstance() {
+		return new AttributeExactSorter(
+			attributeName,
+			exactOrder,
+			sortIndex,
+			null
+		);
+	}
+
 	@Nullable
 	@Override
 	public Sorter getNextSorter() {

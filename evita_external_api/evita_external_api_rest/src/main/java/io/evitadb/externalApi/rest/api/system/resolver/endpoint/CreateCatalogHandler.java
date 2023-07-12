@@ -71,8 +71,6 @@ public class CreateCatalogHandler extends RestHandler<SystemRestHandlingContext>
 
 		restApiHandlingContext.getEvita().defineCatalog(requestBody.name());
 		final CatalogContract newCatalog = restApiHandlingContext.getEvita().getCatalogInstanceOrThrowException(requestBody.name());
-		// we don't have a way to use benefits of warming up state in REST
-		newCatalog.goLive();
 
 		return Optional.of(newCatalog).map(catalogJsonSerializer::serialize);
 	}

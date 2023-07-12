@@ -85,7 +85,7 @@ public class ReferenceContentTranslator implements RequireConstraintTranslator<R
 				});
 		}
 
-		if (extraResultPlanningVisitor.isScopeEmpty() && (referenceContent.getFilterBy() != null || referenceContent.getOrderBy() != null)) {
+		if (extraResultPlanningVisitor.isScopeEmpty() && (referenceContent.getFilterBy().isPresent() || referenceContent.getOrderBy().isPresent())) {
 			extraResultPlanningVisitor.addRequirementToPrefetch(ReferenceContent.ALL_REFERENCES);
 		}
 

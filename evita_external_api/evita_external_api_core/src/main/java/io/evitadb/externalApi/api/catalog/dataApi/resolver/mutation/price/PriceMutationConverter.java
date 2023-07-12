@@ -27,7 +27,7 @@ import io.evitadb.api.requestResponse.data.mutation.price.PriceMutation;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.PriceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 
@@ -46,11 +46,11 @@ abstract class PriceMutationConverter<M extends PriceMutation> extends LocalMuta
 	}
 
 	@Nonnull
-	protected PriceKey resolvePriceKey(@Nonnull InputMutation inputMutation) {
+	protected PriceKey resolvePriceKey(@Nonnull Input input) {
 		return new PriceKey(
-			inputMutation.getRequiredField(PriceMutationDescriptor.PRICE_ID),
-			inputMutation.getRequiredField(PriceMutationDescriptor.PRICE_LIST),
-			inputMutation.getRequiredField(PriceMutationDescriptor.CURRENCY)
+			input.getRequiredField(PriceMutationDescriptor.PRICE_ID),
+			input.getRequiredField(PriceMutationDescriptor.PRICE_LIST),
+			input.getRequiredField(PriceMutationDescriptor.CURRENCY)
 		);
 	}
 }

@@ -437,7 +437,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setTerminated(boolean value) {
-
+      
       terminated_ = value;
       onChanged();
       return this;
@@ -447,7 +447,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearTerminated() {
-
+      
       terminated_ = false;
       onChanged();
       return this;

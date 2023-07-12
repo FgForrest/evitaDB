@@ -1,0 +1,18 @@
+POST /rest/evita/category/query
+
+{
+  "filterBy" : {
+    "hierarchyWithinSelf" : {
+      "ofParent" : {
+        "attributeCodeStartsWith" : "wire"
+      }
+    }
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ]
+    }
+  }
+}

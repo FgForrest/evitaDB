@@ -35,11 +35,13 @@ import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.comparator.NullsFirstComparatorWrapper;
+import io.evitadb.comparator.NullsLastComparatorWrapper;
 import io.evitadb.core.Evita;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
-import io.evitadb.dataType.Multiple;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -71,6 +73,7 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
+import static io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement.attributeElement;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.*;
@@ -254,7 +257,11 @@ public class EntityByAttributeFilteringFunctionalTest {
 								.withAttribute(ATTRIBUTE_MANUFACTURED, LocalDate.class, whichIs -> whichIs.filterable().sortable())
 								.withAttribute(ATTRIBUTE_CURRENCY, Currency.class, whichIs -> whichIs.filterable())
 								.withAttribute(ATTRIBUTE_LOCALE, Locale.class, whichIs -> whichIs.filterable())
-								.withAttribute(ATTRIBUTE_COMBINED_PRIORITY, Multiple.class, whichIs -> whichIs.filterable().sortable())
+								.withSortableAttributeCompound(
+									ATTRIBUTE_COMBINED_PRIORITY,
+									attributeElement(ATTRIBUTE_PRIORITY, DESC, OrderBehaviour.NULLS_LAST),
+									attributeElement(ATTRIBUTE_CREATED, ASC, OrderBehaviour.NULLS_FIRST)
+								)
 								.withAttribute(ATTRIBUTE_VISIBLE, Boolean.class, whichIs -> whichIs.filterable())
 								.withReferenceToEntity(
 									Entities.BRAND,
@@ -532,6 +539,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 			session -> {
 				final EvitaResponse<EntityReference> result = session.query(
 					query(
+						collection(Entities.PRODUCT),
 						filterBy(
 							attributeInSet(ATTRIBUTE_CODE, selectedEntities.stream().map(it -> (String) it.getAttribute(ATTRIBUTE_CODE)).toArray(String[]::new))
 						),
@@ -572,7 +580,11 @@ public class EntityByAttributeFilteringFunctionalTest {
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldReturnEntityByGlobalAttributeEqualToStringAndPriceConstraintAndSortByPrice(Evita evita, List<SealedEntity> originalProductEntities) {
-		final SealedEntity selectedEntity = originalProductEntities.get(1);
+		final SealedEntity selectedEntity = originalProductEntities
+			.stream()
+			.filter(it -> !it.getAllPricesForSale().isEmpty())
+			.findFirst()
+			.orElseThrow();
 		final PriceContract firstPrice = selectedEntity.getPrices()
 			.stream()
 			.filter(PriceContract::isSellable)
@@ -936,40 +948,6 @@ public class EntityByAttributeFilteringFunctionalTest {
 					sealedEntity ->
 						ofNullable(sealedEntity.getAttribute(ATTRIBUTE_LOCALE))
 							.map(localeAttribute::equals)
-							.orElse(false),
-					result.getRecordData()
-				);
-				return null;
-			}
-		);
-	}
-
-	@DisplayName("Should return entities by equals to attribute (Multiple)")
-	@UseDataSet(HUNDRED_PRODUCTS)
-	@Test
-	void shouldReturnEntitiesByAttributeEqualToMultiple(Evita evita, List<SealedEntity> originalProductEntities) {
-		final Multiple combinedPriorityAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_COMBINED_PRIORITY);
-		evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				final EvitaResponse<EntityReference> result = session.query(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							attributeEquals(ATTRIBUTE_COMBINED_PRIORITY, combinedPriorityAttribute)
-						),
-						require(
-							page(1, Integer.MAX_VALUE),
-							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
-						)
-					),
-					EntityReference.class
-				);
-				assertResultIs(
-					originalProductEntities,
-					sealedEntity ->
-						ofNullable(sealedEntity.getAttribute(ATTRIBUTE_COMBINED_PRIORITY))
-							.map(combinedPriorityAttribute::equals)
 							.orElse(false),
 					result.getRecordData()
 				);
@@ -2976,21 +2954,18 @@ public class EntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
-	@DisplayName("Should return entities sorted by  attribute ")
+	@DisplayName("Should return entities sorted by sortable attribute compound")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
-	void shouldSortEntitiesAccordingToAttribute(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldSortEntitiesAccordingToSortableAttributeCompound(Evita evita, List<SealedEntity> originalProductEntities) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final EvitaResponse<EntityReference> result = session.query(
 					query(
 						collection(Entities.PRODUCT),
-						filterBy(
-							attributeIsNotNull(ATTRIBUTE_COMBINED_PRIORITY)
-						),
 						orderBy(
-							attributeNatural(ATTRIBUTE_COMBINED_PRIORITY, DESC)
+							attributeNatural(ATTRIBUTE_COMBINED_PRIORITY)
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
@@ -2999,111 +2974,26 @@ public class EntityByAttributeFilteringFunctionalTest {
 					),
 					EntityReference.class
 				);
-				assertSortedResultIs(
-					originalProductEntities,
-					result.getRecordData(),
-					sealedEntity -> sealedEntity.getAttribute(ATTRIBUTE_COMBINED_PRIORITY) != null,
-					(sealedEntityA, sealedEntityB) -> {
-						final Multiple priority = sealedEntityB.getAttribute(ATTRIBUTE_COMBINED_PRIORITY);
-						return priority.compareTo(sealedEntityA.getAttribute(ATTRIBUTE_COMBINED_PRIORITY));
-					}
+				final NullsLastComparatorWrapper<Long> priorityComparator = new NullsLastComparatorWrapper<Long>(
+					Comparator.reverseOrder()
 				);
-				return null;
-			}
-		);
-	}
-
-	@DisplayName("Should return entities sorted by attribute defined on referenced entity")
-	@UseDataSet(HUNDRED_PRODUCTS)
-	@Test
-	void shouldSortEntitiesAccordingToAttributeOnReferencedEntity(Evita evita, List<SealedEntity> originalProductEntities) {
-		evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				final EvitaResponse<EntityReference> result = session.query(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							referenceHaving(
-								Entities.BRAND,
-								attributeIsNotNull(ATTRIBUTE_MARKET_SHARE)
-							)
-						),
-						orderBy(
-							referenceProperty(
-								Entities.BRAND,
-								attributeNatural(ATTRIBUTE_MARKET_SHARE, DESC)
-							)
-						),
-						require(
-							page(1, Integer.MAX_VALUE),
-							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
-						)
-					),
-					EntityReference.class
-				);
-				assertSortedResultIs(
-					originalProductEntities,
-					result.getRecordData(),
-					sealedEntity -> sealedEntity.getReferences(Entities.BRAND).stream().anyMatch(it -> it.getAttribute(ATTRIBUTE_MARKET_SHARE) != null),
-					(sealedEntityA, sealedEntityB) -> {
-						final BigDecimal marketShareB = sealedEntityB.getReferences(Entities.BRAND).stream().map(it -> (BigDecimal) it.getAttribute(ATTRIBUTE_MARKET_SHARE)).findFirst().orElseThrow(IllegalStateException::new);
-						final BigDecimal marketShareA = sealedEntityA.getReferences(Entities.BRAND).stream().map(it -> (BigDecimal) it.getAttribute(ATTRIBUTE_MARKET_SHARE)).findFirst().orElseThrow(IllegalStateException::new);
-						return marketShareB.compareTo(marketShareA);
-					}
-				);
-				return null;
-			}
-		);
-	}
-
-	@DisplayName("Should return entities sorted by attributes defined on different referenced entities")
-	@UseDataSet(HUNDRED_PRODUCTS)
-	@Test
-	void shouldSortEntitiesAccordingToAttributesOnReferencedEntity(Evita evita, List<SealedEntity> originalProductEntities) {
-		evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				final EvitaResponse<EntityReference> result = session.query(
-					query(
-						collection(Entities.PRODUCT),
-						orderBy(
-							referenceProperty(
-								Entities.BRAND,
-								attributeNatural(ATTRIBUTE_MARKET_SHARE, DESC)
-							),
-							referenceProperty(
-								Entities.STORE,
-								attributeNatural(ATTRIBUTE_CAPACITY)
-							)
-						),
-						require(
-							page(1, Integer.MAX_VALUE),
-							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
-						)
-					),
-					EntityReference.class
+				final NullsFirstComparatorWrapper<OffsetDateTime> createdComparator = new NullsFirstComparatorWrapper<OffsetDateTime>(
+					Comparator.naturalOrder()
 				);
 				assertSortedResultIs(
 					originalProductEntities,
 					result.getRecordData(),
 					sealedEntity -> true,
-					new PredicateWithComparatorTuple(
-						sealedEntity -> sealedEntity.getReferences(Entities.BRAND).stream().anyMatch(it -> it.getAttribute(ATTRIBUTE_MARKET_SHARE) != null),
-						(sealedEntityA, sealedEntityB) -> {
-							final BigDecimal marketShareB = sealedEntityB.getReferences(Entities.BRAND).stream().map(it -> (BigDecimal) it.getAttribute(ATTRIBUTE_MARKET_SHARE)).filter(Objects::nonNull).findFirst().orElseThrow(IllegalStateException::new);
-							final BigDecimal marketShareA = sealedEntityA.getReferences(Entities.BRAND).stream().map(it -> (BigDecimal) it.getAttribute(ATTRIBUTE_MARKET_SHARE)).filter(Objects::nonNull).findFirst().orElseThrow(IllegalStateException::new);
-							return marketShareB.compareTo(marketShareA);
-						}
-					),
-					new PredicateWithComparatorTuple(
-						sealedEntity -> sealedEntity.getReferences(Entities.STORE).stream().anyMatch(it -> it.getAttribute(ATTRIBUTE_CAPACITY) != null),
-						(sealedEntityA, sealedEntityB) -> {
-							final Long capacityA = sealedEntityA.getReferences(Entities.STORE).stream().map(it -> (Long) it.getAttribute(ATTRIBUTE_CAPACITY)).filter(Objects::nonNull).findFirst().orElseThrow(IllegalStateException::new);
-							final Long capacityB = sealedEntityB.getReferences(Entities.STORE).stream().map(it -> (Long) it.getAttribute(ATTRIBUTE_CAPACITY)).filter(Objects::nonNull).findFirst().orElseThrow(IllegalStateException::new);
-							return capacityA.compareTo(capacityB);
-						}
-					)
+					(sealedEntityA, sealedEntityB) -> {
+						final Long priorityA = sealedEntityA.getAttribute(ATTRIBUTE_PRIORITY);
+						final OffsetDateTime createdA = sealedEntityA.getAttribute(ATTRIBUTE_CREATED);
+						final Long priorityB = sealedEntityB.getAttribute(ATTRIBUTE_PRIORITY);
+						final OffsetDateTime createdB = sealedEntityB.getAttribute(ATTRIBUTE_CREATED);
+						final int priorityResult = priorityComparator.compare(priorityA, priorityB);
+						return priorityResult == 0 ?
+							createdComparator.compare(createdA, createdB) :
+							priorityResult;
+					}
 				);
 				return null;
 			}
@@ -3710,13 +3600,13 @@ public class EntityByAttributeFilteringFunctionalTest {
 		return originalProductEntities
 			.stream()
 			.map(it -> (T[]) it.getAttributeArray(attributeName))
-			.filter(Objects::nonNull)
+			.filter(it -> !ArrayUtils.isEmpty(it))
 			.skip(10)
 			.findFirst()
 			.orElseThrow(() -> new IllegalStateException("Failed to localize `" + attributeName + "` attribute!"));
 	}
 
-	private void assertSortedAndPagedResultIs(List<SealedEntity> originalProductEntities, List<EntityReference> records, Predicate<SealedEntity> predicate, Comparator<SealedEntity> comparator, int skip, int limit) {
+	static void assertSortedAndPagedResultIs(List<SealedEntity> originalProductEntities, List<EntityReference> records, Predicate<SealedEntity> predicate, Comparator<SealedEntity> comparator, int skip, int limit) {
 		assertSortedResultEquals(
 			records.stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList()),
 			originalProductEntities.stream()
@@ -3729,13 +3619,13 @@ public class EntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
-	private void assertSortedResultIs(List<SealedEntity> originalProductEntities, List<EntityReference> records, Predicate<SealedEntity> predicate, Comparator<SealedEntity> comparator) {
+	static void assertSortedResultIs(List<SealedEntity> originalProductEntities, List<EntityReference> records, Predicate<SealedEntity> predicate, Comparator<SealedEntity> comparator) {
 		assertSortedResultIs(originalProductEntities, records, predicate, new PredicateWithComparatorTuple(predicate, comparator));
 	}
 
-	private void assertSortedResultIs(List<SealedEntity> originalProductEntities, List<EntityReference> records, Predicate<SealedEntity> filteringPredicate, PredicateWithComparatorTuple... sortVector) {
+	static void assertSortedResultIs(List<SealedEntity> originalProductEntities, List<EntityReference> records, Predicate<SealedEntity> filteringPredicate, PredicateWithComparatorTuple... sortVector) {
 		final List<Predicate<SealedEntity>> previousPredicateAcc = new ArrayList<>();
-		final int[] expectedSortedRecords = Stream.concat(
+		final List<SealedEntity> expectedSortedRecords = Stream.concat(
 				Arrays.stream(sortVector)
 					.flatMap(it -> {
 						final List<SealedEntity> subResult = originalProductEntities
@@ -3753,12 +3643,11 @@ public class EntityByAttributeFilteringFunctionalTest {
 					.filter(filteringPredicate)
 					.filter(entity -> previousPredicateAcc.stream().noneMatch(predicate -> predicate.test(entity)))
 			)
-			.mapToInt(EntityContract::getPrimaryKey)
-			.toArray();
+			.toList();
 
 		assertSortedResultEquals(
 			records.stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList()),
-			expectedSortedRecords
+			expectedSortedRecords.stream().mapToInt(EntityContract::getPrimaryKey).toArray()
 		);
 	}
 

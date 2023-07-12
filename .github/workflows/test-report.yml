@@ -7,6 +7,16 @@ on:
     workflows: ['CI Dev branch', 'All tests including long-running'] # runs after CI of full test workflow
     types:
       - completed
+
+permissions:
+  id-token: write
+  contents: write
+  actions: read
+  checks: write
+  pull-requests: read
+  security-events: write
+  statuses: write
+
 jobs:
   report:
     runs-on: ubuntu-latest

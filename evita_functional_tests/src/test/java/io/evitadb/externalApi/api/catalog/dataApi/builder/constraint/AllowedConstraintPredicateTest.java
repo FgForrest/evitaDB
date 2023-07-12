@@ -32,7 +32,6 @@ import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.query.filter.UserFilter;
 import io.evitadb.api.query.order.AttributeNatural;
-import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.Strip;

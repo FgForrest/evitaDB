@@ -36,7 +36,6 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
-import io.evitadb.dataType.Multiple;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.utils.Assert;
 import org.antlr.v4.runtime.ParserRuleContext;
@@ -134,7 +133,6 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
             IntegerNumberRange.class,
             ShortNumberRange.class,
             ByteNumberRange.class,
-            Multiple.class,
             Locale.class,
             Currency.class,
             Enum.class
@@ -163,8 +161,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
             LongNumberRange.class,
             IntegerNumberRange.class,
             ShortNumberRange.class,
-            ByteNumberRange.class,
-            Multiple.class
+            ByteNumberRange.class
         );
     }
 
@@ -341,42 +338,6 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
             ctx,
             DateTimeRange.class,
             () -> DateTimeRange.fromString(ctx.getText())
-        );
-    }
-
-    @Override
-    public Value visitMultipleValueToken(@Nonnull EvitaQLParser.MultipleValueTokenContext ctx) {
-        return parse(
-            ctx,
-            Multiple.class,
-            () -> {
-                final Serializable[] values = ctx.values.accept(multipleValueTokenVisitor).asSerializableArray();
-                final int valuesLength = values.length;
-                if (valuesLength == 2) {
-                    return new Multiple(
-                        asComparableAndSerializable(values[0]),
-                        asComparableAndSerializable(values[1])
-                    );
-                } else if (valuesLength == 3) {
-                    return new Multiple(
-                        asComparableAndSerializable(values[0]),
-                        asComparableAndSerializable(values[1]),
-                        asComparableAndSerializable(values[2])
-                    );
-                } else if (valuesLength == 4) {
-                    return new Multiple(
-                        asComparableAndSerializable(values[0]),
-                        asComparableAndSerializable(values[1]),
-                        asComparableAndSerializable(values[2]),
-                        asComparableAndSerializable(values[3])
-                    );
-                } else {
-                    throw new EvitaQLInvalidQueryError(
-                        ctx,
-                        "Currently, only 2 to 4 arguments are allowed in Multiple data type."
-                    );
-                }
-            }
         );
     }
 

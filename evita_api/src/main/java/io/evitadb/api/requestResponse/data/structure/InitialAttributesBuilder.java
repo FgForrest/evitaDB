@@ -356,6 +356,12 @@ class InitialAttributesBuilder implements AttributesBuilder {
 
 	@Nonnull
 	@Override
+	public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
+		return ofNullable(this.attributeValues.get(attributeKey));
+	}
+
+	@Nonnull
+	@Override
 	public Collection<AttributeValue> getAttributeValues() {
 		return this.attributeValues.values();
 	}

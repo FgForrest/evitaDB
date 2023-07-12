@@ -27,6 +27,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
@@ -46,60 +47,63 @@ import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
- * This `withinRootHierarchy` query accepts [Serializable](https://docs.oracle.com/javase/8/docs/api/java/io/Serializable.html)
- * entity type in first argument. There are also optional second and third arguments - see optional arguments {@link HierarchyDirectRelation},
- * and {@link HierarchyExcluding}.
+ * The constraint `hierarchyWithinRoot` allows you to restrict the search to only those entities that are part of
+ * the entire hierarchy tree. In e-commerce systems the typical representative of a hierarchical entity is a category.
  *
- * Function returns true if entity has at least one [reference](../model/entity_model.md#references) that relates to specified entity
- * type and entity either directly or relates to any other entity of the same type with [hierarchical placement](../model/entity_model.md#hierarchical-placement)
- * subordinate to the directly related entity placement (in other words is present in its sub-tree).
+ * The single difference to {@link HierarchyWithin} constraint is that it doesn't accept a root node specification.
+ * Because evitaDB accepts multiple root nodes in your entity hierarchy, it may be helpful to imagine there is
+ * an invisible "virtual" top root above all the top nodes (whose parent property remains NULL) you have in your entity
+ * hierarchy and this virtual top root is targeted by this constraint.
  *
- * Let's have following hierarchical tree of categories (primary keys are in brackets):
+ - The constraint accepts following arguments:
  *
- * - TV (1)
- * - Crt (2)
- * - LCD (3)
- * - big (4)
- * - small (5)
- * - Plasma (6)
- * - Fridges (7)
+ * - optional name of the queried entity reference schema that represents the relationship to the hierarchical entity
+ *   type, your entity may target different hierarchical entities in different reference types, or it may target
+ *   the same hierarchical entity through multiple semantically different references, and that is why the reference name
+ *   is used instead of the target entity type.
+ * - optional constraints allow you to narrow the scope of the hierarchy; none or all of the constraints may be present:
  *
- * When query `withinRootHierarchy('category')` is used in a query targeting product entities all products that
- * relates to any of categories will be returned.
+ *      - {@link HierarchyDirectRelation}
+ *      - {@link HierarchyHaving}
+ *      - {@link HierarchyExcluding}
  *
- * Only single `withinRootHierarchy` query can be used in the query.
+ * The `hierarchyWithinRoot`, which targets the Category collection itself, returns all categories except those that
+ * would point to non-existent parent nodes, such hierarchy nodes are called orphans and do not satisfy any hierarchy
+ * query.
  *
- * Example:
- *
- * ```
- * withinRootHierarchy('category')
- * ```
- *
- * If you want to query the entity that you're querying on you can also omit entity type specification. See example:
- *
- * ```
+ * <pre>
  * query(
- * entities('CATEGORY'),
- * filterBy(
- * withinRootHierarchy()
+ *     collection('Category'),
+ *     filterBy(
+ *         hierarchyWithinRootSelf()
+ *     ),
+ *     require(
+ *         entityFetch(
+ *             attributeContent('code')
+ *         )
+ *     )
  * )
- * )
- * ```
+ * </pre>
  *
- * This query will return all categories within `CATEGORY` entity.
+ * The `hierarchyWithinRoot` constraint can also be used for entities that directly reference a hierarchical entity
+ * type. The most common use case from the e-commerce world is a product that is assigned to one or more categories.
  *
- * You may use this query to list entities that refers to the hierarchical entities:
- *
- * ```
+ * <pre>
  * query(
- * entities('PRODUCT'),
- * filterBy(
- * withinRootHierarchy('CATEGORY')
+ *     collection('Product'),
+ *     filterBy(
+ *         hierarchyWithinRoot('categories')
+ *     ),
+ *     require(
+ *         entityFetch(
+ *             attributeContent('code')
+ *         )
+ *     )
  * )
- * )
- * ```
+ * </pre>
  *
- * This query returns all products that are attached to any category.
+ * Products assigned to only one orphan category will be missing from the result. Products assigned to two or more
+ * categories will only appear once in the response (contrary to what you might expect if you have experience with SQL).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -143,10 +147,10 @@ public class HierarchyWithinRoot extends AbstractFilterConstraintContainer
 
 	@Creator
 	public HierarchyWithinRoot(
-		@Nonnull @Classifier String entityType,
+		@Nonnull @Classifier String referenceName,
 		@Nonnull @Child(uniqueChildren = true) HierarchySpecificationFilterConstraint... with
 	) {
-		this(new Serializable[]{entityType}, with);
+		this(new Serializable[]{referenceName}, with);
 	}
 
 	@Override
@@ -198,6 +202,18 @@ public class HierarchyWithinRoot extends AbstractFilterConstraintContainer
 			.map(it -> ((HierarchyExcluding) it).getFiltering())
 			.findFirst()
 			.orElseGet(() -> new FilterConstraint[0]);
+	}
+
+	/**
+	 * Returns all specification constraints passed in `with` parameter.
+	 */
+	@AliasForParameter("with")
+	@Nonnull
+	public HierarchySpecificationFilterConstraint[] getHierarchySpecificationConstraints() {
+		return Arrays.stream(getChildren())
+			.filter(HierarchySpecificationFilterConstraint.class::isInstance)
+			.map(it -> (HierarchySpecificationFilterConstraint) it)
+			.toArray(HierarchySpecificationFilterConstraint[]::new);
 	}
 
 	@Override

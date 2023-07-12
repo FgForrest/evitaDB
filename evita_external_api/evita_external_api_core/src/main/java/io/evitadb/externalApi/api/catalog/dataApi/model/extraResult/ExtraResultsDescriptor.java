@@ -91,14 +91,6 @@ public interface ExtraResultsDescriptor {
 			""")
 		// type is expected to be a collection of `FacetGroupStatistics` objects
 		.build();
-	PropertyDescriptor HIERARCHY_PARENTS = PropertyDescriptor.builder()
-		.name("hierarchyParents")
-		.description("""
-			Returns object with information about full parent paths of hierarchical entities the requested entity is referencing.
-			Information can is usually used when rendering breadcrumb path for the entity.
-			""")
-		// type is expected to be a map with reference names as keys and list of `ParentsOfEntity` objects as values
-		.build();
 	PropertyDescriptor HIERARCHY = PropertyDescriptor.builder()
 		.name("hierarchy")
 		.description("""

@@ -37,114 +37,137 @@ constraint
     ;
 
 headConstraint
-    : 'collection'                      args = classifierArgs                                       # collectionConstraint
+    : 'collection'                          args = classifierArgs                                           # collectionConstraint
     ;
 
 filterConstraint
-    : 'filterBy'                        args = filterConstraintListArgs                             # filterByConstraint
-    | 'and'                             (emptyArgs | args = filterConstraintListArgs)               # andConstraint
-    | 'or'                              (emptyArgs | args = filterConstraintListArgs)               # orConstraint
-    | 'not'                             args = filterConstraintArgs                                 # notConstraint
-    | 'userFilter'                      (emptyArgs | args = filterConstraintListArgs)               # userFilterConstraint
-    | 'attributeEquals'                 args = classifierWithValueArgs                              # attributeEqualsConstraint
-    | 'attributeGreaterThan'            args = classifierWithValueArgs                              # attributeGreaterThanConstraint
-    | 'attributeGreaterThanEquals'      args = classifierWithValueArgs                              # attributeGreaterThanEqualsConstraint
-    | 'attributeLessThan'               args = classifierWithValueArgs                              # attributeLessThanConstraint
-    | 'attributeLessThanEquals'         args = classifierWithValueArgs                              # attributeLessThanEqualsConstraint
-    | 'attributeBetween'                args = classifierWithBetweenValuesArgs                      # attributeBetweenConstraint
-    | 'attributeInSet'                  args = classifierWithValueListArgs                          # attributeInSetConstraint
-    | 'attributeContains'               args = classifierWithValueArgs                              # attributeContainsConstraint
-    | 'attributeStartsWith'             args = classifierWithValueArgs                              # attributeStartsWithConstraint
-    | 'attributeEndsWith'               args = classifierWithValueArgs                              # attributeEndsWithConstraint
-    | 'attributeEqualsTrue'             args = classifierArgs                                       # attributeEqualsTrueConstraint
-    | 'attributeEqualsFalse'            args = classifierArgs                                       # attributeEqualsFalseConstraint
-    | 'attributeIs'                     args = classifierWithValueArgs                              # attributeIsConstraint
-    | 'attributeIsNull'                 args = classifierArgs                                       # attributeIsNullConstraint
-    | 'attributeIsNotNull'              args = classifierArgs                                       # attributeIsNotNullConstraint
-    | 'attributeInRange'                args = classifierWithValueArgs                              # attributeInRangeConstraint
-    | 'entityPrimaryKeyInSet'           args = valueListArgs                                        # entityPrimaryKeyInSetConstraint
-    | 'entityLocaleEquals'              args = valueArgs                                            # entityLocaleEqualsConstraint
-    | 'priceInCurrency'                 args = valueArgs                                            # priceInCurrencyConstraint
-    | 'priceInPriceLists'               (emptyArgs | args = classifierListArgs)                     # priceInPriceListsConstraints
-    | 'priceValidInNow'                 emptyArgs                                                   # priceValidInNowConstraint
-    | 'priceValidIn'                    args = valueArgs                                            # priceValidInConstraint
-    | 'priceBetween'                    args = betweenValuesArgs                                    # priceBetweenConstraint
-    | 'facetHaving'                     args = classifierWithFilterConstraintArgs                   # facetHavingConstraint
-    | 'referenceHaving'                 args = classifierWithFilterConstraintArgs                   # referenceHavingConstraint
-    | 'hierarchyWithin'                 args = hierarchyWithinConstraintArgs                        # hierarchyWithinConstraint
-    | 'hierarchyWithinSelf'             args = hierarchyWithinSelfConstraintArgs                    # hierarchyWithinSelfConstraint
-    | 'hierarchyWithinRoot'             args = hierarchyWithinRootConstraintArgs                    # hierarchyWithinRootConstraint
-    | 'hierarchyWithinRootSelf'         (emptyArgs | args = hierarchyWithinRootSelfConstraintArgs)  # hierarchyWithinRootSelfConstraint
-    | 'directRelation'                  emptyArgs                                                   # hierarchyDirectRelationConstraint
-    | 'having'                          args = filterConstraintListArgs                             # hierarchyHavingConstraint
-    | 'excludingRoot'                   emptyArgs                                                   # hierarchyExcludingRootConstraint
-    | 'excluding'                       args = filterConstraintListArgs                             # hierarchyExcludingConstraint
-    | 'entityHaving'                    args = filterConstraintArgs                                 # entityHavingConstraint
+    : 'filterBy'                            args = filterConstraintListArgs                                 # filterByConstraint
+    | 'filterGroupBy'                       args = filterConstraintListArgs                                 # filterGroupByConstraint
+    | 'and'                                 (emptyArgs | args = filterConstraintListArgs)                   # andConstraint
+    | 'or'                                  (emptyArgs | args = filterConstraintListArgs)                   # orConstraint
+    | 'not'                                 args = filterConstraintArgs                                     # notConstraint
+    | 'userFilter'                          (emptyArgs | args = filterConstraintListArgs)                   # userFilterConstraint
+    | 'attributeEquals'                     args = classifierWithValueArgs                                  # attributeEqualsConstraint
+    | 'attributeGreaterThan'                args = classifierWithValueArgs                                  # attributeGreaterThanConstraint
+    | 'attributeGreaterThanEquals'          args = classifierWithValueArgs                                  # attributeGreaterThanEqualsConstraint
+    | 'attributeLessThan'                   args = classifierWithValueArgs                                  # attributeLessThanConstraint
+    | 'attributeLessThanEquals'             args = classifierWithValueArgs                                  # attributeLessThanEqualsConstraint
+    | 'attributeBetween'                    args = classifierWithBetweenValuesArgs                          # attributeBetweenConstraint
+    | 'attributeInSet'                      args = classifierWithValueListArgs                              # attributeInSetConstraint
+    | 'attributeContains'                   args = classifierWithValueArgs                                  # attributeContainsConstraint
+    | 'attributeStartsWith'                 args = classifierWithValueArgs                                  # attributeStartsWithConstraint
+    | 'attributeEndsWith'                   args = classifierWithValueArgs                                  # attributeEndsWithConstraint
+    | 'attributeEqualsTrue'                 args = classifierArgs                                           # attributeEqualsTrueConstraint
+    | 'attributeEqualsFalse'                args = classifierArgs                                           # attributeEqualsFalseConstraint
+    | 'attributeIs'                         args = classifierWithValueArgs                                  # attributeIsConstraint
+    | 'attributeIsNull'                     args = classifierArgs                                           # attributeIsNullConstraint
+    | 'attributeIsNotNull'                  args = classifierArgs                                           # attributeIsNotNullConstraint
+    | 'attributeInRange'                    args = classifierWithValueArgs                                  # attributeInRangeConstraint
+    | 'entityPrimaryKeyInSet'               args = valueListArgs                                            # entityPrimaryKeyInSetConstraint
+    | 'entityLocaleEquals'                  args = valueArgs                                                # entityLocaleEqualsConstraint
+    | 'priceInCurrency'                     args = valueArgs                                                # priceInCurrencyConstraint
+    | 'priceInPriceLists'                   (emptyArgs | args = classifierListArgs)                         # priceInPriceListsConstraints
+    | 'priceValidInNow'                     emptyArgs                                                       # priceValidInNowConstraint
+    | 'priceValidIn'                        args = valueArgs                                                # priceValidInConstraint
+    | 'priceBetween'                        args = betweenValuesArgs                                        # priceBetweenConstraint
+    | 'facetHaving'                         args = classifierWithFilterConstraintArgs                       # facetHavingConstraint
+    | 'referenceHaving'                     args = classifierWithFilterConstraintArgs                       # referenceHavingConstraint
+    | 'hierarchyWithin'                     args = hierarchyWithinConstraintArgs                            # hierarchyWithinConstraint
+    | 'hierarchyWithinSelf'                 args = hierarchyWithinSelfConstraintArgs                        # hierarchyWithinSelfConstraint
+    | 'hierarchyWithinRoot'                 args = hierarchyWithinRootConstraintArgs                        # hierarchyWithinRootConstraint
+    | 'hierarchyWithinRootSelf'             (emptyArgs | args = hierarchyWithinRootSelfConstraintArgs)      # hierarchyWithinRootSelfConstraint
+    | 'directRelation'                      emptyArgs                                                       # hierarchyDirectRelationConstraint
+    | 'having'                              args = filterConstraintListArgs                                 # hierarchyHavingConstraint
+    | 'excludingRoot'                       emptyArgs                                                       # hierarchyExcludingRootConstraint
+    | 'excluding'                           args = filterConstraintListArgs                                 # hierarchyExcludingConstraint
+    | 'entityHaving'                        args = filterConstraintArgs                                     # entityHavingConstraint
     ;
 
 orderConstraint
-    : 'orderBy'                         (emptyArgs | args = orderConstraintListArgs)                # orderByConstraint
-    | 'attributeNatural'                args = classifierWithOptionalValueArgs                      # attributeNaturalConstraint
-    | 'attributeSetExact'               args = attributeSetExactArgs                                # attributeSetExactConstraint
-    | 'attributeSetInFilter'            args = classifierArgs                                       # attributeSetInFilterConstraint
-    | 'priceNatural'                    (emptyArgs | args = valueArgs)                              # priceNaturalConstraint
-    | 'random'                          emptyArgs                                                   # randomConstraint
-    | 'referenceProperty'               args = classifierWithOrderConstraintListArgs                # referencePropertyConstraint
-    | 'entityPrimaryKeyExact'           args = valueListArgs                                        # entityPrimaryKeyExactConstraint
-    | 'entityPrimaryKeyInFilter'        emptyArgs                                                   # entityPrimaryKeyInFilterConstraint
-    | 'entityProperty'                  args = orderConstraintListArgs                              # entityPropertyConstraint
+    : 'orderBy'                             (emptyArgs | args = orderConstraintListArgs)                    # orderByConstraint
+    | 'orderGroupBy'                        (emptyArgs | args = orderConstraintListArgs)                    # orderGroupByConstraint
+    | 'attributeNatural'                    args = classifierWithOptionalValueArgs                          # attributeNaturalConstraint
+    | 'attributeSetExact'                   args = attributeSetExactArgs                                    # attributeSetExactConstraint
+    | 'attributeSetInFilter'                args = classifierArgs                                           # attributeSetInFilterConstraint
+    | 'priceNatural'                        (emptyArgs | args = valueArgs)                                  # priceNaturalConstraint
+    | 'random'                              emptyArgs                                                       # randomConstraint
+    | 'referenceProperty'                   args = classifierWithOrderConstraintListArgs                    # referencePropertyConstraint
+    | 'entityPrimaryKeyExact'               args = valueListArgs                                            # entityPrimaryKeyExactConstraint
+    | 'entityPrimaryKeyInFilter'            emptyArgs                                                       # entityPrimaryKeyInFilterConstraint
+    | 'entityProperty'                      args = orderConstraintListArgs                                  # entityPropertyConstraint
     ;
 
 requireConstraint
-    : 'require'                         (emptyArgs | args = requireConstraintListArgs)              # requireContainerConstraint
-    | 'page'                            args = pageConstraintArgs                                   # pageConstraint
-    | 'strip'                           args = stripConstraintArgs                                  # stripConstraint
-    | 'entityFetch'                     (emptyArgs | args = requireConstraintListArgs)              # entityFetchConstraint
-    | 'entityGroupFetch'                (emptyArgs | args = requireConstraintListArgs)              # entityGroupFetchConstraint
-    | 'attributeContent'                args = classifierListArgs                                   # attributeContentConstraint
-    | 'attributeContentAll'             emptyArgs                                                   # attributeContentConstraint
-    | 'priceContent'                    args = priceContentArgs                                     # priceContentConstraint
-    | 'priceContentAll'                 emptyArgs                                                   # priceContentAllConstraint
-    | 'priceContentRespectingFilter'    (emptyArgs | args = valueListArgs)                          # priceContentRespectingFilterConstraint
-    | 'associatedDataContent'           args = classifierListArgs                                   # associatedDataContentConstraint
-    | 'associatedDataContentAll'        emptyArgs                                                   # associatedDataContentConstraint
-    | 'referenceContentAll'             (emptyArgs | args = allRefsReferenceContentArgs)            # allRefsReferenceContentConstraint
-    | 'referenceContent'                args = multipleRefsReferenceContentArgs                     # multipleRefsReferenceContentConstraint
-    | 'referenceContent'                args = singleRefReferenceContentArgs                        # singleRefReferenceContentConstraint
-    | 'referenceContent'                args = singleRefWithFilterReferenceContentArgs              # singleRefWithFilterReferenceContentConstraint
-    | 'referenceContent'                args = singleRefWithOrderReferenceContentArgs               # singleRefWithOrderReferenceContentConstraint
-    | 'referenceContent'                args = singleRefWithFilterAndOrderReferenceContentArgs      # singleRefWithFilterAndOrderReferenceContentConstraint
-    | 'hierarchyContent'                emptyArgs                                                   # emptyHierarchyContentConstraint
-    | 'hierarchyContent'                args = singleRequireHierarchyContentArgs                    # singleRequireHierarchyContentConstraint
-    | 'hierarchyContent'                args = allRequiresHierarchyContentArgs                      # allRequiresHierarchyContentConstraint
-    | 'priceType'                       args = valueArgs                                            # priceTypeConstraint
-    | 'dataInLocales'                   (emptyArgs | args = valueListArgs)                          # dataInLocalesConstraint
-    | 'facetSummary'                    (emptyArgs | args = facetSummaryArgs)                       # facetSummaryConstraint
-    | 'facetSummaryOfReference'         args = facetSummaryOfReferenceArgs                          # facetSummaryOfReferenceConstraint
-    | 'facetGroupsConjunction'          args = classifierWithFilterConstraintArgs                   # facetGroupsConjunctionConstraint
-    | 'facetGroupsDisjunction'          args = classifierWithFilterConstraintArgs                   # facetGroupsDisjunctionConstraint
-    | 'facetGroupsNegation'             args = classifierWithFilterConstraintArgs                   # facetGroupsNegationConstraint
-    | 'attributeHistogram'              args = valueWithClassifierListArgs                          # attributeHistogramConstraint
-    | 'priceHistogram'                  args = valueArgs                                            # priceHistogramConstraint
-    | 'distance'                        args = valueArgs                                            # hierarchyDistanceConstraint
-    | 'level'                           args = valueArgs                                            # hierarchyLevelConstraint
-    | 'node'                            args = filterConstraintArgs                                 # hierarchyNodeConstraint
-    | 'stopAt'                          args = requireConstraintArgs                                # hierarchyStopAtConstraint
-    | 'statistics'                      (emptyArgs | args = hierarchyStatisticsArgs)                # hierarchyStatisticsConstraint
-    | 'fromRoot'                        args = hierarchyRequireConstraintArgs                       # hierarchyFromRootConstraint
-    | 'fromNode'                        args = hierarchyFromNodeArgs                                # hierarchyFromNodeConstraint
-    | 'children'                        args = hierarchyRequireConstraintArgs                       # hierarchyChildrenConstraint
-    | 'siblings'                        emptyArgs                                                   # emptyHierarchySiblingsConstraint
-    | 'siblings'                        args = requireConstraintListArgs                            # basicHierarchySiblingsConstraint
-    | 'siblings'                        args = hierarchyRequireConstraintArgs                       # fullHierarchySiblingsConstraint
-    | 'parents'                         args = hierarchyRequireConstraintArgs                       # hierarchyParentsConstraint
-    | 'hierarchyOfSelf'                 args = requireConstraintListArgs                            # basicHierarchyOfSelfConstraint
-    | 'hierarchyOfSelf'                 args = fullHierarchyOfSelfArgs                              # fullHierarchyOfSelfConstraint
-    | 'hierarchyOfReference'            args = basicHierarchyOfReferenceArgs                        # basicHierarchyOfReferenceConstraint
-    | 'hierarchyOfReference'            args = basicHierarchyOfReferenceWithBehaviourArgs           # basicHierarchyOfReferenceWithBehaviourConstraint
-    | 'hierarchyOfReference'            args = fullHierarchyOfReferenceArgs                         # fullHierarchyOfReferenceConstraint
-    | 'hierarchyOfReference'            args = fullHierarchyOfReferenceWithBehaviourArgs            # fullHierarchyOfReferenceWithBehaviourConstraint
-    | 'queryTelemetry'                  emptyArgs                                                   # queryTelemetryConstraint
+    : 'require'                             (emptyArgs | args = requireConstraintListArgs)                  # requireContainerConstraint
+    | 'page'                                args = pageConstraintArgs                                       # pageConstraint
+    | 'strip'                               args = stripConstraintArgs                                      # stripConstraint
+    | 'entityFetch'                         (emptyArgs | args = requireConstraintListArgs)                  # entityFetchConstraint
+    | 'entityGroupFetch'                    (emptyArgs | args = requireConstraintListArgs)                  # entityGroupFetchConstraint
+    | 'attributeContent'                    args = classifierListArgs                                       # attributeContentConstraint
+    | 'attributeContentAll'                 emptyArgs                                                       # attributeContentConstraint
+    | 'priceContent'                        args = priceContentArgs                                         # priceContentConstraint
+    | 'priceContentAll'                     emptyArgs                                                       # priceContentAllConstraint
+    | 'priceContentRespectingFilter'        (emptyArgs | args = valueListArgs)                              # priceContentRespectingFilterConstraint
+    | 'associatedDataContent'               args = classifierListArgs                                       # associatedDataContentConstraint
+    | 'associatedDataContentAll'            emptyArgs                                                       # associatedDataContentConstraint
+    | 'referenceContentAll'                 (emptyArgs | args = allRefsReferenceContentArgs)                # allRefsReferenceContentConstraint
+    | 'referenceContent'                    args = multipleRefsReferenceContentArgs                         # multipleRefsReferenceContentConstraint
+    | 'referenceContent'                    args = singleRefReferenceContent1Args                           # singleRefReferenceContent1Constraint
+    | 'referenceContent'                    args = singleRefReferenceContent2Args                           # singleRefReferenceContent2Constraint
+    | 'referenceContent'                    args = singleRefReferenceContent3Args                           # singleRefReferenceContent3Constraint
+    | 'referenceContent'                    args = singleRefReferenceContent4Args                           # singleRefReferenceContent4Constraint
+    | 'referenceContent'                    args = singleRefReferenceContent5Args                           # singleRefReferenceContent5Constraint
+    | 'referenceContent'                    args = singleRefReferenceContent6Args                           # singleRefReferenceContent6Constraint
+    | 'referenceContent'                    args = singleRefReferenceContent7Args                           # singleRefReferenceContent7Constraint
+    | 'referenceContent'                    args = singleRefReferenceContent8Args                           # singleRefReferenceContent8Constraint
+    | 'referenceContentAllWithAttributes'   (emptyArgs | args = allRefsWithAttributesReferenceContent1Args) # allRefsWithAttributesReferenceContent1Constraint
+    | 'referenceContentAllWithAttributes'   args = allRefsWithAttributesReferenceContent2Args               # allRefsWithAttributesReferenceContent2Constraint
+    | 'referenceContentAllWithAttributes'   args = allRefsWithAttributesReferenceContent3Args               # allRefsWithAttributesReferenceContent3Constraint
+    | 'referenceContentWithAttributes'      args = singleRefReferenceContent1Args                           # singleRefReferenceContentWithAttributes1Constraint
+    | 'referenceContentWithAttributes'      args = singleRefReferenceContentWithAttributes1Args             # singleRefReferenceContentWithAttributes2Constraint
+    | 'referenceContentWithAttributes'      args = singleRefReferenceContentWithAttributes2Args             # singleRefReferenceContentWithAttributes3Constraint
+    | 'referenceContentWithAttributes'      args = singleRefReferenceContent3Args                           # singleRefReferenceContentWithAttributes4Constraint
+    | 'referenceContentWithAttributes'      args = singleRefReferenceContentWithAttributes3Args             # singleRefReferenceContentWithAttributes5Constraint
+    | 'referenceContentWithAttributes'      args = singleRefReferenceContentWithAttributes4Args             # singleRefReferenceContentWithAttributes6Constraint
+    | 'referenceContentWithAttributes'      args = singleRefReferenceContent5Args                           # singleRefReferenceContentWithAttributes7Constraint
+    | 'referenceContentWithAttributes'      args = singleRefReferenceContentWithAttributes5Args             # singleRefReferenceContentWithAttributes8Constraint
+    | 'referenceContentWithAttributes'      args = singleRefReferenceContentWithAttributes6Args             # singleRefReferenceContentWithAttributes9Constraint
+    | 'referenceContentWithAttributes'      args = singleRefReferenceContent7Args                           # singleRefReferenceContentWithAttributes10Constraint
+    | 'referenceContentWithAttributes'      args = singleRefReferenceContentWithAttributes7Args             # singleRefReferenceContentWithAttributes11Constraint
+    | 'referenceContentWithAttributes'      args = singleRefReferenceContentWithAttributes8Args             # singleRefReferenceContentWithAttributes12Constraint
+    | 'hierarchyContent'                    emptyArgs                                                       # emptyHierarchyContentConstraint
+    | 'hierarchyContent'                    args = singleRequireHierarchyContentArgs                        # singleRequireHierarchyContentConstraint
+    | 'hierarchyContent'                    args = allRequiresHierarchyContentArgs                          # allRequiresHierarchyContentConstraint
+    | 'priceType'                           args = valueArgs                                                # priceTypeConstraint
+    | 'dataInLocales'                       (emptyArgs | args = valueListArgs)                              # dataInLocalesConstraint
+    | 'facetSummary'                        (emptyArgs | args = facetSummary1Args)                          # facetSummary1Constraint
+    | 'facetSummary'                        args = facetSummary2Args                                        # facetSummary2Constraint
+    | 'facetSummaryOfReference'             args = facetSummaryOfReference1Args                             # facetSummaryOfReference1Constraint
+    | 'facetSummaryOfReference'             args = facetSummaryOfReference2Args                             # facetSummaryOfReference2Constraint
+    | 'facetGroupsConjunction'              args = classifierWithFilterConstraintArgs                       # facetGroupsConjunctionConstraint
+    | 'facetGroupsDisjunction'              args = classifierWithFilterConstraintArgs                       # facetGroupsDisjunctionConstraint
+    | 'facetGroupsNegation'                 args = classifierWithFilterConstraintArgs                       # facetGroupsNegationConstraint
+    | 'attributeHistogram'                  args = valueWithClassifierListArgs                              # attributeHistogramConstraint
+    | 'priceHistogram'                      args = valueArgs                                                # priceHistogramConstraint
+    | 'distance'                            args = valueArgs                                                # hierarchyDistanceConstraint
+    | 'level'                               args = valueArgs                                                # hierarchyLevelConstraint
+    | 'node'                                args = filterConstraintArgs                                     # hierarchyNodeConstraint
+    | 'stopAt'                              args = requireConstraintArgs                                    # hierarchyStopAtConstraint
+    | 'statistics'                          (emptyArgs | args = hierarchyStatisticsArgs)                    # hierarchyStatisticsConstraint
+    | 'fromRoot'                            args = hierarchyRequireConstraintArgs                           # hierarchyFromRootConstraint
+    | 'fromNode'                            args = hierarchyFromNodeArgs                                    # hierarchyFromNodeConstraint
+    | 'children'                            args = hierarchyRequireConstraintArgs                           # hierarchyChildrenConstraint
+    | 'siblings'                            emptyArgs                                                       # emptyHierarchySiblingsConstraint
+    | 'siblings'                            args = requireConstraintListArgs                                # basicHierarchySiblingsConstraint
+    | 'siblings'                            args = hierarchyRequireConstraintArgs                           # fullHierarchySiblingsConstraint
+    | 'parents'                             args = hierarchyRequireConstraintArgs                           # hierarchyParentsConstraint
+    | 'hierarchyOfSelf'                     args = requireConstraintListArgs                                # basicHierarchyOfSelfConstraint
+    | 'hierarchyOfSelf'                     args = fullHierarchyOfSelfArgs                                  # fullHierarchyOfSelfConstraint
+    | 'hierarchyOfReference'                args = basicHierarchyOfReferenceArgs                            # basicHierarchyOfReferenceConstraint
+    | 'hierarchyOfReference'                args = basicHierarchyOfReferenceWithBehaviourArgs               # basicHierarchyOfReferenceWithBehaviourConstraint
+    | 'hierarchyOfReference'                args = fullHierarchyOfReferenceArgs                             # fullHierarchyOfReferenceConstraint
+    | 'hierarchyOfReference'                args = fullHierarchyOfReferenceWithBehaviourArgs                # fullHierarchyOfReferenceWithBehaviourConstraint
+    | 'queryTelemetry'                      emptyArgs                                                       # queryTelemetryConstraint
     ;
 
 headConstraintList : constraints += headConstraint (ARGS_DELIMITER constraints += headConstraint)* ;
@@ -214,25 +237,29 @@ stripConstraintArgs :                               ARGS_OPENING offset = valueT
 
 priceContentArgs :                                  ARGS_OPENING contentMode = valueToken (ARGS_DELIMITER priceLists = variadicValueTokens)? ARGS_CLOSING ;
 
-singleRefReferenceContentArgs :                     ARGS_OPENING (
-                                                        (classifier = classifierToken (ARGS_DELIMITER requirement = requireConstraint)?) |
-                                                        (classifier = classifierToken ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint)
-                                                    ) ARGS_CLOSING ;
+singleRefReferenceContent1Args :                    ARGS_OPENING classifier = classifierToken (ARGS_DELIMITER requirement = requireConstraint)? ARGS_CLOSING ;
+singleRefReferenceContent2Args :                    ARGS_OPENING classifier = classifierToken ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint ARGS_CLOSING ;
 
-singleRefWithFilterReferenceContentArgs :           ARGS_OPENING (
-                                                        (classifier = classifierToken ARGS_DELIMITER filterBy = filterConstraint (ARGS_DELIMITER requirement = requireConstraint)?) |
-                                                        (classifier = classifierToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint)
-                                                    ) ARGS_CLOSING ;
+singleRefReferenceContent3Args :                    ARGS_OPENING classifier = classifierToken ARGS_DELIMITER filterBy = filterConstraint (ARGS_DELIMITER requirement = requireConstraint)? ARGS_CLOSING ;
+singleRefReferenceContent4Args :                    ARGS_OPENING classifier = classifierToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint ARGS_CLOSING ;
 
-singleRefWithOrderReferenceContentArgs :            ARGS_OPENING (
-                                                        (classifier = classifierToken (ARGS_DELIMITER orderBy = orderConstraint)? (ARGS_DELIMITER requirement = requireConstraint)?) |
-                                                        (classifier = classifierToken (ARGS_DELIMITER orderBy = orderConstraint)? ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint)
-                                                    ) ARGS_CLOSING ;
+singleRefReferenceContent5Args :                    ARGS_OPENING classifier = classifierToken ARGS_DELIMITER orderBy = orderConstraint (ARGS_DELIMITER requirement = requireConstraint)? ARGS_CLOSING ;
+singleRefReferenceContent6Args :                    ARGS_OPENING classifier = classifierToken ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint ARGS_CLOSING ;
 
-singleRefWithFilterAndOrderReferenceContentArgs :   ARGS_OPENING (
-                                                        (classifier = classifierToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER orderBy = orderConstraint (ARGS_DELIMITER requirement = requireConstraint)?) |
-                                                        (classifier = classifierToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint)
-                                                    ) ARGS_CLOSING ;
+singleRefReferenceContent7Args :                    ARGS_OPENING classifier = classifierToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER orderBy = orderConstraint (ARGS_DELIMITER requirement = requireConstraint)? ARGS_CLOSING ;
+singleRefReferenceContent8Args :                    ARGS_OPENING classifier = classifierToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint ARGS_CLOSING ;
+
+singleRefReferenceContentWithAttributes1Args :      ARGS_OPENING classifier = classifierToken ARGS_DELIMITER requirement1 = requireConstraint ARGS_DELIMITER requirement2 = requireConstraint ARGS_CLOSING ;
+singleRefReferenceContentWithAttributes2Args :      ARGS_OPENING classifier = classifierToken ARGS_DELIMITER attributeContent = requireConstraint ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint ARGS_CLOSING ;
+
+singleRefReferenceContentWithAttributes3Args :      ARGS_OPENING classifier = classifierToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER requirement1 = requireConstraint ARGS_DELIMITER requirement2 = requireConstraint ARGS_CLOSING ;
+singleRefReferenceContentWithAttributes4Args :      ARGS_OPENING classifier = classifierToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER attributeContent = requireConstraint ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint ARGS_CLOSING ;
+
+singleRefReferenceContentWithAttributes5Args :      ARGS_OPENING classifier = classifierToken ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER requirement1 = requireConstraint ARGS_DELIMITER requirement2 = requireConstraint ARGS_CLOSING ;
+singleRefReferenceContentWithAttributes6Args :      ARGS_OPENING classifier = classifierToken ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER attributeContent = requireConstraint ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint ARGS_CLOSING ;
+
+singleRefReferenceContentWithAttributes7Args :      ARGS_OPENING classifier = classifierToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER requirement1 = requireConstraint ARGS_DELIMITER requirement2 = requireConstraint ARGS_CLOSING ;
+singleRefReferenceContentWithAttributes8Args :      ARGS_OPENING classifier = classifierToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER attributeContent = requireConstraint ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint ARGS_CLOSING ;
 
 multipleRefsReferenceContentArgs :                  ARGS_OPENING (
                                                         (classifiers = variadicClassifierTokens (ARGS_DELIMITER requirement = requireConstraint)?) |
@@ -244,22 +271,38 @@ allRefsReferenceContentArgs :                       ARGS_OPENING (
                                                         (facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint)
                                                     ) ARGS_CLOSING ;
 
+allRefsWithAttributesReferenceContent1Args :        ARGS_OPENING requirement = requireConstraint ARGS_CLOSING ;
+
+allRefsWithAttributesReferenceContent2Args :        ARGS_OPENING requirement1 = requireConstraint ARGS_DELIMITER requirement2 = requireConstraint ARGS_CLOSING ;
+
+allRefsWithAttributesReferenceContent3Args :        ARGS_OPENING attributeContent = requireConstraint ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint ARGS_CLOSING ;
+
 singleRequireHierarchyContentArgs :                 ARGS_OPENING requirement = requireConstraint ARGS_CLOSING ;
 
 allRequiresHierarchyContentArgs :                   ARGS_OPENING stopAt = requireConstraint ARGS_DELIMITER entityRequirement = requireConstraint ARGS_CLOSING ;
 
-facetSummaryArgs :                                  ARGS_OPENING (
-                                                        (depth = valueToken) |
-                                                        (depth = valueToken ARGS_DELIMITER requirement = requireConstraint) |
-                                                        (depth = valueToken ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint)
-                                                    ) ARGS_CLOSING ;
+facetSummary1Args :                                 ARGS_OPENING depth = valueToken ARGS_CLOSING ;
 
-facetSummaryOfReferenceArgs :                       ARGS_OPENING (
-                                                        (referenceName = classifierToken) |
-                                                        (referenceName = classifierToken ARGS_DELIMITER depth = valueToken) |
-                                                        (referenceName = classifierToken ARGS_DELIMITER depth = valueToken ARGS_DELIMITER requirement = requireConstraint) |
-                                                        (referenceName = classifierToken ARGS_DELIMITER depth = valueToken ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint)
-                                                    ) ARGS_CLOSING ;
+facetSummary2Args :                                 ARGS_OPENING depth = valueToken (ARGS_DELIMITER filter = facetSummaryFilterArgs)? (ARGS_DELIMITER order = facetSummaryOrderArgs)? (ARGS_DELIMITER requirements = facetSummaryRequirementsArgs)? ARGS_CLOSING ;
+
+facetSummaryOfReference1Args :                      ARGS_OPENING referenceName = classifierToken ARGS_CLOSING ;
+
+facetSummaryOfReference2Args :                      ARGS_OPENING referenceName = classifierToken ARGS_DELIMITER depth = valueToken (ARGS_DELIMITER filter = facetSummaryFilterArgs)? (ARGS_DELIMITER order = facetSummaryOrderArgs)? (ARGS_DELIMITER requirements = facetSummaryRequirementsArgs)? ARGS_CLOSING ;
+
+facetSummaryRequirementsArgs :                      (
+                                                        (requirement = requireConstraint) |
+                                                        (facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint)
+                                                    ) ;
+
+facetSummaryFilterArgs :                            (
+                                                        (filterBy = filterConstraint) |
+                                                        (filterBy = filterConstraint ARGS_DELIMITER filterGroupBy = filterConstraint)
+                                                    ) ;
+
+facetSummaryOrderArgs :                             (
+                                                        (orderBy = orderConstraint) |
+                                                        (orderBy = orderConstraint ARGS_DELIMITER orderGroupBy = orderConstraint)
+                                                    ) ;
 
 hierarchyStatisticsArgs :                           ARGS_OPENING settings = variadicValueTokens ARGS_CLOSING ;
 
@@ -329,7 +372,6 @@ valueToken
     | INT_NUMBER_RANGE                                                                                    # intNumberRangeValueToken
     | DATE_TIME_RANGE                                                                                     # dateTimeRangeValueToken
     | ENUM                                                                                                # enumValueToken
-    | MULTIPLE_OPENING values = variadicValueTokens MULTIPLE_CLOSING                                      # multipleValueToken
     ;
 
 
@@ -380,10 +422,6 @@ ARGS_OPENING : '(' ;
 ARGS_CLOSING : ')' ;
 
 ARGS_DELIMITER : ',' ;
-
-MULTIPLE_OPENING : '{' ;
-
-MULTIPLE_CLOSING : '}' ;
 
 
 /**

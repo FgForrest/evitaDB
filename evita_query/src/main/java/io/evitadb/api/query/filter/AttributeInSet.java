@@ -38,8 +38,9 @@ import java.util.Arrays;
 
 /**
  * This `inSet` is query that compares value of the attribute with name passed in first argument with all the values passed
- * in the second, third and additional arguments. First argument must be {@link String},
- * additional arguments may be any of {@link Comparable} type.
+ * in the second, third and additional arguments. First argument must be {@link String}, additional arguments may be any
+ * of {@link Comparable} type.
+ *
  * Type of the attribute value and additional arguments must be convertible one to another otherwise `in` function
  * skips value comparison and ultimately returns false.
  *
@@ -47,18 +48,18 @@ import java.util.Arrays;
  *
  * Example:
  *
- * ```
+ * <pre>
  * inSet('level', 1, 2, 3)
- * ```
+ * </pre>
  *
- * Function supports attribute arrays and when attribute is of array type `inSet` returns true if *any of attribute* values
+ * Function supports attribute arrays and when attribute is of array type `inSet` returns true if any of attribute values
  * equals the value in the query. If we have the attribute `code` with value `['A','B','C']` all these constraints will
  * match:
  *
- * ```
+ * <pre>
  * inSet('code','A','D')
  * inSet('code','A', 'B')
- * ```
+ * </pre>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -79,8 +80,8 @@ public class AttributeInSet extends AbstractAttributeFilterConstraintLeaf implem
 
 	@Creator
 	public <T extends Serializable> AttributeInSet(@Nonnull @Classifier String attributeName,
-	                                               @Nonnull @Value T... set) {
-		super(concat(attributeName, set));
+	                                               @Nonnull @Value T... attributeValues) {
+		super(concat(attributeName, attributeValues));
 	}
 
 	/**

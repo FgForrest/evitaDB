@@ -33,14 +33,21 @@ import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.system.configuration.SystemConfig;
 import io.evitadb.utils.CertificateUtils;
+import io.undertow.Handlers;
 import io.undertow.server.handlers.BlockingHandler;
+import io.undertow.server.handlers.PathHandler;
 import io.undertow.server.handlers.resource.FileResourceManager;
 import io.undertow.server.handlers.resource.ResourceHandler;
 import io.undertow.server.handlers.resource.ResourceManager;
+import io.undertow.util.Headers;
+import io.undertow.util.StatusCodes;
 
 import javax.annotation.Nonnull;
 import java.io.File;
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadInfo;
+import java.lang.management.ThreadMXBean;
 import java.util.Arrays;
 
 /**
@@ -82,6 +89,26 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			file = new File(certificate.substring(0, lastSeparatorIndex));
 			fileName = certificate.substring(lastSeparatorIndex);
 		}
+
+		// todo lho temporary, delete
+		final PathHandler router = Handlers.path();
+		router.addExactPath(
+			"/td",
+			exchange -> {
+				ThreadMXBean threadMXBean = ManagementFactory.getThreadMXBean();
+				ThreadInfo[] threadInfos = threadMXBean.dumpAllThreads(true, true);
+
+				final StringBuilder body = new StringBuilder();
+				for (ThreadInfo threadInfo : threadInfos) {
+					body.append(threadInfo.toString());
+				}
+
+				exchange.setStatusCode(StatusCodes.OK);
+				exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "text/plain");
+				exchange.getResponseSender().send(body.toString());
+			}
+		);
+
 		final ResourceHandler fileSystemHandler;
 		try (ResourceManager resourceManager = new FileResourceManager(file, 100)) {
 			fileSystemHandler = new ResourceHandler(
@@ -99,11 +126,13 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 					}
 				}
 			);
+			router.addPrefixPath("/", fileSystemHandler);
+
 			return new SystemProvider(
 				systemConfig,
 				new BlockingHandler(
 					new CorsFilter(
-						fileSystemHandler,
+						router,
 						systemConfig.getAllowedOrigins()
 					)
 				),

@@ -59,8 +59,7 @@ class InitialReferenceBuilderTest extends AbstractBuilderTest {
 			"brand",
 			5,
 			Cardinality.ZERO_OR_ONE,
-			"brand",
-			(entityType, attributeName) -> false
+			"brand"
 		)
 			.setAttribute("brandPriority", 154L)
 			.setAttribute("country", Locale.ENGLISH, "Great Britain")
@@ -123,8 +122,7 @@ class InitialReferenceBuilderTest extends AbstractBuilderTest {
 			"brand",
 			5,
 			Cardinality.ZERO_OR_ONE,
-			"brand",
-			(entityType, attributeName) -> false
+			"brand"
 		)
 			.setAttribute("brandPriority", 154L)
 			.setAttribute("brandPriority", 155L)

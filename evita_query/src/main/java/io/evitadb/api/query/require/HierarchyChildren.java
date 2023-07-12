@@ -27,10 +27,15 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
+import io.evitadb.api.query.filter.HierarchyExcluding;
+import io.evitadb.api.query.filter.HierarchyHaving;
+import io.evitadb.api.query.filter.HierarchyWithin;
+import io.evitadb.api.query.filter.HierarchyWithinRoot;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -38,13 +43,67 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Optional;
 
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 
 /**
- * TOBEDONE JNO: docs
+ * The children requirement computes the hierarchy tree starting at the same hierarchy node that is targeted by
+ * the filtering part of the same query using the {@link HierarchyWithin} or {@link HierarchyWithinRoot} constraints.
+ * The scope of the calculated information can be controlled by the stopAt constraint. By default, the traversal goes
+ * all the way to the bottom of the hierarchy tree unless you tell it to stop at anywhere. If you need to access
+ * statistical data, use the statistics constraint.
+ *
+ * The constraint accepts following arguments:
+ *
+ * - mandatory String argument specifying the output name for the calculated data structure
+ * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope of
+ *   the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
+ *   present:
+ *
+ *      - {@link EntityFetch}
+ *      - {@link HierarchyStopAt}
+ *      - {@link HierarchyStatistics}
+ *
+ * The following query lists products in category Audio and its subcategories. Along with the products returned, it also
+ * returns a computed subcategories data structure that lists the flat category list the currently focused category
+ * Audio with a computed count of child categories for each menu item and an aggregated count of all products that would
+ * fall into the given category.
+ *
+ * <pre>
+ * query(
+ *     collection('Product'),
+ *     filterBy(
+ *         hierarchyWithin(
+ *             'categories',
+ *             attributeEquals('code', 'audio')
+ *         )
+ *     ),
+ *     require(
+ *         hierarchyOfReference(
+ *             'categories',
+ *             children(
+ *                 'subcategories',
+ *                 entityFetch(attributeContent('code')),
+ *                 stopAt(distance(1)),
+ *                 statistics(
+ *                     CHILDREN_COUNT,
+ *                     QUERIED_ENTITY_COUNT
+ *                 )
+ *             )
+ *         )
+ *     )
+ * )
+ * </pre>
+ *
+ * The calculated result for children is connected with the {@link HierarchyWithin} pivot hierarchy node (or
+ * the "virtual" invisible top root referred to by the hierarchyWithinRoot constraint). If the {@link HierarchyWithin}
+ * contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding}, the children will respect them as
+ * well. The reason is simple: when you render a menu for the query result, you want the calculated statistics to
+ * respect the rules that apply to the hierarchyWithin so that the calculated number remains consistent for the end
+ * user.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -140,6 +199,15 @@ public class HierarchyChildren extends AbstractRequireConstraintContainer implem
 			}
 		}
 		return empty();
+	}
+
+	@AliasForParameter("requirements")
+	@Nonnull
+	public HierarchyOutputRequireConstraint[] getOutputRequirements() {
+		return Arrays.stream(getChildren())
+			.filter(it -> HierarchyOutputRequireConstraint.class.isAssignableFrom(it.getClass()))
+			.map(HierarchyOutputRequireConstraint.class::cast)
+			.toArray(HierarchyOutputRequireConstraint[]::new);
 	}
 
 	@Override

@@ -58,12 +58,14 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.builder.MapBuilder;
 import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.utils.StringUtils;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -1263,6 +1265,55 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                primaryKey
 			                        type
 		                            price(priceList: "basic") {
+		                                __typename
+		                                currency
+		                                priceList
+		                                priceWithTax
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
+					""",
+				entities.get(0).getAttribute(ATTRIBUTE_CODE),
+				entities.get(1).getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_QUERY_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return price for products outside of filter")
+	@Disabled("TODO LHO: should not return price for products outside of filter")
+	void shouldReturnPriceForProductsOutsideOfFilter(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final var entities = findEntitiesWithPrices(originalProductEntities, 2, PRICE_LIST_BASIC, CURRENCY_CZK, CURRENCY_EUR);
+
+		final var expectedBody = createBasicPageResponse(
+			entities,
+			it -> createEntityDtoWithPrice(it, CURRENCY_USD, PRICE_LIST_BASIC)
+		);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"]
+	                            priceInCurrency: CZK
+	                            priceInPriceLists: "basic"
+	                        }
+                        ) {
+                            __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+		                            price(currency: USD, priceList: "basic") {
 		                                __typename
 		                                currency
 		                                priceList
@@ -4573,7 +4624,12 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						collection(Entities.PRODUCT),
 						filterBy(
 							userFilter(
-								facetHaving(Entities.PARAMETER, attributeLessThanEquals(ATTRIBUTE_CODE, "H"))
+								facetHaving(
+									Entities.PARAMETER,
+									entityHaving(
+										attributeLessThanEquals(ATTRIBUTE_CODE, "H")
+									)
+								)
 							)
 						),
 						require(
@@ -4601,7 +4657,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                    filterBy: {
 		                        userFilter: {
 		                            facetParameterHaving: {
-		                                attributeCodeLessThanEquals: "H"
+		                                entityHaving: {
+		                                    attributeCodeLessThanEquals: "H"
+		                                }
 		                            }
 		                        }
 		                    }
@@ -4684,6 +4742,30 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@Nonnull
+	private List<SealedEntity> findEntitiesWithPrices(@Nonnull List<SealedEntity> originalProductEntities,
+	                                                 int limit,
+													 @Nonnull Currency currency,
+	                                                 @Nonnull String... priceLists) {
+		return findEntities(
+			originalProductEntities,
+			it -> Arrays.stream(priceLists).allMatch(pl -> it.getPrices(currency, pl).size() > 1),
+			limit
+		);
+	}
+
+	@Nonnull
+	private List<SealedEntity> findEntitiesWithPrices(@Nonnull List<SealedEntity> originalProductEntities,
+	                                                  int limit,
+	                                                  @Nonnull String priceList,
+	                                                  @Nonnull Currency... currencies) {
+		return findEntities(
+			originalProductEntities,
+			it -> Arrays.stream(currencies).allMatch(c -> it.getPrices(c, priceList).size() > 1),
+			limit
+		);
+	}
+
+	@Nonnull
 	private Map<String, Object> createBasicPageResponse(@Nonnull List<SealedEntity> entities,
 	                                                    @Nonnull Function<SealedEntity, Map<String, Object>> entityMapper) {
 		return map()
@@ -4750,6 +4832,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                      @Nullable LevelInfo parentLevelInfo,
 	                                      @Nonnull LevelInfo levelInfo,
 	                                      int currentLevel) {
+		final SealedEntity entity = (SealedEntity) levelInfo.entity();
+
 		final MapBuilder currentLevelInfoDto = map()
 			.e(LevelInfoDescriptor.PARENT_PRIMARY_KEY.name(), parentLevelInfo != null
 				? parentLevelInfo.entity().getPrimaryKey()
@@ -4757,8 +4841,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.e(LevelInfoDescriptor.LEVEL.name(), currentLevel)
 			.e(LevelInfoDescriptor.ENTITY.name(), map()
 				.e(EntityDescriptor.PRIMARY_KEY.name(), levelInfo.entity().getPrimaryKey())
+				.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), entity.getParent().isPresent() ? entity.getParent().getAsInt() : null)
 				.e(EntityDescriptor.ATTRIBUTES.name(), map()
-					.e(ATTRIBUTE_CODE, ((SealedEntity) levelInfo.entity()).getAttribute(ATTRIBUTE_CODE))))
+					.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))))
 			.e(LevelInfoDescriptor.HAS_CHILDREN.name(), !levelInfo.children().isEmpty());
 
 		if (levelInfo.queriedEntityCount() != null) {
@@ -4877,6 +4962,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				level
 				entity {
 					primaryKey
+					parentPrimaryKey
 					attributes {
 						code
 					}

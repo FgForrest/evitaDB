@@ -109,25 +109,19 @@ class CreateAttributeSchemaMutationConverterTest {
 			null,
 			null,
 			false,
-			true,
 			false,
-			true,
+			false,
+			false,
 			false,
 			String.class,
 			null,
-			2
+			0
 		);
 
 		final CreateAttributeSchemaMutation convertedMutation1 = converter.convert(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-				.e(CreateAttributeSchemaMutationDescriptor.UNIQUE.name(), false)
-				.e(CreateAttributeSchemaMutationDescriptor.FILTERABLE.name(), true)
-				.e(CreateAttributeSchemaMutationDescriptor.SORTABLE.name(), false)
-				.e(CreateAttributeSchemaMutationDescriptor.LOCALIZED.name(), true)
-				.e(CreateAttributeSchemaMutationDescriptor.NULLABLE.name(), false)
 				.e(CreateAttributeSchemaMutationDescriptor.TYPE.name(), String.class)
-				.e(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES.name(), 2)
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation1);
@@ -139,13 +133,7 @@ class CreateAttributeSchemaMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> converter.convert(
 				map()
-					.e(CreateAttributeSchemaMutationDescriptor.UNIQUE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.FILTERABLE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.SORTABLE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.LOCALIZED.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.NULLABLE.name(), true)
 					.e(CreateAttributeSchemaMutationDescriptor.TYPE.name(), String.class)
-					.e(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES.name(), 2)
 					.build()
 			)
 		);
@@ -154,96 +142,6 @@ class CreateAttributeSchemaMutationConverterTest {
 			() -> converter.convert(
 				map()
 					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-					.e(CreateAttributeSchemaMutationDescriptor.FILTERABLE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.SORTABLE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.LOCALIZED.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.NULLABLE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.TYPE.name(), String.class)
-					.e(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES.name(), 2)
-					.build()
-			)
-		);
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> converter.convert(
-				map()
-					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-					.e(CreateAttributeSchemaMutationDescriptor.UNIQUE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.SORTABLE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.LOCALIZED.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.NULLABLE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.TYPE.name(), String.class)
-					.e(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES.name(), 2)
-					.build()
-			)
-		);
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> converter.convert(
-				map()
-					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-					.e(CreateAttributeSchemaMutationDescriptor.UNIQUE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.FILTERABLE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.LOCALIZED.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.NULLABLE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.TYPE.name(), String.class)
-					.e(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES.name(), 2)
-					.build()
-			)
-		);
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> converter.convert(
-				map()
-					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-					.e(CreateAttributeSchemaMutationDescriptor.UNIQUE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.FILTERABLE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.SORTABLE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.NULLABLE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.TYPE.name(), String.class)
-					.e(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES.name(), 2)
-					.build()
-			)
-		);
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> converter.convert(
-				map()
-					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-					.e(CreateAttributeSchemaMutationDescriptor.UNIQUE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.FILTERABLE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.SORTABLE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.LOCALIZED.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.TYPE.name(), String.class)
-					.e(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES.name(), 2)
-					.build()
-			)
-		);
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> converter.convert(
-				map()
-					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-					.e(CreateAttributeSchemaMutationDescriptor.UNIQUE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.FILTERABLE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.SORTABLE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.LOCALIZED.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.NULLABLE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES.name(), 2)
-					.build()
-			)
-		);
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> converter.convert(
-				map()
-					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-					.e(CreateAttributeSchemaMutationDescriptor.UNIQUE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.FILTERABLE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.SORTABLE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.LOCALIZED.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.NULLABLE.name(), true)
-					.e(CreateAttributeSchemaMutationDescriptor.TYPE.name(), String.class)
 					.build()
 			)
 		);

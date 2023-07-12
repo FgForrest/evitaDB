@@ -1,0 +1,17 @@
+query {
+  listBrand(
+    filterBy: {
+      attributeNameStartsWith: "A"
+    }
+    orderBy: {
+      attributeNameNatural: ASC
+    }
+  ) {
+    primaryKey
+    type
+    allLocales
+    attributes {
+      name
+    }
+  }
+}

@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuildingContext;
+import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -56,9 +57,10 @@ public class CatalogGraphQLSchemaBuildingContext extends GraphQLSchemaBuildingCo
 	@Nonnull
 	private final Map<String, GraphQLObjectType> entityTypeToEntityObject = createHashMap(50);
 
-	public CatalogGraphQLSchemaBuildingContext(@Nonnull Evita evita,
+	public CatalogGraphQLSchemaBuildingContext(@Nonnull GraphQLConfig config,
+	                                           @Nonnull Evita evita,
 	                                           @Nonnull CatalogContract catalog) {
-		super(evita);
+		super(config, evita);
 		this.catalog = catalog;
 
 		this.entitySchemas = evita.queryCatalog(catalog.getName(), session -> {

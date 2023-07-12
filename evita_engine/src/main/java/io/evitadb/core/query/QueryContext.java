@@ -62,9 +62,10 @@ import io.evitadb.core.EntityCollection;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
-import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
-import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
+import io.evitadb.core.query.extraResult.CacheSupervisorExtraResultAccessor;
+import io.evitadb.core.query.extraResult.ExtraResultCacheAccessor;
 import io.evitadb.core.query.extraResult.translator.facet.producer.FilteringFormulaPredicate;
+import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.exception.EvitaInternalError;
@@ -177,6 +178,12 @@ public class QueryContext {
 	@Getter
 	private final boolean prefetchPossible;
 	/**
+	 * Provides access to the default extra result computer logic that allows to store or withdraw extra results
+	 * from cache.
+	 */
+	@Nonnull @Getter
+	private final ExtraResultCacheAccessor extraResultCacheAccessor = new CacheSupervisorExtraResultAccessor(this);
+	/**
 	 * Contains list of prefetched entities if they were considered worthwhile to prefetch -
 	 * see {@link SelectionFormula} for more information.
 	 */
@@ -237,7 +244,7 @@ public class QueryContext {
 	 */
 	private final Map<FacetRelationTuple, FilteringFormulaPredicate> facetRelationTuples = new HashMap<>();
 	/**
-	 * Internal flag that singalizes the query context is already within {@link #computingOnce} scope.
+	 * Internal flag that singalizes the query context is already within `computingOnce` scope.
 	 */
 	private boolean computingOnce;
 	/**
@@ -588,14 +595,14 @@ public class QueryContext {
 	/**
 	 * Returns {@link EntityIndex} by its key.
 	 */
-	@Nullable
-	public <S extends IndexKey, T extends Index<S>> T getIndex(@Nonnull S entityIndexKey) {
+	@Nonnull
+	public <S extends IndexKey, T extends Index<S>> Optional<T> getIndex(@Nonnull S entityIndexKey) {
 		if (entityIndexKey instanceof CatalogIndexKey) {
 			//noinspection unchecked
-			return (T) catalog.getCatalogIndex();
+			return ofNullable((T) catalog.getCatalogIndex());
 		} else {
 			//noinspection unchecked
-			return (T) indexes.get(entityIndexKey);
+			return ofNullable((T) indexes.get(entityIndexKey));
 		}
 	}
 
@@ -762,7 +769,7 @@ public class QueryContext {
 	 */
 	@Nonnull
 	public Optional<GlobalEntityIndex> getGlobalEntityIndexIfExists() {
-		return ofNullable(getIndex(GLOBAL_INDEX_KEY));
+		return getIndex(GLOBAL_INDEX_KEY);
 	}
 
 	/**
@@ -800,28 +807,8 @@ public class QueryContext {
 	@Nonnull
 	public Formula analyse(@Nonnull Formula formula) {
 		return ofNullable(evitaRequest.getEntityType())
-			.map(it -> cacheSupervisor.analyse(evitaSession, evitaSession.getCatalogName(), it, formula))
+			.map(it -> cacheSupervisor.analyse(evitaSession, it, formula))
 			.orElse(formula);
-	}
-
-	/**
-	 * Analyzes the input formula for cacheable / cached formulas and replaces them with appropriate counterparts (only
-	 * if cache is enabled).
-	 */
-	@Nonnull
-	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(@Nonnull T computer) {
-		return ofNullable(evitaRequest.getEntityType())
-			.map(it -> cacheSupervisor.analyse(evitaSession, evitaSession.getCatalogName(), it, computer))
-			.orElse(computer);
-	}
-
-	/**
-	 * Analyzes the input formula for cacheable / cached formulas and replaces them with appropriate counterparts (only
-	 * if cache is enabled).
-	 */
-	@Nonnull
-	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(@Nonnull String entityType, @Nonnull T computer) {
-		return cacheSupervisor.analyse(evitaSession, evitaSession.getCatalogName(), entityType, computer);
 	}
 
 	/**
@@ -831,6 +818,7 @@ public class QueryContext {
 	@Nonnull
 	public DataChunk<Integer> createDataChunk(int totalRecordCount, @Nonnull Formula filteringFormula, @Nonnull Sorter sorter) {
 		final int firstRecordOffset = evitaRequest.getFirstRecordOffset(totalRecordCount);
+		sorter = ConditionalSorter.getFirstApplicableSorter(sorter, this);
 		return evitaRequest.createDataChunk(
 			totalRecordCount,
 			Arrays.stream(

@@ -111,9 +111,9 @@ public class ReferencesStoragePart implements EntityStoragePart {
 		final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
 			this.references, referenceKey,
 			(examinedReference, rk) -> {
-				final int primaryComparison = Integer.compare(examinedReference.getReferenceKey().primaryKey(), rk.primaryKey());
+				final int primaryComparison = examinedReference.getReferenceName().compareTo(rk.referenceName());
 				if (primaryComparison == 0) {
-					return examinedReference.getReferenceName().compareTo(rk.referenceName());
+					return Integer.compare(examinedReference.getReferenceKey().primaryKey(), rk.primaryKey());
 				} else {
 					return primaryComparison;
 				}

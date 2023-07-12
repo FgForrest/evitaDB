@@ -23,13 +23,13 @@
 
 package io.evitadb.api.query.visitor;
 
+import io.evitadb.api.query.BaseConstraint;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.ConstraintLeaf;
 import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.Query;
-import io.evitadb.dataType.EvitaDataTypes;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -316,7 +316,7 @@ public class PrettyPrintingVisitor implements ConstraintVisitor {
 					result.append('?');
 					ofNullable(parameters).ifPresent(it -> it.add(argument));
 				} else {
-					result.append(EvitaDataTypes.formatValue(argument));
+					result.append(BaseConstraint.convertToString(argument));
 				}
 				if (i + 1 < childrenLength || additionalChildrenLength > 0 || childrenLength > 0) {
 					nextArgument();
@@ -370,7 +370,7 @@ public class PrettyPrintingVisitor implements ConstraintVisitor {
 				result.append('?');
 				ofNullable(parameters).ifPresent(it -> it.add(argument));
 			} else {
-				result.append(EvitaDataTypes.formatValue(argument));
+				result.append(BaseConstraint.convertToString(argument));
 			}
 			if (i + 1 < arguments.length) {
 				result.append(", ");

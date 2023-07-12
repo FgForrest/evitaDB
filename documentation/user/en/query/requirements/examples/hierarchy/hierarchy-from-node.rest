@@ -1,0 +1,72 @@
+POST /rest/evita/product/query
+
+{
+  "filterBy" : {
+    "hierarchyCategoriesWithin" : {
+      "ofParent" : {
+        "attributeCodeEquals" : "audio"
+      }
+    }
+  },
+  "require" : {
+    "hierarchyCategoriesOfReference" : {
+      "emptyHierarchicalEntityBehaviour" : "REMOVE_EMPTY",
+      "requirements" : [
+        {
+          "fromNode" : {
+            "outputName" : "sideMenu1",
+            "node" : {
+              "filterBy" : {
+                "attributeCodeEquals" : "portables"
+              }
+            },
+            "entityFetch" : {
+              "attributeContent" : [
+                "code"
+              ]
+            },
+            "requirements" : {
+              "stopAt" : {
+                "distance" : 1
+              },
+              "statistics" : {
+                "statisticsBase" : "WITHOUT_USER_FILTER",
+                "statisticsType" : [
+                  "CHILDREN_COUNT",
+                  "QUERIED_ENTITY_COUNT"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "fromNode" : {
+            "outputName" : "sideMenu2",
+            "node" : {
+              "filterBy" : {
+                "attributeCodeEquals" : "laptops"
+              }
+            },
+            "entityFetch" : {
+              "attributeContent" : [
+                "code"
+              ]
+            },
+            "requirements" : {
+              "stopAt" : {
+                "distance" : 1
+              },
+              "statistics" : {
+                "statisticsBase" : "WITHOUT_USER_FILTER",
+                "statisticsType" : [
+                  "CHILDREN_COUNT",
+                  "QUERIED_ENTITY_COUNT"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -28,6 +28,7 @@ import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.query.QueryContext;
@@ -98,11 +99,12 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 	@Nonnull
 	@Override
 	public Formula translate(@Nonnull EntityHaving entityHaving, @Nonnull FilterByVisitor filterByVisitor) {
+		final EntitySchemaContract entitySchema = filterByVisitor.getProcessingScope().getEntitySchema();
 		final ReferenceSchemaContract referenceSchema = filterByVisitor.getReferenceSchema()
 			.orElseThrow(() -> new EvitaInvalidUsageException(
 					"Filtering constraint `" + entityHaving + "` needs to be placed within `ReferenceHaving` " +
 						"parent constraint that allows to resolve the entity `" +
-						filterByVisitor.getProcessingScope().getEntitySchema().getName() + "` referenced entity type."
+						entitySchema.getName() + "` referenced entity type."
 				)
 			);
 		Assert.isTrue(
@@ -153,7 +155,7 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 						outputFormula = new ReferenceOwnerTranslatingFormula(
 							referencedEntityCollection.getGlobalIndex(),
 							nestedQueryFormula,
-							it -> ofNullable(filterByVisitor.getReferencedEntityIndex(referenceSchema, it))
+							it -> ofNullable(filterByVisitor.getReferencedEntityIndex(entitySchema, referenceSchema, it))
 								.map(EntityIndex::getAllPrimaryKeys)
 								.orElse(EmptyBitmap.INSTANCE)
 						);

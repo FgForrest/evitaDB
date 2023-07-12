@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 
 import io.evitadb.api.CatalogContract;
+import io.evitadb.externalApi.api.ExternalApiNamingConventions;
 import io.evitadb.externalApi.rest.api.system.model.CatalogsHeaderDescriptor;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.RestHandler;
@@ -58,7 +59,7 @@ public class DeleteCatalogHandler extends RestHandler<SystemRestHandlingContext>
 		final Map<String, Object> parameters = getParametersFromRequest(exchange);
 
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
-		final Optional<CatalogContract> catalog = restApiHandlingContext.getCatalog(catalogName);
+		final Optional<CatalogContract> catalog = restApiHandlingContext.getCatalog(catalogName, ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION);
 		if (catalog.isEmpty()) {
 			return Optional.empty();
 		}

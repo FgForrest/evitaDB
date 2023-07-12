@@ -116,6 +116,7 @@ public class HierarchyExtraResultRequireResolver {
 
 		final HierarchyRequireConstraint[] hierarchyRequires = resolveHierarchyRequirements(
 			field,
+			entitySchema,
 			new HierarchyDataLocator(entitySchema.getName()),
 			desiredLocale
 		);
@@ -154,6 +155,7 @@ public class HierarchyExtraResultRequireResolver {
 
 		final HierarchyRequireConstraint[] hierarchyRequires = resolveHierarchyRequirements(
 			field,
+			hierarchyEntitySchema,
 			new HierarchyDataLocator(entitySchema.getName(), referenceName),
 			desiredLocale
 		);
@@ -169,6 +171,7 @@ public class HierarchyExtraResultRequireResolver {
 
 	@Nonnull
 	private HierarchyRequireConstraint[] resolveHierarchyRequirements(@Nonnull SelectedField field,
+																	  @Nullable EntitySchemaContract hierarchyEntitySchema,
 	                                                                  @Nonnull DataLocator hierarchyDataLocator,
 	                                                                  @Nullable Locale desiredLocale) {
 		return field.getSelectionSet()
@@ -176,6 +179,7 @@ public class HierarchyExtraResultRequireResolver {
 			.stream()
 			.map(specificHierarchyField -> resolveHierarchyRequire(
 				specificHierarchyField,
+				hierarchyEntitySchema,
 				hierarchyDataLocator,
 				desiredLocale
 			))
@@ -188,6 +192,7 @@ public class HierarchyExtraResultRequireResolver {
 
 	@Nonnull
 	private Entry<String, HierarchyRequireConstraint> resolveHierarchyRequire(@Nonnull SelectedField field,
+	                                                                          @Nullable EntitySchemaContract hierarchyEntitySchema,
 	                                                                          @Nonnull DataLocator hierarchyDataLocator,
 	                                                                          @Nullable Locale desiredLocale) {
 		final String outputName = HierarchyRequireOutputNameResolver.resolve(field);
@@ -195,7 +200,7 @@ public class HierarchyExtraResultRequireResolver {
 		final String hierarchyType = field.getName();
 		final HierarchyStopAt stopAt = resolveChildHierarchyRequireFromArgument(field, hierarchyDataLocator, HierarchyRequireHeaderDescriptor.STOP_AT);
 		final HierarchyStatistics statistics = resolveHierarchyStatistics(field);
-		final EntityFetch entityFetch = resolveHierarchyEntityFetch(field, desiredLocale);
+		final EntityFetch entityFetch = resolveHierarchyEntityFetch(field, hierarchyEntitySchema, desiredLocale);
 
 		final HierarchyRequireConstraint hierarchyRequire;
 		if (HierarchyOfDescriptor.FROM_ROOT.name().equals(hierarchyType)) {
@@ -234,6 +239,7 @@ public class HierarchyExtraResultRequireResolver {
 
 	@Nullable
 	private EntityFetch resolveHierarchyEntityFetch(@Nonnull SelectedField field,
+	                                                @Nullable EntitySchemaContract hierarchyEntitySchema,
 	                                                @Nullable Locale desiredLocale) {
 		return entityFetchRequireResolver.resolveEntityFetch(
 			SelectionSetWrapper.from(
@@ -243,7 +249,7 @@ public class HierarchyExtraResultRequireResolver {
 					.toList()
 			),
 			desiredLocale,
-			entitySchema
+			hierarchyEntitySchema
 		)
 			.orElse(null);
 	}

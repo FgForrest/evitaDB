@@ -1,0 +1,11 @@
+PUT /rest/test-catalog/product/schema
+
+{
+  "mutations": [
+    {
+      "modifyEntitySchemaDescriptionMutation": {
+        "description": "New awesome description of product collection."
+      }
+    }
+  ]
+}

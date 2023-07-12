@@ -214,9 +214,9 @@ public abstract class OpenApiConstraintSchemaBuilder
 		final Class<?> childParameterType = childParameter.type();
 		if (!childParameterType.isArray() && !ClassUtils.isAbstract(childParameterType)) {
 			//noinspection unchecked
-			final ConstraintDescriptor childConstraintDescriptor = ConstraintDescriptorProvider.getConstraint(
+			final ConstraintDescriptor childConstraintDescriptor = ConstraintDescriptorProvider.getConstraints(
 				(Class<? extends Constraint<?>>) childParameterType
-			);
+			).iterator().next(); // todo lho https://github.com/FgForrest/evitaDB/issues/158
 
 			// we need switch child domain again manually based on property type of the child constraint because there
 			// is no intermediate wrapper container that would do it for us (while generating all possible constraint for that container)
@@ -236,7 +236,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 			// child container didn't have any usable children, but we want to have at least marker constraint, thus boolean value was used instead
 			return childType;
 		} else {
-			if (childParameterType.isArray() && !isChildrenUnique(childParameter)) {
+			if (childParameterType.isArray() && !childParameter.uniqueChildren()) {
 				return arrayOf(childType);
 			} else {
 				return childType;

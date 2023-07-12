@@ -1,0 +1,16 @@
+mutation {
+  upsertBrand(
+    primaryKey: 1
+    entityExistence: MUST_NOT_EXIST
+    mutations: [
+      {
+        upsertAttributeMutation: {
+          name: "name"
+          value: "Samsung"
+        }
+      }
+    ]
+  ) {
+    primaryKey
+  }
+}

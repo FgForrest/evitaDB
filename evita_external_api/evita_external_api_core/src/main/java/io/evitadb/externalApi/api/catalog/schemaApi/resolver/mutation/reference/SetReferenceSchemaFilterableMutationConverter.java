@@ -23,23 +23,23 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
-import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFilterableMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.SetReferenceSchemaFacetedMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.SetReferenceSchemaFilterableMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.SetReferenceSchemaIndexedMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
 
 /**
- * Implementation of {@link SchemaMutationConverter} for resolving {@link SetReferenceSchemaFilterableMutation}.
+ * Implementation of {@link SchemaMutationConverter} for resolving {@link SetReferenceSchemaIndexedMutation}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class SetReferenceSchemaFilterableMutationConverter extends ReferenceSchemaMutationConverter<SetReferenceSchemaFilterableMutation> {
+public class SetReferenceSchemaFilterableMutationConverter extends ReferenceSchemaMutationConverter<SetReferenceSchemaIndexedMutation> {
 
 	public SetReferenceSchemaFilterableMutationConverter(@Nonnull MutationObjectParser objectParser,
 	                                                     @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
@@ -54,10 +54,10 @@ public class SetReferenceSchemaFilterableMutationConverter extends ReferenceSche
 
 	@Nonnull
 	@Override
-	protected SetReferenceSchemaFilterableMutation convert(@Nonnull InputMutation inputMutation) {
-		return new SetReferenceSchemaFilterableMutation(
-			inputMutation.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
-			inputMutation.getRequiredField(SetReferenceSchemaFilterableMutationDescriptor.FILTERABLE)
+	protected SetReferenceSchemaIndexedMutation convert(@Nonnull Input input) {
+		return new SetReferenceSchemaIndexedMutation(
+			input.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
+			input.getRequiredField(SetReferenceSchemaIndexedMutationDescriptor.INDEXED)
 
 		);
 	}

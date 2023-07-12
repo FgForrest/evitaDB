@@ -24,7 +24,7 @@
 package io.evitadb.performance.externalApi.rest.artificial.state;
 
 import io.evitadb.performance.externalApi.rest.artificial.RestArtificialEntitiesBenchmark;
-import io.evitadb.performance.generators.RestRandomQueryGenerator;
+import io.evitadb.performance.generators.RandomQueryGenerator;
 import io.evitadb.test.Entities;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Setup;
@@ -36,20 +36,20 @@ import org.openjdk.jmh.infra.Blackhole;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class RestArtificialAttributeAndHierarchyFilteringState extends AbstractRestArtificialState implements RestRandomQueryGenerator {
+public class RestArtificialAttributeAndHierarchyFilteringState extends AbstractRestArtificialState implements RandomQueryGenerator {
 
 	/**
 	 * Prepares artificial product for the next operation that is measured in the benchmark.
 	 */
 	@Setup(Level.Invocation)
 	public void prepareCall(RestArtificialAttributeBenchmarkState benchmarkState) {
-		final RestQuery restQuery = generateRandomHierarchyQuery(
-			generateRandomAttributeQuery(benchmarkState.getRandom(), benchmarkState.getProductSchema(), benchmarkState.getFilterableAttributes(), benchmarkState.getSortableAttributes()),
-			benchmarkState.getRandom(), benchmarkState.getCategoryIds(), Entities.CATEGORY
+		setRequest(
+			benchmarkState,
+			generateRandomHierarchyQuery(
+				generateRandomAttributeQuery(benchmarkState.getRandom(), benchmarkState.getProductSchema(), benchmarkState.getFilterableAttributes(), benchmarkState.getSortableAttributes()),
+				benchmarkState.getRandom(), benchmarkState.getCategoryIds(), Entities.CATEGORY
+			)
 		);
-
-		this.resource = restQuery.resource();
-		this.requestBody = restQuery.bodyToString();
 	}
 
 

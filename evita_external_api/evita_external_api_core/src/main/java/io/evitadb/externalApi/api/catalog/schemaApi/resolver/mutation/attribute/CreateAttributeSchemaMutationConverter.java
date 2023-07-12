@@ -25,7 +25,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute
 
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
@@ -55,24 +55,24 @@ public class CreateAttributeSchemaMutationConverter extends AttributeSchemaMutat
 
 	@Nonnull
 	@Override
-	protected CreateAttributeSchemaMutation convert(@Nonnull InputMutation inputMutation) {
-		final Class<? extends Serializable> valueType = inputMutation.getRequiredField(
+	protected CreateAttributeSchemaMutation convert(@Nonnull Input input) {
+		final Class<? extends Serializable> valueType = input.getRequiredField(
 			CreateAttributeSchemaMutationDescriptor.TYPE.name(),
 			new ValueTypeMapper(getExceptionFactory(), CreateAttributeSchemaMutationDescriptor.TYPE)
 		);
 
 		return new CreateAttributeSchemaMutation(
-			inputMutation.getRequiredField(AttributeSchemaMutationDescriptor.NAME),
-			inputMutation.getOptionalField(CreateAttributeSchemaMutationDescriptor.DESCRIPTION),
-			inputMutation.getOptionalField(CreateAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE),
-			inputMutation.getRequiredField(CreateAttributeSchemaMutationDescriptor.UNIQUE),
-			inputMutation.getRequiredField(CreateAttributeSchemaMutationDescriptor.FILTERABLE),
-			inputMutation.getRequiredField(CreateAttributeSchemaMutationDescriptor.SORTABLE),
-			inputMutation.getRequiredField(CreateAttributeSchemaMutationDescriptor.LOCALIZED),
-			inputMutation.getRequiredField(CreateAttributeSchemaMutationDescriptor.NULLABLE),
+			input.getRequiredField(AttributeSchemaMutationDescriptor.NAME),
+			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.DESCRIPTION),
+			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE),
+			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.UNIQUE, false),
+			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.FILTERABLE, false),
+			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.SORTABLE, false),
+			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.LOCALIZED, false),
+			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.NULLABLE, false),
 			valueType,
-			inputMutation.getOptionalField(CreateAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), valueType),
-			inputMutation.getRequiredField(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES)
+			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), valueType),
+			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES, 0)
 		);
 	}
 }

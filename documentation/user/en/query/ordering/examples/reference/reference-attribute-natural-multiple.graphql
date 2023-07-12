@@ -1,0 +1,36 @@
+{
+  queryProduct(
+    filterBy: {
+      referenceBrandHaving: [
+        {
+          entityHaving: {
+            attributeCodeInSet: [
+              "sony",
+              "google"
+            ]
+          }
+        }
+      ]
+    },
+    orderBy: {
+      referenceBrandProperty: {
+        attributeOrderInBrandNatural: ASC
+      }
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+        }
+        brand {
+          referencedPrimaryKey
+          attributes {
+            orderInBrand
+          }
+        }
+      }
+    }
+  }
+}

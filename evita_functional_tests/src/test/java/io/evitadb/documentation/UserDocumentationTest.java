@@ -25,8 +25,12 @@ package io.evitadb.documentation;
 
 import io.evitadb.documentation.evitaql.EvitaQLExecutable;
 import io.evitadb.documentation.evitaql.EvitaTestContextFactory;
+import io.evitadb.documentation.graphql.GraphQLExecutable;
+import io.evitadb.documentation.graphql.GraphQLTestContextFactory;
 import io.evitadb.documentation.java.JavaExecutable;
 import io.evitadb.documentation.java.JavaTestContextFactory;
+import io.evitadb.documentation.rest.RestExecutable;
+import io.evitadb.documentation.rest.RestTestContextFactory;
 import io.evitadb.test.EvitaTestSupport;
 import jdk.jshell.JShell;
 import lombok.Getter;
@@ -81,7 +85,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * Pattern for searching for <SourceCodeTabs> blocks.
 	 */
 	private static final Pattern SOURCE_CODE_TABS_PATTERN = Pattern.compile(
-		"<SourceCodeTabs\\s*(requires=\"(.*?)\")?>\\s*\\[.*?]\\((.*?)\\)\\s*</SourceCodeTabs>",
+		"<SourceCodeTabs\\s*(requires=\"(.*?)\")?(\\s+langSpecificTabOnly)?>\\s*\\[.*?]\\((.*?)\\)\\s*</SourceCodeTabs>",
 		Pattern.DOTALL | Pattern.MULTILINE
 	);
 	/**
@@ -94,7 +98,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	/**
 	 * Field containing the relative directory path to the user documentation.
 	 */
-	private static final String DOCS_ROOT = "docs/user/";
+	private static final String DOCS_ROOT = "documentation/user/";
 	/**
 	 * Field contains list of all languages that are not tested by this class.
 	 */
@@ -108,8 +112,6 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		NOT_TESTED_LANGUAGES.add("Gradle");
 		NOT_TESTED_LANGUAGES.add("shell");
 		NOT_TESTED_LANGUAGES.add("json");
-		NOT_TESTED_LANGUAGES.add("graphql");
-		NOT_TESTED_LANGUAGES.add("rest");
 		NOT_TESTED_LANGUAGES.add("yaml");
 		NOT_TESTED_LANGUAGES.add("plain");
 	}
@@ -234,6 +236,26 @@ public class UserDocumentationTest implements EvitaTestSupport {
 					createSnippets
 				);
 			}
+			case "graphql" -> {
+				return new GraphQLExecutable(
+					contextAccessor.get(GraphQLTestContextFactory.class),
+					sourceContent,
+					rootPath,
+					resource,
+					outputSnippet,
+					createSnippets
+				);
+			}
+			case "rest" -> {
+				return new RestExecutable(
+					contextAccessor.get(RestTestContextFactory.class),
+					sourceContent,
+					rootPath,
+					resource,
+					outputSnippet,
+					createSnippets
+				);
+			}
 			default -> {
 				throw new UnsupportedOperationException("Unsupported file format: " + sourceFormat);
 			}
@@ -304,7 +326,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
-			getRootDirectory().resolve("docs/user/en/get-started/run-evitadb.md")
+			getRootDirectory().resolve("documentation/user/en/use/api/query-data.md")
 		).stream();
 	}
 
@@ -319,8 +341,8 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
 		return this.createTests(
-			getRootDirectory().resolve("docs/user/en/query/filtering/string.md"),
-			CreateSnippets.MARKDOWN, CreateSnippets.JAVA
+			getRootDirectory().resolve("documentation/user/en/query/ordering/price.md"),
+			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.GRAPHQL, CreateSnippets.REST
 		).stream();
 	}
 
@@ -385,8 +407,12 @@ public class UserDocumentationTest implements EvitaTestSupport {
 
 		final Matcher sourceCodeTabsMatcher = SOURCE_CODE_TABS_PATTERN.matcher(fileContent);
 		while (sourceCodeTabsMatcher.find()) {
-			final Path referencedFile = createPathRelativeToRootDirectory(rootDirectory, sourceCodeTabsMatcher.group(3));
+			final Path referencedFile = createPathRelativeToRootDirectory(rootDirectory, sourceCodeTabsMatcher.group(4));
 			final String referencedFileExtension = getFileNameExtension(referencedFile);
+			// todo lho: temporary skip testing of source code tab if we dont support its current execution yet
+			if (ofNullable(sourceCodeTabsMatcher.group(2)).map(it -> it.contains("ignoreTest")).orElse(false)) {
+				continue;
+			}
 			if (!NOT_TESTED_LANGUAGES.contains(referencedFileExtension)) {
 				final Path[] requiredScripts = ofNullable(sourceCodeTabsMatcher.group(2))
 					.map(
@@ -418,7 +444,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 									requiredScripts,
 									contextAccessor,
 									codeSnippetIndex,
-									outputSnippet,
+									outputSnippetIndex.get(relatedFile),
 									createSnippets
 								)
 							);
@@ -486,7 +512,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 */
 	public enum CreateSnippets {
 
-		JAVA, MARKDOWN
+		JAVA, MARKDOWN, GRAPHQL, REST
 
 	}
 

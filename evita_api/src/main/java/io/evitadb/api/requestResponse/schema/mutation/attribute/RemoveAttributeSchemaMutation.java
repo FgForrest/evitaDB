@@ -83,11 +83,7 @@ public class RemoveAttributeSchemaMutation implements
 	@Override
 	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation) {
 		if (existingMutation instanceof AttributeSchemaMutation attributeSchemaMutation && Objects.equals(name, attributeSchemaMutation.getName())) {
-			if (existingMutation instanceof CreateAttributeSchemaMutation || existingMutation instanceof CreateGlobalAttributeSchemaMutation) {
-				return new MutationCombinationResult<>(null);
-			} else {
-				return new MutationCombinationResult<>(null, existingMutation);
-			}
+			return new MutationCombinationResult<>(true, null, this);
 		} else {
 			return null;
 		}
@@ -184,7 +180,8 @@ public class RemoveAttributeSchemaMutation implements
 					),
 				entitySchema.getAssociatedData(),
 				entitySchema.getReferences(),
-				entitySchema.getEvolutionMode()
+				entitySchema.getEvolutionMode(),
+				entitySchema.getSortableAttributeCompounds()
 			);
 		}
 	}
@@ -211,7 +208,7 @@ public class RemoveAttributeSchemaMutation implements
 				referenceSchema.getReferencedGroupType(),
 				referenceSchema.getGroupTypeNameVariants(entityType -> null),
 				referenceSchema.isReferencedGroupTypeManaged(),
-				referenceSchema.isFilterable(),
+				referenceSchema.isIndexed(),
 				referenceSchema.isFaceted(),
 				referenceSchema.getAttributes().values()
 					.stream()
@@ -221,7 +218,8 @@ public class RemoveAttributeSchemaMutation implements
 							AttributeSchemaContract::getName,
 							Function.identity()
 						)
-					)
+					),
+				referenceSchema.getSortableAttributeCompounds()
 			);
 		}
 	}

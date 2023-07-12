@@ -47,6 +47,7 @@ module evita.external.api.system {
 	requires evita.engine;
 	requires com.fasterxml.jackson.annotation;
 	requires com.fasterxml.jackson.databind;
+	requires java.management;
 
 	exports io.evitadb.externalApi.system.configuration;
 	exports io.evitadb.externalApi.system;

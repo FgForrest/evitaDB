@@ -29,9 +29,9 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.EqualsAndHashCode;
@@ -68,8 +68,21 @@ public final class EntitySchema implements EntitySchemaContract {
 	@Getter private final boolean withHierarchy;
 	@Getter private final boolean withPrice;
 	@Getter private final int indexedPricePlaces;
-	@Getter private final Set<Locale> locales;
-	@Getter private final Set<Currency> currencies;
+	@Getter @Nonnull private final Set<Locale> locales;
+	@Getter @Nonnull private final Set<Currency> currencies;
+
+	/**
+	 * Contains index of all {@link SortableAttributeCompoundSchema} that could be used as sortable attribute compounds
+	 * of entity of this type.
+	 */
+	@Nonnull private final Map<String, SortableAttributeCompoundSchema> sortableAttributeCompounds;
+	/**
+	 * Index of attribute names that allows to quickly lookup sortable attribute compound schemas by name in specific
+	 * naming convention. Key is the name in specific name convention, value is array of size {@link NamingConvention#values()}
+	 * where reference to {@link SortableAttributeCompoundSchema} is placed on index of naming convention that matches
+	 * the key.
+	 */
+	private final Map<String, SortableAttributeCompoundSchema[]> sortableAttributeCompoundNameIndex;
 	/**
 	 * Contains index of all {@link AttributeSchema} that could be used as attributes of entity of this type.
 	 */
@@ -114,6 +127,11 @@ public final class EntitySchema implements EntitySchemaContract {
 	 * Contains all definitions of the associated data that return false in method {@link AssociatedDataSchema#isNullable()}.
 	 */
 	@Getter private final Collection<AssociatedDataSchema> nonNullableAssociatedData;
+	/**
+	 * Index contains collections of sortable attribute compounds that reference the attribute with the name equal
+	 * to a key of this index.
+	 */
+	@Nonnull private final Map<String, Collection<SortableAttributeCompoundSchemaContract>> attributeToSortableAttributeCompoundIndex;
 
 	/**
 	 * Method generates name variant index used for quickly looking up for schemas by name in specific name convention.
@@ -129,10 +147,13 @@ public final class EntitySchema implements EntitySchemaContract {
 		for (T schema : items) {
 			_internalAddNameVariantsToIndex(nameIndex, schema, nameVariantsFetcher);
 		}
-		return nameIndex;
+		return Collections.unmodifiableMap(nameIndex);
 	}
 
-	public static <T> void _internalAddNameVariantsToIndex(
+	/**
+	 * Method generates name variant index used for quickly looking up for schemas by name in specific name convention.
+	 */
+	static <T> void _internalAddNameVariantsToIndex(
 		@Nonnull Map<String, T[]> nameIndex,
 		@Nonnull T schema,
 		@Nonnull Function<T, Map<NamingConvention, String>> nameVariantsFetcher
@@ -150,40 +171,34 @@ public final class EntitySchema implements EntitySchemaContract {
 		}
 	}
 
-	public static <T> void _internalRemoveNameVariantsFromIndex(
-		@Nonnull Map<String, T[]> nameIndex,
-		@Nonnull T schema,
-		@Nonnull Function<T, Map<NamingConvention, String>> nameVariantsFetcher
-	) {
-		for (Entry<NamingConvention, String> entry : nameVariantsFetcher.apply(schema).entrySet()) {
-			nameIndex.compute(
-				entry.getValue(),
-				(theName, existingArray) -> {
-					Assert.isPremiseValid(existingArray != null, "Array expected!");
-					existingArray[entry.getKey().ordinal()] = null;
-					return ArrayUtils.isEmpty(existingArray) ? null : existingArray;
-				}
-			);
-		}
-	}
-
-	@SuppressWarnings("RedundantUnmodifiable")
+	/**
+	 * This method is for internal purposes only. It could be used for reconstruction of original Entity from different
+	 * package than current, but still internal code of the Evita ecosystems.
+	 *
+	 * Do not use this method from in the client code!
+	 */
 	public static EntitySchema _internalBuild(@Nonnull String name) {
-		//we need to wrap even empty map to the unmodifiable wrapper in order to unify type for Kryo serialization
 		return new EntitySchema(
 			1,
 			name, NamingConvention.generate(name),
 			null, null, false, false, false,
 			2,
-			Collections.unmodifiableSet(Collections.emptySet()),
-			Collections.unmodifiableSet(Collections.emptySet()),
-			Collections.unmodifiableMap(Collections.emptyMap()),
-			Collections.unmodifiableMap(Collections.emptyMap()),
-			Collections.unmodifiableMap(Collections.emptyMap()),
-			Collections.unmodifiableSet(EnumSet.allOf(EvolutionMode.class))
+			Collections.emptySet(),
+			Collections.emptySet(),
+			Collections.emptyMap(),
+			Collections.emptyMap(),
+			Collections.emptyMap(),
+			EnumSet.allOf(EvolutionMode.class),
+			Collections.emptyMap()
 		);
 	}
 
+	/**
+	 * This method is for internal purposes only. It could be used for reconstruction of original Entity from different
+	 * package than current, but still internal code of the Evita ecosystems.
+	 *
+	 * Do not use this method from in the client code!
+	 */
 	public static EntitySchema _internalBuild(
 		int version,
 		@Nonnull String name,
@@ -195,22 +210,24 @@ public final class EntitySchema implements EntitySchemaContract {
 		int indexedPricePlaces,
 		@Nonnull Set<Locale> locales,
 		@Nonnull Set<Currency> currencies,
-		@Nonnull Map<String, AttributeSchema> attributes,
-		@Nonnull Map<String, AssociatedDataSchema> associatedData,
-		@Nonnull Map<String, ReferenceSchema> references,
-		@Nonnull Set<EvolutionMode> evolutionMode
+		@Nonnull Map<String, AttributeSchemaContract> attributes,
+		@Nonnull Map<String, AssociatedDataSchemaContract> associatedData,
+		@Nonnull Map<String, ReferenceSchemaContract> references,
+		@Nonnull Set<EvolutionMode> evolutionMode,
+		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
 	) {
 		return new EntitySchema(
 			version, name, NamingConvention.generate(name),
 			description, deprecationNotice,
 			withGeneratedPrimaryKey, withHierarchy, withPrice,
 			indexedPricePlaces,
-			Collections.unmodifiableSet(locales),
-			Collections.unmodifiableSet(currencies),
-			Collections.unmodifiableMap(attributes),
-			Collections.unmodifiableMap(associatedData),
-			Collections.unmodifiableMap(references),
-			Collections.unmodifiableSet(evolutionMode)
+			locales,
+			currencies,
+			attributes,
+			associatedData,
+			references,
+			evolutionMode,
+			sortableAttributeCompounds
 		);
 	}
 
@@ -229,28 +246,22 @@ public final class EntitySchema implements EntitySchemaContract {
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, AssociatedDataSchemaContract> associatedData,
 		@Nonnull Map<String, ReferenceSchemaContract> references,
-		@Nonnull Set<EvolutionMode> evolutionMode
+		@Nonnull Set<EvolutionMode> evolutionMode,
+		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
 	) {
 		return new EntitySchema(
 			version, name, nameVariants,
 			description, deprecationNotice,
 			withGeneratedPrimaryKey, withHierarchy, withPrice,
 			indexedPricePlaces,
-			Collections.unmodifiableSet(locales),
-			Collections.unmodifiableSet(currencies),
-			Collections.unmodifiableMap(attributes),
-			Collections.unmodifiableMap(associatedData),
-			Collections.unmodifiableMap(references),
-			Collections.unmodifiableSet(evolutionMode)
+			locales,
+			currencies,
+			attributes,
+			associatedData,
+			references,
+			evolutionMode,
+			sortableAttributeCompounds
 		);
-	}
-
-	/**
-	 * Returns true if passed schema represents the same type and si equally same or older.
-	 */
-	public static boolean isCompatibleAndSameOrOlder(@Nonnull EntitySchemaContract first, @Nonnull EntitySchemaContract second) {
-		return Objects.equals(first.getName(), second.getName()) &&
-			first.getVersion() <= second.getVersion();
 	}
 
 	/**
@@ -275,6 +286,23 @@ public final class EntitySchema implements EntitySchemaContract {
 				(Class) attributeSchemaContract.getType(),
 				attributeSchemaContract.getDefaultValue(),
 				attributeSchemaContract.getIndexedDecimalPlaces()
+			);
+	}
+
+	/**
+	 * Method converts the "unknown" contract implementation and converts it to the "known"
+	 * {@link SortableAttributeCompoundSchema} so that the entity schema can access the internal API of it.
+	 */
+	@Nonnull
+	static SortableAttributeCompoundSchema toSortableAttributeCompoundSchema(@Nonnull SortableAttributeCompoundSchemaContract sortableAttributeCompoundSchemaContract) {
+		return sortableAttributeCompoundSchemaContract instanceof SortableAttributeCompoundSchema sortableAttributeCompoundSchema ?
+			sortableAttributeCompoundSchema :
+			SortableAttributeCompoundSchema._internalBuild(
+				sortableAttributeCompoundSchemaContract.getName(),
+				sortableAttributeCompoundSchemaContract.getNameVariants(),
+				sortableAttributeCompoundSchemaContract.getDescription(),
+				sortableAttributeCompoundSchemaContract.getDeprecationNotice(),
+				sortableAttributeCompoundSchemaContract.getAttributeElements()
 			);
 	}
 
@@ -317,9 +345,10 @@ public final class EntitySchema implements EntitySchemaContract {
 				referenceSchemaContract.getReferencedGroupType(),
 				referenceSchemaContract.getGroupTypeNameVariants(entityType -> null),
 				referenceSchemaContract.isReferencedGroupTypeManaged(),
-				referenceSchemaContract.isFilterable(),
+				referenceSchemaContract.isIndexed(),
 				referenceSchemaContract.isFaceted(),
-				referenceSchemaContract.getAttributes()
+				referenceSchemaContract.getAttributes(),
+				referenceSchemaContract.getSortableAttributeCompounds()
 			);
 	}
 
@@ -338,45 +367,52 @@ public final class EntitySchema implements EntitySchemaContract {
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, AssociatedDataSchemaContract> associatedData,
 		@Nonnull Map<String, ReferenceSchemaContract> references,
-		@Nonnull Set<EvolutionMode> evolutionMode
+		@Nonnull Set<EvolutionMode> evolutionMode,
+		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
 	) {
 		this.version = version;
 		this.name = name;
-		this.nameVariants = nameVariants;
+		this.nameVariants = Collections.unmodifiableMap(nameVariants);
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
 		this.withGeneratedPrimaryKey = withGeneratedPrimaryKey;
 		this.withHierarchy = withHierarchy;
 		this.withPrice = withPrice;
 		this.indexedPricePlaces = indexedPricePlaces;
-		this.locales = locales;
-		this.currencies = currencies;
-		this.attributes = attributes.entrySet()
-			.stream()
-			.collect(
-				Collectors.toMap(
-					Entry::getKey,
-					it -> toAttributeSchema(it.getValue())
+		this.locales = Collections.unmodifiableSet(locales);
+		this.currencies = Collections.unmodifiableSet(currencies);
+		this.attributes = Collections.unmodifiableMap(
+			attributes.entrySet()
+				.stream()
+				.collect(
+					Collectors.toMap(
+						Entry::getKey,
+						it -> toAttributeSchema(it.getValue())
+					)
 				)
-			);
+		);
 		this.attributeNameIndex = _internalGenerateNameVariantIndex(this.attributes.values(), AttributeSchemaContract::getNameVariants);
-		this.associatedData = associatedData.entrySet()
-			.stream()
-			.collect(
-				Collectors.toMap(
-					Entry::getKey,
-					it -> toAssociatedDataSchema(it.getValue())
+		this.associatedData = Collections.unmodifiableMap(
+			associatedData.entrySet()
+				.stream()
+				.collect(
+					Collectors.toMap(
+						Entry::getKey,
+						it -> toAssociatedDataSchema(it.getValue())
+					)
 				)
-			);
+		);
 		this.associatedDataNameIndex = _internalGenerateNameVariantIndex(this.associatedData.values(), AssociatedDataSchemaContract::getNameVariants);
-		this.references = references.entrySet()
-			.stream()
-			.collect(
-				Collectors.toMap(
-					Entry::getKey,
-					it -> toReferenceSchema(it.getValue())
+		this.references = Collections.unmodifiableMap(
+			references.entrySet()
+				.stream()
+				.collect(
+					Collectors.toMap(
+						Entry::getKey,
+						it -> toReferenceSchema(it.getValue())
+					)
 				)
-			);
+		);
 		;
 		this.referenceNameIndex = _internalGenerateNameVariantIndex(this.references.values(), ReferenceSchemaContract::getNameVariants);
 		this.evolutionMode = Collections.unmodifiableSet(evolutionMode);
@@ -390,6 +426,33 @@ public final class EntitySchema implements EntitySchemaContract {
 			.stream()
 			.filter(it -> !it.isNullable())
 			.toList();
+		this.sortableAttributeCompounds = Collections.unmodifiableMap(
+			sortableAttributeCompounds
+				.entrySet()
+				.stream()
+				.collect(
+					Collectors.toMap(
+						Entry::getKey,
+						it -> toSortableAttributeCompoundSchema(it.getValue())
+					)
+				)
+		);
+		this.sortableAttributeCompoundNameIndex = _internalGenerateNameVariantIndex(
+			this.sortableAttributeCompounds.values(), SortableAttributeCompoundSchemaContract::getNameVariants
+		);
+		this.attributeToSortableAttributeCompoundIndex = this.sortableAttributeCompounds
+			.values()
+			.stream()
+			.flatMap(it -> it.getAttributeElements().stream().map(attribute -> new AttributeToCompound(attribute, it)))
+			.collect(
+				Collectors.groupingBy(
+					rec -> rec.attribute().attributeName(),
+					Collectors.mapping(
+						AttributeToCompound::compoundSchema,
+						Collectors.toCollection(ArrayList::new)
+					)
+				)
+			);
 	}
 
 	@Override
@@ -472,7 +535,7 @@ public final class EntitySchema implements EntitySchemaContract {
 	@Override
 	@Nonnull
 	public Map<String, AttributeSchemaContract> getAttributes() {
-		// we need EntitySchema to provide access to provide access to internal representations - i.e. whoever has
+		// we need EntitySchema to provide access to internal representations - i.e. whoever has
 		// reference to EntitySchema should have access to other internal schema representations as well
 		// unfortunately, the Generics in Java is just stupid, and we cannot provide subtype at the place of supertype
 		// collection, so we have to work around that issue using generics stripping
@@ -491,6 +554,37 @@ public final class EntitySchema implements EntitySchemaContract {
 	public Optional<AttributeSchemaContract> getAttributeByName(@Nonnull String attributeName, @Nonnull NamingConvention namingConvention) {
 		return ofNullable(attributeNameIndex.get(attributeName))
 			.map(it -> it[namingConvention.ordinal()]);
+	}
+
+	@Nonnull
+	@Override
+	public Map<String, SortableAttributeCompoundSchemaContract> getSortableAttributeCompounds() {
+		// we need EntitySchema to provide access to internal representations - i.e. whoever has
+		// reference to EntitySchema should have access to other internal schema representations as well
+		// unfortunately, the Generics in Java is just stupid, and we cannot provide subtype at the place of supertype
+		// collection, so we have to work around that issue using generics stripping
+		//noinspection unchecked,rawtypes
+		return (Map) sortableAttributeCompounds;
+	}
+
+	@Nonnull
+	@Override
+	public Optional<SortableAttributeCompoundSchemaContract> getSortableAttributeCompound(@Nonnull String name) {
+		return ofNullable(sortableAttributeCompounds.get(name));
+	}
+
+	@Nonnull
+	@Override
+	public Optional<SortableAttributeCompoundSchemaContract> getSortableAttributeCompoundByName(@Nonnull String name, @Nonnull NamingConvention namingConvention) {
+		return ofNullable(sortableAttributeCompoundNameIndex.get(name))
+			.map(it -> it[namingConvention.ordinal()]);
+	}
+
+	@Nonnull
+	@Override
+	public Collection<SortableAttributeCompoundSchemaContract> getSortableAttributeCompoundsForAttribute(@Nonnull String attributeName) {
+		return ofNullable(attributeToSortableAttributeCompoundIndex.get(attributeName))
+			.orElse(Collections.emptyList());
 	}
 
 	/**
@@ -534,4 +628,15 @@ public final class EntitySchema implements EntitySchemaContract {
 		return !evolutionMode.equals(otherSchema.getEvolutionMode());
 	}
 
+	/**
+	 * Helper DTO to envelope relation between {@link AttributeElement} and {@link SortableAttributeCompoundSchemaContract}.
+	 *
+	 * @param attribute {@link SortableAttributeCompoundSchemaContract#getAttributeElements()} item
+	 * @param compoundSchema {@link SortableAttributeCompoundSchemaContract} enveloping compound
+	 */
+	private record AttributeToCompound(
+		@Nonnull AttributeElement attribute,
+		@Nonnull SortableAttributeCompoundSchema compoundSchema
+	) {
+	}
 }

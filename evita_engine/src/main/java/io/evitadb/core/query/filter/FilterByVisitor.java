@@ -86,7 +86,6 @@ import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexKey;
-import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndex;
@@ -100,6 +99,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -124,6 +124,10 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Contains index of all {@link FilterConstraint} to {@link Formula} translators.
 	 */
 	private static final Map<Class<? extends FilterConstraint>, FilteringConstraintTranslator<? extends FilterConstraint>> TRANSLATORS;
+	/**
+	 * Contains set of formulas that are considered conjunctive for purpose of this visitor.
+	 */
+	private static final Set<Class<? extends FilterConstraint>> CONJUNCTIVE_CONSTRAINTS;
 	/**
 	 * Contains set of formulas that are considered conjunctive for purpose of this visitor.
 	 */
@@ -164,6 +168,11 @@ public class FilterByVisitor implements ConstraintVisitor {
 		CONJUNCTIVE_FORMULAS = new HashSet<>();
 		CONJUNCTIVE_FORMULAS.add(AndFormula.class);
 		CONJUNCTIVE_FORMULAS.add(UserFilterFormula.class);
+
+		CONJUNCTIVE_CONSTRAINTS = new HashSet<>();
+		CONJUNCTIVE_CONSTRAINTS.add(And.class);
+		CONJUNCTIVE_CONSTRAINTS.add(UserFilter.class);
+		CONJUNCTIVE_CONSTRAINTS.add(FilterBy.class);
 	}
 
 	/**
@@ -386,33 +395,20 @@ public class FilterByVisitor implements ConstraintVisitor {
 	}
 
 	/**
-	 * Method returns true if parent of the currently examined query matches passed type.
-	 */
-	public boolean isParentConstraint(@Nonnull Class<? extends FilterConstraint> constraintType) {
-		final ProcessingScope theScope = getProcessingScope();
-		return ofNullable(theScope.getParentConstraint())
-			.map(constraintType::isInstance)
-			.orElse(false);
-	}
-
-	/**
 	 * Method returns true if any of the siblings of the currently examined query matches any of the passed types.
 	 */
 	@SuppressWarnings("unchecked")
-	public boolean isAnySiblingConstraintPresent(@Nonnull Class<? extends FilterConstraint>... constraintType) {
+	public boolean isAnyConstraintPresentInConjunctionScopeExcludingUserFilter(@Nonnull Class<? extends FilterConstraint>... constraintType) {
 		final ProcessingScope theScope = getProcessingScope();
-		final FilterConstraint parentConstraint = theScope.getParentConstraint();
-		if (parentConstraint instanceof ConstraintContainer) {
-			//noinspection unchecked
-			for (FilterConstraint examinedType : (ConstraintContainer<FilterConstraint>) parentConstraint) {
-				for (Class<? extends FilterConstraint> lookedUpType : constraintType) {
-					if (lookedUpType.isInstance(examinedType)) {
-						return true;
-					}
+		final AtomicBoolean result = new AtomicBoolean();
+		theScope.doInConjunctionBlock(theConstraint -> {
+				if (Arrays.stream(constraintType).anyMatch(it -> it.isInstance(theConstraint))) {
+					result.set(true);
 				}
-			}
-		}
-		return false;
+			},
+			fc -> !(fc instanceof UserFilter) && CONJUNCTIVE_CONSTRAINTS.contains(fc.getClass())
+		);
+		return result.get();
 	}
 
 	/**
@@ -435,7 +431,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Conjunction block for `EQ` is none.
 	 */
 	@Nullable
-	public <T extends FilterConstraint> T findInConjunctionTree(Class<T> constraintType) {
+	public <T extends FilterConstraint> T findInConjunctionTree(@Nonnull Class<T> constraintType) {
 		final ProcessingScope theScope = getProcessingScope();
 		final List<T> foundConstraints = new LinkedList<>();
 		theScope.doInConjunctionBlock(theConstraint -> {
@@ -540,15 +536,15 @@ public class FilterByVisitor implements ConstraintVisitor {
 	@Nonnull
 	public List<EntityIndex> getReferencedRecordEntityIndexes(@Nonnull ReferenceHaving referenceHaving) {
 		final String referenceName = referenceHaving.getReferenceName();
-		final EntitySchemaContract entitySchema = getSchema();
+		final EntitySchemaContract entitySchema = getProcessingScope().getEntitySchema();
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName)
 			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, entitySchema));
 		final boolean referencesHierarchicalEntity = isReferencingHierarchicalEntity(referenceSchema);
-		final Formula referencedRecordIdFormula = getReferencedRecordIdFormula(referenceSchema, new FilterBy(referenceHaving.getChildren()));
+		final Formula referencedRecordIdFormula = getReferencedRecordIdFormula(entitySchema, referenceSchema, new FilterBy(referenceHaving.getChildren()));
 		final Bitmap referencedRecordIds = referencedRecordIdFormula.compute();
 		final List<EntityIndex> result = new ArrayList<>(referencedRecordIds.size());
 		for (Integer referencedRecordId : referencedRecordIds) {
-			ofNullable(getReferencedEntityIndex(referenceName, referencesHierarchicalEntity, referencedRecordId))
+			ofNullable(getReferencedEntityIndex(entitySchema, referenceName, referencesHierarchicalEntity, referencedRecordId))
 				.ifPresent(result::add);
 		}
 		return result;
@@ -558,20 +554,24 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Returns bitmap of primary keys ({@link EntityContract#getPrimaryKey()}) of referenced entities that satisfy
 	 * the passed filtering constraint.
 	 *
+	 * @param entitySchema that identifies the examined entities
 	 * @param referenceSchema that identifies the examined entities
 	 * @param filterBy        the filtering constraint to satisfy
 	 * @return bitmap with referenced entity ids
 	 */
 	@Nonnull
 	public Formula getReferencedRecordIdFormula(
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull FilterBy filterBy
 	) {
 		final String referenceName = referenceSchema.getName();
-		final EntitySchemaContract entitySchema = getSchema();
-		isTrue(referenceSchema.isFilterable(), () -> new ReferenceNotIndexedException(referenceName, entitySchema));
+		isTrue(referenceSchema.isIndexed(), () -> new ReferenceNotIndexedException(referenceName, entitySchema));
 
-		final EntityIndex entityIndex = getIndex(new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, referenceName));
+		final EntityIndex entityIndex = getIndex(
+			entitySchema.getName(),
+			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, referenceName)
+		);
 		if (entityIndex == null) {
 			return EmptyFormula.INSTANCE;
 		}
@@ -588,24 +588,6 @@ public class FilterByVisitor implements ConstraintVisitor {
 				filterBy.accept(this);
 				return getFormulaAndClear();
 			}
-		);
-	}
-
-	/**
-	 * Returns the special index for passed {@link ReferenceSchemaContract#getName() reference name} that contains
-	 * index of referenced entity ids instead of the primary entity primary keys.
-	 *
-	 * @param entitySchema    to be used in error message
-	 * @param referenceSchema {@link ReferenceSchemaContract} to identify the reference
-	 * @return the index
-	 */
-	@Nonnull
-	public ReferencedTypeEntityIndex getReferencedEntityTypeIndex(@Nonnull EntitySchemaContract entitySchema, @Nonnull ReferenceSchemaContract referenceSchema) {
-		final String referenceName = referenceSchema.getName();
-		isTrue(referenceSchema.isFilterable(), () -> new ReferenceNotIndexedException(referenceName, entitySchema));
-
-		return Objects.requireNonNull(
-			this.queryContext.getIndex(new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, referenceName))
 		);
 	}
 
@@ -633,8 +615,13 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Argument `referencesHierarchicalEntity` should be evaluated first by {@link #isReferencingHierarchicalEntity(ReferenceSchemaContract)} method.
 	 */
 	@Nullable
-	public EntityIndex getReferencedEntityIndex(@Nonnull ReferenceSchemaContract referenceSchema, int referencedEntityId) {
+	public EntityIndex getReferencedEntityIndex(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		int referencedEntityId
+	) {
 		return getReferencedEntityIndex(
+			entitySchema,
 			referenceSchema.getName(),
 			isReferencingHierarchicalEntity(referenceSchema),
 			referencedEntityId
@@ -646,9 +633,15 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Argument `referencesHierarchicalEntity` should be evaluated first by {@link #isReferencingHierarchicalEntity(ReferenceSchemaContract)} method.
 	 */
 	@Nullable
-	public EntityIndex getReferencedEntityIndex(@Nonnull String referenceName, boolean referencesHierarchicalEntity, int referencedEntityId) {
+	public EntityIndex getReferencedEntityIndex(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull String referenceName,
+		boolean referencesHierarchicalEntity,
+		int referencedEntityId
+	) {
 		if (referencesHierarchicalEntity) {
 			return getQueryContext().getIndex(
+				entitySchema.getName(),
 				new EntityIndexKey(
 					EntityIndexType.REFERENCED_HIERARCHY_NODE,
 					new ReferenceKey(referenceName, referencedEntityId)
@@ -656,6 +649,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 			);
 		} else {
 			return getQueryContext().getIndex(
+				entitySchema.getName(),
 				new EntityIndexKey(
 					EntityIndexType.REFERENCED_ENTITY,
 					new ReferenceKey(referenceName, referencedEntityId)
@@ -776,12 +770,12 @@ public class FilterByVisitor implements ConstraintVisitor {
 		@Nonnull AttributeSchemaContract attributeDefinition,
 		@Nonnull Function<GlobalUniqueIndex, Formula> formulaFunction
 	) {
-		final CatalogIndex catalogIndex = getIndex(CatalogIndexKey.INSTANCE);
+		final Optional<CatalogIndex> catalogIndex = getIndex(CatalogIndexKey.INSTANCE);
 		final String attributeName = attributeDefinition.getName();
-		if (catalogIndex == null) {
+		if (catalogIndex.isEmpty()) {
 			throw new EntityCollectionRequiredException("filter by attribute `" + attributeName + "`");
 		} else {
-			final GlobalUniqueIndex globalUniqueIndex = catalogIndex.getGlobalUniqueIndex(attributeName);
+			final GlobalUniqueIndex globalUniqueIndex = catalogIndex.get().getGlobalUniqueIndex(attributeName);
 			if (globalUniqueIndex == null) {
 				return EmptyFormula.INSTANCE;
 			}
@@ -1114,7 +1108,17 @@ public class FilterByVisitor implements ConstraintVisitor {
 		 * @see FilterByVisitor#findInConjunctionTree(Class)
 		 */
 		public void doInConjunctionBlock(@Nonnull Consumer<FilterConstraint> lambda) {
-			final Predicate<FilterConstraint> isConjunction = fc -> fc instanceof And || fc instanceof UserFilter;
+			final Predicate<FilterConstraint> isConjunction = fc -> CONJUNCTIVE_CONSTRAINTS.contains(fc.getClass());
+			doInConjunctionBlock(lambda, isConjunction);
+		}
+
+		/**
+		 * Method will apply `lambda` in a parent scope of currently processed {@link FilterConstraint} that shares same
+		 * conjunction relation.
+		 *
+		 * @see FilterByVisitor#findInConjunctionTree(Class)
+		 */
+		public void doInConjunctionBlock(@Nonnull Consumer<FilterConstraint> lambda, @Nonnull Predicate<FilterConstraint> isConjunction) {
 			final Iterator<FilterConstraint> it = this.processedConstraints.iterator();
 			if (it.hasNext()) {
 				// this will get rid of "this" query and first examines its parent

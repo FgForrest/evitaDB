@@ -126,10 +126,26 @@ public class ConstraintDescriptorProvider {
 	}
 
 	@Nonnull
+	public static ConstraintDescriptor getConstraint(@Nonnull Class<? extends Constraint<?>> constraintClass,
+	                                                 @Nullable String suffix) {
+		return getConstraints(constraintClass)
+			.stream()
+			.filter(it -> {
+				if (it.creator().suffix() == null) {
+					return suffix == null;
+				}
+				return it.creator().suffix().equals(suffix);
+			})
+			.findFirst()
+			.orElseThrow(() ->
+				new EvitaInternalError("Unknown constraint `" + constraintClass.getName() + "` with suffix `" + suffix + "`. Is it properly registered?"));
+	}
+
+	@Nonnull
 	public static Set<ConstraintDescriptor> getConstraints(@Nonnull Class<? extends Constraint<?>> constraintClass) {
 		final Set<ConstraintDescriptor> foundConstraints = CONSTRAINT_DESCRIPTORS.stream()
 			.filter(cd -> cd.constraintClass().equals(constraintClass))
-			.collect(Collectors.toUnmodifiableSet());
+			.collect(Collectors.toCollection(TreeSet::new));
 		Assert.isPremiseValid(
 			!foundConstraints.isEmpty(),
 			"Unknown constraint `" + constraintClass.getName() + "`. Is it properly registered?"

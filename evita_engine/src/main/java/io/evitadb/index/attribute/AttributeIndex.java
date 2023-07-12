@@ -26,10 +26,12 @@ package io.evitadb.index.attribute;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.core.Transaction;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.attribute.AttributeIndex.AttributeIndexChanges;
+import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.transactionalMemory.TransactionalContainerChanges;
@@ -54,6 +56,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
@@ -106,18 +109,18 @@ public class AttributeIndex implements AttributeIndexContract, TransactionalLaye
 	 * Method verifies whether the localized attribute refers allowed locale.
 	 */
 	public static void verifyLocalizedAttribute(
-		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull String attributeName,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
 		@Nonnull Object value
 	) {
 		notNull(
 			locale,
-			"Attribute `" + attributeSchema.getName() + "` is marked as localized. Value " + unknownToString(value) + " is expected to be localized but is not!"
+			"Attribute `" + attributeName + "` is marked as localized. Value " + unknownToString(value) + " is expected to be localized but is not!"
 		);
 		isTrue(
 			allowedLocales.contains(locale),
-			"Attribute `" + attributeSchema.getName() + "` is in locale `" + locale + "` that is not among allowed locales for this entity: " + allowedLocales.stream().map(it -> "`" + it.toString() + "`").collect(Collectors.joining(", ")) + "!"
+			"Attribute `" + attributeName + "` is in locale `" + locale + "` that is not among allowed locales for this entity: " + allowedLocales.stream().map(it -> "`" + it.toString() + "`").collect(Collectors.joining(", ")) + "!"
 		);
 	}
 
@@ -132,7 +135,7 @@ public class AttributeIndex implements AttributeIndexContract, TransactionalLaye
 		@Nonnull Object value
 	) {
 		if (attributeSchema.isLocalized()) {
-			verifyLocalizedAttribute(attributeSchema, allowedLocales, locale, value);
+			verifyLocalizedAttribute(attributeSchema.getName(), allowedLocales, locale, value);
 			return new AttributeKey(attributeSchema.getName(), locale);
 		} else {
 			return new AttributeKey(attributeSchema.getName());
@@ -251,7 +254,61 @@ public class AttributeIndex implements AttributeIndexContract, TransactionalLaye
 	public void removeSortAttribute(@Nonnull AttributeSchemaContract attributeSchema, @Nonnull Set<Locale> allowedLocales, @Nullable Locale locale, @Nonnull Object value, int recordId) {
 		final AttributeKey lookupKey = createAttributeKey(attributeSchema, allowedLocales, locale, value);
 		final SortIndex theSortIndex = this.sortIndex.get(lookupKey);
-		notNull(theSortIndex, "Sort index for " + attributeSchema + " not found!");
+		notNull(theSortIndex, "Sort index for attribute `" + attributeSchema.getName() + "` not found!");
+		theSortIndex.removeRecord(value, recordId);
+
+		if (theSortIndex.isEmpty()) {
+			this.sortIndex.remove(lookupKey);
+			ofNullable(getTransactionalMemoryLayer(this))
+				.ifPresent(it -> it.addRemovedItem(theSortIndex));
+		}
+	}
+
+	@Override
+	public void insertSortAttributeCompound(
+		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
+		@Nonnull Function<String, Class<?>> attributeTypeProvider,
+		@Nullable Locale locale,
+		@Nonnull Object[] value,
+		int recordId
+	) {
+		final SortIndex theSortIndex = this.sortIndex.computeIfAbsent(
+			locale == null ?
+				new AttributeKey(compoundSchemaContract.getName()) :
+				new AttributeKey(compoundSchemaContract.getName(), locale),
+			lookupKey -> {
+				final SortIndex newSortIndex = new SortIndex(
+					compoundSchemaContract.getAttributeElements()
+						.stream()
+						.map(it -> new ComparatorSource(
+							attributeTypeProvider.apply(it.attributeName()),
+							it.direction(),
+							it.behaviour()
+						))
+						.toArray(ComparatorSource[]::new),
+					locale
+				);
+				ofNullable(getTransactionalMemoryLayer(this))
+					.ifPresent(it -> it.addCreatedItem(newSortIndex));
+				return newSortIndex;
+			}
+		);
+		theSortIndex.addRecord(value, recordId);
+	}
+
+	@Override
+	public void removeSortAttributeCompound(
+		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
+		@Nullable Locale locale,
+		@Nonnull Object[] value,
+		int recordId
+	) {
+		final AttributeKey lookupKey = locale == null ?
+			new AttributeKey(compoundSchemaContract.getName()) :
+			new AttributeKey(compoundSchemaContract.getName(), locale);
+
+		final SortIndex theSortIndex = this.sortIndex.get(lookupKey);
+		notNull(theSortIndex, "Sort index for sortable attribute compound `" + compoundSchemaContract.getName() + "` not found!");
 		theSortIndex.removeRecord(value, recordId);
 
 		if (theSortIndex.isEmpty()) {

@@ -41,6 +41,7 @@ import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
@@ -130,10 +131,10 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 	public FacetSummaryOfReference(
 		@Nonnull @Classifier String referenceName,
 		@Nonnull @Value FacetStatisticsDepth statisticsDepth,
-		@Nonnull @AdditionalChild(domain = ConstraintDomain.ENTITY) FilterBy filterBy,
-		@Nonnull @AdditionalChild(domain = ConstraintDomain.ENTITY) FilterGroupBy filterGroupBy,
-		@Nonnull @AdditionalChild(domain = ConstraintDomain.ENTITY) OrderBy orderBy,
-		@Nonnull @AdditionalChild(domain = ConstraintDomain.ENTITY) OrderGroupBy orderGroupBy,
+		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) FilterBy filterBy,
+		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) FilterGroupBy filterGroupBy,
+		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) OrderBy orderBy,
+		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) OrderGroupBy orderGroupBy,
 		@Nonnull @Child(uniqueChildren = true) EntityRequire... requirements
 	) {
 		super(

@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.array.CompositeObjectArray;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -125,6 +126,7 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 		if (ArrayUtils.isEmpty(filteredEntities)) {
 			sortedEntities = new int[0];
 		} else {
+			sorter = ConditionalSorter.getFirstApplicableSorter(sorter, queryContext);
 			sortedEntities = sorter == null ?
 				filteredEntities :
 				sorter.sortAndSlice(

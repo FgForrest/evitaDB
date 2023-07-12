@@ -24,7 +24,7 @@
 package io.evitadb.performance.externalApi.graphql.artificial.state;
 
 import io.evitadb.performance.externalApi.graphql.artificial.GraphQLArtificialEntitiesBenchmark;
-import io.evitadb.performance.generators.GraphQLRandomQueryGenerator;
+import io.evitadb.performance.generators.RandomQueryGenerator;
 import io.evitadb.utils.Assert;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Setup;
@@ -39,7 +39,7 @@ import java.util.Set;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class GraphQLArtificialHierarchyStatisticsComputationState extends AbstractGraphQLArtificialState implements GraphQLRandomQueryGenerator {
+public class GraphQLArtificialHierarchyStatisticsComputationState extends AbstractGraphQLArtificialState implements RandomQueryGenerator {
 
 	/**
 	 * Set contains all `entityTypes` that are hierarchical and are referenced from product entity.
@@ -61,9 +61,12 @@ public class GraphQLArtificialHierarchyStatisticsComputationState extends Abstra
 				});
 			Assert.isTrue(!referencedHierarchicalEntities.isEmpty(), "No referenced entity is hierarchical!");
 		}
-		this.requestBody = generateRandomHierarchyQuery(
-			benchmarkState.getRandom(), benchmarkState.getProductSchema(), referencedHierarchicalEntities
-		).toString();
+		setRequestBody(
+			benchmarkState,
+			generateRandomParentSummaryQuery(
+				benchmarkState.getRandom(), benchmarkState.getProductSchema(), referencedHierarchicalEntities
+			)
+		);
 	}
 
 

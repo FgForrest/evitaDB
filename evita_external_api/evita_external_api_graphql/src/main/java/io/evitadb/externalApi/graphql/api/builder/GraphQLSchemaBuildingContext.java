@@ -28,6 +28,7 @@ import graphql.schema.GraphQLSchema.Builder;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -37,6 +38,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
@@ -52,9 +54,8 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
 @RequiredArgsConstructor
 public class GraphQLSchemaBuildingContext {
 
-    @Getter
-    @Nonnull
-    private final Evita evita;
+    @Nonnull private final GraphQLConfig config;
+    @Getter @Nonnull private final Evita evita;
 
     @Nonnull
     private final List<GraphQLFieldDefinition> queryFields = new LinkedList<>();
@@ -70,9 +71,15 @@ public class GraphQLSchemaBuildingContext {
     @Nonnull
     private final Set<String> registeredCustomEnums = createHashSet(32);
 
+    /**
+     * Returns executor for async data fetcher. If empty, no data fetcher should run in parallel.
+     */
     @Nonnull
-    public Executor getEvitaExecutor() {
-        return evita.getExecutor();
+    public Optional<Executor> getEvitaExecutor() {
+        if (!config.isParallelize()) {
+            return Optional.empty();
+        }
+        return Optional.of(evita.getExecutor());
     }
 
     /**
