@@ -181,12 +181,6 @@ public final class Evita implements EvitaContract {
 			.setMaximumQueueSize(configuration.server().queueSize())
 			.setRegisterMBean(false)
 			.build();
-		// TODO JNO - temporary debugging
-		handoffExecutor.setAdditionalLogger(
-			() -> "\n" + Arrays.stream(this.executor.getRunningThreads())
-				.map(it -> Arrays.stream(it.getStackTrace()).map(StackTraceElement::toString).collect(Collectors.joining("\n")))
-				.collect(Collectors.joining("\n\n"))
-		);
 		this.executor.prestartAllCoreThreads();
 		this.scheduler = new Scheduler(executor);
 		this.sessionKiller = of(configuration.server().closeSessionsAfterSecondsOfInactivity())
