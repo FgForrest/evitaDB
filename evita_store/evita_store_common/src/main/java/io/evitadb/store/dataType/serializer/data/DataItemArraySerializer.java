@@ -41,7 +41,7 @@ public class DataItemArraySerializer extends Serializer<DataItemArray> {
 
 	@Override
 	public void write(Kryo kryo, Output output, DataItemArray dataItem) {
-		final DataItem[] children = dataItem.getChildren();
+		final DataItem[] children = dataItem.children();
 		output.writeVarInt(children.length, true);
 		for (DataItem child : children) {
 			kryo.writeClassAndObject(output, child);

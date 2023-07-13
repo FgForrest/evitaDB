@@ -64,7 +64,7 @@ public class RemoveReferenceMutation extends ReferenceMutation<ReferenceKey> {
 		);
 		return new Reference(
 			entitySchema,
-			existingValue.getVersion() + 1,
+			existingValue.version() + 1,
 			existingValue.getReferenceName(), existingValue.getReferencedPrimaryKey(),
 			existingValue.getReferencedEntityType(), existingValue.getReferenceCardinality(),
 			existingValue.getGroup()

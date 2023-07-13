@@ -301,8 +301,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					sharedUniqueIndexStoragePart != null,
 					"Shared unique index not found for attribute `" + attributeKey + "`!"
 				);
-				final GlobalAttributeSchemaContract attributeSchema = catalog.getSchema().getAttribute(attributeKey.getAttributeName())
-					.orElseThrow(() -> new EvitaInvalidUsageException("Catalog index references attribute `" + attributeKey.getAttributeName() + "` but such attribute is not found in catalog schema!"));
+				final GlobalAttributeSchemaContract attributeSchema = catalog.getSchema().getAttribute(attributeKey.attributeName())
+					.orElseThrow(() -> new EvitaInvalidUsageException("Catalog index references attribute `" + attributeKey.attributeName() + "` but such attribute is not found in catalog schema!"));
 				sharedUniqueIndexes.put(
 					attributeKey,
 					new GlobalUniqueIndex(

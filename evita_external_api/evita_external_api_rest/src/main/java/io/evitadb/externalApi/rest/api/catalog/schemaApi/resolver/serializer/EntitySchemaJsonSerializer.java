@@ -36,7 +36,6 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaProvider;
-import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AssociatedDataSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
@@ -79,7 +78,7 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 	                          @Nonnull EntitySchemaContract entitySchema) {
 		final ObjectNode rootNode = objectJsonSerializer.objectNode();
 
-		rootNode.put(EntitySchemaDescriptor.VERSION.name(), entitySchema.getVersion());
+		rootNode.put(EntitySchemaDescriptor.VERSION.name(), entitySchema.version());
 		rootNode.put(EntitySchemaDescriptor.NAME.name(), entitySchema.getName());
 		rootNode.set(EntitySchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(entitySchema.getNameVariants()));
 		rootNode.put(EntitySchemaDescriptor.DESCRIPTION.name(), entitySchema.getDescription());

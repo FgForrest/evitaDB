@@ -205,8 +205,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return usedPriceKeys.isEmpty() ?
 			null :
 			and(
-				priceInPriceLists(usedPriceKeys.stream().map(PriceKey::getPriceList).distinct().toArray(String[]::new)),
-				of(usedPriceKeys.stream().map(PriceKey::getCurrency).distinct().toArray(Currency[]::new))
+				priceInPriceLists(usedPriceKeys.stream().map(PriceKey::priceList).distinct().toArray(String[]::new)),
+				of(usedPriceKeys.stream().map(PriceKey::currency).distinct().toArray(Currency[]::new))
 					.filter(it -> it.length == 1)
 					.map(it -> priceInCurrency(it[0]))
 					.orElse(null)
@@ -595,7 +595,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Override
 	public int updateEntitySchema(@Nonnull ModifyEntitySchemaMutation schemaMutation) throws SchemaAlteringException {
-		return updateAndFetchEntitySchema(schemaMutation).getVersion();
+		return updateAndFetchEntitySchema(schemaMutation).version();
 	}
 
 	@Nonnull

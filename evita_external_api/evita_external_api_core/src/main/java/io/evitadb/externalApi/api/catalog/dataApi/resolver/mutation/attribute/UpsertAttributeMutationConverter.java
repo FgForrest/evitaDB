@@ -70,14 +70,14 @@ public class UpsertAttributeMutationConverter extends AttributeMutationConverter
 			UpsertAttributeMutationDescriptor.VALUE_TYPE.name(),
 			new ValueTypeMapper(getExceptionFactory(), UpsertAttributeMutationDescriptor.VALUE_TYPE)
 		);
-		final AttributeSchemaContract attributeSchema = attributeSchemaProvider.getAttribute(attributeKey.getAttributeName()).orElse(null);
+		final AttributeSchemaContract attributeSchema = attributeSchemaProvider.getAttribute(attributeKey.attributeName()).orElse(null);
 		if (attributeSchema == null && valueType == null) {
-			throw getExceptionFactory().createInvalidArgumentException("Missing value type of new attribute `" + attributeKey.getAttributeName() + "`.");
+			throw getExceptionFactory().createInvalidArgumentException("Missing value type of new attribute `" + attributeKey.attributeName() + "`.");
 		}
 		if (attributeSchema != null && valueType != null) {
 			Assert.isTrue(
 				attributeSchema.getType().equals(valueType),
-				() -> getExceptionFactory().createInvalidArgumentException("Value type does not correspond with data type in attribute schema `" + attributeKey.getAttributeName() + "`.")
+				() -> getExceptionFactory().createInvalidArgumentException("Value type does not correspond with data type in attribute schema `" + attributeKey.attributeName() + "`.")
 			);
 		}
 		final Class<? extends Serializable> targetDataType = valueType != null ? valueType : attributeSchema.getType();

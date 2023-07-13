@@ -178,7 +178,7 @@ public interface EntityEditor<W extends EntityEditor<W>> extends EntityContract,
 		/**
 		 * Returns object that contains set of {@link LocalMutation} instances describing
 		 * what changes occurred in the builder and which should be applied on the existing {@link EntityContract} version.
-		 * Each mutation increases {@link Versioned#getVersion()} of the modified object and allows to detect race conditions
+		 * Each mutation increases {@link Versioned#version()} of the modified object and allows to detect race conditions
 		 * based on "optimistic locking" mechanism in very granular way.
 		 */
 		@Nonnull

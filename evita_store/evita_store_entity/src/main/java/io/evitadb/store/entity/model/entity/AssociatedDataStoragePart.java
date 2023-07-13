@@ -32,7 +32,6 @@ import io.evitadb.store.model.RecordWithCompressedId;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
-import lombok.Data;
 import lombok.Getter;
 import lombok.ToString;
 
@@ -62,7 +61,7 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 	 */
 	@Getter private final Integer entityPrimaryKey;
 	/**
-	 * See {@link AssociatedDataValue#getKey()}.
+	 * See {@link AssociatedDataValue#key()}.
 	 */
 	private final EntityAssociatedDataKey associatedDataKey;
 	/**
@@ -70,7 +69,7 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 	 */
 	@Getter private Long uniquePartId;
 	/**
-	 * See {@link AssociatedDataValue#getValue()}.
+	 * See {@link AssociatedDataValue#value()}.
 	 */
 	@Getter private AssociatedDataValue value;
 	/**
@@ -81,13 +80,13 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 	public AssociatedDataStoragePart(int entityPrimaryKey, @Nonnull AssociatedDataKey associatedDataKey) {
 		this.uniquePartId = null;
 		this.entityPrimaryKey = entityPrimaryKey;
-		this.associatedDataKey = new EntityAssociatedDataKey(entityPrimaryKey, associatedDataKey.getAssociatedDataName(), associatedDataKey.getLocale());
+		this.associatedDataKey = new EntityAssociatedDataKey(entityPrimaryKey, associatedDataKey.associatedDataName(), associatedDataKey.locale());
 	}
 
 	public AssociatedDataStoragePart(long uniquePartId, int entityPrimaryKey, @Nonnull AssociatedDataValue associatedDataValue) {
 		this.uniquePartId = uniquePartId;
 		this.entityPrimaryKey = entityPrimaryKey;
-		this.associatedDataKey = new EntityAssociatedDataKey(entityPrimaryKey, associatedDataValue.getKey().getAssociatedDataName(), associatedDataValue.getKey().getLocale());
+		this.associatedDataKey = new EntityAssociatedDataKey(entityPrimaryKey, associatedDataValue.key().associatedDataName(), associatedDataValue.key().locale());
 		this.value = associatedDataValue;
 	}
 
@@ -98,10 +97,10 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 	 */
 	public static long computeUniquePartId(@Nonnull KeyCompressor keyCompressor, @Nonnull EntityAssociatedDataKey key) {
 		return NumberUtils.join(
-			key.getEntityPrimaryKey(),
+			key.entityPrimaryKey(),
 			keyCompressor.getId(
 				new AssociatedDataKey(
-					key.getAssociatedDataName(), key.getLocale()
+					key.associatedDataName(), key.locale()
 				)
 			)
 		);
@@ -122,7 +121,7 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 
 	@Override
 	public boolean isEmpty() {
-		return value == null || value.isDropped();
+		return value == null || value.dropped();
 	}
 
 	/**
@@ -144,13 +143,12 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 	 */
 	@Immutable
 	@ThreadSafe
-	@Data
-	public static class EntityAssociatedDataKey implements Serializable, Comparable<EntityAssociatedDataKey> {
+	public record EntityAssociatedDataKey(
+		int entityPrimaryKey,
+		String associatedDataName,
+		Locale locale
+	) implements Serializable, Comparable<EntityAssociatedDataKey> {
 		@Serial private static final long serialVersionUID = -4323213680699873995L;
-
-		private final int entityPrimaryKey;
-		private final String associatedDataName;
-		private final Locale locale;
 
 		@Override
 		public int compareTo(@Nonnull EntityAssociatedDataKey o) {

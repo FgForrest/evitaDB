@@ -71,10 +71,10 @@ public class ApplyDeltaAttributeMutationConverter extends AttributeMutationConve
 	@Override
 	public GrpcApplyDeltaAttributeMutation convert(@Nonnull ApplyDeltaAttributeMutation<?> mutation) {
 		final GrpcApplyDeltaAttributeMutation.Builder builder = GrpcApplyDeltaAttributeMutation.newBuilder()
-			.setAttributeName(mutation.getAttributeKey().getAttributeName());
+			.setAttributeName(mutation.getAttributeKey().attributeName());
 
-		if (mutation.getAttributeKey().isLocalized()) {
-			builder.setAttributeLocale(EvitaDataTypesConverter.toGrpcLocale(mutation.getAttributeKey().getLocale()));
+		if (mutation.getAttributeKey().localized()) {
+			builder.setAttributeLocale(EvitaDataTypesConverter.toGrpcLocale(mutation.getAttributeKey().locale()));
 		}
 
 		final Number delta = mutation.getDelta();

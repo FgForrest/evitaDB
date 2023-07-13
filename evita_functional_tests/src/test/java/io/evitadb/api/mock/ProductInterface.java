@@ -23,6 +23,7 @@
 
 package io.evitadb.api.mock;
 
+import io.evitadb.api.AbstractFiftyProductsFunctionalTest;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.annotation.*;
@@ -75,6 +76,9 @@ public interface ProductInterface extends EntityClassifier {
 
 	@Attribute(name = DataGenerator.ATTRIBUTE_ALIAS)
 	boolean isAlias();
+
+	@Attribute(name = AbstractFiftyProductsFunctionalTest.ATTRIBUTE_OPTIONAL_AVAILABILITY)
+	boolean isOptionallyAvailable();
 
 	@AssociatedData(name = DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES)
 	ReferencedFileSet getReferencedFileSet();

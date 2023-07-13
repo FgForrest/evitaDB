@@ -1843,8 +1843,8 @@ class EvitaSessionServiceFunctionalTest {
 
 		final SealedEntity existingEntity = entities.stream()
 			.filter(e -> e.getType().equals(Entities.PRODUCT) &&
-				e.getAssociatedDataValues().stream().anyMatch(a -> a.getKey().getAssociatedDataName().equals(ASSOCIATED_DATA_REFERENCED_FILES)) &&
-				e.getAssociatedDataValues().stream().noneMatch(a -> a.getKey().getAssociatedDataName().equals(ASSOCIATED_DATA_LABELS))
+				e.getAssociatedDataValues().stream().anyMatch(a -> a.key().associatedDataName().equals(ASSOCIATED_DATA_REFERENCED_FILES)) &&
+				e.getAssociatedDataValues().stream().noneMatch(a -> a.key().associatedDataName().equals(ASSOCIATED_DATA_LABELS))
 			)
 			.findFirst()
 			.orElseThrow(() -> new IllegalArgumentException("Suitable entity not found!"));
@@ -1860,7 +1860,7 @@ class EvitaSessionServiceFunctionalTest {
 		final String jsonValue = "{\"root\":{\"name\":\"test\", \"value\":\"100.453\"}}";
 		final String defaultJsonValue = ComplexDataObjectConverter.convertComplexDataObjectToJson(
 			(ComplexDataObject) existingEntity.getAssociatedDataValue(ASSOCIATED_DATA_REFERENCED_FILES)
-				.map(AssociatedDataValue::getValue)
+				.map(AssociatedDataValue::value)
 				.orElseThrow()
 		).toString();
 		final String czLocaleString = CZECH_LOCALE.toLanguageTag();
@@ -1949,7 +1949,7 @@ class EvitaSessionServiceFunctionalTest {
 			.setRequire("priceContentRespectingFilter()")
 			.build();
 
-		final List<String> existingPriceLists = existingEntity.getPrices().stream().map(PriceContract::getPriceList).toList();
+		final List<String> existingPriceLists = existingEntity.getPrices().stream().map(PriceContract::priceList).toList();
 
 		final String insertNewPriceIntoNonExistingPriceList = Arrays.stream(PRICE_LIST_NAMES)
 			.filter(p -> !existingPriceLists.contains(p)).findFirst()
@@ -1961,14 +1961,14 @@ class EvitaSessionServiceFunctionalTest {
 		final int insertPriceId = 1000000;
 
 		final PriceContract toRemove = existingEntity.getPrices().stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Suitable price not found!"));
-		final String removedPriceList = toRemove.getPriceList();
-		final GrpcCurrency removedCurrency = EvitaDataTypesConverter.toGrpcCurrency(toRemove.getCurrency());
-		final int removedPriceId = toRemove.getPriceId();
+		final String removedPriceList = toRemove.priceList();
+		final GrpcCurrency removedCurrency = EvitaDataTypesConverter.toGrpcCurrency(toRemove.currency());
+		final int removedPriceId = toRemove.priceId();
 
 		final PriceContract toUpdate = existingEntity.getPrices().stream().skip(existingEntity.getPrices().size() - 1).findFirst().orElseThrow(() -> new IllegalArgumentException("Suitable price not found!"));
-		final String updatedPriceList = toUpdate.getPriceList();
-		final GrpcCurrency updatedCurrency = EvitaDataTypesConverter.toGrpcCurrency(toUpdate.getCurrency());
-		final int updatedPriceId = toUpdate.getPriceId();
+		final String updatedPriceList = toUpdate.priceList();
+		final GrpcCurrency updatedCurrency = EvitaDataTypesConverter.toGrpcCurrency(toUpdate.currency());
+		final int updatedPriceId = toUpdate.priceId();
 
 		final GrpcEntityResponse originalEntity = evitaSessionBlockingStub.getEntity(entityRequest);
 

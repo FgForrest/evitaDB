@@ -168,13 +168,13 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 	);
 
 	/**
-	 * Sets behaviour for prices that has {@link Price#getInnerRecordId()} set in terms of computing the "selling" price.
+	 * Sets behaviour for prices that has {@link Price#innerRecordId()} set in terms of computing the "selling" price.
 	 */
 	W setPriceInnerRecordHandling(@Nonnull PriceInnerRecordHandling priceInnerRecordHandling);
 
 	/**
-	 * Removes previously set behaviour for prices with {@link Price#getInnerRecordId()}. You should ensure that
-	 * the entity has no prices with non-null {@link Price#getInnerRecordId()}.
+	 * Removes previously set behaviour for prices with {@link Price#innerRecordId()}. You should ensure that
+	 * the entity has no prices with non-null {@link Price#innerRecordId()}.
 	 */
 	W removePriceInnerRecordHandling();
 

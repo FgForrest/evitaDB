@@ -55,27 +55,27 @@ public class UpsertPriceMutation extends PriceMutation implements SchemaEvolving
 	public static final long PRICE_UPSERT_PRIORITY = PRIORITY_UPSERT;
 	@Serial private static final long serialVersionUID = 6899193328262302023L;
 	/**
-	 * Relates to {@link PriceContract#getInnerRecordId()}.
+	 * Relates to {@link PriceContract#innerRecordId()}.
 	 */
 	@Getter private final Integer innerRecordId;
 	/**
-	 * Relates to {@link PriceContract#getPriceWithoutTax()}.
+	 * Relates to {@link PriceContract#priceWithoutTax()}.
 	 */
 	@Getter private final BigDecimal priceWithoutTax;
 	/**
-	 * Relates to {@link PriceContract#getTaxRate()}.
+	 * Relates to {@link PriceContract#taxRate()}.
 	 */
 	@Getter private final BigDecimal taxRate;
 	/**
-	 * Relates to {@link PriceContract#getPriceWithTax()}.
+	 * Relates to {@link PriceContract#priceWithTax()}.
 	 */
 	@Getter private final BigDecimal priceWithTax;
 	/**
-	 * Relates to {@link PriceContract#getValidity()}.
+	 * Relates to {@link PriceContract#validity()}.
 	 */
 	@Getter private final DateTimeRange validity;
 	/**
-	 * Relates to {@link PriceContract#isSellable()}.
+	 * Relates to {@link PriceContract#sellable()}.
 	 */
 	@Getter private final boolean sellable;
 
@@ -122,29 +122,29 @@ public class UpsertPriceMutation extends PriceMutation implements SchemaEvolving
 		@Nonnull PriceContract price
 	) {
 		super(priceKey);
-		this.innerRecordId = price.getInnerRecordId();
-		this.priceWithoutTax = price.getPriceWithoutTax();
-		this.taxRate = price.getTaxRate();
-		this.priceWithTax = price.getPriceWithTax();
-		this.validity = price.getValidity();
-		this.sellable = price.isSellable();
+		this.innerRecordId = price.innerRecordId();
+		this.priceWithoutTax = price.priceWithoutTax();
+		this.taxRate = price.taxRate();
+		this.priceWithTax = price.priceWithTax();
+		this.validity = price.validity();
+		this.sellable = price.sellable();
 	}
 
 	@Nonnull
 	@Override
 	public Serializable getSkipToken(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaContract entitySchema) {
-		return priceKey.getCurrency();
+		return priceKey.currency();
 	}
 
 	@Override
 	public void verifyOrEvolveSchema(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaBuilder entitySchemaBuilder) throws InvalidMutationException {
 		if (!entitySchemaBuilder.isWithPrice()) {
 			if (entitySchemaBuilder.allows(EvolutionMode.ADDING_PRICES)) {
-				if (entitySchemaBuilder.supportsCurrency(priceKey.getCurrency()) || entitySchemaBuilder.allows(EvolutionMode.ADDING_CURRENCIES)) {
-					entitySchemaBuilder.withPriceInCurrency(priceKey.getCurrency());
+				if (entitySchemaBuilder.supportsCurrency(priceKey.currency()) || entitySchemaBuilder.allows(EvolutionMode.ADDING_CURRENCIES)) {
+					entitySchemaBuilder.withPriceInCurrency(priceKey.currency());
 				} else {
 					throw new InvalidMutationException(
-						"Entity `" + entitySchemaBuilder.getName() + "` doesn't support adding new price currency (`" + priceKey.getCurrency() + "`), " +
+						"Entity `" + entitySchemaBuilder.getName() + "` doesn't support adding new price currency (`" + priceKey.currency() + "`), " +
 							"you need to change the schema definition for it first."
 					);
 				}
@@ -154,12 +154,12 @@ public class UpsertPriceMutation extends PriceMutation implements SchemaEvolving
 						"you need to change the schema definition for it first."
 				);
 			}
-		} else if (!entitySchemaBuilder.supportsCurrency(priceKey.getCurrency())) {
+		} else if (!entitySchemaBuilder.supportsCurrency(priceKey.currency())) {
 			if (entitySchemaBuilder.allows(EvolutionMode.ADDING_CURRENCIES)) {
-				entitySchemaBuilder.withPriceInCurrency(priceKey.getCurrency());
+				entitySchemaBuilder.withPriceInCurrency(priceKey.currency());
 			} else {
 				throw new InvalidMutationException(
-					"Entity `" + entitySchemaBuilder.getName() + "` doesn't support adding new price currency (`" + priceKey.getCurrency() + "`), " +
+					"Entity `" + entitySchemaBuilder.getName() + "` doesn't support adding new price currency (`" + priceKey.currency() + "`), " +
 						"you need to change the schema definition for it first."
 				);
 			}
@@ -180,16 +180,16 @@ public class UpsertPriceMutation extends PriceMutation implements SchemaEvolving
 				sellable
 			);
 		} else if (
-			!Objects.equals(existingValue.getInnerRecordId(), innerRecordId) ||
-			!Objects.equals(existingValue.getPriceWithoutTax(), priceWithoutTax) ||
-			!Objects.equals(existingValue.getTaxRate(), taxRate) ||
-			!Objects.equals(existingValue.getPriceWithTax(), priceWithTax) ||
-			!Objects.equals(existingValue.getValidity(), validity) ||
-				existingValue.isSellable() != sellable
+			!Objects.equals(existingValue.innerRecordId(), innerRecordId) ||
+			!Objects.equals(existingValue.priceWithoutTax(), priceWithoutTax) ||
+			!Objects.equals(existingValue.taxRate(), taxRate) ||
+			!Objects.equals(existingValue.priceWithTax(), priceWithTax) ||
+			!Objects.equals(existingValue.validity(), validity) ||
+				existingValue.sellable() != sellable
 		) {
 			return new Price(
-				existingValue.getVersion() + 1,
-				existingValue.getPriceKey(),
+				existingValue.version() + 1,
+				existingValue.priceKey(),
 				innerRecordId,
 				priceWithoutTax,
 				taxRate,

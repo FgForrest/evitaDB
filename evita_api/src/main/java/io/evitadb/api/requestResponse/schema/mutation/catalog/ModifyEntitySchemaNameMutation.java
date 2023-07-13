@@ -82,7 +82,7 @@ public class ModifyEntitySchemaNameMutation implements LocalCatalogSchemaMutatio
 			return entitySchema;
 		} else {
 			return EntitySchema._internalBuild(
-				entitySchema.getVersion() + 1,
+				entitySchema.version() + 1,
 				newName,
 				NamingConvention.generate(newName),
 				entitySchema.getDescription(),

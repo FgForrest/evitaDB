@@ -687,7 +687,7 @@ public final class Evita implements EvitaContract {
 			final Optional<EntityCollectionContract> updatedCollection = newCatalog.getCollectionForEntity(entityType);
 			if (updatedCollection.isEmpty()) {
 				structuralChangeObservers.forEach(it -> it.onEntityCollectionDelete(catalogName, entityType));
-			} else if (existingCollection.getSchema().getVersion() != updatedCollection.get().getSchema().getVersion()) {
+			} else if (existingCollection.getSchema().version() != updatedCollection.get().getSchema().version()) {
 				structuralChangeObservers.forEach(it -> it.onEntitySchemaUpdate(catalogName, entityType));
 			}
 		}
@@ -791,7 +791,7 @@ public final class Evita implements EvitaContract {
 			this.entityCollectionSchemaVersions = CollectionUtils.createHashMap(entityTypes.size());
 			for (String entityType : entityTypes) {
 				catalog.getEntitySchema(entityType)
-					.ifPresent(it -> this.entityCollectionSchemaVersions.put(entityType, it.getVersion()));
+					.ifPresent(it -> this.entityCollectionSchemaVersions.put(entityType, it.version()));
 			}
 		}
 
@@ -836,7 +836,7 @@ public final class Evita implements EvitaContract {
 			final Integer myVersion = this.entityCollectionSchemaVersions.get(entityType);
 			final Integer theirVersion = catalog.getCollectionForEntity(entityType)
 				.map(EntityCollectionContract::getSchema)
-				.map(EntitySchemaContract::getVersion)
+				.map(EntitySchemaContract::version)
 				.orElse(null);
 			return !Objects.equals(myVersion, theirVersion) && myVersion != null;
 		}

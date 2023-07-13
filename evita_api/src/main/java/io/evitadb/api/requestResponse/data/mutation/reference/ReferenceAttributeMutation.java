@@ -103,19 +103,19 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 			attributeMutation.verifyOrEvolveSchema(
 				catalogSchema,
 				entitySchemaBuilder,
-				referenceSchema.getAttribute(attributeKey.getAttributeName()).orElse(null),
+				referenceSchema.getAttribute(attributeKey.attributeName()).orElse(null),
 				schemaValidatingMutation.getAttributeValue(),
 				(csb, esb) -> {
-					if (attributeKey.isLocalized()) {
-						esb.withLocale(attributeKey.getLocale());
+					if (attributeKey.localized()) {
+						esb.withLocale(attributeKey.locale());
 					}
 					final Consumer<ReferenceSchemaBuilder> referenceSchemaUpdater = whichIs -> {
-						final boolean attributeExists = whichIs.getAttribute(attributeKey.getAttributeName()).isPresent();
+						final boolean attributeExists = whichIs.getAttribute(attributeKey.attributeName()).isPresent();
 						whichIs.withAttribute(
-							attributeKey.getAttributeName(),
+							attributeKey.attributeName(),
 							schemaValidatingMutation.getAttributeValue().getClass(),
 							thatIs -> {
-								thatIs.localized(attributeKey::isLocalized);
+								thatIs.localized(attributeKey::localized);
 								if (!attributeExists) {
 									thatIs.nullable();
 								}
@@ -165,7 +165,7 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 		if (attributeBuilder.differs(newAttributes)) {
 			return new Reference(
 				entitySchema,
-				existingValue.getVersion() + 1,
+				existingValue.version() + 1,
 				existingValue.getReferenceName(), existingValue.getReferencedPrimaryKey(),
 				existingValue.getReferencedEntityType(), existingValue.getReferenceCardinality(),
 				existingValue.getGroup().orElse(null),

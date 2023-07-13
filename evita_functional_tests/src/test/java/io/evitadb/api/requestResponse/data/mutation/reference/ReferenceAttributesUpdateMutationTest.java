@@ -63,7 +63,7 @@ class ReferenceAttributesUpdateMutationTest extends AbstractMutationTest {
 		);
 
 		assertNotNull(reference);
-		assertEquals(2, reference.getVersion());
+		assertEquals(2, reference.version());
 		assertEquals("category", reference.getReferenceName());
 		assertEquals("category", reference.getReferencedEntityType());
 		assertEquals(5, reference.getReferencedPrimaryKey());
@@ -72,12 +72,12 @@ class ReferenceAttributesUpdateMutationTest extends AbstractMutationTest {
 		assertEquals(1, attributeValues.size());
 
 		final AttributeValue attributeValue = attributeValues.iterator().next();
-		assertEquals(1, attributeValue.getVersion());
-		assertEquals("categoryPriority", attributeValue.getKey().getAttributeName());
-		assertEquals(145L, attributeValue.getValue());
+		assertEquals(1, attributeValue.version());
+		assertEquals("categoryPriority", attributeValue.key().attributeName());
+		assertEquals(145L, attributeValue.value());
 
 		assertNull(reference.getGroup().orElse(null));
-		assertFalse(reference.isDropped());
+		assertFalse(reference.dropped());
 	}
 
 	@Test

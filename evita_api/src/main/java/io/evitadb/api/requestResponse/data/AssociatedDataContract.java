@@ -65,10 +65,10 @@ public interface AssociatedDataContract extends Serializable {
 			return first.getAssociatedDataValues()
 				.stream()
 				.anyMatch(it -> {
-					final AssociatedDataKey key = it.getKey();
-					final Serializable thisValue = it.getValue();
+					final AssociatedDataKey key = it.key();
+					final Serializable thisValue = it.value();
 					final Serializable otherValue = second.getAssociatedData(
-						key.getAssociatedDataName(), key.getLocale()
+						key.associatedDataName(), key.locale()
 					);
 					return QueryUtils.valueDiffers(thisValue, otherValue);
 				});
@@ -218,20 +218,10 @@ public interface AssociatedDataContract extends Serializable {
 			this(associatedDataName, null);
 		}
 
-		@Nonnull
-		public String getAssociatedDataName() {
-			return associatedDataName;
-		}
-
-		@Nullable
-		public Locale getLocale() {
-			return locale;
-		}
-
 		/**
 		 * Returns true if associatedData is localized.
 		 */
-		public boolean isLocalized() {
+		public boolean localized() {
 			return locale != null;
 		}
 
@@ -281,26 +271,6 @@ public interface AssociatedDataContract extends Serializable {
 
 		public AssociatedDataValue(int version, @Nonnull AssociatedDataKey key, @Nonnull Serializable value) {
 			this(version, key, value, false);
-		}
-
-		@Override
-		public int getVersion() {
-			return version;
-		}
-
-		@Nonnull
-		public AssociatedDataKey getKey() {
-			return key;
-		}
-
-		@Nonnull
-		public Serializable getValue() {
-			return value;
-		}
-
-		@Override
-		public boolean isDropped() {
-			return dropped;
 		}
 
 		@Override
@@ -355,8 +325,8 @@ public interface AssociatedDataContract extends Serializable {
 		@Override
 		public String toString() {
 			return (dropped ? "❌ " : "") +
-				"\uD83D\uDD11 " + key.getAssociatedDataName() + " " +
-				(key.getLocale() == null ? "" : "(" + key.getLocale() + ")") +
+				"\uD83D\uDD11 " + key.associatedDataName() + " " +
+				(key.locale() == null ? "" : "(" + key.locale() + ")") +
 				": " +
 				(
 					value instanceof Object[] ?

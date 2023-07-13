@@ -81,14 +81,14 @@ public class UpsertAssociatedDataMutationConverter extends AssociatedDataMutatio
 			new ValueTypeMapper(getExceptionFactory(), UpsertAssociatedDataMutationDescriptor.VALUE_TYPE)
 		);
 
-		final Optional<AssociatedDataSchemaContract> associatedDataSchema = entitySchema.getAssociatedData(associatedDataKey.getAssociatedDataName());
+		final Optional<AssociatedDataSchemaContract> associatedDataSchema = entitySchema.getAssociatedData(associatedDataKey.associatedDataName());
 		if (associatedDataSchema.isEmpty() && valueType == null) {
-			throw getExceptionFactory().createInvalidArgumentException("Missing value type of new associated data `" + associatedDataKey.getAssociatedDataName() + "`.");
+			throw getExceptionFactory().createInvalidArgumentException("Missing value type of new associated data `" + associatedDataKey.associatedDataName() + "`.");
 		}
 		if (associatedDataSchema.isPresent() && valueType != null) {
 			Assert.isTrue(
 				associatedDataSchema.get().getType().equals(valueType),
-				() -> getExceptionFactory().createInvalidArgumentException("Value type does not correspond with data type in associated dat schema `" + associatedDataKey.getAssociatedDataName() + "`.")
+				() -> getExceptionFactory().createInvalidArgumentException("Value type does not correspond with data type in associated dat schema `" + associatedDataKey.associatedDataName() + "`.")
 			);
 		}
 

@@ -74,7 +74,7 @@ public class PricesStoragePart implements EntityStoragePart {
 	 */
 	@Getter private final int entityPrimaryKey;
 	/**
-	 * See {@link Prices#getVersion()}.
+	 * See {@link Prices#version()}.
 	 */
 	private final int version;
 	/**
@@ -152,7 +152,7 @@ public class PricesStoragePart implements EntityStoragePart {
 	) {
 		final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
 			this.prices, priceKey,
-			(examinedPrice, pk) -> PriceIdFirstPriceKeyComparator.INSTANCE.compare(examinedPrice.getPriceKey(), pk)
+			(examinedPrice, pk) -> PriceIdFirstPriceKeyComparator.INSTANCE.compare(examinedPrice.priceKey(), pk)
 		);
 		final int position = insertionPosition.position();
 		if (insertionPosition.alreadyPresent()) {
@@ -161,7 +161,7 @@ public class PricesStoragePart implements EntityStoragePart {
 			if (this.prices[position].differsFrom(updatedPriceContract)) {
 				this.prices[position] = new PriceWithInternalIds(
 					updatedPriceContract,
-					updatedPriceContract.isSellable() ?
+					updatedPriceContract.sellable() ?
 						requireNonNull(
 							ofNullable(existingContract.getInternalPriceId())
 								.orElseGet(() -> internalPriceIdResolver.apply(priceKey))
@@ -172,7 +172,7 @@ public class PricesStoragePart implements EntityStoragePart {
 		} else {
 			final PriceContract newPrice = mutator.apply(null);
 			final Integer internalPriceId;
-			if (newPrice.isSellable()) {
+			if (newPrice.sellable()) {
 				internalPriceId = internalPriceIdResolver.apply(priceKey);
 			} else {
 				internalPriceId = null;
@@ -193,7 +193,7 @@ public class PricesStoragePart implements EntityStoragePart {
 	public PriceWithInternalIds getPriceByKey(@Nonnull PriceKey priceKey) {
 		final int index = ArrayUtils.binarySearch(
 			this.prices, priceKey,
-			(examinedPrice, pk) -> PriceIdFirstPriceKeyComparator.INSTANCE.compare(examinedPrice.getPriceKey(), pk)
+			(examinedPrice, pk) -> PriceIdFirstPriceKeyComparator.INSTANCE.compare(examinedPrice.priceKey(), pk)
 		);
 		return index >= 0 ? this.prices[index] : null;
 	}
@@ -206,7 +206,7 @@ public class PricesStoragePart implements EntityStoragePart {
 	public PriceInternalIdContainer findExistingInternalIds(@Nonnull PriceKey priceKey) {
 		Integer internalPriceId = null;
 		for (PriceWithInternalIds price : prices) {
-			if (Objects.equals(priceKey, price.getPriceKey())) {
+			if (Objects.equals(priceKey, price.priceKey())) {
 				internalPriceId = price.getInternalPriceId();
 				break;
 			}

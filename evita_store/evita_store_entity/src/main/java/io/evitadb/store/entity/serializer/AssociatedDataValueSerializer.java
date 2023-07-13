@@ -45,10 +45,10 @@ public class AssociatedDataValueSerializer extends Serializer<AssociatedDataValu
 
 	@Override
 	public void write(Kryo kryo, Output output, AssociatedDataValue associatedDataValue) {
-		output.writeVarInt(associatedDataValue.getVersion(), true);
-		output.writeVarInt(keyCompressor.getId(associatedDataValue.getKey()), true);
-		kryo.writeClassAndObject(output, associatedDataValue.getValue());
-		output.writeBoolean(associatedDataValue.isDropped());
+		output.writeVarInt(associatedDataValue.version(), true);
+		output.writeVarInt(keyCompressor.getId(associatedDataValue.key()), true);
+		kryo.writeClassAndObject(output, associatedDataValue.value());
+		output.writeBoolean(associatedDataValue.dropped());
 	}
 
 	@Override

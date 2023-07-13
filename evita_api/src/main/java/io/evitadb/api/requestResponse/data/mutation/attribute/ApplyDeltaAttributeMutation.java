@@ -109,15 +109,15 @@ public class ApplyDeltaAttributeMutation<T extends Number> extends AttributeSche
 	@Override
 	public AttributeValue mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable AttributeValue existingAttributeValue) {
 		Assert.isTrue(
-			existingAttributeValue != null && existingAttributeValue.exists() && existingAttributeValue.getValue() != null,
-			"Cannot apply delta to attribute " + attributeKey.getAttributeName() + " when it doesn't exist!"
+			existingAttributeValue != null && existingAttributeValue.exists() && existingAttributeValue.value() != null,
+			"Cannot apply delta to attribute " + attributeKey.attributeName() + " when it doesn't exist!"
 		);
 		Assert.isTrue(
-				existingAttributeValue.getValue() instanceof Number,
-				"Cannot apply delta to attribute " + attributeKey.getAttributeName() + " when its value is " +
-						existingAttributeValue.getValue().getClass().getName()
+				existingAttributeValue.value() instanceof Number,
+				"Cannot apply delta to attribute " + attributeKey.attributeName() + " when its value is " +
+						existingAttributeValue.value().getClass().getName()
 		);
-		final Number existingValue = (Number) existingAttributeValue.getValue();
+		final Number existingValue = (Number) existingAttributeValue.value();
 		final T newValue;
 		if (existingValue instanceof BigDecimal) {
 			//noinspection unchecked
@@ -147,7 +147,7 @@ public class ApplyDeltaAttributeMutation<T extends Number> extends AttributeSche
 				)
 			);
 		}
-		return new AttributeValue(existingAttributeValue.getVersion() + 1, attributeKey, newValue);
+		return new AttributeValue(existingAttributeValue.version() + 1, attributeKey, newValue);
 	}
 
 	@Override

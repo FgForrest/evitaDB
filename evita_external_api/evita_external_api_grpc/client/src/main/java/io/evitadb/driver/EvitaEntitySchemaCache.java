@@ -185,7 +185,7 @@ class EvitaEntitySchemaCache {
 	) {
 		return fetchEntitySchema(
 			new EntitySchemaWithVersion(entityType, version),
-			schemaWrapper -> schemaWrapper == null || schemaWrapper.getEntitySchema().getVersion() != version,
+			schemaWrapper -> schemaWrapper == null || schemaWrapper.getEntitySchema().version() != version,
 			schemaAccessor
 		);
 	}
@@ -265,14 +265,14 @@ class EvitaEntitySchemaCache {
 			schemaRelevantToSession.ifPresent(it -> {
 				final SchemaWrapper newCachedValue = new SchemaWrapper(it, now);
 				this.cachedSchemas.put(
-					new EntitySchemaWithVersion(cacheKey.entityType(), it.getVersion()),
+					new EntitySchemaWithVersion(cacheKey.entityType(), it.version()),
 					newCachedValue
 				);
 				// initialize the latest known entity schema if missing
 				final LatestEntitySchema latestEntitySchema = new LatestEntitySchema(cacheKey.entityType());
 				final SchemaWrapper latestCachedVersion = this.cachedSchemas.putIfAbsent(latestEntitySchema, newCachedValue);
 				// if not missing verify the stored value is really the latest one and if not rewrite it
-				if (latestCachedVersion != null && latestCachedVersion.getEntitySchema().getVersion() < newCachedValue.getEntitySchema().getVersion()) {
+				if (latestCachedVersion != null && latestCachedVersion.getEntitySchema().version() < newCachedValue.getEntitySchema().version()) {
 					this.cachedSchemas.put(latestEntitySchema, newCachedValue);
 				}
 			});
@@ -302,7 +302,7 @@ class EvitaEntitySchemaCache {
 	}
 
 	/**
-	 * Combines {@link EntitySchema#getName()} with {@link EntitySchema#getVersion()} in single tuple.
+	 * Combines {@link EntitySchema#getName()} with {@link EntitySchema#version()} in single tuple.
 	 */
 	record EntitySchemaWithVersion(
 		@Nonnull String entityType,
@@ -324,7 +324,7 @@ class EvitaEntitySchemaCache {
 	}
 
 	/**
-	 * Combines {@link EntitySchema#getName()} with {@link EntitySchema#getVersion()} in single tuple.
+	 * Combines {@link EntitySchema#getName()} with {@link EntitySchema#version()} in single tuple.
 	 */
 	static class SchemaWrapper {
 		/**

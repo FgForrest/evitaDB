@@ -69,7 +69,7 @@ public class RemoveReferenceGroupMutation extends ReferenceMutation<ReferenceKey
 		);
 		return new Reference(
 			entitySchema,
-			existingValue.getVersion() + 1,
+			existingValue.version() + 1,
 			existingValue.getReferenceName(), existingValue.getReferencedPrimaryKey(),
 			existingValue.getReferencedEntityType(), existingValue.getReferenceCardinality(),
 			existingReferenceGroup
@@ -77,12 +77,12 @@ public class RemoveReferenceGroupMutation extends ReferenceMutation<ReferenceKey
 				.map(it -> new GroupEntityReference(
 						it.getType(),
 						it.getPrimaryKey(),
-						it.getVersion() + 1,
+						it.version() + 1,
 						true
 					)
 				).orElseThrow(() -> new InvalidMutationException("Cannot remove reference group - no reference group is set on reference " + referenceKey + "!")),
 			existingValue.getAttributeValues(),
-			existingValue.isDropped()
+			existingValue.dropped()
 		);
 	}
 

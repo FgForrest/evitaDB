@@ -67,14 +67,14 @@ public abstract class AssociatedDataSchemaEvolvingMutation extends AssociatedDat
 			entitySchemaBuilder,
 			getAssociatedDataValue(),
 			(schemaBuilder) -> {
-				if (associatedDataKey.isLocalized()) {
-					schemaBuilder.withLocale(associatedDataKey.getLocale());
+				if (associatedDataKey.localized()) {
+					schemaBuilder.withLocale(associatedDataKey.locale());
 				}
 				schemaBuilder
 					.withAssociatedData(
-						associatedDataKey.getAssociatedDataName(),
+						associatedDataKey.associatedDataName(),
 						getAssociatedDataValue().getClass(),
-						whichIs -> whichIs.localized(associatedDataKey::isLocalized).nullable()
+						whichIs -> whichIs.localized(associatedDataKey::localized).nullable()
 					);
 			}
 		);

@@ -185,7 +185,7 @@ public abstract class AbstractEntityStorageContainerAccessor implements EntitySt
 				schemaAccessor.get(),
 				() -> {
 					// try to compute container id (keyCompressor must already recognize the EntityAssociatedDataKey)
-					final EntityAssociatedDataKey entityAssociatedDataKey = new EntityAssociatedDataKey(entityPrimaryKey, key.getAssociatedDataName(), key.getLocale());
+					final EntityAssociatedDataKey entityAssociatedDataKey = new EntityAssociatedDataKey(entityPrimaryKey, key.associatedDataName(), key.locale());
 					return ofNullable(storageContainerBuffer.fetch(entityAssociatedDataKey, AssociatedDataStoragePart.class, AssociatedDataStoragePart::computeUniquePartId))
 						// when not found in storage - create new container
 						.orElseGet(() -> new AssociatedDataStoragePart(entityPrimaryKey, associatedDataKey));

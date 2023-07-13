@@ -39,10 +39,12 @@ import one.edee.oss.proxycian.DirectMethodClassification;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.lang.reflect.Method;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 /**
  * Identifies methods that are used to get attributes from an entity and provides their implementation.
@@ -54,6 +56,24 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Ent
 	 * We may reuse singleton instance since advice is stateless.
 	 */
 	public static final GetAttributeMethodClassifier INSTANCE = new GetAttributeMethodClassifier();
+
+	/**
+	 * Provides default value (according to a schema or implicit rules) instead of null.
+	 */
+	@Nonnull
+	public static UnaryOperator<Serializable> createDefaultValueProvider(AttributeSchemaContract attributeSchema, Class<? extends Serializable> returnType) {
+		final UnaryOperator<Serializable> defaultValueProvider;
+		if (boolean.class.equals(returnType)) {
+			defaultValueProvider = attributeSchema.getDefaultValue() == null ?
+				o -> o == null ? false : o :
+				o -> o == null ? attributeSchema.getDefaultValue() : o;
+		} else if (attributeSchema.getDefaultValue() != null) {
+			defaultValueProvider = o -> o == null ? attributeSchema.getDefaultValue() : o;
+		} else {
+			defaultValueProvider = UnaryOperator.identity();
+		}
+		return defaultValueProvider;
+	}
 
 	/**
 	 * Retrieves appropriate attribute schema from the annotations on the method. If no Evita annotation is found
@@ -90,8 +110,8 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Ent
 				// We only want to handle non-abstract methods with no parameters or a single Locale parameter
 				if (
 					!ClassUtils.isAbstractOrDefault(method) ||
-					method.getParameterCount() > 1 ||
-					(method.getParameterCount() == 1 && !method.getParameterTypes()[0].equals(Locale.class))
+						method.getParameterCount() > 1 ||
+						(method.getParameterCount() == 1 && !method.getParameterTypes()[0].equals(Locale.class))
 				) {
 					return null;
 				}
@@ -108,14 +128,21 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Ent
 					final String cleanAttributeName = attributeSchema.getName();
 					final int indexedDecimalPlaces = attributeSchema.getIndexedDecimalPlaces();
 					@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
+					@SuppressWarnings("unchecked")
+					final UnaryOperator<Serializable> defaultValueProvider = createDefaultValueProvider(attributeSchema, returnType);
+
 					if (attributeSchema.isLocalized()) {
 						//noinspection unchecked
 						return method.getParameterCount() == 0 ?
 							(entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
-								theState.getSealedEntity().getAttribute(cleanAttributeName), returnType, indexedDecimalPlaces
+								defaultValueProvider.apply(
+									theState.getSealedEntity().getAttribute(cleanAttributeName)
+								), returnType, indexedDecimalPlaces
 							) :
 							(entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
-								theState.getSealedEntity().getAttribute(cleanAttributeName, (Locale) args[0]), returnType, indexedDecimalPlaces
+								defaultValueProvider.apply(
+									theState.getSealedEntity().getAttribute(cleanAttributeName, (Locale) args[0])
+								), returnType, indexedDecimalPlaces
 							);
 					} else {
 						Assert.isTrue(
@@ -124,7 +151,9 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Ent
 						);
 						//noinspection unchecked
 						return (entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
-							theState.getSealedEntity().getAttribute(cleanAttributeName), returnType, indexedDecimalPlaces
+							defaultValueProvider.apply(
+								theState.getSealedEntity().getAttribute(cleanAttributeName)
+							), returnType, indexedDecimalPlaces
 						);
 					}
 				}

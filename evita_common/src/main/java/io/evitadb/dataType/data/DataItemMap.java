@@ -45,14 +45,11 @@ import java.util.stream.Collectors;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Immutable
-public final class DataItemMap implements DataItem {
+public record DataItemMap(
+	@Nonnull Map<String, DataItem> childrenIndex
+) implements DataItem {
 	public static final DataItemMap EMPTY = new DataItemMap(Collections.emptyMap());
 	@Serial private static final long serialVersionUID = -4294098994748163813L;
-	private final Map<String, DataItem> childrenIndex;
-
-	public DataItemMap(@Nonnull Map<String, DataItem> children) {
-		this.childrenIndex = children;
-	}
 
 	/**
 	 * Method allows to iterate over all items in this array with passed `consumer`. Third argument of the tri-consumer

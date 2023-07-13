@@ -136,7 +136,7 @@ public record Price(
 			// price id
 			MemoryMeasuringConstants.INT_SIZE +
 			// price list
-			EvitaDataTypes.estimateSize(priceKey.getPriceList()) +
+			EvitaDataTypes.estimateSize(priceKey.priceList()) +
 			// currency
 			MemoryMeasuringConstants.REFERENCE_SIZE +
 			// inner record id
@@ -148,66 +148,20 @@ public record Price(
 	}
 
 	@Override
-	public int getVersion() {
-		return version;
-	}
-
-	@Override
-	@Nonnull
-	public PriceKey getPriceKey() {
-		return priceKey;
-	}
-
-	public int getPriceId() {
-		return priceKey.getPriceId();
-	}
-
-	@Nonnull
-	public String getPriceList() {
-		return priceKey.getPriceList();
-	}
-
-	@Nonnull
-	public Currency getCurrency() {
-		return priceKey.getCurrency();
-	}
-
-	@Override
-	public Integer getInnerRecordId() {
-		return innerRecordId;
+	public int priceId() {
+		return priceKey.priceId();
 	}
 
 	@Nonnull
 	@Override
-	public BigDecimal getPriceWithoutTax() {
-		return priceWithoutTax;
+	public String priceList() {
+		return priceKey.priceList();
 	}
 
 	@Nonnull
 	@Override
-	public BigDecimal getTaxRate() {
-		return taxRate;
-	}
-
-	@Nonnull
-	@Override
-	public BigDecimal getPriceWithTax() {
-		return priceWithTax;
-	}
-
-	@Override
-	public DateTimeRange getValidity() {
-		return validity;
-	}
-
-	@Override
-	public boolean isSellable() {
-		return sellable;
-	}
-
-	@Override
-	public boolean isDropped() {
-		return dropped;
+	public Currency currency() {
+		return priceKey.currency();
 	}
 
 	@Override
@@ -231,10 +185,10 @@ public record Price(
 	@Override
 	public String toString() {
 		return (dropped ? "❌ " : "") +
-			"\uD83D\uDCB0 " + (sellable ? "\uD83D\uDCB5 " : "") + priceWithTax + " " + priceKey.getCurrency() + " (" + taxRate + "%)" +
-			", price list " + priceKey.getPriceList() +
+			"\uD83D\uDCB0 " + (sellable ? "\uD83D\uDCB5 " : "") + priceWithTax + " " + priceKey.currency() + " (" + taxRate + "%)" +
+			", price list " + priceKey.priceList() +
 			(validity == null ? "" : ", valid in " + validity) +
-			", external id " + priceKey.getPriceId() +
+			", external id " + priceKey.priceId() +
 			(innerRecordId == null ? "" : "/" + innerRecordId);
 	}
 
@@ -252,7 +206,7 @@ public record Price(
 	 *                  identification may refer to another Evita entity or may contain any external price list identification
 	 *                  (for example id or unique name of the price list in the external system).
 	 *
-	 *                  Single entity is expected to have single price for the price list unless there is {@link #getValidity()} specified.
+	 *                  Single entity is expected to have single price for the price list unless there is {@link #validity()} specified.
 	 *                  In other words there is no sense to have multiple concurrently valid prices for the same entity that have roots
 	 *                  in the same price list.
 	 * @param currency  Identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
@@ -268,20 +222,6 @@ public record Price(
 		public PriceKey {
 			Assert.notNull(priceList, "Price list name is mandatory value!");
 			Assert.notNull(currency, "Price currency is mandatory value!");
-		}
-
-		public int getPriceId() {
-			return priceId;
-		}
-
-		@Nonnull
-		public String getPriceList() {
-			return priceList;
-		}
-
-		@Nonnull
-		public Currency getCurrency() {
-			return currency;
 		}
 
 		@Override
@@ -317,9 +257,9 @@ public record Price(
 
 		@Override
 		public int compare(PriceKey o1, PriceKey o2) {
-			int result = Integer.compare(o1.getPriceId(), o2.getPriceId());
+			int result = Integer.compare(o1.priceId(), o2.priceId());
 			if (result == 0) {
-				result = o1.getCurrency().getCurrencyCode().compareTo(o2.currency.getCurrencyCode());
+				result = o1.currency().getCurrencyCode().compareTo(o2.currency.getCurrencyCode());
 				if (result == 0) {
 					return o1.priceList.compareTo(o2.priceList);
 				} else {

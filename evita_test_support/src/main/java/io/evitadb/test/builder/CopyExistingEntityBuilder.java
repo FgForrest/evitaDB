@@ -54,7 +54,7 @@ public class CopyExistingEntityBuilder extends InitialEntityBuilder {
 				.getAttributeValues()
 				.stream()
 				.map(it -> {
-					final String attributeName = it.getKey().getAttributeName();
+					final String attributeName = it.key().attributeName();
 					final AttributeSchemaContract attributeSchema = externalEntity.getSchema().getAttribute(attributeName)
 						.orElseThrow(() -> new EvitaInvalidUsageException("Attribute schema with name `" + attributeName + "` not found!"));
 					// this means that the entity might be inserted into the same Evita instance twice
@@ -67,8 +67,8 @@ public class CopyExistingEntityBuilder extends InitialEntityBuilder {
 							"Currently, only String unique attributes can be altered!"
 						);
 						// and we need to add suffix that makes this value unique
-						final String value =  it.getValue() + "_" + overriddenPrimaryKey;
-						return new AttributeValue(it.getKey(), value);
+						final String value =  it.value() + "_" + overriddenPrimaryKey;
+						return new AttributeValue(it.key(), value);
 					} else {
 						return it;
 					}

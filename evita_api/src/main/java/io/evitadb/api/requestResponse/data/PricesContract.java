@@ -70,37 +70,37 @@ public interface PricesContract extends Serializable {
 		final Stream<PriceContract> pricesStream = entityPrices
 			.stream()
 			.filter(PriceContract::exists)
-			.filter(PriceContract::isSellable)
-			.filter(it -> currency.equals(it.getCurrency()))
-			.filter(it -> ofNullable(atTheMoment).map(mmt -> it.getValidity() == null || it.getValidity().isValidFor(mmt)).orElse(true))
-			.filter(it -> pLists.containsKey(it.getPriceList()));
+			.filter(PriceContract::sellable)
+			.filter(it -> currency.equals(it.currency()))
+			.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true))
+			.filter(it -> pLists.containsKey(it.priceList()));
 
 		switch (innerRecordHandling) {
 			case NONE -> {
 				return pricesStream
-					.min(Comparator.comparing(o -> pLists.get(o.getPriceList())))
+					.min(Comparator.comparing(o -> pLists.get(o.priceList())))
 					.filter(filterPredicate);
 			}
 			case FIRST_OCCURRENCE -> {
 				final Map<Integer, List<PriceContract>> pricesByInnerId = pricesStream
-					.collect(Collectors.groupingBy(it -> ofNullable(it.getInnerRecordId()).orElse(0)));
+					.collect(Collectors.groupingBy(it -> ofNullable(it.innerRecordId()).orElse(0)));
 				return pricesByInnerId
 					.values()
 					.stream()
 					.map(prices -> prices.stream()
-						.min(Comparator.comparing(o -> pLists.get(o.getPriceList())))
+						.min(Comparator.comparing(o -> pLists.get(o.priceList())))
 						.orElse(null))
 					.filter(Objects::nonNull)
 					.filter(filterPredicate)
-					.min(Comparator.comparing(PriceContract::getPriceWithTax));
+					.min(Comparator.comparing(PriceContract::priceWithTax));
 			}
 			case SUM -> {
 				final List<PriceContract> innerRecordPrices = pricesStream
-					.collect(Collectors.groupingBy(it -> ofNullable(it.getInnerRecordId()).orElse(0)))
+					.collect(Collectors.groupingBy(it -> ofNullable(it.innerRecordId()).orElse(0)))
 					.values()
 					.stream()
 					.map(prices -> prices.stream()
-						.min(Comparator.comparing(o -> pLists.get(o.getPriceList())))
+						.min(Comparator.comparing(o -> pLists.get(o.priceList())))
 						.orElse(null))
 					.filter(Objects::nonNull)
 					.toList();
@@ -110,13 +110,13 @@ public interface PricesContract extends Serializable {
 					final PriceContract firstPrice = innerRecordPrices.get(0);
 					// create virtual sum price
 					final Price resultPrice = new Price(
-						1, firstPrice.getPriceKey(), null,
-						innerRecordPrices.stream().map(PriceContract::getPriceWithoutTax).reduce(BigDecimal::add).orElse(BigDecimal.ZERO),
-						innerRecordPrices.stream().map(PriceContract::getTaxRate).reduce((tax, tax2) -> {
+						1, firstPrice.priceKey(), null,
+						innerRecordPrices.stream().map(PriceContract::priceWithoutTax).reduce(BigDecimal::add).orElse(BigDecimal.ZERO),
+						innerRecordPrices.stream().map(PriceContract::taxRate).reduce((tax, tax2) -> {
 							Assert.isTrue(tax.compareTo(tax2) == 0, "Prices have to have same tax rate in order to compute selling price!");
 							return tax;
 						}).orElse(BigDecimal.ZERO),
-						innerRecordPrices.stream().map(PriceContract::getPriceWithTax).reduce(BigDecimal::add).orElse(BigDecimal.ZERO),
+						innerRecordPrices.stream().map(PriceContract::priceWithTax).reduce(BigDecimal::add).orElse(BigDecimal.ZERO),
 						// computed virtual price has always no validity
 						null,
 						true
@@ -140,7 +140,7 @@ public interface PricesContract extends Serializable {
 		} else {
 			return thisValues
 				.stream()
-				.anyMatch(it -> it.differsFrom(second.getPrice(it.getPriceId(), it.getPriceList(), it.getCurrency()).orElse(null)));
+				.anyMatch(it -> it.differsFrom(second.getPrice(it.priceId(), it.priceList(), it.currency()).orElse(null)));
 		}
 	}
 
@@ -163,7 +163,7 @@ public interface PricesContract extends Serializable {
 	default Collection<PriceContract> getPrices(@Nonnull String priceList) {
 		return getPrices()
 			.stream()
-			.filter(it -> priceList.equals(it.getPriceList()))
+			.filter(it -> priceList.equals(it.priceList()))
 			.collect(Collectors.toList());
 	}
 
@@ -176,7 +176,7 @@ public interface PricesContract extends Serializable {
 	default Collection<PriceContract> getPrices(@Nonnull Currency currency) {
 		return getPrices()
 			.stream()
-			.filter(it -> currency.equals(it.getCurrency()))
+			.filter(it -> currency.equals(it.currency()))
 			.collect(Collectors.toList());
 	}
 
@@ -190,7 +190,7 @@ public interface PricesContract extends Serializable {
 	default Collection<PriceContract> getPrices(@Nonnull Currency currency, @Nonnull String priceList) {
 		return getPrices()
 			.stream()
-			.filter(it -> currency.equals(it.getCurrency()) && priceList.equals(it.getPriceList()))
+			.filter(it -> currency.equals(it.currency()) && priceList.equals(it.priceList()))
 			.collect(Collectors.toList());
 	}
 
@@ -255,10 +255,10 @@ public interface PricesContract extends Serializable {
 		return getPrices()
 			.stream()
 			.filter(PriceContract::exists)
-			.filter(PriceContract::isSellable)
-			.filter(it -> currency == null || currency.equals(it.getCurrency()))
-			.filter(it -> ofNullable(atTheMoment).map(mmt -> it.getValidity() == null || it.getValidity().isValidFor(mmt)).orElse(true))
-			.filter(it -> pLists.isEmpty() || pLists.contains(it.getPriceList()))
+			.filter(PriceContract::sellable)
+			.filter(it -> currency == null || currency.equals(it.currency()))
+			.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true))
+			.filter(it -> pLists.isEmpty() || pLists.contains(it.priceList()))
 			.toList();
 	}
 
@@ -290,7 +290,7 @@ public interface PricesContract extends Serializable {
 		switch (getPriceInnerRecordHandling()) {
 			case NONE, SUM -> {
 				return getPriceForSale(currency, atTheMoment, priceListPriority)
-					.map(it -> queryPriceMode == QueryPriceMode.WITHOUT_TAX ? it.getPriceWithoutTax() : it.getPriceWithTax())
+					.map(it -> queryPriceMode == QueryPriceMode.WITHOUT_TAX ? it.priceWithoutTax() : it.priceWithTax())
 					.map(it -> from.compareTo(it) <= 0 && to.compareTo(it) >= 0)
 					.orElse(false);
 			}
@@ -303,17 +303,17 @@ public interface PricesContract extends Serializable {
 				final Map<Integer, List<PriceContract>> pricesByInnerRecordId = getPrices()
 					.stream()
 					.filter(PriceContract::exists)
-					.filter(PriceContract::isSellable)
-					.filter(it -> currency.equals(it.getCurrency()))
-					.filter(it -> ofNullable(atTheMoment).map(mmt -> it.getValidity() == null || it.getValidity().isValidFor(mmt)).orElse(true))
-					.filter(it -> pLists.containsKey(it.getPriceList()))
-					.collect(Collectors.groupingBy(it -> ofNullable(it.getInnerRecordId()).orElse(0)));
+					.filter(PriceContract::sellable)
+					.filter(it -> currency.equals(it.currency()))
+					.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true))
+					.filter(it -> pLists.containsKey(it.priceList()))
+					.collect(Collectors.groupingBy(it -> ofNullable(it.innerRecordId()).orElse(0)));
 				return pricesByInnerRecordId
 					.values()
 					.stream()
 					.anyMatch(prices -> prices.stream()
-						.min(Comparator.comparing(o -> pLists.get(o.getPriceList())))
-						.map(it -> queryPriceMode == QueryPriceMode.WITHOUT_TAX ? it.getPriceWithoutTax() : it.getPriceWithTax())
+						.min(Comparator.comparing(o -> pLists.get(o.priceList())))
+						.map(it -> queryPriceMode == QueryPriceMode.WITHOUT_TAX ? it.priceWithoutTax() : it.priceWithTax())
 						.map(it -> from.compareTo(it) <= 0 && to.compareTo(it) >= 0)
 						.orElse(null));
 			}
@@ -352,6 +352,6 @@ public interface PricesContract extends Serializable {
 	 * Returns version timestamp signalizing change in prices - namely in {@link #getPriceInnerRecordHandling()} because
 	 * {@link PriceContract} is versioned separately.
 	 */
-	int getPricesVersion();
+	int pricesVersion();
 
 }

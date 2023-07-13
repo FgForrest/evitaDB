@@ -34,7 +34,7 @@ import java.io.Serial;
 /**
  * Exception is thrown when price with same price id is about to be inserted into the {@link PriceSuperIndex}.
  * Price primary key is unique identifier and two entities (either one entity) cannot have multiple prices with
- * identical {@link PriceContract#getPriceId()}.
+ * identical {@link PriceContract#priceId()}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */

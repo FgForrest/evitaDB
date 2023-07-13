@@ -28,7 +28,6 @@
 	}
 )
 public interface Product {
-
 	@PrimaryKey
 	int getId();
 
@@ -52,10 +51,10 @@ public interface Product {
 	@Nonnull
 	ReferencedFiles getReferencedFiles();
 
-	@Parent
+	@ParentEntity
 	int getParentEntity();
 
-	@SellingPrice
+	@PriceForSale
 	PriceContract getSellingPrice();
 
 	@Reference

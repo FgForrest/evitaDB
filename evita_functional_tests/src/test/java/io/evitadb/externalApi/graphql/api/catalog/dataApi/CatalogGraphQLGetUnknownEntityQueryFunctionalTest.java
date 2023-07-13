@@ -31,9 +31,9 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
-import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.tester.GraphQLTester;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -46,8 +46,6 @@ import java.util.function.Predicate;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.api.query.QueryConstraints.entityFetch;
-import static io.evitadb.api.query.QueryConstraints.hierarchyContent;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ATTRIBUTE_MARKET_SHARE;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
@@ -469,7 +467,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 							.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
 							.e(PriceDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
 							.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-							.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().getPriceWithTax().toString())
+							.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax().toString())
 							.build())
 						.build()
 				)
@@ -687,7 +685,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 								.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
 								.e(PriceDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
 								.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-								.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().getPriceWithTax().toString())
+								.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax().toString())
 								.build()
 						))
 						.build()
@@ -725,10 +723,10 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 					map()
 						.e(EntityDescriptor.PRICES.name(), List.of(
 							map()
-								.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().getPriceWithTax().toString())
+								.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax().toString())
 								.build(),
 							map()
-								.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_VIP).iterator().next().getPriceWithTax().toString())
+								.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_VIP).iterator().next().priceWithTax().toString())
 								.build()
 						))
 						.build()

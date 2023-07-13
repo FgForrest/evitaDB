@@ -94,8 +94,8 @@ class InitialPricesBuilderTest {
 
 		final Collection<PriceContract> basicPrices = prices.getPrices(CZK, "basic");
 		assertEquals(2, basicPrices.size());
-		assertTrue(basicPrices.stream().anyMatch(it -> it.getPriceId() == 1));
-		assertTrue(basicPrices.stream().anyMatch(it -> it.getPriceId() == 2));
+		assertTrue(basicPrices.stream().anyMatch(it -> it.priceId() == 1));
+		assertTrue(basicPrices.stream().anyMatch(it -> it.priceId() == 2));
 	}
 
 	@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
@@ -106,9 +106,9 @@ class InitialPricesBuilderTest {
 
 	public static void assertPrice(PriceContract price, BigDecimal priceWithoutTax, BigDecimal taxRate, BigDecimal priceWithTax, boolean indexed) {
 		assertNotNull(price);
-		assertEquals(priceWithoutTax, price.getPriceWithoutTax());
-		assertEquals(taxRate, price.getTaxRate());
-		assertEquals(priceWithTax, price.getPriceWithTax());
-		assertEquals(indexed, price.isSellable());
+		assertEquals(priceWithoutTax, price.priceWithoutTax());
+		assertEquals(taxRate, price.taxRate());
+		assertEquals(priceWithTax, price.priceWithTax());
+		assertEquals(indexed, price.sellable());
 	}
 }

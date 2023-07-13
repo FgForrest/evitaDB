@@ -390,11 +390,11 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 				(Object[]) Stream.of(
 						Stream.of(String.valueOf(sealedEntity.getPrimaryKey())),
 						Arrays.stream(headers)
-							.filter(it -> !ENTITY_PRIMARY_KEY.equals(it) && !it.startsWith(REF_LINK))
+							.filter(it -> !ENTITY_PRIMARY_KEY.equals(it) && !it.startsWith(REF_LINK) && !it.startsWith(PRICE_LINK))
 							.map(sealedEntity::getAttributeValue)
 							.filter(Optional::isPresent)
 							.map(Optional::get)
-							.map(AttributeValue::getValue)
+							.map(AttributeValue::value)
 							.map(EvitaDataTypes::formatValue),
 						Arrays.stream(headers)
 							.filter(it -> it.startsWith(REF_LINK))
@@ -409,7 +409,7 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 						Arrays.stream(headers)
 							.filter(PRICE_FOR_SALE::equals)
 							.map(it -> sealedEntity.getPriceForSale()
-								.map(price -> PRICE_LINK + priceFormatter.format(price.getPriceWithTax()) + " (with " + percentFormatter.format(price.getTaxRate()) + "% tax) / " + priceFormatter.format(price.getPriceWithoutTax()))
+								.map(price -> PRICE_LINK + priceFormatter.format(price.priceWithTax()) + " (with " + percentFormatter.format(price.taxRate()) + "% tax) / " + priceFormatter.format(price.priceWithoutTax()))
 								.orElse("N/A"))
 					)
 					.flatMap(Function.identity())
