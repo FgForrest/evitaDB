@@ -743,7 +743,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 
 		final FacetSummary facetSummary = result.getExtraResult(FacetSummary.class);
 		assertNotNull(facetSummary);
-		assertTrue(facetSummary.getFacetGroupStatistics().size() > 0);
+		assertTrue(facetSummary.getReferenceStatistics().size() > 0);
 	}
 
 	@Test

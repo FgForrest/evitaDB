@@ -107,7 +107,7 @@ public class ExtraResultsJsonSerializer {
 
 	@Nonnull
 	private JsonNode serializeFacetSummary(@Nonnull FacetSummary facetSummary) {
-		final Collection<FacetGroupStatistics> facetGroupStatistics = facetSummary.getFacetGroupStatistics();
+		final Collection<FacetGroupStatistics> facetGroupStatistics = facetSummary.getReferenceStatistics();
 		final HashMap<String, List<FacetGroupStatistics>> groupedStats = new HashMap<>();
 		for (FacetGroupStatistics facetGroupStatistic : facetGroupStatistics) {
 			if (groupedStats.containsKey(facetGroupStatistic.getReferenceName())) {
