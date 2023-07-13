@@ -390,7 +390,7 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 				(Object[]) Stream.of(
 						Stream.of(String.valueOf(sealedEntity.getPrimaryKey())),
 						Arrays.stream(headers)
-							.filter(it -> !ENTITY_PRIMARY_KEY.equals(it) && !it.startsWith(REF_LINK))
+							.filter(it -> !ENTITY_PRIMARY_KEY.equals(it) && !it.startsWith(REF_LINK) && !it.startsWith(PRICE_LINK))
 							.map(sealedEntity::getAttributeValue)
 							.filter(Optional::isPresent)
 							.map(Optional::get)
