@@ -21,26 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.data.annotation;
+package io.evitadb.api.proxy;
 
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-
-import java.lang.annotation.Documented;
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import javax.annotation.Nonnull;
 
 /**
- * Annotation is used to mark a field, getter method or record component as a target for
- * {@link HierarchicalPlacement} value. Using this annotation in the class also triggers
- * {@link EntitySchemaContract#isWithHierarchy()} to true.
+ * Abstract superinterface for all EvitaDB proxies.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@Documented
-@Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.FIELD, ElementType.METHOD, ElementType.RECORD_COMPONENT})
-public @interface Parent {
+interface EvitaProxy {
+
+	/**
+	 * Returns the original proxy class what used for creating the proxy. The proxy class is usually a subclass of
+	 * this class or implementation of this interface.
+	 *
+	 * @return the proxy class
+	 */
+	@Nonnull
+	Class<?> getProxyClass();
 
 }

@@ -29,7 +29,6 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -38,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.util.Optional;
 import java.util.Set;
 
@@ -107,7 +107,7 @@ public interface CatalogContract {
 	 * The method is used to locate entities of up-front unknown type by their globally unique attributes.
 	 */
 	@Nonnull
-	<S extends EntityClassifier, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
+	<S extends Serializable, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
 
 	/**
 	 * Creates and returns collection maintaining all entities of same type. If collection for the entity type exists

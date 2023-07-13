@@ -93,8 +93,10 @@ public class EntityFactory {
 			// always initialize Attributes container
 			new Attributes(
 				entitySchema,
+				null,
 				// fill all contents of the attributes loaded from storage (may be empty)
-				attributeValues
+				attributeValues,
+				entitySchema.getAttributes()
 			),
 			// always initialize Associated data container
 			new AssociatedData(
@@ -184,7 +186,12 @@ public class EntityFactory {
 				// use original attributes from the entity contents
 				null :
 				// otherwise combine
-				new Attributes(entitySchema, attributeValues.values()),
+				new Attributes(
+					entitySchema,
+					null,
+					attributeValues.values(),
+					entitySchema.getAttributes()
+				),
 			// when no additional associated data containers were loaded
 			associatedDataStorageContainers.isEmpty() ?
 				// use original associated data from the entity contents

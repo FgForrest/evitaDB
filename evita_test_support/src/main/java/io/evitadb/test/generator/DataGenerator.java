@@ -53,6 +53,7 @@ import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.ReflectionLookup.ArgumentKey;
 import io.evitadb.utils.StringUtils;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import one.edee.oss.pmptt.PMPTT;
 import one.edee.oss.pmptt.dao.memory.MemoryStorage;
@@ -1235,11 +1236,15 @@ public class DataGenerator {
 		}
 	}
 
+	@NoArgsConstructor
 	@Data
 	public static class ReferencedFileSet implements Serializable {
 		@Serial private static final long serialVersionUID = -1355676966187183143L;
 		private String someField = "someValue";
 
+		public ReferencedFileSet(String someField) {
+			this.someField = someField;
+		}
 	}
 
 	@Data

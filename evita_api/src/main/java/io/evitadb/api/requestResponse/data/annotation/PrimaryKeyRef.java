@@ -23,37 +23,25 @@
 
 package io.evitadb.api.requestResponse.data.annotation;
 
-import io.evitadb.api.requestResponse.data.PriceContract;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.data.EntityContract;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.util.Set;
 
 /**
- * Annotation is used to mark a field, getter method or record component as a target for
- * {@link PriceContract} value that is selected as selling price. Using this annotation in the class also triggers
- * {@link EntitySchemaContract#isWithPrice()} to true.
+ * Annotation is used to mark a field, getter method or constructor method argument as a reference
+ * to {@link EntityContract#getPrimaryKey()} value.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.FIELD, ElementType.METHOD, ElementType.RECORD_COMPONENT})
-public @interface SellingPrice {
-
-	/**
-	 * Determines how many fractional places are important when entities are compared during filtering or sorting.
-	 * Propagates to {@link EntitySchemaContract#getIndexedPricePlaces()}.
-	 */
-	int indexedPricePlaces() default 2;
-
-	/**
-	 * Specifies set of allowed currencies for this entity. If left empty, all are allowed.
-	 * Propagates to {@link EntitySchemaContract#getCurrencies()}
-	 */
-	String[] allowedCurrencies() default {};
+@Target({ElementType.FIELD, ElementType.METHOD, ElementType.PARAMETER})
+public @interface PrimaryKeyRef {
+	Set<String> POSSIBLE_ARGUMENT_NAMES = Set.of("primaryKey", "entityPrimaryKey", "pk", "id");
 
 }

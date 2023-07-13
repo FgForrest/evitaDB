@@ -68,7 +68,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Optional.empty;
-import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -580,28 +579,15 @@ public class EntityDecorator implements SealedEntity {
 	@Nonnull
 	@Override
 	public Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName) {
+		final Optional<AttributeValue> result;
 		if (attributePredicate.isLocaleSet()) {
-			Optional<AttributeValue> result = delegate.getAttributeValue(attributeName);
-			if (result.isEmpty()) {
-				Locale resultLocale = null;
-				for (AttributeValue resultAdept : delegate.getAttributeValues(attributeName)) {
-					if (attributePredicate.test(resultAdept)) {
-						if (result.isEmpty()) {
-							result = of(resultAdept);
-							resultLocale = resultAdept.getKey().getLocale();
-						} else {
-							throw new EvitaInvalidUsageException(
-								"Attribute `" + attributeName + "` has multiple values for different locales: `" +
-									resultLocale + "` and `" + resultAdept.getKey().getLocale() + "`!"
-							);
-						}
-					}
-				}
-			}
-			return result.filter(attributePredicate);
+			final Locale locale = attributePredicate.getLocale();
+			result = locale == null ?
+				delegate.getAttributeValue(attributeName) : delegate.getAttributeValue(attributeName, locale);
 		} else {
-			return delegate.getAttributeValue(attributeName);
+			result = delegate.getAttributeValue(attributeName);
 		}
+		return result.filter(attributePredicate);
 	}
 
 	@Nullable
@@ -718,29 +704,14 @@ public class EntityDecorator implements SealedEntity {
 	@Nonnull
 	@Override
 	public Optional<AssociatedDataValue> getAssociatedDataValue(@Nonnull String associatedDataName) {
-		final Set<Locale> requestedLocales = associatedDataPredicate.getLocales();
-		if (requestedLocales == null) {
+		if (associatedDataPredicate.isLocaleSet()) {
+			final Locale locale = associatedDataPredicate.getLocale();
+			final Optional<AssociatedDataValue> result = locale == null ?
+				delegate.getAssociatedDataValue(associatedDataName) : delegate.getAssociatedDataValue(associatedDataName, locale);
+			return result.filter(associatedDataPredicate);
+		} else {
 			return delegate.getAssociatedDataValue(associatedDataName)
 				.filter(associatedDataPredicate);
-		} else {
-			Optional<AssociatedDataValue> result = delegate.getAssociatedDataValue(associatedDataName);
-			if (result.isEmpty()) {
-				Locale resultLocale = null;
-				final Set<Locale> examinedLocales = requestedLocales.isEmpty() ? delegate.getAssociatedDataLocales() : requestedLocales;
-				for (Locale requestedLocale : examinedLocales) {
-					final Optional<AssociatedDataValue> resultAdept = delegate.getAssociatedDataValue(associatedDataName, requestedLocale);
-					if (result.isEmpty()) {
-						result = resultAdept;
-						resultLocale = requestedLocale;
-					} else {
-						throw new EvitaInvalidUsageException(
-							"Associated data `" + associatedDataName + "` has multiple values for different locales: `" +
-								resultLocale + "` and `" + requestedLocale + "`!"
-						);
-					}
-				}
-			}
-			return result.filter(associatedDataPredicate);
 		}
 	}
 

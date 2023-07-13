@@ -282,10 +282,6 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 						)
 					)
 				)
-				.values()
-				.stream()
-				.flatMap(Collection::stream)
-				.collect(Collectors.toList())
 		);
 	}
 

@@ -116,8 +116,8 @@ public interface PriceContract extends Versioned, Droppable, Serializable, Compa
 	/**
 	 * Returns true if price is valid at the passed date and time.
 	 */
-	default boolean isValid(@Nonnull OffsetDateTime atTheMoment) {
-		return Optional.ofNullable(getValidity()).map(it -> it.isValidFor(atTheMoment)).orElse(true);
+	default boolean isValidAt(@Nonnull OffsetDateTime theMoment) {
+		return Optional.ofNullable(getValidity()).map(it -> it.isValidFor(theMoment)).orElse(true);
 	}
 
 	/**

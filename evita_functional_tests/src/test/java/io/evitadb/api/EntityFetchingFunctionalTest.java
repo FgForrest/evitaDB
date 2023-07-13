@@ -23,7 +23,6 @@
 
 package io.evitadb.api;
 
-import com.github.javafaker.Faker;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.exception.AssociatedDataContentMisplacedException;
 import io.evitadb.api.exception.AssociatedDataNotFoundException;
@@ -47,7 +46,6 @@ import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithParent;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
-import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -56,7 +54,6 @@ import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
-import io.evitadb.test.generator.DataGenerator;
 import lombok.extern.slf4j.Slf4j;
 import one.edee.oss.pmptt.model.Hierarchy;
 import one.edee.oss.pmptt.model.HierarchyItem;
@@ -82,7 +79,6 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.test.extension.DataCarrier.tuple;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -109,17 +105,14 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
-public class EntityFetchingFunctionalTest {
-	protected static final String FIFTY_PRODUCTS = "FiftyProducts";
-	private static final int SEED = 40;
+public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctionalTest {
+	private static final String FIFTY_PRODUCTS = "FiftyProducts";
 	private static final Locale LOCALE_CZECH = CZECH_LOCALE;
-	private static final String ATTRIBUTE_CATEGORY_SHADOW = "shadow";
 	private final static BiFunction<SealedEntity, String, int[]> REFERENCED_ID_EXTRACTOR =
 		(entity, referencedType) -> entity.getReferences(referencedType)
 			.stream()
 			.mapToInt(ReferenceContract::getReferencedPrimaryKey)
 			.toArray();
-	private final DataGenerator dataGenerator = new DataGenerator();
 
 	private static void assertProduct(SealedEntity product, int primaryKey, boolean hasAttributes, boolean hasAssociatedData, boolean hasPrices, boolean hasReferences) {
 		assertEquals(primaryKey, (int) Objects.requireNonNull(product.getPrimaryKey()));
@@ -222,169 +215,9 @@ public class EntityFetchingFunctionalTest {
 	}
 
 	@DataSet(value = FIFTY_PRODUCTS, destroyAfterClass = true)
+	@Override
 	DataCarrier setUp(Evita evita) {
-		return evita.updateCatalog(TEST_CATALOG, session -> {
-			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {
-				final int entityCount = session.getEntityCollectionSize(entityType);
-				final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
-				return primaryKey == 0 ? null : primaryKey;
-			};
-
-			final List<EntityReference> storedCategories = dataGenerator.generateEntities(
-					dataGenerator.getSampleCategorySchema(
-						session,
-						builder -> {
-							builder
-								/* here we define set of associated data, that can be stored along with entity */
-								.withAssociatedData(ASSOCIATED_DATA_REFERENCED_FILES, ReferencedFileSet.class)
-								.withAssociatedData(ASSOCIATED_DATA_LABELS, Labels.class)
-								.updateVia(session);
-							return builder.toInstance();
-						}
-					),
-					randomEntityPicker,
-					SEED
-				)
-				.limit(10)
-				.map(session::upsertEntity)
-				.toList();
-
-			dataGenerator.generateEntities(
-					dataGenerator.getSamplePriceListSchema(session),
-					randomEntityPicker,
-					SEED
-				)
-				.limit(4)
-				.forEach(session::upsertEntity);
-
-			final List<EntityReference> storedStores = dataGenerator.generateEntities(
-					dataGenerator.getSampleStoreSchema(
-						session,
-						builder -> {
-							builder
-								/* here we define set of associated data, that can be stored along with entity */
-								.withAssociatedData(ASSOCIATED_DATA_REFERENCED_FILES, ReferencedFileSet.class)
-								.withAssociatedData(ASSOCIATED_DATA_LABELS, Labels.class)
-								.updateVia(session);
-							return builder.toInstance();
-						}
-					),
-					randomEntityPicker,
-					SEED
-				)
-				.limit(12)
-				.map(session::upsertEntity)
-				.toList();
-
-			final List<EntityReference> storedBrands = dataGenerator.generateEntities(
-					dataGenerator.getSampleBrandSchema(
-						session,
-						builder -> {
-							builder.withReferenceToEntity(
-								Entities.STORE, Entities.STORE, Cardinality.EXACTLY_ONE,
-								thatIs -> thatIs.indexed().withGroupTypeRelatedToEntity(Entities.CATEGORY)
-							).updateVia(session);
-							return builder.toInstance();
-						}
-					),
-					randomEntityPicker,
-					SEED
-				)
-				.limit(5)
-				.map(session::upsertEntity)
-				.toList();
-
-			final List<EntityReference> storedParameters = dataGenerator.generateEntities(
-					dataGenerator.getSampleParameterSchema(
-						session,
-						builder -> {
-							builder.withAttribute(
-								ATTRIBUTE_PRIORITY, Long.class, thatIs -> thatIs.filterable()
-							).updateVia(session);
-							return builder.toInstance();
-						}
-					),
-					randomEntityPicker,
-					SEED
-				)
-				.limit(100)
-				.map(session::upsertEntity)
-				.toList();
-
-			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
-					dataGenerator.getSampleProductSchema(
-						session,
-						builder -> {
-							builder
-								.withReferenceToEntity(
-									Entities.CATEGORY,
-									Entities.CATEGORY,
-									Cardinality.ZERO_OR_MORE,
-									whichIs ->
-										whichIs.indexed()
-											.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class, thatIs -> thatIs.nullable(() -> false))
-											.withAttribute(ATTRIBUTE_CATEGORY_SHADOW, Boolean.class)
-								)
-								.withReferenceToEntity(
-									Entities.PARAMETER, Entities.PARAMETER, Cardinality.ONE_OR_MORE,
-									thatIs -> thatIs.indexed()
-										.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class, whichIs -> whichIs.filterable())
-								)
-								.withReferenceToEntity(Entities.PRICE_LIST, Entities.PRICE_LIST, Cardinality.ZERO_OR_MORE)
-								.withReferenceToEntity(
-									Entities.BRAND,
-									Entities.BRAND,
-									Cardinality.ZERO_OR_ONE,
-									whichIs -> whichIs.
-										indexed()
-										.faceted()
-										.withGroupTypeRelatedToEntity(Entities.STORE)
-								)
-								.updateVia(session);
-							return builder.toInstance();
-						}
-					),
-					randomEntityPicker,
-					SEED
-				)
-				.limit(50)
-				.map(session::upsertEntity)
-				.toList();
-
-			final Map<Integer, SealedEntity> categories = storedCategories.stream()
-				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
-				.collect(
-					Collectors.toMap(
-						EntityContract::getPrimaryKey,
-						Function.identity()
-					)
-				);
-
-			final List<SealedEntity> products = storedProducts.stream()
-				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
-				.toList();
-
-			final List<SealedEntity> brands = storedBrands.stream()
-				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
-				.toList();
-
-			final List<SealedEntity> parameters = storedParameters.stream()
-				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
-				.toList();
-
-			final List<SealedEntity> stores = storedStores.stream()
-				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
-				.toList();
-
-			return new DataCarrier(
-				tuple("originalProducts", products),
-				tuple("originalBrands", brands),
-				tuple("originalParameters", parameters),
-				tuple("originalStores", stores),
-				tuple("originalCategories", categories),
-				tuple("categoryHierarchy", dataGenerator.getHierarchy(Entities.CATEGORY))
-			);
-		});
+		return super.setUp(evita);
 	}
 
 	@DisplayName("Should check existence of the entity")
@@ -2878,7 +2711,7 @@ public class EntityFetchingFunctionalTest {
 						require(
 							page(1, Integer.MAX_VALUE),
 							entityFetch(
-								referenceContent(
+								referenceContentWithAttributes(
 									Entities.PARAMETER,
 									filterBy(
 										attributeGreaterThanEquals(ATTRIBUTE_CATEGORY_PRIORITY, secondCategoryPriority)
@@ -2886,7 +2719,10 @@ public class EntityFetchingFunctionalTest {
 									orderBy(
 										attributeNatural(ATTRIBUTE_CATEGORY_PRIORITY, OrderDirection.DESC)
 									),
-									entityFetch(attributeContent(), associatedDataContent())
+									entityFetch(
+										attributeContent(),
+										associatedDataContent()
+									)
 								)
 							)
 						)
@@ -2979,7 +2815,7 @@ public class EntityFetchingFunctionalTest {
 						require(
 							page(1, Integer.MAX_VALUE),
 							entityFetch(
-								referenceContent(
+								referenceContentWithAttributes(
 									Entities.PARAMETER,
 									filterBy(
 										and(

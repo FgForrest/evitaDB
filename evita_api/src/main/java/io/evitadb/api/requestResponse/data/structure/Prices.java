@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.exception.EvitaInternalError;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -43,8 +44,9 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.math.BigDecimal;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Currency;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -96,19 +98,43 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 
 	public Prices(@Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
 		this.version = 1;
-		this.priceIndex = new HashMap<>();
+		this.priceIndex = Collections.emptyMap();
 		this.priceInnerRecordHandling = priceInnerRecordHandling;
 	}
 
 	public Prices(@Nonnull Collection<PriceContract> prices, @Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
 		this.version = 1;
-		this.priceIndex = prices.stream().collect(Collectors.toUnmodifiableMap(PriceContract::getPriceKey, Function.identity()));
+		this.priceIndex = Collections.unmodifiableMap(
+			prices
+				.stream()
+				.collect(
+					Collectors.toMap(
+						PriceContract::getPriceKey, Function.identity(),
+						(oldValue, newValue) -> {
+							throw new EvitaInternalError("Duplicate price key " + oldValue.getPriceKey());
+						},
+						() -> new LinkedHashMap<>(prices.size())
+					)
+				)
+		);
 		this.priceInnerRecordHandling = priceInnerRecordHandling;
 	}
 
 	public Prices(int version, @Nonnull Collection<PriceContract> prices, @Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
 		this.version = version;
-		this.priceIndex = prices.stream().collect(Collectors.toUnmodifiableMap(PriceContract::getPriceKey, Function.identity()));
+		this.priceIndex = Collections.unmodifiableMap(
+			prices
+				.stream()
+				.collect(
+					Collectors.toMap(
+						PriceContract::getPriceKey, Function.identity(),
+						(oldValue, newValue) -> {
+							throw new EvitaInternalError("Duplicate price key " + oldValue.getPriceKey());
+						},
+						() -> new LinkedHashMap<>(prices.size())
+					)
+				)
+		);
 		this.priceInnerRecordHandling = priceInnerRecordHandling;
 	}
 

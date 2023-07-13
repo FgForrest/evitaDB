@@ -601,7 +601,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.defineEntitySchema(Entities.PRODUCT)
 					.withReferenceToEntity(
 						Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
-						thatIs -> thatIs.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::localized)
+						thatIs -> thatIs.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().nullable())
 					)
 					.updateVia(session);
 

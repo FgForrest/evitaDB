@@ -251,7 +251,7 @@ public class EvitaClient implements EvitaContract {
 			this.reflectionLookup,
 			this.entitySchemaCache.computeIfAbsent(
 				traits.catalogName(),
-				EvitaEntitySchemaCache::new
+				catalogName -> new EvitaEntitySchemaCache(catalogName, this.reflectionLookup)
 			),
 			this.channelPool,
 			traits.catalogName(),

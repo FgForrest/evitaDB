@@ -181,12 +181,6 @@ public final class Evita implements EvitaContract {
 			.setMaximumQueueSize(configuration.server().queueSize())
 			.setRegisterMBean(false)
 			.build();
-		// TODO JNO - temporary debugging
-		handoffExecutor.setAdditionalLogger(
-			() -> "\n" + Arrays.stream(this.executor.getRunningThreads())
-				.map(it -> Arrays.stream(it.getStackTrace()).map(StackTraceElement::toString).collect(Collectors.joining("\n")))
-				.collect(Collectors.joining("\n\n"))
-		);
 		this.executor.prestartAllCoreThreads();
 		this.scheduler = new Scheduler(executor);
 		this.sessionKiller = of(configuration.server().closeSessionsAfterSecondsOfInactivity())
@@ -214,8 +208,7 @@ public final class Evita implements EvitaContract {
 				CatalogContract catalog;
 				try {
 					final long start = System.nanoTime();
-					catalog = new Catalog(
-						catalogName, directory, cacheSupervisor, configuration.storage());
+					catalog = new Catalog(catalogName, directory, cacheSupervisor, configuration.storage(), reflectionLookup);
 					log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
 				} catch (Throwable ex) {
 					log.error("Catalog {} is corrupted!", catalogName);
@@ -516,7 +509,8 @@ public final class Evita implements EvitaContract {
 					return new Catalog(
 						catalogSchema,
 						cacheSupervisor,
-						configuration.storage()
+						configuration.storage(),
+						reflectionLookup
 					);
 				} else {
 					throw new CatalogAlreadyPresentException(catalogName, existingCatalog.getSchema());

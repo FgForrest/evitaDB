@@ -29,7 +29,6 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
@@ -43,6 +42,7 @@ import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
@@ -70,7 +70,7 @@ public interface EntityCollectionContract {
 	 * accessing multiple entities from the collection in a paginated fashion in requested form of completeness.
 	 */
 	@Nonnull
-	<S extends EntityClassifier, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
+	<S extends Serializable, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
 
 	/**
 	 * Method returns entity by its type and primary key in requested form of completeness. This method allows quick
@@ -194,7 +194,7 @@ public interface EntityCollectionContract {
 	 * @return removed entity fetched according to `require` definition
 	 */
 	@Nonnull
-	Optional<SealedEntity> deleteEntity(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
+	<T extends Serializable> Optional<T> deleteEntity(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
 
 	/**
 	 * Method removes existing hierarchical entity in collection by its primary key. Method also removes all entities
@@ -217,7 +217,7 @@ public interface EntityCollectionContract {
 	 * @return number of removed entities and the body of the deleted root entity
 	 * @throws EvitaInvalidUsageException when entity type has not hierarchy support enabled in schema
 	 */
-	DeletedHierarchy deleteEntityAndItsHierarchy(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
+	<T extends Serializable> DeletedHierarchy<T> deleteEntityAndItsHierarchy(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
 
 	/**
 	 * Method removes all entities that match passed query. All entities of other entity types that reference removed

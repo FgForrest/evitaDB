@@ -25,6 +25,7 @@ package io.evitadb.api;
 
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
+import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.SchemaAlteringException;
@@ -45,7 +46,6 @@ import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
 import io.evitadb.api.query.require.Strip;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.EvitaResponse;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -66,6 +66,7 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -154,6 +155,23 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	void close();
 
 	/**
+	 * Method creates new a new entity schema and collection for it in the catalog this session is tied to. It returns
+	 * an {@link EntitySchemaBuilder} that could be used for extending the initial "empty"
+	 * {@link EntitySchemaContract entity schema}.
+	 *
+	 * If the collection already exists the method returns a builder for entity schema of the already existing
+	 * entity collection - i.e. this method behaves the same as calling:
+	 *
+	 * ``` java
+	 * getEntitySchema(`name`).map(SealedEntitySchema::openForWrite).orElse(null)
+	 * ```
+	 *
+	 * @param entityType the name of the entity collection to be created - equals to {@link EntitySchemaContract#getName()}
+	 */
+	@Nonnull
+	EntitySchemaBuilder defineEntitySchema(@Nonnull String entityType);
+
+	/**
 	 * Method allows to automatically adapt schema to passed model class. The class is expected to use annotations
 	 * from `io.data.annotation` package. The idea behind this method is that the developers will maintain their
 	 * model in plain java classes / interfaces and communicate with Evita using those model classes they are familiar
@@ -201,11 +219,29 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	Optional<SealedEntitySchema> getEntitySchema(@Nonnull String entityType);
 
 	/**
+	 * Returns schema definition for entity of specified type.
+	 *
+	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
+	 */
+	@Nonnull
+	Optional<SealedEntitySchema> getEntitySchema(@Nonnull Class<?> modelClass)
+		throws EntityClassInvalidException;
+
+	/**
 	 * Returns schema definition for entity of specified type or throws a standardized exception.
 	 */
 	@Nonnull
 	SealedEntitySchema getEntitySchemaOrThrow(@Nonnull String entityType)
 		throws CollectionNotFoundException;
+
+	/**
+	 * Returns schema definition for entity of specified type or throws a standardized exception.
+	 *
+	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
+	 */
+	@Nonnull
+	SealedEntitySchema getEntitySchemaOrThrow(@Nonnull Class<?> modelClass)
+		throws CollectionNotFoundException, EntityClassInvalidException;
 
 	/**
 	 * Returns list of all entity types available in this catalog.
@@ -269,10 +305,11 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @return found entity reference or entity itself, empty optional object if none was found
 	 * @throws UnexpectedResultException   when {@link EvitaResponse#getRecordPage()} contains data that are not assignable to `expectedType`
 	 * @throws InstanceTerminatedException when session has been already terminated
+	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class and is not present in the query
 	 * @see QueryConstraints for list of available filtering and ordering constraints and requirements
 	 */
 	@Nonnull
-	<S extends EntityClassifier> Optional<S> queryOne(@Nonnull Query query, @Nonnull Class<S> expectedType)
+	<S extends Serializable> Optional<S> queryOne(@Nonnull Query query, @Nonnull Class<S> expectedType)
 		throws UnexpectedResultException, UnexpectedResultCountException, InstanceTerminatedException;
 
 	/**
@@ -340,10 +377,11 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * requirements (if none defined the method behaves as first page with 20 results is requested)
 	 * @throws UnexpectedResultException   when {@link EvitaResponse#getRecordPage()} contains data that are not assignable to `expectedType`
 	 * @throws InstanceTerminatedException when session has been already terminated
+	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class and is not present in the query
 	 * @see QueryConstraints for list of available filtering and ordering constraints and requirements
 	 */
 	@Nonnull
-	<S extends EntityClassifier> List<S> queryList(@Nonnull Query query, @Nonnull Class<S> expectedType)
+	<S extends Serializable> List<S> queryList(@Nonnull Query query, @Nonnull Class<S> expectedType)
 		throws UnexpectedResultException, InstanceTerminatedException;
 
 	/**
@@ -422,10 +460,11 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @return full response data transfer object with all available data
 	 * @throws UnexpectedResultException   when {@link EvitaResponse#getRecordPage()} contains data that are not assignable to `expectedType`
 	 * @throws InstanceTerminatedException when session has been already terminated
+	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class and is not present in the query
 	 * @see QueryConstraints for list of available filtering and ordering constraints and requirements
 	 */
 	@Nonnull
-	<S extends EntityClassifier, T extends EvitaResponse<S>> T query(@Nonnull Query query, @Nonnull Class<S> expectedType)
+	<S extends Serializable, T extends EvitaResponse<S>> T query(@Nonnull Query query, @Nonnull Class<S> expectedType)
 		throws UnexpectedResultException, InstanceTerminatedException;
 
 	/**
@@ -467,6 +506,21 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	Optional<SealedEntity> getEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require);
 
 	/**
+	 * Method returns entity by its type and primary key in requested form of completeness. This method allows quick
+	 * access to the entity contents when primary key is known. Result object is not constrained to an evitaDB type but
+	 * can represent any POJO, record or interface annotated with {@link io.evitadb.api.requestResponse.data.annotation}
+	 * annotations.
+	 *
+	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
+	 */
+	@Nonnull
+	<T extends Serializable> Optional<T> getEntity(
+		@Nonnull Class<T> expectedType,
+		int primaryKey,
+		EntityContentRequire... require
+	) throws EntityClassInvalidException;
+
+	/**
 	 * Method returns entity with additionally loaded data specified by requirements in second argument. This method
 	 * is particularly useful for implementation of lazy loading when application loads only parts of the entity it
 	 * expects to be required for handling common client request and then load additional data if processing requires
@@ -475,7 +529,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @throws EntityAlreadyRemovedException when the entity has been already removed
 	 */
 	@Nonnull
-	SealedEntity enrichEntity(@Nonnull SealedEntity partiallyLoadedEntity, EntityContentRequire... require)
+	<T extends Serializable> T enrichEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require)
 		throws EntityAlreadyRemovedException;
 
 	/**
@@ -487,25 +541,8 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @throws EntityAlreadyRemovedException when the entity has been already removed
 	 */
 	@Nonnull
-	SealedEntity enrichOrLimitEntity(@Nonnull SealedEntity partiallyLoadedEntity, EntityContentRequire... require)
+	<T extends Serializable> T enrichOrLimitEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require)
 		throws EntityAlreadyRemovedException;
-
-	/**
-	 * Method creates new a new entity schema and collection for it in the catalog this session is tied to. It returns
-	 * an {@link EntitySchemaBuilder} that could be used for extending the initial "empty"
-	 * {@link EntitySchemaContract entity schema}.
-	 *
-	 * If the collection already exists the method returns a builder for entity schema of the already existing
-	 * entity collection - i.e. this method behaves the same as calling:
-	 *
-	 * ``` java
-	 * getEntitySchema(`name`).map(SealedEntitySchema::openForWrite).orElse(null)
-	 * ```
-	 *
-	 * @param entityType the name of the entity collection to be created - equals to {@link EntitySchemaContract#getName()}
-	 */
-	@Nonnull
-	EntitySchemaBuilder defineEntitySchema(@Nonnull String entityType);
 
 	/**
 	 * Method alters the {@link CatalogSchemaContract} of the catalog this session is tied to. The method is equivalent
@@ -627,6 +664,16 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	boolean deleteCollection(@Nonnull String entityType);
 
 	/**
+	 * Deletes entire collection of entities along with its schema. After this operation there will be nothing left
+	 * of the data that belong to the specified entity type.
+	 *
+	 * @param modelClass model class for the entity which collection should be deleted
+	 * @return TRUE if collection was successfully deleted
+	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
+	 */
+	boolean deleteCollection(@Nonnull Class<?> modelClass) throws EntityClassInvalidException;
+
+	/**
 	 * Renames entire collection of entities along with its schema. After this operation there will be nothing left
 	 * of the data that belong to the specified entity type, and entity collection under the new name becomes available.
 	 * If you need to rename entity collection to a name of existing collection use
@@ -667,6 +714,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 
 	/**
 	 * Creates entity builder for new entity without specified primary key needed to be inserted to the collection.
+	 * TOBEDONE #43 - support new variants for the model class
 	 *
 	 * @return builder instance to be filled up and stored via {@link #upsertEntity(EntityBuilder)}
 	 */
@@ -676,6 +724,8 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	/**
 	 * Creates entity builder for new entity with externally defined primary key needed to be inserted to
 	 * the collection.
+	 *
+	 * TOBEDONE #43 - support new variants for the model class
 	 *
 	 * @param primaryKey externally assigned primary key for the entity
 	 * @return builder instance to be filled up and stored via {@link #upsertEntity(EntityBuilder)}
@@ -687,6 +737,8 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * Shorthand method for {@link #upsertEntity(EntityMutation)} that accepts {@link EntityBuilder} that can produce
 	 * mutation.
 	 *
+	 * TOBEDONE #43 - support new variants for the model class
+	 *
 	 * @param entityBuilder that contains changed entity state
 	 */
 	@Nonnull
@@ -694,6 +746,8 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 
 	/**
 	 * Method inserts to or updates entity in collection according to passed set of mutations.
+	 *
+	 * TOBEDONE #43 - support new variants for the model class
 	 *
 	 * @param entityMutation list of mutation snippets that alter or form the entity
 	 */
@@ -704,6 +758,8 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * Shorthand method for {@link #upsertEntity(EntityMutation)} that accepts {@link EntityBuilder} that can produce
 	 * mutation.
 	 *
+	 * TOBEDONE #43 - support new variants for the model class
+	 *
 	 * @param entityBuilder that contains changed entity state
 	 * @return modified entity fetched according to `require` definition
 	 */
@@ -712,6 +768,8 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 
 	/**
 	 * Method inserts to or updates entity in collection according to passed set of mutations.
+	 *
+	 * TOBEDONE #43 - support new variants for the model class
 	 *
 	 * @param entityMutation list of mutation snippets that alter or form the entity
 	 * @return modified entity fetched according to `require` definition
@@ -731,10 +789,30 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
 	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
 	 *
+	 * @return true if entity existed and was removed
+	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
+	 */
+	boolean deleteEntity(@Nonnull Class<?> modelClass, int primaryKey) throws EntityClassInvalidException;
+
+	/**
+	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 *
 	 * @return removed entity fetched according to `require` definition
 	 */
 	@Nonnull
 	Optional<SealedEntity> deleteEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require);
+
+	/**
+	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 *
+	 * @return removed entity fetched according to `require` definition
+	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
+	 */
+	@Nonnull
+	<T extends Serializable> Optional<T> deleteEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require)
+		throws EntityClassInvalidException;
 
 	/**
 	 * Method removes existing hierarchical entity in collection by its primary key. Method also removes all entities
@@ -745,7 +823,8 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @return number of removed entities
 	 * @throws EvitaInvalidUsageException when entity type has not hierarchy support enabled in schema
 	 */
-	int deleteEntityAndItsHierarchy(@Nonnull String entityType, int primaryKey);
+	int deleteEntityAndItsHierarchy(@Nonnull String entityType, int primaryKey)
+		throws EvitaInvalidUsageException;
 
 	/**
 	 * Method removes existing hierarchical entity in collection by its primary key. Method also removes all entities
@@ -757,7 +836,22 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @throws EvitaInvalidUsageException when entity type has not hierarchy support enabled in schema
 	 */
 	@Nonnull
-	DeletedHierarchy deleteEntityAndItsHierarchy(@Nonnull String entityType, int primaryKey, EntityContentRequire... require);
+	DeletedHierarchy<SealedEntity> deleteEntityAndItsHierarchy(@Nonnull String entityType, int primaryKey, EntityContentRequire... require)
+		throws EvitaInvalidUsageException;
+
+	/**
+	 * Method removes existing hierarchical entity in collection by its primary key. Method also removes all entities
+	 * of the same type that are transitively referencing the removed entity as its parent. All entities of other entity
+	 * types that reference removed entities in their {@link SealedEntity#getReference(String, int)} still keep
+	 * the data untouched.
+	 *
+	 * @return number of removed entities and the body of the deleted root entity
+	 * @throws EvitaInvalidUsageException when entity type has not hierarchy support enabled in schema
+	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
+	 */
+	@Nonnull
+	<T extends Serializable> DeletedHierarchy<T> deleteEntityAndItsHierarchy(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require)
+		throws EvitaInvalidUsageException, EntityClassInvalidException;
 
 	/**
 	 * Method removes all entities that match passed query. All entities of other entity types that reference removed
@@ -781,7 +875,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @return bodies of deleted entities according to {@link Query#getRequire() requirements}
 	 */
 	@Nonnull
-	SealedEntity[] deleteEntitiesAndReturnBodies(@Nonnull Query query);
+	SealedEntity[] deleteSealedEntitiesAndReturnBodies(@Nonnull Query query);
 
 	/**
 	 * Default implementation uses ID for comparing two sessions (and to distinguish one session from another).
@@ -860,14 +954,14 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	long getInactivityDurationInSeconds();
 
 	/**
-	 * Provides access to the result of {@link #deleteEntityAndItsHierarchy(String, Integer, EntityContentRequire...)}.
+	 * Provides access to the result of {@link #deleteEntityAndItsHierarchy(String, int, EntityContentRequire...)} .
 	 *
 	 * @param deletedEntities   count of all removed entities in the hierarchy
 	 * @param deletedRootEntity requested contents of the removed root entity
 	 */
-	record DeletedHierarchy(
+	record DeletedHierarchy<T>(
 		int deletedEntities,
-		@Nullable SealedEntity deletedRootEntity
+		@Nullable T deletedRootEntity
 	) {
 	}
 

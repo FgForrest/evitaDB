@@ -115,7 +115,7 @@ public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetche
 		log.debug("Generated evitaDB query for entity deletion of type `{}` is `{}`.", entitySchema.getName(), query);
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
-		final SealedEntity[] deletedEntities = evitaSession.deleteEntitiesAndReturnBodies(query);
+		final SealedEntity[] deletedEntities = evitaSession.deleteSealedEntitiesAndReturnBodies(query);
 
 		return DataFetcherResult.<List<SealedEntity>>newResult()
 			.data(Arrays.asList(deletedEntities))

@@ -3022,6 +3022,13 @@ public class EntityByAttributeFilteringFunctionalTest {
 						),
 						orderBy(
 							attributeSetInFilter(ATTRIBUTE_CODE)
+						),
+						require(
+							entityFetch(
+								attributeContentAll()
+							),
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
 						)
 					)
 				);

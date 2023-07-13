@@ -259,7 +259,7 @@ public interface PricesContract extends Serializable {
 			.filter(it -> currency == null || currency.equals(it.getCurrency()))
 			.filter(it -> ofNullable(atTheMoment).map(mmt -> it.getValidity() == null || it.getValidity().isValidFor(mmt)).orElse(true))
 			.filter(it -> pLists.isEmpty() || pLists.contains(it.getPriceList()))
-			.collect(Collectors.toList());
+			.toList();
 	}
 
 	/**

@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceGroupMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -44,6 +45,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
@@ -76,7 +78,13 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 		this.baseReference = baseReference;
 		this.entitySchema = entitySchema;
 		this.attributesBuilder = new ExistingAttributesBuilder(
-			entitySchema, baseReference.getAttributeValues(), true
+			entitySchema,
+			baseReference.getReferenceSchema().orElse(null),
+			baseReference.getAttributeValues(),
+			baseReference.getReferenceSchema()
+				.map(AttributeSchemaProvider::getAttributes)
+				.orElse(Collections.emptyMap()),
+			true
 		);
 	}
 

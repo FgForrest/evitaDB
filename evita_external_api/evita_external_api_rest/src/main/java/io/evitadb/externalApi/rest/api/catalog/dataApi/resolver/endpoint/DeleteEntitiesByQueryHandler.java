@@ -83,7 +83,7 @@ public class DeleteEntitiesByQueryHandler extends ListEntitiesHandler {
 		log.debug("Generated evitaDB query for deletion of entity list of type `{}` is `{}`.", restApiHandlingContext.getEntitySchema(), query);
 
 		final SealedEntity[] deletedEntities = restApiHandlingContext.updateCatalog(session ->
-			session.deleteEntitiesAndReturnBodies(query));
+			session.deleteSealedEntitiesAndReturnBodies(query));
 
 		return Optional.of(entityJsonSerializer.serialize(deletedEntities));
 	}

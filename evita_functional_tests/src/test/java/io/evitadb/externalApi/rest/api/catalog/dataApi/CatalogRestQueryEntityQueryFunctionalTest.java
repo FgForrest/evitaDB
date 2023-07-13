@@ -32,7 +32,6 @@ import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityContract;
-import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
@@ -2477,7 +2476,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				);
 			}
 		);
-		assertFalse(response.getExtraResult(FacetSummary.class).getFacetGroupStatistics().isEmpty());
+		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
 
 		final var expectedBody = createFacetSummaryWithCountsDto(response);
 
@@ -2524,7 +2523,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				);
 			}
 		);
-		assertFalse(response.getExtraResult(FacetSummary.class).getFacetGroupStatistics().isEmpty());
+		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
 
 		final var expectedBody = createFacetSummaryWithImpactsDto(response);
 
@@ -2819,7 +2818,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	private List<Map<String, Object>> createFacetSummaryWithCountsDto(@Nonnull EvitaResponse<EntityReference> response) {
 		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
 
-		return facetSummary.getFacetGroupStatistics()
+		return facetSummary.getReferenceStatistics()
 			.stream()
 			.filter(groupStatistics -> groupStatistics.getReferenceName().equals(Entities.BRAND))
 			.map(groupStatistics ->
@@ -2847,7 +2846,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	private List<Map<String, Object>> createFacetSummaryWithImpactsDto(@Nonnull EvitaResponse<EntityReference> response) {
 		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
 
-		return facetSummary.getFacetGroupStatistics()
+		return facetSummary.getReferenceStatistics()
 			.stream()
 			.map(groupStatistics ->
 				map()

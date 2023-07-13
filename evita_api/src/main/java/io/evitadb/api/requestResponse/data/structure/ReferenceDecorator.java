@@ -34,7 +34,6 @@ import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceAttribut
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -50,7 +49,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -188,28 +186,15 @@ public class ReferenceDecorator implements ReferenceContract {
 	@Nonnull
 	@Override
 	public Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName) {
+		final Optional<AttributeValue> result;
 		if (attributePredicate.isLocaleSet()) {
-			Optional<AttributeValue> result = delegate.getAttributeValue(attributeName);
-			if (result.isEmpty()) {
-				Locale resultLocale = null;
-				for (AttributeValue resultAdept : delegate.getAttributeValues(attributeName)) {
-					if (attributePredicate.test(resultAdept)) {
-						if (result.isEmpty()) {
-							result = of(resultAdept);
-							resultLocale = resultAdept.getKey().getLocale();
-						} else {
-							throw new EvitaInvalidUsageException(
-								"Attribute `" + attributeName + "` has multiple values for different locales: `" +
-									resultLocale + "` and `" + resultAdept.getKey().getLocale() + "`!"
-							);
-						}
-					}
-				}
-			}
-			return result.filter(attributePredicate);
+			final Locale locale = attributePredicate.getLocale();
+			result = locale == null ?
+				delegate.getAttributeValue(attributeName) : delegate.getAttributeValue(attributeName, locale);
 		} else {
-			return delegate.getAttributeValue(attributeName);
+			result = delegate.getAttributeValue(attributeName);
 		}
+		return result.filter(attributePredicate);
 	}
 
 	@Nullable

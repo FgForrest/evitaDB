@@ -608,7 +608,7 @@ public class EvitaDataTypes {
 		} else {
 			baseRequestedType = requestedType.isPrimitive() ? getWrappingPrimitiveClass(requestedType) : requestedType;
 		}
-		Assert.isTrue(isSupportedType(baseRequestedType), "Requested type `" + requestedType + "` is not supported by Evita!");
+		Assert.isTrue(isSupportedType(baseRequestedType) || baseRequestedType.isEnum(), "Requested type `" + requestedType + "` is not supported by Evita!");
 		if (requestedType.isInstance(unknownObject) || unknownObject == null) {
 			return (T) unknownObject;
 		}
@@ -793,6 +793,9 @@ public class EvitaDataTypes {
 			result = LOCALE_FUNCTION.apply(requestedType, unknownObject);
 		} else if (Currency.class.isAssignableFrom(requestedType)) {
 			result = CURRENCY_FUNCTION.apply(requestedType, unknownObject);
+		} else if (requestedType.isEnum()) {
+			//noinspection unchecked,rawtypes
+			result = Enum.valueOf((Class<? extends Enum>) requestedType, unknownObject.toString());
 		} else {
 			throw new UnsupportedDataTypeException(unknownObject.getClass(), SUPPORTED_QUERY_DATA_TYPES);
 		}

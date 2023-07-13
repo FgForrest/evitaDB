@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi;
 
-import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;

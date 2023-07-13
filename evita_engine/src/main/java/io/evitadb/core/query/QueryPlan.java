@@ -31,7 +31,6 @@ import io.evitadb.api.requestResponse.EvitaEntityResponse;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -39,6 +38,7 @@ import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula.PrefetchFormulaVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
+import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.dataType.DataChunk;
 import lombok.Getter;
@@ -48,6 +48,7 @@ import lombok.experimental.Delegate;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.stream.Collectors;
@@ -102,7 +103,7 @@ public class QueryPlan {
 	 * Method is expected to be called only once per request.
 	 */
 	@Nonnull
-	public <S extends EntityClassifier, T extends EvitaResponse<S>> T execute() {
+	public <S extends Serializable, T extends EvitaResponse<S>> T execute() {
 		queryContext.pushStep(QueryPhase.EXECUTION);
 
 		try {
@@ -129,10 +130,10 @@ public class QueryPlan {
 				queryContext.popStep();
 			}
 
-			final DataChunk<Integer> primaryKeys;
+			final int[] primaryKeys;
 			queryContext.pushStep(QueryPhase.EXECUTION_SORT_AND_SLICE);
 			try {
-				primaryKeys = queryContext.createDataChunk(totalRecordCount, filter, sorter);
+				primaryKeys = sortAndSliceResult(queryContext, totalRecordCount, filter, sorter);
 			} finally {
 				popStep();
 			}
@@ -146,13 +147,8 @@ public class QueryPlan {
 					if (queryContext.isRequiresBinaryForm()) {
 						// transform PKs to rich SealedEntities
 						final DataChunk<BinaryEntity> dataChunk = evitaRequest.createDataChunk(
-							primaryKeys.getTotalRecordCount(),
-							queryContext.fetchBinaryEntities(
-								primaryKeys.getData()
-									.stream()
-									.mapToInt(it -> it)
-									.toArray()
-							)
+							totalRecordCount,
+							queryContext.fetchBinaryEntities(primaryKeys)
 						);
 
 						// this may produce ClassCast exception if client assigns variable to different result than requests
@@ -166,13 +162,8 @@ public class QueryPlan {
 					} else {
 						// transform PKs to rich SealedEntities
 						final DataChunk<SealedEntity> dataChunk = evitaRequest.createDataChunk(
-							primaryKeys.getTotalRecordCount(),
-							queryContext.fetchEntities(
-								primaryKeys.getData()
-									.stream()
-									.mapToInt(it -> it)
-									.toArray()
-							)
+							totalRecordCount,
+							queryContext.fetchEntities(primaryKeys)
 						);
 
 						// this may produce ClassCast exception if client assigns variable to different result than requests
@@ -190,12 +181,12 @@ public class QueryPlan {
 			} else {
 				// this may produce ClassCast exception if client assigns variable to different result than requests
 				final DataChunk<EntityReference> dataChunk = evitaRequest.createDataChunk(
-					primaryKeys.getTotalRecordCount(),
-					primaryKeys.stream()
+					totalRecordCount,
+					Arrays.stream(primaryKeys)
 						// returns simple reference to the entity (i.e. primary key and type of the entity)
 						// TOBEDONE JNO - we should return a reference including the actual entity version information
 						// so that the client might implement its local cache
-						.map(queryContext::translateToEntityReference)
+						.mapToObj(queryContext::translateToEntityReference)
 						.collect(Collectors.toList())
 				);
 
@@ -251,6 +242,30 @@ public class QueryPlan {
 		}
 
 		return extraResults.toArray(EvitaResponseExtraResult[]::new);
+	}
+
+	/**
+	 * Creates slice of entity primary keys that respect filtering query, specified sorting and is sliced according
+	 * to requested offset and limit.
+	 */
+	@Nonnull
+	private static int[] sortAndSliceResult(
+		@Nonnull QueryContext queryContext,
+		int totalRecordCount,
+		@Nonnull Formula filteringFormula,
+		@Nonnull Sorter sorter
+	) {
+		final EvitaRequest evitaRequest = queryContext.getEvitaRequest();
+		final int firstRecordOffset = evitaRequest.getFirstRecordOffset(totalRecordCount);
+		sorter = ConditionalSorter.getFirstApplicableSorter(sorter, queryContext);
+		return Arrays.stream(
+				sorter.sortAndSlice(
+					queryContext, filteringFormula,
+					firstRecordOffset,
+					firstRecordOffset + evitaRequest.getLimit()
+				)
+			)
+			.toArray();
 	}
 
 }

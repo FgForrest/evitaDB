@@ -456,7 +456,9 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 					collection(entitySchema.getName()),
 					require(entityFetchAll())
 				),
-				OffsetDateTime.now()
+				OffsetDateTime.now(),
+				Entity.class,
+				EvitaRequest.CONVERSION_NOT_SUPPORTED
 			);
 			final byte recType = memTable.getIdForRecordType(EntityBodyStoragePart.class);
 			return memTable

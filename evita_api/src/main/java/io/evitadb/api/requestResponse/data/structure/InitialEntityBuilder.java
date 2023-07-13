@@ -104,7 +104,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.type = type;
 		this.schema = EntitySchema._internalBuild(type);
 		this.primaryKey = null;
-		this.attributesBuilder = new InitialAttributesBuilder(schema);
+		this.attributesBuilder = new InitialAttributesBuilder(schema, null);
 		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
 		this.pricesBuilder = new InitialPricesBuilder();
 		this.references = new HashMap<>();
@@ -114,7 +114,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.type = schema.getName();
 		this.schema = schema;
 		this.primaryKey = null;
-		this.attributesBuilder = new InitialAttributesBuilder(schema);
+		this.attributesBuilder = new InitialAttributesBuilder(schema, null);
 		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
 		this.pricesBuilder = new InitialPricesBuilder();
 		this.references = new HashMap<>();
@@ -124,7 +124,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.type = type;
 		this.primaryKey = primaryKey;
 		this.schema = EntitySchema._internalBuild(type);
-		this.attributesBuilder = new InitialAttributesBuilder(schema);
+		this.attributesBuilder = new InitialAttributesBuilder(schema, null);
 		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
 		this.pricesBuilder = new InitialPricesBuilder();
 		this.references = new HashMap<>();
@@ -134,7 +134,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.type = schema.getName();
 		this.schema = schema;
 		this.primaryKey = primaryKey;
-		this.attributesBuilder = new InitialAttributesBuilder(schema);
+		this.attributesBuilder = new InitialAttributesBuilder(schema, null);
 		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
 		this.pricesBuilder = new InitialPricesBuilder();
 		this.references = new HashMap<>();
@@ -152,7 +152,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.type = entitySchema.getName();
 		this.schema = entitySchema;
 		this.primaryKey = primaryKey;
-		this.attributesBuilder = new InitialAttributesBuilder(schema);
+		this.attributesBuilder = new InitialAttributesBuilder(schema, null);
 		for (AttributeValue attributeValue : attributeValues) {
 			final AttributeKey attributeKey = attributeValue.getKey();
 			if (attributeKey.isLocalized()) {

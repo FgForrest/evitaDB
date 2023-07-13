@@ -78,7 +78,7 @@
     <inspection_tool class="LengthOneStringInIndexOf" enabled="true" level="WARNING" enabled_by_default="true" />
     <inspection_tool class="MapReplaceableByEnumMap" enabled="true" level="WARNING" enabled_by_default="true" />
     <inspection_tool class="MethodMayBeStatic" enabled="true" level="WARNING" enabled_by_default="true">
-      <option name="m_onlyPrivateOrFinal" value="false" />
+      <option name="m_onlyPrivateOrFinal" value="true" />
       <option name="m_ignoreEmptyMethods" value="true" />
     </inspection_tool>
     <inspection_tool class="MisspelledEquals" enabled="true" level="WARNING" enabled_by_default="true" />
@@ -163,6 +163,6 @@
     <inspection_tool class="TransientFieldNotInitialized" enabled="true" level="WARNING" enabled_by_default="true" />
     <inspection_tool class="UnusedReturnValue" enabled="true" level="TEXT ATTRIBUTES" enabled_by_default="true" editorAttributes="CONSIDERATION_ATTRIBUTES" />
     <inspection_tool class="UseOfPropertiesAsHashtable" enabled="true" level="WARNING" enabled_by_default="true" />
-    <inspection_tool class="VariableNotUsedInsideIf" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="VariableNotUsedInsideIf" enabled="true" level="WEAK WARNING" enabled_by_default="true" editorAttributes="INFO_ATTRIBUTES" />
   </profile>
 </component>

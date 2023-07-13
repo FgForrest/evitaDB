@@ -111,7 +111,11 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 		this.referencedEntityType = referencedEntityType;
 		this.groupId = null;
 		this.groupType = null;
-		this.attributesBuilder = new InitialAttributesBuilder(entitySchema, true);
+		this.attributesBuilder = new InitialAttributesBuilder(
+			entitySchema,
+			Reference.createImplicitSchema(referenceName, referencedEntityType, referenceCardinality, null),
+			true
+		);
 	}
 
 	@Override

@@ -31,9 +31,9 @@ import io.evitadb.api.exception.UnexpectedResultException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.util.List;
 import java.util.Optional;
 
@@ -56,13 +56,12 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract {
 	 * side.
 	 *
 	 * @param evitaRequest externally created evita request
-	 * @param expectedType type of object, that is expected to be in response data
 	 * @throws UnexpectedResultException      when result object is not assignable to `expectedType`
 	 * @throws UnexpectedResultCountException when query matched more than single record
 	 * @throws InstanceTerminatedException    when session has been already terminated
 	 */
 	@Nonnull
-	<S extends EntityClassifier> Optional<S> queryOne(@Nonnull EvitaRequest evitaRequest, @Nonnull Class<S> expectedType)
+	<S extends Serializable> Optional<S> queryOne(@Nonnull EvitaRequest evitaRequest)
 		throws UnexpectedResultException, UnexpectedResultCountException, InstanceTerminatedException;
 
 	/**
@@ -78,12 +77,11 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract {
 	 * side.
 	 *
 	 * @param evitaRequest externally created evita request
-	 * @param expectedType type of object, that is expected to be in response data
 	 * @throws UnexpectedResultException   when result object is not assignable to `expectedType`
 	 * @throws InstanceTerminatedException when session has been already terminated
 	 */
 	@Nonnull
-	<S extends EntityClassifier> List<S> queryList(@Nonnull EvitaRequest evitaRequest, @Nonnull Class<S> expectedType)
+	<S extends Serializable> List<S> queryList(@Nonnull EvitaRequest evitaRequest)
 		throws UnexpectedResultException, InstanceTerminatedException;
 
 	/**
@@ -93,11 +91,10 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract {
 	 * This should prevent late ClassCastExceptions on the client side.
 	 *
 	 * @param evitaRequest externally created evita request
-	 * @param expectedType type of object, that is expected to be in response data
 	 * @throws UnexpectedResultException   when {@link EvitaResponse#getRecordPage()} contains data that are not assignable to `expectedType`
 	 * @throws InstanceTerminatedException when session has been already terminated
 	 */
 	@Nonnull
-	<S extends EntityClassifier, T extends EvitaResponse<S>> T query(@Nonnull EvitaRequest evitaRequest, @Nonnull Class<S> expectedType)
+	<S extends Serializable, T extends EvitaResponse<S>> T query(@Nonnull EvitaRequest evitaRequest)
 		throws UnexpectedResultException, InstanceTerminatedException;
 }
