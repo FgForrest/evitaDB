@@ -82,6 +82,14 @@ public interface PriceContract extends Versioned, Droppable, Serializable, Compa
 	Currency currency();
 
 	/**
+	 * Returns three letter form identifying the currency according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
+	 */
+	@Nonnull
+	default String currencyCode() {
+		return currency().getCurrencyCode();
+	}
+
+	/**
 	 * Some special products (such as master products, or product sets) may contain prices of all "subordinate" products
 	 * so that the aggregating product can represent them in certain views on the product. In that case there is need
 	 * to distinguish the projected prices of the subordinate product in the one, that represents them.
