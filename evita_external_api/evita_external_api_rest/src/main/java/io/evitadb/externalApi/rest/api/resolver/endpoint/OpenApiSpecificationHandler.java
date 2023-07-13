@@ -66,6 +66,13 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 	@Nonnull
 	@Override
 	protected String getSupportedContentType() {
+		// todo lho: this should be empty, probably
+		return MimeTypes.APPLICATION_YAML;
+	}
+
+	@Nonnull
+	@Override
+	protected String getAcceptedContentType() {
 		return MimeTypes.APPLICATION_YAML;
 	}
 }
