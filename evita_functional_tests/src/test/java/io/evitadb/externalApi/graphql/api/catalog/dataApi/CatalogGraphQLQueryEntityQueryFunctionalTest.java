@@ -4330,7 +4330,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 			}
 		);
-		assertFalse(response.getExtraResult(FacetSummary.class).getFacetGroupStatistics().isEmpty());
+		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
 
 		final var expectedBody = createFacetSummaryWithCountsDto(response, Entities.BRAND);
 
@@ -4408,7 +4408,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 			}
 		);
-		assertFalse(response.getExtraResult(FacetSummary.class).getFacetGroupStatistics().isEmpty());
+		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
 
 		final var expectedBody = createFacetSummaryWithImpactsDto(response);
 
@@ -4483,7 +4483,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 			}
 		);
-		assertFalse(response.getExtraResult(FacetSummary.class).getFacetGroupStatistics().isEmpty());
+		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
 
 		final var expectedBody = createFacetSummaryWithCountsDto(response, Entities.PARAMETER);
 
@@ -4559,7 +4559,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 			}
 		);
-		assertFalse(response.getExtraResult(FacetSummary.class).getFacetGroupStatistics().isEmpty());
+		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
 
 		final var expectedBody = createFacetSummaryWithCountsDto(response, Entities.PARAMETER);
 
@@ -4645,7 +4645,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 			}
 		);
-		assertFalse(response.getExtraResult(FacetSummary.class).getFacetGroupStatistics().isEmpty());
+		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
 
 		final var expectedBody = createFacetSummaryWithCountsDto(response, Entities.PARAMETER);
 
@@ -4863,7 +4863,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                                                  @Nonnull String referenceName) {
 		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
 
-		return facetSummary.getFacetGroupStatistics()
+		return facetSummary.getReferenceStatistics()
 			.stream()
 			.filter(groupStatistics -> groupStatistics.getReferenceName().equals(referenceName))
 			.map(groupStatistics ->
@@ -4899,7 +4899,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	private List<Map<String, Object>> createFacetSummaryWithImpactsDto(@Nonnull EvitaResponse<EntityReference> response) {
 		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
 
-		return facetSummary.getFacetGroupStatistics()
+		return facetSummary.getReferenceStatistics()
 			.stream()
 			.map(groupStatistics ->
 				map()

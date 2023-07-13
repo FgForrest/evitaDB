@@ -98,7 +98,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	/**
 	 * Field containing the relative directory path to the user documentation.
 	 */
-	private static final String DOCS_ROOT = "docs/user/";
+	private static final String DOCS_ROOT = "documentation/user/";
 	/**
 	 * Field contains list of all languages that are not tested by this class.
 	 */
@@ -326,7 +326,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
-			getRootDirectory().resolve("docs/user/en/use/api/query-data.md")
+			getRootDirectory().resolve("documentation/user/en/use/api/query-data.md")
 		).stream();
 	}
 
@@ -341,7 +341,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
 		return this.createTests(
-			getRootDirectory().resolve("docs/user/en/query/ordering/price.md"),
+			getRootDirectory().resolve("documentation/user/en/query/ordering/price.md"),
 			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.GRAPHQL, CreateSnippets.REST
 		).stream();
 	}

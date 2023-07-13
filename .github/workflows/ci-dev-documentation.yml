@@ -7,13 +7,13 @@ on:
     branches: [ "dev" ]            # trap each push to dev branch
     paths:                         # but react only to changes in code or pipeline definition
       - .github/workflows/ci-dev-documentation.yml
-      - docs/user/**.*
+      - documentation/user/**.*
 
   pull_request_target:
     branches: [ "dev" ]            # also trap pull requests to dev branch
     paths:                         # but react only to changes in code or pipeline definition
       - .github/workflows/ci-dev-documentation.yml
-      - docs/user/**.*
+      - documentation/user/**.*
 
 permissions:
   id-token: write

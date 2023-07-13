@@ -57,7 +57,6 @@ public class EvitaTestContextFactory implements TestContextFactory<EvitaTestCont
 			"Destroy Evita Demo connection",
 			() -> {
 				getContext().getEvitaContract().close();
-				getContext().getGraphQLQueryConverter().close();
 			}
 		);
 	}

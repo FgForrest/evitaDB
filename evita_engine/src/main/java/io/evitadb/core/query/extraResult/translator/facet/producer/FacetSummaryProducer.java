@@ -282,10 +282,6 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 						)
 					)
 				)
-				.values()
-				.stream()
-				.flatMap(Collection::stream)
-				.collect(Collectors.toList())
 		);
 	}
 
@@ -901,7 +897,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 	/**
 	 * Record captures the facet summary requirements.
 	 *
-	 * @param facetStatisticsDepth Contains {@link io.evitadb.api.query.require.FacetSummary#getFacetStatisticsDepth()} information.
+	 * @param facetStatisticsDepth Contains {@link io.evitadb.api.query.require.FacetSummary#getStatisticsDepth()} information.
 	 */
 	private record FacetSummaryRequest(
 		int order,
@@ -940,7 +936,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 	/**
 	 * Record captures the facet summary requirements.
 	 *
-	 * @param facetStatisticsDepth Contains {@link io.evitadb.api.query.require.FacetSummary#getFacetStatisticsDepth()} information.
+	 * @param facetStatisticsDepth Contains {@link io.evitadb.api.query.require.FacetSummary#getStatisticsDepth()} information.
 	 */
 	private record DefaultFacetSummaryRequest(
 		@Nullable Function<ReferenceSchemaContract, IntPredicate> facetPredicate,

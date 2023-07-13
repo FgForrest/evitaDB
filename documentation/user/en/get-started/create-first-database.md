@@ -43,7 +43,7 @@ catalog and create predefined schemas for multiple collections: `Brand`, `Catego
 contains some attributes (either localized or non-localized), category is marked as a hierarchical entity that forms 
 a tree, product is enabled to have prices:
 
-<SourceCodeTabs requires="/docs/user/en/get-started/example/complete-startup.java">
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java">
 [Example of defining catalog and schema for entity collections](/documentation/user/en/get-started/example/define-catalog-with-schema.java)
 </SourceCodeTabs>
 
@@ -100,7 +100,7 @@ a tree, product is enabled to have prices:
 
 Once the catalog is created and the schema is known, you can insert a first entity to the catalog:
 
-<SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
 [Example of inserting an entity](/documentation/user/en/get-started/example/create-first-entity.java)
 </SourceCodeTabs>
 
@@ -111,7 +111,7 @@ the load in the cluster.
 
 Let's see how you can retrieve the entity you just created in another read-only session.
 
-<SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/create-first-entity.java" langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/create-first-entity.java" langSpecificTabOnly>
 [Example of reading an entity by primary key](/documentation/user/en/get-started/example/read-entity-by-pk.java)
 </SourceCodeTabs>
 
@@ -175,7 +175,7 @@ as mentioned above.
 
 Once you learn the basics, you can create a small dataset to work with:
 
-<SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
 [Example of creating a small dataset](/documentation/user/en/get-started/example/create-small-dataset.java)
 </SourceCodeTabs>
 
@@ -190,19 +190,19 @@ have in the relational database. The example shows how to define attributes, ass
 
 To get a better idea of the data, let's list the existing entities from the database.
 
-<SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
 [Example of listing entities](/documentation/user/en/get-started/example/list-entities.java)
 </SourceCodeTabs>
 
 You can also filter and sort the data:
 
-<SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
 [Example of filtering and ordering entities](/documentation/user/en/get-started/example/filter-order-entities.java)
 </SourceCodeTabs>
 
 Or you can filter all products by price in EUR greater than 300€ and order by price with the cheapest products first:
 
-<SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
 [Example of filtering and ordering products by price](/documentation/user/en/get-started/example/filter-order-products-by-price.java)
 </SourceCodeTabs>
 
@@ -214,7 +214,7 @@ Or you can filter all products by price in EUR greater than 300€ and order by 
 
 Updating an entity is similar to creating a new entity:
 
-<SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
 [Example of listing entities](/documentation/user/en/get-started/example/update-entity.java)
 </SourceCodeTabs>
 
@@ -265,19 +265,19 @@ For more information, see the [write API description](../use/api/write-data.md#u
 
 You can delete entity by is primary key:
 
-<SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
 [Example of deleting entity by PK](/documentation/user/en/get-started/example/delete-entity-by-pk.java)
 </SourceCodeTabs>
 
 Or, you can issue a query that removes all the entities that match the query:
 
-<SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
 [Example of deleting entity by query](/documentation/user/en/get-started/example/delete-entity-by-query.java)
 </SourceCodeTabs>
 
 When you delete a hierarchical entity, you can choose whether or not to delete it with all of its child entities:
 
-<SourceCodeTabs requires="ignoreTest,/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/create-small-dataset.java">
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/create-small-dataset.java">
 [Example of deleting hierarchical entity](/documentation/user/en/get-started/example/delete-hierarchical-entity.java)
 </SourceCodeTabs>
 

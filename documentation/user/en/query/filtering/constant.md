@@ -35,10 +35,12 @@ of the primary keys in the constraint doesn't matter. The returned entities are 
 their primary keys, unless the `orderBy` clause is used in the query.
 
 <Note type="info">
+
 If you want the entities to be returned in the exact order of the primary keys used in the argument 
 of the `entityPrimaryKeyInSet` constraint, use the 
 [`entityPrimaryKeyInFilter`](../ordering/constant.md#exact-entity-primary-key-order-used-in-filter)
 ordering constraint.
+
 </Note>
 
 <Note type="info">

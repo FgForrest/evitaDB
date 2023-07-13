@@ -386,7 +386,7 @@ annotation, are serialized into a complex type. See the following example:
 
 Storing a complex type to entity is executed as follows:
 
-<SourceCodeTabs requires="/docs/user/en/use/examples/dto.java,/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/define-test-catalog.java,/docs/user/en/get-started/example/define-catalog-with-schema.java,/docs/user/en/use/api/example/open-session-manually.java">
+<SourceCodeTabs requires="/documentation/user/en/use/examples/dto.java,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,/documentation/user/en/get-started/example/define-catalog-with-schema.java,/documentation/user/en/use/api/example/open-session-manually.java">
 [Storing associated data to an entity](/documentation/user/en/use/examples/storing.java)
 </SourceCodeTabs>
 
@@ -446,7 +446,7 @@ void verifyProductStockAvailabilityIsProperlySerialized() {
 
 Retrieving a complex type from an entity is executed as follows:
 
-<SourceCodeTabs requires="/docs/user/en/use/examples/storing.java">
+<SourceCodeTabs requires="/documentation/user/en/use/examples/storing.java">
 [Loading associated data from an entity](/documentation/user/en/use/examples/loading.java)
 </SourceCodeTabs>
 

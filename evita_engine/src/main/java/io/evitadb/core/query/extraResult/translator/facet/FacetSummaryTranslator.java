@@ -108,7 +108,7 @@ public class FacetSummaryTranslator implements RequireConstraintTranslator<Facet
 		}
 
 		facetSummaryProducer.requireDefaultFacetSummary(
-			facetSummary.getFacetStatisticsDepth(),
+			facetSummary.getStatisticsDepth(),
 			referenceSchema -> facetSummary.getFilterBy().map(it -> createFacetPredicate(it, extraResultPlanner, referenceSchema)).orElse(null),
 			referenceSchema -> facetSummary.getFilterGroupBy().map(it -> createFacetGroupPredicate(it, extraResultPlanner, referenceSchema)).orElse(null),
 			referenceSchema -> facetSummary.getOrderBy().map(it -> createFacetSorter(it, extraResultPlanner, referenceSchema)).orElse(null),

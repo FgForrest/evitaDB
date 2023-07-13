@@ -26,6 +26,7 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
@@ -80,7 +81,7 @@ public class FacetSummary extends AbstractRequireConstraintContainer
 	private FacetSummary(@Nonnull Serializable[] arguments, @Nonnull RequireConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {
 		super(arguments, children, additionalChildren);
 		Assert.notNull(
-			getFacetStatisticsDepth(),
+			getStatisticsDepth(),
 			"Facet summary requires a facet statistics depth specification."
 		);
 		for (RequireConstraint child : children) {
@@ -159,7 +160,7 @@ public class FacetSummary extends AbstractRequireConstraintContainer
 	 * or whether the selection impact should be computed as well.
 	 */
 	@Nonnull
-	public FacetStatisticsDepth getFacetStatisticsDepth() {
+	public FacetStatisticsDepth getStatisticsDepth() {
 		return (FacetStatisticsDepth) getArguments()[0];
 	}
 
@@ -227,6 +228,13 @@ public class FacetSummary extends AbstractRequireConstraintContainer
 			.filter(OrderGroupBy.class::isInstance)
 			.map(OrderGroupBy.class::cast)
 			.findFirst();
+	}
+
+	@AliasForParameter("requirements")
+	@Nonnull
+	@Override
+	public RequireConstraint[] getChildren() {
+		return super.getChildren();
 	}
 
 	@Override

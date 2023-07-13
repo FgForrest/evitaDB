@@ -26,7 +26,7 @@ package io.evitadb.performance.externalApi.rest.artificial.state;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.performance.externalApi.rest.artificial.RestArtificialFullDatabaseBenchmarkState;
-import io.evitadb.performance.generators.RestRandomQueryGenerator;
+import io.evitadb.performance.generators.RandomQueryGenerator;
 import io.evitadb.performance.setup.EvitaCatalogReusableSetup;
 import io.evitadb.test.Entities;
 import lombok.Getter;
@@ -45,7 +45,7 @@ import java.util.Set;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 public class RestArtificialFacetBenchmarkState extends RestArtificialFullDatabaseBenchmarkState
-	implements RestRandomQueryGenerator, EvitaCatalogReusableSetup {
+	implements RandomQueryGenerator, EvitaCatalogReusableSetup {
 
 	/**
 	 * Map contains set of all faceted referenced entities, that could be used to create random queries.

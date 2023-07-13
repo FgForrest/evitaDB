@@ -10,8 +10,8 @@ author: 'Ing. Jan Novotný'
 proofreading: 'done'
 ---
 
-The facet lookup summary contains list of <Term location="docs/research/en/assignment/index.md" name="facet group">facet groups</Term> and
-<Term location="docs/research/en/assignment/index.md" name="facet">facets</Term> inside them, that are present on entities in the current hierarchy
+The facet lookup summary contains list of <Term location="documentation/research/en/assignment/index.md" name="facet group">facet groups</Term> and
+<Term location="documentation/research/en/assignment/index.md" name="facet">facets</Term> inside them, that are present on entities in the current hierarchy
 section or the entire entity set. The structure of the object is as follows:
 
 - **[List](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html) of [FacetGroupStatistics](#facet-group-statistics)**

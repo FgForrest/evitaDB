@@ -324,7 +324,7 @@ as you will read in the next chapter.
 The sample translation is a manual operation that is not invoked by our CI workflows. The generated files need to be 
 reviewed by a human and committed to Git along with the documentation. However, once the examples/files are generated, 
 they are compiled and executed by our test suite, so their correctness is automatically verified. See for yourself how
-the generated snippets look like: <SourceClass>/docs/user/en/query/filtering/examples/hierarchy/</SourceClass>
+the generated snippets look like: <SourceClass>/documentation/user/en/query/filtering/examples/hierarchy/</SourceClass>
 
 ## Verification, assertions
 
@@ -343,7 +343,7 @@ given in the example, and if these results differ, we mark the tests as failed a
 There is a special GitHub workflow <SourceClass>.github/workflows/ci-dev-documentation.yml</SourceClass> associated with 
 documentation verification. The tests, which check the executability of our source code examples and compare their 
 output to the last checked output, run automatically whenever there is a change in the 
-<SourceClass>docs/user/</SourceClass> folder. They also run every Sunday night, so that we can detect possible changes 
+<SourceClass>documentation/user/</SourceClass> folder. They also run every Sunday night, so that we can detect possible changes 
 in [the demo dataset](/documentation/getting-started/query-our-dataset), even if the documentation itself hasn't 
 changed.
 

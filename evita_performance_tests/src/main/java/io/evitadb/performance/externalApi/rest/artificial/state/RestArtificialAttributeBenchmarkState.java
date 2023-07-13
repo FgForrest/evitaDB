@@ -26,7 +26,7 @@ package io.evitadb.performance.externalApi.rest.artificial.state;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.performance.externalApi.rest.artificial.RestArtificialFullDatabaseBenchmarkState;
-import io.evitadb.performance.generators.RestRandomQueryGenerator;
+import io.evitadb.performance.generators.RandomQueryGenerator;
 import io.evitadb.performance.setup.EvitaCatalogReusableSetup;
 import io.evitadb.test.Entities;
 import lombok.Getter;
@@ -44,7 +44,7 @@ import java.util.Set;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 public class RestArtificialAttributeBenchmarkState extends RestArtificialFullDatabaseBenchmarkState
-	implements RestRandomQueryGenerator, EvitaCatalogReusableSetup {
+	implements RandomQueryGenerator, EvitaCatalogReusableSetup {
 
 	/**
 	 * This set contains names of all sortable attributes of the entity

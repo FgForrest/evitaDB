@@ -23,9 +23,17 @@
 
 package io.evitadb.performance.externalApi.graphql.artificial.state;
 
+import io.evitadb.api.query.Query;
+import io.evitadb.performance.artificial.AbstractArtificialBenchmarkState;
+import io.evitadb.test.client.query.graphql.GraphQLQueryConverter;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
+
+import javax.annotation.Nonnull;
+
+import static io.evitadb.test.TestConstants.TEST_CATALOG;
 
 /**
  * Common ancestor for thread-scoped state objects.
@@ -33,10 +41,26 @@ import org.openjdk.jmh.annotations.State;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @State(Scope.Thread)
+@Slf4j
 public abstract class AbstractGraphQLArtificialState {
+
+	@Nonnull private final GraphQLQueryConverter queryConverter = new GraphQLQueryConverter();
 
 	/**
 	 * Request body prepared for the measured invocation.
 	 */
-	@Getter protected String requestBody;
+	@Getter private String requestBody;
+
+	protected void setRequestBody(@Nonnull String requestBody) {
+		this.requestBody = requestBody;
+	}
+
+	protected void setRequestBody(@Nonnull AbstractArtificialBenchmarkState<?> benchmarkState, @Nonnull Query query) {
+		this.requestBody = queryConverter.convert(
+			benchmarkState.getEvita(),
+			TEST_CATALOG,
+			query
+		);
+//		log.info(this.requestBody);
+	}
 }

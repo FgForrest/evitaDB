@@ -48,7 +48,7 @@ public class FacetGroupStatisticsDataFetcher implements DataFetcher<Collection<F
 	@Override
 	public Collection<FacetGroupStatistics> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final FacetSummary facetSummary = environment.getSource();
-		return facetSummary.getFacetGroupStatistics()
+		return facetSummary.getReferenceStatistics()
 			.stream()
 			.filter(it -> it.getReferenceName().equals(referenceSchema.getName()))
 			.toList();

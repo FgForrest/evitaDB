@@ -26,9 +26,9 @@ env:
 
   DATASET: "https://evitadb.io/download/performance_test_datasets.zip"
 
-  BENCHMARK_SELECTOR: ""                            # use if you want limit running only sub set of the benchmarks
+  BENCHMARK_SELECTOR: "io.evitadb.performance.*"    # use if you want limit running only sub set of the benchmarks
   JMH_ARGS: ""                                      # use if you want to configure JMH tool arguments
-  
+
   BENCHMARK_K8S_LIMIT_CPU: "4"
   BENCHMARK_JAVA_OPTS: "-Xmx9g"
   GH_ACTION: 1
@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
-    steps: 
+    steps:
       - uses: actions/checkout@v3    # checkout sources
 
       - name: Install doctl
@@ -49,7 +49,7 @@ jobs:
       - name: Install kubectl
         uses: azure/setup-kubectl@v3
         with:
-          version: ${{ env.KUBECTL_VER }} 
+          version: ${{ env.KUBECTL_VER }}
 
 
       - name: create Kubernetes cluster in DO
