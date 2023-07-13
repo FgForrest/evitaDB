@@ -24,6 +24,7 @@
 package io.evitadb.api.proxy.impl.entity;
 
 import io.evitadb.api.proxy.SealedEntityProxy;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import one.edee.oss.proxycian.MethodClassification;
 import one.edee.oss.proxycian.recipe.Advice;
 
@@ -32,13 +33,19 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * TODO JNO - document me
+ * Advice allowing to implement all supported abstract methods on proxy wrapping {@link EntityContract}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class EntityContractAdvice implements Advice<SealedEntityProxy> {
-	public static final EntityContractAdvice INSTANCE = new EntityContractAdvice();
 	@Serial private static final long serialVersionUID = -5338309229187809879L;
+	/**
+	 * We may reuse singleton instance since advice is stateless.
+	 */
+	public static final EntityContractAdvice INSTANCE = new EntityContractAdvice();
+	/**
+	 * List of all method classifications supported by this advice.
+	 */
 	@SuppressWarnings("unchecked")
 	private static final List<MethodClassification<?, SealedEntityProxy>> METHOD_CLASSIFICATION = Arrays.asList(
 		new MethodClassification[]{

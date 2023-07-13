@@ -48,7 +48,7 @@ public interface ProxyFactory {
 	 * @throws EntityClassInvalidException if the proxy contract is not valid
 	 */
 	@Nonnull
-	<T> T createProxy(
+	<T> T createEntityProxy(
 		@Nonnull Class<T> expectedType,
 		@Nonnull SealedEntity sealedEntity
 	) throws EntityClassInvalidException;

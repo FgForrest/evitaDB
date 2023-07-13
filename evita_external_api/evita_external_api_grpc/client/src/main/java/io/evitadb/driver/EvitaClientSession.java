@@ -371,7 +371,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			query,
 			OffsetDateTime.now(),
 			expectedType,
-			this.proxyFactory::createProxy
+			this.proxyFactory::createEntityProxy
 		);
 		return queryOneInternal(query, expectedType, evitaRequest);
 	}
@@ -383,7 +383,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			query,
 			OffsetDateTime.now(),
 			expectedType,
-			this.proxyFactory::createProxy
+			this.proxyFactory::createEntityProxy
 		);
 		return queryListInternal(query, expectedType, evitaRequest);
 	}
@@ -422,7 +422,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 						query,
 						OffsetDateTime.now(),
 						EntityReference.class,
-						this.proxyFactory::createProxy
+						this.proxyFactory::createEntityProxy
 					)
 				)
 			);
@@ -438,7 +438,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 							query,
 							OffsetDateTime.now(),
 							expectedType,
-							this.proxyFactory::createProxy
+							this.proxyFactory::createEntityProxy
 						),
 						(entityType, schemaVersion) -> schemaCache.getEntitySchemaOrThrow(
 							entityType, schemaVersion, this::fetchEntitySchema, this::getCatalogSchema
@@ -461,7 +461,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			//noinspection unchecked
 			return (T) new EvitaEntityResponse<>(
 				query, recordPage,
-				getEvitaResponseExtraResults(grpcResponse, new EvitaRequest(query, OffsetDateTime.now(), EntityReference.class, this.proxyFactory::createProxy))
+				getEvitaResponseExtraResults(grpcResponse, new EvitaRequest(query, OffsetDateTime.now(), EntityReference.class, this.proxyFactory::createEntityProxy))
 			);
 		}
 	}
@@ -496,7 +496,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			),
 			OffsetDateTime.now(),
 			SealedEntity.class,
-			this.proxyFactory::createProxy
+			this.proxyFactory::createEntityProxy
 		);
 		return getEntityInternal(entityType, SealedEntity.class, primaryKey, evitaRequest, require);
 	}
@@ -514,7 +514,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			),
 			OffsetDateTime.now(),
 			expectedType,
-			this.proxyFactory::createProxy
+			this.proxyFactory::createEntityProxy
 		);
 		return getEntityInternal(entityType, expectedType, primaryKey, evitaRequest, require);
 	}
@@ -551,7 +551,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			),
 			OffsetDateTime.now(),
 			expectedType,
-			this.proxyFactory::createProxy
+			this.proxyFactory::createEntityProxy
 		);
 
 		//noinspection unchecked
@@ -592,7 +592,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			),
 			OffsetDateTime.now(),
 			expectedType,
-			this.proxyFactory::createProxy
+			this.proxyFactory::createEntityProxy
 		);
 
 		//noinspection unchecked
@@ -872,7 +872,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 					),
 					OffsetDateTime.now(),
 					SealedEntity.class,
-					this.proxyFactory::createProxy
+					this.proxyFactory::createEntityProxy
 				),
 				grpcResponse.getEntity(),
 				SealedEntity.class
@@ -975,7 +975,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 				query,
 				OffsetDateTime.now(),
 				SealedEntity.class,
-				this.proxyFactory::createProxy
+				this.proxyFactory::createEntityProxy
 			);
 			final StringWithParameters stringWithParameters = query.toStringWithParameterExtraction();
 			final GrpcDeleteEntitiesResponse grpcResponse = executeWithEvitaSessionService(evitaSessionService ->
@@ -1284,7 +1284,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 							),
 							OffsetDateTime.now(),
 							expectedType,
-							this.proxyFactory::createProxy
+							this.proxyFactory::createEntityProxy
 						),
 						grpcResponse.getEntity(),
 						expectedType
@@ -1335,7 +1335,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 							),
 							OffsetDateTime.now(),
 							expectedType,
-							this.proxyFactory::createProxy
+							this.proxyFactory::createEntityProxy
 						),
 						grpcResponse.getDeletedRootEntity(),
 						expectedType

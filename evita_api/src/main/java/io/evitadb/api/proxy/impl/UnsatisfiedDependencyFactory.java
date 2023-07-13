@@ -46,7 +46,7 @@ public class UnsatisfiedDependencyFactory implements ProxyFactory {
 
 	@Nonnull
 	@Override
-	public <T> T createProxy(
+	public <T> T createEntityProxy(
 		@Nonnull Class<T> expectedType,
 		@Nonnull SealedEntity sealedEntity
 	) throws EntityClassInvalidException {

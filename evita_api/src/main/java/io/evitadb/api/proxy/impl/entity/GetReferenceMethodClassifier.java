@@ -59,14 +59,20 @@ import java.util.Set;
 import java.util.function.Function;
 
 /**
- * TODO JNO - document me
- * TODO JNO - podporovat optional, možná i obecně pro atributy a tak
+ * Identifies methods that are used to get reference from a sealed entity and provides their implementation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class GetReferenceMethodClassifier extends DirectMethodClassification<EntityClassifier, SealedEntityProxyState> {
+	/**
+	 * We may reuse singleton instance since advice is stateless.
+	 */
 	public static final GetReferenceMethodClassifier INSTANCE = new GetReferenceMethodClassifier();
 
+	/**
+	 * Retrieves appropriate reference schema from the annotations on the method. If no Evita annotation is found
+	 * it tries to match the attribute name by the name of the method.
+	 */
 	@Nullable
 	private static ReferenceSchemaContract getReferenceSchema(
 		@Nonnull Method method,
@@ -89,6 +95,32 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 		}
 	}
 
+	/**
+	 * Method wraps passed {@link ReferenceContract} into a custom proxy instance of particular type.
+	 */
+	@Nullable
+	private static <T> T createProxy(
+		@Nonnull String cleanReferenceName,
+		@Nonnull Class<T> itemType,
+		@Nonnull SealedEntityProxyState theState,
+		@Nonnull ReferenceContract reference,
+		@Nonnull Function<ReferenceDecorator, Optional<SealedEntity>> entityExtractor
+	) {
+		Assert.isTrue(
+			reference instanceof ReferenceDecorator,
+			() -> "Entity `" + theState.getSealedEntity().getType() + "` references of type `" +
+				cleanReferenceName + "` were not fetched with `entityFetch` requirement. " +
+				"Related entity body is not available."
+		);
+		final ReferenceDecorator referenceDecorator = (ReferenceDecorator) reference;
+		return entityExtractor.apply(referenceDecorator)
+			.map(it -> theState.createEntityProxy(itemType, it))
+			.orElse(null);
+	}
+
+	/**
+	 * Creates an implementation of the method returning a single referenced entity wrapped into {@link EntityReference} object.
+	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> singleEntityReferenceResult(@Nonnull String cleanReferenceName) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
@@ -102,9 +134,13 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 		};
 	}
 
+	/**
+	 * Creates an implementation of the method returning a list of referenced entities wrapped into {@link EntityReference} object.
+	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> listOfEntityReferencesResult(@Nonnull String cleanReferenceName) {
-		// TODO JNO - we should provide our own set, that reflects the entity builder state, but is immutable
+	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> listOfEntityReferencesResult(
+		@Nonnull String cleanReferenceName
+	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			theState.getSealedEntity().getReferences(cleanReferenceName)
 				.stream()
@@ -112,9 +148,13 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 				.toList();
 	}
 
+	/**
+	 * Creates an implementation of the method returning a set of referenced entities wrapped into {@link EntityReference} object.
+	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> setOfEntityReferencesResult(@Nonnull String cleanReferenceName) {
-		// TODO JNO - we should provide our own set, that reflects the entity builder state, but is immutable
+	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> setOfEntityReferencesResult(
+		@Nonnull String cleanReferenceName
+	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			theState.getSealedEntity().getReferences(cleanReferenceName)
 				.stream()
@@ -122,8 +162,13 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 				.collect(CollectorUtils.toUnmodifiableLinkedHashSet());
 	}
 
+	/**
+	 * Creates an implementation of the method returning an array of referenced entities wrapped into {@link EntityReference} object.
+	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> arrayOfEntityReferencesResult(@Nonnull String cleanReferenceName) {
+	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> arrayOfEntityReferencesResult(
+		@Nonnull String cleanReferenceName
+	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			theState.getSealedEntity().getReferences(cleanReferenceName)
 				.stream()
@@ -131,8 +176,13 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 				.toArray(EntityReference[]::new);
 	}
 
+	/**
+	 * Creates an implementation of the method returning an integer representing a primary key of referenced entity.
+	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> singleEntityIdResult(@Nonnull String cleanReferenceName) {
+	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> singleEntityIdResult(
+		@Nonnull String cleanReferenceName
+	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
 			final Collection<ReferenceContract> references = theState.getSealedEntity().getReferences(cleanReferenceName);
 			if (references.isEmpty()) {
@@ -144,9 +194,11 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 		};
 	}
 
+	/**
+	 * Creates an implementation of the method returning a list of integers representing a primary keys of referenced entities.
+	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> listOfEntityIdsResult(@Nonnull String cleanReferenceName) {
-		// TODO JNO - we should provide our own set, that reflects the entity builder state, but is immutable
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			theState.getSealedEntity().getReferences(cleanReferenceName)
 				.stream()
@@ -154,9 +206,13 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 				.toList();
 	}
 
+	/**
+	 * Creates an implementation of the method returning a set of integers representing a primary keys of referenced entities.
+	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> setOfEntityIdsResult(@Nonnull String cleanReferenceName) {
-		// TODO JNO - we should provide our own set, that reflects the entity builder state, but is immutable
+	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> setOfEntityIdsResult(
+		@Nonnull String cleanReferenceName
+	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			theState.getSealedEntity().getReferences(cleanReferenceName)
 				.stream()
@@ -164,6 +220,9 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 				.collect(CollectorUtils.toUnmodifiableLinkedHashSet());
 	}
 
+	/**
+	 * Creates an implementation of the method returning an array of integers representing a primary keys of referenced entities.
+	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> arrayOfEntityIdsResult(
 		@Nonnull String cleanReferenceName,
@@ -189,6 +248,9 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 		}
 	}
 
+	/**
+	 * Creates an implementation of the method returning a single referenced entity wrapped into a custom proxy instance.
+	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> singleEntityResult(
 		@Nonnull String cleanReferenceName,
@@ -200,41 +262,48 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 			if (references.isEmpty()) {
 				return null;
 			} else {
-				return wrapToType(cleanReferenceName, itemType, theState, references.iterator().next(), entityExtractor);
+				return createProxy(cleanReferenceName, itemType, theState, references.iterator().next(), entityExtractor);
 			}
 		};
 	}
 
+	/**
+	 * Creates an implementation of the method returning a list of referenced entities wrapped into a custom proxy instances.
+	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> listOfEntityResult(
 		@Nonnull String cleanReferenceName,
 		@Nonnull Class<? extends EntityClassifier> itemType,
 		@Nonnull Function<ReferenceDecorator, Optional<SealedEntity>> entityExtractor
 	) {
-		// TODO JNO - we should provide our own set, that reflects the entity builder state, but is immutable
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			theState.getSealedEntity().getReferences(cleanReferenceName)
 				.stream()
-				.map(it -> wrapToType(it.getReferenceName(), itemType, theState, it, entityExtractor))
+				.map(it -> createProxy(it.getReferenceName(), itemType, theState, it, entityExtractor))
 				.filter(Objects::nonNull)
 				.toList();
 	}
 
+	/**
+	 * Creates an implementation of the method returning a set of referenced entities wrapped into a custom proxy instances.
+	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> setOfEntityResult(
 		@Nonnull String cleanReferenceName,
 		@Nonnull Class<? extends EntityClassifier> itemType,
 		@Nonnull Function<ReferenceDecorator, Optional<SealedEntity>> entityExtractor
 	) {
-		// TODO JNO - we should provide our own set, that reflects the entity builder state, but is immutable
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			theState.getSealedEntity().getReferences(cleanReferenceName)
 				.stream()
-				.map(it -> wrapToType(it.getReferenceName(), itemType, theState, it, entityExtractor))
+				.map(it -> createProxy(it.getReferenceName(), itemType, theState, it, entityExtractor))
 				.filter(Objects::nonNull)
 				.collect(CollectorUtils.toUnmodifiableLinkedHashSet());
 	}
 
+	/**
+	 * Creates an implementation of the method returning an array of referenced entities wrapped into a custom proxy instances.
+	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> arrayOfEntityResult(
 		@Nonnull String cleanReferenceName,
@@ -244,31 +313,14 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			theState.getSealedEntity().getReferences(cleanReferenceName)
 				.stream()
-				.map(it -> wrapToType(it.getReferenceName(), itemType, theState, it, entityExtractor))
+				.map(it -> createProxy(it.getReferenceName(), itemType, theState, it, entityExtractor))
 				.filter(Objects::nonNull)
 				.toArray(count -> (Object[]) Array.newInstance(itemType, count));
 	}
 
-	@Nullable
-	private static EntityClassifier wrapToType(
-		@Nonnull String cleanReferenceName,
-		@Nonnull Class<? extends EntityClassifier> itemType,
-		@Nonnull SealedEntityProxyState theState,
-		@Nonnull ReferenceContract reference,
-		@Nonnull Function<ReferenceDecorator, Optional<SealedEntity>> entityExtractor
-	) {
-		Assert.isTrue(
-			reference instanceof ReferenceDecorator,
-			() -> "Entity `" + theState.getSealedEntity().getType() + "` references of type `" +
-				cleanReferenceName + "` were not fetched with `entityFetch` requirement. " +
-				"Related entity body is not available."
-		);
-		final ReferenceDecorator referenceDecorator = (ReferenceDecorator) reference;
-		return entityExtractor.apply(referenceDecorator)
-			.map(it -> theState.wrapTo(itemType, it))
-			.orElse(null);
-	}
-
+	/**
+	 * Creates an implementation of the method returning a single reference wrapped into a custom proxy instance.
+	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> singleReferenceResult(
 		@Nonnull String cleanReferenceName,
@@ -279,37 +331,44 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 			if (references.isEmpty()) {
 				return null;
 			} else {
-				return theState.wrapReferenceTo(itemType, references.iterator().next());
+				return theState.createReferenceProxy(itemType, references.iterator().next());
 			}
 		};
 	}
 
+	/**
+	 * Creates an implementation of the method returning a list of references wrapped into a custom proxy instances.
+	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> listOfReferenceResult(
 		@Nonnull String cleanReferenceName,
 		@Nonnull Class<?> itemType
 	) {
-		// TODO JNO - we should provide our own set, that reflects the entity builder state, but is immutable
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			theState.getSealedEntity().getReferences(cleanReferenceName)
 				.stream()
-				.map(it -> theState.wrapReferenceTo(itemType, it))
+				.map(it -> theState.createReferenceProxy(itemType, it))
 				.toList();
 	}
 
+	/**
+	 * Creates an implementation of the method returning a set of references wrapped into a custom proxy instances.
+	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> setOfReferenceResult(
 		@Nonnull String cleanReferenceName,
 		@Nonnull Class<?> itemType
 	) {
-		// TODO JNO - we should provide our own set, that reflects the entity builder state, but is immutable
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			theState.getSealedEntity().getReferences(cleanReferenceName)
 				.stream()
-				.map(it -> theState.wrapReferenceTo(itemType, it))
+				.map(it -> theState.createReferenceProxy(itemType, it))
 				.collect(CollectorUtils.toUnmodifiableLinkedHashSet());
 	}
 
+	/**
+	 * Creates an implementation of the method returning an array of references wrapped into a custom proxy instances.
+	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> arrayOfReferenceResult(
 		@Nonnull String cleanReferenceName,
@@ -318,10 +377,14 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			theState.getSealedEntity().getReferences(cleanReferenceName)
 				.stream()
-				.map(it -> theState.wrapReferenceTo(itemType, it))
+				.map(it -> theState.createReferenceProxy(itemType, it))
 				.toArray(count -> (Object[]) Array.newInstance(itemType, count));
 	}
 
+	/**
+	 * Method returns implementation of the method returning referenced entities in the simple or complex (custom type)
+	 * form.
+	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> getReferencedEntity(
 		@Nonnull ReferenceSchemaContract referenceSchema,
@@ -383,6 +446,9 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 		}
 	}
 
+	/**
+	 * Method returns implementation of the method returning referenced entities in the form of {@link EntityReference}.
+	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> getEntityReference(
 		@Nonnull String cleanReferenceName,
@@ -399,6 +465,9 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 		}
 	}
 
+	/**
+	 * Method returns implementation of the method returning referenced entities in the form of integer primary key.
+	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> getEntityId(
 		@Nonnull String cleanReferenceName,
@@ -416,6 +485,9 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 		}
 	}
 
+	/**
+	 * Method returns implementation of the method returning references entities in the form of custom proxied types.
+	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> getReference(
 		@Nonnull String cleanReferenceName,
@@ -436,18 +508,23 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 		super(
 			"getReference",
 			(method, proxyState) -> {
+				// we are interested only in abstract methods without parameters
 				if (!ClassUtils.isAbstractOrDefault(method) || method.getParameterCount() > 0) {
 					return null;
 				}
+				// now we need to identify reference schema that is being requested
 				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
 				final ReferenceSchemaContract referenceSchema = getReferenceSchema(
 					method, reflectionLookup,
 					proxyState.getEntitySchema()
 				);
+				// if not found, this method is not classified by this implementation
 				if (referenceSchema == null) {
 					return null;
 				} else {
+					// finally provide implementation that will retrieve the reference or reference entity from the entity
 					final String cleanReferenceName = referenceSchema.getName();
+					// now we need to identify the return type
 					@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 					@SuppressWarnings("rawtypes") final Class collectionType;
 					@SuppressWarnings("rawtypes") final Class itemType;
@@ -462,6 +539,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 						itemType = returnType;
 					}
 
+					// return the appropriate result
 					final Entity entityInstance = reflectionLookup.getClassAnnotation(itemType, Entity.class);
 					final EntityRef entityRefInstance = reflectionLookup.getClassAnnotation(itemType, EntityRef.class);
 					if (itemType.equals(EntityReference.class)) {

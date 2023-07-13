@@ -42,15 +42,23 @@ import javax.annotation.Nullable;
 import java.lang.reflect.Method;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.function.Function;
 
 /**
- * TODO JNO - document me
+ * Identifies methods that are used to get attributes from an entity and provides their implementation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class GetAttributeMethodClassifier extends DirectMethodClassification<EntityClassifier, SealedEntityProxyState> {
+	/**
+	 * We may reuse singleton instance since advice is stateless.
+	 */
 	public static final GetAttributeMethodClassifier INSTANCE = new GetAttributeMethodClassifier();
 
+	/**
+	 * Retrieves appropriate attribute schema from the annotations on the method. If no Evita annotation is found
+	 * it tries to match the attribute name by the name of the method.
+	 */
 	@Nullable
 	private static AttributeSchemaContract getAttributeSchema(
 		@Nonnull Method method,
@@ -59,10 +67,12 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Ent
 	) {
 		final Attribute attributeInstance = reflectionLookup.getAnnotationInstance(method, Attribute.class);
 		final AttributeRef attributeRefInstance = reflectionLookup.getAnnotationInstance(method, AttributeRef.class);
+		final Function<String, AttributeSchemaContract> schemaLocator = attributeName -> entitySchema.getAttribute(attributeName)
+			.orElseThrow(() -> new AttributeNotFoundException(attributeName, entitySchema));
 		if (attributeInstance != null) {
-			return getAttributeSchemaContractOrThrow(entitySchema, attributeInstance.name());
+			return schemaLocator.apply(attributeInstance.name());
 		} else if (attributeRefInstance != null) {
-			return getAttributeSchemaContractOrThrow(entitySchema, attributeRefInstance.value());
+			return schemaLocator.apply(attributeRefInstance.value());
 		} else if (!reflectionLookup.hasAnnotationInSamePackage(method, Attribute.class)) {
 			final Optional<String> attributeName = ReflectionLookup.getPropertyNameFromMethodNameIfPossible(method.getName());
 			return attributeName
@@ -73,22 +83,11 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Ent
 		}
 	}
 
-	@Nonnull
-	private static AttributeSchemaContract getAttributeSchemaContractOrThrow(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull String attributeName
-	) {
-		final Optional<AttributeSchemaContract> result = entitySchema.getAttribute(attributeName);
-		return result
-			.orElseThrow(
-				() -> new AttributeNotFoundException(attributeName, entitySchema)
-			);
-	}
-
 	public GetAttributeMethodClassifier() {
 		super(
 			"getAttribute",
 			(method, proxyState) -> {
+				// We only want to handle non-abstract methods with no parameters or a single Locale parameter
 				if (
 					!ClassUtils.isAbstractOrDefault(method) ||
 					method.getParameterCount() > 1 ||
@@ -96,26 +95,27 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Ent
 				) {
 					return null;
 				}
+				// now we need to identify attribute schema that is being requested
 				final AttributeSchemaContract attributeSchema = getAttributeSchema(
 					method, proxyState.getReflectionLookup(),
 					proxyState.getEntitySchema()
 				);
+				// if not found, this method is not classified by this implementation
 				if (attributeSchema == null) {
 					return null;
 				} else {
+					// finally provide implementation that will retrieve the attribute from the entity
 					final String cleanAttributeName = attributeSchema.getName();
 					final int indexedDecimalPlaces = attributeSchema.getIndexedDecimalPlaces();
 					@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 					if (attributeSchema.isLocalized()) {
 						//noinspection unchecked
 						return method.getParameterCount() == 0 ?
-							(entityClassifier, theMethod, args, theState, invokeSuper) -> {
-								return EvitaDataTypes.toTargetType(
-									theState.getAttribute(cleanAttributeName), returnType, indexedDecimalPlaces
-								);
-							} :
 							(entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
-								theState.getAttribute(cleanAttributeName, (Locale) args[0]), returnType, indexedDecimalPlaces
+								theState.getSealedEntity().getAttribute(cleanAttributeName), returnType, indexedDecimalPlaces
+							) :
+							(entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
+								theState.getSealedEntity().getAttribute(cleanAttributeName, (Locale) args[0]), returnType, indexedDecimalPlaces
 							);
 					} else {
 						Assert.isTrue(
@@ -124,7 +124,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Ent
 						);
 						//noinspection unchecked
 						return (entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
-							theState.getAttribute(cleanAttributeName), returnType, indexedDecimalPlaces
+							theState.getSealedEntity().getAttribute(cleanAttributeName), returnType, indexedDecimalPlaces
 						);
 					}
 				}

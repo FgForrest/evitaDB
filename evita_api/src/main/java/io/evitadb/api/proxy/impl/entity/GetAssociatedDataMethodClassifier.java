@@ -23,7 +23,6 @@
 
 package io.evitadb.api.proxy.impl.entity;
 
-import io.evitadb.api.exception.AssociatedDataNotFoundException;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedData;
@@ -39,16 +38,22 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Method;
 import java.util.Locale;
-import java.util.Optional;
 
 /**
- * TODO JNO - document me
+ * Identifies methods that are used to get associated data from an entity and provides their implementation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class GetAssociatedDataMethodClassifier extends DirectMethodClassification<EntityClassifier, SealedEntityProxyState> {
+	/**
+	 * We may reuse singleton instance since advice is stateless.
+	 */
 	public static final GetAssociatedDataMethodClassifier INSTANCE = new GetAssociatedDataMethodClassifier();
 
+	/**
+	 * Retrieves appropriate associated data schema from the annotations on the method. If no Evita annotation is found
+	 * it tries to match the associated data name by the name of the method.
+	 */
 	@Nullable
 	private static AssociatedDataSchemaContract getAssociatedDataSchema(
 		@Nonnull Method method,
@@ -58,9 +63,9 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		final AssociatedData associatedDataInstance = reflectionLookup.getAnnotationInstance(method, AssociatedData.class);
 		final AssociatedDataRef associatedDataRefInstance = reflectionLookup.getAnnotationInstance(method, AssociatedDataRef.class);
 		if (associatedDataInstance != null) {
-			return getAssociatedDataSchemaContractOrThrow(entitySchema, associatedDataInstance.name());
+			return entitySchema.getAssociatedDataOrThrowException(associatedDataInstance.name());
 		} else if (associatedDataRefInstance != null) {
-			return getAssociatedDataSchemaContractOrThrow(entitySchema, associatedDataRefInstance.value());
+			return entitySchema.getAssociatedDataOrThrowException(associatedDataRefInstance.value());
 		} else if (!reflectionLookup.hasAnnotationInSamePackage(method, AssociatedData.class)) {
 			return ReflectionLookup.getPropertyNameFromMethodNameIfPossible(method.getName())
 				.flatMap(
@@ -75,35 +80,26 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		}
 	}
 
-	@Nonnull
-	private static AssociatedDataSchemaContract getAssociatedDataSchemaContractOrThrow(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull String associatedDataName
-	) {
-		final Optional<AssociatedDataSchemaContract> result;
-		result = entitySchema.getAssociatedData(associatedDataName);
-		return result
-			.orElseThrow(
-				() -> new AssociatedDataNotFoundException(associatedDataName, entitySchema)
-			);
-	}
-
 	public GetAssociatedDataMethodClassifier() {
 		super(
 			"getAssociatedData",
 			(method, proxyState) -> {
+				// we only want to handle methods that are not abstract and have at most one parameter of type Locale.
 				if (!ClassUtils.isAbstractOrDefault(method) ||
 					method.getParameterCount() > 1 ||
 					(method.getParameterCount() == 1 && !method.getParameterTypes()[0].equals(Locale.class))
 				) {
 					return null;
 				}
+				// now we need to identify associated data schema that is being requested
 				final AssociatedDataSchemaContract associatedDataSchema = getAssociatedDataSchema(
 					method, proxyState.getReflectionLookup(), proxyState.getEntitySchema()
 				);
+				// if not found, this method is not classified by this implementation
 				if (associatedDataSchema == null) {
 					return null;
 				} else {
+					// finally provide implementation that will retrieve the associated data from the entity
 					final String cleanAssociatedDataName = associatedDataSchema.getName();
 					@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 					//noinspection unchecked

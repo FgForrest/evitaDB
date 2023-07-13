@@ -24,12 +24,10 @@
 package io.evitadb.api.proxy.impl;
 
 import io.evitadb.api.proxy.SealedEntityProxy;
-import io.evitadb.api.proxy.impl.ProxycianFactory.ProxyRecipeCacheKey;
-import io.evitadb.api.requestResponse.data.AttributesContract;
+import io.evitadb.api.proxy.impl.ProxycianFactory.ProxyEntityCacheKey;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.utils.ReflectionLookup;
-import lombok.experimental.Delegate;
 import one.edee.oss.proxycian.recipe.ProxyRecipe;
 
 import javax.annotation.Nonnull;
@@ -40,20 +38,20 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * TODO JNO - document me
+ * Proxy state for proxies that wrap sealed entity.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class SealedEntityProxyState
 	extends AbstractEntityProxyState
-	implements EntityClassifier, SealedEntityProxy, AttributesContract {
+	implements EntityClassifier, SealedEntityProxy {
 	@Serial private static final long serialVersionUID = 586508293856395550L;
 
 	public SealedEntityProxyState(
 		@Nonnull SealedEntity sealedEntity,
 		@Nonnull Class<?> proxyClass,
-		@Nonnull Map<ProxyRecipeCacheKey, ProxyRecipe> recipes,
-		@Nonnull Map<ProxyRecipeCacheKey, ProxyRecipe> collectedRecipes,
+		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> recipes,
+		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> collectedRecipes,
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
 		super(sealedEntity, proxyClass, recipes, collectedRecipes, reflectionLookup);
@@ -69,13 +67,6 @@ public class SealedEntityProxyState
 	@Override
 	public Integer getPrimaryKey() {
 		return sealedEntity.getPrimaryKey();
-	}
-
-	@Delegate(types = {AttributesContract.class})
-	@Nonnull
-	@Override
-	public SealedEntity getSealedEntity() {
-		return super.getSealedEntity();
 	}
 
 	@Nullable

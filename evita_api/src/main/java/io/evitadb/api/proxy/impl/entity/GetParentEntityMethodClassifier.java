@@ -44,20 +44,28 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * TODO JNO - document me
- * TODO JNO - podporovat optional, možná i obecně pro atributy a tak
+ * Identifies methods that are used to get parent entity from an sealed entity and provides their implementation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class GetParentEntityMethodClassifier extends DirectMethodClassification<EntityClassifier, SealedEntityProxyState> {
+	/**
+	 * We may reuse singleton instance since advice is stateless.
+	 */
 	public static final GetParentEntityMethodClassifier INSTANCE = new GetParentEntityMethodClassifier();
 
+	/**
+	 * Implementation that returns an integer value of parent entity id.
+	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> singleParentIdResult() {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			theState.getSealedEntity().getParent().stream().boxed().findFirst().orElse(null);
 	}
 
+	/**
+	 * Implementation that returns an {@link EntityReference} of parent entity.
+	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> singleParentReferenceResult() {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
@@ -71,6 +79,9 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 		};
 	}
 
+	/**
+	 * Implementation that returns a custom proxy class wrapping a {@link SealedEntity} object of parent entity.
+	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> singleParentEntityResult(
 		@Nonnull Class<? extends EntityClassifier> itemType
@@ -83,7 +94,7 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 					"`entityFetch` requirement. Parent entity body is not available."
 			);
 			return parentEntity
-				.map(it -> theState.wrapTo(itemType, (SealedEntity) it))
+				.map(it -> theState.createEntityProxy(itemType, (SealedEntity) it))
 				.orElse(null);
 		};
 	}
@@ -92,15 +103,20 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 		super(
 			"getParentEntity",
 			(method, proxyState) -> {
+				// Method must be abstract and have no parameters
 				if (!ClassUtils.isAbstractOrDefault(method) || method.getParameterCount() > 0) {
 					return null;
 				}
+
+				// first we need to identify whether the method returns a parent entity
 				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
 				final ParentEntity parentEntity = reflectionLookup.getAnnotationInstance(method, ParentEntity.class);
 				if (parentEntity == null) {
 					return null;
 				}
 
+				// it may also return an class that is annotated with entity annotation and its entity name must exactly
+				// match the parent entity name derived from actual schema
 				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 				final Entity entityInstance = reflectionLookup.getClassAnnotation(returnType, Entity.class);
 				final EntityRef entityRefInstance = reflectionLookup.getClassAnnotation(returnType, EntityRef.class);
@@ -118,6 +134,7 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 					)
 				);
 
+				// now we need to identify the return type and return appropriate implementation
 				if (Number.class.isAssignableFrom(EvitaDataTypes.toWrappedForm(returnType))) {
 					return singleParentIdResult();
 				} else if (returnType.equals(EntityReference.class)) {

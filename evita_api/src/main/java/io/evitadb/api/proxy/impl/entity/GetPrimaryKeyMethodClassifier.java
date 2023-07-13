@@ -35,21 +35,27 @@ import one.edee.oss.proxycian.DirectMethodClassification;
 import java.util.Optional;
 
 /**
- * TODO JNO - document me
+ * Identifies methods that are used to get entity primary key from an entity and provides their implementation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class GetPrimaryKeyMethodClassifier extends DirectMethodClassification<EntityClassifier, SealedEntityProxyState> {
+	/**
+	 * We may reuse singleton instance since advice is stateless.
+	 */
 	public static final GetPrimaryKeyMethodClassifier INSTANCE = new GetPrimaryKeyMethodClassifier();
 
 	public GetPrimaryKeyMethodClassifier() {
 		super(
 			"getPrimaryKey",
 			(method, proxyState) -> {
+				// We are interested only in abstract methods without arguments
 				if (!ClassUtils.isAbstractOrDefault(method) || method.getParameterCount() > 0) {
 					return null;
 				}
 				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
+				// we try to find appropriate annotations on the method, if no Evita annotation is found it tries
+				// to match the method by its name
 				final PrimaryKey primaryKey = reflectionLookup.getAnnotationInstance(method, PrimaryKey.class);
 				final PrimaryKeyRef primaryKeyRef = reflectionLookup.getAnnotationInstance(method, PrimaryKeyRef.class);
 				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
@@ -58,18 +64,17 @@ public class GetPrimaryKeyMethodClassifier extends DirectMethodClassification<En
 					!reflectionLookup.hasAnnotationInSamePackage(method, PrimaryKey.class) &&
 						Number.class.isAssignableFrom(EvitaDataTypes.toWrappedForm(returnType)) &&
 							propertyName
-								.map(pName -> "primaryKey".equals(pName) ||
-									"entityPrimaryKey".equals(pName) ||
-									"pk".equals(pName) ||
-									"id".equals(pName))
+								.map(PrimaryKeyRef.POSSIBLE_ARGUMENT_NAMES::contains)
 								.orElse(false)
 					)
 				) {
+					// method matches - provide implementation
 					//noinspection unchecked
 					return (entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
 						theState.getPrimaryKey(), returnType
 					);
 				} else {
+					// this method is not classified by this implementation
 					return null;
 				}
 			}

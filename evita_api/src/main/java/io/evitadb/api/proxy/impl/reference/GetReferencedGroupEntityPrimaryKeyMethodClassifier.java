@@ -34,20 +34,27 @@ import one.edee.oss.proxycian.DirectMethodClassification;
 import java.util.Optional;
 
 /**
- * TODO JNO - document me
+ * Identifies methods that are used to get referenced entity group primary key from an entity and provides their implementation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class GetReferencedGroupEntityPrimaryKeyMethodClassifier extends DirectMethodClassification<Object, SealedEntityReferenceProxyState> {
+	/**
+	 * We may reuse singleton instance since advice is stateless.
+	 */
 	public static final GetReferencedGroupEntityPrimaryKeyMethodClassifier INSTANCE = new GetReferencedGroupEntityPrimaryKeyMethodClassifier();
 
 	public GetReferencedGroupEntityPrimaryKeyMethodClassifier() {
 		super(
 			"getReferencedEntityGroupPrimaryKey",
 			(method, proxyState) -> {
+				// we are interested only in abstract methods without parameters
 				if (!ClassUtils.isAbstractOrDefault(method) || method.getParameterCount() > 0) {
 					return null;
 				}
+
+				// we try to find appropriate annotations on the method, if no Evita annotation is found it tries
+				// to match the method by its name
 				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
 				final ReferencedEntityGroup referencedEntityGroup = reflectionLookup.getAnnotationInstance(method, ReferencedEntityGroup.class);
 				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
@@ -55,19 +62,18 @@ public class GetReferencedGroupEntityPrimaryKeyMethodClassifier extends DirectMe
 				if (Number.class.isAssignableFrom(EvitaDataTypes.toWrappedForm(returnType)) && referencedEntityGroup != null || (
 					!reflectionLookup.hasAnnotationInSamePackage(method, ReferencedEntityGroup.class) &&
 							propertyName
-								.map(pName -> "groupPrimaryKey".equals(pName) ||
-									"entityGroupPrimaryKey".equals(pName) ||
-									"groupPk".equals(pName) ||
-									"groupId".equals(pName))
+								.map(ReferencedEntityGroup.POSSIBLE_ARGUMENT_NAMES::contains)
 								.orElse(false)
 					)
 				) {
+					// method matches - provide implementation
 					//noinspection unchecked
 					return (entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
 						theState.getReference().getGroup().map(GroupEntityReference::getPrimaryKey).orElse(null),
 						returnType
 					);
 				} else {
+					// this method is not classified by this implementation
 					return null;
 				}
 			}

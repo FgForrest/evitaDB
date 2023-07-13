@@ -24,6 +24,7 @@
 package io.evitadb.api.proxy.impl.reference;
 
 import io.evitadb.api.proxy.impl.SealedEntityReferenceProxyState;
+import io.evitadb.api.requestResponse.data.annotation.PrimaryKeyRef;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.ClassUtils;
@@ -33,20 +34,27 @@ import one.edee.oss.proxycian.DirectMethodClassification;
 import java.util.Optional;
 
 /**
- * TODO JNO - document me
+ * Identifies methods that are used to get referenced entity primary key from an entity and provides their implementation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class GetReferencedEntityPrimaryKeyMethodClassifier extends DirectMethodClassification<Object, SealedEntityReferenceProxyState> {
+	/**
+	 * We may reuse singleton instance since advice is stateless.
+	 */
 	public static final GetReferencedEntityPrimaryKeyMethodClassifier INSTANCE = new GetReferencedEntityPrimaryKeyMethodClassifier();
 
 	public GetReferencedEntityPrimaryKeyMethodClassifier() {
 		super(
 			"getReferencedEntityPrimaryKey",
 			(method, proxyState) -> {
+				// we are interested only in abstract methods with no arguments.
 				if (!ClassUtils.isAbstractOrDefault(method) || method.getParameterCount() > 0) {
 					return null;
 				}
+
+				// we try to find appropriate annotations on the method, if no Evita annotation is found it tries
+				// to match the method by its name
 				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
 				final ReferencedEntity referencedEntity = reflectionLookup.getAnnotationInstance(method, ReferencedEntity.class);
 				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
@@ -54,18 +62,17 @@ public class GetReferencedEntityPrimaryKeyMethodClassifier extends DirectMethodC
 				if (Number.class.isAssignableFrom(EvitaDataTypes.toWrappedForm(returnType)) && referencedEntity != null || (
 					!reflectionLookup.hasAnnotationInSamePackage(method, ReferencedEntity.class) &&
 						propertyName
-								.map(pName -> "primaryKey".equals(pName) ||
-									"entityPrimaryKey".equals(pName) ||
-									"pk".equals(pName) ||
-									"id".equals(pName))
+								.map(PrimaryKeyRef.POSSIBLE_ARGUMENT_NAMES::contains)
 								.orElse(false)
 					)
 				) {
+					// method matches - provide implementation
 					//noinspection unchecked
 					return (entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
 						theState.getReference().getReferencedPrimaryKey(), returnType
 					);
 				} else {
+					// this method is not classified by this implementation
 					return null;
 				}
 			}

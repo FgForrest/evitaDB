@@ -28,6 +28,7 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.util.Set;
 
 /**
  * Annotation is used to mark a field, getter method or constructor method argument as a reference
@@ -39,6 +40,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.FIELD, ElementType.METHOD, ElementType.PARAMETER, ElementType.TYPE})
 public @interface EntityRef {
+	Set<String> POSSIBLE_ARGUMENT_NAMES = Set.of("type", "entityType");
 
 	/**
 	 * Name of the entity. Use camel-case naming style.

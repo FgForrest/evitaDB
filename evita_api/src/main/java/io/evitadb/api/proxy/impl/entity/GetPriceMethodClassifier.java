@@ -57,14 +57,25 @@ import java.util.function.Predicate;
 import static java.util.Optional.ofNullable;
 
 /**
- * TODO JNO - document me
- * TODO JNO - podporovat optional, možná i obecně pro atributy a tak
+ * Identifies methods that are used to get prices from an sealed entity and provides their implementation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class GetPriceMethodClassifier extends DirectMethodClassification<Object, SealedEntityProxyState> {
+	/**
+	 * We may reuse singleton instance since advice is stateless.
+	 */
 	public static final GetPriceMethodClassifier INSTANCE = new GetPriceMethodClassifier();
 
+	/**
+	 * Method collects and returns an index allowing to get a lambda that takes array of method call argument and
+	 * returns an argument of particular type which matches the key in the index.
+	 *
+	 * @param proxyClass is used only for exception messages
+	 * @param method     the analyzed method
+	 * @return index allowing to get a lambda that takes array of method call argument and returns an argument of
+	 * particular type which matches the key in the index
+	 */
 	@Nonnull
 	private static Map<Class<?>, Function<Object[], Object>> collectArgumentFetchers(
 		@Nonnull Class<?> proxyClass,
@@ -155,6 +166,10 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 		return argumentFetchers;
 	}
 
+	/**
+	 * Creates a {@link Predicate} implementation that allows to filter a stream of {@link PriceContract} to match
+	 * the arguments extracted from the current method call.
+	 */
 	@Nullable
 	private static Predicate<PriceContract> getPriceContractPredicate(
 		@Nonnull Map<Class<?>, Function<Object[], Object>> argumentFetchers,
@@ -185,6 +200,10 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 			.orElse(null);
 	}
 
+	/**
+	 * Creates an implementation of the method returning a single price for sale that matches either original query
+	 * when the entity was fetched or matches the context passed in the method call arguments.
+	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> singlePriceForSaleResult(
 		@Nonnull Class<?> proxyClass,
@@ -212,13 +231,16 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 		}
 	}
 
+	/**
+	 * Creates an implementation of the method returning a list of prices for sale that match the context passed in
+	 * the method call arguments.
+	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> listOfPriceForSaleResult(
 		@Nonnull Class<?> proxyClass,
 		@Nonnull Method method
 	) {
 		if (method.getParameterCount() == 0) {
-			// TODO JNO - we should provide our own set, that reflects the entity builder state, but is immutable
 			return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 				theState.getSealedEntity().getAllPricesForSale();
 		} else {
@@ -234,13 +256,16 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 		}
 	}
 
+	/**
+	 * Creates an implementation of the method returning a set of prices for sale that match the context passed in
+	 * the method call arguments.
+	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setOfPriceForSaleResult(
 		@Nonnull Class<?> proxyClass,
 		@Nonnull Method method
 	) {
 		if (method.getParameterCount() == 0) {
-			// TODO JNO - we should provide our own set, that reflects the entity builder state, but is immutable
 			return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 				theState.getSealedEntity()
 					.getAllPricesForSale()
@@ -259,13 +284,16 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 		}
 	}
 
+	/**
+	 * Creates an implementation of the method returning a array of prices for sale that match the context passed in
+	 * the method call arguments.
+	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> arrayOfPriceForSaleResult(
 		@Nonnull Class<?> proxyClass,
 		@Nonnull Method method
 	) {
 		if (method.getParameterCount() == 0) {
-			// TODO JNO - we should provide our own set, that reflects the entity builder state, but is immutable
 			return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 				theState.getSealedEntity()
 					.getAllPricesForSale()
@@ -283,6 +311,10 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 		}
 	}
 
+	/**
+	 * Creates an implementation of the method returning a single of price that match the context passed in
+	 * the method call arguments.
+	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> singlePriceResult(
 		@Nonnull Class<?> proxyClass,
@@ -320,7 +352,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 						final Predicate<PriceContract> basePredicate = price -> priceList.equals(price.getPriceList());
 						return argumentPredicate == null ? basePredicate : basePredicate.and(argumentPredicate);
 					})
-					.orElseGet(() -> argumentPredicate);
+					.orElse(argumentPredicate);
 				final Collection<PriceContract> allPrices = theState.getSealedEntity().getPrices();
 
 				final List<PriceContract> matchingPrices = pricePredicate == null ?
@@ -342,13 +374,16 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 		}
 	}
 
+	/**
+	 * Creates an implementation of the method returning a list of prices that match the context passed in
+	 * the method call arguments.
+	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> listOfPriceResult(
 		@Nonnull Class<?> proxyClass,
 		@Nonnull Method method,
 		@Nullable String priceList
 	) {
-		// TODO JNO - we should provide our own set, that reflects the entity builder state, but is immutable
 		if (method.getParameterCount() == 0) {
 			if (priceList == null) {
 				return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getSealedEntity()
@@ -369,7 +404,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 						final Predicate<PriceContract> basePredicate = price -> priceList.equals(price.getPriceList());
 						return argumentPredicate == null ? basePredicate : basePredicate.and(argumentPredicate);
 					})
-					.orElseGet(() -> argumentPredicate);
+					.orElse(argumentPredicate);
 				final Collection<PriceContract> allPrices = theState.getSealedEntity().getPrices();
 
 				return pricePredicate == null ?
@@ -379,13 +414,16 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 		}
 	}
 
+	/**
+	 * Creates an implementation of the method returning a set of prices that match the context passed in
+	 * the method call arguments.
+	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setOfPriceResult(
 		@Nonnull Class<?> proxyClass,
 		@Nonnull Method method,
 		@Nullable String priceList
 	) {
-		// TODO JNO - we should provide our own set, that reflects the entity builder state, but is immutable
 		if (method.getParameterCount() == 0) {
 			if (priceList == null) {
 				return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getSealedEntity()
@@ -408,7 +446,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 						final Predicate<PriceContract> basePredicate = price -> priceList.equals(price.getPriceList());
 						return argumentPredicate == null ? basePredicate : basePredicate.and(argumentPredicate);
 					})
-					.orElseGet(() -> argumentPredicate);
+					.orElse(argumentPredicate);
 				final Collection<PriceContract> allPrices = theState.getSealedEntity().getPrices();
 
 				return pricePredicate == null ?
@@ -418,13 +456,16 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 		}
 	}
 
+	/**
+	 * Creates an implementation of the method returning a array of prices that match the context passed in
+	 * the method call arguments.
+	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> arrayOfPriceResult(
 		@Nonnull Class<?> proxyClass,
 		@Nonnull Method method,
 		@Nullable String priceList
 	) {
-		// TODO JNO - we should provide our own set, that reflects the entity builder state, but is immutable
 		if (method.getParameterCount() == 0) {
 			if (priceList == null) {
 				return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getSealedEntity()
@@ -446,7 +487,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 						final Predicate<PriceContract> basePredicate = price -> priceList.equals(price.getPriceList());
 						return argumentPredicate == null ? basePredicate : basePredicate.and(argumentPredicate);
 					})
-					.orElseGet(() -> argumentPredicate);
+					.orElse(argumentPredicate);
 				final Collection<PriceContract> allPrices = theState.getSealedEntity().getPrices();
 
 				return pricePredicate == null ?
@@ -458,11 +499,14 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 
 	public GetPriceMethodClassifier() {
 		super(
-			"getParentEntity",
+			"getPrices",
 			(method, proxyState) -> {
+				// only override if the method is not implemented by the proxied class
 				if (!ClassUtils.isAbstractOrDefault(method)) {
 					return null;
 				}
+				// now we need to identify whether the method should be implemeted by this classifier
+				// it must be annotated appropriately
 				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
 				final PriceForSale priceForSale = reflectionLookup.getAnnotationInstance(method, PriceForSale.class);
 				final PriceForSaleRef priceForSaleRef = reflectionLookup.getAnnotationInstance(method, PriceForSaleRef.class);
@@ -472,6 +516,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 					return null;
 				}
 
+				// now we need to identify the return type
 				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 				@SuppressWarnings("rawtypes") final Class collectionType;
 				@SuppressWarnings("rawtypes") final Class itemType;
@@ -486,6 +531,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 					itemType = returnType;
 				}
 
+				// and verify that the return type is valid
 				Assert.isTrue(
 					PriceContract.class.isAssignableFrom(itemType),
 					() -> new EntityClassInvalidException(
@@ -497,6 +543,8 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 				);
 
 				if (priceForSale != null || priceForSaleRef != null) {
+					// if the method is annotated with @PriceForSale or @PriceForSaleRef, then we need to return
+					// the price for sale in the requested form
 					if (collectionType == null) {
 						return singlePriceForSaleResult(proxyState.getProxyClass(), method);
 					} else if (collectionType.isArray()) {
@@ -507,6 +555,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 						return listOfPriceForSaleResult(proxyState.getProxyClass(), method);
 					}
 				} else {
+					// otherwise we need to provide access to all prices in the entity
 					final String priceList = price.priceList().isBlank() ?
 						null : price.priceList();
 

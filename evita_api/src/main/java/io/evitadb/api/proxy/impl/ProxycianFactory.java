@@ -33,9 +33,12 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.annotation.EntityRef;
+import io.evitadb.api.requestResponse.data.annotation.PrimaryKeyRef;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.function.ExceptionRethrowingFunction;
 import io.evitadb.function.ExceptionRethrowingIntBiFunction;
@@ -63,14 +66,16 @@ import java.util.function.Function;
 import static io.evitadb.utils.ClassUtils.isAbstract;
 
 /**
- * TODO JNO - document me
+ * Implementation of the {@link ProxyFactory} interface based on Proxycian (ByteBuddy) library.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
 public class ProxycianFactory implements ProxyFactory {
-
-	final static Function<ProxyRecipeCacheKey, ProxyRecipe> DEFAULT_ENTITY_RECIPE = cacheKey -> new ProxyRecipe(
+	/**
+	 * Function that creates a default {@link ProxyRecipe} for an entity.
+	 */
+	final static Function<ProxyEntityCacheKey, ProxyRecipe> DEFAULT_ENTITY_RECIPE = cacheKey -> new ProxyRecipe(
 		new Class<?>[]{cacheKey.type()},
 		new Advice[]{
 			new DelegateCallsAdvice<>(SealedEntityProxy.class, Function.identity(), true),
@@ -78,7 +83,10 @@ public class ProxycianFactory implements ProxyFactory {
 		}
 	);
 
-	final static Function<ProxyRecipeCacheKey, ProxyRecipe> DEFAULT_ENTITY_REFERENCE_RECIPE = cacheKey -> new ProxyRecipe(
+	/**
+	 * Function that creates a default {@link ProxyRecipe} for an entity reference.
+	 */
+	final static Function<ProxyEntityCacheKey, ProxyRecipe> DEFAULT_ENTITY_REFERENCE_RECIPE = cacheKey -> new ProxyRecipe(
 		new Class<?>[]{cacheKey.type()},
 		new Advice[]{
 			new DelegateCallsAdvice<>(SealedEntityReferenceProxy.class, Function.identity(), true),
@@ -86,18 +94,34 @@ public class ProxycianFactory implements ProxyFactory {
 		}
 	);
 
-	private final static ConcurrentHashMap<BestConstructorCacheKey, BestMatchingConstructorWithExtractionLambda<?>> CONSTRUCTOR_CACHE = CollectionUtils.createConcurrentHashMap(256);
-	private final Map<ProxyRecipeCacheKey, ProxyRecipe> recipes = new ConcurrentHashMap<>(64);
-	private final Map<ProxyRecipeCacheKey, ProxyRecipe> collectedRecipes = new ConcurrentHashMap<>(64);
+	/**
+	 * Cache for the identified best matching constructors to speed up proxy creation.
+	 */
+	private final static ConcurrentHashMap<ProxyEntityCacheKey, BestMatchingConstructorWithExtractionLambda<?>> CONSTRUCTOR_CACHE = CollectionUtils.createConcurrentHashMap(256);
+	/**
+	 * The map of recipes provided from outside that are used to build the proxy.
+	 */
+	private final Map<ProxyEntityCacheKey, ProxyRecipe> recipes = new ConcurrentHashMap<>(64);
+	/**
+	 * The merged map all recipes - the ones provided from outside and the ones created with default configuration on
+	 * the fly during the proxy building.
+	 */
+	private final Map<ProxyEntityCacheKey, ProxyRecipe> collectedRecipes = new ConcurrentHashMap<>(64);
+	/**
+	 * The reflection lookup instance used to access the reflection data in a memoized fashion.
+	 */
 	private final ReflectionLookup reflectionLookup;
 
+	/**
+	 * Creates a new proxy instance for passed {@link SealedEntity} instance.
+	 */
 	static <T> T createProxy(
 		@Nonnull Class<T> expectedType,
-		@Nonnull Map<ProxyRecipeCacheKey, ProxyRecipe> recipes,
-		@Nonnull Map<ProxyRecipeCacheKey, ProxyRecipe> collectedRecipes,
+		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> recipes,
+		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> collectedRecipes,
 		@Nonnull SealedEntity sealedEntity,
 		@Nonnull ReflectionLookup reflectionLookup,
-		@Nonnull Function<ProxyRecipeCacheKey, ProxyRecipe> recipeLocator
+		@Nonnull Function<ProxyEntityCacheKey, ProxyRecipe> recipeLocator
 	) {
 		Assert.isTrue(
 			EntityClassifier.class.isAssignableFrom(expectedType),
@@ -113,7 +137,7 @@ public class ProxycianFactory implements ProxyFactory {
 				);
 			} else if (expectedType.isInterface()) {
 				final String entityName = sealedEntity.getSchema().getName();
-				final ProxyRecipeCacheKey cacheKey = new ProxyRecipeCacheKey(expectedType, entityName, null);
+				final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName, null);
 				return ByteBuddyProxyGenerator.instantiate(
 					recipeLocator.apply(cacheKey),
 					new SealedEntityProxyState(sealedEntity, expectedType, recipes, collectedRecipes, reflectionLookup)
@@ -123,7 +147,7 @@ public class ProxycianFactory implements ProxyFactory {
 					expectedType, sealedEntity.getSchema(), reflectionLookup
 				);
 				final String entityName = sealedEntity.getSchema().getName();
-				final ProxyRecipeCacheKey cacheKey = new ProxyRecipeCacheKey(expectedType, entityName, null);
+				final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName, null);
 				return ByteBuddyProxyGenerator.instantiate(
 					recipeLocator.apply(cacheKey),
 					new SealedEntityProxyState(sealedEntity, expectedType, recipes, collectedRecipes, reflectionLookup),
@@ -143,14 +167,17 @@ public class ProxycianFactory implements ProxyFactory {
 		}
 	}
 
+	/**
+	 * Creates a new proxy instance for passed {@link SealedEntity} and {@link ReferenceContract} instance.
+	 */
 	static <T> T createProxy(
 		@Nonnull Class<T> expectedType,
-		@Nonnull Map<ProxyRecipeCacheKey, ProxyRecipe> recipes,
-		@Nonnull Map<ProxyRecipeCacheKey, ProxyRecipe> collectedRecipes,
+		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> recipes,
+		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> collectedRecipes,
 		@Nonnull SealedEntity sealedEntity,
 		@Nonnull ReferenceContract reference,
 		@Nonnull ReflectionLookup reflectionLookup,
-		@Nonnull Function<ProxyRecipeCacheKey, ProxyRecipe> recipeLocator
+		@Nonnull Function<ProxyEntityCacheKey, ProxyRecipe> recipeLocator
 	) {
 		try {
 			if (expectedType.isRecord()) {
@@ -162,7 +189,7 @@ public class ProxycianFactory implements ProxyFactory {
 				);
 			} else if (expectedType.isInterface()) {
 				final String entityName = sealedEntity.getSchema().getName();
-				final ProxyRecipeCacheKey cacheKey = new ProxyRecipeCacheKey(expectedType, entityName, reference.getReferenceName());
+				final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName, reference.getReferenceName());
 				return ByteBuddyProxyGenerator.instantiate(
 					recipeLocator.apply(cacheKey),
 					new SealedEntityReferenceProxyState(sealedEntity, reference, expectedType, recipes, collectedRecipes, reflectionLookup)
@@ -172,7 +199,7 @@ public class ProxycianFactory implements ProxyFactory {
 					expectedType, sealedEntity.getSchema(), reflectionLookup
 				);
 				final String entityName = sealedEntity.getSchema().getName();
-				final ProxyRecipeCacheKey cacheKey = new ProxyRecipeCacheKey(expectedType, entityName, reference.getReferenceName());
+				final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName, reference.getReferenceName());
 				return ByteBuddyProxyGenerator.instantiate(
 					recipeLocator.apply(cacheKey),
 					new SealedEntityReferenceProxyState(sealedEntity, reference, expectedType, recipes, collectedRecipes, reflectionLookup),
@@ -192,12 +219,19 @@ public class ProxycianFactory implements ProxyFactory {
 		}
 	}
 
+	/**
+	 * Method tries to identify the best matching constructor for passed {@link EntitySchemaContract} and {@link Class}
+	 * type. It tries to find a constructor with most of the arguments matching the schema fields.
+	 *
+	 * TODO JNO - write some test!
+	 * TODO JNO - provide support for optional method return types
+	 */
 	private static <T> BestMatchingConstructorWithExtractionLambda<T> findBestMatchingConstructor(
 		@Nonnull Class<T> expectedType,
 		@Nonnull EntitySchemaContract schema,
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
-		final BestConstructorCacheKey cacheKey = new BestConstructorCacheKey(schema.getName(), null, expectedType);
+		final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, schema.getName(), null);
 		if (CONSTRUCTOR_CACHE.containsKey(cacheKey)) {
 			//noinspection unchecked
 			return (BestMatchingConstructorWithExtractionLambda<T>) CONSTRUCTOR_CACHE.get(cacheKey);
@@ -213,12 +247,11 @@ public class ProxycianFactory implements ProxyFactory {
 
 				for (int i = 0; i < parameters.length; i++) {
 					final String parameterName = parameters[i].getName();
-					/* TODO JNO - toto sjednotit s advicami - ideálně asi statický set */
 					@SuppressWarnings("rawtypes") final Class parameterType = parameters[i].getType();
-					if (parameterName.equals("primaryKey") || parameterName.equals("entityPrimaryKey") && (Integer.class.isAssignableFrom(parameterType) || int.class.isAssignableFrom(parameterType))) {
+					if (PrimaryKeyRef.POSSIBLE_ARGUMENT_NAMES.contains(parameterName) && (Integer.class.isAssignableFrom(parameterType) || int.class.isAssignableFrom(parameterType))) {
 						argumentExtractors[i] = EntityContract::getPrimaryKey;
 						score++;
-					} else if (parameterName.equals("type") || parameterName.equals("entityType") && String.class.isAssignableFrom(parameterType)) {
+					} else if (EntityRef.POSSIBLE_ARGUMENT_NAMES.contains(parameterName) && String.class.isAssignableFrom(parameterType)) {
 						argumentExtractors[i] = EntityClassifier::getType;
 						score++;
 					} else if (EvitaDataTypes.isSupportedTypeOrItsArray(parameterType) || parameterType.isEnum()) {
@@ -305,9 +338,17 @@ public class ProxycianFactory implements ProxyFactory {
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * Method allows to provide explicit recipe for passed entity and output contract type.
+	 *
+	 * @param type       the proxy class for which the recipe should be used (combines with entityName)
+	 * @param entityName the name of the entity for which the recipe should be used (combines with type)
+	 * @param recipe     the Proxycian recipe to be used
 	 */
-	public <T extends EntityClassifier> void registerEntityRecipe(@Nonnull Class<T> type, @Nonnull String entityName, @Nonnull ProxyRecipe recipe) {
+	public <T extends EntityClassifier> void registerEntityRecipe(
+		@Nonnull Class<T> type,
+		@Nonnull String entityName,
+		@Nonnull ProxyRecipe recipe
+	) {
 		final ProxyRecipe theRecipe = new ProxyRecipe(
 			recipe.getInterfacesWith(SealedEntityProxy.class),
 			ArrayUtils.mergeArrays(
@@ -319,15 +360,25 @@ public class ProxycianFactory implements ProxyFactory {
 			),
 			recipe.getInstantiationCallback()
 		);
-		final ProxyRecipeCacheKey key = new ProxyRecipeCacheKey(type, entityName, null);
+		final ProxyEntityCacheKey key = new ProxyEntityCacheKey(type, entityName, null);
 		recipes.put(key, theRecipe);
 		collectedRecipes.put(key, theRecipe);
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * Method allows to provide explicit recipe for passed entity reference and output contract type.
+	 *
+	 * @param type          the proxy class for which the recipe should be used (combines with entityName and referenceName)
+	 * @param entityName    the name of the entity for which the recipe should be used (combines with type and referenceName)
+	 * @param referenceName the name of the entity reference schema for which the recipe should be used (combines with entityName and type)
+	 * @param recipe        the Proxycian recipe to be used
 	 */
-	public <T> void registerEntityReferenceRecipe(@Nonnull Class<T> type, @Nonnull String entityName, @Nonnull String referenceName, @Nonnull ProxyRecipe recipe) {
+	public <T> void registerEntityReferenceRecipe(
+		@Nonnull Class<T> type,
+		@Nonnull String entityName,
+		@Nonnull String referenceName,
+		@Nonnull ProxyRecipe recipe
+	) {
 		final ProxyRecipe theRecipe = new ProxyRecipe(
 			recipe.getInterfacesWith(SealedEntityReferenceProxy.class),
 			ArrayUtils.mergeArrays(
@@ -339,14 +390,14 @@ public class ProxycianFactory implements ProxyFactory {
 			),
 			recipe.getInstantiationCallback()
 		);
-		final ProxyRecipeCacheKey key = new ProxyRecipeCacheKey(type, entityName, referenceName);
+		final ProxyEntityCacheKey key = new ProxyEntityCacheKey(type, entityName, referenceName);
 		recipes.put(key, theRecipe);
 		collectedRecipes.put(key, theRecipe);
 	}
 
 	@Nonnull
 	@Override
-	public <T> T createProxy(
+	public <T> T createEntityProxy(
 		@Nonnull Class<T> expectedType,
 		@Nonnull SealedEntity sealedEntity
 	) {
@@ -356,11 +407,21 @@ public class ProxycianFactory implements ProxyFactory {
 		);
 	}
 
+	/**
+	 * DTO for storing constructor and constructor argument value extraction lambda.
+	 *
+	 * @param constructor      proxy class constructor
+	 * @param extractionLambda lambda for extracting constructor argument value from sealed entity for specific
+	 *                         index of the argument in the constructor
+	 */
 	private record BestMatchingConstructorWithExtractionLambda<T>(
 		@Nonnull Constructor<T> constructor,
 		@Nonnull ExceptionRethrowingIntBiFunction<SealedEntity, Object> extractionLambda
 	) {
 
+		/**
+		 * Extracts constructor arguments from sealed entity for particular constructor method.
+		 */
 		@Nonnull
 		public Object[] constructorArguments(@Nonnull SealedEntity sealedEntity) throws Exception {
 			final Class<?>[] parameterTypes = constructor.getParameterTypes();
@@ -373,23 +434,17 @@ public class ProxycianFactory implements ProxyFactory {
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * Cache key for particular type/entity/reference combination.
+	 *
+	 * @param type          the proxy class
+	 * @param entityName	the name of the entity {@link EntitySchemaContract#getName()}
+	 * @param referenceName the name of the entity reference schema {@link ReferenceSchemaContract#getName()}
 	 */
-	public record ProxyRecipeCacheKey(
+	public record ProxyEntityCacheKey(
 		@Nonnull Class<?> type,
 		@Nonnull String entityName,
 		@Nullable String referenceName
-	) implements Serializable {
-	}
+	) implements Serializable {}
 
-	/**
-	 * TODO JNO - document me
-	 */
-	private record BestConstructorCacheKey(
-		@Nonnull String entityName,
-		@Nullable String referenceName,
-		@Nonnull Class<?> expectedType
-	) {
-	}
 
 }

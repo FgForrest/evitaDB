@@ -24,15 +24,13 @@
 package io.evitadb.api.proxy.impl;
 
 import io.evitadb.api.proxy.SealedEntityReferenceProxy;
-import io.evitadb.api.proxy.impl.ProxycianFactory.ProxyRecipeCacheKey;
-import io.evitadb.api.requestResponse.data.AttributesContract;
+import io.evitadb.api.proxy.impl.ProxycianFactory.ProxyEntityCacheKey;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.EqualsAndHashCode;
-import lombok.experimental.Delegate;
 import one.edee.oss.proxycian.recipe.ProxyRecipe;
 
 import javax.annotation.Nonnull;
@@ -41,15 +39,14 @@ import java.io.Serial;
 import java.util.Map;
 
 /**
- * TODO JNO - document me
- * TODO JNO - extract shared logick to abstract class
+ * Proxy state for proxies that wrap sealed entity reference.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @EqualsAndHashCode(of = {"reference"}, callSuper = true)
 public class SealedEntityReferenceProxyState
 	extends AbstractEntityProxyState
-	implements EntityClassifier, SealedEntityReferenceProxy, AttributesContract {
+	implements EntityClassifier, SealedEntityReferenceProxy {
 	@Serial private static final long serialVersionUID = 586508293856395550L;
 	@Nonnull private final ReferenceContract reference;
 
@@ -57,24 +54,26 @@ public class SealedEntityReferenceProxyState
 		@Nonnull SealedEntity sealedEntity,
 		@Nonnull ReferenceContract reference,
 		@Nonnull Class<?> proxyClass,
-		@Nonnull Map<ProxyRecipeCacheKey, ProxyRecipe> recipes,
-		@Nonnull Map<ProxyRecipeCacheKey, ProxyRecipe> collectedRecipes,
+		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> recipes,
+		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> collectedRecipes,
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
 		super(sealedEntity, proxyClass, recipes, collectedRecipes, reflectionLookup);
 		this.reference = reference;
 	}
 
-	@Delegate(types = {AttributesContract.class})
+	/**
+	 * Method returns reference schema of the wrapped sealed entity reference.
+	 */
+	@Nullable
+	public ReferenceSchemaContract getReferenceSchema() {
+		return reference.getReferenceSchema().orElseThrow();
+	}
+
 	@Override
 	@Nonnull
 	public ReferenceContract getReference() {
 		return reference;
-	}
-
-	@Nullable
-	public ReferenceSchemaContract getReferenceSchema() {
-		return reference.getReferenceSchema().orElseThrow();
 	}
 
 	@Nonnull

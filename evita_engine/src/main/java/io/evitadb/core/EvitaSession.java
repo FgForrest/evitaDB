@@ -389,7 +389,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				query.normalizeQuery(),
 				OffsetDateTime.now(),
 				expectedType,
-				this.proxyFactory::createProxy
+				this.proxyFactory::createEntityProxy
 			)
 		);
 	}
@@ -408,7 +408,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			query.normalizeQuery(),
 			OffsetDateTime.now(),
 			expectedType,
-			this.proxyFactory::createProxy
+			this.proxyFactory::createEntityProxy
 		);
 
 		return query(request);
@@ -442,7 +442,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			),
 			OffsetDateTime.now(),
 			EntityReference.class,
-			this.proxyFactory::createProxy
+			this.proxyFactory::createEntityProxy
 		);
 		final EntityCollectionContract entityCollection = getCatalog().getCollectionForEntityOrThrowException(entityType);
 		return entityCollection.getEntity(
@@ -467,13 +467,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			),
 			OffsetDateTime.now(),
 			expectedType,
-			this.proxyFactory::createProxy
+			this.proxyFactory::createEntityProxy
 		);
 		return entityCollection.getEntity(
 			primaryKey,
 			evitaRequest,
 			this
-		).map(it -> this.proxyFactory.createProxy(expectedType, it));
+		).map(it -> this.proxyFactory.createEntityProxy(expectedType, it));
 	}
 
 	@Nonnull
@@ -491,11 +491,11 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			),
 			OffsetDateTime.now(),
 			EntityReference.class,
-			this.proxyFactory::createProxy
+			this.proxyFactory::createEntityProxy
 		);
 		if (partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy) {
 			//noinspection unchecked
-			return (T) this.proxyFactory.createProxy(
+			return (T) this.proxyFactory.createEntityProxy(
 				sealedEntityProxy.getProxyClass(),
 				entityCollection.enrichEntity(
 					sealedEntityProxy.getSealedEntity(),
@@ -532,11 +532,11 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			OffsetDateTime.now(),
 			partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy ?
 				sealedEntityProxy.getProxyClass() : partiallyLoadedEntity.getClass(),
-			this.proxyFactory::createProxy
+			this.proxyFactory::createEntityProxy
 		);
 		if (partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy) {
 			//noinspection unchecked
-			return (T) this.proxyFactory.createProxy(
+			return (T) this.proxyFactory.createEntityProxy(
 				sealedEntityProxy.getProxyClass(),
 				entityCollection.limitEntity(
 					entityCollection.enrichEntity(
@@ -711,7 +711,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					),
 					OffsetDateTime.now(),
 					SealedEntity.class,
-					this.proxyFactory::createProxy
+					this.proxyFactory::createEntityProxy
 				),
 				this
 			);
@@ -776,7 +776,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			query.normalizeQuery(),
 			OffsetDateTime.now(),
 			EntityReference.class,
-			this.proxyFactory::createProxy
+			this.proxyFactory::createEntityProxy
 		);
 		return executeInTransactionIfPossible(session -> {
 			final EntityCollectionContract collection = getCatalog()
@@ -793,7 +793,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			query.normalizeQuery(),
 			OffsetDateTime.now(),
 			SealedEntity.class,
-			this.proxyFactory::createProxy
+			this.proxyFactory::createEntityProxy
 		);
 		return executeInTransactionIfPossible(session -> {
 			final EntityCollectionContract collection = getCatalog()
@@ -959,7 +959,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					),
 					OffsetDateTime.now(),
 					expectedType,
-					this.proxyFactory::createProxy
+					this.proxyFactory::createEntityProxy
 				),
 				this
 			);
@@ -998,7 +998,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					),
 					OffsetDateTime.now(),
 					expectedType,
-					this.proxyFactory::createProxy
+					this.proxyFactory::createEntityProxy
 				),
 				this
 			);
