@@ -50,7 +50,7 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CATEGORY_PRIORIT
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_PRIORITY;
 
 /**
- * TODO JNO - document me
+ * Abstract parent that setups shared schema and testing data set for multiple functional tests.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

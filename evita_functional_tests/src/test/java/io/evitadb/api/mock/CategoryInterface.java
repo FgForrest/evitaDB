@@ -39,7 +39,7 @@ import javax.annotation.Nullable;
 import java.util.Locale;
 
 /**
- * TODO JNO - document me
+ * Example interface mapping a category entity.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

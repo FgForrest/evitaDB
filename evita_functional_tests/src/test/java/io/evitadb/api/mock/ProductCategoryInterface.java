@@ -33,7 +33,7 @@ import javax.annotation.Nonnull;
 import java.util.Locale;
 
 /**
- * TODO JNO - document me
+ * Example interface mapping a product category reference.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

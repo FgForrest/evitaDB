@@ -1102,7 +1102,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		assertTrue(theHistogram.getMin().compareTo(BigDecimal.ZERO) > 0);
 		assertTrue(theHistogram.getBuckets().length > 0);
 
-		/* TODO JNO - provide access to entities of specific interface type */
+		/* TOBEDONE #43 - provide access to entities of specific interface type */
 		final Hierarchy hierarchy = result.getExtraResult(Hierarchy.class);
 		assertNotNull(hierarchy);
 		final Map<String, List<LevelInfo>> categoryHierarchy = hierarchy.getReferenceHierarchy(Entities.CATEGORY);
@@ -1111,7 +1111,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 
 		final FacetSummary facetSummary = result.getExtraResult(FacetSummary.class);
 		assertNotNull(facetSummary);
-		assertTrue(facetSummary.getFacetGroupStatistics().size() > 0);
+		assertTrue(facetSummary.getReferenceStatistics().size() > 0);
 	}
 
 	@Test
