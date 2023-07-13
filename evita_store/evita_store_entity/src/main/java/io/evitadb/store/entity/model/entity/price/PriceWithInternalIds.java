@@ -135,12 +135,12 @@ public record PriceWithInternalIds(
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		PriceWithInternalIds that = (PriceWithInternalIds) o;
-		return Objects.equals(internalPriceId, that.internalPriceId);
+		return Objects.equals(internalPriceId, that.internalPriceId) && delegate.equals(that.delegate);
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(internalPriceId);
+		return Objects.hash(internalPriceId, delegate);
 	}
 
 	@Override

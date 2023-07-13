@@ -426,10 +426,12 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 	) {
 		if (method.getParameterCount() == 0) {
 			if (priceList == null) {
-				return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getSealedEntity()
-					.getPrices()
-					.stream()
-					.collect(CollectorUtils.toUnmodifiableLinkedHashSet());
+				return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
+					return theState.getSealedEntity()
+						.getPrices()
+						.stream()
+						.collect(CollectorUtils.toUnmodifiableLinkedHashSet());
+				};
 			} else {
 				return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getSealedEntity()
 					.getPrices()

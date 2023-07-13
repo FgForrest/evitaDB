@@ -31,10 +31,7 @@ import io.evitadb.utils.ReflectionLookup;
 import one.edee.oss.proxycian.recipe.ProxyRecipe;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serial;
-import java.io.Serializable;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -67,16 +64,6 @@ public class SealedEntityProxyState
 	@Override
 	public Integer getPrimaryKey() {
 		return sealedEntity.getPrimaryKey();
-	}
-
-	@Nullable
-	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Class<T> returnType) {
-		return sealedEntity.getAssociatedData(associatedDataName, returnType, getReflectionLookup());
-	}
-
-	@Nullable
-	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale, @Nonnull Class<T> returnType) {
-		return sealedEntity.getAssociatedData(associatedDataName, locale, returnType, getReflectionLookup());
 	}
 
 	@Override

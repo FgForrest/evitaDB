@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
+import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
@@ -46,11 +47,14 @@ import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.ReflectionLookup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -61,12 +65,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
-import static io.evitadb.test.TestConstants.TEST_CATALOG;
+import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES;
+import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -78,7 +84,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
-public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctionalTest {
+public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctionalTest implements EvitaTestSupport {
 	private static final String FIFTY_PRODUCTS = "FiftyProxyProducts";
 	private static final Locale CZECH_LOCALE = new Locale("cs", "CZ");
 
@@ -261,8 +267,12 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 	) {
 		assertProductBasicData(originalProduct, product);
 		assertProductAttributes(originalProduct, product, locale);
-		assertEquals(new ReferencedFileSet(null), product.getReferencedFileSet());
-		assertEquals(new ReferencedFileSet(null), product.getReferencedFileSetAsDifferentProperty());
+
+		ofNullable(originalProduct.getAssociatedData(ASSOCIATED_DATA_REFERENCED_FILES, ReferencedFileSet.class, ReflectionLookup.NO_CACHE_INSTANCE))
+			.ifPresent(it -> {
+				assertEquals(it, product.getReferencedFileSet());
+				assertEquals(it, product.getReferencedFileSetAsDifferentProperty());
+			});
 
 		assertCategoryParents(product.getCategories(), originalCategories, locale);
 
@@ -311,10 +321,17 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 				expectedPrice,
 				product.getPriceForSale(expectedPrice.priceList(), expectedPrice.currency())
 			);
-			assertEquals(
-				expectedPrice,
-				product.getPriceForSale(expectedPrice.priceList(), expectedPrice.currency(), expectedPrice.validity().getPreciseFrom())
-			);
+			if (expectedPrice.validity() != null) {
+				assertEquals(
+					expectedPrice,
+					product.getPriceForSale(
+						expectedPrice.priceList(),
+						expectedPrice.currency(),
+						ofNullable(expectedPrice.validity().getPreciseFrom())
+							.orElse(expectedPrice.validity().getPreciseTo())
+					)
+				);
+			}
 
 			assertArrayEquals(
 				originalProduct.getAllPricesForSale()
@@ -377,6 +394,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantity());
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantityAsDifferentProperty());
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_ALIAS), product.isAlias());
+		assertEquals(ofNullable(originalProduct.getAttribute(ATTRIBUTE_OPTIONAL_AVAILABILITY)).orElse(false), product.isOptionallyAvailable());
 	}
 
 	@DataSet(value = FIFTY_PRODUCTS, destroyAfterClass = true, readOnly = false)
@@ -526,6 +544,38 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 			.orElseThrow();
 		assertEquals(theProduct, evitaSession.queryOneSealedEntity(query).orElseThrow());
 		assertEquals(theProduct, evitaSession.queryOne(query, SealedEntity.class).orElseThrow());
+	}
+
+	@DisplayName("Should return custom entity model instance")
+	@UseDataSet(FIFTY_PRODUCTS)
+	@ParameterizedTest
+	@MethodSource("returnRandomSeed")
+	void queryOneRandomizedEntity(
+		long seed,
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts,
+		Map<Integer, SealedEntity> originalCategories
+	) {
+		final Random rnd = new Random(seed);
+		final int primaryKey = rnd.nextInt(50) + 1;
+		final Query query = query(
+			collection(Entities.PRODUCT),
+			filterBy(entityPrimaryKeyInSet(primaryKey)),
+			require(entityFetchAll())
+		);
+
+		final SealedEntity theProduct = originalProducts
+			.stream()
+			.filter(it -> it.getPrimaryKey() == primaryKey)
+			.findFirst()
+			.orElseThrow();
+
+		assertProduct(
+			theProduct,
+			evitaSession.queryOne(query, ProductInterface.class).orElse(null),
+			originalCategories,
+			null, false
+		);
 	}
 
 	@DisplayName("Should return custom entity model instance")
@@ -718,7 +768,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 	) {
 		final SealedEntity theProduct = originalProducts
 			.stream()
-			.filter(it -> it.getReferences(Entities.CATEGORY).size() > 2)
+			.filter(it -> it.getReferences(Entities.CATEGORY).size() > 1)
 			.filter(it -> it.getAllPricesForSale().size() > 1)
 			.findFirst()
 			.orElseThrow();
@@ -773,7 +823,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 	) {
 		final SealedEntity theProduct = originalProducts
 			.stream()
-			.filter(it -> it.getReferences(Entities.CATEGORY).size() > 2)
+			.filter(it -> it.getReferences(Entities.CATEGORY).size() > 1)
 			.filter(it -> it.getAllPricesForSale().size() > 1)
 			.findFirst()
 			.orElseThrow();
