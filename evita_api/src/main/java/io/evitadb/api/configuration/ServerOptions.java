@@ -65,7 +65,7 @@ public record ServerOptions(
 	public static final int DEFAULT_MAX_THREAD_COUNT = Runtime.getRuntime().availableProcessors() * 20;
 	public static final int DEFAULT_THREAD_PRIORITY = 5;
 	public static final int DEFAULT_QUEUE_SIZE = 100;
-	public static final int DEFAULT_TIMEOUT_SHORT_RUNNING_THREADS_AFTER_SECONDS = 1;
+	public static final int DEFAULT_SHORT_RUNNING_THREADS_TIMEOUT_IN_SECONDS = 1;
 	public static final int DEFAULT_KILL_TIMED_OUT_SHORT_RUNNING_THREADS_EVERY_SECONDS = 30;
 	public static final int DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY = 60 * 20;
 
@@ -89,7 +89,7 @@ public record ServerOptions(
 			DEFAULT_MAX_THREAD_COUNT,
 			DEFAULT_THREAD_PRIORITY,
 			DEFAULT_QUEUE_SIZE,
-			DEFAULT_TIMEOUT_SHORT_RUNNING_THREADS_AFTER_SECONDS,
+			DEFAULT_SHORT_RUNNING_THREADS_TIMEOUT_IN_SECONDS,
 			DEFAULT_KILL_TIMED_OUT_SHORT_RUNNING_THREADS_EVERY_SECONDS,
 			DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY,
 			false
@@ -105,7 +105,7 @@ public record ServerOptions(
 		private int maxThreadCount = DEFAULT_MAX_THREAD_COUNT;
 		private int threadPriority = DEFAULT_THREAD_PRIORITY;
 		private int queueSize = DEFAULT_QUEUE_SIZE;
-		private int timeoutShortRunningThreadsAfterSeconds = DEFAULT_TIMEOUT_SHORT_RUNNING_THREADS_AFTER_SECONDS;
+		private int shortRunningThreadsTimeoutInSeconds = DEFAULT_SHORT_RUNNING_THREADS_TIMEOUT_IN_SECONDS;
 		private int killTimedOutShortRunningThreadsEverySeconds = DEFAULT_KILL_TIMED_OUT_SHORT_RUNNING_THREADS_EVERY_SECONDS;
 		private int closeSessionsAfterSecondsOfInactivity = DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY;
 		private boolean readOnly = false;
@@ -118,7 +118,7 @@ public record ServerOptions(
 			this.maxThreadCount = serverOptions.maxThreadCount;
 			this.threadPriority = serverOptions.threadPriority;
 			this.queueSize = serverOptions.queueSize;
-			this.timeoutShortRunningThreadsAfterSeconds = serverOptions.shortRunningThreadsTimeoutInSeconds;
+			this.shortRunningThreadsTimeoutInSeconds = serverOptions.shortRunningThreadsTimeoutInSeconds;
 			this.killTimedOutShortRunningThreadsEverySeconds = serverOptions.killTimedOutShortRunningThreadsEverySeconds;
 			this.closeSessionsAfterSecondsOfInactivity = serverOptions.closeSessionsAfterSecondsOfInactivity;
 			this.readOnly = serverOptions.readOnly;
@@ -144,8 +144,8 @@ public record ServerOptions(
 			return this;
 		}
 
-		public ServerOptions.Builder timeoutShortRunningThreadsAfterSeconds(int timeoutShortRunningThreadsAfterSeconds) {
-			this.timeoutShortRunningThreadsAfterSeconds = timeoutShortRunningThreadsAfterSeconds;
+		public ServerOptions.Builder shortRunningThreadsTimeoutInSeconds(int shortRunningThreadsTimeoutInSeconds) {
+			this.shortRunningThreadsTimeoutInSeconds = shortRunningThreadsTimeoutInSeconds;
 			return this;
 		}
 
@@ -170,7 +170,7 @@ public record ServerOptions(
 				maxThreadCount,
 				threadPriority,
 				queueSize,
-				timeoutShortRunningThreadsAfterSeconds,
+				shortRunningThreadsTimeoutInSeconds,
 				killTimedOutShortRunningThreadsEverySeconds,
 				closeSessionsAfterSecondsOfInactivity,
 				readOnly
