@@ -27,7 +27,6 @@ import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.utils.MemoryMeasuringConstants;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -40,16 +39,20 @@ import java.util.Optional;
 /**
  * This DTO combines {@link PriceContract} and {@link PriceInternalIdContainer} together.
  *
+ * @param delegate        price contract to delegate calls to
+ * @param internalPriceId optional internal price id
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class PriceWithInternalIds implements PriceContract, PriceInternalIdContainer {
+public record PriceWithInternalIds(
+	@Nonnull PriceContract delegate,
+	@Nullable Integer internalPriceId
+) implements PriceContract, PriceInternalIdContainer {
 	@Serial private static final long serialVersionUID = 5008194525461751557L;
-	private final PriceContract delegate;
-	@Getter private final Integer internalPriceId;
 
-	public PriceWithInternalIds(@Nonnull PriceContract delegate, @Nullable Integer internalPriceId) {
-		this.delegate = delegate;
-		this.internalPriceId = internalPriceId;
+	@Override
+	@Nullable
+	public Integer getInternalPriceId() {
+		return internalPriceId;
 	}
 
 	@Override
@@ -116,15 +119,15 @@ public class PriceWithInternalIds implements PriceContract, PriceInternalIdConta
 	}
 
 	@Override
-	public int getVersion() {
-		return delegate.getVersion();
-	}
-
-	@Override
 	public int estimateSize() {
 		return delegate.estimateSize() +
 			MemoryMeasuringConstants.REFERENCE_SIZE +
 			Optional.ofNullable(internalPriceId).stream().mapToInt(it -> MemoryMeasuringConstants.INT_SIZE).sum();
+	}
+
+	@Override
+	public int getVersion() {
+		return delegate.getVersion();
 	}
 
 	@Override

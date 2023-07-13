@@ -29,15 +29,10 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import lombok.AccessLevel;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
-import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.Immutable;
-import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -54,13 +49,39 @@ import static java.util.Optional.ofNullable;
  * Class is immutable on purpose - we want to support caching the entities in a shared cache and accessed by many threads.
  * For altering the contents use {@link InitialEntityBuilder}.
  *
+ * @param version         Contains version of this object and gets increased with any entity update. Allows to execute
+ *                        optimistic locking i.e. avoiding parallel modifications.
+ * @param priceKey        Primary identification of the price consisting of external price id, price list and currency.
+ * @param innerRecordId   Some special products (such as master products, or product sets) may contain prices of all "subordinate" products
+ *                        so that the aggregating product can represent them in certain views on the product. In that case there is need
+ *                        to distinguish the projected prices of the subordinate product in the one that represents them.
+ *
+ *                        Inner record id must contain positive value.
+ * @param priceWithoutTax Price without tax.
+ * @param priceWithTax    Price without tax.
+ * @param taxRate         Tax rate percentage (i.e. for 19% it'll be 19.00)
+ * @param validity        Date and time interval for which the price is valid (inclusive).
+ * @param sellable        Controls whether price is subject to filtering / sorting logic, non-sellable prices will be fetched along with
+ *                        entity but won't be considered when evaluating search {@link io.evitadb.api.query.Query}. These prices may be
+ *                        used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
+ *                        as "usual price") but are not considered as the "selling" price.
+ * @param dropped         Contains TRUE if price was dropped - i.e. removed. Prices is not removed (unless tidying process
+ *                        does it), but are lying among other prices with tombstone flag. Dropped prices can be overwritten by
+ *                        a new value continuing with the versioning where it was stopped for the last time.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @see PriceKey for details
  */
-@Immutable
-@ThreadSafe
-@Data
-@EqualsAndHashCode(of = {"version", "priceKey"})
-public class Price implements PriceContract {
+public record Price(
+	int version,
+	@Nonnull PriceKey priceKey,
+	@Nullable Integer innerRecordId,
+	@Nonnull BigDecimal priceWithoutTax,
+	@Nonnull BigDecimal taxRate,
+	@Nonnull BigDecimal priceWithTax,
+	@Nullable DateTimeRange validity,
+	boolean sellable,
+	boolean dropped
+) implements PriceContract {
 	@Serial private static final long serialVersionUID = -7355665177038792532L;
 	private static final String PRICE_KEY_IS_MANDATORY_VALUE = "Price key is mandatory value!";
 	private static final String PRICE_WITHOUT_TAX_IS_MANDATORY_VALUE = "Price without tax is mandatory value!";
@@ -68,81 +89,12 @@ public class Price implements PriceContract {
 	private static final String PRICE_WITH_TAX_IS_MANDATORY_VALUE = "Price with tax is mandatory value!";
 	private static final String PRICE_INNER_RECORD_ID_MUST_BE_POSITIVE_VALUE = "Price inner record id must be positive value!";
 
-	/**
-	 * Contains version of this object and gets increased with any entity update. Allows to execute
-	 * optimistic locking i.e. avoiding parallel modifications.
-	 */
-	private final int version;
-	/**
-	 * Primary identification of the price consisting of external price id, price list and currency.
-	 * @see PriceKey for details
-	 */
-	@Delegate
-	@Nonnull
-	private final PriceKey priceKey;
-	/**
-	 * Some special products (such as master products, or product sets) may contain prices of all "subordinate" products
-	 * so that the aggregating product can represent them in certain views on the product. In that case there is need
-	 * to distinguish the projected prices of the subordinate product in the one that represents them.
-	 *
-	 * Inner record id must contain positive value.
-	 */
-	private final Integer innerRecordId;
-	/**
-	 * Price without tax.
-	 */
-	private final BigDecimal priceWithoutTax;
-	/**
-	 * Tax rate percentage (i.e. for 19% it'll be 19.00)
-	 */
-	private final BigDecimal taxRate;
-	/**
-	 * Price with tax.
-	 */
-	private final BigDecimal priceWithTax;
-	/**
-	 * Date and time interval for which the price is valid (inclusive).
-	 */
-	private final DateTimeRange validity;
-	/**
-	 * Controls whether price is subject to filtering / sorting logic, non-sellable prices will be fetched along with
-	 * entity but won't be considered when evaluating search {@link io.evitadb.api.query.Query}. These prices may be
-	 * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
-	 * as "usual price") but are not considered as the "selling" price.
-	 */
-	private final boolean sellable;
-	/**
-	 * Contains TRUE if price was dropped - i.e. removed. Prices is not removed (unless tidying process
-	 * does it), but are lying among other prices with tombstone flag. Dropped prices can be overwritten by
-	 * a new value continuing with the versioning where it was stopped for the last time.
-	 */
-	private final boolean dropped;
-
-	public Price(
-		int version,
-		@Nonnull PriceKey priceKey,
-		@Nullable Integer innerRecordId,
-		@Nonnull BigDecimal priceWithoutTax,
-		@Nonnull BigDecimal taxRate,
-		@Nonnull BigDecimal priceWithTax,
-		@Nullable DateTimeRange validity,
-		boolean sellable,
-		boolean dropped
-	) {
+	public Price {
 		Assert.notNull(priceKey, PRICE_KEY_IS_MANDATORY_VALUE);
 		Assert.notNull(priceWithoutTax, PRICE_WITHOUT_TAX_IS_MANDATORY_VALUE);
 		Assert.notNull(taxRate, PRICE_TAX_IS_MANDATORY_VALUE);
 		Assert.notNull(priceWithTax, PRICE_WITH_TAX_IS_MANDATORY_VALUE);
 		Assert.isTrue(innerRecordId == null || innerRecordId > 0, PRICE_INNER_RECORD_ID_MUST_BE_POSITIVE_VALUE);
-		this.version = version;
-		this.priceKey = priceKey;
-		this.innerRecordId = innerRecordId;
-		this.priceWithoutTax = priceWithoutTax;
-		this.taxRate = taxRate;
-		this.priceWithTax = priceWithTax;
-		this.validity = validity;
-		this.sellable = sellable;
-		this.dropped = dropped;
 	}
 
 	public Price(
@@ -154,20 +106,7 @@ public class Price implements PriceContract {
 		@Nullable DateTimeRange validity,
 		boolean sellable
 	) {
-		Assert.notNull(priceKey, PRICE_KEY_IS_MANDATORY_VALUE);
-		Assert.notNull(priceWithoutTax, PRICE_WITHOUT_TAX_IS_MANDATORY_VALUE);
-		Assert.notNull(taxRate, PRICE_TAX_IS_MANDATORY_VALUE);
-		Assert.notNull(priceWithTax, PRICE_WITH_TAX_IS_MANDATORY_VALUE);
-		Assert.isTrue(innerRecordId == null || innerRecordId > 0, PRICE_INNER_RECORD_ID_MUST_BE_POSITIVE_VALUE);
-		this.version = 1;
-		this.priceKey = priceKey;
-		this.innerRecordId = innerRecordId;
-		this.priceWithoutTax = priceWithoutTax;
-		this.taxRate = taxRate;
-		this.priceWithTax = priceWithTax;
-		this.validity = validity;
-		this.sellable = sellable;
-		this.dropped = false;
+		this(1, priceKey, innerRecordId, priceWithoutTax, taxRate, priceWithTax, validity, sellable, false);
 	}
 
 	public Price(
@@ -180,20 +119,7 @@ public class Price implements PriceContract {
 		@Nullable DateTimeRange validity,
 		boolean sellable
 	) {
-		Assert.notNull(priceKey, PRICE_KEY_IS_MANDATORY_VALUE);
-		Assert.notNull(priceWithoutTax, PRICE_WITHOUT_TAX_IS_MANDATORY_VALUE);
-		Assert.notNull(taxRate, PRICE_TAX_IS_MANDATORY_VALUE);
-		Assert.notNull(priceWithTax, PRICE_WITH_TAX_IS_MANDATORY_VALUE);
-		Assert.isTrue(innerRecordId == null || innerRecordId > 0, PRICE_INNER_RECORD_ID_MUST_BE_POSITIVE_VALUE);
-		this.version = version;
-		this.priceKey = priceKey;
-		this.innerRecordId = innerRecordId;
-		this.priceWithoutTax = priceWithoutTax;
-		this.taxRate = taxRate;
-		this.priceWithTax = priceWithTax;
-		this.validity = validity;
-		this.sellable = sellable;
-		this.dropped = false;
+		this(version, priceKey, innerRecordId, priceWithoutTax, taxRate, priceWithTax, validity, sellable, false);
 	}
 
 	@Override
@@ -222,55 +148,140 @@ public class Price implements PriceContract {
 	}
 
 	@Override
+	public int getVersion() {
+		return version;
+	}
+
+	@Override
+	@Nonnull
+	public PriceKey getPriceKey() {
+		return priceKey;
+	}
+
+	public int getPriceId() {
+		return priceKey.getPriceId();
+	}
+
+	@Nonnull
+	public String getPriceList() {
+		return priceKey.getPriceList();
+	}
+
+	@Nonnull
+	public Currency getCurrency() {
+		return priceKey.getCurrency();
+	}
+
+	@Override
+	public Integer getInnerRecordId() {
+		return innerRecordId;
+	}
+
+	@Nonnull
+	@Override
+	public BigDecimal getPriceWithoutTax() {
+		return priceWithoutTax;
+	}
+
+	@Nonnull
+	@Override
+	public BigDecimal getTaxRate() {
+		return taxRate;
+	}
+
+	@Nonnull
+	@Override
+	public BigDecimal getPriceWithTax() {
+		return priceWithTax;
+	}
+
+	@Override
+	public DateTimeRange getValidity() {
+		return validity;
+	}
+
+	@Override
+	public boolean isSellable() {
+		return sellable;
+	}
+
+	@Override
+	public boolean isDropped() {
+		return dropped;
+	}
+
+	@Override
+	public boolean equals(Object o) {
+		if (this == o) return true;
+		if (o == null || getClass() != o.getClass()) return false;
+
+		Price price = (Price) o;
+
+		if (version != price.version) return false;
+		return priceKey.equals(price.priceKey);
+	}
+
+	@Override
+	public int hashCode() {
+		int result = version;
+		result = 31 * result + priceKey.hashCode();
+		return result;
+	}
+
+	@Override
 	public String toString() {
-		return  (dropped ? "❌ " : "") +
+		return (dropped ? "❌ " : "") +
 			"\uD83D\uDCB0 " + (sellable ? "\uD83D\uDCB5 " : "") + priceWithTax + " " + priceKey.getCurrency() + " (" + taxRate + "%)" +
-				", price list " + priceKey.getPriceList() +
-				(validity == null ? "": ", valid in " + validity) +
-				", external id " + priceKey.getPriceId() +
-				(innerRecordId == null ? "" : "/" + innerRecordId);
+			", price list " + priceKey.getPriceList() +
+			(validity == null ? "" : ", valid in " + validity) +
+			", external id " + priceKey.getPriceId() +
+			(innerRecordId == null ? "" : "/" + innerRecordId);
 	}
 
 	/**
 	 * Primary key of the {@link Price}. Price is uniquely identified by combination: priceId, priceList, currency.
+	 *
+	 * @param priceId   Contains the identification of the price in the external systems. This ID is expected to be used for
+	 *                  synchronization of the price in relation to the primary source of the prices. The price with the same ID
+	 *                  must be unique within the same entity. The prices with the same ID in multiple entities should represent
+	 *                  the same price in terms of other values - such as validity, currency, price list, the price itself, and all
+	 *                  other properties. These values can be different for a limited time (for example, the prices of Entity A and
+	 *                  Entity B can be the same, but Entity A is updated in a different session/transaction and at a different time
+	 *                  than Entity B).
+	 * @param priceList Contains identification of the price list in the external system. Each price must reference a price list. Price list
+	 *                  identification may refer to another Evita entity or may contain any external price list identification
+	 *                  (for example id or unique name of the price list in the external system).
+	 *
+	 *                  Single entity is expected to have single price for the price list unless there is {@link #getValidity()} specified.
+	 *                  In other words there is no sense to have multiple concurrently valid prices for the same entity that have roots
+	 *                  in the same price list.
+	 * @param currency  Identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
 	 */
-	@Data
-	@Immutable
-	@ThreadSafe
-	public static class PriceKey implements Serializable, Comparable<PriceKey> {
+	public record PriceKey(
+		int priceId,
+		@Nonnull String priceList,
+		@Nonnull Currency currency
+
+	) implements Serializable, Comparable<PriceKey> {
 		@Serial private static final long serialVersionUID = -4115511848409188910L;
 
-		/**
-		 * Contains the identification of the price in the external systems. This ID is expected to be used for
-		 * synchronization of the price in relation to the primary source of the prices. The price with the same ID
-		 * must be unique within the same entity. The prices with the same ID in multiple entities should represent
-		 * the same price in terms of other values - such as validity, currency, price list, the price itself, and all
-		 * other properties. These values can be different for a limited time (for example, the prices of Entity A and
-		 * Entity B can be the same, but Entity A is updated in a different session/transaction and at a different time
-		 * than Entity B).
-		 */
-		private final int priceId;
-		/**
-		 * Contains identification of the price list in the external system. Each price must reference a price list. Price list
-		 * identification may refer to another Evita entity or may contain any external price list identification
-		 * (for example id or unique name of the price list in the external system).
-		 *
-		 * Single entity is expected to have single price for the price list unless there is {@link #validity} specified.
-		 * In other words there is no sense to have multiple concurrently valid prices for the same entity that have roots
-		 * in the same price list.
-		 */
-		private final String priceList;
-		/**
-		 * Identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
-		 */
-		private final Currency currency;
-
-		public PriceKey(int priceId, @Nonnull String priceList, @Nonnull Currency currency) {
+		public PriceKey {
 			Assert.notNull(priceList, "Price list name is mandatory value!");
 			Assert.notNull(currency, "Price currency is mandatory value!");
-			this.priceId = priceId;
-			this.priceList = priceList;
-			this.currency = currency;
+		}
+
+		public int getPriceId() {
+			return priceId;
+		}
+
+		@Nonnull
+		public String getPriceList() {
+			return priceList;
+		}
+
+		@Nonnull
+		public Currency getCurrency() {
+			return currency;
 		}
 
 		@Override

@@ -30,13 +30,9 @@ import io.evitadb.dataType.exception.IncompleteDeserializationException;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import io.evitadb.utils.ReflectionLookup;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.Immutable;
-import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
@@ -196,42 +192,40 @@ public interface AssociatedDataContract extends Serializable {
 	/**
 	 * Inner implementation used in {@link AssociatedDataContract} to represent a proper key in hash map.
 	 *
+	 * @param associatedDataName Unique name of the associatedData. Case-sensitive. Distinguishes one associated data
+	 *                           item from another within single entity instance.
+	 * @param locale             Contains locale in case the associatedData is locale specific
+	 *                           (i.e. {@link AssociatedDataSchemaContract#isLocalized()}
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
 	 */
-	@Immutable
-	@ThreadSafe
-	@Data
-	class AssociatedDataKey implements Serializable, Comparable<AssociatedDataKey> {
+	record AssociatedDataKey(
+		@Nonnull String associatedDataName,
+		@Nullable Locale locale
+	) implements Serializable, Comparable<AssociatedDataKey> {
 		@Serial private static final long serialVersionUID = -8516513307116598241L;
 
 		/**
-		 * Unique name of the associatedData. Case-sensitive. Distinguishes one associated data item from another within
-		 * single entity instance.
+		 * Constructor for the locale specific associatedData.
 		 */
-		@Nonnull
-		private final String associatedDataName;
-		/**
-		 * Contains locale in case the associatedData is locale specific (i.e. {@link AssociatedDataSchemaContract#isLocalized()}
-		 */
-		@Nullable
-		private final Locale locale;
+		public AssociatedDataKey {
+			Assert.notNull(associatedDataName, "AssociatedData name cannot be null!");
+		}
 
 		/**
 		 * Construction for the locale agnostics associatedData.
 		 */
 		public AssociatedDataKey(@Nonnull String associatedDataName) {
-			Assert.notNull(associatedDataName, "AssociatedData name cannot be null!");
-			this.associatedDataName = associatedDataName;
-			this.locale = null;
+			this(associatedDataName, null);
 		}
 
-		/**
-		 * Constructor for the locale specific associatedData.
-		 */
-		public AssociatedDataKey(@Nonnull String associatedDataName, @Nonnull Locale locale) {
-			Assert.notNull(associatedDataName, "AssociatedData name cannot be null!");
-			this.associatedDataName = associatedDataName;
-			this.locale = locale;
+		@Nonnull
+		public String getAssociatedDataName() {
+			return associatedDataName;
+		}
+
+		@Nullable
+		public Locale getLocale() {
+			return locale;
 		}
 
 		/**
@@ -263,54 +257,68 @@ public interface AssociatedDataContract extends Serializable {
 	 * Associated data holder is used internally to keep track of associated data as well as its unique identification that
 	 * is assigned new everytime associated data changes somehow.
 	 *
+	 * @param version Contains version of this object and gets increased with any associatedData update. Allows to execute
+	 *                optimistic locking i.e. avoiding parallel modifications.
+	 * @param key     Uniquely identifies the associated data value among other associated data in the same entity instance.
+	 * @param value   Returns associated data value contents.
+	 * @param dropped Contains TRUE if associatedData was dropped - i.e. removed. Such associated data are not removed
+	 *                (unless tidying process does it), but are lying among other associated data with tombstone flag.
+	 *                Dropped associated data can be overwritten by a new value continuing with the versioning where it
+	 *                was stopped for the last time.
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
 	 */
-	@Immutable
-	@ThreadSafe
-	@Data
-	@EqualsAndHashCode(of = {"version", "key"})
-	class AssociatedDataValue implements Versioned, Droppable, Serializable, ContentComparator<AssociatedDataValue> {
+	record AssociatedDataValue(
+		int version,
+		@Nonnull AssociatedDataKey key,
+		@Nonnull Serializable value,
+		boolean dropped
+	) implements Versioned, Droppable, Serializable, ContentComparator<AssociatedDataValue> {
 		@Serial private static final long serialVersionUID = -4732226749198696974L;
 
-		/**
-		 * Contains version of this object and gets increased with any associatedData update. Allows to execute
-		 * optimistic locking i.e. avoiding parallel modifications.
-		 */
-		private final int version;
-		/**
-		 * Uniquely identifies the associated data value among other associated data in the same entity instance.
-		 */
-		@Nonnull private final AssociatedDataKey key;
-		/**
-		 * Returns associated data value contents.
-		 */
-		@Nonnull private final Serializable value;
-		/**
-		 * Contains TRUE if associatedData was dropped - i.e. removed. Such associated data are not removed (unless tidying process
-		 * does it), but are lying among other associated data with tombstone flag. Dropped associated data can be overwritten by
-		 * a new value continuing with the versioning where it was stopped for the last time.
-		 */
-		private final boolean dropped;
-
 		public AssociatedDataValue(@Nonnull AssociatedDataKey key, @Nonnull Serializable value) {
-			this.version = 1;
-			this.key = key;
-			this.value = value;
-			this.dropped = false;
+			this(1, key, value, false);
 		}
 
 		public AssociatedDataValue(int version, @Nonnull AssociatedDataKey key, @Nonnull Serializable value) {
-			this.version = version;
-			this.key = key;
-			this.value = value;
-			this.dropped = false;
+			this(version, key, value, false);
 		}
 
-		public AssociatedDataValue(int version, @Nonnull AssociatedDataKey key, @Nonnull Serializable value, boolean dropped) {
-			this.version = version;
-			this.key = key;
-			this.value = value;
-			this.dropped = dropped;
+		@Override
+		public int getVersion() {
+			return version;
+		}
+
+		@Nonnull
+		public AssociatedDataKey getKey() {
+			return key;
+		}
+
+		@Nonnull
+		public Serializable getValue() {
+			return value;
+		}
+
+		@Override
+		public boolean isDropped() {
+			return dropped;
+		}
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) return true;
+			if (o == null || getClass() != o.getClass()) return false;
+
+			AssociatedDataValue that = (AssociatedDataValue) o;
+
+			if (version != that.version) return false;
+			return key.equals(that.key);
+		}
+
+		@Override
+		public int hashCode() {
+			int result = version;
+			result = 31 * result + key.hashCode();
+			return result;
 		}
 
 		/**
@@ -326,9 +334,9 @@ public interface AssociatedDataContract extends Serializable {
 				// version
 				+ MemoryMeasuringConstants.INT_SIZE +
 				// dropped
-				+ MemoryMeasuringConstants.BYTE_SIZE +
+				+MemoryMeasuringConstants.BYTE_SIZE +
 				// key
-				+ key.estimateSize()
+				+key.estimateSize()
 				// value size estimate
 				+ MemoryMeasuringConstants.REFERENCE_SIZE + EvitaDataTypes.estimateSize(value);
 		}
