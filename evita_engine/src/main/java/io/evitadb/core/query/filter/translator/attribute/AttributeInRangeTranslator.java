@@ -154,7 +154,7 @@ public class AttributeInRangeTranslator implements FilteringConstraintTranslator
 				if (attr.isEmpty()) {
 					return false;
 				} else {
-					final Serializable attrValue = attr.get().getValue();
+					final Serializable attrValue = attr.get().value();
 					return attrValue != null && ((DateTimeRange) attrValue).isValidFor(theMoment);
 				}
 			}
@@ -168,7 +168,7 @@ public class AttributeInRangeTranslator implements FilteringConstraintTranslator
 				if (attr.isEmpty()) {
 					return false;
 				} else {
-					final Serializable attrValue = attr.get().getValue();
+					final Serializable attrValue = attr.get().value();
 					return attrValue != null && ((BigDecimalNumberRange) attrValue).isWithin(theValue);
 				}
 			}
@@ -183,7 +183,7 @@ public class AttributeInRangeTranslator implements FilteringConstraintTranslator
 				if (attr.isEmpty()) {
 					return false;
 				} else {
-					final Serializable attrValue = attr.get().getValue();
+					final Serializable attrValue = attr.get().value();
 					return attrValue != null && ((NumberRange) attrValue).isWithin(theValue);
 				}
 			}

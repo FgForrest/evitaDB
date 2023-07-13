@@ -76,7 +76,7 @@ public interface AttributesContract extends Serializable {
 						return true;
 					} else {
 						final Serializable otherValue = other.value();
-						return it.isDropped() != other.isDropped() || QueryUtils.valueDiffers(thisValue, otherValue);
+						return it.dropped() != other.dropped() || QueryUtils.valueDiffers(thisValue, otherValue);
 					}
 				});
 		}
@@ -305,20 +305,10 @@ public interface AttributesContract extends Serializable {
 			this(attributeName, null);
 		}
 
-		@Nonnull
-		public String getAttributeName() {
-			return attributeName;
-		}
-
-		@Nullable
-		public Locale getLocale() {
-			return locale;
-		}
-
 		/**
 		 * Returns true if attribute is localized.
 		 */
-		public boolean isLocalized() {
+		public boolean localized() {
 			return locale != null;
 		}
 
@@ -396,31 +386,6 @@ public interface AttributesContract extends Serializable {
 			this.key = key;
 			this.value = value;
 			this.dropped = dropped;
-		}
-
-		@Override
-		public int version() {
-			return version;
-		}
-
-		@Nonnull
-		public AttributeKey getKey() {
-			return key;
-		}
-
-		@Nullable
-		public Serializable getValue() {
-			return value;
-		}
-
-		@Override
-		public boolean isDropped() {
-			return dropped;
-		}
-
-		@Override
-		public int getVersion() {
-			return version;
 		}
 
 		@Override

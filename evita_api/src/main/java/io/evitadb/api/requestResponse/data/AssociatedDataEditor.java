@@ -124,10 +124,10 @@ public interface AssociatedDataEditor<W extends AssociatedDataEditor<W>> extends
 		 */
 		default AssociatedDataSchemaContract createImplicitSchema(@Nonnull AssociatedDataValue associatedDataValue) {
 			return AssociatedDataSchema._internalBuild(
-				associatedDataValue.getKey().getAssociatedDataName(),
+				associatedDataValue.key().associatedDataName(),
 				null, null,
-				associatedDataValue.getValue().getClass(),
-				associatedDataValue.getKey().isLocalized(),
+				associatedDataValue.value().getClass(),
+				associatedDataValue.key().localized(),
 				true
 			);
 		}

@@ -376,7 +376,7 @@ public class CombinedEntityFilteringFunctionalTest {
 		final BigDecimal[] prices = originalProducts.stream()
 			.filter(it -> isReferencingBrand.apply(it) && isWithinCategory.apply(it))
 			.flatMap(it -> it.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).stream())
-			.map(PriceContract::getPriceWithTax)
+			.map(PriceContract::priceWithTax)
 			.sorted()
 			.toArray(BigDecimal[]::new);
 		final BigDecimal from = prices[(int) (prices.length * 0.2)];

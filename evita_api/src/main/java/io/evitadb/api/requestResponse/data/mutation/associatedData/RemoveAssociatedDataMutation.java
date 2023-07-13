@@ -63,11 +63,11 @@ public class RemoveAssociatedDataMutation extends AssociatedDataMutation {
 		Assert.isTrue(
 			existingValue != null && existingValue.exists(),
 			() -> new InvalidMutationException(
-				"Cannot remove " + associatedDataKey.getAssociatedDataName() +
+				"Cannot remove " + associatedDataKey.associatedDataName() +
 					" associated data - it doesn't exist!"
 			)
 		);
-		return new AssociatedDataValue(existingValue.getVersion() + 1, existingValue.getKey(), existingValue.getValue(), true);
+		return new AssociatedDataValue(existingValue.version() + 1, existingValue.key(), existingValue.value(), true);
 	}
 
 	@Override

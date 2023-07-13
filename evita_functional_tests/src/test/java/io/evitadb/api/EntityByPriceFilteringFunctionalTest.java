@@ -253,7 +253,7 @@ public class EntityByPriceFilteringFunctionalTest {
 				final Set<Serializable> priceListsReturned = result.getRecordData()
 					.stream()
 					.flatMap(it -> it.getPrices().stream())
-					.map(PriceContract::getPriceList)
+					.map(PriceContract::priceList)
 					.collect(Collectors.toSet());
 				assertTrue(priceListsReturned.size() > 2);
 
@@ -482,7 +482,7 @@ public class EntityByPriceFilteringFunctionalTest {
 					sealedEntity -> hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_VIP) ||
 						hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC),
 					result.getRecordData(),
-					Comparator.comparing(PriceContract::getPriceWithTax),
+					Comparator.comparing(PriceContract::priceWithTax),
 					page(1, 10),
 					PriceContentMode.RESPECTING_FILTER,
 					CURRENCY_EUR,
@@ -529,7 +529,7 @@ public class EntityByPriceFilteringFunctionalTest {
 					sealedEntity -> hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_VIP) ||
 						hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC),
 					result.getRecordData(),
-					Comparator.comparing(PriceContract::getPriceWithTax).reversed(),
+					Comparator.comparing(PriceContract::priceWithTax).reversed(),
 					page(1, 10),
 					PriceContentMode.RESPECTING_FILTER,
 					CURRENCY_EUR,
@@ -580,7 +580,7 @@ public class EntityByPriceFilteringFunctionalTest {
 					originalProductEntities,
 					sealedEntity -> sealedEntity.hasPriceInInterval(from, to, QueryPriceMode.WITH_TAX, CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC),
 					result.getRecordData(),
-					Comparator.comparing(PriceContract::getPriceWithTax),
+					Comparator.comparing(PriceContract::priceWithTax),
 					page(1, 10),
 					PriceContentMode.RESPECTING_FILTER,
 					CURRENCY_EUR,
@@ -632,7 +632,7 @@ public class EntityByPriceFilteringFunctionalTest {
 					originalProductEntities,
 					sealedEntity -> sealedEntity.hasPriceInInterval(from, to, QueryPriceMode.WITHOUT_TAX, CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC),
 					result.getRecordData(),
-					Comparator.comparing(PriceContract::getPriceWithoutTax),
+					Comparator.comparing(PriceContract::priceWithoutTax),
 					page(1, 10),
 					PriceContentMode.RESPECTING_FILTER,
 					CURRENCY_EUR,
@@ -683,7 +683,7 @@ public class EntityByPriceFilteringFunctionalTest {
 					originalProductEntities,
 					sealedEntity -> sealedEntity.hasPriceInInterval(from, to, QueryPriceMode.WITH_TAX, CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC),
 					result.getRecordData(),
-					Comparator.comparing(PriceContract::getPriceWithTax).reversed(),
+					Comparator.comparing(PriceContract::priceWithTax).reversed(),
 					page(1, Integer.MAX_VALUE),
 					PriceContentMode.RESPECTING_FILTER,
 					CURRENCY_EUR,
@@ -735,7 +735,7 @@ public class EntityByPriceFilteringFunctionalTest {
 					originalProductEntities,
 					sealedEntity -> sealedEntity.hasPriceInInterval(from, to, QueryPriceMode.WITHOUT_TAX, CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC),
 					result.getRecordData(),
-					Comparator.comparing(PriceContract::getPriceWithoutTax).reversed(),
+					Comparator.comparing(PriceContract::priceWithoutTax).reversed(),
 					page(1, Integer.MAX_VALUE),
 					PriceContentMode.RESPECTING_FILTER,
 					CURRENCY_EUR,
@@ -788,7 +788,7 @@ public class EntityByPriceFilteringFunctionalTest {
 					originalProductEntities,
 					sealedEntity -> sealedEntity.hasPriceInInterval(from, to, QueryPriceMode.WITH_TAX, CURRENCY_EUR, theMoment, PRICE_LIST_VIP, PRICE_LIST_BASIC),
 					result.getRecordData(),
-					Comparator.comparing(PriceContract::getPriceWithTax),
+					Comparator.comparing(PriceContract::priceWithTax),
 					page(1, 10),
 					PriceContentMode.RESPECTING_FILTER,
 					CURRENCY_EUR,
@@ -842,7 +842,7 @@ public class EntityByPriceFilteringFunctionalTest {
 					originalProductEntities,
 					sealedEntity -> sealedEntity.hasPriceInInterval(from, to, QueryPriceMode.WITHOUT_TAX, CURRENCY_EUR, theMoment, PRICE_LIST_VIP, PRICE_LIST_BASIC),
 					result.getRecordData(),
-					Comparator.comparing(PriceContract::getPriceWithoutTax),
+					Comparator.comparing(PriceContract::priceWithoutTax),
 					page(1, Integer.MAX_VALUE),
 					PriceContentMode.RESPECTING_FILTER,
 					CURRENCY_EUR,
@@ -895,7 +895,7 @@ public class EntityByPriceFilteringFunctionalTest {
 					originalProductEntities,
 					sealedEntity -> sealedEntity.hasPriceInInterval(from, to, QueryPriceMode.WITH_TAX, CURRENCY_EUR, theMoment, PRICE_LIST_VIP, PRICE_LIST_BASIC),
 					result.getRecordData(),
-					Comparator.comparing(PriceContract::getPriceWithTax).reversed(),
+					Comparator.comparing(PriceContract::priceWithTax).reversed(),
 					page(1, 10),
 					PriceContentMode.RESPECTING_FILTER,
 					CURRENCY_EUR,
@@ -949,7 +949,7 @@ public class EntityByPriceFilteringFunctionalTest {
 					originalProductEntities,
 					sealedEntity -> sealedEntity.hasPriceInInterval(from, to, QueryPriceMode.WITHOUT_TAX, CURRENCY_EUR, theMoment, PRICE_LIST_VIP, PRICE_LIST_BASIC),
 					result.getRecordData(),
-					Comparator.comparing(PriceContract::getPriceWithoutTax).reversed(),
+					Comparator.comparing(PriceContract::priceWithoutTax).reversed(),
 					page(1, 10),
 					PriceContentMode.RESPECTING_FILTER,
 					CURRENCY_EUR,
@@ -1199,7 +1199,7 @@ public class EntityByPriceFilteringFunctionalTest {
 				final Predicate<SealedEntity> priceForSaleBetweenPredicate = it -> {
 					final BigDecimal price = it.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC)
 						.orElseThrow()
-						.getPriceWithTax();
+						.priceWithTax();
 					return price.compareTo(from) >= 0 && price.compareTo(to) <= 0;
 				};
 				assertTrue(
@@ -1251,7 +1251,7 @@ public class EntityByPriceFilteringFunctionalTest {
 					originalProductEntities,
 					sealedEntity -> sealedEntity.hasPriceInInterval(from, to, QueryPriceMode.WITH_TAX, CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC),
 					result.getRecordData(),
-					Comparator.comparing(PriceContract::getPriceWithTax),
+					Comparator.comparing(PriceContract::priceWithTax),
 					page(1, 10),
 					PriceContentMode.ALL,
 					CURRENCY_EUR,
@@ -1276,16 +1276,16 @@ public class EntityByPriceFilteringFunctionalTest {
 				.orElseThrow();
 
 			for (String priceList : priceLists) {
-				if (priceList.equals(priceForSale.getPriceList())) {
+				if (priceList.equals(priceForSale.priceList())) {
 					break;
 				} else {
 					assertTrue(
 						sealedEntity.getPrices(currency, priceList)
 							.stream()
-							.filter(PriceContract::isSellable)
+							.filter(PriceContract::sellable)
 							// for first occurrence strategy the price with more prioritized list might be found but is skipped, because is bigger than other inner record price
-							.filter(it -> Objects.equals(it.getInnerRecordId(), priceForSale.getInnerRecordId()) || it.getPriceWithTax().compareTo(priceForSale.getPriceWithTax()) <= 0)
-							.noneMatch(it -> it.getValidity() == null || validIn == null || it.getValidity().isValidFor(validIn)),
+							.filter(it -> Objects.equals(it.innerRecordId(), priceForSale.innerRecordId()) || it.priceWithTax().compareTo(priceForSale.priceWithTax()) <= 0)
+							.noneMatch(it -> it.validity() == null || validIn == null || it.validity().isValidFor(validIn)),
 						"There must be no price for more prioritized price lists! But is for: " + priceList
 					);
 				}
@@ -1308,9 +1308,9 @@ public class EntityByPriceFilteringFunctionalTest {
 					.getPrices()
 					.stream()
 					.allMatch(
-						price -> Objects.equals(price.getCurrency(), currency) &&
-							ofNullable(price.getValidity()).map(it -> validIn == null || it.isValidFor(validIn)).orElse(true) &&
-							priceListsSet.contains(price.getPriceList())
+						price -> Objects.equals(price.currency(), currency) &&
+							ofNullable(price.validity()).map(it -> validIn == null || it.isValidFor(validIn)).orElse(true) &&
+							priceListsSet.contains(price.priceList())
 					)
 			);
 		} else {
@@ -1333,7 +1333,7 @@ public class EntityByPriceFilteringFunctionalTest {
 			.map(it -> it.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC))
 			.filter(Optional::isPresent)
 			.map(Optional::get)
-			.map(PriceContract::getPriceWithTax)
+			.map(PriceContract::priceWithTax)
 			.toList();
 
 		assertEquals(pricesForSale.stream().min(Comparator.naturalOrder()).orElse(BigDecimal.ZERO), priceHistogram.getMin());
@@ -1365,7 +1365,7 @@ public class EntityByPriceFilteringFunctionalTest {
 	private static int findIndexInHistogram(SealedEntity entity, HistogramContract histogram) {
 		final BigDecimal entityPrice = entity.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC)
 			.orElseThrow()
-			.getPriceWithTax();
+			.priceWithTax();
 		final Bucket[] buckets = histogram.getBuckets();
 		for (int i = buckets.length - 1; i >= 0; i--) {
 			final Bucket bucket = buckets[i];
@@ -1382,42 +1382,42 @@ public class EntityByPriceFilteringFunctionalTest {
 	 * Returns true if there is any indexed price for passed currency.
 	 */
 	protected static boolean hasAnySellablePrice(@Nonnull SealedEntity entity, @Nonnull Currency currency) {
-		return entity.getPrices(currency).stream().anyMatch(PriceContract::isSellable);
+		return entity.getPrices(currency).stream().anyMatch(PriceContract::sellable);
 	}
 
 	/**
 	 * Returns true if there is any indexed price for passed price list.
 	 */
 	protected static boolean hasAnySellablePrice(@Nonnull SealedEntity entity, @Nonnull String priceList) {
-		return entity.getPrices(priceList).stream().anyMatch(PriceContract::isSellable);
+		return entity.getPrices(priceList).stream().anyMatch(PriceContract::sellable);
 	}
 
 	/**
 	 * Returns true if there is any indexed price for passed currency and price list.
 	 */
 	protected static boolean hasAnySellablePrice(@Nonnull SealedEntity entity, @Nonnull OffsetDateTime atTheMoment) {
-		return entity.getPrices().stream().filter(PriceContract::isSellable).anyMatch(it -> it.getValidity() == null || it.getValidity().isValidFor(atTheMoment));
+		return entity.getPrices().stream().filter(PriceContract::sellable).anyMatch(it -> it.validity() == null || it.validity().isValidFor(atTheMoment));
 	}
 
 	/**
 	 * Returns true if there is any indexed price for passed currency and price list.
 	 */
 	private static boolean hasAnySellablePrice(@Nonnull SealedEntity entity, @Nonnull Currency currency, @Nonnull OffsetDateTime atTheMoment) {
-		return entity.getPrices(currency).stream().filter(PriceContract::isSellable).anyMatch(it -> it.getValidity() == null || it.getValidity().isValidFor(atTheMoment));
+		return entity.getPrices(currency).stream().filter(PriceContract::sellable).anyMatch(it -> it.validity() == null || it.validity().isValidFor(atTheMoment));
 	}
 
 	/**
 	 * Returns true if there is any indexed price for passed currency and price list.
 	 */
 	protected static boolean hasAnySellablePrice(@Nonnull SealedEntity entity, @Nonnull Currency currency, @Nonnull String priceList) {
-		return entity.getPrices(currency, priceList).stream().anyMatch(PriceContract::isSellable);
+		return entity.getPrices(currency, priceList).stream().anyMatch(PriceContract::sellable);
 	}
 
 	/**
 	 * Returns true if there is any indexed price for passed currency and price list.
 	 */
 	protected static boolean hasAnySellablePrice(@Nonnull SealedEntity entity, @Nonnull Currency currency, @Nonnull String priceList, @Nonnull OffsetDateTime atTheMoment) {
-		return entity.getPrices(currency, priceList).stream().filter(PriceContract::isSellable).anyMatch(it -> it.isValidAt(atTheMoment));
+		return entity.getPrices(currency, priceList).stream().filter(PriceContract::sellable).anyMatch(it -> it.validAt(atTheMoment));
 	}
 
 	/**
@@ -1454,7 +1454,7 @@ public class EntityByPriceFilteringFunctionalTest {
 		final Set<String> allowedPriceLists = Arrays.stream(priceLists).collect(Collectors.toSet());
 		for (SealedEntity entity : recordData) {
 			assertTrue(
-				entity.getPrices().stream().allMatch(price -> allowedPriceLists.contains(price.getPriceList()))
+				entity.getPrices().stream().allMatch(price -> allowedPriceLists.contains(price.priceList()))
 			);
 		}
 	}
@@ -1465,7 +1465,7 @@ public class EntityByPriceFilteringFunctionalTest {
 	protected static void assertResultContainProductWithNonSellablePriceFrom(@Nonnull List<SealedEntity> recordData, @Nonnull String... priceLists) {
 		final Set<String> allowedPriceLists = Arrays.stream(priceLists).collect(Collectors.toSet());
 		for (SealedEntity entity : recordData) {
-			if (entity.getPrices().stream().anyMatch(price -> allowedPriceLists.contains(price.getPriceList()) && !price.isSellable())) {
+			if (entity.getPrices().stream().anyMatch(price -> allowedPriceLists.contains(price.priceList()) && !price.sellable())) {
 				return;
 			}
 		}

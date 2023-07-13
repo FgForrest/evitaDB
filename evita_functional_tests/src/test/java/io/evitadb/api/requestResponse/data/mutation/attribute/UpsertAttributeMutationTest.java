@@ -44,16 +44,16 @@ class UpsertAttributeMutationTest extends AbstractMutationTest {
 	void shouldCreateNewAttribute() {
 		final UpsertAttributeMutation mutation = new UpsertAttributeMutation(new AttributeKey("a"), (byte)5);
 		final AttributeValue newValue = mutation.mutateLocal(productSchema, null);
-		assertEquals((byte)5, newValue.getValue());
-		assertEquals(1L, newValue.getVersion());
+		assertEquals((byte)5, newValue.value());
+		assertEquals(1L, newValue.version());
 	}
 
 	@Test
 	void shouldIncrementVersionByUpdatingAttribute() {
 		final UpsertAttributeMutation mutation = new UpsertAttributeMutation(new AttributeKey("a"), (byte)5);
 		final AttributeValue newValue = mutation.mutateLocal(productSchema, new AttributeValue(new AttributeKey("a"), (byte)3));
-		assertEquals((byte) 5, newValue.getValue());
-		assertEquals(2L, newValue.getVersion());
+		assertEquals((byte) 5, newValue.value());
+		assertEquals(2L, newValue.version());
 	}
 
 	@Test

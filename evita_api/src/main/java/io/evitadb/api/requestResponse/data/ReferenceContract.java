@@ -153,7 +153,7 @@ public interface ReferenceContract extends AttributesContract, Droppable, Compar
 		if (!Objects.equals(getReferenceKey(), otherReference.getReferenceKey())) return true;
 		if (getGroup().map(it -> it.differsFrom(otherReference.getGroup().orElse(null))).orElseGet(() -> otherReference.getGroup().isPresent()))
 			return true;
-		if (isDropped() != otherReference.isDropped()) return true;
+		if (dropped() != otherReference.dropped()) return true;
 		return AttributesContract.anyAttributeDifferBetween(this, otherReference);
 	}
 
@@ -188,12 +188,12 @@ public interface ReferenceContract extends AttributesContract, Droppable, Compar
 		}
 
 		@Override
-		public boolean isDropped() {
+		public boolean dropped() {
 			return dropped;
 		}
 
 		@Override
-		public int getVersion() {
+		public int version() {
 			return version;
 		}
 
@@ -213,7 +213,7 @@ public interface ReferenceContract extends AttributesContract, Droppable, Compar
 			if (!Objects.equals(primaryKey, otherReferenceGroup.primaryKey())) {
 				return true;
 			}
-			return dropped != otherReferenceGroup.isDropped();
+			return dropped != otherReferenceGroup.dropped();
 		}
 
 		public int estimateSize() {

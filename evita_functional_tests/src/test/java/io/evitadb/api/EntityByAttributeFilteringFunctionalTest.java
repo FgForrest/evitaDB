@@ -360,7 +360,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 	@Test
 	void shouldReturnEntityByGlobalAttributeEqualToStringAndPriceConstraint(Evita evita, List<SealedEntity> originalProductEntities) {
 		final SealedEntity selectedEntity = originalProductEntities.stream()
-			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::isSellable))
+			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::sellable))
 			.skip(10)
 			.findFirst()
 			.orElseThrow(() -> new IllegalStateException("There is no entity with a sellable price!"));
@@ -370,7 +370,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 				final String codeAttribute = selectedEntity.getAttribute(ATTRIBUTE_CODE);
 				final PriceContract firstPrice = selectedEntity.getPrices()
 					.stream()
-					.filter(PriceContract::isSellable)
+					.filter(PriceContract::sellable)
 					.findFirst()
 					.orElse(null);
 				final EvitaResponse<EntityReference> result = session.query(
@@ -378,8 +378,8 @@ public class EntityByAttributeFilteringFunctionalTest {
 						filterBy(
 							and(
 								attributeEquals(ATTRIBUTE_CODE, codeAttribute),
-								priceInCurrency(firstPrice.getCurrency()),
-								priceInPriceLists(firstPrice.getPriceList())
+								priceInCurrency(firstPrice.currency()),
+								priceInPriceLists(firstPrice.priceList())
 							)
 						),
 						require(
@@ -587,11 +587,11 @@ public class EntityByAttributeFilteringFunctionalTest {
 			.orElseThrow();
 		final PriceContract firstPrice = selectedEntity.getPrices()
 			.stream()
-			.filter(PriceContract::isSellable)
+			.filter(PriceContract::sellable)
 			.findFirst()
 			.orElseThrow();
 		final List<SealedEntity> selectedEntities = originalProductEntities.stream()
-			.filter(it -> it.getPriceForSale(firstPrice.getCurrency(), OffsetDateTime.now(), firstPrice.getPriceList()).isPresent())
+			.filter(it -> it.getPriceForSale(firstPrice.currency(), OffsetDateTime.now(), firstPrice.priceList()).isPresent())
 			.limit(20)
 			.toList();
 		evita.queryCatalog(
@@ -602,8 +602,8 @@ public class EntityByAttributeFilteringFunctionalTest {
 						filterBy(
 							and(
 								attributeInSet(ATTRIBUTE_CODE, selectedEntities.stream().map(it -> (String) it.getAttribute(ATTRIBUTE_CODE)).toArray(String[]::new)),
-								priceInCurrency(firstPrice.getCurrency()),
-								priceInPriceLists(firstPrice.getPriceList())
+								priceInCurrency(firstPrice.currency()),
+								priceInPriceLists(firstPrice.priceList())
 							)
 						),
 						orderBy(priceNatural(ASC)),
@@ -618,7 +618,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 					originalProductEntities,
 					result.getRecordData(),
 					sealedEntity -> selectedEntities.stream().anyMatch(it -> Objects.equals(it.getAttribute(ATTRIBUTE_CODE), sealedEntity.getAttribute(ATTRIBUTE_CODE))),
-					Comparator.comparing(o -> o.getPriceForSale(firstPrice.getCurrency(), OffsetDateTime.now(), firstPrice.getPriceList()).orElseThrow().getPriceWithTax()),
+					Comparator.comparing(o -> o.getPriceForSale(firstPrice.currency(), OffsetDateTime.now(), firstPrice.priceList()).orElseThrow().priceWithTax()),
 					0, Integer.MAX_VALUE
 				);
 				return null;

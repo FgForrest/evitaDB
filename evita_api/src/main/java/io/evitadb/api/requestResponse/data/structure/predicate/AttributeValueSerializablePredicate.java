@@ -149,15 +149,15 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 	@Override
 	public boolean test(AttributeValue attributeValue) {
 		if (requiresEntityAttributes) {
-			final AttributeKey key = attributeValue.getKey();
-			final Locale attributeLocale = attributeValue.getKey().getLocale();
+			final AttributeKey key = attributeValue.key();
+			final Locale attributeLocale = attributeValue.key().locale();
 			return attributeValue.exists() &&
 				(
-					!key.isLocalized() ||
+					!key.localized() ||
 						(this.locales != null && (this.locales.isEmpty() || this.locales.contains(attributeLocale))) ||
 						(this.implicitLocale != null && Objects.equals(this.implicitLocale, attributeLocale))
 				) &&
-				(attributeSet.isEmpty() || attributeSet.contains(key.getAttributeName()));
+				(attributeSet.isEmpty() || attributeSet.contains(key.attributeName()));
 		} else {
 			return false;
 		}

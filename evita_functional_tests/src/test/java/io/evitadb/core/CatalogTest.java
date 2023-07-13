@@ -85,7 +85,7 @@ class CatalogTest implements EvitaTestSupport {
 					final AttributeSchemaContract name = catalogSchema.getAttribute("name").orElseThrow();
 
 					final SealedEntitySchema entitySchema = evitaSession.getEntitySchema(Entities.PRODUCT).orElseThrow();
-					assertEquals(6, entitySchema.getVersion());
+					assertEquals(6, entitySchema.version());
 					assertSame(entitySchema.getAttribute("code").orElse(null), code);
 					assertSame(entitySchema.getAttribute("name").orElse(null), name);
 					return null;

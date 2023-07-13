@@ -45,8 +45,8 @@ public class AmbiguousPriceException extends EvitaInvalidUsageException {
 
 	public AmbiguousPriceException(@Nonnull PriceContract existingPrice, @Nonnull PriceContract ambiguousPrice) {
 		super(
-			"Price `" + ambiguousPrice.getPriceKey() + "` with id `" + ambiguousPrice.getPriceId() + "` cannot be added to the entity. " +
-				"There is already present price `" + existingPrice.getPriceKey() + "` with id `" + existingPrice.getPriceId() + "` " +
+			"Price `" + ambiguousPrice.priceKey() + "` with id `" + ambiguousPrice.priceId() + "` cannot be added to the entity. " +
+				"There is already present price `" + existingPrice.priceKey() + "` with id `" + existingPrice.priceId() + "` " +
 				"that would create conflict with newly added price because their validity spans overlap."
 		);
 		this.existingPrice = existingPrice;

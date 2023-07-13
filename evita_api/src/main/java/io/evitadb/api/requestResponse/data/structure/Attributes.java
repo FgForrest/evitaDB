@@ -125,10 +125,10 @@ public class Attributes implements AttributesContract {
 			.stream()
 			.collect(
 				Collectors.toMap(
-					AttributesContract.AttributeValue::getKey,
+					AttributesContract.AttributeValue::key,
 					Function.identity(),
 					(attributeValue, attributeValue2) -> {
-						throw new EvitaInvalidUsageException("Duplicated attribute " + attributeValue.getKey() + "!");
+						throw new EvitaInvalidUsageException("Duplicated attribute " + attributeValue.key() + "!");
 					}
 				)
 			);
@@ -160,7 +160,7 @@ public class Attributes implements AttributesContract {
 		);
 		//noinspection unchecked
 		return (T) ofNullable(attributeValues.get(new AttributeKey(attributeName)))
-			.map(AttributesContract.AttributeValue::getValue)
+			.map(AttributesContract.AttributeValue::value)
 			.orElse(null);
 	}
 
@@ -178,7 +178,7 @@ public class Attributes implements AttributesContract {
 		);
 		//noinspection unchecked
 		return (T[]) ofNullable(attributeValues.get(new AttributeKey(attributeName)))
-			.map(AttributesContract.AttributeValue::getValue)
+			.map(AttributesContract.AttributeValue::value)
 			.orElse(null);
 	}
 
@@ -207,9 +207,9 @@ public class Attributes implements AttributesContract {
 			);
 		//noinspection unchecked
 		return (T) ofNullable(attributeValues.get(new AttributeKey(attributeName, locale)))
-			.map(AttributesContract.AttributeValue::getValue)
+			.map(AttributesContract.AttributeValue::value)
 			.orElseGet(() -> ofNullable(attributeValues.get(new AttributeKey(attributeName)))
-				.map(AttributeValue::getValue)
+				.map(AttributeValue::value)
 				.orElse(null));
 	}
 
@@ -223,9 +223,9 @@ public class Attributes implements AttributesContract {
 			);
 		//noinspection unchecked,ConstantConditions
 		return (T[]) ofNullable(attributeValues.get(new AttributeKey(attributeName, locale)))
-			.map(AttributesContract.AttributeValue::getValue)
+			.map(AttributesContract.AttributeValue::value)
 			.orElseGet(() -> ofNullable(attributeValues.get(new AttributeKey(attributeName)))
-				.map(AttributeValue::getValue)
+				.map(AttributeValue::value)
 				.orElse(null));
 	}
 
@@ -256,7 +256,7 @@ public class Attributes implements AttributesContract {
 			this.attributeNames = this.attributeValues
 				.keySet()
 				.stream()
-				.map(AttributesContract.AttributeKey::getAttributeName)
+				.map(AttributesContract.AttributeKey::attributeName)
 				.collect(Collectors.toSet());
 		}
 		return this.attributeNames;
@@ -285,7 +285,7 @@ public class Attributes implements AttributesContract {
 		return attributeValues
 			.entrySet()
 			.stream()
-			.filter(it -> attributeName.equals(it.getKey().getAttributeName()))
+			.filter(it -> attributeName.equals(it.getKey().attributeName()))
 			.map(Entry::getValue)
 			.collect(Collectors.toList());
 	}
@@ -298,7 +298,7 @@ public class Attributes implements AttributesContract {
 				.values()
 				.stream()
 				.filter(Droppable::exists)
-				.map(it -> it.getKey().getLocale())
+				.map(it -> it.key().locale())
 				.filter(Objects::nonNull)
 				.collect(Collectors.toSet());
 		}

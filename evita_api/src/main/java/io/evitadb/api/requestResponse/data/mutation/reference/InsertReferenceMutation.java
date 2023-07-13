@@ -164,10 +164,10 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey> imp
 				Collections.emptyList(),
 				false
 			);
-		} else if (existingValue.isDropped()) {
+		} else if (existingValue.dropped()) {
 			return new Reference(
 				entitySchema,
-				existingValue.getVersion() + 1,
+				existingValue.version() + 1,
 				referenceKey.referenceName(), referenceKey.primaryKey(),
 				existingValue.getReferencedEntityType(),
 				existingValue.getReferenceCardinality(),

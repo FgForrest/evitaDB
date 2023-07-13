@@ -153,7 +153,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 		assertEquals(sealedEntity.getAttribute(DataGenerator.ATTRIBUTE_VALIDITY), category.getValidity());
 		if (locale == null) {
 			for (AttributeValue attributeValue : sealedEntity.getAttributeValues(DataGenerator.ATTRIBUTE_NAME)) {
-				assertEquals(attributeValue.getValue(), category.getName(attributeValue.getKey().getLocale()));
+				assertEquals(attributeValue.value(), category.getName(attributeValue.key().locale()));
 			}
 		} else {
 			assertEquals(sealedEntity.getAttribute(DataGenerator.ATTRIBUTE_NAME, locale), category.getName());
@@ -200,7 +200,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 		if (locale == null) {
 			for (AttributeValue attributeValue : theReference.getAttributeValues(ATTRIBUTE_CATEGORY_LABEL)) {
-				assertEquals(attributeValue.getValue(), productCategory.getLabel(attributeValue.getKey().getLocale()));
+				assertEquals(attributeValue.value(), productCategory.getLabel(attributeValue.key().locale()));
 			}
 		} else {
 			assertEquals(theReference.getAttribute(ATTRIBUTE_CATEGORY_LABEL, locale), productCategory.getLabel());
@@ -309,35 +309,35 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 			final PriceContract expectedPrice = expectedAllPricesForSale[0];
 			assertEquals(
 				expectedPrice,
-				product.getPriceForSale(expectedPrice.getPriceList(), expectedPrice.getCurrency())
+				product.getPriceForSale(expectedPrice.priceList(), expectedPrice.currency())
 			);
 			assertEquals(
 				expectedPrice,
-				product.getPriceForSale(expectedPrice.getPriceList(), expectedPrice.getCurrency(), expectedPrice.getValidity().getPreciseFrom())
+				product.getPriceForSale(expectedPrice.priceList(), expectedPrice.currency(), expectedPrice.validity().getPreciseFrom())
 			);
 
 			assertArrayEquals(
 				originalProduct.getAllPricesForSale()
 					.stream()
-					.filter(it -> it.getPriceList().equals(expectedPrice.getPriceList()))
+					.filter(it -> it.priceList().equals(expectedPrice.priceList()))
 					.toArray(PriceContract[]::new),
-				product.getAllPricesForSale(expectedPrice.getPriceList())
+				product.getAllPricesForSale(expectedPrice.priceList())
 			);
 
 			assertArrayEquals(
 				originalProduct.getAllPricesForSale()
 					.stream()
-					.filter(it -> it.getCurrency().equals(expectedPrice.getCurrency()))
+					.filter(it -> it.currency().equals(expectedPrice.currency()))
 					.toArray(PriceContract[]::new),
-				product.getAllPricesForSale(expectedPrice.getCurrency())
+				product.getAllPricesForSale(expectedPrice.currency())
 			);
 
 			assertArrayEquals(
 				originalProduct.getAllPricesForSale()
 					.stream()
-					.filter(it -> it.getCurrency().equals(expectedPrice.getCurrency()) && it.getPriceList().equals(expectedPrice.getPriceList()))
+					.filter(it -> it.currency().equals(expectedPrice.currency()) && it.priceList().equals(expectedPrice.priceList()))
 					.toArray(PriceContract[]::new),
-				product.getAllPricesForSale(expectedPrice.getPriceList(), expectedPrice.getCurrency())
+				product.getAllPricesForSale(expectedPrice.priceList(), expectedPrice.currency())
 			);
 		}
 
@@ -352,7 +352,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 		assertArrayEquals(expectedAllPrices, product.getAllPricesAsSet().toArray(PriceContract[]::new));
 		assertArrayEquals(expectedAllPrices, product.getAllPrices().toArray(PriceContract[]::new));
 
-		final Optional<PriceContract> first = Arrays.stream(expectedAllPrices).filter(it -> "basic".equals(it.getPriceList())).findFirst();
+		final Optional<PriceContract> first = Arrays.stream(expectedAllPrices).filter(it -> "basic".equals(it.priceList())).findFirst();
 		if (first.isEmpty()) {
 			assertNull(product.getBasicPrice());
 		} else {

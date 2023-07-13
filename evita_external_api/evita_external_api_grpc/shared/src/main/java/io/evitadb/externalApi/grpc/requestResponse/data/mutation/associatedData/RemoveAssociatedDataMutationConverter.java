@@ -49,10 +49,10 @@ public class RemoveAssociatedDataMutationConverter extends AssociatedDataMutatio
 	@Nonnull
 	public GrpcRemoveAssociatedDataMutation convert(@Nonnull RemoveAssociatedDataMutation mutation) {
 		final GrpcRemoveAssociatedDataMutation.Builder builder = GrpcRemoveAssociatedDataMutation.newBuilder()
-			.setAssociatedDataName(mutation.getAssociatedDataKey().getAssociatedDataName());
+			.setAssociatedDataName(mutation.getAssociatedDataKey().associatedDataName());
 
-		if (mutation.getAssociatedDataKey().isLocalized()) {
-			builder.setAssociatedDataLocale(EvitaDataTypesConverter.toGrpcLocale(mutation.getAssociatedDataKey().getLocale()));
+		if (mutation.getAssociatedDataKey().localized()) {
+			builder.setAssociatedDataLocale(EvitaDataTypesConverter.toGrpcLocale(mutation.getAssociatedDataKey().locale()));
 		}
 
 		return builder.build();

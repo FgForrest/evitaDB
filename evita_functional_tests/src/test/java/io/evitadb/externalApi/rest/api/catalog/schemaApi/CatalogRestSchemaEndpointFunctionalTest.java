@@ -132,7 +132,7 @@ abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpointFunct
 	@Nonnull
 	protected static Map<String, Object> createEntitySchemaDto(@Nonnull Evita evita, @Nonnull EntitySchemaContract entitySchema) {
 		final MapBuilder entitySchemaDto = map()
-			.e(VersionedDescriptor.VERSION.name(), entitySchema.getVersion())
+			.e(VersionedDescriptor.VERSION.name(), entitySchema.version())
 			.e(NamedSchemaDescriptor.NAME.name(), entitySchema.getName())
 			.e(NamedSchemaDescriptor.NAME_VARIANTS.name(), map()
 				.e(NameVariantsDescriptor.CAMEL_CASE.name(), entitySchema.getNameVariant(NamingConvention.CAMEL_CASE))

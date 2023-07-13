@@ -42,7 +42,7 @@ public class DataItemValueSerializer extends Serializer<DataItemValue> {
 
 	@Override
 	public void write(Kryo kryo, Output output, DataItemValue dataItem) {
-		kryo.writeClassAndObject(output, dataItem.getValue());
+		kryo.writeClassAndObject(output, dataItem.value());
 	}
 
 	@Override

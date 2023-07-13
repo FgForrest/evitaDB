@@ -157,8 +157,8 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 
 		final Collection<PriceContract> basicPrices = prices.getPrices(CZK, "basic");
 		assertEquals(2, basicPrices.size());
-		assertTrue(basicPrices.stream().anyMatch(it -> it.getPriceId() == 1));
-		assertTrue(basicPrices.stream().anyMatch(it -> it.getPriceId() == 10));
+		assertTrue(basicPrices.stream().anyMatch(it -> it.priceId() == 1));
+		assertTrue(basicPrices.stream().anyMatch(it -> it.priceId() == 10));
 	}
 
 	@Test
@@ -180,8 +180,8 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 
 		final Collection<PriceContract> basicPrices = prices.getPrices(CZK, "vip");
 		assertEquals(2, basicPrices.size());
-		assertTrue(basicPrices.stream().anyMatch(it -> it.getPriceId() == 10));
-		assertTrue(basicPrices.stream().anyMatch(it -> it.getPriceId() == 11));
+		assertTrue(basicPrices.stream().anyMatch(it -> it.priceId() == 10));
+		assertTrue(basicPrices.stream().anyMatch(it -> it.priceId() == 11));
 	}
 
 	@Test
@@ -193,7 +193,7 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 		assertNotNull(prices);
 		final Collection<PriceContract> basicPrices = prices.getPrices(CZK, "basic");
 		assertEquals(1, basicPrices.size());
-		assertEquals(10, basicPrices.iterator().next().getPriceId());
+		assertEquals(10, basicPrices.iterator().next().priceId());
 	}
 
 }

@@ -41,7 +41,7 @@ public class ComplexDataObjectSerializer extends Serializer<ComplexDataObject> {
 
 	@Override
 	public void write(Kryo kryo, Output output, ComplexDataObject complexDataObject) {
-		kryo.writeClassAndObject(output, complexDataObject.getRoot());
+		kryo.writeClassAndObject(output, complexDataObject.root());
 	}
 
 	@Override

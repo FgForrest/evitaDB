@@ -165,7 +165,7 @@ public class ComplexDataObjectToJsonConverter implements DataItemVisitor {
 			// if its "map" node
 			// create appropriate node type as a children in it
 			final String propertyName = propertyNameStack.peek();
-			final Serializable object = valueItem.getValue();
+			final Serializable object = valueItem.value();
 			if (object instanceof Short s) {
 				objectNode.put(propertyName, s);
 			} else if (object instanceof Byte b) {
@@ -192,7 +192,7 @@ public class ComplexDataObjectToJsonConverter implements DataItemVisitor {
 		} else if (theNode instanceof ArrayNode arrayNode) {
 			// if it's "array" node
 			// create appropriate node type as a children in it
-			final Serializable object = valueItem.getValue();
+			final Serializable object = valueItem.value();
 			if (object instanceof Short s) {
 				arrayNode.add(s);
 			} else if (object instanceof Byte b) {

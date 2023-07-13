@@ -108,8 +108,8 @@ public class ReferenceDecorator implements ReferenceContract {
 	}
 
 	@Override
-	public boolean isDropped() {
-		return delegate.isDropped();
+	public boolean dropped() {
+		return delegate.dropped();
 	}
 
 	@Nonnull
@@ -161,8 +161,8 @@ public class ReferenceDecorator implements ReferenceContract {
 	}
 
 	@Override
-	public int getVersion() {
-		return delegate.getVersion();
+	public int version() {
+		return delegate.version();
 	}
 
 	@Nullable
@@ -170,7 +170,7 @@ public class ReferenceDecorator implements ReferenceContract {
 	public <T extends Serializable> T getAttribute(@Nonnull String attributeName) {
 		//noinspection unchecked
 		return getAttributeValue(attributeName)
-			.map(it -> (T) it.getValue())
+			.map(it -> (T) it.value())
 			.orElse(null);
 	}
 
@@ -179,7 +179,7 @@ public class ReferenceDecorator implements ReferenceContract {
 	public <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName) {
 		//noinspection unchecked
 		return getAttributeValue(attributeName)
-			.map(it -> (T[]) it.getValue())
+			.map(it -> (T[]) it.value())
 			.orElse(null);
 	}
 
@@ -203,7 +203,7 @@ public class ReferenceDecorator implements ReferenceContract {
 		//noinspection unchecked
 		return delegate.getAttributeValue(attributeName, locale)
 			.filter(attributePredicate)
-			.map(it -> (T) it.getValue())
+			.map(it -> (T) it.value())
 			.orElse(null);
 	}
 
@@ -213,7 +213,7 @@ public class ReferenceDecorator implements ReferenceContract {
 		//noinspection unchecked
 		return delegate.getAttributeValue(attributeName, locale)
 			.filter(attributePredicate)
-			.map(it -> (T[]) it.getValue())
+			.map(it -> (T[]) it.value())
 			.orElse(null);
 	}
 
@@ -235,7 +235,7 @@ public class ReferenceDecorator implements ReferenceContract {
 	public Set<String> getAttributeNames() {
 		return getAttributeValues()
 			.stream()
-			.map(it -> it.getKey().getAttributeName())
+			.map(it -> it.key().attributeName())
 			.collect(Collectors.toSet());
 	}
 
@@ -244,7 +244,7 @@ public class ReferenceDecorator implements ReferenceContract {
 	public Set<AttributeKey> getAttributeKeys() {
 		return getAttributeValues()
 			.stream()
-			.map(AttributeValue::getKey)
+			.map(AttributeValue::key)
 			.collect(Collectors.toSet());
 	}
 
@@ -272,7 +272,7 @@ public class ReferenceDecorator implements ReferenceContract {
 	public Collection<AttributeValue> getAttributeValues(@Nonnull String attributeName) {
 		return getAttributeValues()
 			.stream()
-			.filter(it -> attributeName.equals(it.getKey().getAttributeName()))
+			.filter(it -> attributeName.equals(it.key().attributeName()))
 			.collect(Collectors.toList());
 	}
 
@@ -282,8 +282,8 @@ public class ReferenceDecorator implements ReferenceContract {
 		if (this.attributeLocales == null) {
 			this.attributeLocales = getAttributeValues()
 				.stream()
-				.map(AttributeValue::getKey)
-				.map(AttributeKey::getLocale)
+				.map(AttributeValue::key)
+				.map(AttributeKey::locale)
 				.filter(Objects::nonNull)
 				.collect(Collectors.toSet());
 		}

@@ -465,7 +465,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			final Consumer<EntityIndex> pricesRemoval = theIndex -> {
 				for (PriceWithInternalIds price : priceStorageContainer.getPrices()) {
 					PriceIndexMutator.priceRemove(
-						this, theIndex, price.getPriceKey(),
+						this, theIndex, price.priceKey(),
 						price,
 						originalInnerRecordHandling
 					);
@@ -475,12 +475,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			final Consumer<EntityIndex> pricesInsertion = theIndex -> {
 				for (PriceWithInternalIds price : priceStorageContainer.getPrices()) {
 					PriceIndexMutator.priceUpsert(
-						entityType, this, theIndex, price.getPriceKey(),
-						price.getInnerRecordId(),
-						price.getValidity(),
-						price.getPriceWithoutTax(),
-						price.getPriceWithTax(),
-						price.isSellable(),
+						entityType, this, theIndex, price.priceKey(),
+						price.innerRecordId(),
+						price.validity(),
+						price.priceWithoutTax(),
+						price.priceWithTax(),
+						price.sellable(),
 						null,
 						newPriceInnerRecordHandling,
 						PriceIndexMutator.createPriceProvider(price)

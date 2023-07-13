@@ -56,66 +56,66 @@ public record PriceWithInternalIds(
 	}
 
 	@Override
-	public boolean isDropped() {
-		return delegate.isDropped();
+	public boolean dropped() {
+		return delegate.dropped();
 	}
 
 	@Nonnull
 	@Override
-	public PriceKey getPriceKey() {
-		return delegate.getPriceKey();
+	public PriceKey priceKey() {
+		return delegate.priceKey();
 	}
 
 	@Override
-	public int getPriceId() {
-		return delegate.getPriceId();
-	}
-
-	@Nonnull
-	@Override
-	public String getPriceList() {
-		return delegate.getPriceList();
+	public int priceId() {
+		return delegate.priceId();
 	}
 
 	@Nonnull
 	@Override
-	public Currency getCurrency() {
-		return delegate.getCurrency();
+	public String priceList() {
+		return delegate.priceList();
+	}
+
+	@Nonnull
+	@Override
+	public Currency currency() {
+		return delegate.currency();
 	}
 
 	@Nullable
 	@Override
-	public Integer getInnerRecordId() {
-		return delegate.getInnerRecordId();
+	public Integer innerRecordId() {
+		return delegate.innerRecordId();
 	}
 
 	@Nonnull
 	@Override
-	public BigDecimal getPriceWithoutTax() {
-		return delegate.getPriceWithoutTax();
+	public BigDecimal priceWithoutTax() {
+		return delegate.priceWithoutTax();
 	}
 
 	@Nonnull
 	@Override
-	public BigDecimal getTaxRate() {
-		return delegate.getTaxRate();
+	public BigDecimal taxRate() {
+		return delegate.taxRate();
 	}
 
 	@Nonnull
 	@Override
-	public BigDecimal getPriceWithTax() {
-		return delegate.getPriceWithTax();
+	public BigDecimal priceWithTax() {
+		return delegate.priceWithTax();
 	}
 
 	@Nullable
 	@Override
-	public DateTimeRange getValidity() {
-		return delegate.getValidity();
+	public DateTimeRange validity() {
+		return delegate.validity();
 	}
 
 	@Override
-	public boolean isSellable() {
-		return delegate.isSellable();
+	public boolean sellable() {
+		return delegate.sellable();
 	}
 
 	@Override
@@ -126,8 +126,8 @@ public record PriceWithInternalIds(
 	}
 
 	@Override
-	public int getVersion() {
-		return delegate.getVersion();
+	public int version() {
+		return delegate.version();
 	}
 
 	@Override

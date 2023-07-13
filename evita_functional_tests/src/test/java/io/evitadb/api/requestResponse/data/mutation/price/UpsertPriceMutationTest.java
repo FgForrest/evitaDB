@@ -61,17 +61,17 @@ class UpsertPriceMutationTest extends AbstractMutationTest {
 			)
 		);
 		final PriceContract createdPrice = mutation.mutateLocal(productSchema, null);
-		assertEquals(1L, createdPrice.getVersion());
-		assertEquals(1, createdPrice.getPriceId());
-		assertEquals("basic", createdPrice.getPriceList());
-		assertEquals(CZK, createdPrice.getCurrency());
-		assertEquals(2, createdPrice.getInnerRecordId());
-		assertEquals(BigDecimal.ONE, createdPrice.getPriceWithoutTax());
-		assertEquals(BigDecimal.ZERO, createdPrice.getTaxRate());
-		assertEquals(BigDecimal.TEN, createdPrice.getPriceWithTax());
-		assertEquals(DateTimeRange.since(theDay), createdPrice.getValidity());
-		assertTrue(createdPrice.isSellable());
-		assertFalse(createdPrice.isDropped());
+		assertEquals(1L, createdPrice.version());
+		assertEquals(1, createdPrice.priceId());
+		assertEquals("basic", createdPrice.priceList());
+		assertEquals(CZK, createdPrice.currency());
+		assertEquals(2, createdPrice.innerRecordId());
+		assertEquals(BigDecimal.ONE, createdPrice.priceWithoutTax());
+		assertEquals(BigDecimal.ZERO, createdPrice.taxRate());
+		assertEquals(BigDecimal.TEN, createdPrice.priceWithTax());
+		assertEquals(DateTimeRange.since(theDay), createdPrice.validity());
+		assertTrue(createdPrice.sellable());
+		assertFalse(createdPrice.dropped());
 	}
 
 	@Test
@@ -84,17 +84,17 @@ class UpsertPriceMutationTest extends AbstractMutationTest {
 			true
 		);
 		final PriceContract createdPrice = mutation.mutateLocal(productSchema, null);
-		assertEquals(1L, createdPrice.getVersion());
-		assertEquals(1, createdPrice.getPriceId());
-		assertEquals("basic", createdPrice.getPriceList());
-		assertEquals(CZK, createdPrice.getCurrency());
-		assertEquals(2, createdPrice.getInnerRecordId());
-		assertEquals(BigDecimal.ONE, createdPrice.getPriceWithoutTax());
-		assertEquals(BigDecimal.ZERO, createdPrice.getTaxRate());
-		assertEquals(BigDecimal.TEN, createdPrice.getPriceWithTax());
-		assertEquals(DateTimeRange.since(theDay), createdPrice.getValidity());
-		assertTrue(createdPrice.isSellable());
-		assertFalse(createdPrice.isDropped());
+		assertEquals(1L, createdPrice.version());
+		assertEquals(1, createdPrice.priceId());
+		assertEquals("basic", createdPrice.priceList());
+		assertEquals(CZK, createdPrice.currency());
+		assertEquals(2, createdPrice.innerRecordId());
+		assertEquals(BigDecimal.ONE, createdPrice.priceWithoutTax());
+		assertEquals(BigDecimal.ZERO, createdPrice.taxRate());
+		assertEquals(BigDecimal.TEN, createdPrice.priceWithTax());
+		assertEquals(DateTimeRange.since(theDay), createdPrice.validity());
+		assertTrue(createdPrice.sellable());
+		assertFalse(createdPrice.dropped());
 	}
 
 	@Test
@@ -118,17 +118,17 @@ class UpsertPriceMutationTest extends AbstractMutationTest {
 				true, false
 			)
 		);
-		assertEquals(2L, updatedPrice.getVersion());
-		assertEquals(1, updatedPrice.getPriceId());
-		assertEquals("basic", updatedPrice.getPriceList());
-		assertEquals(CZK, updatedPrice.getCurrency());
-		assertEquals(5, updatedPrice.getInnerRecordId());
-		assertEquals(BigDecimal.TEN, updatedPrice.getPriceWithoutTax());
-		assertEquals(BigDecimal.ONE, updatedPrice.getTaxRate());
-		assertEquals(new BigDecimal("100.00"), updatedPrice.getPriceWithTax());
-		assertEquals(DateTimeRange.since(theAnotherDay), updatedPrice.getValidity());
-		assertFalse(updatedPrice.isSellable());
-		assertFalse(updatedPrice.isDropped());
+		assertEquals(2L, updatedPrice.version());
+		assertEquals(1, updatedPrice.priceId());
+		assertEquals("basic", updatedPrice.priceList());
+		assertEquals(CZK, updatedPrice.currency());
+		assertEquals(5, updatedPrice.innerRecordId());
+		assertEquals(BigDecimal.TEN, updatedPrice.priceWithoutTax());
+		assertEquals(BigDecimal.ONE, updatedPrice.taxRate());
+		assertEquals(new BigDecimal("100.00"), updatedPrice.priceWithTax());
+		assertEquals(DateTimeRange.since(theAnotherDay), updatedPrice.validity());
+		assertFalse(updatedPrice.sellable());
+		assertFalse(updatedPrice.dropped());
 	}
 
 	@Test

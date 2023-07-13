@@ -47,8 +47,8 @@ public class MandatoryAssociatedDataNotProvidedException extends InvalidMutation
 
 	private static String composeErrorMessage(@Nonnull String entityName, @Nonnull List<AssociatedDataKey> missingMandatedAssociatedData) {
 		final String missingGlobalAttributes = of(missingMandatedAssociatedData.stream()
-			.filter(it -> it.getLocale() == null)
-			.map(it -> "`" + it.getAssociatedDataName() + "`")
+			.filter(it -> it.locale() == null)
+			.map(it -> "`" + it.associatedDataName() + "`")
 			.collect(Collectors.joining(", ")))
 			.filter(it -> !it.isBlank())
 			.map(it ->
@@ -59,15 +59,15 @@ public class MandatoryAssociatedDataNotProvidedException extends InvalidMutation
 
 		final String missingLocalizedAttributes = of(
 			missingMandatedAssociatedData.stream()
-				.filter(it -> it.getLocale() != null)
-				.collect(Collectors.groupingBy(AssociatedDataKey::getAssociatedDataName))
+				.filter(it -> it.locale() != null)
+				.collect(Collectors.groupingBy(AssociatedDataKey::associatedDataName))
 				.entrySet()
 				.stream()
 				.map(it ->
 					"`" + it.getKey() + "` in locales: " +
 						it.getValue()
 							.stream()
-							.map(AssociatedDataKey::getLocale)
+							.map(AssociatedDataKey::locale)
 							.map(locale -> "`" + locale.toLanguageTag() + "`")
 							.collect(Collectors.joining(", "))
 				)

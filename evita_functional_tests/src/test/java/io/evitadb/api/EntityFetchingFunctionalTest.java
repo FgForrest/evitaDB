@@ -1105,10 +1105,10 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	void shouldRetrieveMultipleEntitiesWithAllPricesByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
 			originalProducts,
-			it -> it.getPrices().stream().map(PriceContract::getCurrency).anyMatch(CURRENCY_EUR::equals) &&
-				it.getPrices().stream().map(PriceContract::getCurrency).anyMatch(CURRENCY_USD::equals) &&
-				it.getPrices().stream().map(PriceContract::getPriceList).anyMatch(PRICE_LIST_BASIC::equals) &&
-				it.getPrices().stream().map(PriceContract::getPriceList).anyMatch(PRICE_LIST_B2B::equals)
+			it -> it.getPrices().stream().map(PriceContract::currency).anyMatch(CURRENCY_EUR::equals) &&
+				it.getPrices().stream().map(PriceContract::currency).anyMatch(CURRENCY_USD::equals) &&
+				it.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_BASIC::equals) &&
+				it.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_B2B::equals)
 		);
 
 		evita.queryCatalog(
@@ -1149,11 +1149,11 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 			it -> {
 				final List<PriceContract> filteredPrices = it.getPrices()
 					.stream()
-					.filter(PriceContract::isSellable)
-					.filter(price -> Objects.equals(price.getPriceList(), PRICE_LIST_VIP))
+					.filter(PriceContract::sellable)
+					.filter(price -> Objects.equals(price.priceList(), PRICE_LIST_VIP))
 					.toList();
-				return filteredPrices.stream().map(PriceContract::getCurrency).anyMatch(CURRENCY_EUR::equals) &&
-					filteredPrices.stream().map(PriceContract::getCurrency).noneMatch(CURRENCY_USD::equals);
+				return filteredPrices.stream().map(PriceContract::currency).anyMatch(CURRENCY_EUR::equals) &&
+					filteredPrices.stream().map(PriceContract::currency).noneMatch(CURRENCY_USD::equals);
 			}
 		);
 
@@ -1195,8 +1195,8 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	void shouldRetrieveMultipleEntitiesWithPricesInPriceListsByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
 			originalProducts,
-			it -> it.getPrices(CURRENCY_USD).stream().filter(PriceContract::isSellable).map(PriceContract::getPriceList).anyMatch(PRICE_LIST_BASIC::equals) &&
-				it.getPrices(CURRENCY_USD).stream().filter(PriceContract::isSellable).map(PriceContract::getPriceList)
+			it -> it.getPrices(CURRENCY_USD).stream().filter(PriceContract::sellable).map(PriceContract::priceList).anyMatch(PRICE_LIST_BASIC::equals) &&
+				it.getPrices(CURRENCY_USD).stream().filter(PriceContract::sellable).map(PriceContract::priceList)
 					.noneMatch(pl ->
 						pl.equals(PRICE_LIST_REFERENCE) &&
 							pl.equals(PRICE_LIST_INTRODUCTION) &&
@@ -1250,7 +1250,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 		final OffsetDateTime theMoment = OffsetDateTime.of(2015, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
 			originalProducts,
-			it -> it.getPrices().stream().filter(PriceContract::isSellable).map(PriceContract::getValidity).anyMatch(validity -> validity == null || validity.isValidFor(theMoment))
+			it -> it.getPrices().stream().filter(PriceContract::sellable).map(PriceContract::validity).anyMatch(validity -> validity == null || validity.isValidFor(theMoment))
 		);
 
 		evita.queryCatalog(
@@ -1279,7 +1279,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 				for (SealedEntity product : productByPk.getRecordData()) {
 					for (PriceContract price : product.getPrices()) {
 						assertTrue(
-							price.getValidity() == null || price.getValidity().isValidFor(theMoment),
+							price.validity() == null || price.validity().isValidFor(theMoment),
 							"Listed price " + price + " which is not valid for the moment!"
 						);
 					}
@@ -1797,13 +1797,13 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	void shouldLazyLoadAllPrices(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
 			originalProducts,
-			it -> it.getPrices().stream().map(PriceContract::getCurrency).anyMatch(CURRENCY_GBP::equals) &&
-				it.getPrices().stream().map(PriceContract::getCurrency).anyMatch(CURRENCY_USD::equals) &&
-				it.getPrices().stream().map(PriceContract::getPriceList).anyMatch(PRICE_LIST_BASIC::equals) &&
-				it.getPrices().stream().map(PriceContract::getPriceList).anyMatch(PRICE_LIST_VIP::equals) &&
-				it.getPrices().stream().map(PriceContract::getPriceList).anyMatch(PRICE_LIST_REFERENCE::equals) &&
-				it.getPrices().stream().map(PriceContract::getPriceList).anyMatch(PRICE_LIST_B2B::equals) &&
-				it.getPrices().stream().map(PriceContract::getPriceList).anyMatch(PRICE_LIST_INTRODUCTION::equals)
+			it -> it.getPrices().stream().map(PriceContract::currency).anyMatch(CURRENCY_GBP::equals) &&
+				it.getPrices().stream().map(PriceContract::currency).anyMatch(CURRENCY_USD::equals) &&
+				it.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_BASIC::equals) &&
+				it.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_VIP::equals) &&
+				it.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_REFERENCE::equals) &&
+				it.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_B2B::equals) &&
+				it.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_INTRODUCTION::equals)
 		);
 
 		evita.queryCatalog(
@@ -1840,15 +1840,15 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	void shouldLazyLoadFilteredPrices(Evita evita, List<SealedEntity> originalProducts) {
 		final SealedEntity product = originalProducts
 			.stream()
-			.filter(it -> it.getAllPricesForSale().stream().anyMatch(price -> price.getValidity() != null))
+			.filter(it -> it.getAllPricesForSale().stream().anyMatch(price -> price.validity() != null))
 			.findFirst()
 			.orElseThrow();
 		final PriceContract thePrice = product.getAllPricesForSale()
 			.stream()
-			.filter(it -> it.getValidity() != null)
+			.filter(it -> it.validity() != null)
 			.findFirst()
 			.orElseThrow();
-		final OffsetDateTime theMoment = thePrice.getValidity()
+		final OffsetDateTime theMoment = thePrice.validity()
 			.getPreciseFrom()
 			.plusMinutes(1);
 
@@ -1861,8 +1861,8 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 						filterBy(
 							and(
 								entityPrimaryKeyInSet(product.getPrimaryKey()),
-								priceInCurrency(thePrice.getCurrency()),
-								priceInPriceLists(thePrice.getPriceList()),
+								priceInCurrency(thePrice.currency()),
+								priceInPriceLists(thePrice.priceList()),
 								priceValidIn(theMoment)
 							)
 						),
@@ -3829,7 +3829,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	private void assertHasPriceInPriceList(SealedEntity product, Serializable... priceListName) {
 		final Set<Serializable> foundPriceLists = new HashSet<>();
 		for (PriceContract price : product.getPrices()) {
-			foundPriceLists.add(price.getPriceList());
+			foundPriceLists.add(price.priceList());
 		}
 		assertTrue(
 			foundPriceLists.size() >= priceListName.length,
@@ -3846,8 +3846,8 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 		final Set<Serializable> forbiddenCurrencies = new HashSet<>(Arrays.asList(priceList));
 		final Set<Serializable> clashingCurrencies = new HashSet<>();
 		for (PriceContract price : product.getPrices()) {
-			if (forbiddenCurrencies.contains(price.getPriceList())) {
-				clashingCurrencies.add(price.getPriceList());
+			if (forbiddenCurrencies.contains(price.priceList())) {
+				clashingCurrencies.add(price.priceList());
 			}
 		}
 		assertTrue(
@@ -3864,7 +3864,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	private void assertHasPriceInCurrency(SealedEntity product, Currency... currency) {
 		final Set<Currency> foundCurrencies = new HashSet<>();
 		for (PriceContract price : product.getPrices()) {
-			foundCurrencies.add(price.getCurrency());
+			foundCurrencies.add(price.currency());
 		}
 		assertTrue(
 			foundCurrencies.size() >= currency.length,
@@ -3881,8 +3881,8 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 		final Set<Currency> forbiddenCurrencies = new HashSet<>(Arrays.asList(currency));
 		final Set<Currency> clashingCurrencies = new HashSet<>();
 		for (PriceContract price : product.getPrices()) {
-			if (forbiddenCurrencies.contains(price.getCurrency())) {
-				clashingCurrencies.add(price.getCurrency());
+			if (forbiddenCurrencies.contains(price.currency())) {
+				clashingCurrencies.add(price.currency());
 			}
 		}
 		assertTrue(

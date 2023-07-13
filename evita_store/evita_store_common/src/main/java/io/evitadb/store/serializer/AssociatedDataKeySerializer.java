@@ -41,8 +41,8 @@ public class AssociatedDataKeySerializer extends Serializer<AssociatedDataKey> {
 
 	@Override
 	public void write(Kryo kryo, Output output, AssociatedDataKey associatedDataKey) {
-		output.writeString(associatedDataKey.getAssociatedDataName());
-		kryo.writeObjectOrNull(output, associatedDataKey.getLocale(), Locale.class);
+		output.writeString(associatedDataKey.associatedDataName());
+		kryo.writeObjectOrNull(output, associatedDataKey.locale(), Locale.class);
 	}
 
 	@Override

@@ -36,13 +36,13 @@ import java.io.Serial;
  * ids to entity primary key. Also price amounts are used for sorting by price. Price indexes don't use original
  * {@link PriceContract} to minimize memory consumption (this class contains only primitive types).
  *
- * @param internalPriceId  Contains internal id for {@link PriceContract#getPriceId()}. The is unique for the price identified
+ * @param internalPriceId  Contains internal id for {@link PriceContract#priceId()}. The is unique for the price identified
  *                         by {@link PriceKey} inside single entity. The id is different for two prices sharing same {@link PriceKey}
  *                         but are present in different entities.
- * @param priceId          Refers to {@link PriceContract#getPriceId()}. The price is unique only within the scope of the primary key.
+ * @param priceId          Refers to {@link PriceContract#priceId()}. The price is unique only within the scope of the primary key.
  * @param entityPrimaryKey Refers to {@link Entity#getPrimaryKey()}.
- * @param priceWithTax     Refers to {@link PriceContract#getPriceWithTax()}.
- * @param priceWithoutTax  Refers to {@link PriceContract#getPriceWithoutTax()}.
+ * @param priceWithTax     Refers to {@link PriceContract#priceWithTax()}.
+ * @param priceWithoutTax  Refers to {@link PriceContract#priceWithoutTax()}.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record PriceRecord(

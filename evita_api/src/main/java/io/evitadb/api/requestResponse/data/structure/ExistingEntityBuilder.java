@@ -193,13 +193,13 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	}
 
 	@Override
-	public boolean isDropped() {
+	public boolean dropped() {
 		return false;
 	}
 
 	@Override
-	public int getVersion() {
-		return baseEntity.getVersion() + 1;
+	public int version() {
+		return baseEntity.version() + 1;
 	}
 
 	@Override
@@ -532,7 +532,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 									.map(it ->
 										new ReferenceAttributeMutation(
 											referenceKey,
-											new RemoveAttributeMutation(it.getKey())
+											new RemoveAttributeMutation(it.key())
 										)
 									)
 							),
@@ -664,7 +664,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 						final ReferenceContract existingReference = builtReferences.get(it.getReferenceKey());
 						final ReferenceContract newReference = it.mutateLocal(getSchema(), existingReference);
 						builtReferences.put(it.getReferenceKey(), newReference);
-						return existingReference == null || newReference.getVersion() > existingReference.getVersion();
+						return existingReference == null || newReference.version() > existingReference.version();
 					})
 			)
 			.flatMap(it -> it)
