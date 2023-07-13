@@ -134,8 +134,17 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
     /**
      * Defines supported content type of request and response body.
      */
+    // todo lho should be only for post/put/patch ?
     @Nonnull
     protected String getSupportedContentType() {
+        return MimeTypes.APPLICATION_JSON;
+    }
+
+    /**
+     * Defines accepted content type of response body.
+     */
+    @Nonnull
+    protected String getAcceptedContentType() {
         return MimeTypes.APPLICATION_JSON;
     }
 
@@ -163,7 +172,7 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
         if (acceptHeaders == null) {
             return true;
         }
-        return acceptHeaders.anyMatch(hv -> hv.equals(MimeTypes.ALL) || hv.equals(getSupportedContentType()));
+        return acceptHeaders.anyMatch(hv -> hv.equals(MimeTypes.ALL) || hv.equals(getAcceptedContentType()));
     }
 
     @Nullable
