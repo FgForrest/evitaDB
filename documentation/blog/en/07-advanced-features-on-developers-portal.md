@@ -14,8 +14,8 @@ any other relevant sources. Whenever I encounter a page that offers additional f
 forth by someone to present a fundamental concept. This is precisely why our focus has been directed towards crafting
 easily readable pages, packed with **numerous examples** and **captivating showcases** with added interactivity.
 
-Right from the start, I knew that we will be showcasing **numerous examples of syntax in various programming languages
-**. Moreover, I was aware that I would need an expandable syntax highlighter to facilitate the implementation of a
+Right from the start, I knew that we will be showcasing **numerous examples of syntax in various programming languages**.
+Moreover, I was aware that I would need an expandable syntax highlighter to facilitate the implementation of a
 custom parser for the new `evitaQL` syntax. To address this need, I made the strategic choice to
 adopt [Prism](https://prismjs.com/), a lightweight and highly customizable syntax highlighter with modern web standards
 in mind. Currently, numerous documents are being created and updated, and the `evitaQL` parser is included in our
