@@ -119,6 +119,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 	protected final static AtomicInteger CREATED_EVITA_ENTITIES = new AtomicInteger();
 	protected final static AtomicInteger CREATED_EVITA_INSTANCES = new AtomicInteger();
 	protected final static AtomicInteger PEAK_EVITA_INSTANCES = new AtomicInteger();
+	protected static final AtomicReference<Map<String, DataSetInfo>> DATA_SET_INFO = new AtomicReference<>();
 	private static final Map<String, ExternalApiProviderRegistrar> AVAILABLE_PROVIDERS = ExternalApiServer.gatherExternalApiProviders()
 		.stream()
 		.collect(Collectors.toMap(
@@ -126,7 +127,6 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 			Function.identity()
 		));
 	private static final String PARAMETER_CATALOG_NAME = "catalogName";
-
 	private static final String DATA_NAME_EVITA = "evita";
 	private static final String DATA_NAME_CATALOG_NAME = "catalogName";
 	private static final String DATA_NAME_EVITA_SESSION = "evitaSession";
@@ -134,7 +134,6 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 	private static final String EVITA_DATA_SET_INDEX = "__dataSetIndex";
 	private static final String EVITA_ANONYMOUS_EVITA = "__anonymousEvita";
 	private static final Random RANDOM = new Random();
-	protected static final AtomicReference<Map<String, DataSetInfo>> DATA_SET_INFO = new AtomicReference<>();
 
 	/**
 	 * Indexes all methods annotated with {@link DataSet} annotation into the `dataSets` index.
@@ -414,6 +413,25 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 		}
 	}
 
+	@Nonnull
+	private static Namespace createTestMethodLocalNamespace(ExtensionContext context) {
+		return Namespace.create(
+			EvitaParameterResolver.class,
+			context.getRequiredTestInstance(),
+			context.getRequiredTestMethod()
+		);
+	}
+
+	@Nonnull
+	private static EvitaServer openWebApi(
+		@Nonnull Evita evita,
+		@Nonnull ApiOptions apiOptions
+	) {
+		final EvitaServer evitaServer = new EvitaServer(evita, apiOptions);
+		evitaServer.run();
+		return evitaServer;
+	}
+
 	@Override
 	public void beforeAll(ExtensionContext context) {
 		// index data set bootstrap methods
@@ -435,6 +453,12 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 
 	@Override
 	public void afterEach(ExtensionContext context) {
+		// if session has been opened, close it and liquidate
+		final EvitaSessionContract sessionContract = (EvitaSessionContract) context
+			.getStore(createTestMethodLocalNamespace(context))
+			.get(EvitaSessionContract.class);
+		ofNullable(sessionContract).ifPresent(EvitaSessionContract::close);
+
 		final Map<String, DataSetInfo> dataSetIndex = getDataSetIndex(context);
 		final Iterator<Entry<String, DataSetInfo>> it = dataSetIndex.entrySet().iterator();
 		while (it.hasNext()) {
@@ -544,14 +568,16 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 			return dataSetInfo.evitaInstance();
 		} else if (EvitaSessionContract.class.isAssignableFrom(requestedParam.getType())) {
 			// return new read-write session in dry run mode
-			return dataSetInfo.evitaSession(
-				evita -> evita.createSession(
-					new SessionTraits(
-						dataSetInfo.catalogName(),
-						SessionFlags.READ_WRITE, SessionFlags.DRY_RUN
-					)
+			final EvitaSessionContract session = dataSetInfo.evitaInstance().createSession(
+				new SessionTraits(
+					dataSetInfo.catalogName(),
+					SessionFlags.READ_WRITE, SessionFlags.DRY_RUN
 				)
 			);
+			extensionContext
+				.getStore(createTestMethodLocalNamespace(extensionContext))
+				.put(EvitaSessionContract.class, session);
+			return session;
 		} else if (GraphQLTester.class.isAssignableFrom(requestedParam.getType())) {
 			// return new GraphQL tester
 			return dataSetInfo.graphQLTester(
@@ -764,16 +790,6 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 		}
 	}
 
-	@Nonnull
-	private static EvitaServer openWebApi(
-		@Nonnull Evita evita,
-		@Nonnull ApiOptions apiOptions
-	) {
-		final EvitaServer evitaServer = new EvitaServer(evita, apiOptions);
-		evitaServer.run();
-		return evitaServer;
-	}
-
 	protected record DataSetInfo(
 		@Nonnull String name,
 		@Nonnull String catalogName,
@@ -831,40 +847,18 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 		}
 
 		@Nullable
-		public EvitaSessionContract evitaSession(@Nonnull Function<Evita, EvitaSessionContract> factory) {
-			return ofNullable(this.dataSetInfoAtomicReference.get())
-				.map(DataSetState::session)
-				.map(it -> ofNullable(it.get())
-					.orElseGet(
-						() -> ofNullable(evitaInstance())
-							.map(evita -> {
-								final EvitaSessionContract newSession = factory.apply(evita);
-								it.set(newSession);
-								return newSession;
-							})
-							.orElse(null)
-					)
-				)
-				.orElse(null);
-		}
-
-		@Nullable
 		public EvitaClient evitaClient(@Nonnull Function<EvitaServer, EvitaClient> factory) {
 			return ofNullable(this.dataSetInfoAtomicReference.get())
 				.map(DataSetState::client)
 				.map(it -> ofNullable(it.get())
 					.orElseGet(
-						() -> {
-							return ofNullable(evitaServerInstance())
-								.map(evitaServer -> {
-									final EvitaClient newSession = factory.apply(evitaServer);
-									it.set(newSession);
-									return newSession;
-								})
-								.orElseThrow(() -> {
-									return new ParameterResolutionException("gRPC web API was not opened for the dataset `" + name + "`!");
-								});
-						}
+						() -> ofNullable(evitaServerInstance())
+							.map(evitaServer -> {
+								final EvitaClient newSession = factory.apply(evitaServer);
+								it.set(newSession);
+								return newSession;
+							})
+							.orElseThrow(() -> new ParameterResolutionException("gRPC web API was not opened for the dataset `" + name + "`!"))
 					)
 				)
 				.orElse(null);
@@ -876,17 +870,13 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 				.map(DataSetState::graphQLTester)
 				.map(it -> ofNullable(it.get())
 					.orElseGet(
-						() -> {
-							return ofNullable(evitaServerInstance())
-								.map(evitaServer -> {
-									final GraphQLTester newTester = factory.apply(evitaServer);
-									it.set(newTester);
-									return newTester;
-								})
-								.orElseThrow(() -> {
-									return new ParameterResolutionException("GraphQL web API was not opened for the dataset `" + name + "`!");
-								});
-						}
+						() -> ofNullable(evitaServerInstance())
+							.map(evitaServer -> {
+								final GraphQLTester newTester = factory.apply(evitaServer);
+								it.set(newTester);
+								return newTester;
+							})
+							.orElseThrow(() -> new ParameterResolutionException("GraphQL web API was not opened for the dataset `" + name + "`!"))
 					)
 				)
 				.orElse(null);
@@ -898,17 +888,13 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 				.map(DataSetState::restTester)
 				.map(it -> ofNullable(it.get())
 					.orElseGet(
-						() -> {
-							return ofNullable(evitaServerInstance())
-								.map(evitaServer -> {
-									final RestTester newTester = factory.apply(evitaServer);
-									it.set(newTester);
-									return newTester;
-								})
-								.orElseThrow(() -> {
-									return new ParameterResolutionException("REST web API was not opened for the dataset `" + name + "`!");
-								});
-						}
+						() -> ofNullable(evitaServerInstance())
+							.map(evitaServer -> {
+								final RestTester newTester = factory.apply(evitaServer);
+								it.set(newTester);
+								return newTester;
+							})
+							.orElseThrow(() -> new ParameterResolutionException("REST web API was not opened for the dataset `" + name + "`!"))
 					)
 				)
 				.orElse(null);
@@ -942,12 +928,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 		) {
 			final DataSetState state = this.dataSetInfoAtomicReference.get();
 			return ofNullable(state)
-				.filter(it -> {
-					// if session has been opened, close it and liquidate
-					ofNullable(it.session().getAndSet(null))
-						.ifPresent(EvitaSessionContract::close);
-					return it.destroyPredicate().test(extensionContext, it);
-				})
+				.filter(it -> it.destroyPredicate().test(extensionContext, it))
 				.map(it -> {
 					this.dataSetInfoAtomicReference.set(null);
 					it.destroy(dataSetName, dataSetInfo, portManager);
@@ -988,14 +969,13 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 		@Nullable EvitaServer evitaServerInstance,
 		@Nullable DataCarrier dataCarrier,
 		@Nonnull BiPredicate<ExtensionContext, DataSetState> destroyPredicate,
-		@Nonnull AtomicReference<EvitaSessionContract> session,
 		@Nonnull AtomicReference<EvitaClient> client,
 		@Nonnull AtomicReference<GraphQLTester> graphQLTester,
 		@Nonnull AtomicReference<RestTester> restTester
 	) {
 
 		private DataSetState(@Nonnull Object testInstance, @Nonnull Method testMethod, @Nullable Evita evitaInstance, @Nullable EvitaServer evitaServerInstance, @Nullable DataCarrier dataCarrier, @Nonnull BiPredicate<ExtensionContext, DataSetState> destroyPredicate) {
-			this(testInstance, testMethod, evitaInstance, evitaServerInstance, dataCarrier, destroyPredicate, new AtomicReference<>(), new AtomicReference<>(), new AtomicReference<>(), new AtomicReference<>());
+			this(testInstance, testMethod, evitaInstance, evitaServerInstance, dataCarrier, destroyPredicate, new AtomicReference<>(), new AtomicReference<>(), new AtomicReference<>());
 		}
 
 		@Nonnull
@@ -1004,7 +984,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 				testInstance, testMethod,
 				evitaInstance, evitaServerInstance, dataCarrier,
 				destroyPredicate,
-				session, client, graphQLTester, restTester
+				client, graphQLTester, restTester
 			);
 		}
 
