@@ -24,54 +24,51 @@
 package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 
 import io.evitadb.api.CatalogContract;
+import io.evitadb.externalApi.http.EndpointResponse;
+import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.system.dto.CreateCatalogRequestDto;
-import io.evitadb.externalApi.rest.api.system.resolver.serializer.CatalogJsonSerializer;
-import io.evitadb.externalApi.rest.io.RestHandler;
-import io.undertow.server.HttpServerExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
-import java.util.Optional;
+import java.util.Set;
 
 /**
  * Create and returns new evitaDB catalog.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class CreateCatalogHandler extends RestHandler<SystemRestHandlingContext> {
-
-	@Nonnull
-	private final CatalogJsonSerializer catalogJsonSerializer;
+public class CreateCatalogHandler extends CatalogHandler {
 
 	public CreateCatalogHandler(@Nonnull SystemRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
-		this.catalogJsonSerializer = new CatalogJsonSerializer(restApiHandlingContext);
-	}
-
-	@Nonnull
-	@Override
-	public String getSupportedHttpMethod() {
-		return Methods.POST_STRING;
 	}
 
 	@Override
-	public boolean acceptsRequestBodies() {
-		return true;
-	}
-
-	@Override
-	public boolean returnsResponseBodies() {
+	protected boolean modifiesData() {
 		return true;
 	}
 
 	@Nonnull
 	@Override
-	protected Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
+	protected EndpointResponse<CatalogContract> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final CreateCatalogRequestDto requestBody = parseRequestBody(exchange, CreateCatalogRequestDto.class);
 
 		restApiHandlingContext.getEvita().defineCatalog(requestBody.name());
 		final CatalogContract newCatalog = restApiHandlingContext.getEvita().getCatalogInstanceOrThrowException(requestBody.name());
 
-		return Optional.of(newCatalog).map(catalogJsonSerializer::serialize);
+		return new SuccessEndpointResponse<>(newCatalog);
+	}
+
+	@Nonnull
+	@Override
+	public Set<String> getSupportedHttpMethods() {
+		return Set.of(Methods.POST_STRING);
+	}
+
+	@Nonnull
+	@Override
+	public Set<String> getSupportedRequestContentTypes() {
+		return DEFAULT_SUPPORTED_CONTENT_TYPES;
 	}
 }

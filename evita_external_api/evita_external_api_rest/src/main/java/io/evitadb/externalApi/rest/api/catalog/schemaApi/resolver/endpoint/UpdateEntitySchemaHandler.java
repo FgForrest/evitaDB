@@ -28,14 +28,14 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.EntitySchemaMutationAggregateConverter;
+import io.evitadb.externalApi.http.EndpointResponse;
+import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationObjectParser;
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.dto.CreateOrUpdateEntitySchemaRequestData;
-import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer.EntitySchemaJsonSerializer;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
-import io.evitadb.externalApi.rest.io.RestHandler;
-import io.undertow.server.HttpServerExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
@@ -43,7 +43,7 @@ import javax.annotation.Nonnull;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Optional;
+import java.util.Set;
 
 /**
  * Handles update request for entity schema.
@@ -51,10 +51,9 @@ import java.util.Optional;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j
-public class UpdateEntitySchemaHandler extends RestHandler<CollectionRestHandlingContext> {
+public class UpdateEntitySchemaHandler extends EntitySchemaHandler {
 
 	@Nonnull private final EntitySchemaMutationAggregateConverter mutationAggregateResolver;
-	@Nonnull private final EntitySchemaJsonSerializer entitySchemaJsonSerializer;
 
 	public UpdateEntitySchemaHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
@@ -62,28 +61,16 @@ public class UpdateEntitySchemaHandler extends RestHandler<CollectionRestHandlin
 			new RestMutationObjectParser(restApiHandlingContext.getObjectMapper()),
 			new RestMutationResolvingExceptionFactory()
 		);
-		this.entitySchemaJsonSerializer = new EntitySchemaJsonSerializer(restApiHandlingContext);
-	}
-
-	@Nonnull
-	@Override
-	public String getSupportedHttpMethod() {
-		return Methods.PUT_STRING;
 	}
 
 	@Override
-	public boolean acceptsRequestBodies() {
-		return true;
-	}
-
-	@Override
-	public boolean returnsResponseBodies() {
+	protected boolean modifiesData() {
 		return true;
 	}
 
 	@Override
 	@Nonnull
-	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
+	protected EndpointResponse<EntitySchemaContract> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final CreateOrUpdateEntitySchemaRequestData requestData = parseRequestBody(exchange, CreateOrUpdateEntitySchemaRequestData.class);
 
 		final List<EntitySchemaMutation> schemaMutations = new LinkedList<>();
@@ -97,11 +84,19 @@ public class UpdateEntitySchemaHandler extends RestHandler<CollectionRestHandlin
 			schemaMutations.toArray(EntitySchemaMutation[]::new)
 		);
 
-		final JsonNode serializedUpdatedEntitySchema = restApiHandlingContext.updateCatalog(session -> {
-			final EntitySchemaContract updatedEntitySchema = session.updateAndFetchEntitySchema(entitySchemaMutation);
-			return entitySchemaJsonSerializer.serialize(session::getEntitySchemaOrThrow, updatedEntitySchema);
-		});
+		final EntitySchemaContract updatedEntitySchema = exchange.session().updateAndFetchEntitySchema(entitySchemaMutation);
+		return new SuccessEndpointResponse<>(updatedEntitySchema);
+	}
 
-		return Optional.of(serializedUpdatedEntitySchema);
+	@Nonnull
+	@Override
+	public Set<String> getSupportedHttpMethods() {
+		return Set.of(Methods.PUT_STRING);
+	}
+
+	@Nonnull
+	@Override
+	public Set<String> getSupportedRequestContentTypes() {
+		return DEFAULT_SUPPORTED_CONTENT_TYPES;
 	}
 }

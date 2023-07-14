@@ -23,22 +23,29 @@
 
 package io.evitadb.externalApi.rest.api.resolver.endpoint;
 
+import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.MimeTypes;
+import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiWriter;
-import io.evitadb.externalApi.rest.io.RestHandler;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
+import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointHandler;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
-import io.undertow.server.HttpServerExchange;
+import io.swagger.v3.oas.models.OpenAPI;
 import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
-import java.util.Optional;
+import java.util.LinkedHashSet;
+import java.util.Set;
+
+import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
 
 /**
  * Returns OpenAPI schema for whole collection.
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends RestHandler<C> {
+public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends RestEndpointHandler<OpenAPI, C> {
 
 	public OpenApiSpecificationHandler(@Nonnull C restHandlingContext) {
 		super(restHandlingContext);
@@ -46,33 +53,35 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 
 	@Nonnull
 	@Override
-	public String getSupportedHttpMethod() {
-		return Methods.GET_STRING;
-	}
-
-	@Override
-	public boolean returnsResponseBodies() {
-		return true;
+	protected EndpointResponse<OpenAPI> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+		return new SuccessEndpointResponse<>(restApiHandlingContext.getOpenApi());
 	}
 
 	@Nonnull
 	@Override
-	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
-		return Optional.of(
-			OpenApiWriter.toYaml(restApiHandlingContext.getOpenApi())
-		);
+	public Set<String> getSupportedHttpMethods() {
+		return Set.of(Methods.GET_STRING);
 	}
 
 	@Nonnull
 	@Override
-	protected String getSupportedContentType() {
-		// todo lho: this should be empty, probably
-		return MimeTypes.APPLICATION_YAML;
+	public LinkedHashSet<String> getSupportedResponseContentTypes() {
+		final LinkedHashSet<String> mediaTypes = createLinkedHashSet(2);
+		mediaTypes.add(MimeTypes.APPLICATION_YAML);
+		mediaTypes.add(MimeTypes.APPLICATION_JSON);
+		return mediaTypes;
 	}
 
 	@Nonnull
 	@Override
-	protected String getAcceptedContentType() {
-		return MimeTypes.APPLICATION_YAML;
+	protected String serializeResult(@Nonnull RestEndpointExchange exchange, @Nonnull OpenAPI openApiSpecification) {
+		final String preferredResponseMediaType = exchange.preferredResponseContentType();
+		if (preferredResponseMediaType.equals(MimeTypes.APPLICATION_YAML)) {
+			return OpenApiWriter.toYaml(openApiSpecification);
+		} else if (preferredResponseMediaType.equals(MimeTypes.APPLICATION_JSON)) {
+			return OpenApiWriter.toJson(openApiSpecification);
+		} else {
+			throw new RestInternalError("Should never happen!");
+		}
 	}
 }

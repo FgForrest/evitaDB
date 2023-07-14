@@ -26,19 +26,21 @@ package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.http.EndpointResponse;
+import io.evitadb.externalApi.http.NotFoundEndpointResponse;
+import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.system.dto.UpdateCatalogRequestDto;
 import io.evitadb.externalApi.rest.api.system.model.CatalogsHeaderDescriptor;
-import io.evitadb.externalApi.rest.api.system.resolver.serializer.CatalogJsonSerializer;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
-import io.evitadb.externalApi.rest.io.RestHandler;
+import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import io.evitadb.utils.Assert;
-import io.undertow.server.HttpServerExchange;
 import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION;
 
@@ -47,42 +49,27 @@ import static io.evitadb.externalApi.api.ExternalApiNamingConventions.URL_NAME_N
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class UpdateCatalogHandler extends RestHandler<SystemRestHandlingContext> {
-
-	@Nonnull
-	private final CatalogJsonSerializer catalogJsonSerializer;
+public class UpdateCatalogHandler extends CatalogHandler {
 
 	public UpdateCatalogHandler(@Nonnull SystemRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
-		this.catalogJsonSerializer = new CatalogJsonSerializer(restApiHandlingContext);
-	}
-
-	@Nonnull
-	@Override
-	public String getSupportedHttpMethod() {
-		return Methods.PATCH_STRING;
 	}
 
 	@Override
-	public boolean acceptsRequestBodies() {
-		return true;
-	}
-
-	@Override
-	public boolean returnsResponseBodies() {
+	protected boolean modifiesData() {
 		return true;
 	}
 
 	@Nonnull
 	@Override
-	protected Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
+	protected EndpointResponse<CatalogContract> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Map<String, Object> parameters = getParametersFromRequest(exchange);
 		final UpdateCatalogRequestDto requestBody = parseRequestBody(exchange, UpdateCatalogRequestDto.class);
 
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
 		final Optional<CatalogContract> catalog = restApiHandlingContext.getCatalog(catalogName, URL_NAME_NAMING_CONVENTION);
 		if (catalog.isEmpty()) {
-			return Optional.empty();
+			return new NotFoundEndpointResponse<>();
 		}
 
 		final Optional<String> newCatalogName = renameCatalog(catalog.get(), requestBody);
@@ -94,7 +81,19 @@ public class UpdateCatalogHandler extends RestHandler<SystemRestHandlingContext>
 				newCatalogName.isPresent() ? null : URL_NAME_NAMING_CONVENTION
 			)
 				.orElseThrow(() -> new RestInternalError("Couldn't find updated catalog `" + nameOfUpdateCatalog + "`"));
-		return Optional.of(updatedCatalog).map(catalogJsonSerializer::serialize);
+		return new SuccessEndpointResponse<>(updatedCatalog);
+	}
+
+	@Nonnull
+	@Override
+	public Set<String> getSupportedHttpMethods() {
+		return Set.of(Methods.PATCH_STRING);
+	}
+
+	@Nonnull
+	@Override
+	public Set<String> getSupportedRequestContentTypes() {
+		return DEFAULT_SUPPORTED_CONTENT_TYPES;
 	}
 
 	@Nonnull

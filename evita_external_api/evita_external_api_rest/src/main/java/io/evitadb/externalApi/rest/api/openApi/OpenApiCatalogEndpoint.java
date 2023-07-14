@@ -31,7 +31,7 @@ import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHand
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.ParameterLocation;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
-import io.evitadb.externalApi.rest.io.RestHandler;
+import io.evitadb.externalApi.rest.io.RestEndpointHandler;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
@@ -72,7 +72,7 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<CatalogRestHandlingC
 	                               @Nonnull List<OpenApiEndpointParameter> parameters,
 	                               @Nullable OpenApiSimpleType requestBody,
 	                               @Nonnull OpenApiSimpleType successResponse,
-	                               @Nonnull Function<CatalogRestHandlingContext, RestHandler<CatalogRestHandlingContext>> handlerBuilder) {
+	                               @Nonnull Function<CatalogRestHandlingContext, RestEndpointHandler<?, CatalogRestHandlingContext>> handlerBuilder) {
 		super(method, path, localized, operationId, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
 		this.catalogSchema = catalogSchema;
 	}
@@ -87,10 +87,10 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<CatalogRestHandlingC
 
 	@Nonnull
 	@Override
-	public RestHandler<CatalogRestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
-	                                                         @Nonnull Evita evita,
-	                                                         @Nonnull OpenAPI openApi,
-	                                                         @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping) {
+	public RestEndpointHandler<?, CatalogRestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
+	                                                                    @Nonnull Evita evita,
+	                                                                    @Nonnull OpenAPI openApi,
+	                                                                    @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping) {
 		final CatalogRestHandlingContext context = new CatalogRestHandlingContext(
 			objectMapper,
 			evita,
@@ -119,7 +119,7 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<CatalogRestHandlingC
 		@Nullable private OpenApiSimpleType requestBody;
 		@Nullable private OpenApiSimpleType successResponse;
 
-		@Nullable private Function<CatalogRestHandlingContext, RestHandler<CatalogRestHandlingContext>> handlerBuilder;
+		@Nullable private Function<CatalogRestHandlingContext, RestEndpointHandler<?, CatalogRestHandlingContext>> handlerBuilder;
 
 		private Builder(@Nonnull CatalogSchemaContract catalogSchema) {
 			this.catalogSchema = catalogSchema;
@@ -246,7 +246,7 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<CatalogRestHandlingC
 		 * Sets handler builder.
 		 */
 		@Nonnull
-		public Builder handler(@Nonnull Function<CatalogRestHandlingContext, RestHandler<CatalogRestHandlingContext>> handlerBuilder) {
+		public Builder handler(@Nonnull Function<CatalogRestHandlingContext, RestEndpointHandler<?, CatalogRestHandlingContext>> handlerBuilder) {
 			this.handlerBuilder = handlerBuilder;
 			return this;
 		}

@@ -21,24 +21,12 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api;
-
-import io.evitadb.externalApi.rest.io.RestEndpointHandler;
-import io.swagger.v3.oas.models.OpenAPI;
-import io.undertow.util.HttpString;
-
-import javax.annotation.Nonnull;
-import java.nio.file.Path;
-import java.util.List;
+package io.evitadb.externalApi.http;
 
 /**
- * Represents final built REST API with its specs and handlers for registration into routers.
+ * Response representing {@link io.undertow.util.StatusCodes#NOT_FOUND} HTTP status code.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public record Rest(@Nonnull OpenAPI openApi, @Nonnull List<Endpoint> endpoints) {
-
-	public record Endpoint(@Nonnull Path path,
-	                       @Nonnull HttpString method,
-	                       @Nonnull RestEndpointHandler<?, ?> handler) {}
+public record NotFoundEndpointResponse<R>() implements EndpointResponse<R> {
 }

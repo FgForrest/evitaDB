@@ -27,14 +27,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.LocalCatalogSchemaMutationAggregateConverter;
+import io.evitadb.externalApi.http.EndpointResponse;
+import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationObjectParser;
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.dto.CreateOrUpdateEntitySchemaRequestData;
-import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer.CatalogSchemaJsonSerializer;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
-import io.evitadb.externalApi.rest.io.RestHandler;
-import io.undertow.server.HttpServerExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
@@ -42,7 +42,7 @@ import javax.annotation.Nonnull;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Optional;
+import java.util.Set;
 
 /**
  * Handles update request for catalog schema.
@@ -50,10 +50,9 @@ import java.util.Optional;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j
-public class UpdateCatalogSchemaHandler extends RestHandler<CatalogRestHandlingContext> {
+public class UpdateCatalogSchemaHandler extends CatalogSchemaHandler {
 
 	@Nonnull private final LocalCatalogSchemaMutationAggregateConverter mutationAggregateResolver;
-	@Nonnull private final CatalogSchemaJsonSerializer catalogSchemaJsonSerializer;
 
 	public UpdateCatalogSchemaHandler(@Nonnull CatalogRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
@@ -61,28 +60,16 @@ public class UpdateCatalogSchemaHandler extends RestHandler<CatalogRestHandlingC
 			new RestMutationObjectParser(restApiHandlingContext.getObjectMapper()),
 			new RestMutationResolvingExceptionFactory()
 		);
-		this.catalogSchemaJsonSerializer = new CatalogSchemaJsonSerializer(restApiHandlingContext);
-	}
-
-	@Nonnull
-	@Override
-	public String getSupportedHttpMethod() {
-		return Methods.PUT_STRING;
 	}
 
 	@Override
-	public boolean acceptsRequestBodies() {
-		return true;
-	}
-
-	@Override
-	public boolean returnsResponseBodies() {
+	protected boolean modifiesData() {
 		return true;
 	}
 
 	@Override
 	@Nonnull
-	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
+	protected EndpointResponse<CatalogSchemaContract> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final CreateOrUpdateEntitySchemaRequestData requestData = parseRequestBody(exchange, CreateOrUpdateEntitySchemaRequestData.class);
 
 		final List<LocalCatalogSchemaMutation> schemaMutations = new LinkedList<>();
@@ -92,13 +79,21 @@ public class UpdateCatalogSchemaHandler extends RestHandler<CatalogRestHandlingC
 			schemaMutations.addAll(mutationAggregateResolver.convert(schemaMutationsIterator.next()));
 		}
 
-		final JsonNode serializedUpdatedCatalogSchema = restApiHandlingContext.updateCatalog(session -> {
-			final CatalogSchemaContract updatedCatalogSchema = session.updateAndFetchCatalogSchema(
-				schemaMutations.toArray(LocalCatalogSchemaMutation[]::new)
-			);
-			return catalogSchemaJsonSerializer.serialize(updatedCatalogSchema, session::getEntitySchemaOrThrow, session.getAllEntityTypes());
-		});
+		final CatalogSchemaContract updatedCatalogSchema = exchange.session().updateAndFetchCatalogSchema(
+			schemaMutations.toArray(LocalCatalogSchemaMutation[]::new)
+		);
+		return new SuccessEndpointResponse<>(updatedCatalogSchema);
+	}
 
-		return Optional.of(serializedUpdatedCatalogSchema);
+	@Nonnull
+	@Override
+	public Set<String> getSupportedHttpMethods() {
+		return Set.of(Methods.PUT_STRING);
+	}
+
+	@Nonnull
+	@Override
+	public Set<String> getSupportedRequestContentTypes() {
+		return DEFAULT_SUPPORTED_CONTENT_TYPES;
 	}
 }

@@ -28,7 +28,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.ParameterLocation;
 import io.evitadb.externalApi.rest.api.system.resolver.endpoint.SystemRestHandlingContext;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
-import io.evitadb.externalApi.rest.io.RestHandler;
+import io.evitadb.externalApi.rest.io.RestEndpointHandler;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
@@ -65,7 +65,7 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 	                              @Nonnull List<OpenApiEndpointParameter> parameters,
 	                              @Nullable OpenApiSimpleType requestBody,
 	                              @Nonnull OpenApiSimpleType successResponse,
-	                              @Nonnull Function<SystemRestHandlingContext, RestHandler<SystemRestHandlingContext>> handlerBuilder) {
+	                              @Nonnull Function<SystemRestHandlingContext, RestEndpointHandler<?, SystemRestHandlingContext>> handlerBuilder) {
 		super(method, path, false, operationId, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
 	}
 
@@ -79,10 +79,10 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 
 	@Nonnull
 	@Override
-	public RestHandler<SystemRestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
-	                                                        @Nonnull Evita evita,
-	                                                        @Nonnull OpenAPI openApi,
-	                                                        @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping) {
+	public RestEndpointHandler<?, SystemRestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
+	                                                                   @Nonnull Evita evita,
+	                                                                   @Nonnull OpenAPI openApi,
+	                                                                   @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping) {
 		final SystemRestHandlingContext context = new SystemRestHandlingContext(
 			objectMapper,
 			evita,
@@ -107,7 +107,7 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 		@Nullable private OpenApiSimpleType requestBody;
 		@Nullable private OpenApiSimpleType successResponse;
 
-		@Nullable private Function<SystemRestHandlingContext, RestHandler<SystemRestHandlingContext>> handlerBuilder;
+		@Nullable private Function<SystemRestHandlingContext, RestEndpointHandler<?, SystemRestHandlingContext>> handlerBuilder;
 
 		private Builder() {
 			this.parameters = new LinkedList<>();
@@ -215,7 +215,7 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 		 * Sets handler builder.
 		 */
 		@Nonnull
-		public Builder handler(@Nonnull Function<SystemRestHandlingContext, RestHandler<SystemRestHandlingContext>> handlerBuilder) {
+		public Builder handler(@Nonnull Function<SystemRestHandlingContext, RestEndpointHandler<?, SystemRestHandlingContext>> handlerBuilder) {
 			this.handlerBuilder = handlerBuilder;
 			return this;
 		}

@@ -478,7 +478,7 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 		return tester.test(TEST_CATALOG)
 			.urlPathSuffix("/schema")
 			.httpMethod(Request.METHOD_GET)
-			.executeAndThen()
+			.executeAndExpectOkAndThen()
 			.extract()
 			.jsonPath()
 			.get(CatalogSchemaDescriptor.VERSION.name());

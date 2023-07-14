@@ -23,43 +23,39 @@
 
 package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.api.CatalogContract;
-import io.evitadb.externalApi.api.ExternalApiNamingConventions;
-import io.evitadb.externalApi.http.EndpointResponse;
-import io.evitadb.externalApi.http.NotFoundEndpointResponse;
-import io.evitadb.externalApi.http.SuccessEndpointResponse;
-import io.evitadb.externalApi.rest.api.system.model.CatalogsHeaderDescriptor;
+import io.evitadb.externalApi.rest.api.system.resolver.serializer.CatalogJsonSerializer;
+import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
-import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
-import java.util.Map;
-import java.util.Set;
+import java.util.LinkedHashSet;
 
 /**
- * Returns single evitaDB catalog by its name.
+ * Ancestor for endpoints returning {@link CatalogContract}s.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class GetCatalogHandler extends CatalogHandler {
+public abstract class CatalogHandler extends JsonRestHandler<CatalogContract, SystemRestHandlingContext> {
 
-	public GetCatalogHandler(@Nonnull SystemRestHandlingContext restApiHandlingContext) {
+	@Nonnull
+	private final CatalogJsonSerializer catalogJsonSerializer;
+
+	public CatalogHandler(@Nonnull SystemRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
+		this.catalogJsonSerializer = new CatalogJsonSerializer(restApiHandlingContext);
 	}
 
 	@Nonnull
 	@Override
-	protected EndpointResponse<CatalogContract> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		final Map<String, Object> parameters = getParametersFromRequest(exchange);
-		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
-		return restApiHandlingContext.getCatalog(catalogName, ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION)
-			.map(it -> (EndpointResponse<CatalogContract>) new SuccessEndpointResponse<>(it))
-			.orElse(new NotFoundEndpointResponse<>());
+	public LinkedHashSet<String> getSupportedResponseContentTypes() {
+		return DEFAULT_SUPPORTED_CONTENT_TYPES;
 	}
 
 	@Nonnull
 	@Override
-	public Set<String> getSupportedHttpMethods() {
-		return Set.of(Methods.GET_STRING);
+	protected JsonNode convertResultIntoJson(@Nonnull RestEndpointExchange exchange, @Nonnull CatalogContract catalog) {
+		return catalogJsonSerializer.serialize(catalog);
 	}
 }

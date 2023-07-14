@@ -21,24 +21,31 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api;
+package io.evitadb.externalApi.http;
 
-import io.evitadb.externalApi.rest.io.RestEndpointHandler;
-import io.swagger.v3.oas.models.OpenAPI;
-import io.undertow.util.HttpString;
+import io.undertow.util.StatusCodes;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import java.nio.file.Path;
-import java.util.List;
+import javax.annotation.Nullable;
 
 /**
- * Represents final built REST API with its specs and handlers for registration into routers.
+ * Represents successful response. Either {@link StatusCodes#OK} or {@link StatusCodes#NO_CONTENT} depending on passed body
+ * object.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public record Rest(@Nonnull OpenAPI openApi, @Nonnull List<Endpoint> endpoints) {
+public class SuccessEndpointResponse<R> implements EndpointResponse<R> {
 
-	public record Endpoint(@Nonnull Path path,
-	                       @Nonnull HttpString method,
-	                       @Nonnull RestEndpointHandler<?, ?> handler) {}
+	@Nullable
+	@Getter
+	private final R body;
+
+	public SuccessEndpointResponse() {
+		this.body = null;
+	}
+
+	public SuccessEndpointResponse(@Nonnull R body) {
+		this.body = body;
+	}
 }

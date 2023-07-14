@@ -26,7 +26,6 @@ package io.evitadb.externalApi.rest.api.openApi;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.media.Discriminator;
-import io.swagger.v3.oas.models.media.ObjectSchema;
 import io.swagger.v3.oas.models.media.Schema;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -39,8 +38,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.LinkedList;
 import java.util.List;
-
-import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
  * Represents union of objects and must be globally registered in OpenAPI

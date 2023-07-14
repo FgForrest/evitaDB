@@ -74,8 +74,8 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 	 *
 	 * @return serialized entity or list of entities
 	 */
-	public JsonNode serialize(@Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher,
-	                          @Nonnull EntitySchemaContract entitySchema) {
+	public JsonNode serialize(@Nonnull EntitySchemaContract entitySchema,
+	                          @Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher) {
 		final ObjectNode rootNode = objectJsonSerializer.objectNode();
 
 		rootNode.put(EntitySchemaDescriptor.VERSION.name(), entitySchema.version());

@@ -23,26 +23,18 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.api.query.Query;
-import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.api.query.order.OrderBy;
-import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.QueryEntityRequestDto;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
+import io.evitadb.externalApi.http.EndpointResponse;
+import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer;
-import io.undertow.server.HttpServerExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
-
-import static io.evitadb.api.query.QueryConstraints.collection;
+import java.util.Set;
 
 /**
  * Handles entity list delete request by query.
@@ -50,64 +42,40 @@ import static io.evitadb.api.query.QueryConstraints.collection;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class DeleteEntitiesByQueryHandler extends ListEntitiesHandler {
+public class DeleteEntitiesByQueryHandler extends QueryOrientedEntitiesHandler<SealedEntity[]> {
 
-	@Nonnull private final FilterConstraintResolver filterConstraintResolver;
-	@Nonnull private final OrderConstraintResolver orderConstraintResolver;
-	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
 	@Nonnull private final EntityJsonSerializer entityJsonSerializer;
 
 	public DeleteEntitiesByQueryHandler(@Nonnull CollectionRestHandlingContext restHandlingContext) {
 		super(restHandlingContext);
-		this.filterConstraintResolver = new FilterConstraintResolver(restApiHandlingContext);
-		this.orderConstraintResolver = new OrderConstraintResolver(restApiHandlingContext);
-		this.requireConstraintResolver = new RequireConstraintResolver(
-			restApiHandlingContext,
-			new AtomicReference<>(filterConstraintResolver),
-			new AtomicReference<>(orderConstraintResolver)
-		);
 		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
 	}
 
-	@Nonnull
 	@Override
-	public String getSupportedHttpMethod() {
-		return Methods.DELETE_STRING;
+	protected boolean modifiesData() {
+		return true;
 	}
 
 	@Override
 	@Nonnull
-	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
+	protected EndpointResponse<SealedEntity[]> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Query query = resolveQuery(exchange);
-
 		log.debug("Generated evitaDB query for deletion of entity list of type `{}` is `{}`.", restApiHandlingContext.getEntitySchema(), query);
 
-		final SealedEntity[] deletedEntities = restApiHandlingContext.updateCatalog(session ->
-			session.deleteSealedEntitiesAndReturnBodies(query));
+		final SealedEntity[] deletedEntities = exchange.session().deleteSealedEntitiesAndReturnBodies(query);
 
-		return Optional.of(entityJsonSerializer.serialize(deletedEntities));
+		return new SuccessEndpointResponse<>(deletedEntities);
 	}
 
-	@Override
 	@Nonnull
-	protected Query resolveQuery(@Nonnull HttpServerExchange exchange) {
-		final QueryEntityRequestDto requestData = parseRequestBody(exchange, QueryEntityRequestDto.class);
+	@Override
+	public Set<String> getSupportedHttpMethods() {
+		return Set.of(Methods.DELETE_STRING);
+	}
 
-		final FilterBy filterBy = requestData.getFilterBy()
-			.map(it -> (FilterBy) filterConstraintResolver.resolve(FetchEntityRequestDescriptor.FILTER_BY.name(), it))
-			.orElse(null);
-		final OrderBy orderBy = requestData.getOrderBy()
-			.map(it -> (OrderBy) orderConstraintResolver.resolve(FetchEntityRequestDescriptor.ORDER_BY.name(), it))
-			.orElse(null);
-		final Require require = requestData.getRequire()
-			.map(it -> (Require) requireConstraintResolver.resolve(FetchEntityRequestDescriptor.REQUIRE.name(), it))
-			.orElse(null);
-
-		return Query.query(
-			collection(restApiHandlingContext.getEntityType()),
-			addLocaleIntoFilterByWhenUrlPathLocalized(exchange, filterBy),
-			orderBy,
-			require
-		);
+	@Nonnull
+	@Override
+	protected JsonNode convertResultIntoJson(@Nonnull RestEndpointExchange exchange, @Nonnull SealedEntity[] deletedEntities) {
+		return entityJsonSerializer.serialize(deletedEntities);
 	}
 }

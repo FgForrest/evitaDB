@@ -21,24 +21,46 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api;
+package io.evitadb.externalApi.http;
 
-import io.evitadb.externalApi.rest.io.RestEndpointHandler;
-import io.swagger.v3.oas.models.OpenAPI;
-import io.undertow.util.HttpString;
+import io.undertow.server.HttpServerExchange;
 
 import javax.annotation.Nonnull;
-import java.nio.file.Path;
-import java.util.List;
+import javax.annotation.Nullable;
 
 /**
- * Represents final built REST API with its specs and handlers for registration into routers.
+ * An endpoint request/response exchange. Used as context object for endpoint processing.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public record Rest(@Nonnull OpenAPI openApi, @Nonnull List<Endpoint> endpoints) {
+public interface EndpointExchange extends AutoCloseable {
 
-	public record Endpoint(@Nonnull Path path,
-	                       @Nonnull HttpString method,
-	                       @Nonnull RestEndpointHandler<?, ?> handler) {}
+	/**
+	 * Underlying HTTP server exchange
+	 */
+	@Nonnull
+	HttpServerExchange serverExchange();
+
+	/**
+	 * HTTP method of the request.
+	 */
+	@Nonnull
+	String httpMethod();
+
+	/**
+	 * Parsed content type of request body, if any request body is present.
+	 */
+	@Nullable
+	String requestBodyContentType();
+
+	/**
+	 * Preferred content type of response body, if any response body is will be send.
+	 */
+	@Nullable
+	String preferredResponseContentType();
+
+	@Override
+	default void close() throws Exception {
+		// do nothing
+	}
 }

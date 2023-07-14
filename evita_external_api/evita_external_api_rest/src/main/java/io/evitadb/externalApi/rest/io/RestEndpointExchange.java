@@ -21,24 +21,30 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api;
+package io.evitadb.externalApi.rest.io;
 
-import io.evitadb.externalApi.rest.io.RestEndpointHandler;
-import io.swagger.v3.oas.models.OpenAPI;
-import io.undertow.util.HttpString;
+import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.externalApi.http.EndpointExchange;
+import io.undertow.server.HttpServerExchange;
 
 import javax.annotation.Nonnull;
-import java.nio.file.Path;
-import java.util.List;
+import javax.annotation.Nullable;
 
 /**
- * Represents final built REST API with its specs and handlers for registration into routers.
+ * Implementation of {@link EndpointExchange} for REST API.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public record Rest(@Nonnull OpenAPI openApi, @Nonnull List<Endpoint> endpoints) {
+public record RestEndpointExchange(@Nonnull HttpServerExchange serverExchange,
+                            @Nullable EvitaSessionContract session,
+                            @Nonnull String httpMethod,
+                            @Nullable String requestBodyContentType,
+                            @Nullable String preferredResponseContentType) implements EndpointExchange {
 
-	public record Endpoint(@Nonnull Path path,
-	                       @Nonnull HttpString method,
-	                       @Nonnull RestEndpointHandler<?, ?> handler) {}
+	@Override
+	public void close() throws Exception {
+		if (session() != null) {
+			session().close();
+		}
+	}
 }
