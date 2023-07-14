@@ -23,6 +23,7 @@
 
 package io.evitadb.api.proxy.impl.entity;
 
+import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -42,6 +43,8 @@ import java.io.Serializable;
 import java.lang.reflect.Method;
 import java.util.Locale;
 import java.util.function.UnaryOperator;
+
+import static io.evitadb.api.proxy.impl.ProxyUtils.getWrappedGenericType;
 
 /**
  * Identifies methods that are used to get associated data from an entity and provides their implementation.
@@ -120,20 +123,27 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 					// finally provide implementation that will retrieve the associated data from the entity
 					final String cleanAssociatedDataName = associatedDataSchema.getName();
 					@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
-					@SuppressWarnings("unchecked")
-					final UnaryOperator<Serializable> defaultValueProvider = createDefaultValueProvider(returnType);
+					@SuppressWarnings("unchecked") final UnaryOperator<Serializable> defaultValueProvider = createDefaultValueProvider(returnType);
+					@SuppressWarnings("rawtypes") final Class wrappedGenericType = getWrappedGenericType(method, proxyState.getProxyClass());
+					final UnaryOperator<Object> resultWrapper = ProxyUtils.createOptionalWrapper(wrappedGenericType);
+					@SuppressWarnings("rawtypes") final Class valueType = wrappedGenericType == null ? returnType : wrappedGenericType;
+
 					//noinspection unchecked
 					return method.getParameterCount() == 0 ?
-						(entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getSealedEntity().getAssociatedDataValue(cleanAssociatedDataName)
-							.map(AssociatedDataValue::value)
-							.map(defaultValueProvider)
-							.map(it -> ComplexDataObjectConverter.getOriginalForm(it, returnType, theState.getReflectionLookup()))
-							.orElse(null) :
-						(entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getSealedEntity().getAssociatedDataValue(cleanAssociatedDataName, (Locale) args[0])
-							.map(AssociatedDataValue::value)
-							.map(defaultValueProvider)
-							.map(it -> ComplexDataObjectConverter.getOriginalForm(it, returnType, theState.getReflectionLookup()))
-							.orElse(null);
+						(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
+							theState.getSealedEntity().getAssociatedDataValue(cleanAssociatedDataName)
+								.map(AssociatedDataValue::value)
+								.map(defaultValueProvider)
+								.map(it -> ComplexDataObjectConverter.getOriginalForm(it, valueType, theState.getReflectionLookup()))
+								.orElse(null)
+						) :
+						(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
+							theState.getSealedEntity().getAssociatedDataValue(cleanAssociatedDataName, (Locale) args[0])
+								.map(AssociatedDataValue::value)
+								.map(defaultValueProvider)
+								.map(it -> ComplexDataObjectConverter.getOriginalForm(it, valueType, theState.getReflectionLookup()))
+								.orElse(null)
+						);
 				}
 			}
 		);

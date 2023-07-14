@@ -58,20 +58,15 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Random;
+import java.util.*;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES;
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -202,7 +197,9 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 		assertTrue(productCategory instanceof SealedEntityReferenceProxy);
 		final ReferenceContract theReference = ((SealedEntityReferenceProxy) productCategory).getReference();
-		assertEquals(theReference.getAttribute(DataGenerator.ATTRIBUTE_CATEGORY_PRIORITY), productCategory.getOrderInCategory());
+		final Long categoryPriority = theReference.getAttribute(DataGenerator.ATTRIBUTE_CATEGORY_PRIORITY, Long.class);
+		assertEquals(categoryPriority, productCategory.getOrderInCategory());
+		assertEquals(categoryPriority == null ? OptionalLong.empty() : OptionalLong.of(categoryPriority), productCategory.getOrderInCategoryIfPresent());
 
 		if (locale == null) {
 			for (AttributeValue attributeValue : theReference.getAttributeValues(ATTRIBUTE_CATEGORY_LABEL)) {
@@ -215,10 +212,16 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 		if (externalEntities) {
 			assertCategory(productCategory.getCategory(), sealedEntity, locale);
+			assertTrue(productCategory.getCategoryIfPresent().isPresent());
 			assertEquals(new EntityReference(Entities.CATEGORY, sealedEntity.getPrimaryKey()), productCategory.getCategoryReference());
+			assertTrue(productCategory.getCategoryReferenceIfPresent().isPresent());
 			assertEquals(sealedEntity.getPrimaryKey(), productCategory.getCategoryReferencePrimaryKey());
+			assertTrue(productCategory.getCategoryReferencePrimaryKeyIfPresent().isPresent());
 		} else {
 			assertNull(productCategory.getCategory());
+			assertEquals(empty(), productCategory.getCategoryIfPresent());
+			assertEquals(of(new EntityReference(Entities.CATEGORY, sealedEntity.getPrimaryKey())), productCategory.getCategoryReferenceIfPresent());
+			assertEquals(OptionalInt.of(sealedEntity.getPrimaryKey()), productCategory.getCategoryReferencePrimaryKeyIfPresent());
 		}
 
 	}
@@ -231,8 +234,11 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 		final SealedEntity originalCategory = originalCategories.get(category.getId());
 		if (originalCategory.getParent().isEmpty()) {
 			assertNull(category.getParentId());
+			assertTrue(category.getParentIdIfPresent().isEmpty());
 			assertNull(category.getParentEntityReference());
+			assertTrue(category.getParentEntityReferenceIfPresent().isEmpty());
 			assertNull(category.getParentEntity());
+			assertTrue(category.getParentEntityIfPresent().isEmpty());
 		} else {
 			final int expectedParentId = originalCategory.getParent().getAsInt();
 			assertEquals(
@@ -240,10 +246,22 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 				category.getParentId()
 			);
 			assertEquals(
+				OptionalInt.of(expectedParentId),
+				category.getParentIdIfPresent()
+			);
+			assertEquals(
 				new EntityReference(Entities.CATEGORY, expectedParentId),
 				category.getParentEntityReference()
 			);
+			assertEquals(
+				Optional.of(new EntityReference(Entities.CATEGORY, expectedParentId)),
+				category.getParentEntityReferenceIfPresent()
+			);
 			assertCategory(category.getParentEntity(), originalCategories.get(expectedParentId), locale);
+			assertEquals(
+				Optional.of(category.getParentEntity()),
+				category.getParentEntityIfPresent()
+			);
 			assertCategoryParent(originalCategories, category.getParentEntity(), locale);
 		}
 	}
@@ -268,13 +286,16 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 		assertProductBasicData(originalProduct, product);
 		assertProductAttributes(originalProduct, product, locale);
 
-		ofNullable(originalProduct.getAssociatedData(ASSOCIATED_DATA_REFERENCED_FILES, ReferencedFileSet.class, ReflectionLookup.NO_CACHE_INSTANCE))
+		final Optional<ReferencedFileSet> referenceFileSetOptional = ofNullable(originalProduct.getAssociatedData(ASSOCIATED_DATA_REFERENCED_FILES, ReferencedFileSet.class, ReflectionLookup.NO_CACHE_INSTANCE));
+		referenceFileSetOptional
 			.ifPresent(it -> {
 				assertEquals(it, product.getReferencedFileSet());
 				assertEquals(it, product.getReferencedFileSetAsDifferentProperty());
 			});
+		assertEquals(referenceFileSetOptional, product.getReferencedFileSetIfPresent());
 
 		assertCategoryParents(product.getCategories(), originalCategories, locale);
+		assertTrue(product.getCategoriesIfFetched().isPresent());
 
 		final int[] expectedCategoryIds = originalProduct.getReferences(Entities.CATEGORY)
 			.stream()
@@ -309,6 +330,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 		assertCategoryReferences(Arrays.stream(product.getProductCategoriesAsArray()), originalCategories, expectedCategoryIds, locale, externalEntities);
 
 		assertThrows(ContextMissingException.class, product::getPriceForSale);
+		assertEquals(empty(), product.getPriceForSaleIfPresent());
 
 		final PriceContract[] allPricesForSale = product.getAllPricesForSale();
 		final PriceContract[] expectedAllPricesForSale = originalProduct.getAllPricesForSale().toArray(PriceContract[]::new);
@@ -372,10 +394,15 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 		final Optional<PriceContract> first = Arrays.stream(expectedAllPrices).filter(it -> "basic".equals(it.priceList())).findFirst();
 		if (first.isEmpty()) {
 			assertNull(product.getBasicPrice());
+			assertEquals(empty(), product.getBasicPriceIfPresent());
 		} else {
 			assertEquals(
 				first.get(),
 				product.getBasicPrice()
+			);
+			assertEquals(
+				first,
+				product.getBasicPriceIfPresent()
 			);
 		}
 	}
@@ -394,7 +421,9 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantity());
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantityAsDifferentProperty());
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_ALIAS), product.isAlias());
-		assertEquals(ofNullable(originalProduct.getAttribute(ATTRIBUTE_OPTIONAL_AVAILABILITY)).orElse(false), product.isOptionallyAvailable());
+		final Optional<Object> optionallyAvailable = ofNullable(originalProduct.getAttribute(ATTRIBUTE_OPTIONAL_AVAILABILITY));
+		assertEquals(optionallyAvailable.orElse(false), product.isOptionallyAvailable());
+		assertEquals(optionallyAvailable, product.getOptionallyAvailable());
 	}
 
 	@DataSet(value = FIFTY_PRODUCTS, destroyAfterClass = true, readOnly = false)
@@ -557,7 +586,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 		Map<Integer, SealedEntity> originalCategories
 	) {
 		final Random rnd = new Random(seed);
-		final int primaryKey = rnd.nextInt(50) + 1;
+		final int primaryKey = rnd.nextInt(49) + 1;
 		final Query query = query(
 			collection(Entities.PRODUCT),
 			filterBy(entityPrimaryKeyInSet(primaryKey)),
@@ -570,6 +599,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 			.findFirst()
 			.orElseThrow();
 
+		System.out.println("PK: " + primaryKey);
 		assertProduct(
 			theProduct,
 			evitaSession.queryOne(query, ProductInterface.class).orElse(null),
