@@ -73,8 +73,8 @@ public class RestManager {
 	 */
 	@Nonnull private final ObjectMapper objectMapper = new ObjectMapper();
 
-	@Nonnull private final RestConfig restConfig;
 	@Nonnull private final Evita evita;
+	@Nonnull private final RestConfig restConfig;
 
 	/**
 	 * All registered endpoint paths for each catalog
@@ -86,9 +86,9 @@ public class RestManager {
 	private final RoutingHandler restRouter = Handlers.routing();
 	@Nonnull private final Map<String, CorsEndpoint> corsEndpoints = createConcurrentHashMap(20);
 
-	public RestManager(@Nonnull RestConfig restConfig, @Nonnull Evita evita) {
-		this.restConfig = restConfig;
+	public RestManager(@Nonnull Evita evita, @Nonnull RestConfig restConfig) {
 		this.evita = evita;
+		this.restConfig = restConfig;
 
 		final long buildingStartTime = System.currentTimeMillis();
 
