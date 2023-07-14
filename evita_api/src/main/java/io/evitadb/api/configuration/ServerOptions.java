@@ -32,20 +32,22 @@ import javax.annotation.Nonnull;
 /**
  * DTO contains base server wide settings for the evitaDB.
  *
- * @param coreThreadCount                       Defines count of threads that are spun up in {@link java.util.concurrent.ExecutorService} for handling
- *                                              input requests as well as maintenance tasks. The more catalog in Evita
- *                                              DB there is, the higher count of thread count might be required.
- * @param maxThreadCount                        Defines count of threads that might by spun up at the maximum (i.e. when
- *                                              there are not enough threads to process input requests and background tasks)
- * @param threadPriority                        Defines a {@link Thread#getPriority()} for background threads. The number must be in
- *                                              interval 1-10. The threads with higher priority should be preferred over the ones
- *                                              with lesser priority.
- * @param queueSize                             maximum amount of task accepted to thread pool to wait for a free thread
- * @param closeSessionsAfterSecondsOfInactivity sets the timeout in seconds after which the session is closed
- *                                              automatically if there is no activity observed on it
- * @param readOnly                              starts the database in full read-only mode that forbids to execute write
- *                                              operations on {@link EntityContract} level and open read-write
- *                                              {@link EvitaSessionContract}
+ * @param coreThreadCount                               Defines count of threads that are spun up in {@link java.util.concurrent.ExecutorService} for handling
+ *                                                      input requests as well as maintenance tasks. The more catalog in Evita
+ *                                                      DB there is, the higher count of thread count might be required.
+ * @param maxThreadCount                                Defines count of threads that might by spun up at the maximum (i.e. when
+ *                                                      there are not enough threads to process input requests and background tasks)
+ * @param threadPriority                                Defines a {@link Thread#getPriority()} for background threads. The number must be in
+ *                                                      interval 1-10. The threads with higher priority should be preferred over the ones
+ *                                                      with lesser priority.
+ * @param queueSize                                     maximum amount of task accepted to thread pool to wait for a free thread
+ * @param shortRunningThreadsTimeoutInSeconds 	        sets the timeout in seconds after which threads that are supposed to be short-running should timeout and cancel its execution
+ * @param killTimedOutShortRunningThreadsEverySeconds   sets interval in seconds in which short-running timed out threads are forced to be killed (unfortunately, it's not guarantied that the threads will be actually killed) and stack traces are printed
+ * @param closeSessionsAfterSecondsOfInactivity         sets the timeout in seconds after which the session is closed
+ *                                                      automatically if there is no activity observed on it
+ * @param readOnly                                      starts the database in full read-only mode that forbids to execute write
+ *                                                      operations on {@link EntityContract} level and open read-write
+ *                                                      {@link EvitaSessionContract}
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record ServerOptions(
@@ -53,6 +55,8 @@ public record ServerOptions(
 	int maxThreadCount,
 	int threadPriority,
 	int queueSize,
+	int shortRunningThreadsTimeoutInSeconds,
+	int killTimedOutShortRunningThreadsEverySeconds,
 	int closeSessionsAfterSecondsOfInactivity,
 	boolean readOnly
 ) {
@@ -61,6 +65,8 @@ public record ServerOptions(
 	public static final int DEFAULT_MAX_THREAD_COUNT = Runtime.getRuntime().availableProcessors() * 20;
 	public static final int DEFAULT_THREAD_PRIORITY = 5;
 	public static final int DEFAULT_QUEUE_SIZE = 100;
+	public static final int DEFAULT_SHORT_RUNNING_THREADS_TIMEOUT_IN_SECONDS = 1;
+	public static final int DEFAULT_KILL_TIMED_OUT_SHORT_RUNNING_THREADS_EVERY_SECONDS = 30;
 	public static final int DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY = 60 * 20;
 
 	/**
@@ -83,6 +89,8 @@ public record ServerOptions(
 			DEFAULT_MAX_THREAD_COUNT,
 			DEFAULT_THREAD_PRIORITY,
 			DEFAULT_QUEUE_SIZE,
+			DEFAULT_SHORT_RUNNING_THREADS_TIMEOUT_IN_SECONDS,
+			DEFAULT_KILL_TIMED_OUT_SHORT_RUNNING_THREADS_EVERY_SECONDS,
 			DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY,
 			false
 		);
@@ -97,6 +105,8 @@ public record ServerOptions(
 		private int maxThreadCount = DEFAULT_MAX_THREAD_COUNT;
 		private int threadPriority = DEFAULT_THREAD_PRIORITY;
 		private int queueSize = DEFAULT_QUEUE_SIZE;
+		private int shortRunningThreadsTimeoutInSeconds = DEFAULT_SHORT_RUNNING_THREADS_TIMEOUT_IN_SECONDS;
+		private int killTimedOutShortRunningThreadsEverySeconds = DEFAULT_KILL_TIMED_OUT_SHORT_RUNNING_THREADS_EVERY_SECONDS;
 		private int closeSessionsAfterSecondsOfInactivity = DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY;
 		private boolean readOnly = false;
 
@@ -108,6 +118,8 @@ public record ServerOptions(
 			this.maxThreadCount = serverOptions.maxThreadCount;
 			this.threadPriority = serverOptions.threadPriority;
 			this.queueSize = serverOptions.queueSize;
+			this.shortRunningThreadsTimeoutInSeconds = serverOptions.shortRunningThreadsTimeoutInSeconds;
+			this.killTimedOutShortRunningThreadsEverySeconds = serverOptions.killTimedOutShortRunningThreadsEverySeconds;
 			this.closeSessionsAfterSecondsOfInactivity = serverOptions.closeSessionsAfterSecondsOfInactivity;
 			this.readOnly = serverOptions.readOnly;
 		}
@@ -132,6 +144,16 @@ public record ServerOptions(
 			return this;
 		}
 
+		public ServerOptions.Builder shortRunningThreadsTimeoutInSeconds(int shortRunningThreadsTimeoutInSeconds) {
+			this.shortRunningThreadsTimeoutInSeconds = shortRunningThreadsTimeoutInSeconds;
+			return this;
+		}
+
+		public ServerOptions.Builder killTimedOutShortRunningThreadsEverySeconds(int killTimedOutShortRunningThreadsEverySeconds) {
+			this.killTimedOutShortRunningThreadsEverySeconds = killTimedOutShortRunningThreadsEverySeconds;
+			return this;
+		}
+
 		public ServerOptions.Builder closeSessionsAfterSecondsOfInactivity(int closeSessionsAfterSecondsOfInactivity) {
 			this.closeSessionsAfterSecondsOfInactivity = closeSessionsAfterSecondsOfInactivity;
 			return this;
@@ -148,6 +170,8 @@ public record ServerOptions(
 				maxThreadCount,
 				threadPriority,
 				queueSize,
+				shortRunningThreadsTimeoutInSeconds,
+				killTimedOutShortRunningThreadsEverySeconds,
 				closeSessionsAfterSecondsOfInactivity,
 				readOnly
 			);

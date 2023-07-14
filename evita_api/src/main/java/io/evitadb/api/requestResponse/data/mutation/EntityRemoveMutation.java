@@ -55,7 +55,7 @@ import java.util.stream.Stream;
 
 /**
  * EntityRemoveMutation represents a terminal mutation when existing entity is removed in the evitaDB. The entity is
- * and all its internal data are marked as TRUE for {@link Droppable#isDropped()}, stored to the storage file and
+ * and all its internal data are marked as TRUE for {@link Droppable#dropped()}, stored to the storage file and
  * removed from the mem-table.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -119,7 +119,7 @@ public class EntityRemoveMutation implements EntityMutation {
 	@Override
 	public Entity mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable Entity entity) {
 		Assert.notNull(entity, "Entity must not be null in order to be removed!");
-		if (entity.isDropped()) {
+		if (entity.dropped()) {
 			return entity;
 		}
 
@@ -151,7 +151,7 @@ public class EntityRemoveMutation implements EntityMutation {
 								.map(x ->
 									new ReferenceAttributeMutation(
 										it.getReferenceKey(),
-										new RemoveAttributeMutation(x.getKey())
+										new RemoveAttributeMutation(x.key())
 									)
 								),
 							Stream.of(new RemoveReferenceMutation(it.getReferenceKey()))
@@ -160,12 +160,12 @@ public class EntityRemoveMutation implements EntityMutation {
 				entity.getAttributeValues()
 					.stream()
 					.filter(Droppable::exists)
-					.map(AttributeValue::getKey)
+					.map(AttributeValue::key)
 					.map(RemoveAttributeMutation::new),
 				entity.getAssociatedDataValues()
 					.stream()
 					.filter(Droppable::exists)
-					.map(AssociatedDataValue::getKey)
+					.map(AssociatedDataValue::key)
 					.map(RemoveAssociatedDataMutation::new),
 				Stream.of(
 					new SetPriceInnerRecordHandlingMutation(PriceInnerRecordHandling.NONE)
@@ -173,7 +173,7 @@ public class EntityRemoveMutation implements EntityMutation {
 				entity.getPrices()
 					.stream()
 					.filter(Droppable::exists)
-					.map(it -> new RemovePriceMutation(it.getPriceKey()))
+					.map(it -> new RemovePriceMutation(it.priceKey()))
 			)
 			.flatMap(it -> it)
 			.filter(Objects::nonNull)

@@ -46,10 +46,10 @@ public class AttributeValueSerializer extends Serializer<AttributeValue> {
 
 	@Override
 	public void write(Kryo kryo, Output output, AttributeValue attributeValue) {
-		output.writeVarInt(attributeValue.getVersion(), true);
-		output.writeVarInt(keyCompressor.getId(attributeValue.getKey()), true);
-		kryo.writeClassAndObject(output, attributeValue.getValue());
-		output.writeBoolean(attributeValue.isDropped());
+		output.writeVarInt(attributeValue.version(), true);
+		output.writeVarInt(keyCompressor.getId(attributeValue.key()), true);
+		kryo.writeClassAndObject(output, attributeValue.value());
+		output.writeBoolean(attributeValue.dropped());
 	}
 
 	@Override

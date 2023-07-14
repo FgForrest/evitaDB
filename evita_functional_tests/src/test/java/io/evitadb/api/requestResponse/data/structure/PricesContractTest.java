@@ -326,7 +326,7 @@ class PricesContractTest {
 			currency, moment, convertToClassifiers(priceLists)
 		).orElseThrow();
 
-		assertEquals(combineIntoId(innerRecordId, expectedPriceId), priceForSale.getPriceId());
+		assertEquals(combineIntoId(innerRecordId, expectedPriceId), priceForSale.priceId());
 	}
 
 	private static void assertPriceForSell(BigDecimal expectedPriceWithoutVat, PricesContract prices, Currency currency, OffsetDateTime moment, String... priceLists) {
@@ -334,7 +334,7 @@ class PricesContractTest {
 			currency, moment, convertToClassifiers(priceLists)
 		).orElseThrow();
 		
-		assertEquals(expectedPriceWithoutVat, priceForSale.getPriceWithoutTax());
+		assertEquals(expectedPriceWithoutVat, priceForSale.priceWithoutTax());
 	}
 
 	private static void assertNoPriceForSell(PricesContract prices, Currency currency, OffsetDateTime moment, String... priceLists) {

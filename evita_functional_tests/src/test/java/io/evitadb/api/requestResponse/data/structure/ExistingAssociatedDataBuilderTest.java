@@ -72,7 +72,7 @@ class ExistingAssociatedDataBuilderTest extends AbstractBuilderTest {
 		final AssociatedData newVersion = builder.build();
 
 		assertEquals(Integer.valueOf(10), newVersion.getAssociatedData("int"));
-		assertEquals(2L, newVersion.getAssociatedData(new AssociatedDataKey("int")).getVersion());
+		assertEquals(2L, newVersion.getAssociatedData(new AssociatedDataKey("int")).version());
 		assertEquals(Integer.valueOf(1), initialAssociatedData.getAssociatedData("int"));
 	}
 
@@ -111,8 +111,8 @@ class ExistingAssociatedDataBuilderTest extends AbstractBuilderTest {
 		assertEquals(Integer.valueOf(1), newVersion.getAssociatedData("int"));
 
 		final AssociatedDataValue associatedDataValue = newVersion.getAssociatedData(new AssociatedDataKey("int"));
-		assertEquals(2L, associatedDataValue.getVersion());
-		assertTrue(associatedDataValue.isDropped());
+		assertEquals(2L, associatedDataValue.version());
+		assertTrue(associatedDataValue.dropped());
 		assertEquals(Integer.valueOf(1), initialAssociatedData.getAssociatedData("int"));
 	}
 
@@ -123,20 +123,20 @@ class ExistingAssociatedDataBuilderTest extends AbstractBuilderTest {
 
 		assertNull(builder.getAssociatedData("greetings", Locale.GERMAN));
 		assertEquals("Hello", builder.getAssociatedData("greetings", Locale.ENGLISH));
-		assertEquals(1L, initialAssociatedData.getAssociatedData(new AssociatedDataKey("greetings", Locale.GERMAN)).getVersion());
-		assertEquals(1L, initialAssociatedData.getAssociatedData(new AssociatedDataKey("greetings", Locale.ENGLISH)).getVersion());
+		assertEquals(1L, initialAssociatedData.getAssociatedData(new AssociatedDataKey("greetings", Locale.GERMAN)).version());
+		assertEquals(1L, initialAssociatedData.getAssociatedData(new AssociatedDataKey("greetings", Locale.ENGLISH)).version());
 
 		final AssociatedData newVersion = builder.build();
 
 		assertEquals("Tschüss", newVersion.getAssociatedData("greetings", Locale.GERMAN));
 		final AssociatedDataValue germanGreeting = newVersion.getAssociatedData(new AssociatedDataKey("greetings", Locale.GERMAN));
-		assertEquals(2L, germanGreeting.getVersion());
-		assertTrue(germanGreeting.isDropped());
+		assertEquals(2L, germanGreeting.version());
+		assertTrue(germanGreeting.dropped());
 
 		final AssociatedDataValue englishGreeting = newVersion.getAssociatedData(new AssociatedDataKey("greetings", Locale.ENGLISH));
 		assertEquals("Hello", newVersion.getAssociatedData("greetings", Locale.ENGLISH));
-		assertEquals(1L, englishGreeting.getVersion());
-		assertFalse(englishGreeting.isDropped());
+		assertEquals(1L, englishGreeting.version());
+		assertFalse(englishGreeting.dropped());
 	}
 
 	@Test
@@ -199,9 +199,9 @@ class ExistingAssociatedDataBuilderTest extends AbstractBuilderTest {
 
 		assertEquals(2, newAttrs.getAssociatedDataKeys().size());
 		assertEquals("Hello", newAttrs.getAssociatedData("string"));
-		assertEquals(2, newAttrs.getAssociatedData(new AssociatedDataKey("string")).getVersion());
+		assertEquals(2, newAttrs.getAssociatedData(new AssociatedDataKey("string")).version());
 		assertEquals(Integer.valueOf(7), newAttrs.getAssociatedData("int", Locale.ENGLISH));
-		assertEquals(2, newAttrs.getAssociatedData(new AssociatedDataKey("int", Locale.ENGLISH)).getVersion());
+		assertEquals(2, newAttrs.getAssociatedData(new AssociatedDataKey("int", Locale.ENGLISH)).version());
 		assertNull(newAttrs.getAssociatedData("int", Locale.GERMAN));
 	}
 

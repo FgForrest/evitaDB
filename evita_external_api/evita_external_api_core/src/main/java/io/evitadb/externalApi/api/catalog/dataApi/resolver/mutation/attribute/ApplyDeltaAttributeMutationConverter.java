@@ -70,8 +70,8 @@ public class ApplyDeltaAttributeMutationConverter extends AttributeMutationConve
 	protected ApplyDeltaAttributeMutation<?> convert(@Nonnull Input input) {
 		final AttributeKey attributeKey = resolveAttributeKey(input);
 
-		final AttributeSchemaContract attributeSchema = attributeSchemaProvider.getAttribute(attributeKey.getAttributeName())
-			.orElseThrow(() -> getExceptionFactory().createInvalidArgumentException("Missing value type of new attribute `" + attributeKey.getAttributeName() + "`."));
+		final AttributeSchemaContract attributeSchema = attributeSchemaProvider.getAttribute(attributeKey.attributeName())
+			.orElseThrow(() -> getExceptionFactory().createInvalidArgumentException("Missing value type of new attribute `" + attributeKey.attributeName() + "`."));
 		final Class<? extends Serializable> valueType = attributeSchema.getType();
 
 		if (valueType.isAssignableFrom(BigDecimal.class)) {
@@ -105,7 +105,7 @@ public class ApplyDeltaAttributeMutationConverter extends AttributeMutationConve
 				input.getOptionalField(ApplyDeltaAttributeMutationDescriptor.REQUIRED_RANGE_AFTER_APPLICATION.name(), LongNumberRange.class)
 			);
 		} else {
-			throw getExceptionFactory().createInvalidArgumentException("Attribute `" + attributeKey.getAttributeName() + "` supports only numbers.");
+			throw getExceptionFactory().createInvalidArgumentException("Attribute `" + attributeKey.attributeName() + "` supports only numbers.");
 		}
 	}
 }

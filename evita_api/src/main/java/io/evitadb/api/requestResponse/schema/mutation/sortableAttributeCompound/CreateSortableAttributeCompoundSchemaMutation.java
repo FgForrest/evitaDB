@@ -153,7 +153,7 @@ public class CreateSortableAttributeCompoundSchemaMutation
 		final SortableAttributeCompoundSchemaContract existingCompoundSchema = entitySchema.getSortableAttributeCompound(name).orElse(null);
 		if (existingCompoundSchema == null) {
 			return EntitySchema._internalBuild(
-				entitySchema.getVersion() + 1,
+				entitySchema.version() + 1,
 				entitySchema.getName(),
 				entitySchema.getNameVariants(),
 				entitySchema.getDescription(),

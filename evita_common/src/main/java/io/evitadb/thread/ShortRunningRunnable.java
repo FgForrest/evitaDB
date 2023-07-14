@@ -21,22 +21,30 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.data;
+package io.evitadb.thread;
+
+import lombok.RequiredArgsConstructor;
+
 
 /**
- * This interface marks all objects that are immutable and versioned. Whenever new instance of the class instance is
- * created and takes place of another class instance (i.e. is successor of that data) its version must be increased
- * by one.
+ * Runnable wrapper wrapping short-running execution that can be killed when running longer than expected by system timeout.
  *
- * Versioned data are used for handling [optimistic locking](https://en.wikipedia.org/wiki/Optimistic_concurrency_control).
- *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @see TimeoutableThread
+ * @see java.util.concurrent.ExecutorService
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface Versioned {
+@RequiredArgsConstructor
+public class ShortRunningRunnable implements Runnable {
 
-	/**
-	 * Returns version of the object.
-	 */
-	int version();
+	private final Runnable delegate;
 
+	@Override
+	public void run() {
+		try {
+			((TimeoutableThread) Thread.currentThread()).setStartTime(System.nanoTime());
+			delegate.run();
+		} finally {
+			((TimeoutableThread) Thread.currentThread()).setStartTime(null);
+		}
+	}
 }

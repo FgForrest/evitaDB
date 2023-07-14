@@ -53,7 +53,7 @@ public class AttributeFormula extends AbstractCacheableFormula {
 	private static final long CLASS_ID = 4944486926494447594L;
 	public static final String ERROR_SINGLE_FORMULA_EXPECTED = "Exactly one inner formula is expected!";
 	/**
-	 * Contains {@link AttributeValue#getKey()} of the attribute that is targeted by inner query.
+	 * Contains {@link AttributeValue#key()} of the attribute that is targeted by inner query.
 	 */
 	@Getter private final AttributeKey attributeKey;
 
@@ -79,14 +79,14 @@ public class AttributeFormula extends AbstractCacheableFormula {
 	 */
 	@Nonnull
 	public String getAttributeName() {
-		return attributeKey.getAttributeName();
+		return attributeKey.attributeName();
 	}
 
 	/**
 	 * Returns true if the attribute formula relates to localized attribute.
 	 */
 	public boolean isLocalized() {
-		return attributeKey.isLocalized();
+		return attributeKey.localized();
 	}
 
 	@Override
@@ -125,13 +125,13 @@ public class AttributeFormula extends AbstractCacheableFormula {
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		if (attributeKey.getLocale() == null) {
-			return hashFunction.hashChars(attributeKey.getAttributeName());
+		if (attributeKey.locale() == null) {
+			return hashFunction.hashChars(attributeKey.attributeName());
 		} else {
 			return hashFunction.hashLongs(
 				new long[] {
-					hashFunction.hashChars(attributeKey.getAttributeName()),
-					hashFunction.hashChars(attributeKey.getLocale().toLanguageTag())
+					hashFunction.hashChars(attributeKey.attributeName()),
+					hashFunction.hashChars(attributeKey.locale().toLanguageTag())
 				}
 			);
 		}

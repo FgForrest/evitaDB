@@ -182,16 +182,16 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 			.map(it -> {
 				final Set<String> allowedPriceLists = CollectionUtils.createHashSet(it.length);
 				Collections.addAll(allowedPriceLists, it);
-				return (Predicate<PriceContract>) priceContract -> allowedPriceLists.contains(priceContract.getPriceList());
+				return (Predicate<PriceContract>) priceContract -> allowedPriceLists.contains(priceContract.priceList());
 			})
 			.ifPresent(pricePredicates::add);
 		ofNullable(argumentFetchers.get(Currency.class))
 			.map(it -> (Currency) it.apply(args))
-			.map(it -> (Predicate<PriceContract>) priceContract -> it.equals(priceContract.getCurrency()))
+			.map(it -> (Predicate<PriceContract>) priceContract -> it.equals(priceContract.currency()))
 			.ifPresent(pricePredicates::add);
 		ofNullable(argumentFetchers.get(OffsetDateTime.class))
 			.map(it -> (OffsetDateTime) it.apply(args))
-			.map(it -> (Predicate<PriceContract>) priceContract -> priceContract.isValidAt(it))
+			.map(it -> (Predicate<PriceContract>) priceContract -> priceContract.validAt(it))
 			.ifPresent(pricePredicates::add);
 
 		return pricePredicates
@@ -326,7 +326,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 				final List<PriceContract> prices = theState.getSealedEntity()
 					.getPrices()
 					.stream()
-					.filter(it -> priceList.equals(it.getPriceList()))
+					.filter(it -> priceList.equals(it.priceList()))
 					.limit(2)
 					.toList();
 				if (prices.isEmpty()) {
@@ -338,7 +338,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 						(int) theState.getSealedEntity()
 							.getPrices()
 							.stream()
-							.filter(it -> priceList.equals(it.getPriceList()))
+							.filter(it -> priceList.equals(it.priceList()))
 							.count()
 					);
 				}
@@ -349,7 +349,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 				final Predicate<PriceContract> argumentPredicate = getPriceContractPredicate(argumentFetchers, args);
 				final Predicate<PriceContract> pricePredicate = ofNullable(priceList)
 					.map(it -> {
-						final Predicate<PriceContract> basePredicate = price -> priceList.equals(price.getPriceList());
+						final Predicate<PriceContract> basePredicate = price -> priceList.equals(price.priceList());
 						return argumentPredicate == null ? basePredicate : basePredicate.and(argumentPredicate);
 					})
 					.orElse(argumentPredicate);
@@ -392,7 +392,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 				return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getSealedEntity()
 					.getPrices()
 					.stream()
-					.filter(it -> priceList.equals(it.getPriceList()))
+					.filter(it -> priceList.equals(it.priceList()))
 					.toList();
 			}
 		} else {
@@ -401,7 +401,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 				final Predicate<PriceContract> argumentPredicate = getPriceContractPredicate(argumentFetchers, args);
 				final Predicate<PriceContract> pricePredicate = ofNullable(priceList)
 					.map(it -> {
-						final Predicate<PriceContract> basePredicate = price -> priceList.equals(price.getPriceList());
+						final Predicate<PriceContract> basePredicate = price -> priceList.equals(price.priceList());
 						return argumentPredicate == null ? basePredicate : basePredicate.and(argumentPredicate);
 					})
 					.orElse(argumentPredicate);
@@ -426,15 +426,17 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 	) {
 		if (method.getParameterCount() == 0) {
 			if (priceList == null) {
-				return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getSealedEntity()
-					.getPrices()
-					.stream()
-					.collect(CollectorUtils.toUnmodifiableLinkedHashSet());
+				return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
+					return theState.getSealedEntity()
+						.getPrices()
+						.stream()
+						.collect(CollectorUtils.toUnmodifiableLinkedHashSet());
+				};
 			} else {
 				return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getSealedEntity()
 					.getPrices()
 					.stream()
-					.filter(it -> priceList.equals(it.getPriceList()))
+					.filter(it -> priceList.equals(it.priceList()))
 					.collect(CollectorUtils.toUnmodifiableLinkedHashSet());
 			}
 		} else {
@@ -443,7 +445,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 				final Predicate<PriceContract> argumentPredicate = getPriceContractPredicate(argumentFetchers, args);
 				final Predicate<PriceContract> pricePredicate = ofNullable(priceList)
 					.map(it -> {
-						final Predicate<PriceContract> basePredicate = price -> priceList.equals(price.getPriceList());
+						final Predicate<PriceContract> basePredicate = price -> priceList.equals(price.priceList());
 						return argumentPredicate == null ? basePredicate : basePredicate.and(argumentPredicate);
 					})
 					.orElse(argumentPredicate);
@@ -475,7 +477,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 				return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getSealedEntity()
 					.getPrices()
 					.stream()
-					.filter(it -> priceList.equals(it.getPriceList()))
+					.filter(it -> priceList.equals(it.priceList()))
 					.toArray(PriceContract[]::new);
 			}
 		} else {
@@ -484,7 +486,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 				final Predicate<PriceContract> argumentPredicate = getPriceContractPredicate(argumentFetchers, args);
 				final Predicate<PriceContract> pricePredicate = ofNullable(priceList)
 					.map(it -> {
-						final Predicate<PriceContract> basePredicate = price -> priceList.equals(price.getPriceList());
+						final Predicate<PriceContract> basePredicate = price -> priceList.equals(price.priceList());
 						return argumentPredicate == null ? basePredicate : basePredicate.and(argumentPredicate);
 					})
 					.orElse(argumentPredicate);

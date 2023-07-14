@@ -162,7 +162,7 @@ public class InitialPricesBuilder implements PricesBuilder {
 	}
 
 	@Override
-	public int getPricesVersion() {
+	public int pricesVersion() {
 		return 1;
 	}
 
@@ -195,13 +195,13 @@ public class InitialPricesBuilder implements PricesBuilder {
 	 */
 	private void assertPriceNotAmbiguousBeforeAdding(@Nonnull Price price) {
 		final PriceContract conflictingPrice = getPrices().stream()
-			.filter(it -> it.getPriceList().equals(price.getPriceList()))
-			.filter(it -> it.getCurrency().equals(price.getCurrency()))
-			.filter(it -> it.getPriceId() != price.getPriceId())
-			.filter(it -> Objects.equals(it.getInnerRecordId(), price.getInnerRecordId()))
+			.filter(it -> it.priceList().equals(price.priceList()))
+			.filter(it -> it.currency().equals(price.currency()))
+			.filter(it -> it.priceId() != price.priceId())
+			.filter(it -> Objects.equals(it.innerRecordId(), price.innerRecordId()))
 			.filter(it ->
-				price.getValidity() == null ||
-					ofNullable(it.getValidity()).map(existingValidity -> existingValidity.overlaps(price.getValidity()))
+				price.validity() == null ||
+					ofNullable(it.validity()).map(existingValidity -> existingValidity.overlaps(price.validity()))
 						.orElse(true)
 			)
 			.findFirst()

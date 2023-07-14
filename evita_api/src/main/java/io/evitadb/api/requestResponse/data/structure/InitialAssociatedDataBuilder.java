@@ -91,7 +91,7 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 		return this.associatedDataValues
 				.keySet()
 				.stream()
-				.map(AssociatedDataKey::getAssociatedDataName)
+				.map(AssociatedDataKey::associatedDataName)
 				.collect(Collectors.toSet());
 	}
 
@@ -144,7 +144,7 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName) {
 		//noinspection unchecked
 		return (T) ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName)))
-				.map(AssociatedDataValue::getValue)
+				.map(AssociatedDataValue::value)
 				.orElse(null);
 	}
 
@@ -152,7 +152,7 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Override
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Class<T> dtoType, @Nonnull ReflectionLookup reflectionLookup) {
 		return ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName)))
-				.map(AssociatedDataValue::getValue)
+				.map(AssociatedDataValue::value)
 				.map(it -> ComplexDataObjectConverter.getOriginalForm(it, dtoType, reflectionLookup))
 				.orElse(null);
 	}
@@ -162,7 +162,7 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	public <T extends Serializable> T[] getAssociatedDataArray(@Nonnull String associatedDataName) {
 		//noinspection unchecked
 		return (T[]) ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName)))
-			.map(AssociatedDataValue::getValue)
+			.map(AssociatedDataValue::value)
 			.orElse(null);
 	}
 
@@ -178,7 +178,7 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 		return associatedDataValues
 			.entrySet()
 			.stream()
-			.filter(it -> associatedDataName.equals(it.getKey().getAssociatedDataName()))
+			.filter(it -> associatedDataName.equals(it.getKey().associatedDataName()))
 			.map(Entry::getValue)
 			.collect(Collectors.toList());
 	}
@@ -228,7 +228,7 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale) {
 		//noinspection unchecked
 		return (T) ofNullable(this.associatedDataValues.get(new AssociatedDataKey(associatedDataName, locale)))
-				.map(AssociatedDataValue::getValue)
+				.map(AssociatedDataValue::value)
 				.orElse(null);
 	}
 
@@ -236,7 +236,7 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Override
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale, @Nonnull Class<T> dtoType, @Nonnull ReflectionLookup reflectionLookup) {
 		return ofNullable(this.associatedDataValues.get(new AssociatedDataKey(associatedDataName, locale)))
-				.map(AssociatedDataValue::getValue)
+				.map(AssociatedDataValue::value)
 				.map(it -> ComplexDataObjectConverter.getOriginalForm(it, dtoType, reflectionLookup))
 				.orElse(null);
 	}
@@ -246,7 +246,7 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	public <T extends Serializable> T[] getAssociatedDataArray(@Nonnull String associatedDataName, @Nonnull Locale locale) {
 		//noinspection unchecked
 		return (T[]) ofNullable(this.associatedDataValues.get(new AssociatedDataKey(associatedDataName, locale)))
-				.map(AssociatedDataValue::getValue)
+				.map(AssociatedDataValue::value)
 				.orElse(null);
 	}
 
@@ -261,7 +261,7 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 		return this.associatedDataValues
 				.keySet()
 				.stream()
-				.map(AssociatedDataKey::getLocale)
+				.map(AssociatedDataKey::locale)
 				.filter(Objects::nonNull)
 				.collect(Collectors.toSet());
 	}

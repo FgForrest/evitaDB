@@ -35,7 +35,6 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDes
 import io.evitadb.externalApi.graphql.api.testSuite.GraphQLEndpointFunctionalTest;
 import io.evitadb.test.Entities;
 import io.evitadb.test.builder.MapBuilder;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
@@ -52,7 +51,6 @@ import java.util.Objects;
 
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
@@ -115,7 +113,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 
 		return map()
 			.e(EntityDescriptor.PRICE_FOR_SALE.name(), map()
-				.e(PriceDescriptor.PRICE_WITH_TAX.name(), priceFormatter.format(entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().getPriceWithTax()))
+				.e(PriceDescriptor.PRICE_WITH_TAX.name(), priceFormatter.format(entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax()))
 				.build())
 			.build();
 	}
@@ -127,7 +125,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 
 		return map()
 			.e(EntityDescriptor.PRICE.name(), map()
-				.e(PriceDescriptor.PRICE_WITH_TAX.name(), priceFormatter.format(entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().getPriceWithTax()))
+				.e(PriceDescriptor.PRICE_WITH_TAX.name(), priceFormatter.format(entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax()))
 				.build())
 			.build();
 	}
@@ -141,7 +139,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 		return map()
 			.e(EntityDescriptor.PRICES.name(), List.of(
 				map()
-					.e(PriceDescriptor.PRICE_WITH_TAX.name(), priceFormatter.format(entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().getPriceWithTax()))
+					.e(PriceDescriptor.PRICE_WITH_TAX.name(), priceFormatter.format(entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax()))
 					.build()
 			))
 			.build();
@@ -156,7 +154,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 				.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
 				.e(PriceDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
 				.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-				.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().getPriceWithTax().toString())
+				.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax().toString())
 				.build())
 			.build();
 	}
@@ -177,7 +175,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 				.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
 				.e(PriceDescriptor.CURRENCY.name(), currency.toString())
 				.e(PriceDescriptor.PRICE_LIST.name(), priceList)
-				.e(PriceDescriptor.PRICE_WITH_TAX.name(), prices.iterator().next().getPriceWithTax().toString())
+				.e(PriceDescriptor.PRICE_WITH_TAX.name(), prices.iterator().next().priceWithTax().toString())
 				.build())
 			.build();
 	}

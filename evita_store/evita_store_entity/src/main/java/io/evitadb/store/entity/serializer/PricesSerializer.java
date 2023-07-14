@@ -44,7 +44,7 @@ public class PricesSerializer extends Serializer<Prices> {
 
 	@Override
 	public void write(Kryo kryo, Output output, Prices prices) {
-		output.writeVarInt(prices.getVersion(), true);
+		output.writeVarInt(prices.version(), true);
 		kryo.writeObjectOrNull(output, prices.getPriceInnerRecordHandling(), PriceInnerRecordHandling.class);
 		output.writeVarInt(prices.getPrices().size(), true);
 		for (PriceContract price : prices.getPrices()) {

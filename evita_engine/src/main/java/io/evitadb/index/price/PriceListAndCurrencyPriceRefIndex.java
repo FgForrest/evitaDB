@@ -99,7 +99,7 @@ public class PriceListAndCurrencyPriceRefIndex implements VoidTransactionMemoryP
 	 */
 	private final RangeIndex validityIndex;
 	/**
-	 * Array contains complete information about prices sorted by {@link PriceContract#getPriceId()} allowing translation
+	 * Array contains complete information about prices sorted by {@link PriceContract#priceId()} allowing translation
 	 * of price id to {@link Entity#getPrimaryKey()} using binary search algorithm.
 	 */
 	private final TransactionalObjArray<PriceRecordContract> priceRecords;

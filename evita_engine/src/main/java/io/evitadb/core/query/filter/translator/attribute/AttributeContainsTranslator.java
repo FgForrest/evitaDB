@@ -132,7 +132,7 @@ public class AttributeContainsTranslator implements FilteringConstraintTranslato
 				if (attr.isEmpty()) {
 					return false;
 				} else {
-					final Serializable theValue = attr.get().getValue();
+					final Serializable theValue = attr.get().value();
 					return theValue != null && ((String) theValue).contains(textToSearch);
 				}
 			}

@@ -200,7 +200,7 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 				if (attr.isEmpty()) {
 					return false;
 				} else {
-					final Serializable theValue = attr.get().getValue();
+					final Serializable theValue = attr.get().value();
 					if (theValue == null) {
 						return false;
 					} else if (comparableValueFrom != null && comparableValueTo != null) {
@@ -225,7 +225,7 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 				if (attr.isEmpty()) {
 					return false;
 				} else {
-					final Serializable theValue = attr.get().getValue();
+					final Serializable theValue = attr.get().value();
 					if (theValue == null) {
 						return false;
 					} else if (comparableValueFrom != null && comparableValueTo != null) {
@@ -286,7 +286,7 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 				if (attr.isEmpty()) {
 					return false;
 				} else {
-					final Serializable theValue = attr.get().getValue();
+					final Serializable theValue = attr.get().value();
 					if (theValue == null) {
 						return false;
 					} else if (comparableFrom != null && comparableTo != null) {

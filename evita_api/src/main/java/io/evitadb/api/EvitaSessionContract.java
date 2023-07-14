@@ -615,7 +615,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	default int updateEntitySchema(@Nonnull EntitySchemaBuilder entitySchemaBuilder) throws SchemaAlteringException {
 		return entitySchemaBuilder.toMutation()
 			.map(this::updateEntitySchema)
-			.orElse(getEntitySchemaOrThrow(entitySchemaBuilder.getName()).getVersion());
+			.orElse(getEntitySchemaOrThrow(entitySchemaBuilder.getName()).version());
 	}
 
 	/**

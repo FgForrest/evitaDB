@@ -119,7 +119,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 				equalTo(
 					map()
 						.e(TYPENAME_FIELD, EntitySchemaDescriptor.THIS_SPECIFIC.name(createEmptyEntitySchema("Product")))
-						.e(EntitySchemaDescriptor.VERSION.name(), productSchema.getVersion())
+						.e(EntitySchemaDescriptor.VERSION.name(), productSchema.version())
 						.e(EntitySchemaDescriptor.NAME.name(), productSchema.getName())
 						.e(EntitySchemaDescriptor.NAME_VARIANTS.name(), map()
 							.e(TYPENAME_FIELD, NameVariantsDescriptor.THIS.name())

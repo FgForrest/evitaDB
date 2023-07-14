@@ -51,17 +51,17 @@ public class ReferenceSerializer extends Serializer<Reference> {
 
 	@Override
 	public void write(Kryo kryo, Output output, Reference reference) {
-		output.writeVarInt(reference.getVersion(), true);
+		output.writeVarInt(reference.version(), true);
 		final ReferenceKey referenceKey = reference.getReferenceKey();
 		output.writeString(referenceKey.referenceName());
 		output.writeInt(referenceKey.primaryKey());
-		output.writeBoolean(reference.isDropped());
+		output.writeBoolean(reference.dropped());
 		final Optional<GroupEntityReference> group = reference.getGroup();
 		output.writeBoolean(group.isPresent());
 		group.ifPresent(it -> {
-			output.writeVarInt(it.getVersion(), true);
+			output.writeVarInt(it.version(), true);
 			output.writeInt(it.getPrimaryKey());
-			output.writeBoolean(it.isDropped());
+			output.writeBoolean(it.dropped());
 		});
 		final Collection<AttributeValue> attributes = reference.getAttributeValues();
 		output.writeVarInt(attributes.size(), true);

@@ -82,7 +82,7 @@ class ExistingReferenceBuilderTest extends AbstractBuilderTest {
 		assertEquals("Hi", reference.getAttribute("newAttribute"));
 
 		final AttributeValue gbCountry = reference.getAttributeValue("country", Locale.ENGLISH).orElseThrow();
-		assertTrue(gbCountry.isDropped());
+		assertTrue(gbCountry.dropped());
 	}
 
 	@Test

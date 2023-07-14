@@ -48,84 +48,84 @@ class ApplyDeltaAttributeMutationTest extends AbstractMutationTest {
 	void shouldIncrementVersionByUpdatingAttribute() {
 		final ApplyDeltaAttributeMutation<Byte> mutation = new ApplyDeltaAttributeMutation<>("a", (byte)5);
 		final AttributeValue newValue = mutation.mutateLocal(productSchema, new AttributeValue(new AttributeKey("a"), (byte)3));
-		assertEquals(2L, newValue.getVersion());
+		assertEquals(2L, newValue.version());
 	}
 
 	@Test
 	void shouldIncrementExistingByteValue() {
 		final ApplyDeltaAttributeMutation<Byte> mutation = new ApplyDeltaAttributeMutation<>("a", (byte)5);
 		final AttributeValue newValue = mutation.mutateLocal(productSchema, new AttributeValue(new AttributeKey( "a"), (byte)3));
-		assertEquals((byte) 8, (byte) newValue.getValue());
+		assertEquals((byte) 8, (byte) newValue.value());
 	}
 
 	@Test
 	void shouldDecrementExistingByteValue() {
 		final ApplyDeltaAttributeMutation<Byte> mutation = new ApplyDeltaAttributeMutation<>("a", (byte)-5);
 		final AttributeValue newValue = mutation.mutateLocal(productSchema, new AttributeValue(new AttributeKey("a"), (byte)3));
-		assertEquals((byte)-2, (byte) newValue.getValue());
+		assertEquals((byte)-2, (byte) newValue.value());
 	}
 
 	@Test
 	void shouldIncrementExistingShortValue() {
 		final ApplyDeltaAttributeMutation<Short> mutation = new ApplyDeltaAttributeMutation<>("a", (short)5);
 		final AttributeValue newValue = mutation.mutateLocal(productSchema, new AttributeValue(new AttributeKey("a"), (short)3));
-		assertEquals((short) 8, (short) newValue.getValue());
+		assertEquals((short) 8, (short) newValue.value());
 	}
 
 	@Test
 	void shouldDecrementExistingShortValue() {
 		final ApplyDeltaAttributeMutation<Short> mutation = new ApplyDeltaAttributeMutation<>("a", (short)-5);
 		final AttributeValue newValue = mutation.mutateLocal(productSchema, new AttributeValue(new AttributeKey("a"), (short)3));
-		assertEquals((short)-2, (short) newValue.getValue());
+		assertEquals((short)-2, (short) newValue.value());
 	}
 	
 	@Test
 	void shouldIncrementExistingIntValue() {
 		final ApplyDeltaAttributeMutation<Integer> mutation = new ApplyDeltaAttributeMutation<>("a", 5);
 		final AttributeValue newValue = mutation.mutateLocal(productSchema, new AttributeValue(new AttributeKey("a"), 3));
-		assertEquals(8, (int) newValue.getValue());
+		assertEquals(8, (int) newValue.value());
 	}
 
 	@Test
 	void shouldDecrementExistingIntValue() {
 		final ApplyDeltaAttributeMutation<Integer> mutation = new ApplyDeltaAttributeMutation<>("a", -5);
 		final AttributeValue newValue = mutation.mutateLocal(productSchema, new AttributeValue(new AttributeKey("a"), 3));
-		assertEquals(-2, (int) newValue.getValue());
+		assertEquals(-2, (int) newValue.value());
 	}
 
 	@Test
 	void shouldIncrementExistingLongValue() {
 		final ApplyDeltaAttributeMutation<Long> mutation = new ApplyDeltaAttributeMutation<>("a", (long)5);
 		final AttributeValue newValue = mutation.mutateLocal(productSchema, new AttributeValue(new AttributeKey("a"), (long)3));
-		assertEquals(8, (long) newValue.getValue());
+		assertEquals(8, (long) newValue.value());
 	}
 
 	@Test
 	void shouldDecrementExistingLongValue() {
 		final ApplyDeltaAttributeMutation<Long> mutation = new ApplyDeltaAttributeMutation<>("a", (long)-5);
 		final AttributeValue newValue = mutation.mutateLocal(productSchema, new AttributeValue(new AttributeKey("a"), (long)3));
-		assertEquals(-2, (long) newValue.getValue());
+		assertEquals(-2, (long) newValue.value());
 	}
 
 	@Test
 	void shouldIncrementExistingBigDecimalValue() {
 		final ApplyDeltaAttributeMutation<BigDecimal> mutation = new ApplyDeltaAttributeMutation<>("a", new BigDecimal("5.123"));
 		final AttributeValue newValue = mutation.mutateLocal(productSchema, new AttributeValue(new AttributeKey("a"), new BigDecimal("3.005")));
-		assertEquals(new BigDecimal("8.128"), newValue.getValue());
+		assertEquals(new BigDecimal("8.128"), newValue.value());
 	}
 
 	@Test
 	void shouldDecrementExistingBigDecimalValue() {
 		final ApplyDeltaAttributeMutation<BigDecimal> mutation = new ApplyDeltaAttributeMutation<>("a", new BigDecimal("-5.123"));
 		final AttributeValue newValue = mutation.mutateLocal(productSchema, new AttributeValue(new AttributeKey("a"), new BigDecimal("3.005")));
-		assertEquals(new BigDecimal("-2.118"), newValue.getValue());
+		assertEquals(new BigDecimal("-2.118"), newValue.value());
 	}
 
 	@Test
 	void shouldPassRangeCheckWithValidValue() {
 		final ApplyDeltaAttributeMutation<Byte> mutation = new ApplyDeltaAttributeMutation<>("a", (byte)5, ByteNumberRange.from((byte)7));
 		final AttributeValue newValue = mutation.mutateLocal(productSchema, new AttributeValue(new AttributeKey("a"), (byte)3));
-		assertEquals((byte) 8, (byte) newValue.getValue());
+		assertEquals((byte) 8, (byte) newValue.value());
 	}
 
 	@Test

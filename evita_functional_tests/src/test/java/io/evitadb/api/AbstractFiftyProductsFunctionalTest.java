@@ -57,6 +57,7 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_PRIORITY;
 public class AbstractFiftyProductsFunctionalTest {
 	public static final String ATTRIBUTE_CATEGORY_LABEL = "label";
 	public static final String ATTRIBUTE_CATEGORY_SHADOW = "shadow";
+	public static final String ATTRIBUTE_OPTIONAL_AVAILABILITY = "optionalAvailability";
 	private static final int SEED = 40;
 	private final DataGenerator dataGenerator = new DataGenerator();
 
@@ -154,6 +155,7 @@ public class AbstractFiftyProductsFunctionalTest {
 						session,
 						builder -> {
 							builder
+								.withAttribute(ATTRIBUTE_OPTIONAL_AVAILABILITY, Boolean.class, whichIs -> whichIs.filterable().nullable())
 								.withReferenceToEntity(
 									Entities.CATEGORY,
 									Entities.CATEGORY,

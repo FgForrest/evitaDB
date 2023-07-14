@@ -3,6 +3,8 @@ server:
   maxThreadCount: ${server.maxThreadCount:16}
   threadPriority: ${server.threadPriority:5}
   queueSize: ${server.queueSize:100}
+  shortRunningThreadsTimeoutInSeconds: ${server.shortRunningThreadsTimeoutInSeconds:1}
+  killTimedOutShortRunningThreadsEverySeconds: ${server.killTimedOutShortRunningThreadsEverySeconds:30}
   closeSessionsAfterSecondsOfInactivity: ${server.closeSessionsAfterSecondsOfInactivity:60}
   readOnly: ${server.readOnly:false}
 

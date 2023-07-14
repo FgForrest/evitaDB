@@ -56,7 +56,7 @@ import java.util.stream.Collectors;
 
 /**
  * Entity prices container allows defining set of prices of the entity.
- * Attributes may be indexed for fast filtering ({@link Price#isSellable()}). Prices are not automatically indexed
+ * Attributes may be indexed for fast filtering ({@link Price#sellable()}). Prices are not automatically indexed
  * in order not to waste precious memory space for data that will never be used in search queries.
  * <p>
  * Filtering in prices is executed by using constraints like {@link io.evitadb.api.query.filter.PriceBetween},
@@ -76,7 +76,7 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 	 * Contains version of this object and gets increased with any (direct) entity update. Allows to execute
 	 * optimistic locking i.e. avoiding parallel modifications.
 	 */
-	@Getter final int version;
+	final int version;
 	/**
 	 * Prices are specific to a very few entities, but because correct price computation is very complex in e-commerce
 	 * systems and highly affects performance of the entities filtering and sorting, they deserve first class support
@@ -109,9 +109,9 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 				.stream()
 				.collect(
 					Collectors.toMap(
-						PriceContract::getPriceKey, Function.identity(),
+						PriceContract::priceKey, Function.identity(),
 						(oldValue, newValue) -> {
-							throw new EvitaInternalError("Duplicate price key " + oldValue.getPriceKey());
+							throw new EvitaInternalError("Duplicate price key " + oldValue.priceKey());
 						},
 						() -> new LinkedHashMap<>(prices.size())
 					)
@@ -127,9 +127,9 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 				.stream()
 				.collect(
 					Collectors.toMap(
-						PriceContract::getPriceKey, Function.identity(),
+						PriceContract::priceKey, Function.identity(),
 						(oldValue, newValue) -> {
-							throw new EvitaInternalError("Duplicate price key " + oldValue.getPriceKey());
+							throw new EvitaInternalError("Duplicate price key " + oldValue.priceKey());
 						},
 						() -> new LinkedHashMap<>(prices.size())
 					)
@@ -138,11 +138,16 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 		this.priceInnerRecordHandling = priceInnerRecordHandling;
 	}
 
+	@Override
+	public int version() {
+		return version;
+	}
+
 	/**
 	 * Returns version of this object.
 	 */
 	@Override
-	public int getPricesVersion() {
+	public int pricesVersion() {
 		return version;
 	}
 

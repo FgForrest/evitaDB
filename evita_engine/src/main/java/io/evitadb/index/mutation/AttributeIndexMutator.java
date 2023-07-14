@@ -88,8 +88,8 @@ public interface AttributeIndexMutator {
 		boolean updateGlobalIndex,
 		boolean updateCompounds
 	) {
-		final AttributeSchemaContract attributeDefinition = attributeSchemaProvider.apply(attributeKey.getAttributeName());
-		Assert.notNull(attributeDefinition, "Attribute `" + attributeKey.getAttributeName() + "` not defined in schema!");
+		final AttributeSchemaContract attributeDefinition = attributeSchemaProvider.apply(attributeKey.attributeName());
+		Assert.notNull(attributeDefinition, "Attribute `" + attributeKey.attributeName() + "` not defined in schema!");
 
 		final Object valueToInsert = Objects.requireNonNull(
 			EvitaDataTypes.toTargetType(attributeValue, attributeDefinition.getType(), attributeDefinition.getIndexedDecimalPlaces())
@@ -98,16 +98,16 @@ public interface AttributeIndexMutator {
 		if (attributeDefinition.isUnique() || attributeDefinition.isFilterable() || attributeDefinition.isSortable()) {
 			final EntitySchema entitySchema = executor.getEntitySchema();
 			final Set<Locale> allowedLocales = entitySchema.getLocales();
-			final Locale locale = attributeKey.getLocale();
+			final Locale locale = attributeKey.locale();
 
 			if (attributeDefinition.isUnique() && executor.shouldIndexPrimaryKey(IndexType.ATTRIBUTE_UNIQUE_INDEX)) {
 				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX);
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
 				existingValue.ifPresent(theValue -> {
-					entityIndex.removeUniqueAttribute(attributeDefinition, allowedLocales, locale, theValue.getValue(), entityPrimaryKey);
+					entityIndex.removeUniqueAttribute(attributeDefinition, allowedLocales, locale, theValue.value(), entityPrimaryKey);
 					if (String.class.equals(attributeDefinition.getType()) && !attributeDefinition.isFilterable() && executor.shouldIndexPrimaryKey(IndexType.ATTRIBUTE_FILTER_INDEX)) {
 						// TOBEDONE JNO this should be replaced with RadixTree
-						entityIndex.removeFilterAttribute(attributeDefinition, allowedLocales, locale, theValue.getValue(), entityPrimaryKey);
+						entityIndex.removeFilterAttribute(attributeDefinition, allowedLocales, locale, theValue.value(), entityPrimaryKey);
 					}
 				});
 				entityIndex.insertUniqueAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey);
@@ -120,7 +120,7 @@ public interface AttributeIndexMutator {
 				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX);
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
 				existingValue.ifPresent(theValue -> {
-					entityIndex.removeFilterAttribute(attributeDefinition, allowedLocales, locale, theValue.getValue(), entityPrimaryKey);
+					entityIndex.removeFilterAttribute(attributeDefinition, allowedLocales, locale, theValue.value(), entityPrimaryKey);
 				});
 				entityIndex.insertFilterAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey);
 			}
@@ -128,7 +128,7 @@ public interface AttributeIndexMutator {
 				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX);
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
 				existingValue.ifPresent(theValue -> {
-					entityIndex.removeSortAttribute(attributeDefinition, allowedLocales, locale, theValue.getValue(), entityPrimaryKey);
+					entityIndex.removeSortAttribute(attributeDefinition, allowedLocales, locale, theValue.value(), entityPrimaryKey);
 				});
 				entityIndex.insertSortAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey);
 			}
@@ -143,7 +143,7 @@ public interface AttributeIndexMutator {
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
 				existingValue.ifPresent(theValue -> {
 					catalogIndex.removeUniqueAttribute(
-						executor.getEntitySchema(), attributeDefinition, allowedLocales, locale, Objects.requireNonNull(theValue.getValue()), entityPrimaryKey
+						executor.getEntitySchema(), attributeDefinition, allowedLocales, locale, Objects.requireNonNull(theValue.value()), entityPrimaryKey
 					);
 				});
 				catalogIndex.insertUniqueAttribute(
@@ -156,7 +156,7 @@ public interface AttributeIndexMutator {
 		if (updateCompounds) {
 			updateSortableAttributeCompounds(
 				executor, attributeSchemaProvider, compoundsSchemaProvider, existingValueSupplier,
-				entityIndex, valueToInsert, attributeKey.getLocale(), attributeDefinition.getName()
+				entityIndex, valueToInsert, attributeKey.locale(), attributeDefinition.getName()
 			);
 		}
 	}
@@ -176,12 +176,12 @@ public interface AttributeIndexMutator {
 		boolean updateCompounds
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
-		final String attributeName = attributeKey.getAttributeName();
+		final String attributeName = attributeKey.attributeName();
 		final AttributeSchemaContract attributeDefinition = attributeSchemaProvider.apply(attributeName);
 		Assert.notNull(attributeDefinition, "Attribute `" + attributeName + "` not defined in schema!");
 
 		final Set<Locale> allowedLocales = entitySchema.getLocales();
-		final Locale locale = attributeKey.getLocale();
+		final Locale locale = attributeKey.locale();
 
 		final AtomicReference<T> valueToRemove = new AtomicReference<>();
 		final Supplier<T> valueToRemoveSupplier = () -> valueToRemove.updateAndGet(alreadyKnownOldValue -> {
@@ -189,7 +189,7 @@ public interface AttributeIndexMutator {
 				final AttributeValue existingValue = existingValueSupplier.getAttributeValue(attributeKey).orElse(null);
 				Assert.notNull(existingValue, "Attribute `" + attributeDefinition.getName() + "` is unexpectedly not found in container for entity `" + entitySchema.getName() + "` record " + executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_INDEX) + "!");
 				//noinspection unchecked
-				return (T) existingValue.getValue();
+				return (T) existingValue.value();
 			} else {
 				return alreadyKnownOldValue;
 			}
@@ -257,11 +257,11 @@ public interface AttributeIndexMutator {
 		@Nonnull Number delta
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
-		final String attributeName = attributeKey.getAttributeName();
+		final String attributeName = attributeKey.attributeName();
 		final AttributeSchemaContract attributeDefinition = attributeSchemaProvider.apply(attributeName);
 
 		final Set<Locale> allowedLocales = entitySchema.getLocales();
-		final Locale locale = attributeKey.getLocale();
+		final Locale locale = attributeKey.locale();
 		final AtomicReference<T> valueToRemove = new AtomicReference<>();
 		final Supplier<T> valueToRemoveSupplier = () -> valueToRemove.updateAndGet(
 			alreadyKnownOldAttributeValue -> {
@@ -269,7 +269,7 @@ public interface AttributeIndexMutator {
 					final AttributeValue oldAttributeValue = existingValueSupplier.getAttributeValue(attributeKey).orElse(null);
 					Assert.notNull(oldAttributeValue, "Attribute `" + attributeDefinition.getName() + "` is unexpectedly not found in indexes for entity `" + entitySchema.getName() + "` record " + executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_INDEX) + "!");
 					//noinspection unchecked
-					final T theOldValue = (T) oldAttributeValue.getValue();
+					final T theOldValue = (T) oldAttributeValue.value();
 					Assert.isTrue(theOldValue instanceof Number, "Attribute `" + attributeDefinition.getName() + "` in entity `" + entitySchema.getName() + "` is not a number type!");
 					return theOldValue;
 				} else {
@@ -533,7 +533,7 @@ public interface AttributeIndexMutator {
 				it -> Objects.equals(it.attributeName(), updatedAttributeName) ?
 					valueToUpdate :
 					ofNullable(attributeElementValueProvider.apply(it))
-						.map(AttributeValue::getValue)
+						.map(AttributeValue::value)
 						.orElse(null)
 			)
 			.toArray();
@@ -560,7 +560,7 @@ public interface AttributeIndexMutator {
 			.stream()
 			.map(
 				it -> ofNullable(attributeElementValueProvider.apply(it))
-						.map(AttributeValue::getValue)
+						.map(AttributeValue::value)
 						.orElse(null)
 			)
 			.toArray();
@@ -640,7 +640,7 @@ public interface AttributeIndexMutator {
 		@Override
 		public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
 			if (!Objects.equals(memoizedKey, attributeKey)) {
-				final AttributesStoragePart currentAttributes = ofNullable(attributeKey.getLocale())
+				final AttributesStoragePart currentAttributes = ofNullable(attributeKey.locale())
 					.map(it -> containerAccessor.getAttributeStoragePart(entityType, entityPrimaryKey, it))
 					.orElseGet(() -> containerAccessor.getAttributeStoragePart(entityType, entityPrimaryKey));
 

@@ -39,10 +39,14 @@ import one.edee.oss.proxycian.DirectMethodClassification;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.lang.reflect.Method;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
+
+import static io.evitadb.api.proxy.impl.entity.GetAttributeMethodClassifier.createDefaultValueProvider;
 
 /**
  * Identifies methods that are used to get attributes from an reference and provides their implementation.
@@ -111,14 +115,19 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 					final String cleanAttributeName = attributeSchema.getName();
 					final int indexedDecimalPlaces = attributeSchema.getIndexedDecimalPlaces();
 					@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
+					@SuppressWarnings("unchecked")
+					final UnaryOperator<Serializable> defaultValueProvider = createDefaultValueProvider(attributeSchema, returnType);
+
 					if (attributeSchema.isLocalized()) {
 						//noinspection unchecked
 						return method.getParameterCount() == 0 ?
 							(entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
-								theState.getReference().getAttribute(cleanAttributeName), returnType, indexedDecimalPlaces
+								defaultValueProvider.apply(theState.getReference().getAttribute(cleanAttributeName)),
+								returnType, indexedDecimalPlaces
 							) :
 							(entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
-								theState.getReference().getAttribute(cleanAttributeName, (Locale) args[0]), returnType, indexedDecimalPlaces
+								defaultValueProvider.apply(theState.getReference().getAttribute(cleanAttributeName, (Locale) args[0])),
+								returnType, indexedDecimalPlaces
 							);
 					} else {
 						Assert.isTrue(
@@ -127,7 +136,8 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 						);
 						//noinspection unchecked
 						return (entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
-							theState.getReference().getAttribute(cleanAttributeName), returnType, indexedDecimalPlaces
+							defaultValueProvider.apply(theState.getReference().getAttribute(cleanAttributeName)),
+							returnType, indexedDecimalPlaces
 						);
 					}
 				}

@@ -28,9 +28,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.data.PriceContract;
-import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.Range;
 import io.evitadb.dataType.data.ComplexDataObjectToJsonConverter;
@@ -220,15 +218,15 @@ public class ObjectJsonSerializer {
 
 	private JsonNode serialize(@Nonnull PriceContract price) {
 		final ObjectNode priceNode = jsonNodeFactory.objectNode();
-		priceNode.putIfAbsent(PriceDescriptor.PRICE_ID.name(),serializeObject(price.getPriceId()));
-		priceNode.putIfAbsent(PriceDescriptor.PRICE_LIST.name(),serializeObject(price.getPriceList()));
-		priceNode.putIfAbsent(PriceDescriptor.CURRENCY.name(),serializeObject(price.getCurrency()));
-		priceNode.putIfAbsent(PriceDescriptor.INNER_RECORD_ID.name(),price.getInnerRecordId() != null?serializeObject(price.getInnerRecordId()):null);
-		priceNode.putIfAbsent(PriceDescriptor.SELLABLE.name(),serializeObject(price.isSellable()));
-		priceNode.putIfAbsent(PriceDescriptor.PRICE_WITHOUT_TAX.name(), serializeObject(price.getPriceWithoutTax()));
-		priceNode.putIfAbsent(PriceDescriptor.PRICE_WITH_TAX.name(),serializeObject(price.getPriceWithTax()));
-		priceNode.putIfAbsent(PriceDescriptor.TAX_RATE.name(),serializeObject(price.getTaxRate()));
-		priceNode.putIfAbsent(PriceDescriptor.VALIDITY.name(), price.getValidity() != null?serializeObject(price.getValidity()):null);
+		priceNode.putIfAbsent(PriceDescriptor.PRICE_ID.name(),serializeObject(price.priceId()));
+		priceNode.putIfAbsent(PriceDescriptor.PRICE_LIST.name(),serializeObject(price.priceList()));
+		priceNode.putIfAbsent(PriceDescriptor.CURRENCY.name(),serializeObject(price.currency()));
+		priceNode.putIfAbsent(PriceDescriptor.INNER_RECORD_ID.name(),price.innerRecordId() != null?serializeObject(price.innerRecordId()):null);
+		priceNode.putIfAbsent(PriceDescriptor.SELLABLE.name(),serializeObject(price.sellable()));
+		priceNode.putIfAbsent(PriceDescriptor.PRICE_WITHOUT_TAX.name(), serializeObject(price.priceWithoutTax()));
+		priceNode.putIfAbsent(PriceDescriptor.PRICE_WITH_TAX.name(),serializeObject(price.priceWithTax()));
+		priceNode.putIfAbsent(PriceDescriptor.TAX_RATE.name(),serializeObject(price.taxRate()));
+		priceNode.putIfAbsent(PriceDescriptor.VALIDITY.name(), price.validity() != null?serializeObject(price.validity()):null);
 		return priceNode;
 	}
 }

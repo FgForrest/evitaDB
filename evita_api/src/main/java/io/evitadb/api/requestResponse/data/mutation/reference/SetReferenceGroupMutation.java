@@ -173,7 +173,7 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 		} else {
 			return new Reference(
 				entitySchema,
-				existingValue.getVersion() + 1,
+				existingValue.version() + 1,
 				existingValue.getReferenceName(), existingValue.getReferencedPrimaryKey(),
 				existingValue.getReferencedEntityType(), existingValue.getReferenceCardinality(),
 				existingReferenceGroup
@@ -181,7 +181,7 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 						new GroupEntityReference(
 							getGroupType(entitySchema),
 							groupPrimaryKey,
-							it.getVersion() + 1,
+							it.version() + 1,
 							false
 						)
 					)
@@ -193,7 +193,7 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 						)
 					),
 				existingValue.getAttributeValues(),
-				existingValue.isDropped()
+				existingValue.dropped()
 			);
 		}
 	}

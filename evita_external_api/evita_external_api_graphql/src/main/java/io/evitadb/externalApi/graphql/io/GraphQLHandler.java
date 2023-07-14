@@ -28,6 +28,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import graphql.ExecutionResult;
 import graphql.GraphQL;
 import graphql.GraphQLException;
+import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.exception.HttpExchangeException;
@@ -53,6 +54,9 @@ import java.nio.charset.IllegalCharsetNameException;
 import java.nio.charset.StandardCharsets;
 import java.nio.charset.UnsupportedCharsetException;
 import java.util.Arrays;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -71,6 +75,8 @@ public class GraphQLHandler implements HttpHandler {
 
     @Nonnull
     private final ObjectMapper objectMapper;
+    @Nonnull
+    private final EvitaConfiguration evitaConfiguration;
     @Nonnull
     private final AtomicReference<GraphQL> graphQL;
 
@@ -154,7 +160,20 @@ public class GraphQLHandler implements HttpHandler {
     @Nonnull
     private ExecutionResult executeRequest(@Nonnull GraphQLRequest graphQLRequest) {
         try {
-            return graphQL.get().execute(graphQLRequest.toExecutionInput());
+            return graphQL.get()
+                .executeAsync(graphQLRequest.toExecutionInput())
+                .orTimeout(evitaConfiguration.server().shortRunningThreadsTimeoutInSeconds(), TimeUnit.SECONDS)
+                .join();
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof TimeoutException) {
+                throw new HttpExchangeException(StatusCodes.GATEWAY_TIME_OUT, "Could not complete GraphQL request. Process timed out.");
+            }
+            // borrowed from graphql.GraphQL.execute(graphql.ExecutionInput)
+            if (e.getCause() instanceof RuntimeException) {
+                throw (RuntimeException) e.getCause();
+            } else {
+                throw e;
+            }
         } catch (GraphQLException e) {
             throw new GraphQLInternalError(
                 "Internal GraphQL API error: " + e.getMessage(),

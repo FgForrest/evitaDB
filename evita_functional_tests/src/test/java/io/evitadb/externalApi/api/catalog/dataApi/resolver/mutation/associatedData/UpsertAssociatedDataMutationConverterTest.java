@@ -199,7 +199,7 @@ class UpsertAssociatedDataMutationConverterTest {
 				.e(UpsertAssociatedDataMutationDescriptor.VALUE_TYPE.name(), LongNumberRange[].class)
 				.build()
 		);
-		assertEquals("arrayOfRangesAttribute", localMutation.getAssociatedDataKey().getAssociatedDataName());
+		assertEquals("arrayOfRangesAttribute", localMutation.getAssociatedDataKey().associatedDataName());
 		assertArrayEquals(
 			new LongNumberRange[] {
 				LongNumberRange.to(20L),

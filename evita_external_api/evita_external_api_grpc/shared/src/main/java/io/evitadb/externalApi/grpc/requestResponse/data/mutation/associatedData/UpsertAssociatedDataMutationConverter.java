@@ -51,11 +51,11 @@ public class UpsertAssociatedDataMutationConverter extends AssociatedDataMutatio
 	@Nonnull
 	public GrpcUpsertAssociatedDataMutation convert(@Nonnull UpsertAssociatedDataMutation mutation) {
 		final GrpcUpsertAssociatedDataMutation.Builder builder = GrpcUpsertAssociatedDataMutation.newBuilder()
-			.setAssociatedDataName(mutation.getAssociatedDataKey().getAssociatedDataName())
+			.setAssociatedDataName(mutation.getAssociatedDataKey().associatedDataName())
 			.setAssociatedDataValue(EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(mutation.getAssociatedDataValue()));
 
-		if (mutation.getAssociatedDataKey().isLocalized()) {
-			builder.setAssociatedDataLocale(EvitaDataTypesConverter.toGrpcLocale(mutation.getAssociatedDataKey().getLocale()));
+		if (mutation.getAssociatedDataKey().localized()) {
+			builder.setAssociatedDataLocale(EvitaDataTypesConverter.toGrpcLocale(mutation.getAssociatedDataKey().locale()));
 		}
 
 		return builder.build();

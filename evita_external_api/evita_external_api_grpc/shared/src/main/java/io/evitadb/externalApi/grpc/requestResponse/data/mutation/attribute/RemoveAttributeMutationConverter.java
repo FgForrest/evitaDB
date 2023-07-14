@@ -49,10 +49,10 @@ public class RemoveAttributeMutationConverter extends AttributeMutationConverter
 	@Override
 	public GrpcRemoveAttributeMutation convert(@Nonnull RemoveAttributeMutation mutation) {
 		final GrpcRemoveAttributeMutation.Builder builder = GrpcRemoveAttributeMutation.newBuilder()
-			.setAttributeName(mutation.getAttributeKey().getAttributeName());
+			.setAttributeName(mutation.getAttributeKey().attributeName());
 
-		if (mutation.getAttributeKey().isLocalized()) {
-			builder.setAttributeLocale(EvitaDataTypesConverter.toGrpcLocale(mutation.getAttributeKey().getLocale()));
+		if (mutation.getAttributeKey().localized()) {
+			builder.setAttributeLocale(EvitaDataTypesConverter.toGrpcLocale(mutation.getAttributeKey().locale()));
 		}
 
 		return builder.build();

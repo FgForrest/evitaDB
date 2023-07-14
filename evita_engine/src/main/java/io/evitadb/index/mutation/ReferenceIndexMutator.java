@@ -231,7 +231,7 @@ public interface ReferenceIndexMutator {
 			if (attributeValue.exists()) {
 				attributeUpdate(
 					entityPrimaryKey, entityType, executor, referenceTypeIndex, referenceIndex, referenceKey,
-					new RemoveAttributeMutation(attributeValue.getKey())
+					new RemoveAttributeMutation(attributeValue.key())
 				);
 			}
 		}
@@ -311,12 +311,12 @@ public interface ReferenceIndexMutator {
 			if (price.exists()) {
 				PriceIndexMutator.priceUpsert(
 					entityType, executor, targetIndex,
-					price.getPriceKey(),
-					price.getInnerRecordId(),
-					price.getValidity(),
-					price.getPriceWithoutTax(),
-					price.getPriceWithTax(),
-					price.isSellable(),
+					price.priceKey(),
+					price.innerRecordId(),
+					price.validity(),
+					price.priceWithoutTax(),
+					price.priceWithTax(),
+					price.sellable(),
 					null,
 					priceContainer.getPriceInnerRecordHandling(),
 					PriceIndexMutator.createPriceProvider(price)
@@ -367,7 +367,7 @@ public interface ReferenceIndexMutator {
 					compoundsSchemaProvider,
 					NON_EXISTING_SUPPLIER,
 					targetIndex,
-					attribute.getKey(), Objects.requireNonNull(attribute.getValue()),
+					attribute.key(), Objects.requireNonNull(attribute.value()),
 					false,
 					false
 				);
@@ -383,7 +383,7 @@ public interface ReferenceIndexMutator {
 						compoundsSchemaProvider,
 						NON_EXISTING_SUPPLIER,
 						targetIndex,
-						attribute.getKey(), Objects.requireNonNull(attribute.getValue()),
+						attribute.key(), Objects.requireNonNull(attribute.value()),
 						false,
 						false
 					);
@@ -467,7 +467,7 @@ public interface ReferenceIndexMutator {
 					compoundsSchemaProvider,
 					attributeValueSupplier,
 					targetIndex,
-					attribute.getKey(),
+					attribute.key(),
 					false,
 					false
 				));
@@ -481,7 +481,7 @@ public interface ReferenceIndexMutator {
 						compoundsSchemaProvider,
 						attributeValueSupplier,
 						targetIndex,
-						attribute.getKey(),
+						attribute.key(),
 						false,
 						false
 					));
@@ -503,7 +503,7 @@ public interface ReferenceIndexMutator {
 			if (price.exists()) {
 				PriceIndexMutator.priceRemove(
 					entityType, executor, targetIndex,
-					price.getPriceKey()
+					price.priceKey()
 				);
 			}
 		}

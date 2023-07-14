@@ -45,8 +45,8 @@ public abstract class AbstractPriceKey implements Serializable {
 	@Getter protected final String priceList;
 
 	protected AbstractPriceKey(@Nonnull Price.PriceKey priceKey) {
-		this.priceList = priceKey.getPriceList();
-		this.currency = priceKey.getCurrency();
+		this.priceList = priceKey.priceList();
+		this.currency = priceKey.currency();
 		this.hashCode = Objects.hash(priceList, currency);
 	}
 

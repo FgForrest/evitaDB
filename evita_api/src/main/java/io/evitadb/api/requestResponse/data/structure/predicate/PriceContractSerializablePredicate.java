@@ -159,9 +159,9 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 			case NONE -> false;
 			case ALL -> priceContract.exists();
 			case RESPECTING_FILTER -> priceContract.exists() &&
-				(currency == null || Objects.equals(currency, priceContract.getCurrency())) &&
-				(priceListsAsSet.isEmpty() || priceListsAsSet.contains(priceContract.getPriceList())) &&
-				(validIn == null || ofNullable(priceContract.getValidity()).map(it -> it.isValidFor(validIn)).orElse(true));
+				(currency == null || Objects.equals(currency, priceContract.currency())) &&
+				(priceListsAsSet.isEmpty() || priceListsAsSet.contains(priceContract.priceList())) &&
+				(validIn == null || ofNullable(priceContract.validity()).map(it -> it.isValidFor(validIn)).orElse(true));
 		};
 	}
 

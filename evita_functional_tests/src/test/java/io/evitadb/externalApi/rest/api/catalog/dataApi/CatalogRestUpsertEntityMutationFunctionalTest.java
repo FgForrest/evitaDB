@@ -485,7 +485,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		final SealedEntity entity = originalProductEntities.stream()
 			.filter(it -> it.getPrices()
 				.stream()
-				.noneMatch(it2 -> it2.getPriceId() == 1_000_000_000))
+				.noneMatch(it2 -> it2.priceId() == 1_000_000_000))
 			.findFirst()
 			.orElseThrow();
 
