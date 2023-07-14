@@ -35,7 +35,7 @@ public interface DataItemVisitor {
 
 	/**
 	 * Method is called on each {@link DataItemArray} of the tree. The implementation is responsible for iterating
-	 * over {@link DataItemArray#getChildren()} on its own.
+	 * over {@link DataItemArray#children()} on its own.
 	 */
 	void visit(@Nonnull DataItemArray arrayItem);
 

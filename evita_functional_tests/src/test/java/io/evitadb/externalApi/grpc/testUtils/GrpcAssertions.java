@@ -443,13 +443,13 @@ public class GrpcAssertions {
 			associatedDataValues = sealedEntity.getAssociatedDataValues().stream().toList();
 		} else if (locales.size() == 1) {
 			associatedDataValues = sealedEntity.getAssociatedDataValues().stream().filter(
-				a -> a.getKey().getLocale() == null ||
-					a.getKey().getLocale() != null && a.getKey().getLocale().getLanguage().equals(
+				a -> a.key().locale() == null ||
+					a.key().locale() != null && a.key().locale().getLanguage().equals(
 						locales.stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Suitable locale not found!")).getLanguage()
 					)
 			).toList();
 		} else {
-			associatedDataValues = sealedEntity.getAssociatedDataValues().stream().filter(a -> a.getKey().getLocale() == null).toList();
+			associatedDataValues = sealedEntity.getAssociatedDataValues().stream().filter(a -> a.key().locale() == null).toList();
 		}
 
 		assertEquals(
@@ -459,11 +459,11 @@ public class GrpcAssertions {
 
 		for (final AssociatedDataContract.AssociatedDataValue associatedDataValue : associatedDataValues) {
 			final GrpcEvitaAssociatedDataValue actualAssociatedDataValue;
-			if (associatedDataValue.getKey().isLocalized()) {
-				final GrpcLocalizedAssociatedData localizedAssociatedData = enrichedEntity.getLocalizedAssociatedDataMap().get(associatedDataValue.getKey().getLocale().toLanguageTag());
-				actualAssociatedDataValue = localizedAssociatedData.getAssociatedDataMap().get(associatedDataValue.getKey().getAssociatedDataName());
+			if (associatedDataValue.key().localized()) {
+				final GrpcLocalizedAssociatedData localizedAssociatedData = enrichedEntity.getLocalizedAssociatedDataMap().get(associatedDataValue.key().locale().toLanguageTag());
+				actualAssociatedDataValue = localizedAssociatedData.getAssociatedDataMap().get(associatedDataValue.key().associatedDataName());
 			} else {
-				actualAssociatedDataValue = enrichedEntity.getGlobalAssociatedDataMap().get(associatedDataValue.getKey().getAssociatedDataName());
+				actualAssociatedDataValue = enrichedEntity.getGlobalAssociatedDataMap().get(associatedDataValue.key().associatedDataName());
 			}
 			assertAssociatedData(associatedDataValue, actualAssociatedDataValue);
 		}
@@ -476,9 +476,9 @@ public class GrpcAssertions {
 			final GrpcPrice actualPrice = actualPriceValues.stream()
 				.filter(
 					p ->
-						p.getCurrency().getCode().equals(price.getCurrency().getCurrencyCode()) &&
-							p.getPriceId() == price.getPriceId() &&
-							p.getPriceList().equals(price.getPriceList())
+						p.getCurrency().getCode().equals(price.currency().getCurrencyCode()) &&
+							p.getPriceId() == price.priceId() &&
+							p.getPriceList().equals(price.priceList())
 				)
 				.findFirst()
 				.orElse(null);
@@ -526,12 +526,12 @@ public class GrpcAssertions {
 	}
 
 	public static void assertAttributeValues(@Nonnull AttributesContract.AttributeValue expectedAttributeValue, @Nonnull GrpcEvitaValue actualAttributeValue) {
-		final GrpcEvitaValue expectedValue = EvitaDataTypesConverter.toGrpcEvitaValue(expectedAttributeValue.getValue(), expectedAttributeValue.getVersion());
+		final GrpcEvitaValue expectedValue = EvitaDataTypesConverter.toGrpcEvitaValue(expectedAttributeValue.value(), expectedAttributeValue.version());
 		assertEquals(expectedValue, actualAttributeValue);
 	}
 
 	public static void assertAssociatedData(@Nonnull AssociatedDataContract.AssociatedDataValue expectedAssociatedDataValue, @Nonnull GrpcEvitaAssociatedDataValue actualAssociatedDataValue) {
-		final GrpcEvitaAssociatedDataValue expectedValue = EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(expectedAssociatedDataValue.getValue(), expectedAssociatedDataValue.getVersion());
+		final GrpcEvitaAssociatedDataValue expectedValue = EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(expectedAssociatedDataValue.value(), expectedAssociatedDataValue.version());
 		assertEquals(expectedValue, actualAssociatedDataValue);
 	}
 
@@ -543,19 +543,19 @@ public class GrpcAssertions {
 		final BigDecimal priceWithoutTax = EvitaDataTypesConverter.toBigDecimal(actualPrice.getPriceWithoutTax());
 		final BigDecimal priceWithTax = EvitaDataTypesConverter.toBigDecimal(actualPrice.getPriceWithTax());
 		final BigDecimal priceTaxRate = EvitaDataTypesConverter.toBigDecimal(actualPrice.getTaxRate());
-		assertEquals(expectedPrice.getPriceWithoutTax(), priceWithoutTax);
-		assertEquals(expectedPrice.getPriceWithTax(), priceWithTax);
-		assertEquals(expectedPrice.getTaxRate(), priceTaxRate);
-		assertEquals(expectedPrice.getPriceId(), actualPrice.getPriceId());
-		assertEquals(expectedPrice.getPriceKey().getPriceList(), actualPrice.getPriceList());
-		assertEquals(expectedPrice.getPriceKey().getCurrency().getCurrencyCode(), actualPrice.getCurrency().getCode());
+		assertEquals(expectedPrice.priceWithoutTax(), priceWithoutTax);
+		assertEquals(expectedPrice.priceWithTax(), priceWithTax);
+		assertEquals(expectedPrice.taxRate(), priceTaxRate);
+		assertEquals(expectedPrice.priceId(), actualPrice.getPriceId());
+		assertEquals(expectedPrice.priceKey().priceList(), actualPrice.getPriceList());
+		assertEquals(expectedPrice.priceKey().currency().getCurrencyCode(), actualPrice.getCurrency().getCode());
 
 		final Integer priceInnerRecordId = actualPrice.hasInnerRecordId() ? actualPrice.getInnerRecordId().getValue() : null;
 
-		assertEquals(expectedPrice.getInnerRecordId(), priceInnerRecordId);
-		assertEquals(expectedPrice.isSellable(), actualPrice.getSellable());
+		assertEquals(expectedPrice.innerRecordId(), priceInnerRecordId);
+		assertEquals(expectedPrice.sellable(), actualPrice.getSellable());
 
-		final DateTimeRange expectedDateTimeRange = expectedPrice.getValidity();
+		final DateTimeRange expectedDateTimeRange = expectedPrice.validity();
 
 		if (expectedDateTimeRange != null) {
 			final DateTimeRange actualValidity = EvitaDataTypesConverter.toDateTimeRange(actualPrice.getValidity());
@@ -615,13 +615,13 @@ public class GrpcAssertions {
 			expectedAttributeValues = attributeValues.stream().toList();
 		} else if (locales.size() == 1) {
 			expectedAttributeValues = attributeValues.stream().filter(
-				a -> a.getKey().getLocale() == null ||
-					a.getKey().getLocale() != null && a.getKey().getLocale().getLanguage().equals(
+				a -> a.key().locale() == null ||
+					a.key().locale() != null && a.key().locale().getLanguage().equals(
 						locales.stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Suitable locale not found!")).getLanguage()
 					)
 			).toList();
 		} else {
-			expectedAttributeValues = attributeValues.stream().filter(a -> a.getKey().getLocale() == null).toList();
+			expectedAttributeValues = attributeValues.stream().filter(a -> a.key().locale() == null).toList();
 		}
 
 		assertEquals(
@@ -634,11 +634,11 @@ public class GrpcAssertions {
 
 		for (final AttributesContract.AttributeValue attributeValue : expectedAttributeValues) {
 			final GrpcEvitaValue actualAttributeValue;
-			if (attributeValue.getKey().isLocalized()) {
-				final GrpcLocalizedAttribute localizedAttributes = localizedAttributesMap.get(attributeValue.getKey().getLocale().toLanguageTag());
-				actualAttributeValue = localizedAttributes.getAttributesMap().get(attributeValue.getKey().getAttributeName());
+			if (attributeValue.key().localized()) {
+				final GrpcLocalizedAttribute localizedAttributes = localizedAttributesMap.get(attributeValue.key().locale().toLanguageTag());
+				actualAttributeValue = localizedAttributes.getAttributesMap().get(attributeValue.key().attributeName());
 			} else {
-				actualAttributeValue = globalAttributesMap.get(attributeValue.getKey().getAttributeName());
+				actualAttributeValue = globalAttributesMap.get(attributeValue.key().attributeName());
 			}
 			assertAttributeValues(attributeValue, actualAttributeValue);
 		}

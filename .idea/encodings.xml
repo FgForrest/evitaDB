@@ -55,9 +55,7 @@
     <file url="file://$PROJECT_DIR$/jacoco/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/src/main/resources" charset="UTF-8" />
-    <file url="file://$PROJECT_DIR$/workaround/grpc/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/workaround/grpc/src/main/resources" charset="UTF-8" />
-    <file url="file://$PROJECT_DIR$/workaround/roaringBitmap/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/workaround/roaringBitmap/src/main/resources" charset="UTF-8" />
   </component>
 </project>

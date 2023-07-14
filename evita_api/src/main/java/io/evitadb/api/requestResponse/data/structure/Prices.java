@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.exception.EvitaInternalError;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -43,8 +44,9 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.math.BigDecimal;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Currency;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -54,7 +56,7 @@ import java.util.stream.Collectors;
 
 /**
  * Entity prices container allows defining set of prices of the entity.
- * Attributes may be indexed for fast filtering ({@link Price#isSellable()}). Prices are not automatically indexed
+ * Attributes may be indexed for fast filtering ({@link Price#sellable()}). Prices are not automatically indexed
  * in order not to waste precious memory space for data that will never be used in search queries.
  * <p>
  * Filtering in prices is executed by using constraints like {@link io.evitadb.api.query.filter.PriceBetween},
@@ -74,7 +76,7 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 	 * Contains version of this object and gets increased with any (direct) entity update. Allows to execute
 	 * optimistic locking i.e. avoiding parallel modifications.
 	 */
-	@Getter final int version;
+	final int version;
 	/**
 	 * Prices are specific to a very few entities, but because correct price computation is very complex in e-commerce
 	 * systems and highly affects performance of the entities filtering and sorting, they deserve first class support
@@ -96,27 +98,56 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 
 	public Prices(@Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
 		this.version = 1;
-		this.priceIndex = new HashMap<>();
+		this.priceIndex = Collections.emptyMap();
 		this.priceInnerRecordHandling = priceInnerRecordHandling;
 	}
 
 	public Prices(@Nonnull Collection<PriceContract> prices, @Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
 		this.version = 1;
-		this.priceIndex = prices.stream().collect(Collectors.toUnmodifiableMap(PriceContract::getPriceKey, Function.identity()));
+		this.priceIndex = Collections.unmodifiableMap(
+			prices
+				.stream()
+				.collect(
+					Collectors.toMap(
+						PriceContract::priceKey, Function.identity(),
+						(oldValue, newValue) -> {
+							throw new EvitaInternalError("Duplicate price key " + oldValue.priceKey());
+						},
+						() -> new LinkedHashMap<>(prices.size())
+					)
+				)
+		);
 		this.priceInnerRecordHandling = priceInnerRecordHandling;
 	}
 
 	public Prices(int version, @Nonnull Collection<PriceContract> prices, @Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
 		this.version = version;
-		this.priceIndex = prices.stream().collect(Collectors.toUnmodifiableMap(PriceContract::getPriceKey, Function.identity()));
+		this.priceIndex = Collections.unmodifiableMap(
+			prices
+				.stream()
+				.collect(
+					Collectors.toMap(
+						PriceContract::priceKey, Function.identity(),
+						(oldValue, newValue) -> {
+							throw new EvitaInternalError("Duplicate price key " + oldValue.priceKey());
+						},
+						() -> new LinkedHashMap<>(prices.size())
+					)
+				)
+		);
 		this.priceInnerRecordHandling = priceInnerRecordHandling;
+	}
+
+	@Override
+	public int version() {
+		return version;
 	}
 
 	/**
 	 * Returns version of this object.
 	 */
 	@Override
-	public int getPricesVersion() {
+	public int pricesVersion() {
 		return version;
 	}
 
@@ -134,6 +165,11 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 	@Nonnull
 	public Optional<PriceContract> getPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency) {
 		return Optional.ofNullable(priceIndex.get(new PriceKey(priceId, priceList, currency)));
+	}
+
+	@Override
+	public boolean isContextAvailable() {
+		return false;
 	}
 
 	@Nonnull

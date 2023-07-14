@@ -59,7 +59,7 @@ import static java.util.Optional.ofNullable;
 public final class EntitySchema implements EntitySchemaContract {
 	@Serial private static final long serialVersionUID = -209500573660545111L;
 
-	@Getter private final int version;
+	private final int version;
 	@Getter @Nonnull private final String name;
 	@Getter @Nonnull private final Map<NamingConvention, String> nameVariants;
 	@Getter @Nullable private final String description;
@@ -587,6 +587,11 @@ public final class EntitySchema implements EntitySchemaContract {
 			.orElse(Collections.emptyList());
 	}
 
+	@Override
+	public int version() {
+		return version;
+	}
+
 	/**
 	 * Returns true if this schema differs in any way from other schema. Executes full comparison logic of all contents.
 	 */
@@ -595,7 +600,7 @@ public final class EntitySchema implements EntitySchemaContract {
 		if (this == otherSchema) return false;
 		if (otherSchema == null) return true;
 
-		if (version != otherSchema.getVersion()) return true;
+		if (version != otherSchema.version()) return true;
 		if (withGeneratedPrimaryKey != otherSchema.isWithGeneratedPrimaryKey()) return true;
 		if (withHierarchy != otherSchema.isWithHierarchy()) return true;
 		if (withPrice != otherSchema.isWithPrice()) return true;

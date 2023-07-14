@@ -87,8 +87,8 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 		this.converter = (entityPrimaryKey, indexedPricePlaces, priceQueryMode, priceContract) -> new CumulatedVirtualPriceRecord(
 			entityPrimaryKey,
 			priceQueryMode == QueryPriceMode.WITH_TAX ?
-				NumberUtils.convertToInt(priceContract.getPriceWithTax(), indexedPricePlaces) :
-				NumberUtils.convertToInt(priceContract.getPriceWithoutTax(), indexedPricePlaces),
+				NumberUtils.convertToInt(priceContract.priceWithTax(), indexedPricePlaces) :
+				NumberUtils.convertToInt(priceContract.priceWithoutTax(), indexedPricePlaces),
 			priceQueryMode
 		);
 		this.filter = filter;

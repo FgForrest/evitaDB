@@ -93,8 +93,10 @@ public class EntityFactory {
 			// always initialize Attributes container
 			new Attributes(
 				entitySchema,
+				null,
 				// fill all contents of the attributes loaded from storage (may be empty)
-				attributeValues
+				attributeValues,
+				entitySchema.getAttributes()
 			),
 			// always initialize Associated data container
 			new AssociatedData(
@@ -143,12 +145,12 @@ public class EntityFactory {
 		);
 		for (AttributesStoragePart attributeCnt : attributesStorageContainers) {
 			for (AttributeValue attributeValue : attributeCnt.getAttributes()) {
-				attributeValues.put(attributeValue.getKey(), attributeValue);
+				attributeValues.put(attributeValue.key(), attributeValue);
 			}
 		}
 		// then add all previously loaded attributes - but only when they were not freshly loaded
 		for (AttributeValue attributeValue : entity.getAttributeValues()) {
-			attributeValues.putIfAbsent(attributeValue.getKey(), attributeValue);
+			attributeValues.putIfAbsent(attributeValue.key(), attributeValue);
 		}
 
 		// first use all associated from freshly loaded containers
@@ -157,18 +159,18 @@ public class EntityFactory {
 		);
 		for (AssociatedDataStoragePart associatedDataCnt : associatedDataStorageContainers) {
 			final AssociatedDataValue associatedDataValue = associatedDataCnt.getValue();
-			associatedDataValues.put(associatedDataValue.getKey(), associatedDataValue);
+			associatedDataValues.put(associatedDataValue.key(), associatedDataValue);
 		}
 		// then add all previously loaded associated data - but only when they were not freshly loaded
 		for (AssociatedDataValue associatedDataValue : entity.getAssociatedDataValues()) {
-			associatedDataValues.putIfAbsent(associatedDataValue.getKey(), associatedDataValue);
+			associatedDataValues.putIfAbsent(associatedDataValue.key(), associatedDataValue);
 		}
 
 		return Entity._internalBuild(
 			entity,
 			ofNullable(entityStoragePart)
 				.map(EntityBodyStoragePart::getVersion)
-				.orElse(entity.getVersion()),
+				.orElse(entity.version()),
 			Objects.requireNonNull(entity.getPrimaryKey()),
 			entitySchema,
 			ofNullable(entityStoragePart)
@@ -184,7 +186,12 @@ public class EntityFactory {
 				// use original attributes from the entity contents
 				null :
 				// otherwise combine
-				new Attributes(entitySchema, attributeValues.values()),
+				new Attributes(
+					entitySchema,
+					null,
+					attributeValues.values(),
+					entitySchema.getAttributes()
+				),
 			// when no additional associated data containers were loaded
 			associatedDataStorageContainers.isEmpty() ?
 				// use original associated data from the entity contents

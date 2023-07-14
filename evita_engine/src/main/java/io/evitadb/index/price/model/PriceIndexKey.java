@@ -46,7 +46,7 @@ public class PriceIndexKey extends AbstractPriceKey implements Comparable<PriceI
 	@Getter private final PriceInnerRecordHandling recordHandling;
 
 	public PriceIndexKey(@Nonnull PriceKey priceKey, @Nonnull PriceInnerRecordHandling recordHandling) {
-		super(priceKey.getPriceList(), priceKey.getCurrency(), Objects.hash(priceKey.getPriceList(), priceKey.getCurrency(), recordHandling));
+		super(priceKey.priceList(), priceKey.currency(), Objects.hash(priceKey.priceList(), priceKey.currency(), recordHandling));
 		this.recordHandling = recordHandling;
 	}
 

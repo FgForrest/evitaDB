@@ -25,25 +25,24 @@ package io.evitadb.api.requestResponse;
 
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.EntityContract;
-import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.dataType.DataChunk;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 
 /**
- * This class passes simple references to the found entities - i.e. full {@link EntityContract}. There wouldn't be probably
- * necessary any additional extension for this class, but if so, implementors may add new properties to this class here.
+ * This class passes simple references to the found entities - i.e. full {@link EntityContract}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public final class EvitaEntityResponse extends EvitaResponse<SealedEntity> {
+public final class EvitaEntityResponse<T extends Serializable> extends EvitaResponse<T> {
 
-	public EvitaEntityResponse(@Nonnull Query sourceQuery, @Nonnull DataChunk<SealedEntity> recordPage) {
+	public EvitaEntityResponse(@Nonnull Query sourceQuery, @Nonnull DataChunk<T> recordPage) {
 		super(sourceQuery, recordPage);
 	}
 
 	public EvitaEntityResponse(@Nonnull Query sourceQuery,
-	                           @Nonnull DataChunk<SealedEntity> recordPage,
+	                           @Nonnull DataChunk<T> recordPage,
 	                           @Nonnull EvitaResponseExtraResult... extraResults) {
 		super(sourceQuery, recordPage, extraResults);
 	}

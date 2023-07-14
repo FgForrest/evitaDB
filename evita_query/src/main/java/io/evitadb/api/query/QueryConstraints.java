@@ -4412,11 +4412,39 @@ public interface QueryConstraints {
 		return new ReferenceContent();
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes() {
 		return new ReferenceContent((AttributeContent) null);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable AttributeContent attributeContent) {
 		return new ReferenceContent(attributeContent);
@@ -4467,6 +4495,20 @@ public interface QueryConstraints {
 		);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType) {
 		return new ReferenceContent(referencedEntityType, null, null, null, null, null);
@@ -4544,6 +4586,20 @@ public interface QueryConstraints {
 		);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent(
@@ -4599,6 +4655,20 @@ public interface QueryConstraints {
 		return new ReferenceContent(referencedEntityType, null, null, null, groupEntityRequirement);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(
@@ -4607,6 +4677,20 @@ public interface QueryConstraints {
 		);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(
@@ -4637,6 +4721,20 @@ public interface QueryConstraints {
 		return new ReferenceContent(referencedEntityType, null, null, entityRequirement, groupEntityRequirement);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referencedEntityType, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement
@@ -4647,6 +4745,20 @@ public interface QueryConstraints {
 		);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(
 		@Nonnull String referencedEntityType, @Nullable AttributeContent attributeContent,
@@ -4759,6 +4871,20 @@ public interface QueryConstraints {
 		return new ReferenceContent(referenceName, filterBy, null, null, null);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
 		return new ReferenceContent(referenceName, filterBy, null, null, null, null);
@@ -4802,6 +4928,20 @@ public interface QueryConstraints {
 		return new ReferenceContent(referenceName, filterBy, null, entityRequirement, null);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent(
@@ -4851,6 +4991,20 @@ public interface QueryConstraints {
 		return new ReferenceContent(referenceName, filterBy, null, null, groupEntityRequirement);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(
@@ -4900,6 +5054,20 @@ public interface QueryConstraints {
 		return new ReferenceContent(referenceName, filterBy, null, entityRequirement, groupEntityRequirement);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(
@@ -4949,6 +5117,20 @@ public interface QueryConstraints {
 		return new ReferenceContent(referenceName, null, orderBy, null, null);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy) {
 		return new ReferenceContent(
@@ -4998,6 +5180,20 @@ public interface QueryConstraints {
 		return new ReferenceContent(referenceName, null, orderBy, entityRequirement, null);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent(
@@ -5047,6 +5243,20 @@ public interface QueryConstraints {
 		return new ReferenceContent(referenceName, null, orderBy, null, groupEntityRequirement);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(
@@ -5096,6 +5306,20 @@ public interface QueryConstraints {
 		return new ReferenceContent(referenceName, null, orderBy, entityRequirement, groupEntityRequirement);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(
@@ -5145,6 +5369,20 @@ public interface QueryConstraints {
 		return new ReferenceContent(referenceName, filterBy, orderBy, null, null);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy) {
 		return new ReferenceContent(
@@ -5194,6 +5432,20 @@ public interface QueryConstraints {
 		return new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, null);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent(
@@ -5243,6 +5495,20 @@ public interface QueryConstraints {
 		return new ReferenceContent(referenceName, filterBy, orderBy, null, groupEntityRequirement);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(
@@ -5292,6 +5558,20 @@ public interface QueryConstraints {
 		return new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, groupEntityRequirement);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(
@@ -5341,11 +5621,39 @@ public interface QueryConstraints {
 		return new ReferenceContent(entityRequirement, null);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent((AttributeContent) null, entityRequirement, null);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent(attributeContent, entityRequirement, null);
@@ -5370,11 +5678,39 @@ public interface QueryConstraints {
 		return new ReferenceContent(null, groupEntityRequirement);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent((AttributeContent) null, null, groupEntityRequirement);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(attributeContent, null, groupEntityRequirement);
@@ -5399,11 +5735,39 @@ public interface QueryConstraints {
 		return new ReferenceContent(entityRequirement, groupEntityRequirement);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent((AttributeContent) null, entityRequirement, groupEntityRequirement);
 	}
 
+	/**
+	 * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
+	 * When this requirement is used result contains [entity bodies](entity_model.md) along with references with to entities
+	 * or external objects specified in one or more arguments of this requirement.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * references()
+	 * references(CATEGORY)
+	 * references(CATEGORY, 'stocks', entityBody())
+	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
+	 * ```
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(attributeContent, entityRequirement, groupEntityRequirement);
@@ -5966,7 +6330,21 @@ public interface QueryConstraints {
 	@Nonnull
 	static EntityFetch entityFetchAll() {
 		return entityFetch(
-			attributeContentAll(), hierarchyContent(), associatedDataContentAll(), priceContentAll(), referenceContentAllWithAttributes(), dataInLocales()
+			attributeContentAll(), hierarchyContent(),
+			associatedDataContentAll(), priceContentAll(),
+			referenceContentAllWithAttributes(), dataInLocales()
+		);
+	}
+
+	/**
+	 * TOBEDONE JNO docs
+	*/
+	@Nonnull
+	static EntityGroupFetch entityGroupFetchAll() {
+		return entityGroupFetch(
+			attributeContentAll(), hierarchyContent(),
+			associatedDataContentAll(), priceContentAll(),
+			referenceContentAllWithAttributes(), dataInLocales()
 		);
 	}
 

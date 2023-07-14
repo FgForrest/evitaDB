@@ -25,9 +25,9 @@ package io.evitadb.dataType.data;
 
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.MemoryMeasuringConstants;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import java.io.Serial;
 import java.io.Serializable;
@@ -39,13 +39,10 @@ import java.util.Objects;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Immutable
-public final class DataItemValue implements DataItem {
+public record DataItemValue(
+	@Nullable Serializable value
+) implements DataItem {
 	@Serial private static final long serialVersionUID = -4959145032931390293L;
-	@Getter private final Serializable value;
-
-	public DataItemValue(@Nonnull Serializable value) {
-		this.value = value;
-	}
 
 	@Override
 	public int estimateSize() {

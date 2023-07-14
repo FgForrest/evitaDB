@@ -49,7 +49,6 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.Getter;
@@ -68,7 +67,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Optional.empty;
-import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -550,13 +548,13 @@ public class EntityDecorator implements SealedEntity {
 	}
 
 	@Override
-	public boolean isDropped() {
-		return delegate.isDropped();
+	public boolean dropped() {
+		return delegate.dropped();
 	}
 
 	@Override
-	public int getVersion() {
-		return delegate.getVersion();
+	public int version() {
+		return delegate.version();
 	}
 
 	@Nullable
@@ -564,7 +562,7 @@ public class EntityDecorator implements SealedEntity {
 	public <T extends Serializable> T getAttribute(@Nonnull String attributeName) {
 		//noinspection unchecked
 		return getAttributeValue(attributeName)
-			.map(it -> (T) it.getValue())
+			.map(it -> (T) it.value())
 			.orElse(null);
 	}
 
@@ -573,35 +571,22 @@ public class EntityDecorator implements SealedEntity {
 	public <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName) {
 		//noinspection unchecked
 		return getAttributeValue(attributeName)
-			.map(it -> (T[]) it.getValue())
+			.map(it -> (T[]) it.value())
 			.orElse(null);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName) {
+		final Optional<AttributeValue> result;
 		if (attributePredicate.isLocaleSet()) {
-			Optional<AttributeValue> result = delegate.getAttributeValue(attributeName);
-			if (result.isEmpty()) {
-				Locale resultLocale = null;
-				for (AttributeValue resultAdept : delegate.getAttributeValues(attributeName)) {
-					if (attributePredicate.test(resultAdept)) {
-						if (result.isEmpty()) {
-							result = of(resultAdept);
-							resultLocale = resultAdept.getKey().getLocale();
-						} else {
-							throw new EvitaInvalidUsageException(
-								"Attribute `" + attributeName + "` has multiple values for different locales: `" +
-									resultLocale + "` and `" + resultAdept.getKey().getLocale() + "`!"
-							);
-						}
-					}
-				}
-			}
-			return result.filter(attributePredicate);
+			final Locale locale = attributePredicate.getLocale();
+			result = locale == null ?
+				delegate.getAttributeValue(attributeName) : delegate.getAttributeValue(attributeName, locale);
 		} else {
-			return delegate.getAttributeValue(attributeName);
+			result = delegate.getAttributeValue(attributeName);
 		}
+		return result.filter(attributePredicate);
 	}
 
 	@Nullable
@@ -610,7 +595,7 @@ public class EntityDecorator implements SealedEntity {
 		//noinspection unchecked
 		return delegate.getAttributeValue(attributeName, locale)
 			.filter(attributePredicate)
-			.map(it -> (T) it.getValue())
+			.map(it -> (T) it.value())
 			.orElse(null);
 	}
 
@@ -620,7 +605,7 @@ public class EntityDecorator implements SealedEntity {
 		//noinspection unchecked
 		return delegate.getAttributeValue(attributeName, locale)
 			.filter(attributePredicate)
-			.map(it -> (T[]) it.getValue())
+			.map(it -> (T[]) it.value())
 			.orElse(null);
 	}
 
@@ -642,7 +627,7 @@ public class EntityDecorator implements SealedEntity {
 	public Set<String> getAttributeNames() {
 		return getAttributeValues()
 			.stream()
-			.map(it -> it.getKey().getAttributeName())
+			.map(it -> it.key().attributeName())
 			.collect(Collectors.toSet());
 	}
 
@@ -651,7 +636,7 @@ public class EntityDecorator implements SealedEntity {
 	public Set<AttributeKey> getAttributeKeys() {
 		return getAttributeValues()
 			.stream()
-			.map(AttributeValue::getKey)
+			.map(AttributeValue::key)
 			.collect(Collectors.toSet());
 	}
 
@@ -679,7 +664,7 @@ public class EntityDecorator implements SealedEntity {
 	public Collection<AttributeValue> getAttributeValues(@Nonnull String attributeName) {
 		return getAttributeValues()
 			.stream()
-			.filter(it -> attributeName.equals(it.getKey().getAttributeName()))
+			.filter(it -> attributeName.equals(it.key().attributeName()))
 			.collect(Collectors.toList());
 	}
 
@@ -694,7 +679,7 @@ public class EntityDecorator implements SealedEntity {
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName) {
 		//noinspection unchecked
 		return getAssociatedDataValue(associatedDataName)
-			.map(it -> (T) it.getValue())
+			.map(it -> (T) it.value())
 			.orElse(null);
 	}
 
@@ -702,7 +687,7 @@ public class EntityDecorator implements SealedEntity {
 	@Override
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Class<T> dtoType, @Nonnull ReflectionLookup reflectionLookup) {
 		return getAssociatedDataValue(associatedDataName)
-			.map(it -> ComplexDataObjectConverter.getOriginalForm(it.getValue(), dtoType, reflectionLookup))
+			.map(it -> ComplexDataObjectConverter.getOriginalForm(it.value(), dtoType, reflectionLookup))
 			.orElse(null);
 	}
 
@@ -711,36 +696,21 @@ public class EntityDecorator implements SealedEntity {
 	public <T extends Serializable> T[] getAssociatedDataArray(@Nonnull String associatedDataName) {
 		//noinspection unchecked
 		return getAssociatedDataValue(associatedDataName)
-			.map(it -> (T[]) it.getValue())
+			.map(it -> (T[]) it.value())
 			.orElse(null);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<AssociatedDataValue> getAssociatedDataValue(@Nonnull String associatedDataName) {
-		final Set<Locale> requestedLocales = associatedDataPredicate.getLocales();
-		if (requestedLocales == null) {
+		if (associatedDataPredicate.isLocaleSet()) {
+			final Locale locale = associatedDataPredicate.getLocale();
+			final Optional<AssociatedDataValue> result = locale == null ?
+				delegate.getAssociatedDataValue(associatedDataName) : delegate.getAssociatedDataValue(associatedDataName, locale);
+			return result.filter(associatedDataPredicate);
+		} else {
 			return delegate.getAssociatedDataValue(associatedDataName)
 				.filter(associatedDataPredicate);
-		} else {
-			Optional<AssociatedDataValue> result = delegate.getAssociatedDataValue(associatedDataName);
-			if (result.isEmpty()) {
-				Locale resultLocale = null;
-				final Set<Locale> examinedLocales = requestedLocales.isEmpty() ? delegate.getAssociatedDataLocales() : requestedLocales;
-				for (Locale requestedLocale : examinedLocales) {
-					final Optional<AssociatedDataValue> resultAdept = delegate.getAssociatedDataValue(associatedDataName, requestedLocale);
-					if (result.isEmpty()) {
-						result = resultAdept;
-						resultLocale = requestedLocale;
-					} else {
-						throw new EvitaInvalidUsageException(
-							"Associated data `" + associatedDataName + "` has multiple values for different locales: `" +
-								resultLocale + "` and `" + requestedLocale + "`!"
-						);
-					}
-				}
-			}
-			return result.filter(associatedDataPredicate);
 		}
 	}
 
@@ -750,7 +720,7 @@ public class EntityDecorator implements SealedEntity {
 		//noinspection unchecked
 		return delegate.getAssociatedDataValue(associatedDataName, locale)
 			.filter(associatedDataPredicate)
-			.map(it -> (T) it.getValue())
+			.map(it -> (T) it.value())
 			.orElse(null);
 	}
 
@@ -759,7 +729,7 @@ public class EntityDecorator implements SealedEntity {
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale, @Nonnull Class<T> dtoType, @Nonnull ReflectionLookup reflectionLookup) {
 		return delegate.getAssociatedDataValue(associatedDataName, locale)
 			.filter(associatedDataPredicate)
-			.map(AssociatedDataValue::getValue)
+			.map(AssociatedDataValue::value)
 			.map(it -> ComplexDataObjectConverter.getOriginalForm(it, dtoType, reflectionLookup))
 			.orElse(null);
 	}
@@ -770,7 +740,7 @@ public class EntityDecorator implements SealedEntity {
 		//noinspection unchecked
 		return delegate.getAssociatedDataValue(associatedDataName, locale)
 			.filter(associatedDataPredicate)
-			.map(it -> (T[]) it.getValue())
+			.map(it -> (T[]) it.value())
 			.orElse(null);
 	}
 
@@ -792,7 +762,7 @@ public class EntityDecorator implements SealedEntity {
 	public Set<String> getAssociatedDataNames() {
 		return getAssociatedDataValues()
 			.stream()
-			.map(it -> it.getKey().getAssociatedDataName())
+			.map(it -> it.key().associatedDataName())
 			.collect(Collectors.toSet());
 	}
 
@@ -801,7 +771,7 @@ public class EntityDecorator implements SealedEntity {
 	public Set<AssociatedDataKey> getAssociatedDataKeys() {
 		return getAssociatedDataValues()
 			.stream()
-			.map(AssociatedDataValue::getKey)
+			.map(AssociatedDataValue::key)
 			.collect(Collectors.toSet());
 	}
 
@@ -822,7 +792,7 @@ public class EntityDecorator implements SealedEntity {
 	public Collection<AssociatedDataValue> getAssociatedDataValues(@Nonnull String associatedDataName) {
 		return getAssociatedDataValues()
 			.stream()
-			.filter(it -> associatedDataName.equals(it.getKey().getAssociatedDataName()))
+			.filter(it -> associatedDataName.equals(it.key().associatedDataName()))
 			.collect(Collectors.toList());
 	}
 
@@ -855,6 +825,11 @@ public class EntityDecorator implements SealedEntity {
 			);
 		}
 		return SealedEntity.super.getPriceForSale(currency, atTheMoment, priceListPriority);
+	}
+
+	@Override
+	public boolean isContextAvailable() {
+		return pricePredicate.isContextAvailable();
 	}
 
 	@Nonnull
@@ -928,8 +903,8 @@ public class EntityDecorator implements SealedEntity {
 	}
 
 	@Override
-	public int getPricesVersion() {
-		return delegate.getPricesVersion();
+	public int pricesVersion() {
+		return delegate.pricesVersion();
 	}
 
 	@Nonnull
@@ -964,10 +939,6 @@ public class EntityDecorator implements SealedEntity {
 	@Override
 	public EntityBuilder withMutations(@Nonnull Collection<LocalMutation<?, ?>> localMutations) {
 		return new ExistingEntityBuilder(this, localMutations);
-	}
-
-	public boolean isContextAvailable() {
-		return pricePredicate.getCurrency() != null && !ArrayUtils.isEmpty(pricePredicate.getPriceLists());
 	}
 
 	@Override

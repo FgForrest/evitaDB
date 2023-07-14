@@ -154,8 +154,8 @@ public class EntityDocumentationJsonSerializer extends JsonSerializer<EntityCont
 				gen.writeFieldName("attributes");
 				gen.writeStartObject();
 				for (AttributeValue attributeValue : value.getAttributeValues()) {
-					final Serializable theValue = attributeValue.getValue();
-					final String fieldName = attributeValue.getKey().toString();
+					final Serializable theValue = attributeValue.value();
+					final String fieldName = attributeValue.key().toString();
 					gen.writeFieldName(fieldName);
 					if (theValue instanceof Number number) {
 						writeNumber(gen, number);
@@ -190,8 +190,8 @@ public class EntityDocumentationJsonSerializer extends JsonSerializer<EntityCont
 				gen.writeFieldName("associatedData");
 				gen.writeStartObject();
 				for (AssociatedDataValue associatedDataValue : value.getAssociatedDataValues()) {
-					final Serializable theValue = associatedDataValue.getValue();
-					final String fieldName = associatedDataValue.getKey().toString();
+					final Serializable theValue = associatedDataValue.value();
+					final String fieldName = associatedDataValue.key().toString();
 					if (theValue instanceof Number number) {
 						writeNumber(gen, number);
 					} else if (theValue instanceof String string) {
@@ -293,14 +293,14 @@ public class EntityDocumentationJsonSerializer extends JsonSerializer<EntityCont
 	private static void writePrice(@Nonnull JsonGenerator gen, @Nonnull PriceContract value) {
 		wrap(() -> {
 			gen.writeStartObject();
-			gen.writeStringField("currency", value.getCurrency().toString());
-			gen.writeStringField("priceList", value.getPriceList());
-			gen.writeNumberField("priceWithoutTax", value.getPriceWithoutTax());
-			gen.writeNumberField("priceWithTax", value.getPriceWithTax());
-			ofNullable(value.getValidity())
+			gen.writeStringField("currency", value.currency().toString());
+			gen.writeStringField("priceList", value.priceList());
+			gen.writeNumberField("priceWithoutTax", value.priceWithoutTax());
+			gen.writeNumberField("priceWithTax", value.priceWithTax());
+			ofNullable(value.validity())
 				.ifPresent(it -> {
 					wrap(() -> gen.writeFieldName("validity"));
-					writeDateTimeRange(gen, value.getValidity());
+					writeDateTimeRange(gen, value.validity());
 				});
 			gen.writeEndObject();
 		});

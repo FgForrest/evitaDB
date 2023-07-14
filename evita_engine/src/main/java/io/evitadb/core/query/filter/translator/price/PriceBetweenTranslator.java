@@ -146,11 +146,11 @@ public class PriceBetweenTranslator extends AbstractPriceRelatedConstraintTransl
 	public static Predicate<PriceContract> createPredicate(int from, int to, QueryPriceMode queryPriceMode, int indexedPricePlaces) {
 		return queryPriceMode == QueryPriceMode.WITH_TAX ?
 			priceContract -> {
-				final int priceWithTax = NumberUtils.convertToInt(priceContract.getPriceWithTax(), indexedPricePlaces);
+				final int priceWithTax = NumberUtils.convertToInt(priceContract.priceWithTax(), indexedPricePlaces);
 				return from <= priceWithTax && to >= priceWithTax;
 			} :
 			priceContract -> {
-				final int priceWithoutTax = NumberUtils.convertToInt(priceContract.getPriceWithoutTax(), indexedPricePlaces);
+				final int priceWithoutTax = NumberUtils.convertToInt(priceContract.priceWithoutTax(), indexedPricePlaces);
 				return from <= priceWithoutTax && to >= priceWithoutTax;
 			};
 	}

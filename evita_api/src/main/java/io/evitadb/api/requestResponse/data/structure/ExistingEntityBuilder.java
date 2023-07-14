@@ -133,7 +133,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	public ExistingEntityBuilder(@Nonnull EntityDecorator baseEntity, @Nonnull Collection<LocalMutation<?, ?>> localMutations) {
 		this.baseEntity = baseEntity.getDelegate();
-		this.attributesBuilder = new ExistingAttributesBuilder(this.baseEntity.schema, this.baseEntity.attributes, baseEntity.getAttributePredicate());
+		this.attributesBuilder = new ExistingAttributesBuilder(this.baseEntity.schema, null, this.baseEntity.attributes, baseEntity.getAttributePredicate());
 		this.associatedDataBuilder = new ExistingAssociatedDataBuilder(this.baseEntity.schema, this.baseEntity.associatedData, baseEntity.getAssociatedDataPredicate());
 		this.pricesBuilder = new ExistingPricesBuilder(this.baseEntity.schema, this.baseEntity.prices, baseEntity.getPricePredicate());
 		this.referenceMutations = new HashMap<>();
@@ -153,7 +153,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	public ExistingEntityBuilder(@Nonnull Entity baseEntity, @Nonnull Collection<LocalMutation<?, ?>> localMutations) {
 		this.baseEntity = baseEntity;
-		this.attributesBuilder = new ExistingAttributesBuilder(this.baseEntity.schema, this.baseEntity.attributes, ExistsPredicate.instance());
+		this.attributesBuilder = new ExistingAttributesBuilder(this.baseEntity.schema, null, this.baseEntity.attributes, ExistsPredicate.instance());
 		this.associatedDataBuilder = new ExistingAssociatedDataBuilder(this.baseEntity.schema, this.baseEntity.associatedData, ExistsPredicate.instance());
 		this.pricesBuilder = new ExistingPricesBuilder(this.baseEntity.schema, this.baseEntity.prices, new PriceContractSerializablePredicate());
 		this.referenceMutations = new HashMap<>();
@@ -193,13 +193,13 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	}
 
 	@Override
-	public boolean isDropped() {
+	public boolean dropped() {
 		return false;
 	}
 
 	@Override
-	public int getVersion() {
-		return baseEntity.getVersion() + 1;
+	public int version() {
+		return baseEntity.version() + 1;
 	}
 
 	@Override
@@ -532,7 +532,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 									.map(it ->
 										new ReferenceAttributeMutation(
 											referenceKey,
-											new RemoveAttributeMutation(it.getKey())
+											new RemoveAttributeMutation(it.key())
 										)
 									)
 							),
@@ -664,7 +664,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 						final ReferenceContract existingReference = builtReferences.get(it.getReferenceKey());
 						final ReferenceContract newReference = it.mutateLocal(getSchema(), existingReference);
 						builtReferences.put(it.getReferenceKey(), newReference);
-						return existingReference == null || newReference.getVersion() > existingReference.getVersion();
+						return existingReference == null || newReference.version() > existingReference.version();
 					})
 			)
 			.flatMap(it -> it)

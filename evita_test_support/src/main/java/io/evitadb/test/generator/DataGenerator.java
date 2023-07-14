@@ -53,6 +53,7 @@ import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.ReflectionLookup.ArgumentKey;
 import io.evitadb.utils.StringUtils;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import one.edee.oss.pmptt.PMPTT;
 import one.edee.oss.pmptt.dao.memory.MemoryStorage;
@@ -340,7 +341,7 @@ public class DataGenerator {
 		Iterator<Currency> currencyToUse = null;
 		final Integer priceCount = genericFaker.random().nextInt(1, allPriceLists.size());
 		final LinkedHashSet<String> priceListsToUse = new LinkedHashSet<>(allPriceLists);
-		detachedBuilder.getPrices().stream().map(it -> it.getPriceList()).forEach(it -> priceListsToUse.remove(it));
+		detachedBuilder.getPrices().stream().map(it -> it.priceList()).forEach(it -> priceListsToUse.remove(it));
 
 		for (int i = 0; i < priceCount; i++) {
 			if (currencyToUse == null || !currencyToUse.hasNext()) {
@@ -604,8 +605,8 @@ public class DataGenerator {
 		final String suffix = attribute.isUnique() ? " " + uniqueSequencer.merge(new AttributeKey(attributeName), 1, Integer::sum) : "";
 		final Optional<String> assignedName = attributesBuilder.getAttributeValues()
 			.stream()
-			.filter(it -> ATTRIBUTE_NAME.equals(it.getKey().getAttributeName()))
-			.map(AttributeValue::getValue)
+			.filter(it -> ATTRIBUTE_NAME.equals(it.key().attributeName()))
+			.map(AttributeValue::value)
 			.map(Objects::toString)
 			.findFirst();
 		if (Objects.equals(attributeName, ATTRIBUTE_CODE)) {
@@ -1235,11 +1236,15 @@ public class DataGenerator {
 		}
 	}
 
+	@NoArgsConstructor
 	@Data
 	public static class ReferencedFileSet implements Serializable {
 		@Serial private static final long serialVersionUID = -1355676966187183143L;
 		private String someField = "someValue";
 
+		public ReferencedFileSet(String someField) {
+			this.someField = someField;
+		}
 	}
 
 	@Data
@@ -1372,7 +1377,7 @@ public class DataGenerator {
 			final Set<AttributesContract.AttributeKey> existingAttributeKeys = new TreeSet<>(detachedBuilder.getAttributeKeys());
 			for (AttributesContract.AttributeKey existingAttributeKey : existingAttributeKeys) {
 				if (genericFaker.random().nextInt(4) == 0) {
-					detachedBuilder.removeAttribute(existingAttributeKey.getAttributeName(), existingAttributeKey.getLocale());
+					detachedBuilder.removeAttribute(existingAttributeKey.attributeName(), existingAttributeKey.locale());
 				}
 			}
 			generateRandomAttributes(
@@ -1384,16 +1389,16 @@ public class DataGenerator {
 			final Set<AssociatedDataContract.AssociatedDataKey> existingAssociatedDataKeys = new TreeSet<>(detachedBuilder.getAssociatedDataKeys());
 			for (AssociatedDataContract.AssociatedDataKey existingAssociatedDataKey : existingAssociatedDataKeys) {
 				if (genericFaker.random().nextInt(4) == 0) {
-					detachedBuilder.removeAssociatedData(existingAssociatedDataKey.getAssociatedDataName(), existingAssociatedDataKey.getLocale());
+					detachedBuilder.removeAssociatedData(existingAssociatedDataKey.associatedDataName(), existingAssociatedDataKey.locale());
 				}
 			}
 			generateRandomAssociatedData(schema, genericFaker, detachedBuilder, usedLocales, allLocales);
 
 			// randomly delete prices
-			final List<Price.PriceKey> prices = detachedBuilder.getPrices().stream().map(PriceContract::getPriceKey).sorted().collect(Collectors.toList());
+			final List<Price.PriceKey> prices = detachedBuilder.getPrices().stream().map(PriceContract::priceKey).sorted().collect(Collectors.toList());
 			for (Price.PriceKey price : prices) {
 				if (genericFaker.random().nextInt(4) == 0) {
-					detachedBuilder.removePrice(price.getPriceId(), price.getPriceList(), price.getCurrency());
+					detachedBuilder.removePrice(price.priceId(), price.priceList(), price.currency());
 				}
 			}
 			generateRandomPrices(schema, uniqueSequencer, genericFaker, allCurrencies, allPriceLists, detachedBuilder, priceInnerRecordHandlingGenerator);

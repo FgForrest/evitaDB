@@ -60,11 +60,11 @@ class RemoveReferenceMutationTest extends AbstractMutationTest {
 			)
 		);
 		assertNotNull(reference);
-		assertEquals(2, reference.getVersion());
+		assertEquals(2, reference.version());
 		assertEquals("brand", reference.getReferenceName());
 		assertEquals("brand", reference.getReferencedEntityType());
 		assertEquals(5, reference.getReferencedPrimaryKey());
-		assertTrue(reference.isDropped());
+		assertTrue(reference.dropped());
 
 		final GroupEntityReference theGroup = reference.getGroup().orElseThrow();
 		assertEquals("europe", theGroup.getType());

@@ -50,7 +50,7 @@ public interface PriceContract extends Versioned, Droppable, Serializable, Compa
 	 * Price is uniquely identified by combination: priceId, priceList, currency.
 	 */
 	@Nonnull
-	PriceKey getPriceKey();
+	PriceKey priceKey();
 
 	/**
 	 * Contains the identification of the price in the external systems. This ID is expected to be used for
@@ -61,25 +61,33 @@ public interface PriceContract extends Versioned, Droppable, Serializable, Compa
 	 * can be the same, but Entity A is updated in a different session/transaction and at a different time than
 	 * Entity B).
 	 */
-	int getPriceId();
+	int priceId();
 
 	/**
 	 * Contains identification of the price list in the external system. Each price must reference a price list. Price list
 	 * identification may refer to another Evita entity or may contain any external price list identification
 	 * (for example id or unique name of the price list in the external system).
 	 *
-	 * Single entity is expected to have single price for the price list unless there is {@link #getValidity()} specified.
+	 * Single entity is expected to have single price for the price list unless there is {@link #validity()} specified.
 	 * In other words there is no sense to have multiple concurrently valid prices for the same entity that have roots
 	 * in the same price list.
 	 */
 	@Nonnull
-	String getPriceList();
+	String priceList();
 
 	/**
 	 * Identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
 	 */
 	@Nonnull
-	Currency getCurrency();
+	Currency currency();
+
+	/**
+	 * Returns three letter form identifying the currency according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
+	 */
+	@Nonnull
+	default String currencyCode() {
+		return currency().getCurrencyCode();
+	}
 
 	/**
 	 * Some special products (such as master products, or product sets) may contain prices of all "subordinate" products
@@ -87,37 +95,37 @@ public interface PriceContract extends Versioned, Droppable, Serializable, Compa
 	 * to distinguish the projected prices of the subordinate product in the one, that represents them.
 	 */
 	@Nullable
-	Integer getInnerRecordId();
+	Integer innerRecordId();
 
 	/**
 	 * Price without tax.
 	 */
 	@Nonnull
-	BigDecimal getPriceWithoutTax();
+	BigDecimal priceWithoutTax();
 
 	/**
 	 * Tax percentage (i.e. for 19% it'll be 19.00)
 	 */
 	@Nonnull
-	BigDecimal getTaxRate();
+	BigDecimal taxRate();
 
 	/**
 	 * Price with tax.
 	 */
 	@Nonnull
-	BigDecimal getPriceWithTax();
+	BigDecimal priceWithTax();
 
 	/**
 	 * Date and time interval for which the price is valid (inclusive).
 	 */
 	@Nullable
-	DateTimeRange getValidity();
+	DateTimeRange validity();
 
 	/**
 	 * Returns true if price is valid at the passed date and time.
 	 */
-	default boolean isValid(@Nonnull OffsetDateTime atTheMoment) {
-		return Optional.ofNullable(getValidity()).map(it -> it.isValidFor(atTheMoment)).orElse(true);
+	default boolean validAt(@Nonnull OffsetDateTime theMoment) {
+		return Optional.ofNullable(validity()).map(it -> it.isValidFor(theMoment)).orElse(true);
 	}
 
 	/**
@@ -126,7 +134,7 @@ public interface PriceContract extends Versioned, Droppable, Serializable, Compa
 	 * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
 	 * as "usual price") but are not used as the "selling" price.
 	 */
-	boolean isSellable();
+	boolean sellable();
 
 	/**
 	 * Method returns gross estimation of the in-memory size of this instance. The estimation is expected not to be
@@ -139,7 +147,7 @@ public interface PriceContract extends Versioned, Droppable, Serializable, Compa
 	 */
 	@Override
 	default int compareTo(PriceContract o) {
-		return getPriceKey().compareTo(o.getPriceKey());
+		return priceKey().compareTo(o.priceKey());
 	}
 
 	/**
@@ -148,13 +156,13 @@ public interface PriceContract extends Versioned, Droppable, Serializable, Compa
 	@Override
 	default boolean differsFrom(@Nullable PriceContract otherPrice) {
 		if (otherPrice == null) return true;
-		if (!Objects.equals(getInnerRecordId(), otherPrice.getInnerRecordId())) return true;
-		if (!Objects.equals(getPriceWithoutTax(), otherPrice.getPriceWithoutTax())) return true;
-		if (!Objects.equals(getPriceWithTax(), otherPrice.getPriceWithTax())) return true;
-		if (!Objects.equals(getTaxRate(), otherPrice.getTaxRate())) return true;
-		if (!Objects.equals(getValidity(), otherPrice.getValidity())) return true;
-		if (isSellable() != otherPrice.isSellable()) return true;
-		return isDropped() != otherPrice.isDropped();
+		if (!Objects.equals(innerRecordId(), otherPrice.innerRecordId())) return true;
+		if (!Objects.equals(priceWithoutTax(), otherPrice.priceWithoutTax())) return true;
+		if (!Objects.equals(priceWithTax(), otherPrice.priceWithTax())) return true;
+		if (!Objects.equals(taxRate(), otherPrice.taxRate())) return true;
+		if (!Objects.equals(validity(), otherPrice.validity())) return true;
+		if (sellable() != otherPrice.sellable()) return true;
+		return dropped() != otherPrice.dropped();
 	}
 
 }

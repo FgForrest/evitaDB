@@ -65,13 +65,13 @@ public class RemoveAttributeMutation extends AttributeMutation {
 		Assert.isTrue(
 			existingValue != null && existingValue.exists(),
 			() -> new InvalidMutationException(
-				"Cannot remove " + attributeKey.getAttributeName() + " attribute - it doesn't exist!"
+				"Cannot remove " + attributeKey.attributeName() + " attribute - it doesn't exist!"
 			)
 		);
 		return new AttributeValue(
-			existingValue.getVersion() + 1,
-			existingValue.getKey(),
-			ofNullable(existingValue.getValue()).orElseThrow(),
+			existingValue.version() + 1,
+			existingValue.key(),
+			ofNullable(existingValue.value()).orElseThrow(),
 			true
 		);
 	}

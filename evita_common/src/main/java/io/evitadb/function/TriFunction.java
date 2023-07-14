@@ -26,6 +26,7 @@ package io.evitadb.function;
 /**
  * This interface mimics Java {@link java.util.function.BiFunction} but has three input arguments.
  *
+ * @apiNote inspired by the JDK interface
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @FunctionalInterface

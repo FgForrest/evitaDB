@@ -54,7 +54,7 @@ import static java.util.Optional.ofNullable;
  * {@link io.evitadb.api.query.filter.PriceBetween}, {@link io.evitadb.api.query.filter.PriceValidIn},
  * {@link PriceNatural}.
  *
- * For each combination of {@link PriceContract#getPriceList()} and {@link PriceContract#getCurrency()} it maintains
+ * For each combination of {@link PriceContract#priceList()} and {@link PriceContract#currency()} it maintains
  * separate filtering index. Pre-sorted indexes are maintained for all prices regardless of their price list
  * relation because there is no guarantee that there will be currency or price list part of the query.
  *

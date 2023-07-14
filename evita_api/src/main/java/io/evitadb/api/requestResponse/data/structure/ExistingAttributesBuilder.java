@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMut
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
@@ -68,6 +69,10 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	 */
 	private final EntitySchemaContract entitySchema;
 	/**
+	 * Definition of the reference schema.
+	 */
+	private final ReferenceSchemaContract referenceSchema;
+	/**
 	 * Initial set of attributes that is going to be modified by this builder.
 	 */
 	private final Attributes baseAttributes;
@@ -90,9 +95,11 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	 */
 	public ExistingAttributesBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull Attributes baseAttributes
 	) {
 		this.entitySchema = entitySchema;
+		this.referenceSchema = referenceSchema;
 		this.attributeMutations = new HashMap<>();
 		this.baseAttributes = baseAttributes;
 		this.suppressVerification = false;
@@ -104,11 +111,14 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	 */
 	public ExistingAttributesBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull Collection<AttributeValue> attributes
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull Collection<AttributeValue> attributes,
+		@Nonnull Map<String, AttributeSchemaContract> attributeTypes
 	) {
 		this.entitySchema = entitySchema;
+		this.referenceSchema = referenceSchema;
 		this.attributeMutations = new HashMap<>();
-		this.baseAttributes = new Attributes(entitySchema, attributes);
+		this.baseAttributes = new Attributes(entitySchema, referenceSchema, attributes, attributeTypes);
 		this.suppressVerification = false;
 		this.attributePredicate = Droppable::exists;
 	}
@@ -118,10 +128,12 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	 */
 	public ExistingAttributesBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull Attributes baseAttributes,
 		@Nonnull SerializablePredicate<AttributeValue> attributePredicate
 	) {
 		this.entitySchema = entitySchema;
+		this.referenceSchema = referenceSchema;
 		this.attributeMutations = new HashMap<>();
 		this.baseAttributes = baseAttributes;
 		this.suppressVerification = false;
@@ -133,12 +145,15 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	 */
 	ExistingAttributesBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull Collection<AttributeValue> attributes,
+		@Nonnull Map<String, AttributeSchemaContract> attributeTypes,
 		boolean suppressVerification
 	) {
 		this.entitySchema = entitySchema;
+		this.referenceSchema = referenceSchema;
 		this.attributeMutations = new HashMap<>();
-		this.baseAttributes = new Attributes(entitySchema, attributes);
+		this.baseAttributes = new Attributes(entitySchema, referenceSchema, attributes, attributeTypes);
 		this.suppressVerification = suppressVerification;
 		this.attributePredicate = Droppable::exists;
 	}
@@ -146,8 +161,14 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	/**
 	 * AttributesBuilder constructor that will be used for building brand new {@link Attributes} container.
 	 */
-	ExistingAttributesBuilder(@Nonnull EntitySchemaContract entitySchema, @Nonnull Attributes baseAttributes, boolean suppressVerification) {
+	ExistingAttributesBuilder(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull Attributes baseAttributes,
+		boolean suppressVerification
+	) {
 		this.entitySchema = entitySchema;
+		this.referenceSchema = referenceSchema;
 		this.attributeMutations = new HashMap<>();
 		this.baseAttributes = baseAttributes;
 		this.suppressVerification = suppressVerification;
@@ -165,7 +186,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 			if (!suppressVerification) {
 				InitialAttributesBuilder.verifyAttributeIsInSchemaAndTypeMatch(
 					baseAttributes.entitySchema,
-					attributeKey.getAttributeName(), attributeValue.getClass(), attributeKey.getLocale()
+					attributeKey.attributeName(), attributeValue.getClass(), attributeKey.locale()
 				);
 			}
 
@@ -196,7 +217,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 			if (attributeMutations.get(attributeKey) == null) {
 				this.attributeMutations.put(attributeKey, applyDeltaAttributeMutation);
 			} else {
-				this.attributeMutations.put(attributeKey, new UpsertAttributeMutation(attributeKey, Objects.requireNonNull(updatedValue.getValue())));
+				this.attributeMutations.put(attributeKey, new UpsertAttributeMutation(attributeKey, Objects.requireNonNull(updatedValue.value())));
 			}
 		} else {
 			throw new EvitaInternalError("Unknown Evita price mutation: `" + localMutation.getClass() + "`!");
@@ -215,12 +236,12 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 					newAttributeValues
 						.stream()
 						// filter out new attributes that has no type yet
-						.filter(it -> !baseAttributes.attributeTypes.containsKey(it.getKey().getAttributeName()))
+						.filter(it -> !baseAttributes.attributeTypes.containsKey(it.key().attributeName()))
 						// create definition for them on the fly
 						.map(this::createImplicitSchema)
 				)
 				.collect(
-					Collectors.toMap(
+					Collectors.toUnmodifiableMap(
 						AttributeSchemaContract::getName,
 						Function.identity(),
 						(attributeSchema, attributeSchema2) -> {
@@ -234,6 +255,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 				);
 			return new Attributes(
 				baseAttributes.entitySchema,
+				baseAttributes.referenceSchema,
 				newAttributeValues,
 				newAttributeTypes
 			);
@@ -350,7 +372,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	public <T extends Serializable> T getAttribute(@Nonnull String attributeName) {
 		//noinspection unchecked
 		return (T) getAttributeValueInternal(new AttributeKey(attributeName))
-			.map(AttributeValue::getValue)
+			.map(AttributeValue::value)
 			.orElse(null);
 	}
 
@@ -363,7 +385,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	public <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName) {
 		//noinspection unchecked
 		return (T[]) getAttributeValueInternal(new AttributeKey(attributeName))
-			.map(AttributeValue::getValue)
+			.map(AttributeValue::value)
 			.orElse(null);
 	}
 
@@ -378,7 +400,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	public <T extends Serializable> T getAttribute(@Nonnull String attributeName, @Nonnull Locale locale) {
 		//noinspection unchecked
 		return (T) getAttributeValueInternal(new AttributeKey(attributeName, locale))
-			.map(AttributeValue::getValue)
+			.map(AttributeValue::value)
 			.orElse(null);
 	}
 
@@ -387,7 +409,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	public <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName, @Nonnull Locale locale) {
 		//noinspection unchecked
 		return (T[]) getAttributeValueInternal(new AttributeKey(attributeName, locale))
-			.map(AttributeValue::getValue)
+			.map(AttributeValue::value)
 			.orElse(null);
 	}
 
@@ -409,7 +431,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 		return getAttributeValues()
 			.stream()
 			.filter(attributePredicate)
-			.map(it -> it.getKey().getAttributeName())
+			.map(it -> it.key().attributeName())
 			.collect(Collectors.toSet());
 	}
 
@@ -418,7 +440,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	public Set<AttributeKey> getAttributeKeys() {
 		return getAttributeValues()
 			.stream()
-			.map(AttributeValue::getKey)
+			.map(AttributeValue::key)
 			.collect(Collectors.toSet());
 	}
 
@@ -443,7 +465,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	public Collection<AttributeValue> getAttributeValues(@Nonnull String attributeName) {
 		return getAttributeValues()
 			.stream()
-			.filter(it -> attributeName.equals(it.getKey().getAttributeName()))
+			.filter(it -> attributeName.equals(it.key().attributeName()))
 			.collect(Collectors.toList());
 	}
 
@@ -452,7 +474,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 		// this is quite expensive, but should not be called frequently
 		return getAttributeValues()
 			.stream()
-			.map(it -> it.getKey().getLocale())
+			.map(it -> it.key().locale())
 			.filter(Objects::nonNull)
 			.collect(Collectors.toSet());
 	}
@@ -476,7 +498,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 				final AttributeValue existingValue = builtAttributes.get(it.getAttributeKey());
 				final AttributeValue newAttribute = it.mutateLocal(entitySchema, existingValue);
 				builtAttributes.put(it.getAttributeKey(), newAttribute);
-				return existingValue == null || newAttribute.getVersion() > existingValue.getVersion();
+				return existingValue == null || newAttribute.version() > existingValue.version();
 			});
 	}
 

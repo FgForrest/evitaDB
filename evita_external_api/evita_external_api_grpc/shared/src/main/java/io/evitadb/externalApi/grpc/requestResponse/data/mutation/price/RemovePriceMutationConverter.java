@@ -46,9 +46,9 @@ public class RemovePriceMutationConverter extends PriceMutationConverter<RemoveP
 	@Override
 	public GrpcRemovePriceMutation convert(@Nonnull RemovePriceMutation mutation) {
 		return GrpcRemovePriceMutation.newBuilder()
-			.setPriceId(mutation.getPriceKey().getPriceId())
-			.setPriceList(mutation.getPriceKey().getPriceList())
-			.setCurrency(EvitaDataTypesConverter.toGrpcCurrency(mutation.getPriceKey().getCurrency()))
+			.setPriceId(mutation.getPriceKey().priceId())
+			.setPriceList(mutation.getPriceKey().priceList())
+			.setCurrency(EvitaDataTypesConverter.toGrpcCurrency(mutation.getPriceKey().currency()))
 			.build();
 	}
 }

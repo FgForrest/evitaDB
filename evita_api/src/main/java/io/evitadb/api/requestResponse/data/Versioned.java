@@ -37,6 +37,6 @@ public interface Versioned {
 	/**
 	 * Returns version of the object.
 	 */
-	int getVersion();
+	int version();
 
 }

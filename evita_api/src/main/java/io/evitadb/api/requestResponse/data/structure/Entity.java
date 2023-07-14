@@ -116,7 +116,7 @@ public class Entity implements SealedEntity {
 	 *
 	 * TOBEDONE JNO verify situations by writing new tests when this version gets incremented - it should correspond with EntityBodyStoragePart
 	 */
-	@Getter final int version;
+	final int version;
 	/**
 	 * Serializable type of entity. Using Enum type is highly recommended for this key.
 	 * Entity type is main sharding key - all data of entities with same type are stored in separated index. Within the
@@ -210,7 +210,7 @@ public class Entity implements SealedEntity {
 	 * does it), but are lying among other entities with tombstone flag. Dropped entities can be overwritten by
 	 * a revived entity continuing with the versioning where it was stopped for the last time.
 	 */
-	@Getter private final boolean dropped;
+	private final boolean dropped;
 
 	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of original Entity from different
@@ -364,7 +364,7 @@ public class Entity implements SealedEntity {
 			!newReferences.isEmpty()
 		) {
 			return new Entity(
-				possibleEntity.map(it -> it.getVersion() + 1).orElse(1),
+				possibleEntity.map(it -> it.version() + 1).orElse(1),
 				entitySchema,
 				possibleEntity.map(Entity::getPrimaryKey).orElse(null),
 				newParent,
@@ -478,7 +478,7 @@ public class Entity implements SealedEntity {
 		if (newPrices.isEmpty()) {
 			priceContainer = ofNullable(newPriceInnerRecordHandling)
 				.map(npirc -> possibleEntity
-					.map(it -> new Prices(it.getVersion() + 1, it.getPrices(), npirc))
+					.map(it -> new Prices(it.version() + 1, it.getPrices(), npirc))
 					.orElseGet(() -> new Prices(npirc))
 				).orElseGet(() -> possibleEntity
 					.map(it -> it.prices)
@@ -487,13 +487,13 @@ public class Entity implements SealedEntity {
 			final List<PriceContract> mergedPrices = Stream.concat(
 				possibleEntity.map(Entity::getPrices).orElseGet(Collections::emptyList)
 					.stream()
-					.filter(it -> !newPrices.containsKey(it.getPriceKey())),
+					.filter(it -> !newPrices.containsKey(it.priceKey())),
 				newPrices.values().stream()
 			).toList();
 
 			priceContainer = ofNullable(newPriceInnerRecordHandling)
 				.map(npirc -> possibleEntity
-					.map(it -> new Prices(it.getVersion() + 1, mergedPrices, npirc))
+					.map(it -> new Prices(it.version() + 1, mergedPrices, npirc))
 					.orElseGet(() -> new Prices(npirc))
 				).orElseGet(() -> possibleEntity
 					.map(it -> new Prices(mergedPrices, it.getPriceInnerRecordHandling()))
@@ -548,7 +548,7 @@ public class Entity implements SealedEntity {
 				Stream.concat(
 					possibleEntity.map(Entity::getAssociatedDataValues).orElseGet(Collections::emptyList)
 						.stream()
-						.filter(it -> !newAssociatedData.containsKey(it.getKey())),
+						.filter(it -> !newAssociatedData.containsKey(it.key())),
 					newAssociatedData.values().stream()
 				).toList()
 			);
@@ -570,16 +570,18 @@ public class Entity implements SealedEntity {
 		if (newAttributes.isEmpty()) {
 			newAttributeContainer = possibleEntity
 				.map(it -> it.attributes)
-				.orElseGet(() -> new Attributes(entitySchema));
+				.orElseGet(() -> new Attributes(entitySchema, null));
 		} else {
 			newAttributeContainer = new Attributes(
 				entitySchema,
+				null,
 				Stream.concat(
 					possibleEntity.map(Entity::getAttributeValues).orElseGet(Collections::emptyList)
 						.stream()
-						.filter(it -> !newAttributes.containsKey(it.getKey())),
+						.filter(it -> !newAttributes.containsKey(it.key())),
 					newAttributes.values().stream()
-				).toList()
+				).toList(),
+				entitySchema.getAttributes()
 			);
 		}
 		return newAttributeContainer;
@@ -625,7 +627,7 @@ public class Entity implements SealedEntity {
 				existingPriceValue,
 				priceMutation.mutateLocal(entitySchema, existingPriceValue)
 			)
-		).ifPresent(it -> newPrices.put(it.getPriceKey(), it));
+		).ifPresent(it -> newPrices.put(it.priceKey(), it));
 	}
 
 	/**
@@ -666,7 +668,7 @@ public class Entity implements SealedEntity {
 				existingAssociatedDataValue,
 				associatedDataMutation.mutateLocal(entitySchema, existingAssociatedDataValue)
 			)
-		).ifPresent(it -> newAssociatedData.put(it.getKey(), it));
+		).ifPresent(it -> newAssociatedData.put(it.key(), it));
 	}
 
 	/**
@@ -687,7 +689,7 @@ public class Entity implements SealedEntity {
 				existingAttributeValue,
 				attributeMutation.mutateLocal(entitySchema, existingAttributeValue)
 			)
-		).ifPresent(it -> newAttributes.put(it.getKey(), it));
+		).ifPresent(it -> newAttributes.put(it.key(), it));
 	}
 
 	/**
@@ -714,7 +716,7 @@ public class Entity implements SealedEntity {
 	 */
 	@Nullable
 	private static <T extends Versioned> T returnIfChanged(@Nullable T originalValue, @Nonnull T mutatedValue) {
-		if (mutatedValue.getVersion() > ofNullable(originalValue).map(Versioned::getVersion).orElse(0)) {
+		if (mutatedValue.version() > ofNullable(originalValue).map(Versioned::version).orElse(0)) {
 			return mutatedValue;
 		} else {
 			return null;
@@ -770,7 +772,7 @@ public class Entity implements SealedEntity {
 		this.primaryKey = primaryKey;
 		this.parent = null;
 		this.references = Collections.emptyMap();
-		this.attributes = new Attributes(this.schema);
+		this.attributes = new Attributes(this.schema, null);
 		this.associatedData = new AssociatedData(this.schema);
 		this.prices = new io.evitadb.api.requestResponse.data.structure.Prices(1, Collections.emptySet(), PriceInnerRecordHandling.NONE);
 		this.locales = Collections.emptySet();
@@ -995,6 +997,11 @@ public class Entity implements SealedEntity {
 		return prices.getPrice(priceId, priceList, currency);
 	}
 
+	@Override
+	public boolean isContextAvailable() {
+		return false;
+	}
+
 	@Nonnull
 	@Override
 	public Optional<PriceContract> getPriceForSale() throws ContextMissingException {
@@ -1031,8 +1038,18 @@ public class Entity implements SealedEntity {
 	}
 
 	@Override
-	public int getPricesVersion() {
-		return prices.getPricesVersion();
+	public int pricesVersion() {
+		return prices.pricesVersion();
+	}
+
+	@Override
+	public boolean dropped() {
+		return dropped;
+	}
+
+	@Override
+	public int version() {
+		return version;
 	}
 
 	@Nullable

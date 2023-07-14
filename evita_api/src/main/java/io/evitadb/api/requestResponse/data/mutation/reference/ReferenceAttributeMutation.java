@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttribute
 import io.evitadb.api.requestResponse.data.structure.Attributes;
 import io.evitadb.api.requestResponse.data.structure.ExistingAttributesBuilder;
 import io.evitadb.api.requestResponse.data.structure.Reference;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
@@ -48,6 +49,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -101,17 +103,25 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 			attributeMutation.verifyOrEvolveSchema(
 				catalogSchema,
 				entitySchemaBuilder,
-				referenceSchema.getAttribute(attributeKey.getAttributeName()).orElse(null),
+				referenceSchema.getAttribute(attributeKey.attributeName()).orElse(null),
 				schemaValidatingMutation.getAttributeValue(),
 				(csb, esb) -> {
-					if (attributeKey.isLocalized()) {
-						esb.withLocale(attributeKey.getLocale());
+					if (attributeKey.localized()) {
+						esb.withLocale(attributeKey.locale());
 					}
-					final Consumer<ReferenceSchemaBuilder> referenceSchemaUpdater = whichIs -> whichIs.withAttribute(
-						attributeKey.getAttributeName(),
-						schemaValidatingMutation.getAttributeValue().getClass(),
-						thatIs -> thatIs.localized(attributeKey::isLocalized).nullable()
-					);
+					final Consumer<ReferenceSchemaBuilder> referenceSchemaUpdater = whichIs -> {
+						final boolean attributeExists = whichIs.getAttribute(attributeKey.attributeName()).isPresent();
+						whichIs.withAttribute(
+							attributeKey.attributeName(),
+							schemaValidatingMutation.getAttributeValue().getClass(),
+							thatIs -> {
+								thatIs.localized(attributeKey::localized);
+								if (!attributeExists) {
+									thatIs.nullable();
+								}
+							}
+						);
+					};
 					if (referenceSchema.isReferencedEntityTypeManaged()) {
 						esb.withReferenceToEntity(
 							referenceKey.referenceName(),
@@ -142,7 +152,11 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 		// this is kind of expensive, let's hope references will not have many attributes on them that frequently change
 		final ExistingAttributesBuilder attributeBuilder = new ExistingAttributesBuilder(
 			entitySchema,
-			existingValue.getAttributeValues()
+			existingValue.getReferenceSchema().orElse(null),
+			existingValue.getAttributeValues(),
+			existingValue.getReferenceSchema()
+				.map(AttributeSchemaProvider::getAttributes)
+				.orElse(Collections.emptyMap())
 		);
 		final Attributes newAttributes = attributeBuilder
 			.mutateAttribute(attributeMutation)
@@ -151,7 +165,7 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 		if (attributeBuilder.differs(newAttributes)) {
 			return new Reference(
 				entitySchema,
-				existingValue.getVersion() + 1,
+				existingValue.version() + 1,
 				existingValue.getReferenceName(), existingValue.getReferencedPrimaryKey(),
 				existingValue.getReferencedEntityType(), existingValue.getReferenceCardinality(),
 				existingValue.getGroup().orElse(null),

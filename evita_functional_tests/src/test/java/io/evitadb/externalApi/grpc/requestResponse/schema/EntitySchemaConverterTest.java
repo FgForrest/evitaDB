@@ -193,7 +193,7 @@ class EntitySchemaConverterTest {
 	}
 
 	private static void assertEntitySchema(@Nonnull EntitySchemaContract expected, @Nonnull EntitySchemaContract actual) {
-		assertEquals(expected.getVersion(), actual.getVersion());
+		assertEquals(expected.version(), actual.version());
 		assertEquals(expected.getName(), actual.getName());
 		assertEquals(expected.getNameVariants(), actual.getNameVariants());
 		assertEquals(expected.getDescription(), actual.getDescription());

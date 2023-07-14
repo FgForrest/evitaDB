@@ -136,7 +136,7 @@ public abstract class EntityIndex implements Index<EntityIndexKey>, PriceIndexCo
 	 * Version of the entity index that gets increased with each atomic change in the index (incremented by one when
 	 * transaction is committed and anything in this index was changed).
 	 */
-	@Getter protected final int version;
+	protected final int version;
 	/**
 	 * Lambda that provides access to the current schema.
 	 * Beware this reference changes with each entity collection exchange during transactional commit.
@@ -411,6 +411,11 @@ public abstract class EntityIndex implements Index<EntityIndexKey>, PriceIndexCo
 		return entityIds.isEmpty() &&
 			attributeIndex.isAttributeIndexEmpty() &&
 			hierarchyIndex.isHierarchyIndexEmpty();
+	}
+
+	@Override
+	public int version() {
+		return version;
 	}
 
 	/**

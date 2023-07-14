@@ -57,6 +57,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.scheduling.RejectingExecutor;
 import io.evitadb.core.scheduling.Scheduler;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.thread.TimeoutableThread;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -65,6 +66,7 @@ import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.StringUtils;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.openhft.hashing.LongHashFunction;
 import org.jboss.threads.EnhancedQueueExecutor;
@@ -74,11 +76,13 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.Map.Entry;
 import java.util.ServiceLoader.Provider;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -155,6 +159,11 @@ public final class Evita implements EvitaContract {
 	@Getter
 	private final EnhancedQueueExecutor executor;
 	/**
+	 * Kills threads that are marked as timeoutable and their time is up.
+	 */
+	@SuppressWarnings({"FieldCanBeLocal", "unused"})
+	private final TimeoutThreadKiller timeoutThreadKiller;
+	/**
 	 * Temporary storage that keeps catalog being removed reference so that onDelete callback can still access it.
 	 */
 	private final ThreadLocal<CatalogContract> removedCatalog = new ThreadLocal<>();
@@ -181,14 +190,18 @@ public final class Evita implements EvitaContract {
 			.setMaximumQueueSize(configuration.server().queueSize())
 			.setRegisterMBean(false)
 			.build();
-		// TODO JNO - temporary debugging
-		handoffExecutor.setAdditionalLogger(
-			() -> "\n" + Arrays.stream(this.executor.getRunningThreads())
-				.map(it -> Arrays.stream(it.getStackTrace()).map(StackTraceElement::toString).collect(Collectors.joining("\n")))
-				.collect(Collectors.joining("\n\n"))
-		);
 		this.executor.prestartAllCoreThreads();
 		this.scheduler = new Scheduler(executor);
+		if (configuration.server().killTimedOutShortRunningThreadsEverySeconds() > 0 &&
+			configuration.server().shortRunningThreadsTimeoutInSeconds() > 0) {
+			this.timeoutThreadKiller = new TimeoutThreadKiller(
+				configuration.server().shortRunningThreadsTimeoutInSeconds(),
+				configuration.server().killTimedOutShortRunningThreadsEverySeconds(),
+				this.executor,
+				this.scheduler);
+		} else {
+			this.timeoutThreadKiller = null;
+		}
 		this.sessionKiller = of(configuration.server().closeSessionsAfterSecondsOfInactivity())
 			.filter(it -> it > 0)
 			.map(it -> new SessionKiller(it, this, this.scheduler))
@@ -214,8 +227,7 @@ public final class Evita implements EvitaContract {
 				CatalogContract catalog;
 				try {
 					final long start = System.nanoTime();
-					catalog = new Catalog(
-						catalogName, directory, cacheSupervisor, configuration.storage());
+					catalog = new Catalog(catalogName, directory, cacheSupervisor, configuration.storage(), reflectionLookup);
 					log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
 				} catch (Throwable ex) {
 					log.error("Catalog {} is corrupted!", catalogName);
@@ -516,7 +528,8 @@ public final class Evita implements EvitaContract {
 					return new Catalog(
 						catalogSchema,
 						cacheSupervisor,
-						configuration.storage()
+						configuration.storage(),
+						reflectionLookup
 					);
 				} else {
 					throw new CatalogAlreadyPresentException(catalogName, existingCatalog.getSchema());
@@ -674,7 +687,7 @@ public final class Evita implements EvitaContract {
 			final Optional<EntityCollectionContract> updatedCollection = newCatalog.getCollectionForEntity(entityType);
 			if (updatedCollection.isEmpty()) {
 				structuralChangeObservers.forEach(it -> it.onEntityCollectionDelete(catalogName, entityType));
-			} else if (existingCollection.getSchema().getVersion() != updatedCollection.get().getSchema().getVersion()) {
+			} else if (existingCollection.getSchema().version() != updatedCollection.get().getSchema().version()) {
 				structuralChangeObservers.forEach(it -> it.onEntitySchemaUpdate(catalogName, entityType));
 			}
 		}
@@ -778,7 +791,7 @@ public final class Evita implements EvitaContract {
 			this.entityCollectionSchemaVersions = CollectionUtils.createHashMap(entityTypes.size());
 			for (String entityType : entityTypes) {
 				catalog.getEntitySchema(entityType)
-					.ifPresent(it -> this.entityCollectionSchemaVersions.put(entityType, it.getVersion()));
+					.ifPresent(it -> this.entityCollectionSchemaVersions.put(entityType, it.version()));
 			}
 		}
 
@@ -823,7 +836,7 @@ public final class Evita implements EvitaContract {
 			final Integer myVersion = this.entityCollectionSchemaVersions.get(entityType);
 			final Integer theirVersion = catalog.getCollectionForEntity(entityType)
 				.map(EntityCollectionContract::getSchema)
-				.map(EntitySchemaContract::getVersion)
+				.map(EntitySchemaContract::version)
 				.orElse(null);
 			return !Objects.equals(myVersion, theirVersion) && myVersion != null;
 		}
@@ -885,7 +898,7 @@ public final class Evita implements EvitaContract {
 
 		@Override
 		public Thread newThread(@Nonnull Runnable runnable) {
-			final Thread thread = new Thread(group, runnable, "Evita-" + THREAD_COUNTER.incrementAndGet());
+			final Thread thread = new TimeoutableThread(group, runnable, "Evita-" + THREAD_COUNTER.incrementAndGet());
 			if (priority > 0 && thread.getPriority() != priority) {
 				thread.setPriority(priority);
 			}
@@ -893,4 +906,57 @@ public final class Evita implements EvitaContract {
 		}
 	}
 
+	/**
+	 * Tries to kill short-running threads that run longer than specified timeout.
+	 */
+	@RequiredArgsConstructor
+	private static class TimeoutThreadKiller implements Runnable {
+
+		@Nonnull private final EnhancedQueueExecutor executor;
+		private final long timeoutInSeconds;
+
+		public TimeoutThreadKiller(int timeoutInSeconds,
+		                           int checkRateInSeconds,
+		                           @Nonnull EnhancedQueueExecutor executor,
+		                           @Nonnull Scheduler scheduler) {
+			this.timeoutInSeconds = timeoutInSeconds;
+			this.executor = executor;
+			scheduler.scheduleAtFixedRate(this, Math.min(60, checkRateInSeconds), Math.min(60, checkRateInSeconds), TimeUnit.SECONDS);
+		}
+
+		@Override
+		public void run() {
+			for (Thread runningThread : this.executor.getRunningThreads()) {
+				final TimeoutableThread timeoutableThread = (TimeoutableThread) runningThread;
+
+				if (timeoutableThread.isTimedOut(timeoutInSeconds * 1_000_000_000L)) {
+					printThreadStackTraces(timeoutableThread);
+					timeoutableThread.interrupt();
+				}
+			}
+		}
+
+		private void printThreadStackTraces(@Nonnull TimeoutableThread thread) {
+			if (log.isErrorEnabled()) {
+				final Map<Thread, StackTraceElement[]> allStackTraces = Thread.getAllStackTraces();
+
+				final String threadStackTraces = allStackTraces.entrySet()
+					.stream()
+					.filter(it -> it.getKey().getName().equals(thread.getName()))
+					.map(Entry::getValue)
+					.map(stackTrace -> {
+						final StringBuilder printableStackTrace = new StringBuilder();
+						for (StackTraceElement stackTraceElement : stackTrace) {
+							printableStackTrace
+								.append(stackTraceElement.toString())
+								.append(System.lineSeparator());
+						}
+						return printableStackTrace.toString();
+					})
+					.collect(Collectors.joining("\n\n"));
+
+				log.error("Thread `" + thread.getName() + "` is running for more than `" + timeoutInSeconds + "` seconds and is about to be killed. Stack traces of the thread are: \n\n" + threadStackTraces);
+			}
+		}
+	}
 }

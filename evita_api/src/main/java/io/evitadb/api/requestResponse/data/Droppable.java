@@ -35,13 +35,13 @@ public interface Droppable extends Versioned {
 	/**
 	 * Returns true if data object is removed (i.e. has tombstone flag present).
 	 */
-	boolean isDropped();
+	boolean dropped();
 
 	/**
 	 * Returns true if price really exists (i.e. is non-removed).
 	 */
 	default boolean exists() {
-		return !isDropped();
+		return !dropped();
 	}
 
 }

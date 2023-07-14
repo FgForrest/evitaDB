@@ -34,7 +34,6 @@ import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceAttribut
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -50,7 +49,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -110,8 +108,8 @@ public class ReferenceDecorator implements ReferenceContract {
 	}
 
 	@Override
-	public boolean isDropped() {
-		return delegate.isDropped();
+	public boolean dropped() {
+		return delegate.dropped();
 	}
 
 	@Nonnull
@@ -163,8 +161,8 @@ public class ReferenceDecorator implements ReferenceContract {
 	}
 
 	@Override
-	public int getVersion() {
-		return delegate.getVersion();
+	public int version() {
+		return delegate.version();
 	}
 
 	@Nullable
@@ -172,7 +170,7 @@ public class ReferenceDecorator implements ReferenceContract {
 	public <T extends Serializable> T getAttribute(@Nonnull String attributeName) {
 		//noinspection unchecked
 		return getAttributeValue(attributeName)
-			.map(it -> (T) it.getValue())
+			.map(it -> (T) it.value())
 			.orElse(null);
 	}
 
@@ -181,35 +179,22 @@ public class ReferenceDecorator implements ReferenceContract {
 	public <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName) {
 		//noinspection unchecked
 		return getAttributeValue(attributeName)
-			.map(it -> (T[]) it.getValue())
+			.map(it -> (T[]) it.value())
 			.orElse(null);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName) {
+		final Optional<AttributeValue> result;
 		if (attributePredicate.isLocaleSet()) {
-			Optional<AttributeValue> result = delegate.getAttributeValue(attributeName);
-			if (result.isEmpty()) {
-				Locale resultLocale = null;
-				for (AttributeValue resultAdept : delegate.getAttributeValues(attributeName)) {
-					if (attributePredicate.test(resultAdept)) {
-						if (result.isEmpty()) {
-							result = of(resultAdept);
-							resultLocale = resultAdept.getKey().getLocale();
-						} else {
-							throw new EvitaInvalidUsageException(
-								"Attribute `" + attributeName + "` has multiple values for different locales: `" +
-									resultLocale + "` and `" + resultAdept.getKey().getLocale() + "`!"
-							);
-						}
-					}
-				}
-			}
-			return result.filter(attributePredicate);
+			final Locale locale = attributePredicate.getLocale();
+			result = locale == null ?
+				delegate.getAttributeValue(attributeName) : delegate.getAttributeValue(attributeName, locale);
 		} else {
-			return delegate.getAttributeValue(attributeName);
+			result = delegate.getAttributeValue(attributeName);
 		}
+		return result.filter(attributePredicate);
 	}
 
 	@Nullable
@@ -218,7 +203,7 @@ public class ReferenceDecorator implements ReferenceContract {
 		//noinspection unchecked
 		return delegate.getAttributeValue(attributeName, locale)
 			.filter(attributePredicate)
-			.map(it -> (T) it.getValue())
+			.map(it -> (T) it.value())
 			.orElse(null);
 	}
 
@@ -228,7 +213,7 @@ public class ReferenceDecorator implements ReferenceContract {
 		//noinspection unchecked
 		return delegate.getAttributeValue(attributeName, locale)
 			.filter(attributePredicate)
-			.map(it -> (T[]) it.getValue())
+			.map(it -> (T[]) it.value())
 			.orElse(null);
 	}
 
@@ -250,7 +235,7 @@ public class ReferenceDecorator implements ReferenceContract {
 	public Set<String> getAttributeNames() {
 		return getAttributeValues()
 			.stream()
-			.map(it -> it.getKey().getAttributeName())
+			.map(it -> it.key().attributeName())
 			.collect(Collectors.toSet());
 	}
 
@@ -259,7 +244,7 @@ public class ReferenceDecorator implements ReferenceContract {
 	public Set<AttributeKey> getAttributeKeys() {
 		return getAttributeValues()
 			.stream()
-			.map(AttributeValue::getKey)
+			.map(AttributeValue::key)
 			.collect(Collectors.toSet());
 	}
 
@@ -287,7 +272,7 @@ public class ReferenceDecorator implements ReferenceContract {
 	public Collection<AttributeValue> getAttributeValues(@Nonnull String attributeName) {
 		return getAttributeValues()
 			.stream()
-			.filter(it -> attributeName.equals(it.getKey().getAttributeName()))
+			.filter(it -> attributeName.equals(it.key().attributeName()))
 			.collect(Collectors.toList());
 	}
 
@@ -297,8 +282,8 @@ public class ReferenceDecorator implements ReferenceContract {
 		if (this.attributeLocales == null) {
 			this.attributeLocales = getAttributeValues()
 				.stream()
-				.map(AttributeValue::getKey)
-				.map(AttributeKey::getLocale)
+				.map(AttributeValue::key)
+				.map(AttributeKey::locale)
 				.filter(Objects::nonNull)
 				.collect(Collectors.toSet());
 		}

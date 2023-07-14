@@ -24,13 +24,13 @@
 package io.evitadb.api.requestResponse;
 
 import io.evitadb.api.query.Query;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.exception.EvitaInternalError;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -53,10 +53,11 @@ import java.util.Set;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public abstract sealed class EvitaResponse<T extends EntityClassifier> permits EvitaEntityResponse, EvitaBinaryEntityResponse, EvitaEntityReferenceResponse {
-	private final Query sourceQuery;
-	private final DataChunk<T> recordPage;
-	private final Map<Class<? extends EvitaResponseExtraResult>, EvitaResponseExtraResult> extraResults = new HashMap<>();
+public abstract sealed class EvitaResponse<T extends Serializable>
+	permits EvitaBinaryEntityResponse, EvitaEntityReferenceResponse, EvitaEntityResponse {
+	protected final Query sourceQuery;
+	protected final DataChunk<T> recordPage;
+	protected final Map<Class<? extends EvitaResponseExtraResult>, EvitaResponseExtraResult> extraResults = new HashMap<>();
 
 	protected EvitaResponse(@Nonnull Query sourceQuery, @Nonnull DataChunk<T> recordPage) {
 		this.sourceQuery = sourceQuery;

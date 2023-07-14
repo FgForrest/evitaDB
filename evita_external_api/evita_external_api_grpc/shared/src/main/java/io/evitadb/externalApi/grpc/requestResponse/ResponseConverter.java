@@ -35,6 +35,7 @@ import io.evitadb.api.query.require.RootHierarchyConstraint;
 import io.evitadb.api.requestResponse.EvitaEntityResponse;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatistics;
@@ -53,6 +54,7 @@ import io.evitadb.dataType.StripList;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket;
+import io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -70,7 +72,6 @@ import java.util.stream.Collectors;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toBigDecimal;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toQueryPhase;
 import static io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter.toEntityReference;
-import static io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter.toSealedEntity;
 
 /**
  * This class is used to translate {@link GrpcQueryResponse} to a sub-object of {@link EvitaEntityResponse}.
@@ -255,12 +256,13 @@ public class ResponseConverter {
 		return new FacetGroupStatistics(
 			grpcFacetGroupStatistics.getReferenceName(),
 			grpcFacetGroupStatistics.hasGroupEntity() ?
-				toSealedEntity(
+				EntityConverter.toEntity(
 					entitySchemaFetcher,
 					evitaRequest.deriveCopyWith(
 						grpcFacetGroupStatistics.getGroupEntity().getEntityType(), entityGroupFetch
 					),
-					grpcFacetGroupStatistics.getGroupEntity()
+					grpcFacetGroupStatistics.getGroupEntity(),
+					SealedEntity.class
 				) :
 				toEntityReference(grpcFacetGroupStatistics.getGroupEntityReference()),
 			grpcFacetGroupStatistics.getCount(),
@@ -290,10 +292,11 @@ public class ResponseConverter {
 	) {
 		return new FacetStatistics(
 			grpcFacetStatistics.hasFacetEntity() ?
-				toSealedEntity(
+				EntityConverter.toEntity(
 					entitySchemaFetcher,
 					evitaRequest.deriveCopyWith(grpcFacetStatistics.getFacetEntity().getEntityType(), entityFetch),
-					grpcFacetStatistics.getFacetEntity()
+					grpcFacetStatistics.getFacetEntity(),
+					SealedEntity.class
 				) :
 				toEntityReference(grpcFacetStatistics.getFacetEntityReference()),
 			grpcFacetStatistics.getRequested(),
@@ -351,7 +354,15 @@ public class ResponseConverter {
 	) {
 		return new LevelInfo(
 			grpcLevelInfo.hasEntity() ?
-				toSealedEntity(entitySchemaFetcher, evitaRequest.deriveCopyWith(grpcLevelInfo.getEntity().getEntityType(), entityFetch), grpcLevelInfo.getEntity()) :
+				EntityConverter.toEntity(
+					entitySchemaFetcher,
+					evitaRequest.deriveCopyWith(
+						grpcLevelInfo.getEntity().getEntityType(),
+						entityFetch
+					),
+					grpcLevelInfo.getEntity(),
+					SealedEntity.class
+				) :
 				toEntityReference(grpcLevelInfo.getEntityReference()),
 			grpcLevelInfo.getQueriedEntityCount().isInitialized() ? grpcLevelInfo.getQueriedEntityCount().getValue() : null,
 			grpcLevelInfo.getChildrenCount().isInitialized() ? grpcLevelInfo.getChildrenCount().getValue() : null,

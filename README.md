@@ -1,5 +1,5 @@
 <h1 align="center" style="border-bottom: none">
-    <a href="https://evitadb.io" target="_blank"><img src="https://raw.githubusercontent.com/FgForrest/evitaDB/dev/docs/assets/img/evita.png"/></a><br>evitaDB
+    <a href="https://evitadb.io" target="_blank"><img src="https://raw.githubusercontent.com/FgForrest/evitaDB/dev/documentation/assets/img/evita.png"/></a><br>evitaDB
 </h1>
 
 <p align="center">Visit <a href="https://evitadb.io" target="_blank">evitadb.io</a> for the full documentation,
@@ -101,7 +101,7 @@ you might encounter, and we'll try to fix them as soon as possible.
 
 ## How this repository is organized
 
-- **docs**: research documents, documentation, specifications
+- **documentation**: research documents, documentation, specifications
 - **evita_api**: set of all supported data types in evitaDB, conversions to & from other types, common data structures, basic exception hierarchy
 - **evita_db**: Maven POM allowing to link all necessary libraries for embedded evitaDB usage scenario
 - **evita_engine**: implementation of the database engine

@@ -25,8 +25,8 @@ package io.evitadb.documentation.evitaql;
 
 import io.evitadb.api.EvitaContract;
 import io.evitadb.documentation.TestContext;
-import io.evitadb.documentation.graphql.GraphQLQueryConverter;
-import io.evitadb.documentation.rest.RestQueryConverter;
+import io.evitadb.test.client.query.graphql.GraphQLQueryConverter;
+import io.evitadb.test.client.query.rest.RestQueryConverter;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import lombok.Getter;

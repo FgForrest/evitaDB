@@ -27,7 +27,6 @@ import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.utils.MemoryMeasuringConstants;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -40,84 +39,83 @@ import java.util.Optional;
 /**
  * This DTO combines {@link PriceContract} and {@link PriceInternalIdContainer} together.
  *
+ * @param delegate        price contract to delegate calls to
+ * @param internalPriceId optional internal price id
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class PriceWithInternalIds implements PriceContract, PriceInternalIdContainer {
+public record PriceWithInternalIds(
+	@Nonnull PriceContract delegate,
+	@Nullable Integer internalPriceId
+) implements PriceContract, PriceInternalIdContainer {
 	@Serial private static final long serialVersionUID = 5008194525461751557L;
-	private final PriceContract delegate;
-	@Getter private final Integer internalPriceId;
 
-	public PriceWithInternalIds(@Nonnull PriceContract delegate, @Nullable Integer internalPriceId) {
-		this.delegate = delegate;
-		this.internalPriceId = internalPriceId;
+	@Override
+	@Nullable
+	public Integer getInternalPriceId() {
+		return internalPriceId;
 	}
 
 	@Override
-	public boolean isDropped() {
-		return delegate.isDropped();
-	}
-
-	@Nonnull
-	@Override
-	public PriceKey getPriceKey() {
-		return delegate.getPriceKey();
-	}
-
-	@Override
-	public int getPriceId() {
-		return delegate.getPriceId();
+	public boolean dropped() {
+		return delegate.dropped();
 	}
 
 	@Nonnull
 	@Override
-	public String getPriceList() {
-		return delegate.getPriceList();
+	public PriceKey priceKey() {
+		return delegate.priceKey();
+	}
+
+	@Override
+	public int priceId() {
+		return delegate.priceId();
 	}
 
 	@Nonnull
 	@Override
-	public Currency getCurrency() {
-		return delegate.getCurrency();
+	public String priceList() {
+		return delegate.priceList();
+	}
+
+	@Nonnull
+	@Override
+	public Currency currency() {
+		return delegate.currency();
 	}
 
 	@Nullable
 	@Override
-	public Integer getInnerRecordId() {
-		return delegate.getInnerRecordId();
+	public Integer innerRecordId() {
+		return delegate.innerRecordId();
 	}
 
 	@Nonnull
 	@Override
-	public BigDecimal getPriceWithoutTax() {
-		return delegate.getPriceWithoutTax();
+	public BigDecimal priceWithoutTax() {
+		return delegate.priceWithoutTax();
 	}
 
 	@Nonnull
 	@Override
-	public BigDecimal getTaxRate() {
-		return delegate.getTaxRate();
+	public BigDecimal taxRate() {
+		return delegate.taxRate();
 	}
 
 	@Nonnull
 	@Override
-	public BigDecimal getPriceWithTax() {
-		return delegate.getPriceWithTax();
+	public BigDecimal priceWithTax() {
+		return delegate.priceWithTax();
 	}
 
 	@Nullable
 	@Override
-	public DateTimeRange getValidity() {
-		return delegate.getValidity();
+	public DateTimeRange validity() {
+		return delegate.validity();
 	}
 
 	@Override
-	public boolean isSellable() {
-		return delegate.isSellable();
-	}
-
-	@Override
-	public int getVersion() {
-		return delegate.getVersion();
+	public boolean sellable() {
+		return delegate.sellable();
 	}
 
 	@Override
@@ -128,16 +126,21 @@ public class PriceWithInternalIds implements PriceContract, PriceInternalIdConta
 	}
 
 	@Override
+	public int version() {
+		return delegate.version();
+	}
+
+	@Override
 	public boolean equals(Object o) {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		PriceWithInternalIds that = (PriceWithInternalIds) o;
-		return Objects.equals(internalPriceId, that.internalPriceId);
+		return Objects.equals(internalPriceId, that.internalPriceId) && delegate.equals(that.delegate);
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(internalPriceId);
+		return Objects.hash(internalPriceId, delegate);
 	}
 
 	@Override

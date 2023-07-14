@@ -64,10 +64,10 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 
 	public static void assertPrice(Entity updatedInstance, int priceId, String priceList, Currency currency, BigDecimal priceWithoutTax, BigDecimal taxRate, BigDecimal priceWithTax, boolean indexed) {
 		final PriceContract price = updatedInstance.getPrice(priceId, priceList, currency).orElseGet(() -> fail("Price not found!"));
-		assertEquals(priceWithoutTax, price.getPriceWithoutTax());
-		assertEquals(taxRate, price.getTaxRate());
-		assertEquals(priceWithTax, price.getPriceWithTax());
-		assertEquals(indexed, price.isSellable());
+		assertEquals(priceWithoutTax, price.priceWithoutTax());
+		assertEquals(taxRate, price.taxRate());
+		assertEquals(priceWithTax, price.priceWithTax());
+		assertEquals(indexed, price.sellable());
 	}
 
 	@BeforeEach
@@ -118,7 +118,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			.map(it -> it.mutate(initialEntity.getSchema(), initialEntity))
 			.orElse(initialEntity);
 		assertNotNull(updatedEntity.getParent());
-		assertEquals(initialEntity.getVersion() + 1, updatedEntity.getVersion());
+		assertEquals(initialEntity.version() + 1, updatedEntity.version());
 		assertTrue(updatedEntity.getParent().isEmpty());
 	}
 
@@ -161,7 +161,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		assertEquals(of(78), builder.getParent());
 
 		final Entity updatedEntity = builder.toMutation().orElseThrow().mutate(initialEntity.getSchema(), initialEntity);
-		assertEquals(initialEntity.getVersion() + 1, updatedEntity.getVersion());
+		assertEquals(initialEntity.version() + 1, updatedEntity.version());
 		assertEquals(of(78), updatedEntity.getParent());
 	}
 
@@ -174,7 +174,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			.toInstance();
 
 		assertEquals(5, updatedInstance.getPrices().size());
-		assertTrue(updatedInstance.getPrice(2, "reference", CZK).map(Droppable::isDropped).orElse(false));
+		assertTrue(updatedInstance.getPrice(2, "reference", CZK).map(Droppable::dropped).orElse(false));
 		assertPrice(updatedInstance, 1, "basic", CZK, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true);
 		assertPrice(updatedInstance, 5, "vip", EUR, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true);
 	}

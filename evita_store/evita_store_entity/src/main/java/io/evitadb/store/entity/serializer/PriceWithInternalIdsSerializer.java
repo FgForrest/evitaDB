@@ -48,25 +48,25 @@ public class PriceWithInternalIdsSerializer extends Serializer<PriceWithInternal
 
 	@Override
 	public void write(Kryo kryo, Output output, PriceWithInternalIds price) {
-		output.writeVarInt(price.getVersion(), true);
-		output.writeBoolean(price.isSellable());
-		if (price.isSellable()) {
+		output.writeVarInt(price.version(), true);
+		output.writeBoolean(price.sellable());
+		if (price.sellable()) {
 			//noinspection ConstantConditions
 			output.writeInt(price.getInternalPriceId());
 		}
-		output.writeInt(price.getPriceId());
-		output.writeVarInt(keyCompressor.getId(new CompressiblePriceKey(price.getPriceKey())), true);
-		if (price.getInnerRecordId() == null) {
+		output.writeInt(price.priceId());
+		output.writeVarInt(keyCompressor.getId(new CompressiblePriceKey(price.priceKey())), true);
+		if (price.innerRecordId() == null) {
 			output.writeBoolean(false);
 		} else {
 			output.writeBoolean(true);
-			output.writeInt(price.getInnerRecordId());
+			output.writeInt(price.innerRecordId());
 		}
-		kryo.writeObject(output, price.getPriceWithoutTax());
-		kryo.writeObject(output, price.getTaxRate());
-		kryo.writeObject(output, price.getPriceWithTax());
-		kryo.writeObjectOrNull(output, price.getValidity(), DateTimeRange.class);
-		output.writeBoolean(price.isDropped());
+		kryo.writeObject(output, price.priceWithoutTax());
+		kryo.writeObject(output, price.taxRate());
+		kryo.writeObject(output, price.priceWithTax());
+		kryo.writeObjectOrNull(output, price.validity(), DateTimeRange.class);
+		output.writeBoolean(price.dropped());
 	}
 
 	@Override

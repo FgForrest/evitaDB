@@ -65,7 +65,7 @@ public class SetPriceInnerRecordHandlingMutation implements SchemaEvolvingLocalM
 			return new Prices(priceInnerRecordHandling);
 		} else if (existingValue.getPriceInnerRecordHandling() != priceInnerRecordHandling) {
 			return new Prices(
-				existingValue.getVersion() + 1,
+				existingValue.version() + 1,
 				existingValue.getPrices(),
 				priceInnerRecordHandling
 			);

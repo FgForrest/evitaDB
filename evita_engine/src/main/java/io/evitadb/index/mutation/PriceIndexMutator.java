@@ -101,14 +101,14 @@ public interface PriceIndexMutator {
 			final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.PRICE_INDEX);
 			final int indexedPricePlaces = executor.getEntitySchema().getIndexedPricePlaces();
 			// remove former price first
-			if (formerPrice != null && formerPrice.exists() && formerPrice.isSellable()) {
+			if (formerPrice != null && formerPrice.exists() && formerPrice.sellable()) {
 				entityIndex.priceRemove(
 					entityPrimaryKey,
 					Objects.requireNonNull(formerPrice.getInternalPriceId()),
-					priceKey, innerRecordHandling, formerPrice.getInnerRecordId(),
-					formerPrice.getValidity(),
-					convertToInt(formerPrice.getPriceWithoutTax(), indexedPricePlaces),
-					convertToInt(formerPrice.getPriceWithTax(), indexedPricePlaces)
+					priceKey, innerRecordHandling, formerPrice.innerRecordId(),
+					formerPrice.validity(),
+					convertToInt(formerPrice.priceWithoutTax(), indexedPricePlaces),
+					convertToInt(formerPrice.priceWithTax(), indexedPricePlaces)
 				);
 			}
 			// now insert new price
@@ -161,16 +161,16 @@ public interface PriceIndexMutator {
 			final int indexedPricePlaces = executor.getEntitySchema().getIndexedPricePlaces();
 
 			if (formerPrice != null) {
-				if (formerPrice.exists() && formerPrice.isSellable()) {
+				if (formerPrice.exists() && formerPrice.sellable()) {
 					entityIndex.priceRemove(
 						entityPrimaryKey,
 						Objects.requireNonNull(formerPrice.getInternalPriceId()),
 						priceKey,
 						innerRecordHandling,
-						formerPrice.getInnerRecordId(),
-						formerPrice.getValidity(),
-						convertToInt(formerPrice.getPriceWithoutTax(), indexedPricePlaces),
-						convertToInt(formerPrice.getPriceWithTax(), indexedPricePlaces)
+						formerPrice.innerRecordId(),
+						formerPrice.validity(),
+						convertToInt(formerPrice.priceWithoutTax(), indexedPricePlaces),
+						convertToInt(formerPrice.priceWithTax(), indexedPricePlaces)
 					);
 				}
 			} else {
@@ -187,7 +187,7 @@ public interface PriceIndexMutator {
 	static BiFunction<PriceKey, Integer, PriceInternalIdContainer> createPriceProvider(@Nonnull PriceWithInternalIds price) {
 		return (priceKey, innerRecordId) -> {
 			Assert.isPremiseValid(
-				priceKey.equals(price.getPriceKey()) && Objects.equals(innerRecordId, price.getInnerRecordId()),
+				priceKey.equals(price.priceKey()) && Objects.equals(innerRecordId, price.innerRecordId()),
 				"Unexpected price call!"
 			);
 			return price;

@@ -117,9 +117,9 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 			final Serializable associatedDataValue = upsertAssociatedDataMutation.getAssociatedDataValue();
 			verifyAssociatedDataIsInSchemaAndTypeMatch(
 				baseAssociatedData.entitySchema,
-				associatedDataKey.getAssociatedDataName(),
+				associatedDataKey.associatedDataName(),
 				associatedDataValue.getClass(),
-				associatedDataKey.getLocale()
+				associatedDataKey.locale()
 			);
 			this.associatedDataMutations.put(associatedDataKey, upsertAssociatedDataMutation);
 		} else if (localMutation instanceof RemoveAssociatedDataMutation removeAssociatedDataMutation) {
@@ -240,7 +240,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Nonnull
 	public Stream<AssociatedDataKey> getAssociatedDataKeysWithoutPredicate() {
 		return getAssociatedDataValuesWithoutPredicate()
-			.map(AssociatedDataValue::getKey);
+			.map(AssociatedDataValue::key);
 	}
 
 	@Override
@@ -249,7 +249,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 		//noinspection unchecked
 		return (T) getAssociatedDataValueInternal(new AssociatedDataKey(associatedDataName))
 			.filter(associatedDataPredicate)
-			.map(AssociatedDataValue::getValue)
+			.map(AssociatedDataValue::value)
 			.orElse(null);
 	}
 
@@ -257,7 +257,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Override
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Class<T> dtoType, @Nonnull ReflectionLookup reflectionLookup) {
 		return getAssociatedDataValueInternal(new AssociatedDataKey(associatedDataName))
-			.map(it -> ComplexDataObjectConverter.getOriginalForm(it.getValue(), dtoType, reflectionLookup))
+			.map(it -> ComplexDataObjectConverter.getOriginalForm(it.value(), dtoType, reflectionLookup))
 			.orElse(null);
 	}
 
@@ -267,7 +267,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 		//noinspection unchecked
 		return (T[]) getAssociatedDataValueInternal(new AssociatedDataKey(associatedDataName))
 			.filter(associatedDataPredicate)
-			.map(AssociatedDataValue::getValue)
+			.map(AssociatedDataValue::value)
 			.orElse(null);
 	}
 
@@ -287,7 +287,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 		//noinspection unchecked
 		return (T) getAssociatedDataValueInternal(new AssociatedDataKey(associatedDataName, locale))
 			.filter(associatedDataPredicate)
-			.map(AssociatedDataValue::getValue)
+			.map(AssociatedDataValue::value)
 			.orElse(null);
 	}
 
@@ -295,7 +295,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Override
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale, @Nonnull Class<T> dtoType, @Nonnull ReflectionLookup reflectionLookup) {
 		return getAssociatedDataValueInternal(new AssociatedDataKey(associatedDataName, locale))
-			.map(it -> ComplexDataObjectConverter.getOriginalForm(it.getValue(), dtoType, reflectionLookup))
+			.map(it -> ComplexDataObjectConverter.getOriginalForm(it.value(), dtoType, reflectionLookup))
 			.orElse(null);
 	}
 
@@ -305,7 +305,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 		//noinspection unchecked
 		return (T[]) getAssociatedDataValueInternal(new AssociatedDataKey(associatedDataName, locale))
 			.filter(associatedDataPredicate)
-			.map(AssociatedDataValue::getValue)
+			.map(AssociatedDataValue::value)
 			.orElse(null);
 	}
 
@@ -326,7 +326,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	public Set<String> getAssociatedDataNames() {
 		return getAssociatedDataValues()
 			.stream()
-			.map(it -> it.getKey().getAssociatedDataName())
+			.map(it -> it.key().associatedDataName())
 			.collect(Collectors.toSet());
 	}
 
@@ -335,7 +335,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	public Set<AssociatedDataKey> getAssociatedDataKeys() {
 		return getAssociatedDataValues()
 			.stream()
-			.map(AssociatedDataValue::getKey)
+			.map(AssociatedDataValue::key)
 			.collect(Collectors.toSet());
 	}
 
@@ -355,7 +355,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	public Collection<AssociatedDataValue> getAssociatedDataValues(@Nonnull String associatedDataName) {
 		return getAssociatedDataValues()
 			.stream()
-			.filter(it -> associatedDataName.equals(it.getKey().getAssociatedDataName()))
+			.filter(it -> associatedDataName.equals(it.key().associatedDataName()))
 			.collect(Collectors.toList());
 	}
 
@@ -364,7 +364,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 		// this is quite expensive, but should not be called frequently
 		return getAssociatedDataValues()
 			.stream()
-			.map(it -> it.getKey().getLocale())
+			.map(it -> it.key().locale())
 			.filter(Objects::nonNull)
 			.collect(Collectors.toSet());
 	}
@@ -380,7 +380,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 				final AssociatedDataValue existingValue = builtDataValues.get(it.getAssociatedDataKey());
 				final AssociatedDataValue newAssociatedData = it.mutateLocal(entitySchema, existingValue);
 				builtDataValues.put(it.getAssociatedDataKey(), newAssociatedData);
-				return existingValue == null || newAssociatedData.getVersion() > existingValue.getVersion();
+				return existingValue == null || newAssociatedData.version() > existingValue.version();
 			});
 	}
 

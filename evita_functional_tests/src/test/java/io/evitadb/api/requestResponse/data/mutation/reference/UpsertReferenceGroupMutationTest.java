@@ -65,17 +65,17 @@ class UpsertReferenceGroupMutationTest extends AbstractMutationTest {
 		);
 
 		assertNotNull(reference);
-		assertEquals(2, reference.getVersion());
+		assertEquals(2, reference.version());
 		assertEquals("brand", reference.getReferenceName());
 		assertEquals("brand", reference.getReferencedEntityType());
 		assertEquals(5, reference.getReferencedPrimaryKey());
-		assertFalse(reference.isDropped());
+		assertFalse(reference.dropped());
 
 		final GroupEntityReference groupEntityReference = reference.getGroup().orElseThrow();
 		assertEquals("europe", groupEntityReference.getType());
 		assertEquals(2, groupEntityReference.getPrimaryKey());
-		assertEquals(1, groupEntityReference.getVersion());
-		assertFalse(groupEntityReference.isDropped());
+		assertEquals(1, groupEntityReference.version());
+		assertFalse(groupEntityReference.dropped());
 	}
 
 	@Test
@@ -96,17 +96,17 @@ class UpsertReferenceGroupMutationTest extends AbstractMutationTest {
 		);
 
 		assertNotNull(reference);
-		assertEquals(2, reference.getVersion());
+		assertEquals(2, reference.version());
 		assertEquals("brand", reference.getReferenceName());
 		assertEquals("brand", reference.getReferencedEntityType());
 		assertEquals(5, reference.getReferencedPrimaryKey());
-		assertFalse(reference.isDropped());
+		assertFalse(reference.dropped());
 
 		final GroupEntityReference theGroup = reference.getGroup().orElseThrow();
 		assertEquals("europe", theGroup.getType());
 		assertEquals(2, theGroup.getPrimaryKey());
-		assertEquals(2, theGroup.getVersion());
-		assertFalse(theGroup.isDropped());
+		assertEquals(2, theGroup.version());
+		assertFalse(theGroup.dropped());
 	}
 
 	@Test

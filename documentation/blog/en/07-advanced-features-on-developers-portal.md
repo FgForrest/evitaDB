@@ -14,8 +14,8 @@ any other relevant sources. Whenever I encounter a page that offers additional f
 forth by someone to present a fundamental concept. This is precisely why our focus has been directed towards crafting
 easily readable pages, packed with **numerous examples** and **captivating showcases** with added interactivity.
 
-Right from the start, I knew that we will be showcasing **numerous examples of syntax in various programming languages
-**. Moreover, I was aware that I would need an expandable syntax highlighter to facilitate the implementation of a
+Right from the start, I knew that we will be showcasing **numerous examples of syntax in various programming languages**.
+Moreover, I was aware that I would need an expandable syntax highlighter to facilitate the implementation of a
 custom parser for the new `evitaQL` syntax. To address this need, I made the strategic choice to
 adopt [Prism](https://prismjs.com/), a lightweight and highly customizable syntax highlighter with modern web standards
 in mind. Currently, numerous documents are being created and updated, and the `evitaQL` parser is included in our
@@ -78,9 +78,9 @@ If you are working with a similar setup and your Markdown files are hosted on **
 ##### Markup
 
 ```md
-<SourceCodeTabs requires="/docs/user/en/get-started/example/connect-demo-server.java">[EvitaQL example](/documentation/user/en/use/api/example/evita-query-example.java)</SourceCodeTabs>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java">[EvitaQL example](/documentation/user/en/use/api/example/evita-query-example.java)</SourceCodeTabs>
 
-<SourceCodeTabs requires="/docs/user/en/get-started/example/connect-demo-server.java"> // notice the empty line after the opening custom tag
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java"> // notice the empty line after the opening custom tag
 
 [EvitaQL example](/documentation/user/en/use/api/example/evita-query-example.java)
 </SourceCodeTabs>
@@ -88,7 +88,7 @@ If you are working with a similar setup and your Markdown files are hosted on **
 
 ##### Result
 
-<SourceCodeTabs requires="/docs/user/en/get-started/example/connect-demo-server.java">[EvitaQL example](/documentation/user/en/use/api/example/evita-query-example.java)</SourceCodeTabs>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java">[EvitaQL example](/documentation/user/en/use/api/example/evita-query-example.java)</SourceCodeTabs>
 
 There are more features to this specific component, but I'll get to this later.
 

@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityCollectionRequiredException;
+import io.evitadb.api.exception.UnexpectedResultException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
@@ -39,9 +40,11 @@ import io.evitadb.api.query.filter.PriceValidIn;
 import io.evitadb.api.query.head.Collection;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.*;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
+import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -50,6 +53,7 @@ import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.*;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
@@ -69,11 +73,16 @@ import static java.util.Optional.ofNullable;
  * @see EvitaResponse examples in super class
  */
 public class EvitaRequest {
+	public static final BiFunction<Class<?>, SealedEntity, ?> CONVERSION_NOT_SUPPORTED = (aClass, sealedEntity) -> {
+		throw new UnsupportedOperationException();
+	};
 	private static final int[] EMPTY_INTS = new int[0];
 	@Getter private final Query query;
 	@Getter private final OffsetDateTime alignedNow;
 	private final String entityType;
 	private final Locale implicitLocale;
+	private final Class<?> expectedType;
+	@Getter private final BiFunction<Class<?>, SealedEntity, ?> converter;
 	private int[] primaryKeys;
 	private boolean localeExamined;
 	private Locale locale;
@@ -110,13 +119,41 @@ public class EvitaRequest {
 	private Boolean queryTelemetryRequested;
 	private EnumSet<DebugMode> debugModes;
 	private Map<String, RequirementContext> entityFetchRequirements;
+	private RequirementContext defaultReferenceRequirement;
 
-	public EvitaRequest(@Nonnull Query query, @Nonnull OffsetDateTime alignedNow) {
+	/**
+	 * Parses the requirement context from the passed {@link ReferenceContent} and {@link AttributeContent}.
+	 */
+	@Nonnull
+	private static RequirementContext getRequirementContext(
+		@Nonnull ReferenceContent referenceContent,
+		@Nullable AttributeContent attributeContent
+	) {
+		return new RequirementContext(
+			new AttributeRequest(
+				attributeContent == null ? Collections.emptySet() : attributeContent.getAttributeNamesAsSet(),
+				attributeContent != null
+			),
+			referenceContent.getEntityRequirement().orElse(null),
+			referenceContent.getGroupEntityRequirement().orElse(null),
+			referenceContent.getFilterBy().orElse(null),
+			referenceContent.getOrderBy().orElse(null)
+		);
+	}
+
+	public EvitaRequest(
+		@Nonnull Query query,
+		@Nonnull OffsetDateTime alignedNow,
+		@Nonnull Class<?> expectedType,
+		@Nonnull BiFunction<Class<?>, SealedEntity, ?> converter
+	) {
 		final Collection header = query.getCollection();
 		this.entityType = ofNullable(header).map(Collection::getEntityType).orElse(null);
 		this.query = query;
 		this.alignedNow = alignedNow;
 		this.implicitLocale = null;
+		this.expectedType = expectedType;
+		this.converter = converter;
 	}
 
 	public EvitaRequest(@Nonnull EvitaRequest evitaRequest, @Nonnull Locale implicitLocale) {
@@ -137,6 +174,8 @@ public class EvitaRequest {
 		this.entityAssociatedData = evitaRequest.entityAssociatedData;
 		this.entityAssociatedDataSet = evitaRequest.entityAssociatedDataSet;
 		this.entityReference = evitaRequest.entityReference;
+		this.entityFetchRequirements = evitaRequest.entityFetchRequirements;
+		this.defaultReferenceRequirement = evitaRequest.defaultReferenceRequirement;
 		this.entityPrices = evitaRequest.entityPrices;
 		this.currencySet = evitaRequest.currencySet;
 		this.currency = evitaRequest.currency;
@@ -157,6 +196,8 @@ public class EvitaRequest {
 		this.requiresParent = evitaRequest.requiresParent;
 		this.parentContent = evitaRequest.parentContent;
 		this.entityRequirement = evitaRequest.entityRequirement;
+		this.expectedType = evitaRequest.expectedType;
+		this.converter = evitaRequest.converter;
 	}
 
 	public EvitaRequest(
@@ -190,6 +231,8 @@ public class EvitaRequest {
 		this.entityAssociatedData = null;
 		this.entityAssociatedDataSet = null;
 		this.entityReference = null;
+		this.entityFetchRequirements = null;
+		this.defaultReferenceRequirement = null;
 		this.entityPrices = evitaRequest.entityPrices;
 		this.currencySet = evitaRequest.currencySet;
 		this.currency = evitaRequest.currency;
@@ -206,6 +249,8 @@ public class EvitaRequest {
 		this.facetGroupConjunction = evitaRequest.facetGroupConjunction;
 		this.facetGroupDisjunction = evitaRequest.facetGroupDisjunction;
 		this.facetGroupNegation = evitaRequest.facetGroupNegation;
+		this.expectedType = evitaRequest.expectedType;
+		this.converter = evitaRequest.converter;
 	}
 
 	public EvitaRequest(
@@ -246,6 +291,8 @@ public class EvitaRequest {
 		this.entityAssociatedData = null;
 		this.entityAssociatedDataSet = null;
 		this.entityReference = null;
+		this.entityFetchRequirements = null;
+		this.defaultReferenceRequirement = null;
 		this.entityPrices = null;
 		this.firstRecordOffset = null;
 		this.hierarchyWithin = null;
@@ -257,6 +304,8 @@ public class EvitaRequest {
 		this.facetGroupConjunction = null;
 		this.facetGroupDisjunction = null;
 		this.facetGroupNegation = null;
+		this.expectedType = evitaRequest.expectedType;
+		this.converter = evitaRequest.converter;
 	}
 
 	/**
@@ -303,8 +352,18 @@ public class EvitaRequest {
 	 * Returns implicit locale that might be derived from the globally unique attribute if the entity is matched
 	 * particularly by it.
 	 */
+	@Nullable
 	public Locale getImplicitLocale() {
 		return implicitLocale;
+	}
+
+	/**
+	 * Returns locale of the entity that is being requested. If locale is not explicitly set in the query it falls back
+	 * to {@link #getImplicitLocale()}.
+	 */
+	@Nullable
+	public Locale getRequiredOrImplicitLocale() {
+		return ofNullable(getLocale()).orElseGet(this::getImplicitLocale);
 	}
 
 	/**
@@ -691,6 +750,15 @@ public class EvitaRequest {
 	}
 
 	/**
+	 * Returns default requirements for reference content.
+	 */
+	@Nullable
+	public RequirementContext getDefaultReferenceRequirement() {
+		getReferenceEntityFetch();
+		return defaultReferenceRequirement;
+	}
+
+	/**
 	 * Returns requested referenced entity requirements from the input query.
 	 * Allows traversing through the object relational graph in unlimited depth.
 	 */
@@ -702,29 +770,23 @@ public class EvitaRequest {
 					entityRequirement -> {
 						final List<ReferenceContent> referenceContent = QueryUtils.findConstraints(entityRequirement, ReferenceContent.class, SeparateEntityContentRequireContainer.class);
 						this.entityReference = !referenceContent.isEmpty();
+						this.defaultReferenceRequirement = referenceContent
+							.stream()
+							.filter(it -> ArrayUtils.isEmpty(it.getReferenceNames()))
+							.map(it -> getRequirementContext(it, it.getAttributeContent().orElse(null)))
+							.findFirst()
+							.orElse(null);
+
 						return referenceContent
 							.stream()
 							.flatMap(it ->
 								Arrays
 									.stream(it.getReferenceNames())
-									.map(entityType -> {
-											final Optional<AttributeContent> attributeContent = it.getAttributeContent();
-											return new SimpleEntry<>(
-												entityType,
-												new RequirementContext(
-													new AttributeRequest(
-														attributeContent
-															.map(AttributeContent::getAttributeNamesAsSet)
-															.orElseGet(Collections::emptySet),
-														attributeContent.isPresent()
-													),
-													it.getEntityRequirement().orElse(null),
-													it.getGroupEntityRequirement().orElse(null),
-													it.getFilterBy().orElse(null),
-													it.getOrderBy().orElse(null)
-												)
-											);
-										}
+									.map(
+										entityType -> new SimpleEntry<>(
+											entityType,
+											getRequirementContext(it, it.getAttributeContent().orElse(null))
+										)
 									)
 							)
 							.collect(
@@ -734,7 +796,10 @@ public class EvitaRequest {
 								)
 							);
 					}
-				).orElse(Collections.emptyMap());
+				).orElseGet(() -> {
+					this.entityReference = false;
+					return Collections.emptyMap();
+				});
 		}
 		return entityFetchRequirements;
 	}
@@ -764,10 +829,25 @@ public class EvitaRequest {
 	 * Method creates requested implementation of {@link DataChunk} with results.
 	 */
 	@Nonnull
-	public <T extends Serializable> DataChunk<T> createDataChunk(int totalRecordCount, List<T> data) {
+	public <T extends Serializable> DataChunk<T> createDataChunk(int totalRecordCount, @Nonnull List<T> data) {
 		if (firstRecordOffset == null) {
 			initPagination();
 		}
+
+		if (!data.isEmpty()) {
+			if (!expectedType.isInstance(data.get(0))) {
+				if (data.get(0) instanceof SealedEntity) {
+					//noinspection unchecked
+					data = (List<T>) data.stream()
+						.map(SealedEntity.class::cast)
+						.map(it -> converter.apply(expectedType, it))
+						.toList();
+				} else {
+					throw new UnexpectedResultException(expectedType, data.get(0).getClass());
+				}
+			}
+		}
+
 		return switch (resultForm) {
 			case PAGINATED_LIST ->
 				new PaginatedList<>(limit == 0 ? 1 : (firstRecordOffset + limit) / limit, limit, totalRecordCount, data);

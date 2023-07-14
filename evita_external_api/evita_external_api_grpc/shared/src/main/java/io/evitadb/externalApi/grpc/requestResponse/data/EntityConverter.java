@@ -27,7 +27,6 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.Int32Value;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.SessionTraits.SessionFlags;
-import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
@@ -49,6 +48,7 @@ import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSeri
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.grpc.dataType.ComplexDataObjectConverter;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
@@ -59,7 +59,6 @@ import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -87,23 +86,25 @@ public class EntityConverter {
 	 * Method converts {@link GrpcSealedEntity} to the {@link SealedEntity} that can be used on the client side.
 	 */
 	@Nonnull
-	public static SealedEntity toSealedEntity(
+	public static <T> T toEntity(
 		@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
 		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull GrpcSealedEntity grpcEntity
+		@Nonnull GrpcSealedEntity grpcEntity,
+		@Nonnull Class<T> expectedType
 	) {
-		return toSealedEntity(entitySchemaFetcher, evitaRequest, null, grpcEntity);
+		return toEntity(entitySchemaFetcher, evitaRequest, null, grpcEntity, expectedType);
 	}
 
 	/**
 	 * Method converts {@link GrpcSealedEntity} to the {@link SealedEntity} that can be used on the client side.
 	 */
 	@Nonnull
-	public static SealedEntity toSealedEntity(
+	public static <T> T toEntity(
 		@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nullable SealedEntity parent,
-		@Nonnull GrpcSealedEntity grpcEntity
+		@Nonnull GrpcSealedEntity grpcEntity,
+		@Nonnull Class<T> expectedType
 	) {
 		final SealedEntitySchema entitySchema = entitySchemaFetcher.apply(grpcEntity);
 		final EntityClassifierWithParent parentEntity;
@@ -115,55 +116,69 @@ public class EntityConverter {
 			parentEntity = parent;
 		}
 
-		return new EntityDecorator(
-			Entity._internalBuild(
-				grpcEntity.getPrimaryKey(),
-				grpcEntity.getVersion(),
-				entitySchema,
-				grpcEntity.hasParent() ? grpcEntity.getParent().getValue() : null,
-				grpcEntity.getReferencesList()
-					.stream()
-					.map(it -> toReference(entitySchema, it))
-					.collect(Collectors.toList()),
-				new Attributes(
-					entitySchema,
-					toAttributeValues(
-						grpcEntity.getGlobalAttributesMap(),
-						grpcEntity.getLocalizedAttributesMap()
-					)
-				),
-				new AssociatedData(
-					entitySchema,
-					toAssociatedDataValues(
-						grpcEntity.getGlobalAssociatedDataMap(),
-						grpcEntity.getLocalizedAssociatedDataMap()
-					)
-				),
-				new Prices(
+		if (EntityReference.class.isAssignableFrom(expectedType)) {
+			throw new EvitaInternalError("EntityReference is not expected in this method!");
+		} else {
+			final EntityDecorator sealedEntity = new EntityDecorator(
+				Entity._internalBuild(
+					grpcEntity.getPrimaryKey(),
 					grpcEntity.getVersion(),
-					grpcEntity.getPricesList().stream().map(EntityConverter::toPrice).collect(Collectors.toList()),
-					EvitaEnumConverter.toPriceInnerRecordHandling(grpcEntity.getPriceInnerRecordHandling())
+					entitySchema,
+					grpcEntity.hasParent() ? grpcEntity.getParent().getValue() : null,
+					grpcEntity.getReferencesList()
+						.stream()
+						.map(it -> toReference(entitySchema, it))
+						.collect(Collectors.toList()),
+					new Attributes(
+						entitySchema,
+						null,
+						toAttributeValues(
+							grpcEntity.getGlobalAttributesMap(),
+							grpcEntity.getLocalizedAttributesMap()
+						),
+						entitySchema.getAttributes()
+					),
+					new AssociatedData(
+						entitySchema,
+						toAssociatedDataValues(
+							grpcEntity.getGlobalAssociatedDataMap(),
+							grpcEntity.getLocalizedAssociatedDataMap()
+						)
+					),
+					new Prices(
+						grpcEntity.getVersion(),
+						grpcEntity.getPricesList().stream().map(EntityConverter::toPrice).collect(Collectors.toList()),
+						EvitaEnumConverter.toPriceInnerRecordHandling(grpcEntity.getPriceInnerRecordHandling())
+					),
+					grpcEntity.getLocalesList()
+						.stream()
+						.map(EvitaDataTypesConverter::toLocale)
+						.collect(Collectors.toSet())
 				),
-				grpcEntity.getLocalesList()
-					.stream()
-					.map(EvitaDataTypesConverter::toLocale)
-					.collect(Collectors.toSet())
-			),
-			entitySchema,
-			parentEntity,
-			new LocaleSerializablePredicate(evitaRequest),
-			new AttributeValueSerializablePredicate(evitaRequest),
-			new AssociatedDataValueSerializablePredicate(evitaRequest),
-			new ReferenceContractSerializablePredicate(evitaRequest),
-			new PriceContractSerializablePredicate(evitaRequest, (Boolean) null),
-			evitaRequest.getAlignedNow(),
-			new ClientReferenceFetcher(
+				entitySchema,
 				parentEntity,
-				grpcEntity.getReferencesList(),
-				entitySchemaFetcher,
-				evitaRequest
-			)
-		);
+				new LocaleSerializablePredicate(evitaRequest),
+				new AttributeValueSerializablePredicate(evitaRequest),
+				new AssociatedDataValueSerializablePredicate(evitaRequest),
+				new ReferenceContractSerializablePredicate(evitaRequest),
+				new PriceContractSerializablePredicate(evitaRequest, (Boolean) null),
+				evitaRequest.getAlignedNow(),
+				new ClientReferenceFetcher(
+					parentEntity,
+					grpcEntity.getReferencesList(),
+					entitySchemaFetcher,
+					evitaRequest
+				)
+			);
+
+			if (SealedEntity.class.isAssignableFrom(expectedType)) {
+				//noinspection unchecked
+				return (T) sealedEntity;
+			} else {
+				//noinspection unchecked
+				return (T) evitaRequest.getConverter().apply(expectedType, sealedEntity);
+			}
+		}
 	}
 
 	/**
@@ -215,8 +230,8 @@ public class EntityConverter {
 		final GrpcSealedEntity.Builder entityBuilder = GrpcSealedEntity.newBuilder()
 			.setEntityType(entity.getType())
 			.setPrimaryKey(entity.getPrimaryKey())
-			.setSchemaVersion(entity.getSchema().getVersion())
-			.setVersion(entity.getVersion());
+			.setSchemaVersion(entity.getSchema().version())
+			.setVersion(entity.version());
 
 		entity.getParentEntity().ifPresent(parent -> {
 			if (parent instanceof EntityReferenceWithParent entityReference) {
@@ -261,10 +276,10 @@ public class EntityConverter {
 				);
 
 				final GrpcReference.Builder grpcReferenceBuilder = GrpcReference.newBuilder()
-					.setVersion(reference.getVersion())
+					.setVersion(reference.version())
 					.setReferenceName(reference.getReferenceName())
 					.setReferenceCardinality(EvitaEnumConverter.toGrpcCardinality(reference.getReferenceCardinality()))
-					.setVersion(reference.getVersion());
+					.setVersion(reference.version());
 				if (reference.getReferencedEntity().isPresent()) {
 					grpcReferenceBuilder.setReferencedEntity(toGrpcSealedEntity(reference.getReferencedEntity().get()));
 				} else {
@@ -280,7 +295,7 @@ public class EntityConverter {
 					grpcReferenceBuilder.setGroupReferencedEntityReference(GrpcEntityReference.newBuilder()
 						.setEntityType(theGroup.getType())
 						.setPrimaryKey(theGroup.getPrimaryKey())
-						.setVersion(theGroup.getVersion())
+						.setVersion(theGroup.version())
 						.build()
 					);
 				}
@@ -298,17 +313,17 @@ public class EntityConverter {
 			final Map<String, GrpcEvitaAssociatedDataValue> globalAssociatedData = CollectionUtils.createHashMap(entity.getSchema().getAssociatedData().size());
 			for (AssociatedDataContract.AssociatedDataValue theAssociatedData : entity.getAssociatedDataValues()) {
 				final GrpcEvitaAssociatedDataValue associatedDataValue = EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(
-					theAssociatedData.getValue(), theAssociatedData.getVersion()
+					theAssociatedData.value(), theAssociatedData.version()
 				);
 
-				if (theAssociatedData.getKey().isLocalized()) {
+				if (theAssociatedData.key().localized()) {
 					localizedAssociatedData.computeIfAbsent(
-							theAssociatedData.getKey().getLocale(),
+							theAssociatedData.key().locale(),
 							associatedDataName -> GrpcLocalizedAssociatedData.newBuilder()
 						)
-						.putAssociatedData(theAssociatedData.getKey().getAssociatedDataName(), associatedDataValue);
+						.putAssociatedData(theAssociatedData.key().associatedDataName(), associatedDataValue);
 				} else {
-					globalAssociatedData.put(theAssociatedData.getKey().getAssociatedDataName(), associatedDataValue);
+					globalAssociatedData.put(theAssociatedData.key().associatedDataName(), associatedDataValue);
 				}
 			}
 
@@ -360,7 +375,7 @@ public class EntityConverter {
 		final GrpcBinaryEntity.Builder binaryEntityBuilder = GrpcBinaryEntity.newBuilder()
 			.setEntityType(binaryEntity.getType())
 			.setPrimaryKey(binaryEntity.getPrimaryKey())
-			.setSchemaVersion(binaryEntity.getSchema().getVersion())
+			.setSchemaVersion(binaryEntity.getSchema().version())
 			.setEntityStoragePart(ByteString.copyFrom(binaryEntity.getEntityStoragePart()))
 			.addAllAttributeStorageParts(attributes)
 			.addAllAssociatedDataStorageParts(associatedData);
@@ -384,32 +399,32 @@ public class EntityConverter {
 	@Nonnull
 	public static GrpcPrice toGrpcPrice(@Nonnull PriceContract price) {
 		final GrpcPrice.Builder priceBuilder = GrpcPrice.newBuilder()
-			.setPriceId(price.getPriceId())
-			.setPriceList(price.getPriceList())
-			.setCurrency(GrpcCurrency.newBuilder().setCode(price.getCurrency().getCurrencyCode()).build())
+			.setPriceId(price.priceId())
+			.setPriceList(price.priceList())
+			.setCurrency(GrpcCurrency.newBuilder().setCode(price.currency().getCurrencyCode()).build())
 			.setPriceWithoutTax(GrpcBigDecimal.newBuilder().
-				setValueString(price.getPriceWithoutTax().toString())
-				.setValue(ByteString.copyFrom(price.getPriceWithoutTax().unscaledValue().toByteArray()))
-				.setScale(price.getPriceWithoutTax().scale())
-				.setPrecision(price.getPriceWithoutTax().precision()).build())
+				setValueString(price.priceWithoutTax().toString())
+				.setValue(ByteString.copyFrom(price.priceWithoutTax().unscaledValue().toByteArray()))
+				.setScale(price.priceWithoutTax().scale())
+				.setPrecision(price.priceWithoutTax().precision()).build())
 			.setPriceWithTax(GrpcBigDecimal.newBuilder()
-				.setValueString(price.getPriceWithTax().toString())
-				.setValue(ByteString.copyFrom(price.getPriceWithTax().unscaledValue().toByteArray()))
-				.setScale(price.getPriceWithTax().scale())
-				.setPrecision(price.getPriceWithTax().precision()).build())
+				.setValueString(price.priceWithTax().toString())
+				.setValue(ByteString.copyFrom(price.priceWithTax().unscaledValue().toByteArray()))
+				.setScale(price.priceWithTax().scale())
+				.setPrecision(price.priceWithTax().precision()).build())
 			.setTaxRate(GrpcBigDecimal.newBuilder()
-				.setValueString(price.getTaxRate().toString())
-				.setValue(ByteString.copyFrom(price.getTaxRate().unscaledValue().toByteArray()))
-				.setScale(price.getTaxRate().scale())
-				.setPrecision(price.getTaxRate().precision()).build())
-			.setSellable(price.isSellable())
-			.setVersion(price.getVersion());
-		if (price.getInnerRecordId() != null) {
-			priceBuilder.setInnerRecordId(Int32Value.newBuilder().setValue(price.getInnerRecordId()).build());
+				.setValueString(price.taxRate().toString())
+				.setValue(ByteString.copyFrom(price.taxRate().unscaledValue().toByteArray()))
+				.setScale(price.taxRate().scale())
+				.setPrecision(price.taxRate().precision()).build())
+			.setSellable(price.sellable())
+			.setVersion(price.version());
+		if (price.innerRecordId() != null) {
+			priceBuilder.setInnerRecordId(Int32Value.newBuilder().setValue(price.innerRecordId()).build());
 		}
 
-		if (price.getValidity() != null) {
-			priceBuilder.setValidity(EvitaDataTypesConverter.toGrpcDateTimeRange(price.getValidity()));
+		if (price.validity() != null) {
+			priceBuilder.setValidity(EvitaDataTypesConverter.toGrpcDateTimeRange(price.validity()));
 		}
 
 		return priceBuilder.build();
@@ -465,7 +480,7 @@ public class EntityConverter {
 	) {
 		SealedEntity current = null;
 		for (GrpcSealedEntity sealedEntity : sealedEntities) {
-			current = toSealedEntity(entitySchemaFetcher, evitaRequest, current, sealedEntity);
+			current = toEntity(entitySchemaFetcher, evitaRequest, current, sealedEntity, SealedEntity.class);
 		}
 		return current;
 	}
@@ -475,25 +490,27 @@ public class EntityConverter {
 	 * client.
 	 */
 	@Nonnull
-	public static List<SealedEntity> toSealedEntities(
+	public static <S> List<S> toEntities(
 		@Nonnull List<GrpcSealedEntity> sealedEntitiesList,
-		@Nonnull Query query,
-		@Nonnull BiFunction<String, Integer, SealedEntitySchema> entitySchemaProvider
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull BiFunction<String, Integer, SealedEntitySchema> entitySchemaProvider,
+		@Nonnull Class<S> expectedType
 	) {
 		return sealedEntitiesList
 			.stream()
 			.map(
-				it -> toSealedEntity(
+				it -> toEntity(
 					entity -> entitySchemaProvider.apply(entity.getEntityType(), entity.getSchemaVersion()),
-					new EvitaRequest(query, OffsetDateTime.now()),
-					it
+					evitaRequest,
+					it,
+					expectedType
 				)
 			)
 			.toList();
 	}
 
 	@Nonnull
-	public static SealedEntity parseBinaryEntity(@Nonnull GrpcBinaryEntity binaryEntity) {
+	public static <T> T parseBinaryEntity(@Nonnull GrpcBinaryEntity binaryEntity) {
 		/* TOBEDONE JNO https://github.com/FgForrest/evitaDB/issues/13 */
 		return null;
 	}
@@ -673,19 +690,19 @@ public class EntityConverter {
 		final Map<Locale, GrpcLocalizedAttribute.Builder> localizedAttributes = CollectionUtils.createHashMap(maxLocaleCount);
 		final Map<String, GrpcEvitaValue> globalAttributes = CollectionUtils.createHashMap(maxAttributeCount);
 		for (AttributesContract.AttributeValue attribute : entityAttributes) {
-			if (attribute.getKey().isLocalized()) {
+			if (attribute.key().localized()) {
 				final Builder localizedAttributesBuilder = localizedAttributes.computeIfAbsent(
-					attribute.getKey().getLocale(),
+					attribute.key().locale(),
 					locale -> GrpcLocalizedAttribute.newBuilder()
 				);
 				localizedAttributesBuilder.putAttributes(
-					attribute.getKey().getAttributeName(),
-					EvitaDataTypesConverter.toGrpcEvitaValue(attribute.getValue(), attribute.getVersion())
+					attribute.key().attributeName(),
+					EvitaDataTypesConverter.toGrpcEvitaValue(attribute.value(), attribute.version())
 				);
 			} else {
 				globalAttributes.put(
-					attribute.getKey().getAttributeName(),
-					EvitaDataTypesConverter.toGrpcEvitaValue(attribute.getValue(), attribute.getVersion())
+					attribute.key().attributeName(),
+					EvitaDataTypesConverter.toGrpcEvitaValue(attribute.value(), attribute.version())
 				);
 			}
 		}
@@ -714,8 +731,8 @@ public class EntityConverter {
 
 	private static class ClientReferenceFetcher implements ReferenceFetcher {
 		private final EntityClassifierWithParent parentEntity;
-		private final Map<Integer, SealedEntity> entityIndex;
-		private final Map<Integer, SealedEntity> groupIndex;
+		private final Map<EntityReference, SealedEntity> entityIndex;
+		private final Map<EntityReference, SealedEntity> groupIndex;
 
 		public ClientReferenceFetcher(
 			@Nullable EntityClassifierWithParent parentEntity,
@@ -726,12 +743,22 @@ public class EntityConverter {
 			this.parentEntity = parentEntity;
 			this.entityIndex = grpcReference.stream()
 					.filter(GrpcReference::hasReferencedEntity)
-					.map(it -> toSealedEntity(entitySchemaFetcher, evitaRequest, it.getReferencedEntity()))
-					.collect(Collectors.toMap(SealedEntity::getPrimaryKey, Function.identity()));
+					.map(it -> toEntity(entitySchemaFetcher, evitaRequest, it.getReferencedEntity(), SealedEntity.class))
+					.collect(
+						Collectors.toMap(
+							it -> new EntityReference(it.getType(), it.getPrimaryKey()),
+							Function.identity()
+						)
+					);
 			this.groupIndex = grpcReference.stream()
 				.filter(GrpcReference::hasGroupReferencedEntity)
-				.map(it -> toSealedEntity(entitySchemaFetcher, evitaRequest, it.getGroupReferencedEntity()))
-				.collect(Collectors.toMap(SealedEntity::getPrimaryKey, Function.identity()));
+				.map(it -> toEntity(entitySchemaFetcher, evitaRequest, it.getGroupReferencedEntity(), SealedEntity.class))
+				.collect(
+					Collectors.toMap(
+						it -> new EntityReference(it.getType(), it.getPrimaryKey()),
+						Function.identity()
+					)
+				);
 		}
 
 		@Nonnull
@@ -755,13 +782,13 @@ public class EntityConverter {
 		@Nullable
 		@Override
 		public Function<Integer, SealedEntity> getEntityFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
-			return entityIndex::get;
+			return primaryKey -> entityIndex.get(new EntityReference(referenceSchema.getReferencedEntityType(), primaryKey));
 		}
 
 		@Nullable
 		@Override
 		public Function<Integer, SealedEntity> getEntityGroupFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
-			return groupIndex::get;
+			return primaryKey -> groupIndex.get(new EntityReference(referenceSchema.getReferencedGroupType(), primaryKey));
 		}
 
 		@Nullable

@@ -31,7 +31,6 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
-import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.dataType.Range;
@@ -56,7 +55,6 @@ import java.util.Map.Entry;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer.separateAttributeKeysByLocale;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 
 /**
  * Ancestor for tests for REST catalog endpoint.
@@ -120,7 +118,7 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 
 		return map()
 			.e(EntityDescriptor.PRICE_FOR_SALE.name(), map()
-				.e(PriceDescriptor.PRICE_WITH_TAX.name(), priceFormatter.format(entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().getPriceWithTax()))
+				.e(PriceDescriptor.PRICE_WITH_TAX.name(), priceFormatter.format(entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax()))
 				.build())
 			.build();
 	}
@@ -132,7 +130,7 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 
 		return map()
 			.e(EntityDescriptor.PRICE.name(), map()
-				.e(PriceDescriptor.PRICE_WITH_TAX.name(), priceFormatter.format(entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().getPriceWithTax()))
+				.e(PriceDescriptor.PRICE_WITH_TAX.name(), priceFormatter.format(entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax()))
 				.build())
 			.build();
 	}
@@ -146,7 +144,7 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 		return map()
 			.e(EntityDescriptor.PRICES.name(), List.of(
 				map()
-					.e(PriceDescriptor.PRICE_WITH_TAX.name(), priceFormatter.format(entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().getPriceWithTax()))
+					.e(PriceDescriptor.PRICE_WITH_TAX.name(), priceFormatter.format(entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax()))
 					.build()
 			))
 			.build();
@@ -156,19 +154,19 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 	protected ArrayList<Map<String, Object>> createPricesDto(@Nonnull SealedEntity entity, @Nullable Currency currency, @Nonnull String priceList) {
 		final ArrayList<Map<String, Object>> prices = new ArrayList<>();
 		entity.getPrices().stream()
-			.filter(price -> price.getCurrency().equals(currency) || currency == null)
-			.filter(price -> price.getPriceList().equals(priceList))
+			.filter(price -> price.currency().equals(currency) || currency == null)
+			.filter(price -> price.priceList().equals(priceList))
 			.forEach(price -> {
 					prices.add(map()
-						.e(PriceDescriptor.PRICE_ID.name(), price.getPriceId())
+						.e(PriceDescriptor.PRICE_ID.name(), price.priceId())
 						.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
 						.e(PriceDescriptor.CURRENCY.name(), currency != null ? currency.toString() : CURRENCY_CZK)
-						.e(PriceDescriptor.INNER_RECORD_ID.name(), price.getInnerRecordId())
-						.e(PriceDescriptor.SELLABLE.name(), price.isSellable())
-						.e(PriceDescriptor.PRICE_WITHOUT_TAX.name(), price.getPriceWithoutTax().toString())
-						.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.getPriceWithTax().toString())
-						.e(PriceDescriptor.TAX_RATE.name(), price.getTaxRate().toString())
-						.e(PriceDescriptor.VALIDITY.name(), convertRangeIntoArrayList(price.getValidity()))
+						.e(PriceDescriptor.INNER_RECORD_ID.name(), price.innerRecordId())
+						.e(PriceDescriptor.SELLABLE.name(), price.sellable())
+						.e(PriceDescriptor.PRICE_WITHOUT_TAX.name(), price.priceWithoutTax().toString())
+						.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString())
+						.e(PriceDescriptor.TAX_RATE.name(), price.taxRate().toString())
+						.e(PriceDescriptor.VALIDITY.name(), convertRangeIntoArrayList(price.validity()))
 						.build());
 				}
 			);
@@ -179,19 +177,17 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 	protected ArrayList<Map<String, Object>> createPricesDto(@Nonnull SealedEntity entity) {
 		final ArrayList<Map<String, Object>> prices = new ArrayList<>();
 		entity.getPrices()
-			.stream()
-			.sorted(Comparator.comparing(PriceContract::getPriceKey))
 			.forEach(price -> {
 					prices.add(map()
-						.e(PriceDescriptor.PRICE_ID.name(), price.getPriceId())
-						.e(PriceDescriptor.PRICE_LIST.name(), price.getPriceList())
-						.e(PriceDescriptor.CURRENCY.name(), price.getCurrency().toString())
-						.e(PriceDescriptor.INNER_RECORD_ID.name(), price.getInnerRecordId())
-						.e(PriceDescriptor.SELLABLE.name(), price.isSellable())
-						.e(PriceDescriptor.PRICE_WITHOUT_TAX.name(), price.getPriceWithoutTax().toString())
-						.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.getPriceWithTax().toString())
-						.e(PriceDescriptor.TAX_RATE.name(), price.getTaxRate().toString())
-						.e(PriceDescriptor.VALIDITY.name(), convertRangeIntoArrayList(price.getValidity()))
+						.e(PriceDescriptor.PRICE_ID.name(), price.priceId())
+						.e(PriceDescriptor.PRICE_LIST.name(), price.priceList())
+						.e(PriceDescriptor.CURRENCY.name(), price.currency().toString())
+						.e(PriceDescriptor.INNER_RECORD_ID.name(), price.innerRecordId())
+						.e(PriceDescriptor.SELLABLE.name(), price.sellable())
+						.e(PriceDescriptor.PRICE_WITHOUT_TAX.name(), price.priceWithoutTax().toString())
+						.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString())
+						.e(PriceDescriptor.TAX_RATE.name(), price.taxRate().toString())
+						.e(PriceDescriptor.VALIDITY.name(), convertRangeIntoArrayList(price.validity()))
 						.build());
 				}
 			);
@@ -202,15 +198,15 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 	protected Map<String, Object> createPriceForSaleDto(@Nonnull SealedEntity entity, @Nonnull Currency currency, @Nonnull String priceList) {
 		final PriceContract price = entity.getPriceForSale(currency, null, priceList).orElseThrow();
 		return map()
-			.e(PriceDescriptor.PRICE_ID.name(), price.getPriceId())
+			.e(PriceDescriptor.PRICE_ID.name(), price.priceId())
 			.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
 			.e(PriceDescriptor.CURRENCY.name(), currency.toString())
-			.e(PriceDescriptor.INNER_RECORD_ID.name(), price.getInnerRecordId())
-			.e(PriceDescriptor.SELLABLE.name(), price.isSellable())
-			.e(PriceDescriptor.PRICE_WITHOUT_TAX.name(), price.getPriceWithoutTax().toString())
-			.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.getPriceWithTax().toString())
-			.e(PriceDescriptor.TAX_RATE.name(), price.getTaxRate().toString())
-			.e(PriceDescriptor.VALIDITY.name(), convertRangeIntoArrayList(price.getValidity()))
+			.e(PriceDescriptor.INNER_RECORD_ID.name(), price.innerRecordId())
+			.e(PriceDescriptor.SELLABLE.name(), price.sellable())
+			.e(PriceDescriptor.PRICE_WITHOUT_TAX.name(), price.priceWithoutTax().toString())
+			.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString())
+			.e(PriceDescriptor.TAX_RATE.name(), price.taxRate().toString())
+			.e(PriceDescriptor.VALIDITY.name(), convertRangeIntoArrayList(price.validity()))
 			.build();
 	}
 
@@ -236,7 +232,7 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 				.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
 				.e(PriceDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
 				.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-				.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().getPriceWithTax().toString())
+				.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax().toString())
 				.build())
 			.build();
 	}
@@ -356,13 +352,13 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 	                                                  @Nonnull Locale locale) {
 		final MapBuilder attributesMap = map();
 		attributeKeys.forEach(attributeKey -> {
-			final Optional<AttributeValue> attributeValue = attributeKey.isLocalized() ?
-				entity.getAttributeValue(attributeKey.getAttributeName(), locale) :
-				entity.getAttributeValue(attributeKey.getAttributeName());
+			final Optional<AttributeValue> attributeValue = attributeKey.localized() ?
+				entity.getAttributeValue(attributeKey.attributeName(), locale) :
+				entity.getAttributeValue(attributeKey.attributeName());
 			if (attributeValue.isPresent()) {
-				attributesMap.e(attributeKey.getAttributeName(), serializeToJsonValue(attributeValue.get().getValue()));
+				attributesMap.e(attributeKey.attributeName(), serializeToJsonValue(attributeValue.get().value()));
 			} else {
-				attributesMap.e(attributeKey.getAttributeName(), null);
+				attributesMap.e(attributeKey.attributeName(), null);
 			}
 		});
 		return attributesMap.build();
@@ -399,9 +395,9 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 		final MapBuilder attrsMap = map();
 		reference.getAttributeValues()
 			.stream()
-			.filter(it -> referenceAttributes == null || Arrays.asList(referenceAttributes).contains(it.getKey().getAttributeName()))
+			.filter(it -> referenceAttributes == null || Arrays.asList(referenceAttributes).contains(it.key().attributeName()))
 			.forEach(attributeValue ->
-				attrsMap.e(attributeValue.getKey().getAttributeName(), serializeToJsonValue(attributeValue.getValue())));
+				attrsMap.e(attributeValue.key().attributeName(), serializeToJsonValue(attributeValue.value())));
 		return attrsMap;
 	}
 

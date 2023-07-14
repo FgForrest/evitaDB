@@ -60,9 +60,9 @@ public class UpsertPriceMutationConverter extends PriceMutationConverter<UpsertP
 	@Override
 	public GrpcUpsertPriceMutation convert(@Nonnull UpsertPriceMutation mutation) {
 		final GrpcUpsertPriceMutation.Builder builder = GrpcUpsertPriceMutation.newBuilder()
-			.setPriceId(mutation.getPriceKey().getPriceId())
-			.setPriceList(mutation.getPriceKey().getPriceList())
-			.setCurrency(EvitaDataTypesConverter.toGrpcCurrency(mutation.getPriceKey().getCurrency()))
+			.setPriceId(mutation.getPriceKey().priceId())
+			.setPriceList(mutation.getPriceKey().priceList())
+			.setCurrency(EvitaDataTypesConverter.toGrpcCurrency(mutation.getPriceKey().currency()))
 			.setPriceWithoutTax(EvitaDataTypesConverter.toGrpcBigDecimal(mutation.getPriceWithoutTax()))
 			.setTaxRate(EvitaDataTypesConverter.toGrpcBigDecimal(mutation.getTaxRate()))
 			.setPriceWithTax(EvitaDataTypesConverter.toGrpcBigDecimal(mutation.getPriceWithTax()))
