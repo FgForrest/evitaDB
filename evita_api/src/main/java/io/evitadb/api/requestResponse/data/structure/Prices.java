@@ -167,6 +167,11 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 		return Optional.ofNullable(priceIndex.get(new PriceKey(priceId, priceList, currency)));
 	}
 
+	@Override
+	public boolean isContextAvailable() {
+		return false;
+	}
+
 	@Nonnull
 	@Override
 	public Optional<PriceContract> getPriceForSale() throws ContextMissingException {

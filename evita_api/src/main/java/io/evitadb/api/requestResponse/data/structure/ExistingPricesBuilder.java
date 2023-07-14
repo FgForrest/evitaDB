@@ -198,6 +198,11 @@ public class ExistingPricesBuilder implements PricesBuilder {
 		return getPriceInternal(new PriceKey(priceId, priceList, currency));
 	}
 
+	@Override
+	public boolean isContextAvailable() {
+		return pricePredicate.getCurrency() != null && !ArrayUtils.isEmpty(pricePredicate.getPriceLists());
+	}
+
 	@Nonnull
 	@Override
 	public Optional<PriceContract> getPriceForSale() throws ContextMissingException {

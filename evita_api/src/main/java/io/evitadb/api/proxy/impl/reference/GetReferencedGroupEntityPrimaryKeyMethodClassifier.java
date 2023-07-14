@@ -23,15 +23,20 @@
 
 package io.evitadb.api.proxy.impl.reference;
 
+import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.SealedEntityReferenceProxyState;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
-import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.ReflectionLookup;
 import one.edee.oss.proxycian.DirectMethodClassification;
 
 import java.util.Optional;
+import java.util.function.UnaryOperator;
+
+import static io.evitadb.api.proxy.impl.ProxyUtils.getWrappedGenericType;
+import static io.evitadb.dataType.EvitaDataTypes.toTargetType;
+import static io.evitadb.dataType.EvitaDataTypes.toWrappedForm;
 
 /**
  * Identifies methods that are used to get referenced entity group primary key from an entity and provides their implementation.
@@ -58,19 +63,24 @@ public class GetReferencedGroupEntityPrimaryKeyMethodClassifier extends DirectMe
 				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
 				final ReferencedEntityGroup referencedEntityGroup = reflectionLookup.getAnnotationInstance(method, ReferencedEntityGroup.class);
 				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
+				@SuppressWarnings("rawtypes") final Class wrappedGenericType = getWrappedGenericType(method, proxyState.getProxyClass());
+				final UnaryOperator<Object> resultWrapper = ProxyUtils.createOptionalWrapper(wrappedGenericType);
+				@SuppressWarnings("rawtypes") final Class valueType = wrappedGenericType == null ? returnType : wrappedGenericType;
 				final Optional<String> propertyName = ReflectionLookup.getPropertyNameFromMethodNameIfPossible(method.getName());
-				if (Number.class.isAssignableFrom(EvitaDataTypes.toWrappedForm(returnType)) && referencedEntityGroup != null || (
+				if (Number.class.isAssignableFrom(toWrappedForm(valueType)) && referencedEntityGroup != null || (
 					!reflectionLookup.hasAnnotationInSamePackage(method, ReferencedEntityGroup.class) &&
-							propertyName
-								.map(ReferencedEntityGroup.POSSIBLE_ARGUMENT_NAMES::contains)
-								.orElse(false)
-					)
+						propertyName
+							.map(ReferencedEntityGroup.POSSIBLE_ARGUMENT_NAMES::contains)
+							.orElse(false)
+				)
 				) {
 					// method matches - provide implementation
 					//noinspection unchecked
-					return (entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
-						theState.getReference().getGroup().map(GroupEntityReference::getPrimaryKey).orElse(null),
-						returnType
+					return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
+						toTargetType(
+							theState.getReference().getGroup().map(GroupEntityReference::getPrimaryKey).orElse(null),
+							valueType
+						)
 					);
 				} else {
 					// this method is not classified by this implementation

@@ -209,6 +209,12 @@ public interface PricesContract extends Serializable {
 	}
 
 	/**
+	 * Returns true if the entity has context available so that calling {@link #getPriceForSale()} is possible without
+	 * throwing an exception.
+	 */
+	boolean isContextAvailable();
+
+	/**
 	 * Returns a price for which the entity should be sold. This method can be used only in context of a {@link Query}
 	 * with price related constraints so that `currency` and `priceList` priority can be extracted from the query.
 	 * The moment is either extracted from the query as well (if present) or current date and time is used.

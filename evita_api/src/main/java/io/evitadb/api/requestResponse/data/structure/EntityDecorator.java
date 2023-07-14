@@ -49,7 +49,6 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.Getter;
@@ -828,6 +827,11 @@ public class EntityDecorator implements SealedEntity {
 		return SealedEntity.super.getPriceForSale(currency, atTheMoment, priceListPriority);
 	}
 
+	@Override
+	public boolean isContextAvailable() {
+		return pricePredicate.isContextAvailable();
+	}
+
 	@Nonnull
 	@Override
 	public Optional<PriceContract> getPriceForSale() throws ContextMissingException {
@@ -935,10 +939,6 @@ public class EntityDecorator implements SealedEntity {
 	@Override
 	public EntityBuilder withMutations(@Nonnull Collection<LocalMutation<?, ?>> localMutations) {
 		return new ExistingEntityBuilder(this, localMutations);
-	}
-
-	public boolean isContextAvailable() {
-		return pricePredicate.getCurrency() != null && !ArrayUtils.isEmpty(pricePredicate.getPriceLists());
 	}
 
 	@Override

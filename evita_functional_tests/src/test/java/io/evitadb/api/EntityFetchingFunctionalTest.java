@@ -867,7 +867,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	@UseDataSet(FIFTY_PRODUCTS)
 	void shouldRetrieveSingleEntityWithAssociatedDataByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final SealedEntity productWithAssociatedData = originalProducts.stream()
-			.filter(it -> !it.getAttributeValues().isEmpty())
+			.filter(it -> !it.getAssociatedDataValues().isEmpty())
 			.findFirst()
 			.orElseThrow();
 		evita.queryCatalog(

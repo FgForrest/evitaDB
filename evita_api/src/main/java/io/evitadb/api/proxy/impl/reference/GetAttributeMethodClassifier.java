@@ -30,7 +30,6 @@ import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.NamingConvention;
@@ -46,7 +45,10 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
+import static io.evitadb.api.proxy.impl.ProxyUtils.createOptionalWrapper;
+import static io.evitadb.api.proxy.impl.ProxyUtils.getWrappedGenericType;
 import static io.evitadb.api.proxy.impl.entity.GetAttributeMethodClassifier.createDefaultValueProvider;
+import static io.evitadb.dataType.EvitaDataTypes.toTargetType;
 
 /**
  * Identifies methods that are used to get attributes from an reference and provides their implementation.
@@ -115,19 +117,25 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 					final String cleanAttributeName = attributeSchema.getName();
 					final int indexedDecimalPlaces = attributeSchema.getIndexedDecimalPlaces();
 					@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
-					@SuppressWarnings("unchecked")
-					final UnaryOperator<Serializable> defaultValueProvider = createDefaultValueProvider(attributeSchema, returnType);
+					@SuppressWarnings("unchecked") final UnaryOperator<Serializable> defaultValueProvider = createDefaultValueProvider(attributeSchema, returnType);
+					@SuppressWarnings("rawtypes") final Class wrappedGenericType = getWrappedGenericType(method, proxyState.getProxyClass());
+					final UnaryOperator<Object> resultWrapper = createOptionalWrapper(wrappedGenericType);
+					@SuppressWarnings("rawtypes") final Class valueType = wrappedGenericType == null ? returnType : wrappedGenericType;
 
 					if (attributeSchema.isLocalized()) {
 						//noinspection unchecked
 						return method.getParameterCount() == 0 ?
-							(entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
-								defaultValueProvider.apply(theState.getReference().getAttribute(cleanAttributeName)),
-								returnType, indexedDecimalPlaces
+							(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
+								toTargetType(
+									defaultValueProvider.apply(theState.getReference().getAttribute(cleanAttributeName)),
+									valueType, indexedDecimalPlaces
+								)
 							) :
-							(entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
-								defaultValueProvider.apply(theState.getReference().getAttribute(cleanAttributeName, (Locale) args[0])),
-								returnType, indexedDecimalPlaces
+							(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
+								toTargetType(
+									defaultValueProvider.apply(theState.getReference().getAttribute(cleanAttributeName, (Locale) args[0])),
+									valueType, indexedDecimalPlaces
+								)
 							);
 					} else {
 						Assert.isTrue(
@@ -135,9 +143,11 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 							"Non-localized attribute `" + attributeSchema.getName() + "` of reference `" + proxyState.getReferenceSchema().getName() + "` must not have a locale parameter!"
 						);
 						//noinspection unchecked
-						return (entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
-							defaultValueProvider.apply(theState.getReference().getAttribute(cleanAttributeName)),
-							returnType, indexedDecimalPlaces
+						return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
+							toTargetType(
+								defaultValueProvider.apply(theState.getReference().getAttribute(cleanAttributeName)),
+								valueType, indexedDecimalPlaces
+							)
 						);
 					}
 				}

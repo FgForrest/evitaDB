@@ -23,16 +23,21 @@
 
 package io.evitadb.api.proxy.impl.entity;
 
+import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKeyRef;
-import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.ReflectionLookup;
 import one.edee.oss.proxycian.DirectMethodClassification;
 
 import java.util.Optional;
+import java.util.function.UnaryOperator;
+
+import static io.evitadb.api.proxy.impl.ProxyUtils.getWrappedGenericType;
+import static io.evitadb.dataType.EvitaDataTypes.toTargetType;
+import static io.evitadb.dataType.EvitaDataTypes.toWrappedForm;
 
 /**
  * Identifies methods that are used to get entity primary key from an entity and provides their implementation.
@@ -59,19 +64,25 @@ public class GetPrimaryKeyMethodClassifier extends DirectMethodClassification<En
 				final PrimaryKey primaryKey = reflectionLookup.getAnnotationInstance(method, PrimaryKey.class);
 				final PrimaryKeyRef primaryKeyRef = reflectionLookup.getAnnotationInstance(method, PrimaryKeyRef.class);
 				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
+				@SuppressWarnings("rawtypes") final Class wrappedGenericType = getWrappedGenericType(method, proxyState.getProxyClass());
+				final UnaryOperator<Object> resultWrapper = ProxyUtils.createOptionalWrapper(wrappedGenericType);
+				@SuppressWarnings("rawtypes") final Class valueType = wrappedGenericType == null ? returnType : wrappedGenericType;
+
 				final Optional<String> propertyName = ReflectionLookup.getPropertyNameFromMethodNameIfPossible(method.getName());
 				if (primaryKey != null || primaryKeyRef != null || (
 					!reflectionLookup.hasAnnotationInSamePackage(method, PrimaryKey.class) &&
-						Number.class.isAssignableFrom(EvitaDataTypes.toWrappedForm(returnType)) &&
-							propertyName
-								.map(PrimaryKeyRef.POSSIBLE_ARGUMENT_NAMES::contains)
-								.orElse(false)
-					)
+						Number.class.isAssignableFrom(toWrappedForm(valueType)) &&
+						propertyName
+							.map(PrimaryKeyRef.POSSIBLE_ARGUMENT_NAMES::contains)
+							.orElse(false)
+				)
 				) {
 					// method matches - provide implementation
 					//noinspection unchecked
-					return (entityClassifier, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
-						theState.getPrimaryKey(), returnType
+					return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
+						toTargetType(
+							theState.getPrimaryKey(), valueType
+						)
 					);
 				} else {
 					// this method is not classified by this implementation
