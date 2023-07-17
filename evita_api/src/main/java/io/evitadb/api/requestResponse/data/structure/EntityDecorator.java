@@ -637,7 +637,7 @@ public class EntityDecorator implements SealedEntity {
 		return getAttributeValues()
 			.stream()
 			.map(AttributeValue::key)
-			.collect(Collectors.toSet());
+			.collect(Collectors.toCollection(TreeSet::new));
 	}
 
 	@Nonnull
