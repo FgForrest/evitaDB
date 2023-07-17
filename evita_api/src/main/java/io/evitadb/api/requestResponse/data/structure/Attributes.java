@@ -262,7 +262,7 @@ public class Attributes implements AttributesContract {
 				.map(AttributesContract.AttributeKey::attributeName)
 				.collect(
 					Collectors.toCollection(
-						() -> CollectionUtils.createLinkedHashSet(this.attributeNames.size())
+						() -> CollectionUtils.createLinkedHashSet(this.attributeValues.size())
 					)
 				);
 		}
