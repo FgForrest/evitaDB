@@ -69,13 +69,18 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutatingDataF
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutatingDataFetcher.UpsertEntityMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
+import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLEnumTypeTransformer;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static graphql.schema.GraphQLArgument.newArgument;
 import static graphql.schema.GraphQLEnumType.newEnum;
@@ -83,6 +88,7 @@ import static graphql.schema.GraphQLList.list;
 import static graphql.schema.GraphQLNonNull.nonNull;
 import static graphql.schema.GraphQLTypeReference.typeRef;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.ARGUMENT_NAME_NAMING_CONVENTION;
+import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.CATALOG_LOCALE_ENUM;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_CURRENCY_ENUM;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_LOCALE_ENUM;
 import static io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars.INT;
@@ -157,6 +163,8 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	private void buildCommonTypes() {
+		buildCatalogEnum().ifPresent(buildingContext::registerCustomEnumIfAbsent);
+
 		final GraphQLEnumType scalarEnum = buildScalarEnum();
 		buildingContext.registerType(scalarEnum);
 		buildingContext.registerType(buildAssociatedDataScalarEnum(scalarEnum));
@@ -164,6 +172,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		entityObjectBuilder.buildCommonTypes();
 		fullResponseObjectBuilder.buildCommonTypes();
 		localMutationAggregateObjectBuilder.buildCommonTypes();
+
 	}
 
 	private void buildFields() {
@@ -214,7 +223,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			final GraphQLEnumType.Builder localeEnumBuilder = newEnum()
 				.name(localeEnumName)
 				.description(CatalogDataApiRootDescriptor.ENTITY_LOCALE_ENUM.description());
-			entitySchema.getLocales().forEach(l -> localeEnumBuilder.value(l.toLanguageTag().replace("-", "_"), l));
+			entitySchema.getLocales().forEach(l -> localeEnumBuilder.value(transformLocaleToGraphQLEnumString(l), l));
 			buildingContext.registerCustomEnumIfAbsent(localeEnumBuilder.build());
 		}
 
@@ -268,8 +277,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	@Nullable
 	private BuiltFieldDescriptor buildGetUnknownEntityField() {
 		final GraphQLFieldDefinition.Builder getUnknownEntityFieldBuilder = CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY
-			.to(staticEndpointBuilderTransformer)
- 			.type(typeRef(EntityDescriptor.THIS_INTERFACE.name()));
+			.to(staticEndpointBuilderTransformer);
 
 		// build globally unique attribute filters
 		final List<GlobalAttributeSchemaContract> globalAttributes = buildingContext.getCatalog()
@@ -300,7 +308,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			new GetUnknownEntityDataFetcher(
 				buildingContext.getEvitaExecutor().orElse(null),
 				buildingContext.getSchema(),
-				buildingContext.getEntitySchemas()
+				buildingContext.getSupportedLocales()
 			)
 		);
 	}
@@ -309,7 +317,6 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private BuiltFieldDescriptor buildListUnknownEntityField() {
 		final Builder listUnknownEntityFieldBuilder = CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY
 			.to(staticEndpointBuilderTransformer)
-			.type(list(nonNull(typeRef(EntityDescriptor.THIS_INTERFACE.name()))))
 			.argument(ListUnknownEntitiesHeaderDescriptor.LIMIT.to(argumentBuilderTransformer));
 
 		// build globally unique attribute filters
@@ -341,7 +348,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			new ListUnknownEntitiesDataFetcher(
 				buildingContext.getEvitaExecutor().orElse(null),
 				buildingContext.getSchema(),
-				buildingContext.getEntitySchemas()
+				buildingContext.getSupportedLocales()
 			)
 		);
 	}
@@ -526,5 +533,27 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			deleteEntityByQueryField,
 			new DeleteEntitiesMutatingDataFetcher(buildingContext.getSchema(), entitySchema)
 		);
+	}
+
+	@Nonnull
+	private static String transformLocaleToGraphQLEnumString(@Nonnull Locale locale) {
+		return locale.toLanguageTag().replace("-", "_");
+	}
+
+	@Nonnull
+	private Optional<GraphQLEnumType> buildCatalogEnum() {
+		if (buildingContext.getSupportedLocales().isEmpty()) {
+			return Optional.empty();
+		}
+
+		final GraphQLEnumType catalogLocaleEnum = CATALOG_LOCALE_ENUM
+			.to(new ObjectDescriptorToGraphQLEnumTypeTransformer(
+				buildingContext.getSupportedLocales().stream()
+					.map(locale -> Map.entry(transformLocaleToGraphQLEnumString(locale), locale))
+					.collect(Collectors.toSet())
+			))
+			.build();
+
+		return Optional.of(catalogLocaleEnum);
 	}
 }

@@ -30,6 +30,7 @@ import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
@@ -84,6 +85,20 @@ public class EntityFetchRequireResolver {
 	@Nonnull
 	public Optional<EntityFetch> resolveEntityFetch(@Nonnull SelectionSetWrapper selectionSetWrapper,
 	                                                @Nullable Locale desiredLocale,
+	                                                @Nonnull CatalogSchemaContract catalogSchemaContract,
+	                                                @Nonnull Set<Locale> allPossibleLocales) {
+		return resolveContentRequirements(
+			selectionSetWrapper,
+			desiredLocale,
+			catalogSchemaContract,
+			allPossibleLocales
+		)
+			.map(it -> entityFetch(it.toArray(EntityContentRequire[]::new)));
+	}
+
+	@Nonnull
+	public Optional<EntityFetch> resolveEntityFetch(@Nonnull SelectionSetWrapper selectionSetWrapper,
+	                                                @Nullable Locale desiredLocale,
 	                                                @Nullable EntitySchemaContract currentEntitySchema) {
 		return resolveContentRequirements(
 			selectionSetWrapper,
@@ -108,6 +123,22 @@ public class EntityFetchRequireResolver {
 	@Nonnull
 	private Optional<List<EntityContentRequire>> resolveContentRequirements(@Nonnull SelectionSetWrapper selectionSetWrapper,
 	                                                                        @Nullable Locale desiredLocale,
+	                                                                        @Nonnull CatalogSchemaContract catalogSchemaContract,
+	                                                                        @Nonnull Set<Locale> allPossibleLocales) {
+		if (!needsEntityBody(selectionSetWrapper)) {
+			return Optional.empty();
+		}
+
+		final List<EntityContentRequire> entityContentRequires = new LinkedList<>();
+		resolveAttributeContent(selectionSetWrapper, catalogSchemaContract).ifPresent(entityContentRequires::add);
+		resolveDataInLocales(selectionSetWrapper, desiredLocale, allPossibleLocales).ifPresent(entityContentRequires::add);
+
+		return Optional.of(entityContentRequires);
+	}
+
+	@Nonnull
+	private Optional<List<EntityContentRequire>> resolveContentRequirements(@Nonnull SelectionSetWrapper selectionSetWrapper,
+	                                                                        @Nullable Locale desiredLocale,
 	                                                                        @Nullable EntitySchemaContract currentEntitySchema) {
 		// no entity schema, no available data to fetch
 		if (currentEntitySchema == null) {
@@ -124,9 +155,14 @@ public class EntityFetchRequireResolver {
 		resolveAssociatedDataContent(selectionSetWrapper, currentEntitySchema).ifPresent(entityContentRequires::add);
 		resolvePriceContent(selectionSetWrapper).ifPresent(entityContentRequires::add);
 		entityContentRequires.addAll(resolveReferenceContent(selectionSetWrapper, desiredLocale, currentEntitySchema));
-		resolveDataInLocales(selectionSetWrapper, desiredLocale, currentEntitySchema).ifPresent(entityContentRequires::add);
+		resolveDataInLocales(selectionSetWrapper, desiredLocale, currentEntitySchema.getLocales()).ifPresent(entityContentRequires::add);
 
 		return Optional.of(entityContentRequires);
+	}
+
+	private boolean needsEntityBody(@Nonnull SelectionSetWrapper selectionSetWrapper) {
+		return needsLocales(selectionSetWrapper) ||
+			needsAttributes(selectionSetWrapper);
 	}
 
 	private boolean needsEntityBody(@Nonnull SelectionSetWrapper selectionSetWrapper, @Nonnull EntitySchemaContract currentEntitySchema) {
@@ -458,12 +494,12 @@ public class EntityFetchRequireResolver {
 	@Nonnull
 	private Optional<DataInLocales> resolveDataInLocales(@Nonnull SelectionSetWrapper selectionSetWrapper,
 	                                                     @Nullable Locale desiredLocale,
-	                                                     @Nonnull EntitySchemaContract currentEntitySchema) {
+	                                                     @Nonnull Set<Locale> allPossibleLocales) {
 		if (!needsAttributes(selectionSetWrapper) && !needsAssociatedData(selectionSetWrapper)) {
 			return Optional.empty();
 		}
 
-		final Set<Locale> neededLocales = createHashSet(currentEntitySchema.getLocales().size());
+		final Set<Locale> neededLocales = createHashSet(allPossibleLocales.size());
 		if (desiredLocale != null) {
 			neededLocales.add(desiredLocale);
 		}

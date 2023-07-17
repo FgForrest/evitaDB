@@ -107,7 +107,7 @@ public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherR
 
 		return DataFetcherResult.<EntityClassifier>newResult()
 			.data(upsertedEntity)
-			.localContext(EntityQueryContext.builder().build())
+			.localContext(EntityQueryContext.empty())
 			.build();
 	}
 
