@@ -193,12 +193,12 @@ public abstract class EndpointHandler<E extends EndpointExchange, R> implements 
 		}
 
 		for (String supportedMediaType : getSupportedResponseContentTypes()) {
-			if (acceptHeaders.contains(supportedMediaType)) {
+			if (acceptHeaders.stream().anyMatch(it -> it.contains(supportedMediaType))) {
 				return Optional.of(supportedMediaType);
 			}
 		}
 
-		if (acceptHeaders.contains(MimeTypes.ALL)) {
+		if (acceptHeaders.stream().anyMatch(it -> it.contains(MimeTypes.ALL))) {
 			// no exact preferred media type found, but we can use this fallback at least
 			return Optional.of(getSupportedResponseContentTypes().iterator().next());
 		}

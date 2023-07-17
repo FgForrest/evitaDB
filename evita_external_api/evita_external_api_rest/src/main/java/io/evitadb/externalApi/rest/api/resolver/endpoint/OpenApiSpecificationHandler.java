@@ -67,8 +67,8 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 	@Override
 	public LinkedHashSet<String> getSupportedResponseContentTypes() {
 		final LinkedHashSet<String> mediaTypes = createLinkedHashSet(2);
-		mediaTypes.add(MimeTypes.APPLICATION_YAML);
 		mediaTypes.add(MimeTypes.APPLICATION_JSON);
+		mediaTypes.add(MimeTypes.APPLICATION_YAML);
 		return mediaTypes;
 	}
 
