@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -45,14 +46,8 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -129,7 +124,8 @@ public class Attributes implements AttributesContract {
 					Function.identity(),
 					(attributeValue, attributeValue2) -> {
 						throw new EvitaInvalidUsageException("Duplicated attribute " + attributeValue.key() + "!");
-					}
+					},
+					TreeMap::new
 				)
 			);
 		this.attributeTypes = attributeTypes;
@@ -257,7 +253,11 @@ public class Attributes implements AttributesContract {
 				.keySet()
 				.stream()
 				.map(AttributesContract.AttributeKey::attributeName)
-				.collect(Collectors.toSet());
+				.collect(
+					Collectors.toCollection(
+						() -> CollectionUtils.createLinkedHashSet(this.attributeValues.size())
+					)
+				);
 		}
 		return this.attributeNames;
 	}
@@ -300,7 +300,7 @@ public class Attributes implements AttributesContract {
 				.filter(Droppable::exists)
 				.map(it -> it.key().locale())
 				.filter(Objects::nonNull)
-				.collect(Collectors.toSet());
+				.collect(Collectors.toCollection(TreeSet::new));
 		}
 		return this.attributeLocales;
 	}

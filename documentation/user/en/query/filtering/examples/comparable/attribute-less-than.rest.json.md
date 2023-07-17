@@ -10,8 +10,8 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "huawei-talkband-b6",
-            "battery-capacity" : "120.00000"
+            "battery-capacity" : "120.00000",
+            "code" : "huawei-talkband-b6"
           }
         }
       },
@@ -23,8 +23,8 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "huawei-watch-3",
-            "battery-capacity" : "120.00000"
+            "battery-capacity" : "120.00000",
+            "code" : "huawei-watch-3"
           }
         }
       }
