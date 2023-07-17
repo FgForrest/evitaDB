@@ -31,7 +31,6 @@ import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
@@ -81,7 +80,7 @@ public class EntityObjectBuilder {
 
 	public void buildCommonTypes() {
 		buildingContext.registerType(PriceDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(RestEntityDescriptor.THIS_ENTITY_REFERENCE.to(objectBuilderTransformer).build());
+		buildingContext.registerType(RestEntityDescriptor.THIS_REFERENCE.to(objectBuilderTransformer).build());
 	}
 
 	/**
@@ -444,7 +443,7 @@ public class EntityObjectBuilder {
 			final var entityName = constructEntityObjectName(referencedEntitySchema, localized);
 			referencedEntityObject = typeRefTo(entityName);
 		} else {
-			referencedEntityObject = typeRefTo(RestEntityDescriptor.THIS_ENTITY_REFERENCE.name());
+			referencedEntityObject = typeRefTo(RestEntityDescriptor.THIS_REFERENCE.name());
 		}
 
 		return referencedEntityObject;
@@ -480,7 +479,7 @@ public class EntityObjectBuilder {
 			final var groupType = constructEntityObjectName(referencedGroupSchema, localized);
 			groupEntityObject = typeRefTo(groupType);
 		} else {
-			groupEntityObject = typeRefTo(RestEntityDescriptor.THIS_ENTITY_REFERENCE.name());
+			groupEntityObject = typeRefTo(RestEntityDescriptor.THIS_REFERENCE.name());
 		}
 
 		return groupEntityObject;

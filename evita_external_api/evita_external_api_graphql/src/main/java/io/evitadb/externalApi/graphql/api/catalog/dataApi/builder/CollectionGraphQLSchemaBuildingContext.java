@@ -58,7 +58,7 @@ public class CollectionGraphQLSchemaBuildingContext {
 	}
 
 	public void registerEntityObject(@Nonnull GraphQLObjectType entityObject) {
-		catalogCtx.registerEntityObject(schema.getName(), entityObject);
+		catalogCtx.registerEntityObject(entityObject);
 	}
 
 	/**
