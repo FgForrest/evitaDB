@@ -355,7 +355,7 @@ public class GlobalUniqueIndex implements TransactionalLayerProducer<Transaction
 	private <T extends Serializable & Comparable<T>> void assertUniqueKeyIsFree(@Nonnull T key, EntityWithTypeTuple record, @Nullable EntityWithTypeTuple existingRecord) {
 		if (!(existingRecord == null || existingRecord.equals(record))) {
 			throw new UniqueValueViolationException(
-				attributeKey.getAttributeName(), key,
+				attributeKey.attributeName(), key,
 				toClassifier(existingRecord.entityType()), existingRecord.entityPrimaryKey(),
 				toClassifier(record.entityType()), record.entityPrimaryKey()
 			);
@@ -400,8 +400,8 @@ public class GlobalUniqueIndex implements TransactionalLayerProducer<Transaction
 		isTrue(
 			Objects.equals(existingRecordId, expectedRecordId),
 			() -> existingRecordId == null ?
-				"No unique key exists for `" + attributeKey.getAttributeName() + "` key: `" + key + "`!" :
-				"Unique key exists for `" + attributeKey.getAttributeName() + "` key: `" + key + "` belongs to record with id `" + existingRecordId + "` and not `" + expectedRecordId + "` as expected!"
+				"No unique key exists for `" + attributeKey.attributeName() + "` key: `" + key + "`!" :
+				"Unique key exists for `" + attributeKey.attributeName() + "` key: `" + key + "` belongs to record with id `" + existingRecordId + "` and not `" + expectedRecordId + "` as expected!"
 		);
 	}
 

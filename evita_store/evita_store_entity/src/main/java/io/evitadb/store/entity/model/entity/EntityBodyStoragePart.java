@@ -68,7 +68,7 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	 */
 	private final boolean initialRevision;
 	/**
-	 * See {@link Entity#getVersion()}.
+	 * See {@link Entity#version()}.
 	 */
 	private int version;
 	/**
@@ -188,7 +188,7 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	public OperationResult addAssociatedDataKey(@Nonnull AssociatedDataKey associatedDataKey) {
 		if (this.associatedDataKeys.add(associatedDataKey)) {
 			// if associated data is localized - enrich the set of entity locales
-			final boolean localesChanged = ofNullable(associatedDataKey.getLocale())
+			final boolean localesChanged = ofNullable(associatedDataKey.locale())
 				.map(it -> this.recomputeLocales())
 				.orElse(false);
 			this.dirty = true;
@@ -206,7 +206,7 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	public OperationResult removeAssociatedDataKey(@Nonnull AssociatedDataKey associatedDataKey) {
 		if (this.associatedDataKeys.remove(associatedDataKey)) {
 			// if associated data is localized - recompute the set of entity locales
-			final boolean localesChanged = ofNullable(associatedDataKey.getLocale())
+			final boolean localesChanged = ofNullable(associatedDataKey.locale())
 				.map(it -> this.recomputeLocales())
 				.orElse(false);
 			this.dirty = true;
@@ -230,7 +230,7 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 		final Set<Locale> recomputedLocales = Stream.concat(
 				attributeLocales.stream(),
 				associatedDataKeys.stream()
-					.map(AssociatedDataKey::getLocale)
+					.map(AssociatedDataKey::locale)
 					.filter(Objects::nonNull)
 			)
 			.collect(Collectors.toSet());

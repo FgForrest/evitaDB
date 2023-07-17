@@ -193,7 +193,7 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 		final AttributeSchemaContract existingAttributeSchema = entitySchema.getAttribute(name).orElse(null);
 		if (existingAttributeSchema == null) {
 			return EntitySchema._internalBuild(
-				entitySchema.getVersion() + 1,
+				entitySchema.version() + 1,
 				entitySchema.getName(),
 				entitySchema.getNameVariants(),
 				entitySchema.getDescription(),

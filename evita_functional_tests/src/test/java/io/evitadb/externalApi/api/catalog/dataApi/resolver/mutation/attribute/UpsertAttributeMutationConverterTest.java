@@ -170,7 +170,7 @@ class UpsertAttributeMutationConverterTest {
 				.e(UpsertAttributeMutationDescriptor.VALUE_TYPE.name(), LongNumberRange[].class)
 				.build()
 		);
-		assertEquals("arrayOfRangesAttribute", localMutation.getAttributeKey().getAttributeName());
+		assertEquals("arrayOfRangesAttribute", localMutation.getAttributeKey().attributeName());
 		assertArrayEquals(
 			new LongNumberRange[] {
 				LongNumberRange.to(20L),

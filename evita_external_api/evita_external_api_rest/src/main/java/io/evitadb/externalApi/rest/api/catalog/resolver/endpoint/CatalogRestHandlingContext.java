@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.rest.api.catalog.resolver.endpoint;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.Evita;
@@ -36,7 +35,6 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
-import java.util.function.Function;
 
 /**
  * This class contains information required to process REST API requests. Not all attributes has to be set
@@ -57,20 +55,6 @@ public class CatalogRestHandlingContext extends RestHandlingContext {
 	                                  boolean localized) {
 		super(objectMapper, evita, openApi, enumMapping, endpointOperation, localized);
 		this.catalogSchema = catalogSchema;
-	}
-
-	/**
-	 * Creates Evita's read-only session
-	 */
-	public <T> T queryCatalog(@Nonnull Function<EvitaSessionContract, T> queryLogic) {
-		return evita.queryCatalog(catalogSchema.getName(), queryLogic);
-	}
-
-	/**
-	 * Creates Evita's read/write session
-	 */
-	public <T> T updateCatalog(@Nonnull Function<EvitaSessionContract, T> updater) {
-		return evita.updateCatalog(catalogSchema.getName(), updater);
 	}
 
 	/**

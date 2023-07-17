@@ -31,6 +31,9 @@ import io.evitadb.test.generator.DataGenerator;
 
 import javax.annotation.Nonnull;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.OptionalInt;
+import java.util.OptionalLong;
 
 /**
  * Example interface mapping a product category reference.
@@ -45,6 +48,9 @@ public interface ProductCategoryInterface {
 	@AttributeRef(DataGenerator.ATTRIBUTE_CATEGORY_PRIORITY)
 	Long getOrderInCategory();
 
+	@AttributeRef(DataGenerator.ATTRIBUTE_CATEGORY_PRIORITY)
+	OptionalLong getOrderInCategoryIfPresent();
+
 	@AttributeRef(AbstractFiftyProductsFunctionalTest.ATTRIBUTE_CATEGORY_LABEL)
 	String getLabel();
 
@@ -54,12 +60,22 @@ public interface ProductCategoryInterface {
 	@ReferencedEntity
 	@Nonnull
 	CategoryInterface getCategory();
+	@ReferencedEntity
+	@Nonnull
+	Optional<CategoryInterface> getCategoryIfPresent();
 
 	@ReferencedEntity
 	@Nonnull
 	EntityReference getCategoryReference();
 
 	@ReferencedEntity
+	@Nonnull
+	Optional<EntityReference> getCategoryReferenceIfPresent();
+
+	@ReferencedEntity
 	int getCategoryReferencePrimaryKey();
+
+	@ReferencedEntity
+	OptionalInt getCategoryReferencePrimaryKeyIfPresent();
 
 }

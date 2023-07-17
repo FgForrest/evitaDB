@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.openApi;
 
+import io.swagger.v3.core.util.Json31;
 import io.swagger.v3.core.util.Yaml31;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -37,7 +38,11 @@ import javax.annotation.Nonnull;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class OpenApiWriter {
 
-	public static String toYaml(@Nonnull Object openAPI) {
-		return Yaml31.pretty(openAPI);
+	public static String toYaml(@Nonnull Object openApi) {
+		return Yaml31.pretty(openApi);
+	}
+
+	public static String toJson(@Nonnull Object openApi) {
+		return Json31.pretty(openApi);
 	}
 }

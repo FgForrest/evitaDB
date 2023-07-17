@@ -140,13 +140,13 @@ public class AssociatedDataValueSerializablePredicate implements SerializablePre
 	@Override
 	public boolean test(AssociatedDataValue associatedDataValue) {
 		if (requiresEntityAssociatedData) {
-			final AssociatedDataKey key = associatedDataValue.getKey();
+			final AssociatedDataKey key = associatedDataValue.key();
 			return associatedDataValue.exists() &&
 				(
-					!key.isLocalized() ||
-						(locales != null && (locales.isEmpty() || locales.contains(key.getLocale())))
+					!key.localized() ||
+						(locales != null && (locales.isEmpty() || locales.contains(key.locale())))
 				) &&
-				(associatedDataSet.isEmpty() || associatedDataSet.contains(key.getAssociatedDataName()));
+				(associatedDataSet.isEmpty() || associatedDataSet.contains(key.associatedDataName()));
 		} else {
 			return false;
 		}
@@ -171,8 +171,8 @@ public class AssociatedDataValueSerializablePredicate implements SerializablePre
 
 	public boolean wasFetched(@Nonnull AssociatedDataKey associatedDataKey) {
 		if (this.requiresEntityAssociatedData) {
-			return this.associatedDataSet.contains(associatedDataKey.getAssociatedDataName()) &&
-				(associatedDataKey.getLocale() == null || (this.locales != null && this.locales.contains(associatedDataKey.getLocale())));
+			return this.associatedDataSet.contains(associatedDataKey.associatedDataName()) &&
+				(associatedDataKey.locale() == null || (this.locales != null && this.locales.contains(associatedDataKey.locale())));
 		} else {
 			return false;
 		}

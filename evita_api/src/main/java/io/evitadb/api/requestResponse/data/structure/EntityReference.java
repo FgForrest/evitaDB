@@ -26,8 +26,6 @@ package io.evitadb.api.requestResponse.data.structure;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.MemoryMeasuringConstants;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
@@ -42,28 +40,29 @@ import java.util.Objects;
  * queries that don't require loading additional data.
  *
  * Class is immutable on purpose - we want to support caching the entities in a shared cache and accessed by many threads.
-
+ *
+ * @param type       Reference to {@link Entity#getType()} of the referenced entity. Might be also any {@link String}
+ *                   that identifies type some external resource not maintained by Evita.
+ * @param primaryKey Reference to {@link Entity#getPrimaryKey()} of the referenced entity. Might be also any integer
+ *                   that uniquely identifies some external resource of type {@link #getType()} not maintained by Evita.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Immutable
 @ThreadSafe
-@RequiredArgsConstructor
-public class EntityReference implements EntityReferenceContract<EntityReference>, Serializable {
+public record EntityReference(
+	@Nonnull String type,
+	int primaryKey
+) implements EntityReferenceContract<EntityReference>, Serializable {
 	@Serial private static final long serialVersionUID = 7432447904441796055L;
-
-	/**
-	 * Reference to {@link Entity#getType()} of the referenced entity. Might be also any {@link String}
-	 * that identifies type some external resource not maintained by Evita.
-	 */
-	@Getter private final @Nonnull String type;
-	/**
-	 * Reference to {@link Entity#getPrimaryKey()} of the referenced entity. Might be also any integer
-	 * that uniquely identifies some external resource of type {@link #getType()} not maintained by Evita.
-	 */
-	private final int primaryKey;
 
 	public EntityReference(@Nonnull EntityReferenceContract<EntityReference> entityReference) {
 		this(entityReference.getType(), entityReference.getPrimaryKey());
+	}
+
+	@Override
+	@Nonnull
+	public String getType() {
+		return type;
 	}
 
 	@Nonnull

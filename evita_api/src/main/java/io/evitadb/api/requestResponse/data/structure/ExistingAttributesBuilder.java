@@ -186,7 +186,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 			if (!suppressVerification) {
 				InitialAttributesBuilder.verifyAttributeIsInSchemaAndTypeMatch(
 					baseAttributes.entitySchema,
-					attributeKey.getAttributeName(), attributeValue.getClass(), attributeKey.getLocale()
+					attributeKey.attributeName(), attributeValue.getClass(), attributeKey.locale()
 				);
 			}
 
@@ -217,7 +217,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 			if (attributeMutations.get(attributeKey) == null) {
 				this.attributeMutations.put(attributeKey, applyDeltaAttributeMutation);
 			} else {
-				this.attributeMutations.put(attributeKey, new UpsertAttributeMutation(attributeKey, Objects.requireNonNull(updatedValue.getValue())));
+				this.attributeMutations.put(attributeKey, new UpsertAttributeMutation(attributeKey, Objects.requireNonNull(updatedValue.value())));
 			}
 		} else {
 			throw new EvitaInternalError("Unknown Evita price mutation: `" + localMutation.getClass() + "`!");
@@ -236,7 +236,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 					newAttributeValues
 						.stream()
 						// filter out new attributes that has no type yet
-						.filter(it -> !baseAttributes.attributeTypes.containsKey(it.getKey().getAttributeName()))
+						.filter(it -> !baseAttributes.attributeTypes.containsKey(it.key().attributeName()))
 						// create definition for them on the fly
 						.map(this::createImplicitSchema)
 				)
@@ -372,7 +372,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	public <T extends Serializable> T getAttribute(@Nonnull String attributeName) {
 		//noinspection unchecked
 		return (T) getAttributeValueInternal(new AttributeKey(attributeName))
-			.map(AttributeValue::getValue)
+			.map(AttributeValue::value)
 			.orElse(null);
 	}
 
@@ -385,7 +385,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	public <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName) {
 		//noinspection unchecked
 		return (T[]) getAttributeValueInternal(new AttributeKey(attributeName))
-			.map(AttributeValue::getValue)
+			.map(AttributeValue::value)
 			.orElse(null);
 	}
 
@@ -400,7 +400,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	public <T extends Serializable> T getAttribute(@Nonnull String attributeName, @Nonnull Locale locale) {
 		//noinspection unchecked
 		return (T) getAttributeValueInternal(new AttributeKey(attributeName, locale))
-			.map(AttributeValue::getValue)
+			.map(AttributeValue::value)
 			.orElse(null);
 	}
 
@@ -409,7 +409,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	public <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName, @Nonnull Locale locale) {
 		//noinspection unchecked
 		return (T[]) getAttributeValueInternal(new AttributeKey(attributeName, locale))
-			.map(AttributeValue::getValue)
+			.map(AttributeValue::value)
 			.orElse(null);
 	}
 
@@ -431,7 +431,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 		return getAttributeValues()
 			.stream()
 			.filter(attributePredicate)
-			.map(it -> it.getKey().getAttributeName())
+			.map(it -> it.key().attributeName())
 			.collect(Collectors.toSet());
 	}
 
@@ -440,7 +440,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	public Set<AttributeKey> getAttributeKeys() {
 		return getAttributeValues()
 			.stream()
-			.map(AttributeValue::getKey)
+			.map(AttributeValue::key)
 			.collect(Collectors.toSet());
 	}
 
@@ -465,7 +465,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	public Collection<AttributeValue> getAttributeValues(@Nonnull String attributeName) {
 		return getAttributeValues()
 			.stream()
-			.filter(it -> attributeName.equals(it.getKey().getAttributeName()))
+			.filter(it -> attributeName.equals(it.key().attributeName()))
 			.collect(Collectors.toList());
 	}
 
@@ -474,7 +474,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 		// this is quite expensive, but should not be called frequently
 		return getAttributeValues()
 			.stream()
-			.map(it -> it.getKey().getLocale())
+			.map(it -> it.key().locale())
 			.filter(Objects::nonNull)
 			.collect(Collectors.toSet());
 	}
@@ -498,7 +498,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 				final AttributeValue existingValue = builtAttributes.get(it.getAttributeKey());
 				final AttributeValue newAttribute = it.mutateLocal(entitySchema, existingValue);
 				builtAttributes.put(it.getAttributeKey(), newAttribute);
-				return existingValue == null || newAttribute.getVersion() > existingValue.getVersion();
+				return existingValue == null || newAttribute.version() > existingValue.version();
 			});
 	}
 

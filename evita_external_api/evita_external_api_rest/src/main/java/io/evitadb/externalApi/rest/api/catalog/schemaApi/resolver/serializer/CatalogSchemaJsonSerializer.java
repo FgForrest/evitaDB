@@ -137,8 +137,8 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 				.forEach(entitySchema -> entitySchemasMap.set(
 					entitySchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION),
 					entitySchemaJsonSerializer.serialize(
-						entitySchemaFetcher,
-						entitySchema
+						entitySchema,
+						entitySchemaFetcher
 					)
 				));
 		}

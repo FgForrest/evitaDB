@@ -41,8 +41,8 @@ public class AttributeKeySerializer extends Serializer<AttributeKey> {
 
 	@Override
 	public void write(Kryo kryo, Output output, AttributeKey attributeKey) {
-		output.writeString(attributeKey.getAttributeName());
-		kryo.writeObjectOrNull(output, attributeKey.getLocale(), Locale.class);
+		output.writeString(attributeKey.attributeName());
+		kryo.writeObjectOrNull(output, attributeKey.locale(), Locale.class);
 	}
 
 	@Override

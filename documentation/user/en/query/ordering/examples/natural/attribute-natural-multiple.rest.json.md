@@ -10,9 +10,9 @@
         ],
         "attributes" : {
           "global" : {
-            "ean" : "10000494",
+            "catalogNumber" : "2500123",
             "code" : "asus-chromebook-flip-cx5-6",
-            "catalogNumber" : "2500123"
+            "ean" : "10000494"
           }
         }
       },
@@ -24,9 +24,9 @@
         ],
         "attributes" : {
           "global" : {
-            "ean" : "10001700",
+            "catalogNumber" : "2500425",
             "code" : "msi-gf66-11uc-katana-5",
-            "catalogNumber" : "2500425"
+            "ean" : "10001700"
           }
         }
       },
@@ -38,9 +38,9 @@
         ],
         "attributes" : {
           "global" : {
-            "ean" : "10006607",
+            "catalogNumber" : "2501651",
             "code" : "27b2am",
-            "catalogNumber" : "2501651"
+            "ean" : "10006607"
           }
         }
       },
@@ -52,9 +52,9 @@
         ],
         "attributes" : {
           "global" : {
-            "ean" : "10008764",
+            "catalogNumber" : "2502191",
             "code" : "samsung-galaxy-tab-s8-12-4-2022-9",
-            "catalogNumber" : "2502191"
+            "ean" : "10008764"
           }
         }
       },
@@ -66,9 +66,9 @@
         ],
         "attributes" : {
           "global" : {
-            "ean" : "10011729",
+            "catalogNumber" : "2502932",
             "code" : "msi-summit-e13-flip-evo-a12mt-3",
-            "catalogNumber" : "2502932"
+            "ean" : "10011729"
           }
         }
       },
@@ -80,9 +80,9 @@
         ],
         "attributes" : {
           "global" : {
-            "ean" : "10013365",
+            "catalogNumber" : "2503341",
             "code" : "oppo-a73-2",
-            "catalogNumber" : "2503341"
+            "ean" : "10013365"
           }
         }
       },
@@ -94,9 +94,9 @@
         ],
         "attributes" : {
           "global" : {
-            "ean" : "10019551",
+            "catalogNumber" : "2504887",
             "code" : "huawei-p50-pro",
-            "catalogNumber" : "2504887"
+            "ean" : "10019551"
           }
         }
       },
@@ -108,9 +108,9 @@
         ],
         "attributes" : {
           "global" : {
-            "ean" : "10020345",
+            "catalogNumber" : "2505086",
             "code" : "msi-gl75-9sdk-3",
-            "catalogNumber" : "2505086"
+            "ean" : "10020345"
           }
         }
       },
@@ -122,9 +122,9 @@
         ],
         "attributes" : {
           "global" : {
-            "ean" : "10020587",
+            "catalogNumber" : "2505146",
             "code" : "lenovo-thinkpad-11e-yoga",
-            "catalogNumber" : "2505146"
+            "ean" : "10020587"
           }
         }
       },
@@ -136,9 +136,9 @@
         ],
         "attributes" : {
           "global" : {
-            "ean" : "10021410",
+            "catalogNumber" : "2505352",
             "code" : "zte-axon-40-pro-1",
-            "catalogNumber" : "2505352"
+            "ean" : "10021410"
           }
         }
       },
@@ -150,9 +150,9 @@
         ],
         "attributes" : {
           "global" : {
-            "ean" : "10021789",
+            "catalogNumber" : "2505447",
             "code" : "msi-gp65-10sfk-leopard-4",
-            "catalogNumber" : "2505447"
+            "ean" : "10021789"
           }
         }
       },
@@ -164,9 +164,9 @@
         ],
         "attributes" : {
           "global" : {
-            "ean" : "10023435",
+            "catalogNumber" : "2505858",
             "code" : "asus-rog-zephyrus-g14-5",
-            "catalogNumber" : "2505858"
+            "ean" : "10023435"
           }
         }
       },
@@ -178,9 +178,9 @@
         ],
         "attributes" : {
           "global" : {
-            "ean" : "10023687",
+            "catalogNumber" : "2505921",
             "code" : "asus-rog-zephyrus-g15-4",
-            "catalogNumber" : "2505921"
+            "ean" : "10023687"
           }
         }
       },
@@ -192,9 +192,9 @@
         ],
         "attributes" : {
           "global" : {
-            "ean" : "10024829",
+            "catalogNumber" : "2506207",
             "code" : "hp-elitebook-850-g6-4",
-            "catalogNumber" : "2506207"
+            "ean" : "10024829"
           }
         }
       },
@@ -206,9 +206,9 @@
         ],
         "attributes" : {
           "global" : {
-            "ean" : "10025075",
+            "catalogNumber" : "2506268",
             "code" : "apple-watch-series-5-44mm-3",
-            "catalogNumber" : "2506268"
+            "ean" : "10025075"
           }
         }
       },
@@ -220,9 +220,9 @@
         ],
         "attributes" : {
           "global" : {
-            "ean" : "10029603",
+            "catalogNumber" : "2507400",
             "code" : "fujitsu-celsius-h7510-3",
-            "catalogNumber" : "2507400"
+            "ean" : "10029603"
           }
         }
       },
@@ -234,9 +234,9 @@
         ],
         "attributes" : {
           "global" : {
-            "ean" : "10043198",
+            "catalogNumber" : "2510799",
             "code" : "fujitsu-lifebook-u7411-2",
-            "catalogNumber" : "2510799"
+            "ean" : "10043198"
           }
         }
       },
@@ -248,9 +248,9 @@
         ],
         "attributes" : {
           "global" : {
-            "ean" : "10043718",
+            "catalogNumber" : "2510929",
             "code" : "msi-gp76-10ue-leopard-5",
-            "catalogNumber" : "2510929"
+            "ean" : "10043718"
           }
         }
       },
@@ -262,9 +262,9 @@
         ],
         "attributes" : {
           "global" : {
-            "ean" : "10043989",
+            "catalogNumber" : "2510997",
             "code" : "oppo-a73",
-            "catalogNumber" : "2510997"
+            "ean" : "10043989"
           }
         }
       },
@@ -276,9 +276,9 @@
         ],
         "attributes" : {
           "global" : {
-            "ean" : "10044055",
+            "catalogNumber" : "2511013",
             "code" : "msi-modern-15-a10ras-1",
-            "catalogNumber" : "2511013"
+            "ean" : "10044055"
           }
         }
       }

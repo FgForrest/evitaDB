@@ -56,7 +56,7 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 
 	@Override
 	public void write(Kryo kryo, Output output, EntitySchema entitySchema) {
-		output.writeInt(entitySchema.getVersion());
+		output.writeInt(entitySchema.version());
 		output.writeString(entitySchema.getName());
 		output.writeVarInt(entitySchema.getNameVariants().size(), true);
 		for (Entry<NamingConvention, String> entry : entitySchema.getNameVariants().entrySet()) {

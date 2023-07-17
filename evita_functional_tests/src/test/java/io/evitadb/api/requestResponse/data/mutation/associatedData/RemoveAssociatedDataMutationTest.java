@@ -45,10 +45,10 @@ class RemoveAssociatedDataMutationTest extends AbstractMutationTest {
 	void shouldRemoveAssociatedData() {
 		final RemoveAssociatedDataMutation mutation = new RemoveAssociatedDataMutation(new AssociatedDataKey("a"));
 		final AssociatedDataValue newValue = mutation.mutateLocal(productSchema, new AssociatedDataValue(new AssociatedDataKey("a"), (byte) 3));
-		assertTrue(newValue.isDropped());
+		assertTrue(newValue.dropped());
 		assertFalse(newValue.exists());
-		assertEquals((byte) 3, newValue.getValue());
-		assertEquals(2L, newValue.getVersion());
+		assertEquals((byte) 3, newValue.value());
+		assertEquals(2L, newValue.version());
 	}
 
 	@Test

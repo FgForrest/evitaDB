@@ -66,12 +66,12 @@ public class AttributeValueDataFetcher<T extends Serializable> implements DataFe
         } else if (locale == null) {
             //noinspection unchecked
             return attributes.getAttributeValue(attributeSchema.getName())
-                .map(a -> (T) a.getValue())
+                .map(a -> (T) a.value())
                 .orElse(null);
         } else {
             //noinspection unchecked
             return attributes.getAttributeValue(attributeSchema.getName(), locale)
-                .map(a -> (T) a.getValue())
+                .map(a -> (T) a.value())
                 .orElse(null);
         }
     }

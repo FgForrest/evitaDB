@@ -23,6 +23,7 @@
 
 package io.evitadb.api.mock;
 
+import io.evitadb.api.AbstractFiftyProductsFunctionalTest;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.annotation.*;
@@ -38,6 +39,7 @@ import java.util.Collection;
 import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -76,8 +78,17 @@ public interface ProductInterface extends EntityClassifier {
 	@Attribute(name = DataGenerator.ATTRIBUTE_ALIAS)
 	boolean isAlias();
 
+	@Attribute(name = AbstractFiftyProductsFunctionalTest.ATTRIBUTE_OPTIONAL_AVAILABILITY)
+	boolean isOptionallyAvailable();
+
+	@Attribute(name = AbstractFiftyProductsFunctionalTest.ATTRIBUTE_OPTIONAL_AVAILABILITY)
+	Optional<Boolean> getOptionallyAvailable();
+
 	@AssociatedData(name = DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES)
 	ReferencedFileSet getReferencedFileSet();
+
+	@AssociatedData(name = DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES)
+	Optional<ReferencedFileSet> getReferencedFileSetIfPresent();
 
 	@AssociatedDataRef(DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES)
 	ReferencedFileSet getReferencedFileSetAsDifferentProperty();
@@ -122,6 +133,9 @@ public interface ProductInterface extends EntityClassifier {
 	Collection<CategoryInterface> getCategories();
 
 	@ReferenceRef(Entities.CATEGORY)
+	Optional<Collection<CategoryInterface>> getCategoriesIfFetched();
+
+	@ReferenceRef(Entities.CATEGORY)
 	List<CategoryInterface> getCategoriesAsList();
 
 	@ReferenceRef(Entities.CATEGORY)
@@ -132,6 +146,9 @@ public interface ProductInterface extends EntityClassifier {
 
 	@PriceForSale
 	PriceContract getPriceForSale();
+
+	@PriceForSale
+	Optional<PriceContract> getPriceForSaleIfPresent();
 
 	@PriceForSale
 	PriceContract getPriceForSale(@Nonnull String priceList, @Nonnull Currency currency);
@@ -153,6 +170,9 @@ public interface ProductInterface extends EntityClassifier {
 
 	@Price(priceList = "basic")
 	PriceContract getBasicPrice();
+
+	@Price(priceList = "basic")
+	Optional<PriceContract> getBasicPriceIfPresent();
 
 	@Price
 	Collection<PriceContract> getAllPrices();

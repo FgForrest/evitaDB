@@ -170,8 +170,8 @@ public interface EntityContract extends EntityClassifierWithParent, ContentCompa
 		if (otherEntity == null) return true;
 
 		if (!Objects.equals(getPrimaryKey(), otherEntity.getPrimaryKey())) return true;
-		if (getVersion() != otherEntity.getVersion()) return true;
-		if (isDropped() != otherEntity.isDropped()) return true;
+		if (version() != otherEntity.version()) return true;
+		if (dropped() != otherEntity.dropped()) return true;
 		if (!getType().equals(otherEntity.getType())) return true;
 		if (getParent().isPresent() != otherEntity.getParent().isPresent()) return true;
 		if (getParent().isPresent() && getParent().getAsInt() != otherEntity.getParent().getAsInt()) return true;
@@ -204,7 +204,7 @@ public interface EntityContract extends EntityClassifierWithParent, ContentCompa
 		final Collection<AssociatedDataValue> associatedDataValues = getAssociatedDataValues();
 		final Collection<PriceContract> prices = getPrices();
 		final Set<Locale> locales = getLocales();
-		return (isDropped() ? "❌ " : "") +
+		return (dropped() ? "❌ " : "") +
 			"Entity " + getType() + " ID=" + getPrimaryKey() +
 			getParent().stream().mapToObj(it -> ", ↰ " + it).findAny().orElse("") +
 			(references.isEmpty() ? "" : ", " + references.stream().map(ReferenceContract::toString).collect(Collectors.joining(", "))) +

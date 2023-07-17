@@ -37,6 +37,8 @@ import io.evitadb.test.generator.DataGenerator;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.OptionalInt;
 
 /**
  * Example interface mapping a category entity.
@@ -57,12 +59,24 @@ public interface CategoryInterface extends EntityClassifier {
 	Integer getParentId();
 
 	@ParentEntity
+	@Nonnull
+	OptionalInt getParentIdIfPresent();
+
+	@ParentEntity
 	@Nullable
 	CategoryInterface getParentEntity();
 
 	@ParentEntity
+	@Nonnull
+	Optional<CategoryInterface> getParentEntityIfPresent();
+
+	@ParentEntity
 	@Nullable
 	EntityReference getParentEntityReference();
+
+	@ParentEntity
+	@Nullable
+	Optional<EntityReference> getParentEntityReferenceIfPresent();
 
 	@Attribute(name = DataGenerator.ATTRIBUTE_CODE)
 	@Nonnull

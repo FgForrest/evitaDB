@@ -11,8 +11,8 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "macbook-pro-13-2022",
-            "catalogNumber" : "3872990"
+            "catalogNumber" : "3872990",
+            "code" : "macbook-pro-13-2022"
           }
         }
       },
@@ -25,8 +25,8 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "macbook-pro-13-2022-1",
-            "catalogNumber" : "3589128"
+            "catalogNumber" : "3589128",
+            "code" : "macbook-pro-13-2022-1"
           }
         }
       },
@@ -39,8 +39,8 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "macbook-pro-13-2022-2",
-            "catalogNumber" : "3337233"
+            "catalogNumber" : "3337233",
+            "code" : "macbook-pro-13-2022-2"
           }
         }
       },
@@ -53,8 +53,8 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "macbook-pro-13-2022-3",
-            "catalogNumber" : "4796809"
+            "catalogNumber" : "4796809",
+            "code" : "macbook-pro-13-2022-3"
           }
         }
       },
@@ -67,8 +67,8 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "macbook-pro-13-2022-4",
-            "catalogNumber" : "4246698"
+            "catalogNumber" : "4246698",
+            "code" : "macbook-pro-13-2022-4"
           }
         }
       },
@@ -81,8 +81,8 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "macbook-pro-13-2022-5",
-            "catalogNumber" : "4736396"
+            "catalogNumber" : "4736396",
+            "code" : "macbook-pro-13-2022-5"
           }
         }
       },
@@ -95,8 +95,8 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "macbook-pro-13-2022-6",
-            "catalogNumber" : "4503648"
+            "catalogNumber" : "4503648",
+            "code" : "macbook-pro-13-2022-6"
           }
         }
       },
@@ -109,8 +109,8 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "macbook-pro-13-2022-7",
-            "catalogNumber" : "3325975"
+            "catalogNumber" : "3325975",
+            "code" : "macbook-pro-13-2022-7"
           }
         }
       },
@@ -123,8 +123,8 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "macbook-pro-13-2022-8",
-            "catalogNumber" : "3672344"
+            "catalogNumber" : "3672344",
+            "code" : "macbook-pro-13-2022-8"
           }
         }
       },
@@ -137,8 +137,8 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "macbook-pro-13-2022-9",
-            "catalogNumber" : "2745489"
+            "catalogNumber" : "2745489",
+            "code" : "macbook-pro-13-2022-9"
           }
         }
       },
@@ -151,8 +151,8 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "macbook-pro-13-2022-10",
-            "catalogNumber" : "4516284"
+            "catalogNumber" : "4516284",
+            "code" : "macbook-pro-13-2022-10"
           }
         }
       },
@@ -165,8 +165,8 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "macbook-pro-13-2022-11",
-            "catalogNumber" : "4465908"
+            "catalogNumber" : "4465908",
+            "code" : "macbook-pro-13-2022-11"
           }
         }
       },
@@ -179,8 +179,8 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "macbook-pro-13-2022-12",
-            "catalogNumber" : "3469152"
+            "catalogNumber" : "3469152",
+            "code" : "macbook-pro-13-2022-12"
           }
         }
       },
@@ -193,8 +193,8 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "macbook-pro-13-2022-13",
-            "catalogNumber" : "2989728"
+            "catalogNumber" : "2989728",
+            "code" : "macbook-pro-13-2022-13"
           }
         }
       },
@@ -207,8 +207,8 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "macbook-pro-13-2022-14",
-            "catalogNumber" : "4564400"
+            "catalogNumber" : "4564400",
+            "code" : "macbook-pro-13-2022-14"
           }
         }
       },
@@ -221,8 +221,8 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "macbook-pro-13-2022-15",
-            "catalogNumber" : "3921698"
+            "catalogNumber" : "3921698",
+            "code" : "macbook-pro-13-2022-15"
           }
         }
       },
@@ -235,8 +235,8 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "macbook-pro-13-2022-16",
-            "catalogNumber" : "4878238"
+            "catalogNumber" : "4878238",
+            "code" : "macbook-pro-13-2022-16"
           }
         }
       },
@@ -249,8 +249,8 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "macbook-pro-13-2022-17",
-            "catalogNumber" : "3676143"
+            "catalogNumber" : "3676143",
+            "code" : "macbook-pro-13-2022-17"
           }
         }
       },
@@ -263,8 +263,8 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "macbook-pro-13-2022-18",
-            "catalogNumber" : "4253784"
+            "catalogNumber" : "4253784",
+            "code" : "macbook-pro-13-2022-18"
           }
         }
       },
@@ -276,8 +276,8 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "macbook-pro-14-2021",
-            "catalogNumber" : "3046874"
+            "catalogNumber" : "3046874",
+            "code" : "macbook-pro-14-2021"
           }
         }
       }

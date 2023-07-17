@@ -60,22 +60,22 @@ public abstract class AttributeSchemaEvolvingMutation extends AttributeMutation 
 		verifyOrEvolveSchema(
 			catalogSchema,
 			entitySchemaBuilder,
-			entitySchemaBuilder.getAttribute(attributeKey.getAttributeName()).orElse(null),
+			entitySchemaBuilder.getAttribute(attributeKey.attributeName()).orElse(null),
 			getAttributeValue(),
 			(csb, esb) -> {
-				if (attributeKey.isLocalized()) {
-					esb.withLocale(attributeKey.getLocale());
+				if (attributeKey.localized()) {
+					esb.withLocale(attributeKey.locale());
 				}
-				if (csb.getAttribute(attributeKey.getAttributeName()).isEmpty()) {
+				if (csb.getAttribute(attributeKey.attributeName()).isEmpty()) {
 					final Class<? extends Serializable> attributeType = getAttributeValue().getClass();
-					if (esb.getAttribute(attributeKey.getAttributeName()).isEmpty()) {
+					if (esb.getAttribute(attributeKey.attributeName()).isEmpty()) {
 						esb
 							.withAttribute(
-								attributeKey.getAttributeName(),
+								attributeKey.attributeName(),
 								attributeType,
 								whichIs -> {
 									whichIs
-										.localized(attributeKey::isLocalized)
+										.localized(attributeKey::localized)
 										.filterable()
 										.nullable();
 									if (!attributeType.isArray()) {
@@ -87,7 +87,7 @@ public abstract class AttributeSchemaEvolvingMutation extends AttributeMutation 
 				} else {
 					esb
 						.withGlobalAttribute(
-							attributeKey.getAttributeName()
+							attributeKey.attributeName()
 						);
 				}
 			}

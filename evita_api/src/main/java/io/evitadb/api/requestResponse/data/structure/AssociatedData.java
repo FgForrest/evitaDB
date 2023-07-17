@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.AssociatedDataEditor.AssociatedDataBu
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.EqualsAndHashCode;
 
@@ -46,6 +47,8 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -103,13 +106,13 @@ public class AssociatedData implements AssociatedDataContract {
 		@Nullable Collection<AssociatedDataValue> associatedDataValues
 	) {
 		this.entitySchema = entitySchema;
-		this.associatedDataValues = createHashMap(associatedDataKeys.size());
+		this.associatedDataValues = new TreeMap<>();
 		for (AssociatedDataKey associatedDataKey : associatedDataKeys) {
 			this.associatedDataValues.put(associatedDataKey, null);
 		}
 		if (associatedDataValues != null) {
 			for (AssociatedDataValue associatedDataValue : associatedDataValues) {
-				this.associatedDataValues.put(associatedDataValue.getKey(), associatedDataValue);
+				this.associatedDataValues.put(associatedDataValue.key(), associatedDataValue);
 			}
 		}
 		this.associatedDataTypes = entitySchema.getAssociatedData();
@@ -125,8 +128,19 @@ public class AssociatedData implements AssociatedDataContract {
 	) {
 		this.entitySchema = entitySchema;
 		this.associatedDataValues = ofNullable(associatedDataValues)
-			.map(it -> it.stream().collect(Collectors.toMap(AssociatedDataValue::getKey, Function.identity())))
-			.orElse(Collections.emptyMap());
+			.map(it -> it.stream()
+				.collect(
+					Collectors.toMap(
+						AssociatedDataValue::key,
+						Function.identity(),
+						(attributeValue, attributeValue2) -> {
+							throw new EvitaInvalidUsageException("Duplicated attribute " + attributeValue.key() + "!");
+						},
+						TreeMap::new
+					)
+				)
+			)
+			.orElse(new TreeMap<>());
 		this.associatedDataTypes = entitySchema.getAssociatedData();
 	}
 
@@ -141,7 +155,7 @@ public class AssociatedData implements AssociatedDataContract {
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName) {
 		//noinspection unchecked
 		return (T) ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName)))
-			.map(AssociatedDataValue::getValue)
+			.map(AssociatedDataValue::value)
 			.orElse(null);
 	}
 
@@ -149,7 +163,7 @@ public class AssociatedData implements AssociatedDataContract {
 	@Override
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Class<T> dtoType, @Nonnull ReflectionLookup reflectionLookup) {
 		return ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName)))
-			.map(AssociatedDataValue::getValue)
+			.map(AssociatedDataValue::value)
 			.map(it -> ComplexDataObjectConverter.getOriginalForm(it, dtoType, reflectionLookup))
 			.orElse(null);
 	}
@@ -159,7 +173,7 @@ public class AssociatedData implements AssociatedDataContract {
 	public <T extends Serializable> T[] getAssociatedDataArray(@Nonnull String associatedDataName) {
 		//noinspection unchecked
 		return (T[]) ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName)))
-			.map(AssociatedDataValue::getValue)
+			.map(AssociatedDataValue::value)
 			.orElse(null);
 	}
 
@@ -174,7 +188,7 @@ public class AssociatedData implements AssociatedDataContract {
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale) {
 		//noinspection unchecked
 		return (T) ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName, locale)))
-			.map(AssociatedDataValue::getValue)
+			.map(AssociatedDataValue::value)
 			.orElseGet(() -> getAssociatedData(associatedDataName));
 	}
 
@@ -182,7 +196,7 @@ public class AssociatedData implements AssociatedDataContract {
 	@Override
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale, @Nonnull Class<T> dtoType, @Nonnull ReflectionLookup reflectionLookup) {
 		return ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName, locale)))
-			.map(AssociatedDataValue::getValue)
+			.map(AssociatedDataValue::value)
 			.map(it -> ComplexDataObjectConverter.getOriginalForm(it, dtoType, reflectionLookup))
 			.orElseGet(() -> getAssociatedData(associatedDataName));
 	}
@@ -192,7 +206,7 @@ public class AssociatedData implements AssociatedDataContract {
 	public <T extends Serializable> T[] getAssociatedDataArray(@Nonnull String associatedDataName, @Nonnull Locale locale) {
 		//noinspection unchecked
 		return (T[]) ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName, locale)))
-			.map(AssociatedDataValue::getValue)
+			.map(AssociatedDataValue::value)
 			.orElseGet(() -> getAssociatedData(associatedDataName));
 	}
 
@@ -218,8 +232,8 @@ public class AssociatedData implements AssociatedDataContract {
 			this.associatedDataNames = this.associatedDataValues
 				.keySet()
 				.stream()
-				.map(AssociatedDataKey::getAssociatedDataName)
-				.collect(Collectors.toSet());
+				.map(AssociatedDataKey::associatedDataName)
+				.collect(Collectors.toCollection(TreeSet::new));
 		}
 		return this.associatedDataNames;
 	}
@@ -248,7 +262,7 @@ public class AssociatedData implements AssociatedDataContract {
 	public Collection<AssociatedDataValue> getAssociatedDataValues(@Nonnull String associatedDataName) {
 		return associatedDataValues
 			.entrySet()
-			.stream().filter(it -> associatedDataName.equals(it.getKey().getAssociatedDataName()))
+			.stream().filter(it -> associatedDataName.equals(it.getKey().associatedDataName()))
 			.map(Entry::getValue)
 			.collect(Collectors.toList());
 	}
@@ -260,7 +274,7 @@ public class AssociatedData implements AssociatedDataContract {
 			this.associatedDataLocales = this.associatedDataValues
 				.keySet()
 				.stream()
-				.map(AssociatedDataKey::getLocale)
+				.map(AssociatedDataKey::locale)
 				.filter(Objects::nonNull)
 				.collect(Collectors.toSet());
 		}

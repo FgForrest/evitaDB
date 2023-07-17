@@ -23,12 +23,15 @@
 
 package io.evitadb.api.proxy.impl.entity;
 
+import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
+import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedData;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedDataRef;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.dataType.data.ComplexDataObjectConverter;
 import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.ReflectionLookup;
@@ -36,8 +39,12 @@ import one.edee.oss.proxycian.DirectMethodClassification;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.lang.reflect.Method;
 import java.util.Locale;
+import java.util.function.UnaryOperator;
+
+import static io.evitadb.api.proxy.impl.ProxyUtils.getWrappedGenericType;
 
 /**
  * Identifies methods that are used to get associated data from an entity and provides their implementation.
@@ -49,6 +56,20 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 	 * We may reuse singleton instance since advice is stateless.
 	 */
 	public static final GetAssociatedDataMethodClassifier INSTANCE = new GetAssociatedDataMethodClassifier();
+
+	/**
+	 * Provides default value (according to a schema or implicit rules) instead of null.
+	 */
+	@Nonnull
+	public static UnaryOperator<Serializable> createDefaultValueProvider(Class<? extends Serializable> returnType) {
+		final UnaryOperator<Serializable> defaultValueProvider;
+		if (boolean.class.equals(returnType)) {
+			defaultValueProvider = o -> o == null ? false : o;
+		} else {
+			defaultValueProvider = UnaryOperator.identity();
+		}
+		return defaultValueProvider;
+	}
 
 	/**
 	 * Retrieves appropriate associated data schema from the annotations on the method. If no Evita annotation is found
@@ -102,10 +123,27 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 					// finally provide implementation that will retrieve the associated data from the entity
 					final String cleanAssociatedDataName = associatedDataSchema.getName();
 					@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
+					@SuppressWarnings("unchecked") final UnaryOperator<Serializable> defaultValueProvider = createDefaultValueProvider(returnType);
+					@SuppressWarnings("rawtypes") final Class wrappedGenericType = getWrappedGenericType(method, proxyState.getProxyClass());
+					final UnaryOperator<Object> resultWrapper = ProxyUtils.createOptionalWrapper(wrappedGenericType);
+					@SuppressWarnings("rawtypes") final Class valueType = wrappedGenericType == null ? returnType : wrappedGenericType;
+
 					//noinspection unchecked
 					return method.getParameterCount() == 0 ?
-						(entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getAssociatedData(cleanAssociatedDataName, returnType) :
-						(entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getAssociatedData(cleanAssociatedDataName, (Locale) args[0], returnType);
+						(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
+							theState.getSealedEntity().getAssociatedDataValue(cleanAssociatedDataName)
+								.map(AssociatedDataValue::value)
+								.map(defaultValueProvider)
+								.map(it -> ComplexDataObjectConverter.getOriginalForm(it, valueType, theState.getReflectionLookup()))
+								.orElse(null)
+						) :
+						(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
+							theState.getSealedEntity().getAssociatedDataValue(cleanAssociatedDataName, (Locale) args[0])
+								.map(AssociatedDataValue::value)
+								.map(defaultValueProvider)
+								.map(it -> ComplexDataObjectConverter.getOriginalForm(it, valueType, theState.getReflectionLookup()))
+								.orElse(null)
+						);
 				}
 			}
 		);

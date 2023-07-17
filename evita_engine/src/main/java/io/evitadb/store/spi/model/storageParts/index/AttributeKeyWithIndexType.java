@@ -73,8 +73,8 @@ public class AttributeKeyWithIndexType implements Comparable<AttributeKeyWithInd
 	 * Constructor for the locale specific attribute.
 	 */
 	public AttributeKeyWithIndexType(@Nonnull AttributeKey attributeKey, @Nonnull AttributeIndexType indexType) {
-		this.attributeName = attributeKey.getAttributeName();
-		this.locale = attributeKey.getLocale();
+		this.attributeName = attributeKey.attributeName();
+		this.locale = attributeKey.locale();
 		this.indexType = indexType;
 	}
 

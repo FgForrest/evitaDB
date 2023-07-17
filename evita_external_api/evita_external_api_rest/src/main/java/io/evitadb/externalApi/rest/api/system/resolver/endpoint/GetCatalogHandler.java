@@ -23,49 +23,43 @@
 
 package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 
+import io.evitadb.api.CatalogContract;
 import io.evitadb.externalApi.api.ExternalApiNamingConventions;
+import io.evitadb.externalApi.http.EndpointResponse;
+import io.evitadb.externalApi.http.NotFoundEndpointResponse;
+import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.system.model.CatalogsHeaderDescriptor;
-import io.evitadb.externalApi.rest.api.system.resolver.serializer.CatalogJsonSerializer;
-import io.evitadb.externalApi.rest.io.RestHandler;
-import io.undertow.server.HttpServerExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Set;
 
 /**
  * Returns single evitaDB catalog by its name.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class GetCatalogHandler extends RestHandler<SystemRestHandlingContext> {
-
-	@Nonnull
-	private final CatalogJsonSerializer catalogJsonSerializer;
+public class GetCatalogHandler extends CatalogHandler {
 
 	public GetCatalogHandler(@Nonnull SystemRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
-		this.catalogJsonSerializer = new CatalogJsonSerializer(restApiHandlingContext);
 	}
 
 	@Nonnull
 	@Override
-	public String getSupportedHttpMethod() {
-		return Methods.GET_STRING;
-	}
-
-	@Override
-	public boolean returnsResponseBodies() {
-		return true;
-	}
-
-	@Nonnull
-	@Override
-	protected Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
+	protected EndpointResponse<CatalogContract> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Map<String, Object> parameters = getParametersFromRequest(exchange);
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
 		return restApiHandlingContext.getCatalog(catalogName, ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION)
-			.map(catalogJsonSerializer::serialize);
+			.map(it -> (EndpointResponse<CatalogContract>) new SuccessEndpointResponse<>(it))
+			.orElse(new NotFoundEndpointResponse<>());
+	}
+
+	@Nonnull
+	@Override
+	public Set<String> getSupportedHttpMethods() {
+		return Set.of(Methods.GET_STRING);
 	}
 }

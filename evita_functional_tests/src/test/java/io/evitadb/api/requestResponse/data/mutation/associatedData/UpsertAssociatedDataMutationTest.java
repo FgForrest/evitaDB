@@ -44,16 +44,16 @@ class UpsertAssociatedDataMutationTest extends AbstractMutationTest {
 	void shouldCreateNewAssociatedData() {
 		final UpsertAssociatedDataMutation mutation = new UpsertAssociatedDataMutation(new AssociatedDataKey("a"), (byte) 5);
 		final AssociatedDataValue newValue = mutation.mutateLocal(productSchema, null);
-		assertEquals((byte) 5, newValue.getValue());
-		assertEquals(1L, newValue.getVersion());
+		assertEquals((byte) 5, newValue.value());
+		assertEquals(1L, newValue.version());
 	}
 
 	@Test
 	void shouldIncrementVersionByUpdatingAssociatedData() {
 		final UpsertAssociatedDataMutation mutation = new UpsertAssociatedDataMutation(new AssociatedDataKey("a"), (byte) 5);
 		final AssociatedDataValue newValue = mutation.mutateLocal(productSchema, new AssociatedDataValue(new AssociatedDataKey("a"), (byte) 3));
-		assertEquals((byte) 5, newValue.getValue());
-		assertEquals(2L, newValue.getVersion());
+		assertEquals((byte) 5, newValue.value());
+		assertEquals(2L, newValue.version());
 	}
 
 	@Test

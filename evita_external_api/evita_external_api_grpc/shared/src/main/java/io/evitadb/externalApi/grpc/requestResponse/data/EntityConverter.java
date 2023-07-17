@@ -230,8 +230,8 @@ public class EntityConverter {
 		final GrpcSealedEntity.Builder entityBuilder = GrpcSealedEntity.newBuilder()
 			.setEntityType(entity.getType())
 			.setPrimaryKey(entity.getPrimaryKey())
-			.setSchemaVersion(entity.getSchema().getVersion())
-			.setVersion(entity.getVersion());
+			.setSchemaVersion(entity.getSchema().version())
+			.setVersion(entity.version());
 
 		entity.getParentEntity().ifPresent(parent -> {
 			if (parent instanceof EntityReferenceWithParent entityReference) {
@@ -276,10 +276,10 @@ public class EntityConverter {
 				);
 
 				final GrpcReference.Builder grpcReferenceBuilder = GrpcReference.newBuilder()
-					.setVersion(reference.getVersion())
+					.setVersion(reference.version())
 					.setReferenceName(reference.getReferenceName())
 					.setReferenceCardinality(EvitaEnumConverter.toGrpcCardinality(reference.getReferenceCardinality()))
-					.setVersion(reference.getVersion());
+					.setVersion(reference.version());
 				if (reference.getReferencedEntity().isPresent()) {
 					grpcReferenceBuilder.setReferencedEntity(toGrpcSealedEntity(reference.getReferencedEntity().get()));
 				} else {
@@ -295,7 +295,7 @@ public class EntityConverter {
 					grpcReferenceBuilder.setGroupReferencedEntityReference(GrpcEntityReference.newBuilder()
 						.setEntityType(theGroup.getType())
 						.setPrimaryKey(theGroup.getPrimaryKey())
-						.setVersion(theGroup.getVersion())
+						.setVersion(theGroup.version())
 						.build()
 					);
 				}
@@ -313,17 +313,17 @@ public class EntityConverter {
 			final Map<String, GrpcEvitaAssociatedDataValue> globalAssociatedData = CollectionUtils.createHashMap(entity.getSchema().getAssociatedData().size());
 			for (AssociatedDataContract.AssociatedDataValue theAssociatedData : entity.getAssociatedDataValues()) {
 				final GrpcEvitaAssociatedDataValue associatedDataValue = EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(
-					theAssociatedData.getValue(), theAssociatedData.getVersion()
+					theAssociatedData.value(), theAssociatedData.version()
 				);
 
-				if (theAssociatedData.getKey().isLocalized()) {
+				if (theAssociatedData.key().localized()) {
 					localizedAssociatedData.computeIfAbsent(
-							theAssociatedData.getKey().getLocale(),
+							theAssociatedData.key().locale(),
 							associatedDataName -> GrpcLocalizedAssociatedData.newBuilder()
 						)
-						.putAssociatedData(theAssociatedData.getKey().getAssociatedDataName(), associatedDataValue);
+						.putAssociatedData(theAssociatedData.key().associatedDataName(), associatedDataValue);
 				} else {
-					globalAssociatedData.put(theAssociatedData.getKey().getAssociatedDataName(), associatedDataValue);
+					globalAssociatedData.put(theAssociatedData.key().associatedDataName(), associatedDataValue);
 				}
 			}
 
@@ -375,7 +375,7 @@ public class EntityConverter {
 		final GrpcBinaryEntity.Builder binaryEntityBuilder = GrpcBinaryEntity.newBuilder()
 			.setEntityType(binaryEntity.getType())
 			.setPrimaryKey(binaryEntity.getPrimaryKey())
-			.setSchemaVersion(binaryEntity.getSchema().getVersion())
+			.setSchemaVersion(binaryEntity.getSchema().version())
 			.setEntityStoragePart(ByteString.copyFrom(binaryEntity.getEntityStoragePart()))
 			.addAllAttributeStorageParts(attributes)
 			.addAllAssociatedDataStorageParts(associatedData);
@@ -399,32 +399,32 @@ public class EntityConverter {
 	@Nonnull
 	public static GrpcPrice toGrpcPrice(@Nonnull PriceContract price) {
 		final GrpcPrice.Builder priceBuilder = GrpcPrice.newBuilder()
-			.setPriceId(price.getPriceId())
-			.setPriceList(price.getPriceList())
-			.setCurrency(GrpcCurrency.newBuilder().setCode(price.getCurrency().getCurrencyCode()).build())
+			.setPriceId(price.priceId())
+			.setPriceList(price.priceList())
+			.setCurrency(GrpcCurrency.newBuilder().setCode(price.currency().getCurrencyCode()).build())
 			.setPriceWithoutTax(GrpcBigDecimal.newBuilder().
-				setValueString(price.getPriceWithoutTax().toString())
-				.setValue(ByteString.copyFrom(price.getPriceWithoutTax().unscaledValue().toByteArray()))
-				.setScale(price.getPriceWithoutTax().scale())
-				.setPrecision(price.getPriceWithoutTax().precision()).build())
+				setValueString(price.priceWithoutTax().toString())
+				.setValue(ByteString.copyFrom(price.priceWithoutTax().unscaledValue().toByteArray()))
+				.setScale(price.priceWithoutTax().scale())
+				.setPrecision(price.priceWithoutTax().precision()).build())
 			.setPriceWithTax(GrpcBigDecimal.newBuilder()
-				.setValueString(price.getPriceWithTax().toString())
-				.setValue(ByteString.copyFrom(price.getPriceWithTax().unscaledValue().toByteArray()))
-				.setScale(price.getPriceWithTax().scale())
-				.setPrecision(price.getPriceWithTax().precision()).build())
+				.setValueString(price.priceWithTax().toString())
+				.setValue(ByteString.copyFrom(price.priceWithTax().unscaledValue().toByteArray()))
+				.setScale(price.priceWithTax().scale())
+				.setPrecision(price.priceWithTax().precision()).build())
 			.setTaxRate(GrpcBigDecimal.newBuilder()
-				.setValueString(price.getTaxRate().toString())
-				.setValue(ByteString.copyFrom(price.getTaxRate().unscaledValue().toByteArray()))
-				.setScale(price.getTaxRate().scale())
-				.setPrecision(price.getTaxRate().precision()).build())
-			.setSellable(price.isSellable())
-			.setVersion(price.getVersion());
-		if (price.getInnerRecordId() != null) {
-			priceBuilder.setInnerRecordId(Int32Value.newBuilder().setValue(price.getInnerRecordId()).build());
+				.setValueString(price.taxRate().toString())
+				.setValue(ByteString.copyFrom(price.taxRate().unscaledValue().toByteArray()))
+				.setScale(price.taxRate().scale())
+				.setPrecision(price.taxRate().precision()).build())
+			.setSellable(price.sellable())
+			.setVersion(price.version());
+		if (price.innerRecordId() != null) {
+			priceBuilder.setInnerRecordId(Int32Value.newBuilder().setValue(price.innerRecordId()).build());
 		}
 
-		if (price.getValidity() != null) {
-			priceBuilder.setValidity(EvitaDataTypesConverter.toGrpcDateTimeRange(price.getValidity()));
+		if (price.validity() != null) {
+			priceBuilder.setValidity(EvitaDataTypesConverter.toGrpcDateTimeRange(price.validity()));
 		}
 
 		return priceBuilder.build();
@@ -690,19 +690,19 @@ public class EntityConverter {
 		final Map<Locale, GrpcLocalizedAttribute.Builder> localizedAttributes = CollectionUtils.createHashMap(maxLocaleCount);
 		final Map<String, GrpcEvitaValue> globalAttributes = CollectionUtils.createHashMap(maxAttributeCount);
 		for (AttributesContract.AttributeValue attribute : entityAttributes) {
-			if (attribute.getKey().isLocalized()) {
+			if (attribute.key().localized()) {
 				final Builder localizedAttributesBuilder = localizedAttributes.computeIfAbsent(
-					attribute.getKey().getLocale(),
+					attribute.key().locale(),
 					locale -> GrpcLocalizedAttribute.newBuilder()
 				);
 				localizedAttributesBuilder.putAttributes(
-					attribute.getKey().getAttributeName(),
-					EvitaDataTypesConverter.toGrpcEvitaValue(attribute.getValue(), attribute.getVersion())
+					attribute.key().attributeName(),
+					EvitaDataTypesConverter.toGrpcEvitaValue(attribute.value(), attribute.version())
 				);
 			} else {
 				globalAttributes.put(
-					attribute.getKey().getAttributeName(),
-					EvitaDataTypesConverter.toGrpcEvitaValue(attribute.getValue(), attribute.getVersion())
+					attribute.key().attributeName(),
+					EvitaDataTypesConverter.toGrpcEvitaValue(attribute.value(), attribute.version())
 				);
 			}
 		}

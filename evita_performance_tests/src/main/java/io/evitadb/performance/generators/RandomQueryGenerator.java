@@ -145,25 +145,25 @@ public interface RandomQueryGenerator {
 			if (statistics.isLocalized()) {
 				for (Locale locale : entity.getAttributeLocales()) {
 					entity.getAttributeValue(attributeName, locale).ifPresent(localizedAttributeValue -> {
-						if (localizedAttributeValue.getValue() instanceof Object[]) {
-							final Serializable[] valueArray = (Serializable[]) localizedAttributeValue.getValue();
+						if (localizedAttributeValue.value() instanceof Object[]) {
+							final Serializable[] valueArray = (Serializable[]) localizedAttributeValue.value();
 							for (Serializable valueItem : valueArray) {
 								statistics.updateValue(valueItem, locale, random);
 							}
 						} else {
-							statistics.updateValue(localizedAttributeValue.getValue(), locale, random);
+							statistics.updateValue(localizedAttributeValue.value(), locale, random);
 						}
 					});
 				}
 			} else {
 				entity.getAttributeValue(attributeName).ifPresent(attributeValue -> {
-					if (attributeValue.getValue() instanceof Object[]) {
-						final Serializable[] valueArray = (Serializable[]) attributeValue.getValue();
+					if (attributeValue.value() instanceof Object[]) {
+						final Serializable[] valueArray = (Serializable[]) attributeValue.value();
 						for (Serializable valueItem : valueArray) {
 							statistics.updateValue(valueItem, random);
 						}
 					} else {
-						statistics.updateValue(attributeValue.getValue(), random);
+						statistics.updateValue(attributeValue.value(), random);
 					}
 				});
 			}
@@ -761,8 +761,8 @@ public interface RandomQueryGenerator {
 		 * Indexes new price.
 		 */
 		public void updateValue(@Nonnull PriceContract value, @Nonnull Random random) {
-			if (value.isSellable()) {
-				final CompressiblePriceKey key = new CompressiblePriceKey(value.getPriceKey());
+			if (value.sellable()) {
+				final CompressiblePriceKey key = new CompressiblePriceKey(value.priceKey());
 				final PriceStatistics priceStatistics = priceAndCurrencyStats.computeIfAbsent(key, PriceStatistics::new);
 				priceStatistics.updateValue(value, random);
 				currencies.add(key.getCurrency());
@@ -921,17 +921,17 @@ public interface RandomQueryGenerator {
 		 */
 		public void updateValue(@Nonnull PriceContract value, @Nonnull Random random) {
 			if (priceWithoutTaxStatistics == null) {
-				priceWithoutTaxStatistics = new Statistics(value.getPriceWithoutTax());
-				priceWithTaxStatistics = new Statistics(value.getPriceWithTax());
+				priceWithoutTaxStatistics = new Statistics(value.priceWithoutTax());
+				priceWithTaxStatistics = new Statistics(value.priceWithTax());
 			} else {
-				priceWithoutTaxStatistics.update(value.getPriceWithoutTax(), random);
-				priceWithTaxStatistics.update(value.getPriceWithTax(), random);
+				priceWithoutTaxStatistics.update(value.priceWithoutTax(), random);
+				priceWithTaxStatistics.update(value.priceWithTax(), random);
 			}
-			if (value.getValidity() != null) {
+			if (value.validity() != null) {
 				if (validityStatistics == null) {
-					validityStatistics = new Statistics(value.getValidity());
+					validityStatistics = new Statistics(value.validity());
 				} else {
-					validityStatistics.update(value.getValidity(), random);
+					validityStatistics.update(value.validity(), random);
 				}
 			}
 		}

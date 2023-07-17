@@ -3,6 +3,7 @@
  */
 module evita.common {
 
+	exports io.evitadb.thread;
 	exports io.evitadb.dataType;
 	exports io.evitadb.dataType.data;
 	exports io.evitadb.dataType.trie;

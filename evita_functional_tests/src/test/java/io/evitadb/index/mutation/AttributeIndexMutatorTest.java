@@ -429,7 +429,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		containerAccessor.getAttributeStoragePart(ENTITY_NAME, 1)
 			.upsertAttribute(
 				attributeCode,
-				productSchema.getAttribute(attributeCode.getAttributeName()).orElseThrow(),
+				productSchema.getAttribute(attributeCode.attributeName()).orElseThrow(),
 				attributeValue -> new AttributeValue(attributeCode, "A"));
 
 		executeAttributeRemoval(
@@ -444,7 +444,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		final AttributeKey attributeGlobalCode = new AttributeKey(ATTRIBUTE_GLOBAL_CODE);
 		containerAccessor.getAttributeStoragePart(ENTITY_NAME, 1)
 			.upsertAttribute(
-				attributeGlobalCode, productSchema.getAttribute(attributeGlobalCode.getAttributeName()).orElse(null),
+				attributeGlobalCode, productSchema.getAttribute(attributeGlobalCode.attributeName()).orElse(null),
 				attributeValue -> new AttributeValue(attributeGlobalCode, "GA"));
 
 		executeAttributeRemoval(
@@ -572,7 +572,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		for (StoragePart changedStoragePart : changedStorageParts) {
 			if (changedStoragePart instanceof final GlobalUniqueIndexStoragePart guisp) {
 				final AttributeKey attributeKey = guisp.getAttributeKey();
-				if (attributeName.equals(attributeKey.getAttributeName())) {
+				if (attributeName.equals(attributeKey.attributeName())) {
 					return;
 				}
 			}

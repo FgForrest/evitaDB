@@ -89,13 +89,13 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 	}
 
 	@Override
-	public boolean isDropped() {
-		return baseReference.isDropped();
+	public boolean dropped() {
+		return baseReference.dropped();
 	}
 
 	@Override
-	public int getVersion() {
-		return baseReference.getVersion();
+	public int version() {
+		return baseReference.version();
 	}
 
 	@Nonnull
@@ -268,7 +268,7 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 							final ReferenceContract existingValue = builtReference.get();
 							final ReferenceContract newReference = referenceGroupMutation.mutateLocal(entitySchema, existingValue);
 							builtReference.set(newReference);
-							return existingValue == null || newReference.getVersion() > existingValue.getVersion();
+							return existingValue == null || newReference.version() > existingValue.version();
 						}),
 				attributesBuilder
 					.buildChangeSet()
@@ -294,7 +294,7 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 		if (groupDiffers || attributesBuilder.isThereAnyChangeInMutations()) {
 			return new Reference(
 				entitySchema,
-				getVersion() + 1,
+				version() + 1,
 				getReferenceName(), getReferencedPrimaryKey(),
 				getReferencedEntityType(), getReferenceCardinality(),
 				newGroup.orElse(null),

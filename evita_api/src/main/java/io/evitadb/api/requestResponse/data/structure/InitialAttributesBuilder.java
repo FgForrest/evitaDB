@@ -303,7 +303,7 @@ class InitialAttributesBuilder implements AttributesBuilder {
 	public <T extends Serializable> T getAttribute(@Nonnull String attributeName) {
 		//noinspection unchecked
 		return (T) ofNullable(attributeValues.get(new AttributeKey(attributeName)))
-			.map(AttributeValue::getValue)
+			.map(AttributeValue::value)
 			.orElse(null);
 	}
 
@@ -312,7 +312,7 @@ class InitialAttributesBuilder implements AttributesBuilder {
 	public <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName) {
 		//noinspection unchecked
 		return (T[]) ofNullable(attributeValues.get(new AttributeKey(attributeName)))
-			.map(AttributeValue::getValue)
+			.map(AttributeValue::value)
 			.orElse(null);
 	}
 
@@ -327,7 +327,7 @@ class InitialAttributesBuilder implements AttributesBuilder {
 	public <T extends Serializable> T getAttribute(@Nonnull String attributeName, @Nonnull Locale locale) {
 		//noinspection unchecked
 		return (T) ofNullable(this.attributeValues.get(new AttributeKey(attributeName, locale)))
-			.map(AttributeValue::getValue)
+			.map(AttributeValue::value)
 			.orElse(null);
 	}
 
@@ -336,7 +336,7 @@ class InitialAttributesBuilder implements AttributesBuilder {
 	public <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName, @Nonnull Locale locale) {
 		//noinspection unchecked
 		return (T[]) ofNullable(this.attributeValues.get(new AttributeKey(attributeName, locale)))
-			.map(AttributeValue::getValue)
+			.map(AttributeValue::value)
 			.orElse(null);
 	}
 
@@ -358,7 +358,7 @@ class InitialAttributesBuilder implements AttributesBuilder {
 		return this.attributeValues
 			.keySet()
 			.stream()
-			.map(AttributeKey::getAttributeName)
+			.map(AttributeKey::attributeName)
 			.collect(Collectors.toSet());
 	}
 
@@ -385,7 +385,7 @@ class InitialAttributesBuilder implements AttributesBuilder {
 	public Collection<AttributeValue> getAttributeValues(@Nonnull String attributeName) {
 		return getAttributeValues()
 			.stream()
-			.filter(it -> attributeName.equals(it.getKey().getAttributeName()))
+			.filter(it -> attributeName.equals(it.key().attributeName()))
 			.collect(Collectors.toList());
 	}
 
@@ -394,7 +394,7 @@ class InitialAttributesBuilder implements AttributesBuilder {
 		return this.attributeValues
 			.keySet()
 			.stream()
-			.map(AttributesContract.AttributeKey::getLocale)
+			.map(AttributesContract.AttributeKey::locale)
 			.filter(Objects::nonNull)
 			.collect(Collectors.toSet());
 	}
@@ -411,7 +411,7 @@ class InitialAttributesBuilder implements AttributesBuilder {
 		final Map<String, AttributeSchemaContract> newAttributes = this.attributeValues
 			.entrySet()
 			.stream()
-			.filter(entry -> this.entitySchema.getAttribute(entry.getKey().getAttributeName()).isEmpty())
+			.filter(entry -> this.entitySchema.getAttribute(entry.getKey().attributeName()).isEmpty())
 			.map(Entry::getValue)
 			.map(this::createImplicitSchema)
 			.collect(

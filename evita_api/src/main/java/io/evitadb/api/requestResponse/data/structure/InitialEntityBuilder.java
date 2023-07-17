@@ -154,33 +154,33 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.primaryKey = primaryKey;
 		this.attributesBuilder = new InitialAttributesBuilder(schema, null);
 		for (AttributeValue attributeValue : attributeValues) {
-			final AttributeKey attributeKey = attributeValue.getKey();
-			if (attributeKey.isLocalized()) {
+			final AttributeKey attributeKey = attributeValue.key();
+			if (attributeKey.localized()) {
 				this.attributesBuilder.setAttribute(
-					attributeKey.getAttributeName(),
-					attributeKey.getLocale(),
-					(Serializable) attributeValue.getValue()
+					attributeKey.attributeName(),
+					attributeKey.locale(),
+					(Serializable) attributeValue.value()
 				);
 			} else {
 				this.attributesBuilder.setAttribute(
-					attributeKey.getAttributeName(),
-					(Serializable) attributeValue.getValue()
+					attributeKey.attributeName(),
+					(Serializable) attributeValue.value()
 				);
 			}
 		}
 		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
 		for (AssociatedDataValue associatedDataValue : associatedDataValues) {
-			final AssociatedDataKey associatedDataKey = associatedDataValue.getKey();
-			if (associatedDataKey.isLocalized()) {
+			final AssociatedDataKey associatedDataKey = associatedDataValue.key();
+			if (associatedDataKey.localized()) {
 				this.associatedDataBuilder.setAssociatedData(
-					associatedDataKey.getAssociatedDataName(),
-					associatedDataKey.getLocale(),
-					associatedDataValue.getValue()
+					associatedDataKey.associatedDataName(),
+					associatedDataKey.locale(),
+					associatedDataValue.value()
 				);
 			} else {
 				this.associatedDataBuilder.setAssociatedData(
-					associatedDataKey.getAssociatedDataName(),
-					associatedDataValue.getValue()
+					associatedDataKey.associatedDataName(),
+					associatedDataValue.value()
 				);
 			}
 		}
@@ -189,15 +189,15 @@ public class InitialEntityBuilder implements EntityBuilder {
 			.ifPresent(this.pricesBuilder::setPriceInnerRecordHandling);
 		for (PriceContract price : prices) {
 			this.pricesBuilder.setPrice(
-				price.getPriceId(),
-				price.getPriceList(),
-				price.getCurrency(),
-				price.getInnerRecordId(),
-				price.getPriceWithoutTax(),
-				price.getTaxRate(),
-				price.getPriceWithTax(),
-				price.getValidity(),
-				price.isSellable()
+				price.priceId(),
+				price.priceList(),
+				price.currency(),
+				price.innerRecordId(),
+				price.priceWithoutTax(),
+				price.taxRate(),
+				price.priceWithTax(),
+				price.validity(),
+				price.sellable()
 			);
 		}
 
@@ -211,12 +211,12 @@ public class InitialEntityBuilder implements EntityBuilder {
 	}
 
 	@Override
-	public boolean isDropped() {
+	public boolean dropped() {
 		return false;
 	}
 
 	@Override
-	public int getVersion() {
+	public int version() {
 		return 1;
 	}
 
@@ -498,11 +498,11 @@ public class InitialEntityBuilder implements EntityBuilder {
 										.filter(Objects::nonNull),
 									it.getAttributeValues()
 										.stream()
-										.filter(x -> Objects.nonNull(x.getValue()))
+										.filter(x -> Objects.nonNull(x.value()))
 										.map(x ->
 											new ReferenceAttributeMutation(
 												it.getReferenceKey(),
-												new UpsertAttributeMutation(x.getKey(), x.getValue())
+												new UpsertAttributeMutation(x.key(), x.value())
 											)
 										)
 								)
@@ -510,19 +510,19 @@ public class InitialEntityBuilder implements EntityBuilder {
 						attributesBuilder
 							.getAttributeValues()
 							.stream()
-							.filter(it -> it.getValue() != null)
-							.map(it -> new UpsertAttributeMutation(it.getKey(), it.getValue())),
+							.filter(it -> it.value() != null)
+							.map(it -> new UpsertAttributeMutation(it.key(), it.value())),
 						associatedDataBuilder
 							.getAssociatedDataValues()
 							.stream()
-							.map(it -> new UpsertAssociatedDataMutation(it.getKey(), it.getValue())),
+							.map(it -> new UpsertAssociatedDataMutation(it.key(), it.value())),
 						Stream.of(
 							new SetPriceInnerRecordHandlingMutation(pricesBuilder.getPriceInnerRecordHandling())
 						),
 						pricesBuilder
 							.getPrices()
 							.stream()
-							.map(it -> new UpsertPriceMutation(it.getPriceKey(), it))
+							.map(it -> new UpsertPriceMutation(it.priceKey(), it))
 					)
 					.flatMap(it -> it)
 					.filter(Objects::nonNull)
@@ -536,7 +536,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 	public Entity toInstance() {
 		return Entity._internalBuild(
 			primaryKey,
-			getVersion(),
+			version(),
 			schema,
 			parent,
 			references.values(),

@@ -118,7 +118,7 @@ public class AttributeGreaterThanEqualsTranslator implements FilteringConstraint
 				if (attr.isEmpty()) {
 					return false;
 				} else {
-					final Serializable theValue = attr.get().getValue();
+					final Serializable theValue = attr.get().value();
 					return theValue != null && ((Comparable) theValue).compareTo(comparableValue) >= 0;
 				}
 			}

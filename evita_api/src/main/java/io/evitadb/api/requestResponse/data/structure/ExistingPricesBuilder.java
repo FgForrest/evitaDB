@@ -198,6 +198,11 @@ public class ExistingPricesBuilder implements PricesBuilder {
 		return getPriceInternal(new PriceKey(priceId, priceList, currency));
 	}
 
+	@Override
+	public boolean isContextAvailable() {
+		return pricePredicate.getCurrency() != null && !ArrayUtils.isEmpty(pricePredicate.getPriceLists());
+	}
+
 	@Nonnull
 	@Override
 	public Optional<PriceContract> getPriceForSale() throws ContextMissingException {
@@ -267,8 +272,8 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	}
 
 	@Override
-	public int getPricesVersion() {
-		return basePrices.getPricesVersion();
+	public int pricesVersion() {
+		return basePrices.pricesVersion();
 	}
 
 	@Nonnull
@@ -286,13 +291,13 @@ public class ExistingPricesBuilder implements PricesBuilder {
 								final PriceContract existingValue = builtPrices.get(it.getPriceKey());
 								final PriceContract newPrice = it.mutateLocal(entitySchema, existingValue);
 								builtPrices.put(it.getPriceKey(), newPrice);
-								return existingValue == null || newPrice.getVersion() > existingValue.getVersion();
+								return existingValue == null || newPrice.version() > existingValue.version();
 							}),
 						basePrices
 							.getPrices()
 							.stream()
-							.filter(it -> priceMutations.get(it.getPriceKey()) == null)
-							.map(it -> new RemovePriceMutation(it.getPriceKey()))
+							.filter(it -> priceMutations.get(it.priceKey()) == null)
+							.map(it -> new RemovePriceMutation(it.priceKey()))
 					)
 				)
 				.filter(Objects::nonNull);
@@ -306,7 +311,7 @@ public class ExistingPricesBuilder implements PricesBuilder {
 							final PriceContract existingValue = builtPrices.get(it.getPriceKey());
 							final PriceContract newPrice = it.mutateLocal(entitySchema, existingValue);
 							builtPrices.put(it.getPriceKey(), newPrice);
-							return existingValue == null || newPrice.getVersion() > existingValue.getVersion();
+							return existingValue == null || newPrice.version() > existingValue.version();
 						})
 				)
 				.filter(Objects::nonNull);
@@ -321,14 +326,14 @@ public class ExistingPricesBuilder implements PricesBuilder {
 			.stream()
 			.collect(
 				Collectors.toMap(
-					PriceContract::getPriceKey,
+					PriceContract::priceKey,
 					Function.identity()
 				)
 			);
 		final PriceInnerRecordHandling newPriceInnerRecordHandling = getPriceInnerRecordHandling();
 		if (!Objects.equals(basePrices.getPriceIndex(), newPriceIndex) || basePrices.getPriceInnerRecordHandling() != newPriceInnerRecordHandling) {
 			return new Prices(
-				basePrices.getVersion() + 1,
+				basePrices.version() + 1,
 				newPrices,
 				newPriceInnerRecordHandling
 			);
@@ -344,7 +349,7 @@ public class ExistingPricesBuilder implements PricesBuilder {
 				.getPrices()
 				.stream()
 				.map(it ->
-					ofNullable(priceMutations.get(it.getPriceKey()))
+					ofNullable(priceMutations.get(it.priceKey()))
 						.map(mut -> {
 							final PriceContract mutatedValue = mut.mutateLocal(entitySchema, it);
 							return mutatedValue.differsFrom(it) ? mutatedValue : it;
@@ -382,17 +387,17 @@ public class ExistingPricesBuilder implements PricesBuilder {
 		// check whether new price doesn't conflict with original prices
 		final PriceContract conflictingPrice = basePrices.getPrices().stream()
 			.filter(Droppable::exists)
-			.filter(it -> it.getPriceList().equals(price.getPriceList()))
-			.filter(it -> it.getCurrency().equals(price.getCurrency()))
-			.filter(it -> it.getPriceId() != price.getPriceId())
-			.filter(it -> Objects.equals(it.getInnerRecordId(), price.getInnerRecordId()))
+			.filter(it -> it.priceList().equals(price.priceList()))
+			.filter(it -> it.currency().equals(price.currency()))
+			.filter(it -> it.priceId() != price.priceId())
+			.filter(it -> Objects.equals(it.innerRecordId(), price.innerRecordId()))
 			.filter(it ->
-				price.getValidity() == null ||
-					ofNullable(it.getValidity()).map(existingValidity -> existingValidity.overlaps(price.getValidity()))
+				price.validity() == null ||
+					ofNullable(it.validity()).map(existingValidity -> existingValidity.overlaps(price.validity()))
 						.orElse(true)
 			)
 			// the conflicting prices don't play role if they're going to be removed in the same update
-			.filter(it -> !(priceMutations.get(it.getPriceKey()) instanceof RemovePriceMutation))
+			.filter(it -> !(priceMutations.get(it.priceKey()) instanceof RemovePriceMutation))
 			.findFirst()
 			.orElse(null);
 		if (conflictingPrice != null) {
@@ -402,13 +407,13 @@ public class ExistingPricesBuilder implements PricesBuilder {
 		final UpsertPriceMutation conflictingMutation = priceMutations.values().stream()
 			.filter(it -> it instanceof UpsertPriceMutation)
 			.map(UpsertPriceMutation.class::cast)
-			.filter(it -> it.getPriceKey().getPriceList().equals(price.getPriceList()))
-			.filter(it -> it.getPriceKey().getCurrency().equals(price.getCurrency()))
-			.filter(it -> it.getPriceKey().getPriceId() != price.getPriceId())
-			.filter(it -> Objects.equals(it.getInnerRecordId(), price.getInnerRecordId()))
+			.filter(it -> it.getPriceKey().priceList().equals(price.priceList()))
+			.filter(it -> it.getPriceKey().currency().equals(price.currency()))
+			.filter(it -> it.getPriceKey().priceId() != price.priceId())
+			.filter(it -> Objects.equals(it.getInnerRecordId(), price.innerRecordId()))
 			.filter(it ->
-				price.getValidity() == null ||
-					ofNullable(it.getValidity()).map(existingValidity -> existingValidity.overlaps(price.getValidity()))
+				price.validity() == null ||
+					ofNullable(it.getValidity()).map(existingValidity -> existingValidity.overlaps(price.validity()))
 						.orElse(true)
 			)
 			.findFirst()

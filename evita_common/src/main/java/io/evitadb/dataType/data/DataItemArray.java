@@ -24,7 +24,6 @@
 package io.evitadb.dataType.data;
 
 import io.evitadb.utils.MemoryMeasuringConstants;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
@@ -38,13 +37,10 @@ import java.util.function.BiConsumer;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Immutable
-public final class DataItemArray implements DataItem {
+public record DataItemArray(
+	@Nonnull DataItem[] children
+) implements DataItem {
 	@Serial private static final long serialVersionUID = -6372982252643992079L;
-	@Getter private final DataItem[] children;
-
-	public DataItemArray(@Nonnull DataItem[] values) {
-		this.children = values;
-	}
 
 	/**
 	 * Method allows to iterate over all items in this array with passed `consumer`. Second argument of the bi-consumer

@@ -23,22 +23,26 @@
 
 package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.JsonNode;
+import io.evitadb.api.CatalogContract;
+import io.evitadb.externalApi.http.EndpointResponse;
+import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.system.resolver.serializer.CatalogJsonSerializer;
-import io.evitadb.externalApi.rest.io.RestHandler;
-import io.undertow.server.HttpServerExchange;
+import io.evitadb.externalApi.rest.io.JsonRestHandler;
+import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
-import java.util.List;
-import java.util.Optional;
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /**
  * Returns all evitaDB catalogs.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ListCatalogsHandler extends RestHandler<SystemRestHandlingContext> {
+public class ListCatalogsHandler extends JsonRestHandler<Collection<CatalogContract>, SystemRestHandlingContext> {
 
 	@Nonnull
 	private final CatalogJsonSerializer catalogJsonSerializer;
@@ -50,22 +54,25 @@ public class ListCatalogsHandler extends RestHandler<SystemRestHandlingContext> 
 
 	@Nonnull
 	@Override
-	public String getSupportedHttpMethod() {
-		return Methods.GET_STRING;
+	protected EndpointResponse<Collection<CatalogContract>> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+		final Collection<CatalogContract> catalogs = restApiHandlingContext.getEvita().getCatalogs();
+		return new SuccessEndpointResponse<>(catalogs);
 	}
-
+	@Nonnull
 	@Override
-	public boolean returnsResponseBodies() {
-		return true;
+	public Set<String> getSupportedHttpMethods() {
+		return Set.of(Methods.GET_STRING);
 	}
 
 	@Nonnull
 	@Override
-	protected Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
-		final List<ObjectNode> catalogs = restApiHandlingContext.getEvita().getCatalogs()
-			.stream()
-			.map(catalogJsonSerializer::serialize)
-			.toList();
-		return Optional.of(catalogs);
+	public LinkedHashSet<String> getSupportedResponseContentTypes() {
+		return DEFAULT_SUPPORTED_CONTENT_TYPES;
+	}
+
+	@Nonnull
+	@Override
+	protected JsonNode convertResultIntoJson(@Nonnull RestEndpointExchange exchange, @Nonnull Collection<CatalogContract> catalogs) {
+		return catalogJsonSerializer.serialize(catalogs);
 	}
 }

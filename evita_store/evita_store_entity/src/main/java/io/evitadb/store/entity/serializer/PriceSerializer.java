@@ -49,16 +49,16 @@ public class PriceSerializer extends Serializer<Price> {
 
 	@Override
 	public void write(Kryo kryo, Output output, Price price) {
-		output.writeVarInt(price.getVersion(), true);
-		output.writeInt(price.getPriceId());
-		output.writeVarInt(keyCompressor.getId(new CompressiblePriceKey(price.getPriceKey())), true);
-		output.writeInt(ofNullable(price.getInnerRecordId()).orElse(-1));
-		kryo.writeObject(output, price.getPriceWithoutTax());
-		kryo.writeObject(output, price.getTaxRate());
-		kryo.writeObject(output, price.getPriceWithTax());
-		kryo.writeObjectOrNull(output, price.getValidity(), DateTimeRange.class);
-		output.writeBoolean(price.isSellable());
-		output.writeBoolean(price.isDropped());
+		output.writeVarInt(price.version(), true);
+		output.writeInt(price.priceId());
+		output.writeVarInt(keyCompressor.getId(new CompressiblePriceKey(price.priceKey())), true);
+		output.writeInt(ofNullable(price.innerRecordId()).orElse(-1));
+		kryo.writeObject(output, price.priceWithoutTax());
+		kryo.writeObject(output, price.taxRate());
+		kryo.writeObject(output, price.priceWithTax());
+		kryo.writeObjectOrNull(output, price.validity(), DateTimeRange.class);
+		output.writeBoolean(price.sellable());
+		output.writeBoolean(price.dropped());
 	}
 
 	@Override

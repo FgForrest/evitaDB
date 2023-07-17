@@ -61,17 +61,17 @@ class RemovePriceMutationTest extends AbstractMutationTest {
 			)
 		);
 
-		assertEquals(2L, removedPrice.getVersion());
-		assertEquals(1, removedPrice.getPriceId());
-		assertEquals("basic", removedPrice.getPriceList());
-		assertEquals(CZK, removedPrice.getCurrency());
-		assertEquals(2, removedPrice.getInnerRecordId());
-		assertEquals(BigDecimal.ONE, removedPrice.getPriceWithoutTax());
-		assertEquals(BigDecimal.ZERO, removedPrice.getTaxRate());
-		assertEquals(BigDecimal.TEN, removedPrice.getPriceWithTax());
-		assertEquals(DateTimeRange.since(theDay), removedPrice.getValidity());
-		assertTrue(removedPrice.isSellable());
-		assertTrue(removedPrice.isDropped());
+		assertEquals(2L, removedPrice.version());
+		assertEquals(1, removedPrice.priceId());
+		assertEquals("basic", removedPrice.priceList());
+		assertEquals(CZK, removedPrice.currency());
+		assertEquals(2, removedPrice.innerRecordId());
+		assertEquals(BigDecimal.ONE, removedPrice.priceWithoutTax());
+		assertEquals(BigDecimal.ZERO, removedPrice.taxRate());
+		assertEquals(BigDecimal.TEN, removedPrice.priceWithTax());
+		assertEquals(DateTimeRange.since(theDay), removedPrice.validity());
+		assertTrue(removedPrice.sellable());
+		assertTrue(removedPrice.dropped());
 	}
 
 	@Test

@@ -289,7 +289,7 @@ public class EvitaDataTypesConverter {
 	}
 
 	/**
-	 * Converts serializable {@link AssociatedDataValue#getValue()} to {@link GrpcEvitaAssociatedDataValue} without version.
+	 * Converts serializable {@link AssociatedDataValue#value()} to {@link GrpcEvitaAssociatedDataValue} without version.
 	 *
 	 * @param value   in {@link Serializable} data type supported by Evita.
 	 * @return converted {@link GrpcEvitaAssociatedDataValue}
@@ -300,7 +300,7 @@ public class EvitaDataTypesConverter {
 	}
 
 	/**
-	 * Converts serializable {@link AssociatedDataValue#getValue()} to {@link GrpcEvitaAssociatedDataValue}.
+	 * Converts serializable {@link AssociatedDataValue#value()} to {@link GrpcEvitaAssociatedDataValue}.
 	 *
 	 * @param value   in {@link Serializable} data type supported by Evita.
 	 * @param version optional version of the built {@link GrpcEvitaValue}
@@ -509,11 +509,11 @@ public class EvitaDataTypesConverter {
 	}
 
 	/**
-	 * Converts {@link AssociatedDataValue#getValue()#getClass()} to {@link GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType}. The method {@link #toGrpcEvitaDataType(Class)} does here most of the work
+	 * Converts {@link AssociatedDataValue#value()#getClass()} to {@link GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType}. The method {@link #toGrpcEvitaDataType(Class)} does here most of the work
 	 * because it handles all the supported types except of {@link ComplexDataObject}, which is handled here.
 	 *
 	 * @param dataType of which the {@link GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType} is to be returned
-	 * @return {@link GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType} for the given {@link AssociatedDataValue#getValue()#getClass()}
+	 * @return {@link GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType} for the given {@link AssociatedDataValue#value()#getClass()}
 	 */
 	@Nonnull
 	public static <T extends Serializable> GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType toGrpcEvitaAssociatedDataDataType(@Nonnull Class<T> dataType) {

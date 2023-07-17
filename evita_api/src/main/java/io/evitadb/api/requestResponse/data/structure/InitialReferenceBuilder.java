@@ -119,12 +119,12 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 	}
 
 	@Override
-	public boolean isDropped() {
+	public boolean dropped() {
 		return false;
 	}
 
 	@Override
-	public int getVersion() {
+	public int version() {
 		return 1;
 	}
 
@@ -249,7 +249,7 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 	@Override
 	public ReferenceBuilder mutateAttribute(@Nonnull AttributeMutation mutation) {
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.referenceKey.referenceName()).orElse(null);
-		verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, mutation.getAttributeKey().getAttributeName(), null);
+		verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, mutation.getAttributeKey().attributeName(), null);
 		attributesBuilder.mutateAttribute(mutation);
 		return this;
 	}
@@ -268,7 +268,7 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 				.map(x ->
 					new ReferenceAttributeMutation(
 						referenceKey,
-						new UpsertAttributeMutation(x.getKey(), Objects.requireNonNull(x.getValue()))
+						new UpsertAttributeMutation(x.key(), Objects.requireNonNull(x.value()))
 					)
 				)
 		);

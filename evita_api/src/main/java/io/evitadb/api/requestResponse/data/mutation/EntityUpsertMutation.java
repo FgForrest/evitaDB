@@ -50,7 +50,7 @@ import static java.util.Optional.of;
 
 /**
  * EntityUpsertMutation represents a terminal mutation when existing entity is removed in the evitaDB. The entity is
- * and all its internal data are marked as TRUE for {@link Droppable#isDropped()}, stored to the storage file and
+ * and all its internal data are marked as TRUE for {@link Droppable#dropped()}, stored to the storage file and
  * removed from the mem-table.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022

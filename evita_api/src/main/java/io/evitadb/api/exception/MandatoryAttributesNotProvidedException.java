@@ -73,8 +73,8 @@ public class MandatoryAttributesNotProvidedException extends InvalidMutationExce
 
 	private static String composeErrorMessage(@Nonnull String entityName, @Nonnull String reference, @Nonnull List<AttributeKey> missingMandatedAttributes) {
 		final String missingGlobalAttributes = of(missingMandatedAttributes.stream()
-			.filter(it -> it.getLocale() == null)
-			.map(it -> "`" + it.getAttributeName() + "`")
+			.filter(it -> it.locale() == null)
+			.map(it -> "`" + it.attributeName() + "`")
 			.collect(Collectors.joining(", ")))
 			.filter(it -> !it.isBlank())
 			.map(it ->
@@ -85,15 +85,15 @@ public class MandatoryAttributesNotProvidedException extends InvalidMutationExce
 
 		final String missingLocalizedAttributes = of(
 			missingMandatedAttributes.stream()
-				.filter(it -> it.getLocale() != null)
-				.collect(Collectors.groupingBy(AttributeKey::getAttributeName))
+				.filter(it -> it.locale() != null)
+				.collect(Collectors.groupingBy(AttributeKey::attributeName))
 				.entrySet()
 				.stream()
 				.map(it ->
 					"`" + it.getKey() + "` in locales: " +
 						it.getValue()
 							.stream()
-							.map(AttributeKey::getLocale)
+							.map(AttributeKey::locale)
 							.map(locale -> "`" + locale.toLanguageTag() + "`")
 							.collect(Collectors.joining(", "))
 				)

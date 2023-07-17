@@ -38,6 +38,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
+import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 
@@ -48,16 +49,17 @@ import static java.util.Optional.ofNullable;
  * time. Client code will use {@link ComplexDataObjectConverter} to serialize and deserialize objects of this type to their
  * respective POJO instances.
  *
+ * @param root Contains the root data item of the object - may be {@link DataItemArray} or {@link DataItemMap}.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@ThreadSafe
 @Immutable
 @Slf4j
-public final class ComplexDataObject implements Serializable {
+public record ComplexDataObject(
+	@Nonnull DataItem root
+) implements Serializable {
 	@Serial private static final long serialVersionUID = -8087905744932894477L;
-	/**
-	 * Contains the root data item of the object - may be {@link DataItemArray} or {@link DataItemMap}.
-	 */
-	private final DataItem root;
 
 	public ComplexDataObject(@Nonnull DataItem root) {
 		Assert.isTrue(!(root instanceof DataItemValue), "Root item cannot be a value item!");
@@ -67,7 +69,7 @@ public final class ComplexDataObject implements Serializable {
 	/**
 	 * Returns the root item of the object.
 	 */
-	public DataItem getRoot() {
+	public DataItem root() {
 		return root;
 	}
 
@@ -217,7 +219,7 @@ public final class ComplexDataObject implements Serializable {
 
 		@Override
 		public void visit(@Nonnull DataItemValue valueItem) {
-			final Serializable value = valueItem.getValue();
+			final Serializable value = valueItem.value();
 			asString.append(value == null ? "<NULL>" : EvitaDataTypes.formatValue(value));
 		}
 	}

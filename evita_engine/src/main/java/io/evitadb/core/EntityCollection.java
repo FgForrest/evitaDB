@@ -627,7 +627,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		final EntitySchemaContract nextSchema = updatedSchema;
 		Assert.isPremiseValid(updatedSchema != null, "Entity collection cannot be dropped by updating schema!");
 		Assert.isPremiseValid(updatedSchema instanceof EntitySchema, "Mutation is expected to produce EntitySchema instance!");
-		if (updatedSchema.getVersion() > currentSchema.getVersion()) {
+		if (updatedSchema.version() > currentSchema.version()) {
 			/* TOBEDONE JNO - apply this just before commit happens in case validations are enabled */
 			// assertAllReferencedEntitiesExist(newSchema);
 			// assertReferences(newSchema);
@@ -641,7 +641,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 				new EntitySchemaDecorator(() -> getCatalog().getSchema(), updatedInternalSchema)
 			);
 			Assert.isTrue(
-				originalSchemaBeforeExchange.getVersion() == currentSchema.getVersion(),
+				originalSchemaBeforeExchange.version() == currentSchema.version(),
 				() -> new ConcurrentSchemaUpdateException(currentSchema, nextSchema)
 			);
 		}
@@ -976,7 +976,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 			final ReferenceChanges<EntitySchemaDecorator> schemaChanges = transactionalLayer.getTransactionalMemoryLayerIfExists(this.schema);
 			if (schemaChanges != null) {
 				Assert.isPremiseValid(
-					schemaChanges.get().getVersion() == getSchema().getVersion(),
+					schemaChanges.get().version() == getSchema().version(),
 					"Schema was unexpectedly modified!"
 				);
 				transactionalLayer.removeTransactionalMemoryLayerIfExists(this.schema);

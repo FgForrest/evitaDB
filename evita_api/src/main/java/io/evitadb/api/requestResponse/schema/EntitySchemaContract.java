@@ -79,7 +79,7 @@ public interface EntitySchemaContract extends
 	 * optimistic locking i.e. avoiding parallel modifications.
 	 */
 	@Override
-	int getVersion();
+	int version();
 
 	/**
 	 * Method returns true if the schema contains only information about {@link #getName()} but nothing else. This signalizes
