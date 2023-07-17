@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -47,6 +48,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -129,7 +131,8 @@ public class Attributes implements AttributesContract {
 					Function.identity(),
 					(attributeValue, attributeValue2) -> {
 						throw new EvitaInvalidUsageException("Duplicated attribute " + attributeValue.key() + "!");
-					}
+					},
+					LinkedHashMap::new
 				)
 			);
 		this.attributeTypes = attributeTypes;
@@ -257,7 +260,11 @@ public class Attributes implements AttributesContract {
 				.keySet()
 				.stream()
 				.map(AttributesContract.AttributeKey::attributeName)
-				.collect(Collectors.toSet());
+				.collect(
+					Collectors.toCollection(
+						() -> CollectionUtils.createLinkedHashSet(this.attributeNames.size())
+					)
+				);
 		}
 		return this.attributeNames;
 	}
