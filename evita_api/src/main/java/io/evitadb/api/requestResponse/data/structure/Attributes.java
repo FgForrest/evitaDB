@@ -55,6 +55,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -132,7 +133,7 @@ public class Attributes implements AttributesContract {
 					(attributeValue, attributeValue2) -> {
 						throw new EvitaInvalidUsageException("Duplicated attribute " + attributeValue.key() + "!");
 					},
-					LinkedHashMap::new
+					TreeMap::new
 				)
 			);
 		this.attributeTypes = attributeTypes;
