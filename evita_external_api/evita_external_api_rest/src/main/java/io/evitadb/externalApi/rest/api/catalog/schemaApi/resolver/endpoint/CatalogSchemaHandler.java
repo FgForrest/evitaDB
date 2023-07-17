@@ -21,47 +21,33 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
+package io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import io.evitadb.api.CatalogContract;
-import io.evitadb.externalApi.http.EndpointResponse;
-import io.evitadb.externalApi.http.SuccessEndpointResponse;
-import io.evitadb.externalApi.rest.api.system.resolver.serializer.CatalogJsonSerializer;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
+import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer.CatalogSchemaJsonSerializer;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
-import io.undertow.util.Methods;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.util.Collection;
 import java.util.LinkedHashSet;
-import java.util.Set;
 
 /**
- * Returns all evitaDB catalogs.
+ * Ancestor for endpoints working with {@link CatalogSchemaContract}s.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ListCatalogsHandler extends JsonRestHandler<Collection<CatalogContract>, SystemRestHandlingContext> {
+@Slf4j
+public abstract class CatalogSchemaHandler extends JsonRestHandler<CatalogSchemaContract, CatalogRestHandlingContext> {
 
 	@Nonnull
-	private final CatalogJsonSerializer catalogJsonSerializer;
+	private final CatalogSchemaJsonSerializer catalogSchemaJsonSerializer;
 
-	public ListCatalogsHandler(@Nonnull SystemRestHandlingContext restApiHandlingContext) {
+	protected CatalogSchemaHandler(@Nonnull CatalogRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
-		this.catalogJsonSerializer = new CatalogJsonSerializer(restApiHandlingContext);
-	}
-
-	@Nonnull
-	@Override
-	protected EndpointResponse<Collection<CatalogContract>> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		final Collection<CatalogContract> catalogs = restApiHandlingContext.getEvita().getCatalogs();
-		return new SuccessEndpointResponse<>(catalogs);
-	}
-	@Nonnull
-	@Override
-	public Set<String> getSupportedHttpMethods() {
-		return Set.of(Methods.GET_STRING);
+		catalogSchemaJsonSerializer = new CatalogSchemaJsonSerializer(restApiHandlingContext);
 	}
 
 	@Nonnull
@@ -72,7 +58,11 @@ public class ListCatalogsHandler extends JsonRestHandler<Collection<CatalogContr
 
 	@Nonnull
 	@Override
-	protected JsonNode convertResultIntoJson(@Nonnull RestEndpointExchange exchange, @Nonnull Collection<CatalogContract> catalogs) {
-		return catalogJsonSerializer.serialize(catalogs);
+	protected JsonNode convertResultIntoJson(@Nonnull RestEndpointExchange exchange, @Nonnull CatalogSchemaContract catalogSchema) {
+		return catalogSchemaJsonSerializer.serialize(
+			catalogSchema,
+			exchange.session()::getEntitySchemaOrThrow,
+			exchange.session().getAllEntityTypes()
+		);
 	}
 }

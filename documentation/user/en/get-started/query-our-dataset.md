@@ -34,8 +34,10 @@ If you experience slow responses, let us know and
 
 You can access all our APIs on these addresses:
 
-- `graphQL` API: [https://demo.evitadb.io:5555/gql/](https://demo.evitadb.io:5555/gql/)
-- `REST` API: [https://demo.evitadb.io:5555/rest/](https://demo.evitadb.io:5555/rest/)
+- `graphQL` API: [https://demo.evitadb.io:5555/gql/](https://demo.evitadb.io:5555/gql/evita)
+   - you can explore GraphQL API with our dataset using [online GraphiQL editor](https://cloud.hasura.io/public/graphiql?endpoint=https%3A%2F%2Fdemo.evitadb.io%3A5555%2Fgql%2Fevita) (for more, visit [GraphQL](../use/connectors/graphql.md) documentation)
+- `REST` API: [https://demo.evitadb.io:5555/rest/](https://demo.evitadb.io:5555/rest/evita)
+   - you can fetch OpenAPI schema just be sending GET request to this URL (for more, visit [REST](../use/connectors/rest.md) documentation)
 - `gRPC` API: [https://demo.evitadb.io:5556/](https://demo.evitadb.io:5556/)
 
 ## Run your own evitaDB server with our dataset

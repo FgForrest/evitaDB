@@ -23,65 +23,59 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.CollectionDescriptor;
+import io.evitadb.externalApi.http.EndpointResponse;
+import io.evitadb.externalApi.http.SuccessEndpointResponse;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.CollectionPointer;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.CollectionsEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
-import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
-import io.evitadb.externalApi.rest.io.RestHandler;
-import io.undertow.server.HttpServerExchange;
+import io.evitadb.externalApi.rest.io.JsonRestHandler;
+import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Set;
 
 /**
  * This handler is used to get list of names (and counts) of existing collections withing one catalog.
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class CollectionsHandler extends RestHandler<CatalogRestHandlingContext> {
-
-	@Nonnull
-	private final ObjectJsonSerializer objectJsonSerializer;
+public class CollectionsHandler extends JsonRestHandler<List<CollectionPointer>, CatalogRestHandlingContext> {
 
 	public CollectionsHandler(@Nonnull CatalogRestHandlingContext restHandlingContext) {
 		super(restHandlingContext);
-		objectJsonSerializer = new ObjectJsonSerializer(restApiHandlingContext.getObjectMapper());
 	}
 
 	@Nonnull
 	@Override
-	public String getSupportedHttpMethod() {
-		return Methods.PUT_STRING;
-	}
-
-	@Override
-	public boolean returnsResponseBodies() {
-		return true;
-	}
-
-	@Override
-	@Nonnull
-	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
+	protected EndpointResponse<List<CollectionPointer>> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
 		final Boolean withCounts = (Boolean) parametersFromRequest.get(CollectionsEndpointHeaderDescriptor.ENTITY_COUNT.name());
 
-		final ArrayNode collections = restApiHandlingContext.queryCatalog(session -> {
-			final ArrayNode collectionArray = objectJsonSerializer.arrayNode();
-			for (String entityType : session.getAllEntityTypes()) {
-				final ObjectNode collectionNode = objectJsonSerializer.objectNode();
-				collectionNode.putIfAbsent(CollectionDescriptor.ENTITY_TYPE.name(), objectJsonSerializer.serializeObject(entityType));
-				collectionArray.add(collectionNode);
-				if (withCounts != null && withCounts) {
-					collectionNode.putIfAbsent(CollectionDescriptor.COUNT.name(), objectJsonSerializer.serializeObject(session.getEntityCollectionSize(entityType)));
-				}
-			}
-			return collectionArray;
-		});
+		final List<CollectionPointer> collections = exchange.session()
+			.getAllEntityTypes()
+			.stream()
+			.map(entityType -> new CollectionPointer(
+				entityType,
+				withCounts != null && withCounts ? exchange.session().getEntityCollectionSize(entityType) : null
+			))
+			.toList();
 
-		return Optional.of(collections);
+		return new SuccessEndpointResponse<>(collections);
+	}
+
+	@Nonnull
+	@Override
+	public Set<String> getSupportedHttpMethods() {
+		return Set.of(Methods.GET_STRING);
+	}
+
+	@Nonnull
+	@Override
+	public LinkedHashSet<String> getSupportedResponseContentTypes() {
+		return DEFAULT_SUPPORTED_CONTENT_TYPES;
 	}
 }

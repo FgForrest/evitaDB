@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.rest.api;
 
-import io.evitadb.externalApi.rest.io.RestHandler;
+import io.evitadb.externalApi.rest.io.RestEndpointHandler;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.undertow.util.HttpString;
 
@@ -40,5 +40,5 @@ public record Rest(@Nonnull OpenAPI openApi, @Nonnull List<Endpoint> endpoints) 
 
 	public record Endpoint(@Nonnull Path path,
 	                       @Nonnull HttpString method,
-	                       @Nonnull RestHandler<?> handler) {}
+	                       @Nonnull RestEndpointHandler<?, ?> handler) {}
 }

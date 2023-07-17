@@ -23,21 +23,25 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.externalApi.http.EndpointResponse;
+import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.FilterByConstraintFromRequestQueryBuilder;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintFromRequestQueryBuilder;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
-import io.evitadb.externalApi.rest.io.RestHandler;
-import io.undertow.server.HttpServerExchange;
+import io.evitadb.externalApi.rest.io.JsonRestHandler;
+import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Set;
 
 /**
  * Handles requests for multiple unknown entities identified by their URLs or codes.
@@ -45,7 +49,7 @@ import java.util.Optional;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class ListUnknownEntitiesHandler extends RestHandler<CatalogRestHandlingContext> {
+public class ListUnknownEntitiesHandler extends JsonRestHandler<List<EntityClassifier>, CatalogRestHandlingContext> {
 
 	@Nonnull
 	private final EntityJsonSerializer entityJsonSerializer;
@@ -55,21 +59,9 @@ public class ListUnknownEntitiesHandler extends RestHandler<CatalogRestHandlingC
 		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
 	}
 
-	@Nonnull
-	@Override
-	public String getSupportedHttpMethod() {
-		return Methods.GET_STRING;
-	}
-
-	@Override
-	public boolean returnsResponseBodies() {
-		return true;
-	}
-
-
 	@Override
 	@Nonnull
-	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
+	protected EndpointResponse<List<EntityClassifier>> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
 
 		final Query query = Query.query(
@@ -79,9 +71,26 @@ public class ListUnknownEntitiesHandler extends RestHandler<CatalogRestHandlingC
 
 		log.debug("Generated evitaDB query for unknown entity list fetch is `{}`.", query);
 
-		final List<EntityClassifier> entities = restApiHandlingContext.queryCatalog(session ->
-			session.queryList(query, EntityClassifier.class));
+		final List<EntityClassifier> entities = exchange.session().queryList(query, EntityClassifier.class);
 
-		return Optional.of(entityJsonSerializer.serialize(entities));
+		return new SuccessEndpointResponse<>(entities);
+	}
+
+	@Nonnull
+	@Override
+	public Set<String> getSupportedHttpMethods() {
+		return Set.of(Methods.GET_STRING);
+	}
+
+	@Nonnull
+	@Override
+	public LinkedHashSet<String> getSupportedResponseContentTypes() {
+		return DEFAULT_SUPPORTED_CONTENT_TYPES;
+	}
+
+	@Nonnull
+	@Override
+	protected JsonNode convertResultIntoJson(@Nonnull RestEndpointExchange exchange, @Nonnull List<EntityClassifier> entities) {
+		return entityJsonSerializer.serialize(entities);
 	}
 }

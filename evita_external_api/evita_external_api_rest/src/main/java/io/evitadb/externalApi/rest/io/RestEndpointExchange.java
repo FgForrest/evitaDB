@@ -21,19 +21,30 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.io;
+package io.evitadb.externalApi.rest.io;
 
-import io.evitadb.externalApi.http.MimeTypes;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
+import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.externalApi.http.EndpointExchange;
+import io.undertow.server.HttpServerExchange;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
- * Extension of HTTP MIME types supported by GraphQL API.
+ * Implementation of {@link EndpointExchange} for REST API.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class GraphQLMimeTypes extends MimeTypes {
+public record RestEndpointExchange(@Nonnull HttpServerExchange serverExchange,
+                            @Nullable EvitaSessionContract session,
+                            @Nonnull String httpMethod,
+                            @Nullable String requestBodyContentType,
+                            @Nullable String preferredResponseContentType) implements EndpointExchange {
 
-    public static final String APPLICATION_GRAPHQL_RESPONSE_JSON = "application/graphql-response+json";
+	@Override
+	public void close() throws Exception {
+		if (session() != null) {
+			session().close();
+		}
+	}
 }
