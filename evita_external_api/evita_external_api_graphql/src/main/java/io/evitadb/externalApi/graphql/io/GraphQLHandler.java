@@ -31,13 +31,17 @@ import graphql.GraphQLException;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.externalApi.exception.ExternalApiInternalError;
+import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.exception.HttpExchangeException;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
-import io.evitadb.externalApi.http.MimeTypes;
-import io.undertow.server.HttpHandler;
+import io.evitadb.externalApi.graphql.exception.GraphQLInvalidUsageException;
+import io.evitadb.externalApi.graphql.io.GraphQLHandler.GraphQLEndpointExchange;
+import io.evitadb.externalApi.http.EndpointExchange;
+import io.evitadb.externalApi.http.EndpointHandler;
+import io.evitadb.externalApi.http.EndpointResponse;
+import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.undertow.server.HttpServerExchange;
-import io.undertow.util.HeaderValues;
-import io.undertow.util.Headers;
 import io.undertow.util.Methods;
 import io.undertow.util.StatusCodes;
 import lombok.RequiredArgsConstructor;
@@ -45,21 +49,15 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.Charset;
-import java.nio.charset.IllegalCharsetNameException;
-import java.nio.charset.StandardCharsets;
-import java.nio.charset.UnsupportedCharsetException;
-import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+
+import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
 
 /**
  * Generic HTTP request handler for processing {@link GraphQLRequest}s and returning {@link GraphQLResponse}s using passed
@@ -69,9 +67,7 @@ import java.util.stream.Stream;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class GraphQLHandler implements HttpHandler {
-
-    private static final String CONTENT_TYPE_CHARSET = "; charset=UTF-8";
+public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange, GraphQLResponse<?>> {
 
     @Nonnull
     private final ObjectMapper objectMapper;
@@ -80,73 +76,71 @@ public class GraphQLHandler implements HttpHandler {
     @Nonnull
     private final AtomicReference<GraphQL> graphQL;
 
+    @Nonnull
     @Override
-    public void handleRequest(@Nonnull HttpServerExchange exchange) throws Exception {
-        validateRequest(exchange);
-
-        final String body = readRequestBody(exchange);
-        final GraphQLRequest graphQLRequest = parseRequest(body);
-        final ExecutionResult graphQLResponse = executeRequest(graphQLRequest);
-        final String serializedResult = serializeResult(GraphQLResponse.fromExecutionResult(graphQLResponse));
-
-        setSuccessResponse(exchange, serializedResult);
+    protected GraphQLEndpointExchange createEndpointExchange(@Nonnull HttpServerExchange serverExchange,
+                                                             @Nonnull String httpMethod,
+                                                             @Nullable String requestBodyMediaType,
+                                                             @Nullable String preferredResponseMediaType) {
+        return new GraphQLEndpointExchange(serverExchange, httpMethod, requestBodyMediaType, preferredResponseMediaType);
     }
 
-    private static void validateRequest(@Nonnull HttpServerExchange exchange) {
-        if (!hasSupportedMethod(exchange)) {
-            throw new HttpExchangeException(
-                StatusCodes.METHOD_NOT_ALLOWED,
-                "Only POST method is currently supported."
-            );
-        }
-        if (!acceptsSupportedContentType(exchange)) {
-            throw new HttpExchangeException(
-                StatusCodes.NOT_ACCEPTABLE,
-                "Only supported result content types are those officially recommended by GraphQL Spec (`application/graphql+json`, `application/json`)."
-            );
-        }
-        if (!bodyHasSupportedContentType(exchange)) {
-            throw new HttpExchangeException(
-                StatusCodes.UNSUPPORTED_MEDIA_TYPE,
-                "Only supported request body content types are those officially recommended by GraphQL Spec (`application/graphql+json`, `application/json`)."
-            );
-        }
+    @Override
+    @Nonnull
+    protected EndpointResponse<GraphQLResponse<?>> doHandleRequest(@Nonnull GraphQLEndpointExchange exchange) {
+        final GraphQLRequest graphQLRequest = parseRequestBody(exchange, GraphQLRequest.class);
+        final GraphQLResponse<?> graphQLResponse = executeRequest(graphQLRequest);
+        return new SuccessEndpointResponse<>(graphQLResponse);
     }
 
     @Nonnull
-    private static String readRequestBody(@Nonnull HttpServerExchange exchange) throws IOException {
-        final String bodyContentType = exchange.getRequestHeaders().getFirst(Headers.CONTENT_TYPE);
-        final Charset bodyCharset = Arrays.stream(bodyContentType.split(";"))
-            .map(String::trim)
-            .filter(part -> part.startsWith("charset"))
-            .findFirst()
-            .map(charsetPart -> {
-                final String[] charsetParts = charsetPart.split("=");
-                if (charsetParts.length != 2) {
-                    throw new HttpExchangeException(StatusCodes.UNSUPPORTED_MEDIA_TYPE, "Charset has invalid format");
-                }
-                return charsetParts[1].trim();
-            })
-            .map(charsetName -> {
-                try {
-                    return Charset.forName(charsetName);
-                } catch (IllegalCharsetNameException | UnsupportedCharsetException ex) {
-                    throw new HttpExchangeException(StatusCodes.UNSUPPORTED_MEDIA_TYPE, "Unsupported charset.");
-                }
-            })
-            .orElse(StandardCharsets.UTF_8);
-
-        try (final InputStream is = exchange.getInputStream();
-             final InputStreamReader isr = new InputStreamReader(is, bodyCharset);
-             final BufferedReader bf = new BufferedReader(isr)) {
-            return bf.lines().collect(Collectors.joining("\n"));
-        }
+    @Override
+    protected <T extends ExternalApiInternalError> T createInternalError(@Nonnull String message) {
+        //noinspection unchecked
+        return (T) new GraphQLInternalError(message);
     }
 
     @Nonnull
-    private GraphQLRequest parseRequest(@Nonnull String body) {
+    @Override
+    protected <T extends ExternalApiInternalError> T createInternalError(@Nonnull String message, @Nonnull Throwable cause) {
+        //noinspection unchecked
+        return (T) new GraphQLInternalError(message, cause);
+    }
+
+    @Nonnull
+    @Override
+    protected <T extends ExternalApiInvalidUsageException> T createInvalidUsageException(@Nonnull String message) {
+        //noinspection unchecked
+        return (T) new GraphQLInvalidUsageException(message);
+    }
+
+    @Nonnull
+    @Override
+    public Set<String> getSupportedHttpMethods() {
+        return Set.of(Methods.POST_STRING);
+    }
+
+    @Nonnull
+    @Override
+    public Set<String> getSupportedRequestContentTypes() {
+        return Set.of(GraphQLMimeTypes.APPLICATION_JSON);
+    }
+
+    @Nonnull
+    @Override
+    public LinkedHashSet<String> getSupportedResponseContentTypes() {
+        final LinkedHashSet<String> mediaTypes = createLinkedHashSet(2);
+        mediaTypes.add(GraphQLMimeTypes.APPLICATION_GRAPHQL_RESPONSE_JSON);
+        mediaTypes.add(GraphQLMimeTypes.APPLICATION_JSON);
+        return mediaTypes;
+    }
+
+    @Nonnull
+    @Override
+    protected <T> T parseRequestBody(@Nonnull GraphQLEndpointExchange exchange, @Nonnull Class<T> dataClass) {
+        final String rawBody = readRawRequestBody(exchange);
         try {
-            return objectMapper.readValue(body, GraphQLRequest.class);
+            return objectMapper.readValue(rawBody, dataClass);
         } catch (IOException e) {
             if (e.getCause() instanceof EvitaInternalError internalError) {
                 throw internalError;
@@ -158,12 +152,14 @@ public class GraphQLHandler implements HttpHandler {
     }
 
     @Nonnull
-    private ExecutionResult executeRequest(@Nonnull GraphQLRequest graphQLRequest) {
+    private GraphQLResponse<?> executeRequest(@Nonnull GraphQLRequest graphQLRequest) {
         try {
-            return graphQL.get()
+            final ExecutionResult result = graphQL.get()
                 .executeAsync(graphQLRequest.toExecutionInput())
                 .orTimeout(evitaConfiguration.server().shortRunningThreadsTimeoutInSeconds(), TimeUnit.SECONDS)
                 .join();
+
+            return GraphQLResponse.fromExecutionResult(result);
         } catch (CompletionException e) {
             if (e.getCause() instanceof TimeoutException) {
                 throw new HttpExchangeException(StatusCodes.GATEWAY_TIME_OUT, "Could not complete GraphQL request. Process timed out.");
@@ -184,10 +180,11 @@ public class GraphQLHandler implements HttpHandler {
     }
 
     @Nonnull
-    private String serializeResult(@Nonnull GraphQLResponse<?> graphQLResponse) {
+    @Override
+    protected String serializeResult(@Nonnull GraphQLEndpointExchange exchange, @Nonnull GraphQLResponse<?> response) {
         final String json;
         try {
-            json = objectMapper.writeValueAsString(graphQLResponse);
+            json = objectMapper.writeValueAsString(response);
         } catch (JsonProcessingException e) {
             throw new GraphQLInternalError(
                 "Could not serialize GraphQL API response to JSON: " + e.getMessage(),
@@ -198,58 +195,8 @@ public class GraphQLHandler implements HttpHandler {
         return json;
     }
 
-    private static void setSuccessResponse(@Nonnull HttpServerExchange exchange, @Nonnull String data) {
-        exchange.setStatusCode(StatusCodes.OK);
-        exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, getPreferredResponseContentType(exchange) + CONTENT_TYPE_CHARSET);
-        exchange.getResponseSender().send(data);
-    }
-
-    @Nullable
-    private static Stream<String> parseAcceptHeaders(@Nonnull HttpServerExchange exchange) {
-        final HeaderValues acceptHeaders = exchange.getRequestHeaders().get(Headers.ACCEPT);
-        if (acceptHeaders == null) {
-            return null;
-        }
-        return acceptHeaders.stream()
-                .flatMap(hv -> Arrays.stream(hv.split(",")))
-                .map(String::strip);
-    }
-
-    private static boolean bodyHasSupportedContentType(HttpServerExchange exchange) {
-        final String bodyContentType = exchange.getRequestHeaders().getFirst(Headers.CONTENT_TYPE);
-        if (bodyContentType == null) {
-            return false;
-        }
-        return bodyContentType.startsWith(GraphQLMimeTypes.APPLICATION_GRAPHQL_JSON) ||
-                bodyContentType.startsWith(MimeTypes.APPLICATION_JSON);
-    }
-
-    private static boolean acceptsSupportedContentType(@Nonnull HttpServerExchange exchange) {
-        final Stream<String> acceptHeaders = parseAcceptHeaders(exchange);
-        if (acceptHeaders == null) {
-            return true;
-        }
-        return acceptHeaders.anyMatch(hv -> hv.equals(MimeTypes.ALL) ||
-                        hv.equals(GraphQLMimeTypes.APPLICATION_GRAPHQL_JSON) ||
-                        hv.equals(MimeTypes.APPLICATION_JSON));
-    }
-
-    private static boolean hasSupportedMethod(@Nonnull HttpServerExchange exchange) {
-        return exchange.getRequestMethod().equals(Methods.POST);
-    }
-
-    @Nonnull
-    private static String getPreferredResponseContentType(@Nonnull HttpServerExchange exchange) {
-        final Stream<String> acceptHeaders = parseAcceptHeaders(exchange);
-        if (acceptHeaders == null) {
-            return GraphQLMimeTypes.APPLICATION_GRAPHQL_JSON;
-        }
-
-        if (acceptHeaders.anyMatch(ah -> ah.equals(MimeTypes.ALL) ||
-                ah.equals(GraphQLMimeTypes.APPLICATION_GRAPHQL_JSON))) {
-            return GraphQLMimeTypes.APPLICATION_GRAPHQL_JSON;
-        } else {
-            return MimeTypes.APPLICATION_JSON;
-        }
-    }
+    protected record GraphQLEndpointExchange(@Nonnull HttpServerExchange serverExchange,
+                                             @Nonnull String httpMethod,
+                                             @Nullable String requestBodyContentType,
+                                             @Nullable String preferredResponseContentType) implements EndpointExchange {}
 }

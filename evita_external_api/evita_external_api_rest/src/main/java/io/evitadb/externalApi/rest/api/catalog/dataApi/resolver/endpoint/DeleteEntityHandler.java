@@ -25,19 +25,20 @@ package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.externalApi.http.EndpointResponse;
+import io.evitadb.externalApi.http.NotFoundEndpointResponse;
+import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.DeleteEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintFromRequestQueryBuilder;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
-import io.evitadb.externalApi.rest.io.RestHandler;
+import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import io.evitadb.utils.Assert;
-import io.undertow.server.HttpServerExchange;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Set;
 
 /**
  * Handles single entity delete request.
@@ -45,30 +46,20 @@ import java.util.Optional;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class DeleteEntityHandler extends RestHandler<CollectionRestHandlingContext> {
-
-	@Nonnull
-	private final EntityJsonSerializer entityJsonSerializer;
+public class DeleteEntityHandler extends EntityHandler<SealedEntity, CollectionRestHandlingContext> {
 
 	public DeleteEntityHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
-		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
-	}
-
-	@Nonnull
-	@Override
-	public String getSupportedHttpMethod() {
-		return Methods.DELETE_STRING;
 	}
 
 	@Override
-	public boolean returnsResponseBodies() {
+	protected boolean modifiesData() {
 		return true;
 	}
 
 	@Override
 	@Nonnull
-	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
+	protected EndpointResponse<SealedEntity> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
 
 		Assert.isTrue(
@@ -78,14 +69,19 @@ public class DeleteEntityHandler extends RestHandler<CollectionRestHandlingConte
 
 		final EntityContentRequire[] entityContentRequires = RequireConstraintFromRequestQueryBuilder.getEntityContentRequires(parametersFromRequest);
 
-		final Optional<SealedEntity> deletedEntity = restApiHandlingContext.updateCatalog(session ->
-			session.deleteEntity(
+		return exchange.session()
+			.deleteEntity(
 				restApiHandlingContext.getEntityType(),
 				(Integer) parametersFromRequest.get(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()),
 				entityContentRequires
 			)
-		);
+			.map(it -> (EndpointResponse<SealedEntity>) new SuccessEndpointResponse<>(it))
+			.orElse(new NotFoundEndpointResponse<>());
+	}
 
-		return deletedEntity.map(entityJsonSerializer::serialize);
+	@Nonnull
+	@Override
+	public Set<String> getSupportedHttpMethods() {
+		return Set.of(Methods.DELETE_STRING);
 	}
 }

@@ -21,19 +21,46 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.io;
+package io.evitadb.externalApi.http;
 
-import io.evitadb.externalApi.http.MimeTypes;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
+import io.undertow.server.HttpServerExchange;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
- * Extension of HTTP MIME types supported by GraphQL API.
+ * An endpoint request/response exchange. Used as context object for endpoint processing.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class GraphQLMimeTypes extends MimeTypes {
+public interface EndpointExchange extends AutoCloseable {
 
-    public static final String APPLICATION_GRAPHQL_RESPONSE_JSON = "application/graphql-response+json";
+	/**
+	 * Underlying HTTP server exchange
+	 */
+	@Nonnull
+	HttpServerExchange serverExchange();
+
+	/**
+	 * HTTP method of the request.
+	 */
+	@Nonnull
+	String httpMethod();
+
+	/**
+	 * Parsed content type of request body, if any request body is present.
+	 */
+	@Nullable
+	String requestBodyContentType();
+
+	/**
+	 * Preferred content type of response body, if any response body is will be send.
+	 */
+	@Nullable
+	String preferredResponseContentType();
+
+	@Override
+	default void close() throws Exception {
+		// do nothing
+	}
 }

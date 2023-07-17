@@ -29,6 +29,8 @@ import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
+import io.evitadb.externalApi.http.EndpointResponse;
+import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.UpsertEntityUpsertRequestDto;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.DeleteEntityEndpointHeaderDescriptor;
@@ -36,11 +38,9 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.Filte
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.mutation.RestEntityUpsertMutationConverter;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
-import io.evitadb.externalApi.rest.io.RestHandler;
+import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import io.evitadb.utils.Assert;
-import io.undertow.server.HttpServerExchange;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
@@ -48,6 +48,7 @@ import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -56,11 +57,10 @@ import java.util.concurrent.atomic.AtomicReference;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class UpsertEntityHandler extends RestHandler<CollectionRestHandlingContext> {
+public class UpsertEntityHandler extends EntityHandler<SealedEntity, CollectionRestHandlingContext> {
 
 	@Nonnull private final RestEntityUpsertMutationConverter mutationResolver;
 	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
-	@Nonnull private final EntityJsonSerializer entityJsonSerializer;
 
 	private final boolean withPrimaryKeyInPath;
 
@@ -75,30 +75,17 @@ public class UpsertEntityHandler extends RestHandler<CollectionRestHandlingConte
 			new AtomicReference<>(new FilterConstraintResolver(restApiHandlingContext)),
 			new AtomicReference<>(new OrderConstraintResolver(restApiHandlingContext))
 		);
-		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
 		this.withPrimaryKeyInPath = withPrimaryKeyInPath;
 	}
 
-	@Nonnull
 	@Override
-	public String getSupportedHttpMethod() {
-		return Methods.PUT_STRING;
-	}
-
-	@Override
-	public boolean acceptsRequestBodies() {
+	protected boolean modifiesData() {
 		return true;
 	}
 
 	@Override
-	public boolean returnsResponseBodies() {
-		return true;
-	}
-
-
-	@Override
 	@Nonnull
-	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
+	protected EndpointResponse<SealedEntity> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final UpsertEntityUpsertRequestDto requestData = parseRequestBody(exchange, UpsertEntityUpsertRequestDto.class);
 
 		if (withPrimaryKeyInPath) {
@@ -121,10 +108,21 @@ public class UpsertEntityHandler extends RestHandler<CollectionRestHandlingConte
 
 		final EntityContentRequire[] requires = getEntityContentRequires(requestData).orElse(null);
 
-		final SealedEntity upsertedEntity = restApiHandlingContext.updateCatalog(session ->
-			session.upsertAndFetchEntity(entityMutation, requires));
+		final SealedEntity upsertedEntity = exchange.session().upsertAndFetchEntity(entityMutation, requires);
 
-		return Optional.of(entityJsonSerializer.serialize(upsertedEntity));
+		return new SuccessEndpointResponse<>(upsertedEntity);
+	}
+
+	@Nonnull
+	@Override
+	public Set<String> getSupportedHttpMethods() {
+		return Set.of(withPrimaryKeyInPath ? Methods.PUT_STRING : Methods.POST_STRING);
+	}
+
+	@Nonnull
+	@Override
+	public Set<String> getSupportedRequestContentTypes() {
+		return DEFAULT_SUPPORTED_CONTENT_TYPES;
 	}
 
 	@Nonnull

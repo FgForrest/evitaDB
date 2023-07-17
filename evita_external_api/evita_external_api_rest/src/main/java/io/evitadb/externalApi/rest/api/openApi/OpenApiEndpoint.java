@@ -29,7 +29,7 @@ import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.rest.api.model.ErrorDescriptor;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.ParameterLocation;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
-import io.evitadb.externalApi.rest.io.RestHandler;
+import io.evitadb.externalApi.rest.io.RestEndpointHandler;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.OpenAPI;
@@ -103,7 +103,7 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 	@Nullable protected final OpenApiSimpleType requestBody;
 	@Nullable protected final OpenApiSimpleType successResponse;
 
-	@Nonnull protected final Function<HC, RestHandler<HC>> handlerBuilder;
+	@Nonnull protected final Function<HC, RestEndpointHandler<?, HC>> handlerBuilder;
 
 	/**
 	 * Instantiate a new handler for this particular endpoint with passed data.
@@ -115,10 +115,10 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 	 * @return ready-to-handle endpoint handler
 	 */
 	@Nonnull
-	public abstract RestHandler<HC> toHandler(@Nonnull ObjectMapper objectMapper,
-						                      @Nonnull Evita evita,
-                                              @Nonnull OpenAPI openApi,
-	                                          @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping);
+	public abstract RestEndpointHandler<?, HC> toHandler(@Nonnull ObjectMapper objectMapper,
+	                                                     @Nonnull Evita evita,
+	                                                     @Nonnull OpenAPI openApi,
+	                                                     @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping);
 
 	/**
 	 * Build {@link Operation} describing this endpoint in OpenAPI.

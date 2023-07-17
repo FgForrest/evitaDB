@@ -38,6 +38,7 @@ import io.evitadb.utils.NamingConvention;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -63,6 +64,14 @@ public class CatalogJsonSerializer {
 		} else {
 			throw new RestInternalError("Missing support for serializing `" + c.getClass().getName() + "`.");
 		}
+	}
+
+	@Nonnull
+	public ArrayNode serialize(@Nonnull Collection<CatalogContract> catalogs) {
+		final ArrayNode arrayNode = objectJsonSerializer.arrayNode();
+		catalogs.forEach(catalog -> arrayNode.add(serialize(catalog)));
+
+		return arrayNode;
 	}
 
 	@Nonnull

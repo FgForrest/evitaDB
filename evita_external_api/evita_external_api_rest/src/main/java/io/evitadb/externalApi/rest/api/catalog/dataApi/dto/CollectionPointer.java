@@ -21,19 +21,18 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.io;
+package io.evitadb.externalApi.rest.api.catalog.dataApi.dto;
 
-import io.evitadb.externalApi.http.MimeTypes;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
- * Extension of HTTP MIME types supported by GraphQL API.
+ * DTO that points to existing {@link io.evitadb.core.EntityCollection}.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class GraphQLMimeTypes extends MimeTypes {
-
-    public static final String APPLICATION_GRAPHQL_RESPONSE_JSON = "application/graphql-response+json";
+public record CollectionPointer(@Nonnull String entityType, @Nullable @JsonInclude(Include.NON_EMPTY) Integer count) {
 }

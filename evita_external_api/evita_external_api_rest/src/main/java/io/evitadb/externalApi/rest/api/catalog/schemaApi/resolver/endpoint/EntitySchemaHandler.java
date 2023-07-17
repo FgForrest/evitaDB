@@ -23,41 +23,45 @@
 
 package io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.externalApi.http.EndpointResponse;
-import io.evitadb.externalApi.http.NotFoundEndpointResponse;
-import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
+import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer.EntitySchemaJsonSerializer;
+import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
-import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.util.Set;
+import java.util.LinkedHashSet;
 
 /**
- * Handles request for fetching entity schema
+ * Ancestor for endpoints handling {@link EntitySchemaContract}s.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j
-public class GetEntitySchemaHandler extends EntitySchemaHandler {
+public abstract class EntitySchemaHandler extends JsonRestHandler<EntitySchemaContract, CollectionRestHandlingContext> {
 
-	public GetEntitySchemaHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
+	@Nonnull
+	private final EntitySchemaJsonSerializer entitySchemaJsonSerializer;
+
+	protected EntitySchemaHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
-	}
-
-	@Override
-	@Nonnull
-	protected EndpointResponse<EntitySchemaContract> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		return exchange.session().getEntitySchema(restApiHandlingContext.getEntityType())
-			.map(it -> (EndpointResponse<EntitySchemaContract>) new SuccessEndpointResponse<>((EntitySchemaContract) it))
-			.orElse(new NotFoundEndpointResponse<>());
+		entitySchemaJsonSerializer = new EntitySchemaJsonSerializer(restApiHandlingContext);
 	}
 
 	@Nonnull
 	@Override
-	public Set<String> getSupportedHttpMethods() {
-		return Set.of(Methods.GET_STRING);
+	public LinkedHashSet<String> getSupportedResponseContentTypes() {
+		return DEFAULT_SUPPORTED_CONTENT_TYPES;
+	}
+
+	@Nonnull
+	@Override
+	protected JsonNode convertResultIntoJson(@Nonnull RestEndpointExchange exchange, @Nonnull EntitySchemaContract entitySchema) {
+		return entitySchemaJsonSerializer.serialize(
+			entitySchema,
+			exchange.session()::getEntitySchemaOrThrow
+		);
 	}
 }

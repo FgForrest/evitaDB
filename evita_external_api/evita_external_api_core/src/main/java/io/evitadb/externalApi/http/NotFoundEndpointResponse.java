@@ -21,19 +21,12 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.io;
-
-import io.evitadb.externalApi.http.MimeTypes;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
+package io.evitadb.externalApi.http;
 
 /**
- * Extension of HTTP MIME types supported by GraphQL API.
+ * Response representing {@link io.undertow.util.StatusCodes#NOT_FOUND} HTTP status code.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class GraphQLMimeTypes extends MimeTypes {
-
-    public static final String APPLICATION_GRAPHQL_RESPONSE_JSON = "application/graphql-response+json";
+public record NotFoundEndpointResponse<R>() implements EndpointResponse<R> {
 }

@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.AssociatedDataEditor.AssociatedDataBu
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.EqualsAndHashCode;
 
@@ -46,6 +47,8 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -103,7 +106,7 @@ public class AssociatedData implements AssociatedDataContract {
 		@Nullable Collection<AssociatedDataValue> associatedDataValues
 	) {
 		this.entitySchema = entitySchema;
-		this.associatedDataValues = createHashMap(associatedDataKeys.size());
+		this.associatedDataValues = new TreeMap<>();
 		for (AssociatedDataKey associatedDataKey : associatedDataKeys) {
 			this.associatedDataValues.put(associatedDataKey, null);
 		}
@@ -125,8 +128,19 @@ public class AssociatedData implements AssociatedDataContract {
 	) {
 		this.entitySchema = entitySchema;
 		this.associatedDataValues = ofNullable(associatedDataValues)
-			.map(it -> it.stream().collect(Collectors.toMap(AssociatedDataValue::key, Function.identity())))
-			.orElse(Collections.emptyMap());
+			.map(it -> it.stream()
+				.collect(
+					Collectors.toMap(
+						AssociatedDataValue::key,
+						Function.identity(),
+						(attributeValue, attributeValue2) -> {
+							throw new EvitaInvalidUsageException("Duplicated attribute " + attributeValue.key() + "!");
+						},
+						TreeMap::new
+					)
+				)
+			)
+			.orElse(new TreeMap<>());
 		this.associatedDataTypes = entitySchema.getAssociatedData();
 	}
 
@@ -219,7 +233,7 @@ public class AssociatedData implements AssociatedDataContract {
 				.keySet()
 				.stream()
 				.map(AssociatedDataKey::associatedDataName)
-				.collect(Collectors.toSet());
+				.collect(Collectors.toCollection(TreeSet::new));
 		}
 		return this.associatedDataNames;
 	}

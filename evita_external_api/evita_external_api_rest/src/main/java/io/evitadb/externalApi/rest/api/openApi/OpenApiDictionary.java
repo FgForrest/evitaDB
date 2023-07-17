@@ -36,16 +36,6 @@ import lombok.ToString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
-
-import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
  * Represents dictionary (or map) with pre-defined type of keys (which are always string) and type of values

@@ -23,21 +23,23 @@
 
 package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 
+import io.evitadb.externalApi.http.EndpointResponse;
+import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.system.dto.LivenessDto;
-import io.evitadb.externalApi.rest.io.RestHandler;
-import io.undertow.server.HttpServerExchange;
+import io.evitadb.externalApi.rest.io.JsonRestHandler;
+import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.util.Optional;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /**
  * Returns information about liveness of REST API.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class LivenessHandler extends RestHandler<SystemRestHandlingContext> {
+public class LivenessHandler extends JsonRestHandler<LivenessDto, SystemRestHandlingContext> {
 
 	public LivenessHandler(@Nonnull SystemRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
@@ -45,18 +47,19 @@ public class LivenessHandler extends RestHandler<SystemRestHandlingContext> {
 
 	@Nonnull
 	@Override
-	public String getSupportedHttpMethod() {
-		return Methods.GET_STRING;
+	protected EndpointResponse<LivenessDto> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+		return new SuccessEndpointResponse<>(new LivenessDto(true));
 	}
 
+	@Nonnull
 	@Override
-	public boolean returnsResponseBodies() {
-		return true;
+	public Set<String> getSupportedHttpMethods() {
+		return Set.of(Methods.GET_STRING);
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
-	protected Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
-		return Optional.of(new LivenessDto(true));
+	public LinkedHashSet<String> getSupportedResponseContentTypes() {
+		return DEFAULT_SUPPORTED_CONTENT_TYPES;
 	}
 }

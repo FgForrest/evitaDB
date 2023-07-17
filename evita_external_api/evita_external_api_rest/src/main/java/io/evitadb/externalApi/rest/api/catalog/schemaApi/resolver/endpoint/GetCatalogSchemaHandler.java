@@ -23,15 +23,16 @@
 
 package io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint;
 
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.externalApi.http.EndpointResponse;
+import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
-import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer.CatalogSchemaJsonSerializer;
-import io.evitadb.externalApi.rest.io.RestHandler;
-import io.undertow.server.HttpServerExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.util.Optional;
+import java.util.Set;
 
 /**
  * Handles request for fetching entity schema
@@ -39,33 +40,21 @@ import java.util.Optional;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j
-public class GetCatalogSchemaHandler extends RestHandler<CatalogRestHandlingContext> {
-
-	@Nonnull
-	private final CatalogSchemaJsonSerializer catalogSchemaJsonSerializer;
+public class GetCatalogSchemaHandler extends CatalogSchemaHandler {
 
 	public GetCatalogSchemaHandler(@Nonnull CatalogRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
-		catalogSchemaJsonSerializer = new CatalogSchemaJsonSerializer(restApiHandlingContext);
-	}
-
-	@Nonnull
-	@Override
-	public String getSupportedHttpMethod() {
-		return Methods.GET_STRING;
-	}
-
-	@Override
-	public boolean returnsResponseBodies() {
-		return true;
 	}
 
 	@Override
 	@Nonnull
-	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
-		return restApiHandlingContext.queryCatalog(session ->
-			Optional.of(session.getCatalogSchema())
-				.map(it -> catalogSchemaJsonSerializer.serialize(it, session::getEntitySchemaOrThrow, session.getAllEntityTypes()))
-		);
+	protected EndpointResponse<CatalogSchemaContract> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+		return new SuccessEndpointResponse<>(exchange.session().getCatalogSchema());
+	}
+
+	@Nonnull
+	@Override
+	public Set<String> getSupportedHttpMethods() {
+		return Set.of(Methods.GET_STRING);
 	}
 }
