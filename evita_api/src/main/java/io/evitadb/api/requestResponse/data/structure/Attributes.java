@@ -300,7 +300,7 @@ public class Attributes implements AttributesContract {
 				.filter(Droppable::exists)
 				.map(it -> it.key().locale())
 				.filter(Objects::nonNull)
-				.collect(Collectors.toCollection(TreeSet::new));
+				.collect(Collectors.toSet());
 		}
 		return this.attributeLocales;
 	}
