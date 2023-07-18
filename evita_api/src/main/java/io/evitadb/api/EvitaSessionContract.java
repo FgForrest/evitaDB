@@ -284,7 +284,35 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	@Nonnull
 	default Optional<SealedEntity> queryOneSealedEntity(@Nonnull Query query)
 		throws UnexpectedResultException, UnexpectedResultCountException, InstanceTerminatedException {
-		return queryOne(query, SealedEntity.class);
+		if (query.getRequire() == null) {
+			return queryOne(
+				Query.query(
+					query.getCollection(),
+					query.getFilterBy(),
+					query.getOrderBy(),
+					require(entityFetch())
+				),
+				SealedEntity.class
+			);
+		} else if (FinderVisitor.findConstraints(query.getRequire(), EntityFetch.class::isInstance, SeparateEntityContentRequireContainer.class::isInstance).isEmpty()) {
+			return queryOne(
+				Query.query(
+					query.getCollection(),
+					query.getFilterBy(),
+					query.getOrderBy(),
+					(Require) query.getRequire().getCopyWithNewChildren(
+						ArrayUtils.mergeArrays(
+							new RequireConstraint[] {require(entityFetch())},
+							query.getRequire().getChildren()
+						),
+						query.getRequire().getAdditionalChildren()
+					)
+				),
+				SealedEntity.class
+			);
+		} else {
+			return queryOne(query, SealedEntity.class);
+		}
 	}
 
 	/**
@@ -353,7 +381,35 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	@Nonnull
 	default List<SealedEntity> queryListOfSealedEntities(@Nonnull Query query)
 		throws UnexpectedResultException, InstanceTerminatedException {
-		return queryList(query, SealedEntity.class);
+		if (query.getRequire() == null) {
+			return queryList(
+				Query.query(
+					query.getCollection(),
+					query.getFilterBy(),
+					query.getOrderBy(),
+					require(entityFetch())
+				),
+				SealedEntity.class
+			);
+		} else if (FinderVisitor.findConstraints(query.getRequire(), EntityFetch.class::isInstance, SeparateEntityContentRequireContainer.class::isInstance).isEmpty()) {
+			return queryList(
+				Query.query(
+					query.getCollection(),
+					query.getFilterBy(),
+					query.getOrderBy(),
+					(Require) query.getRequire().getCopyWithNewChildren(
+						ArrayUtils.mergeArrays(
+							new RequireConstraint[] {require(entityFetch())},
+							query.getRequire().getChildren()
+						),
+						query.getRequire().getAdditionalChildren()
+					)
+				),
+				SealedEntity.class
+			);
+		} else {
+			return queryList(query, SealedEntity.class);
+		}
 	}
 
 	/**

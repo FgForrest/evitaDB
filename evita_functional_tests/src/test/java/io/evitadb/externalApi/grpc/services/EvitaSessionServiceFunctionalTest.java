@@ -92,6 +92,7 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
+import static io.evitadb.api.query.QueryConstraints.hierarchyContent;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.externalApi.grpc.query.QueryConverter.convertQueryParam;
 import static io.evitadb.externalApi.grpc.testUtils.GrpcAssertions.*;
@@ -2100,7 +2101,7 @@ class EvitaSessionServiceFunctionalTest {
 
 		final List<SealedEntity> originalCategoryEntities = evita.createReadOnlySession(TEST_CATALOG)
 			.queryListOfSealedEntities(Query.query(
-				collection(Entities.CATEGORY), require(entityFetch())
+				collection(Entities.CATEGORY), require(entityFetch(hierarchyContent()))
 			));
 		final Map<Integer, Integer> parentChildIndex = originalCategoryEntities
 			.stream()
@@ -2130,6 +2131,7 @@ class EvitaSessionServiceFunctionalTest {
 		final GrpcEntityRequest toRemoveHierarchyEntityRequest = GrpcEntityRequest.newBuilder()
 			.setEntityType(entityType)
 			.setPrimaryKey(categoryWithHierarchyPlacement.getPrimaryKey())
+			.setRequire(hierarchyContent().toString())
 			.build();
 
 		//noinspection ConstantConditions

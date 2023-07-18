@@ -382,7 +382,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 						),
 						require(
 							strip(0, 1),
-							entityFetch()
+							entityFetch(hierarchyContent())
 						)
 					)
 				).orElseThrow();
@@ -402,7 +402,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 						),
 						require(
 							strip(1, 1),
-							entityFetch()
+							entityFetch(hierarchyContent())
 						)
 					)
 				).orElseThrow();

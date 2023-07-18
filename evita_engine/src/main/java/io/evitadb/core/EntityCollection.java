@@ -56,6 +56,7 @@ import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
+import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
@@ -402,6 +403,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 	public SealedEntity limitEntity(@Nonnull SealedEntity sealedEntity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final EntityDecorator widerEntity = (EntityDecorator) sealedEntity;
 		final LocaleSerializablePredicate newLocalePredicate = new LocaleSerializablePredicate(evitaRequest, widerEntity.getLocalePredicate());
+		final HierarchySerializablePredicate newHierarchyPredicate = new HierarchySerializablePredicate(evitaRequest, widerEntity.getHierarchyPredicate());
 		final AttributeValueSerializablePredicate newAttributePredicate = new AttributeValueSerializablePredicate(evitaRequest, widerEntity.getAttributePredicate());
 		final AssociatedDataValueSerializablePredicate newAssociatedDataPredicate = new AssociatedDataValueSerializablePredicate(evitaRequest, widerEntity.getAssociatedDataPredicate());
 		final ReferenceContractSerializablePredicate newReferenceContractPredicate = new ReferenceContractSerializablePredicate(evitaRequest, widerEntity.getReferencePredicate());
@@ -409,9 +411,12 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		return Entity.decorate(
 			widerEntity,
 			// show / hide parent entity
-			evitaRequest.isRequiresParent() ? widerEntity.getParentEntity().orElse(null) : null,
+			widerEntity.parentAvailable() && evitaRequest.isRequiresParent() ?
+				widerEntity.getParentEntity().orElse(null) : null,
 			// show / hide locales the entity is fetched in
 			newLocalePredicate,
+			// show / hide parent information
+			newHierarchyPredicate,
 			// show / hide attributes information
 			newAttributePredicate,
 			// show / hide associated data information
@@ -720,28 +725,35 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		final EntityDecorator partiallyLoadedEntity = (EntityDecorator) sealedEntity;
 		// return decorator that hides information not requested by original query
 		final LocaleSerializablePredicate newLocalePredicate = partiallyLoadedEntity.createLocalePredicateRicherCopyWith(evitaRequest);
+		final HierarchySerializablePredicate newHierarchyPredicate = partiallyLoadedEntity.createHierarchyPredicateRicherCopyWith(evitaRequest);
 		final AttributeValueSerializablePredicate newAttributePredicate = partiallyLoadedEntity.createAttributePredicateRicherCopyWith(evitaRequest);
 		final AssociatedDataValueSerializablePredicate newAssociatedDataPredicate = partiallyLoadedEntity.createAssociatedDataPredicateRicherCopyWith(evitaRequest);
 		final ReferenceContractSerializablePredicate newReferenceContractPredicate = partiallyLoadedEntity.createReferencePredicateRicherCopyWith(evitaRequest);
 		final PriceContractSerializablePredicate newPriceContractPredicate = partiallyLoadedEntity.createPricePredicateRicherCopyWith(evitaRequest);
 		// fetch parents if requested
 		final EntityClassifierWithParent parentEntity;
-		if (partiallyLoadedEntity.getParentEntity().isPresent()) {
-			parentEntity = partiallyLoadedEntity.getParentEntity().get();
+		final EntitySchema internalSchema = getInternalSchema();
+		if (internalSchema.isWithHierarchy() && newHierarchyPredicate.isRequiresHierarchy()) {
+			if (partiallyLoadedEntity.getParentEntityWithoutCheckingPredicate().isPresent()) {
+				parentEntity = partiallyLoadedEntity.getParentEntityWithoutCheckingPredicate().get();
+			} else {
+				parentEntity = partiallyLoadedEntity.getParentWithoutCheckingPredicate().isPresent() ?
+					ofNullable(referenceFetcher.getParentEntityFetcher())
+						.map(it -> it.apply(partiallyLoadedEntity.getParentWithoutCheckingPredicate().getAsInt()))
+						.orElse(null) : null;
+			}
 		} else {
-			parentEntity = partiallyLoadedEntity.getParent().isPresent() ?
-				ofNullable(referenceFetcher.getParentEntityFetcher())
-					.map(it -> it.apply(partiallyLoadedEntity.getParent().getAsInt()))
-					.orElse(null) : null;
+			parentEntity = null;
 		}
 
 		return doWithPersistenceService(
 			() -> Entity.decorate(
 				// load all missing data according to current evita request
 				this.persistenceService.enrichEntity(
-					getInternalSchema(),
+					internalSchema,
 					// use all data from existing entity
 					partiallyLoadedEntity,
+					newHierarchyPredicate,
 					newAttributePredicate,
 					newAssociatedDataPredicate,
 					newReferenceContractPredicate,
@@ -749,11 +761,13 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 					dataStoreBuffer
 				),
 				// use original schema
-				getInternalSchema(),
+				internalSchema,
 				// fetch parents if requested
 				parentEntity,
 				// show / hide locales the entity is fetched in
 				newLocalePredicate,
+				// show / hide parent information
+				newHierarchyPredicate,
 				// show / hide attributes information
 				newAttributePredicate,
 				// show / hide associated data information
@@ -797,6 +811,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 						getInternalSchema(),
 						// use all data from existing entity
 						partiallyLoadedEntity,
+						partiallyLoadedEntity.getHierarchyPredicate(),
 						partiallyLoadedEntity.getAttributePredicate(),
 						partiallyLoadedEntity.getAssociatedDataPredicate(),
 						new ReferenceContractSerializablePredicate(true),
@@ -805,9 +820,12 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 					),
 					// use original schema
 					getInternalSchema(),
-					partiallyLoadedEntity.getParentEntity().orElse(null),
+					partiallyLoadedEntity.parentAvailable() ?
+						partiallyLoadedEntity.getParentEntity().orElse(null) : null,
 					// show / hide locales the entity is fetched in
 					partiallyLoadedEntity.getLocalePredicate(),
+					// show / hide parent the entity is fetched with
+					partiallyLoadedEntity.getHierarchyPredicate(),
 					// show / hide attributes information
 					partiallyLoadedEntity.getAttributePredicate(),
 					// show / hide associated data information
@@ -1217,7 +1235,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		@Nullable Boolean contextAvailable
 	) {
 		// fetch parents if requested
-		final EntityClassifierWithParent parentEntity = fullEntity.getParent().isPresent() ?
+		final EntityClassifierWithParent parentEntity = fullEntity.parentAvailable() && fullEntity.getParent().isPresent() ?
 			ofNullable(referenceFetcher.getParentEntityFetcher())
 				.map(it -> it.apply(fullEntity.getParent().getAsInt()))
 				.orElse(null) : null;
@@ -1227,6 +1245,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 			getInternalSchema(),
 			parentEntity,
 			new LocaleSerializablePredicate(evitaRequest),
+			new HierarchySerializablePredicate(evitaRequest),
 			new AttributeValueSerializablePredicate(evitaRequest),
 			new AssociatedDataValueSerializablePredicate(evitaRequest),
 			new ReferenceContractSerializablePredicate(evitaRequest),

@@ -51,6 +51,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -194,14 +195,14 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 		} else if (localMutation instanceof RemoveAttributeMutation removeAttributeMutation) {
 			final AttributeKey attributeKey = removeAttributeMutation.getAttributeKey();
 			verifyAttributeExists(attributeKey);
-			if (this.baseAttributes.getAttributeValue(attributeKey).isEmpty()) {
+			if (this.baseAttributes.getAttributeValueWithoutSchemaCheck(attributeKey).isEmpty()) {
 				this.attributeMutations.remove(attributeKey);
 			} else {
 				this.attributeMutations.put(attributeKey, removeAttributeMutation);
 			}
 		} else if (localMutation instanceof ApplyDeltaAttributeMutation<?> applyDeltaAttributeMutation) {
 			final AttributeKey attributeKey = applyDeltaAttributeMutation.getAttributeKey();
-			final AttributeValue attributeValue = this.baseAttributes.getAttributeValue(attributeKey)
+			final AttributeValue attributeValue = this.baseAttributes.getAttributeValueWithoutSchemaCheck(attributeKey)
 				.map(
 					it -> ofNullable(this.attributeMutations.get(attributeKey))
 						.map(x -> x.mutateLocal(entitySchema, it))
@@ -238,7 +239,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 						// filter out new attributes that has no type yet
 						.filter(it -> !baseAttributes.attributeTypes.containsKey(it.key().attributeName()))
 						// create definition for them on the fly
-						.map(this::createImplicitSchema)
+						.map(AttributesBuilder::createImplicitSchema)
 				)
 				.collect(
 					Collectors.toUnmodifiableMap(
@@ -368,6 +369,11 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	}
 
 	@Override
+	public boolean attributesAvailable() {
+		return this.baseAttributes.attributesAvailable();
+	}
+
+	@Override
 	@Nullable
 	public <T extends Serializable> T getAttribute(@Nonnull String attributeName) {
 		//noinspection unchecked
@@ -376,9 +382,6 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 			.orElse(null);
 	}
 
-	/*
-		LOCALIZED ATTRIBUTES
-	 */
 
 	@Override
 	@Nullable
@@ -447,12 +450,14 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	@Nonnull
 	@Override
 	public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
-		return getAttributeValueInternal(attributeKey);
+		return getAttributeValueInternal(attributeKey)
+			.or(() -> attributeKey.localized() ?
+				getAttributeValueInternal(new AttributeKey(attributeKey.attributeName())) :
+				empty()
+			);
 	}
 
-	/**
-	 * Builds attribute list based on registered mutations and previous state.
-	 */
+	@Override
 	@Nonnull
 	public Collection<AttributeValue> getAttributeValues() {
 		return getAttributeValuesWithoutPredicate()
@@ -469,6 +474,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 			.collect(Collectors.toList());
 	}
 
+	@Override
 	@Nonnull
 	public Set<Locale> getAttributeLocales() {
 		// this is quite expensive, but should not be called frequently
@@ -527,7 +533,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 					.values()
 					.stream()
 					// we want to process only those mutations that have no attribute to mutate in the original set
-					.filter(it -> !baseAttributes.getAttributeKeys().contains(it.getAttributeKey()))
+					.filter(it -> !baseAttributes.attributeValues.containsKey(it.getAttributeKey()))
 					// apply mutation
 					.map(it -> true)
 			)
@@ -539,7 +545,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	 */
 	private void verifyAttributeExists(AttributeKey attributeKey) {
 		Assert.isTrue(
-			baseAttributes.getAttributeValue(attributeKey).isPresent() || attributeMutations.get(attributeKey) instanceof UpsertAttributeMutation,
+			baseAttributes.getAttributeValueWithoutSchemaCheck(attributeKey).isPresent() || attributeMutations.get(attributeKey) instanceof UpsertAttributeMutation,
 			"Attribute `" + attributeKey + "` doesn't exist!"
 		);
 	}
@@ -570,7 +576,7 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 				.values()
 				.stream()
 				// we want to process only those mutations that have no attribute to mutate in the original set
-				.filter(it -> !baseAttributes.getAttributeKeys().contains(it.getAttributeKey()))
+				.filter(it -> !baseAttributes.attributeValues.containsKey(it.getAttributeKey()))
 				// apply mutation
 				.map(it -> it.mutateLocal(entitySchema, null))
 		);

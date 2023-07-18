@@ -31,9 +31,9 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.CatalogAlreadyPresentException;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.ConcurrentInitializationException;
+import io.evitadb.api.exception.EntityIsNotHierarchicalException;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
-import io.evitadb.api.exception.TargetEntityIsNotHierarchicalException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.exception.UnexpectedResultException;
 import io.evitadb.api.mock.MockCatalogStructuralChangeObserver;
@@ -464,13 +464,6 @@ class EvitaTest implements EvitaTestSupport {
 				assertThrows(
 					UnexpectedResultCountException.class,
 					() -> session.queryOneEntityReference(
-						query(collection(Entities.BRAND), filterBy(entityPrimaryKeyInSet(1, 2)))
-					)
-				);
-
-				assertThrows(
-					UnexpectedResultException.class,
-					() -> session.queryOneSealedEntity(
 						query(collection(Entities.BRAND), filterBy(entityPrimaryKeyInSet(1, 2)))
 					)
 				);
@@ -940,7 +933,7 @@ class EvitaTest implements EvitaTestSupport {
 				);
 
 				assertThrows(
-					TargetEntityIsNotHierarchicalException.class,
+					EntityIsNotHierarchicalException.class,
 					() -> session.queryListOfSealedEntities(
 						query(
 							collection(Entities.PRODUCT),

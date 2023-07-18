@@ -23,7 +23,8 @@
 
 package io.evitadb.api.requestResponse.data.structure;
 
-import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.exception.EntityIsNotHierarchicalException;
+import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.filter.AttributeContains;
 import io.evitadb.api.query.filter.AttributeEquals;
@@ -41,10 +42,15 @@ import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceHistogram;
 import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.api.requestResponse.data.AssociatedDataContract;
+import io.evitadb.api.requestResponse.data.AssociatedDataEditor.AssociatedDataBuilder;
+import io.evitadb.api.requestResponse.data.AttributesContract;
+import io.evitadb.api.requestResponse.data.AttributesEditor.AttributesBuilder;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.Versioned;
@@ -59,18 +65,21 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
+import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
-import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
-import io.evitadb.utils.ReflectionLookup;
 import lombok.Getter;
+import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -78,7 +87,6 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
-import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.function.Function;
@@ -145,6 +153,10 @@ public class Entity implements SealedEntity {
 	 */
 	@Nullable final Integer parent;
 	/**
+	 * Contains true if the entity is allowed to have parents by the schema.
+	 */
+	final boolean withHierarchy;
+	/**
 	 * The reference refers to other entities (of same or different entity type).
 	 * Allows entity filtering (but not sorting) of the entities by using {@link FacetHaving} query
 	 * and statistics computation if when {@link FacetStatistics} requirement is used. Reference
@@ -161,6 +173,10 @@ public class Entity implements SealedEntity {
 	 */
 	final Map<ReferenceKey, ReferenceContract> references;
 	/**
+	 * Contains set of all {@link ReferenceSchemaContract#getName()} defined in entity {@link EntitySchemaContract}.
+	 */
+	final Set<String> referencesDefined;
+	/**
 	 * Entity (global) attributes allows defining set of data that are fetched in bulk along with the entity body.
 	 * Attributes may be indexed for fast filtering ({@link AttributeSchemaContract#isFilterable()}) or can be used to sort along
 	 * ({@link AttributeSchemaContract#isSortable()}). Attributes are not automatically indexed in order not to waste precious
@@ -173,7 +189,7 @@ public class Entity implements SealedEntity {
 	 * Attributes are not recommended for bigger data as they are all loaded at once when {@link AttributeContent}
 	 * requirement is used. Large data that are occasionally used store in {@link @AssociatedData}.
 	 */
-	final Attributes attributes;
+	@Delegate(types = AttributesContract.class) final Attributes attributes;
 	/**
 	 * Associated data carry additional data entries that are never used for filtering / sorting but may be needed to be fetched
 	 * along with entity in order to present data to the target consumer (i.e. user / API / bot). Associated data may be stored
@@ -183,7 +199,7 @@ public class Entity implements SealedEntity {
 	 * The search query must contain specific {@link AssociatedDataContent} requirement in order
 	 * associated data are fetched along with the entity. Associated data are stored and fetched separately by their name.
 	 */
-	final AssociatedData associatedData;
+	@Delegate(types = AssociatedDataContract.class) final AssociatedData associatedData;
 	/**
 	 * Prices are specific to a very few entities, but because correct price computation is very complex in e-commerce
 	 * systems and highly affects performance of the entities filtering and sorting, they deserve first class support
@@ -197,7 +213,8 @@ public class Entity implements SealedEntity {
 	 * {@link PriceHistogram}, {@link PriceContent}
 	 * can be used in query as well.
 	 */
-	@Nonnull final io.evitadb.api.requestResponse.data.structure.Prices prices;
+	@Delegate(types = PricesContract.class, excludes = Versioned.class)
+	@Nonnull final Prices prices;
 	/**
 	 * Contains set of all {@link Locale} that were used for localized {@link Attributes} or {@link AssociatedData} of
 	 * this particular entity.
@@ -241,6 +258,43 @@ public class Entity implements SealedEntity {
 			prices,
 			locales,
 			false
+		);
+	}
+
+	/**
+	 * This method is for internal purposes only. It could be used for reconstruction of original Entity from different
+	 * package than current, but still internal code of the Evita ecosystems.
+	 *
+	 * Do not use this method from in the client code!
+	 */
+	@Nonnull
+	public static Entity _internalBuild(
+		@Nullable Integer primaryKey,
+		@Nullable Integer version,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable Integer parent,
+		@Nonnull Collection<ReferenceContract> references,
+		@Nonnull Attributes attributes,
+		@Nonnull AssociatedData associatedData,
+		@Nonnull Prices prices,
+		@Nonnull Set<Locale> locales,
+		@Nonnull Set<String> referencesDefined,
+		boolean withHierarchy,
+		boolean dropped
+	) {
+		return new Entity(
+			ofNullable(version).orElse(1),
+			entitySchema,
+			primaryKey,
+			parent,
+			references,
+			attributes,
+			associatedData,
+			prices,
+			locales,
+			referencesDefined,
+			withHierarchy,
+			dropped
 		);
 	}
 
@@ -347,10 +401,10 @@ public class Entity implements SealedEntity {
 		final AssociatedData newAssociatedDataContainer = recreateAssociatedDataContainer(entitySchema, possibleEntity, newAssociatedData);
 
 		// create or reuse existing reference container
-		final Collection<ReferenceContract> mergedReferences = recreateReferences(possibleEntity, newReferences);
+		final ReferenceTuple mergedReferences = recreateReferences(possibleEntity, newReferences);
 
 		// create or reuse existing prices
-		final Prices priceContainer = recreatePrices(possibleEntity, newPriceInnerRecordHandling, newPrices);
+		final Prices priceContainer = recreatePrices(entitySchema, possibleEntity, newPriceInnerRecordHandling, newPrices);
 
 		// aggregate entity locales
 		final Set<Locale> entityLocales = new HashSet<>(newAttributeContainer.getAttributeLocales());
@@ -368,11 +422,13 @@ public class Entity implements SealedEntity {
 				entitySchema,
 				possibleEntity.map(Entity::getPrimaryKey).orElse(null),
 				newParent,
-				mergedReferences,
+				mergedReferences.references(),
 				newAttributeContainer,
 				newAssociatedDataContainer,
 				priceContainer,
 				entityLocales,
+				mergedReferences.referencesDefined(),
+				entitySchema.isWithHierarchy() || newParent != null,
 				false
 			);
 		} else if (entity == null) {
@@ -391,6 +447,7 @@ public class Entity implements SealedEntity {
 		@Nonnull EntitySchema entitySchema,
 		@Nullable SealedEntity parentEntity,
 		@Nonnull LocaleSerializablePredicate localePredicate,
+		@Nonnull HierarchySerializablePredicate hierarchyPredicate,
 		@Nonnull AttributeValueSerializablePredicate attributePredicate,
 		@Nonnull AssociatedDataValueSerializablePredicate associatedDataValuePredicate,
 		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
@@ -399,7 +456,7 @@ public class Entity implements SealedEntity {
 	) {
 		return new EntityDecorator(
 			entity, entitySchema, parentEntity,
-			localePredicate,
+			localePredicate, hierarchyPredicate,
 			attributePredicate, associatedDataValuePredicate,
 			referencePredicate, pricePredicate,
 			alignedNow
@@ -414,6 +471,7 @@ public class Entity implements SealedEntity {
 		@Nonnull EntityDecorator entityDecorator,
 		@Nullable EntityClassifierWithParent parentEntity,
 		@Nonnull LocaleSerializablePredicate localePredicate,
+		@Nonnull HierarchySerializablePredicate hierarchyPredicate,
 		@Nonnull AttributeValueSerializablePredicate attributePredicate,
 		@Nonnull AssociatedDataValueSerializablePredicate associatedDataValuePredicate,
 		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
@@ -422,7 +480,7 @@ public class Entity implements SealedEntity {
 	) {
 		return new EntityDecorator(
 			entityDecorator, parentEntity,
-			localePredicate,
+			localePredicate, hierarchyPredicate,
 			attributePredicate, associatedDataValuePredicate,
 			referencePredicate, pricePredicate,
 			alignedNow
@@ -438,6 +496,7 @@ public class Entity implements SealedEntity {
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable EntityClassifierWithParent parentEntity,
 		@Nonnull LocaleSerializablePredicate localePredicate,
+		@Nonnull HierarchySerializablePredicate hierarchyPredicate,
 		@Nonnull AttributeValueSerializablePredicate attributePredicate,
 		@Nonnull AssociatedDataValueSerializablePredicate associatedDataValuePredicate,
 		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
@@ -448,7 +507,7 @@ public class Entity implements SealedEntity {
 		return referenceFetcher == null || referenceFetcher == ReferenceFetcher.NO_IMPLEMENTATION ?
 			new EntityDecorator(
 				entity, entitySchema, parentEntity,
-				localePredicate,
+				localePredicate, hierarchyPredicate,
 				attributePredicate, associatedDataValuePredicate,
 				referencePredicate, pricePredicate,
 				alignedNow
@@ -456,7 +515,7 @@ public class Entity implements SealedEntity {
 			:
 			new EntityDecorator(
 				entity, entitySchema, parentEntity,
-				localePredicate,
+				localePredicate, hierarchyPredicate,
 				attributePredicate, associatedDataValuePredicate,
 				referencePredicate, pricePredicate,
 				alignedNow,
@@ -470,6 +529,7 @@ public class Entity implements SealedEntity {
 	@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
 	@Nonnull
 	private static Prices recreatePrices(
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull Optional<Entity> possibleEntity,
 		@Nullable PriceInnerRecordHandling newPriceInnerRecordHandling,
 		@Nonnull Map<PriceKey, PriceContract> newPrices
@@ -478,11 +538,11 @@ public class Entity implements SealedEntity {
 		if (newPrices.isEmpty()) {
 			priceContainer = ofNullable(newPriceInnerRecordHandling)
 				.map(npirc -> possibleEntity
-					.map(it -> new Prices(it.version() + 1, it.getPrices(), npirc))
-					.orElseGet(() -> new Prices(npirc))
+					.map(it -> new Prices(entitySchema, it.version() + 1, it.getPrices(), npirc, !it.getPrices().isEmpty()))
+					.orElseGet(() -> new Prices(entitySchema, 1, Collections.emptyList(), npirc, false))
 				).orElseGet(() -> possibleEntity
 					.map(it -> it.prices)
-					.orElseGet(() -> new Prices(PriceInnerRecordHandling.NONE)));
+					.orElseGet(() -> new Prices(entitySchema, 1, Collections.emptyList(), PriceInnerRecordHandling.NONE, false)));
 		} else {
 			final List<PriceContract> mergedPrices = Stream.concat(
 				possibleEntity.map(Entity::getPrices).orElseGet(Collections::emptyList)
@@ -493,11 +553,11 @@ public class Entity implements SealedEntity {
 
 			priceContainer = ofNullable(newPriceInnerRecordHandling)
 				.map(npirc -> possibleEntity
-					.map(it -> new Prices(it.version() + 1, mergedPrices, npirc))
-					.orElseGet(() -> new Prices(npirc))
+					.map(it -> new Prices(entitySchema, it.version() + 1, mergedPrices, npirc, !mergedPrices.isEmpty()))
+					.orElseGet(() -> new Prices(entitySchema, 1, mergedPrices, npirc, !mergedPrices.isEmpty()))
 				).orElseGet(() -> possibleEntity
-					.map(it -> new Prices(mergedPrices, it.getPriceInnerRecordHandling()))
-					.orElseGet(() -> new Prices(mergedPrices, PriceInnerRecordHandling.NONE)));
+					.map(it -> new Prices(entitySchema, it.version + 1, mergedPrices, it.getPriceInnerRecordHandling(), !mergedPrices.isEmpty()))
+					.orElseGet(() -> new Prices(entitySchema, 1, mergedPrices, PriceInnerRecordHandling.NONE, !mergedPrices.isEmpty())));
 		}
 		return priceContainer;
 	}
@@ -507,16 +567,34 @@ public class Entity implements SealedEntity {
 	 */
 	@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
 	@Nonnull
-	private static Collection<ReferenceContract> recreateReferences(
+	private static ReferenceTuple recreateReferences(
 		@Nonnull Optional<Entity> possibleEntity,
 		@Nonnull Map<ReferenceKey, ReferenceContract> newReferences
 	) {
+		final Set<String> mergedTypes;
 		final Collection<ReferenceContract> mergedReferences;
 		if (newReferences.isEmpty()) {
+			mergedTypes = possibleEntity
+				.map(Entity::getSchema)
+				.map(EntitySchemaContract::getReferences)
+				.map(Map::keySet)
+				.orElseGet(Collections::emptySet);
 			mergedReferences = possibleEntity
 				.map(Entity::getReferences)
 				.orElseGet(Collections::emptyList);
 		} else {
+			mergedTypes = Stream.concat(
+					possibleEntity
+						.map(Entity::getSchema)
+						.map(EntitySchemaContract::getReferences)
+						.map(Map::keySet)
+						.orElseGet(Collections::emptySet)
+						.stream(),
+					newReferences.values()
+						.stream()
+						.map(ReferenceContract::getReferenceName)
+				)
+				.collect(Collectors.toSet());
 			mergedReferences = Stream.concat(
 				possibleEntity.map(Entity::getReferences).orElseGet(Collections::emptyList)
 					.stream()
@@ -524,7 +602,10 @@ public class Entity implements SealedEntity {
 				newReferences.values().stream()
 			).toList();
 		}
-		return mergedReferences;
+		return new ReferenceTuple(
+			mergedReferences,
+			mergedTypes
+		);
 	}
 
 	/**
@@ -550,7 +631,19 @@ public class Entity implements SealedEntity {
 						.stream()
 						.filter(it -> !newAssociatedData.containsKey(it.key())),
 					newAssociatedData.values().stream()
-				).toList()
+				).toList(),
+				Stream.concat(
+						entitySchema.getAssociatedData().values().stream(),
+						newAssociatedData.values().stream()
+							.filter(it -> !entitySchema.getAssociatedData().containsKey(it.key().associatedDataName()))
+							.map(AssociatedDataBuilder::createImplicitSchema)
+					)
+					.collect(
+						Collectors.toMap(
+							NamedSchemaContract::getName,
+							Function.identity()
+						)
+					)
 			);
 		}
 		return newAssociatedDataContainer;
@@ -581,7 +674,18 @@ public class Entity implements SealedEntity {
 						.filter(it -> !newAttributes.containsKey(it.key())),
 					newAttributes.values().stream()
 				).toList(),
-				entitySchema.getAttributes()
+				Stream.concat(
+						entitySchema.getAttributes().values().stream(),
+						newAttributes.values().stream()
+							.filter(it -> !entitySchema.getAttributes().containsKey(it.key().attributeName()))
+							.map(AttributesBuilder::createImplicitSchema)
+					)
+					.collect(
+						Collectors.toMap(
+							NamedSchemaContract::getName,
+							Function.identity()
+						)
+					)
 			);
 		}
 		return newAttributeContainer;
@@ -598,13 +702,13 @@ public class Entity implements SealedEntity {
 		@Nonnull SetPriceInnerRecordHandlingMutation innerRecordHandlingMutation
 	) {
 		PriceInnerRecordHandling newPriceInnerRecordHandling;
-		final Prices existingPrices = possibleEntity.map(it -> it.prices).orElse(null);
-		final Prices newPriceContainer = returnIfChanged(
+		final PricesContract existingPrices = possibleEntity.map(it -> it.prices).orElse(null);
+		final PricesContract newPriceContainer = returnIfChanged(
 			existingPrices,
 			innerRecordHandlingMutation.mutateLocal(entitySchema, existingPrices)
 		);
 		newPriceInnerRecordHandling = ofNullable(newPriceContainer)
-			.map(Prices::getPriceInnerRecordHandling)
+			.map(PricesContract::getPriceInnerRecordHandling)
 			.orElse(null);
 		return newPriceInnerRecordHandling;
 	}
@@ -620,7 +724,7 @@ public class Entity implements SealedEntity {
 		@Nonnull PriceMutation priceMutation
 	) {
 		final PriceContract existingPriceValue = possibleEntity
-			.map(it -> it.getPrice(priceMutation.getPriceKey()))
+			.flatMap(it -> it.getPrice(priceMutation.getPriceKey()))
 			.orElse(null);
 		ofNullable(
 			returnIfChanged(
@@ -636,11 +740,11 @@ public class Entity implements SealedEntity {
 	@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
 	private static void mutateReferences(
 		@Nonnull EntitySchemaContract entitySchema,
-		Optional<Entity> possibleEntity,
+		@Nonnull Optional<Entity> possibleEntity,
 		@Nonnull Map<ReferenceKey, ReferenceContract> newReferences,
 		@Nonnull ReferenceMutation<?> referenceMutation) {
 		final ReferenceContract existingReferenceValue = possibleEntity
-			.map(it -> it.getReference(referenceMutation.getReferenceKey()))
+			.flatMap(it -> it.getReferenceWithoutSchemaCheck(referenceMutation.getReferenceKey()))
 			.orElseGet(() -> newReferences.get(referenceMutation.getReferenceKey()));
 		ofNullable(
 			returnIfChanged(
@@ -661,7 +765,13 @@ public class Entity implements SealedEntity {
 		@Nonnull AssociatedDataMutation associatedDataMutation
 	) {
 		final AssociatedDataValue existingAssociatedDataValue = possibleEntity
-			.map(it -> it.getAssociatedDataValue(associatedDataMutation.getAssociatedDataKey()))
+			.flatMap(it -> {
+				final AssociatedDataKey associatedDataKey = associatedDataMutation.getAssociatedDataKey();
+				// we need to do this because new associated data can be added on the fly and getting them would trigger
+				// an exception
+				return it.getAssociatedDataNames().contains(associatedDataKey.associatedDataName()) ?
+					it.getAssociatedDataValue(associatedDataKey) : empty();
+			})
 			.orElse(null);
 		ofNullable(
 			returnIfChanged(
@@ -682,7 +792,13 @@ public class Entity implements SealedEntity {
 		@Nonnull AttributeMutation attributeMutation
 	) {
 		final AttributeValue existingAttributeValue = possibleEntity
-			.flatMap(it -> it.getAttributeValue(attributeMutation.getAttributeKey()))
+			.flatMap(it -> {
+				final AttributeKey attributeKey = attributeMutation.getAttributeKey();
+				// we need to do this because new attributes can be added on the fly and getting them would trigger
+				// an exception
+				return it.getAttributeNames().contains(attributeKey.attributeName()) ?
+					it.getAttributeValue(attributeKey) : empty();
+			})
 			.orElse(null);
 		ofNullable(
 			returnIfChanged(
@@ -735,8 +851,42 @@ public class Entity implements SealedEntity {
 		@Nonnull Collection<ReferenceContract> references,
 		@Nonnull Attributes attributes,
 		@Nonnull AssociatedData associatedData,
-		@Nonnull io.evitadb.api.requestResponse.data.structure.Prices prices,
+		@Nonnull Prices prices,
 		@Nonnull Set<Locale> locales,
+		boolean dropped
+	) {
+		this(
+			version,
+			schema,
+			primaryKey,
+			parent,
+			references,
+			attributes,
+			associatedData,
+			prices,
+			locales,
+			schema.getReferences().keySet(),
+			schema.isWithHierarchy(),
+			dropped
+		);
+	}
+
+	/**
+	 * Entities are not meant to be constructed by the client code. Use {@link InitialEntityBuilder} to create new or update
+	 * existing entities.
+	 */
+	private Entity(
+		int version,
+		@Nonnull EntitySchemaContract schema,
+		@Nullable Integer primaryKey,
+		@Nullable Integer parent,
+		@Nonnull Collection<ReferenceContract> references,
+		@Nonnull Attributes attributes,
+		@Nonnull AssociatedData associatedData,
+		@Nonnull Prices prices,
+		@Nonnull Set<Locale> locales,
+		@Nonnull Set<String> referencesDefined,
+		boolean withHierarchy,
 		boolean dropped
 	) {
 		this.version = version;
@@ -744,6 +894,7 @@ public class Entity implements SealedEntity {
 		this.schema = schema;
 		this.primaryKey = primaryKey;
 		this.parent = parent;
+		this.withHierarchy = withHierarchy;
 		this.references = Collections.unmodifiableMap(
 			references
 				.stream()
@@ -758,6 +909,7 @@ public class Entity implements SealedEntity {
 					)
 				)
 		);
+		this.referencesDefined = referencesDefined;
 		this.attributes = attributes;
 		this.associatedData = associatedData;
 		this.prices = prices;
@@ -771,24 +923,46 @@ public class Entity implements SealedEntity {
 		this.schema = EntitySchema._internalBuild(type);
 		this.primaryKey = primaryKey;
 		this.parent = null;
+		this.withHierarchy = this.schema.isWithHierarchy();
 		this.references = Collections.emptyMap();
+		this.referencesDefined = Collections.emptySet();
 		this.attributes = new Attributes(this.schema, null);
 		this.associatedData = new AssociatedData(this.schema);
-		this.prices = new io.evitadb.api.requestResponse.data.structure.Prices(1, Collections.emptySet(), PriceInnerRecordHandling.NONE);
+		this.prices = new io.evitadb.api.requestResponse.data.structure.Prices(
+			this.schema, 1, Collections.emptySet(), PriceInnerRecordHandling.NONE
+		);
 		this.locales = Collections.emptySet();
 		this.dropped = false;
+	}
+
+	@Override
+	public boolean parentAvailable() {
+		return withHierarchy;
 	}
 
 	@Nonnull
 	@Override
 	public OptionalInt getParent() {
+		Assert.isTrue(
+			withHierarchy,
+			() -> new EntityIsNotHierarchicalException(schema.getName())
+		);
 		return parent == null ? OptionalInt.empty() : OptionalInt.of(parent);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<EntityClassifierWithParent> getParentEntity() {
+		Assert.isTrue(
+			withHierarchy,
+			() -> new EntityIsNotHierarchicalException(schema.getName())
+		);
 		return empty();
+	}
+
+	@Override
+	public boolean referencesAvailable() {
+		return true;
 	}
 
 	@Nonnull
@@ -800,6 +974,7 @@ public class Entity implements SealedEntity {
 	@Nonnull
 	@Override
 	public Collection<ReferenceContract> getReferences(@Nonnull String referenceName) {
+		checkReferenceName(referenceName);
 		return references
 			.values()
 			.stream()
@@ -810,6 +985,7 @@ public class Entity implements SealedEntity {
 	@Nonnull
 	@Override
 	public Optional<ReferenceContract> getReference(@Nonnull String referenceName, int referencedEntityId) {
+		checkReferenceName(referenceName);
 		return ofNullable(references.get(new ReferenceKey(referenceName, referencedEntityId)));
 	}
 
@@ -819,227 +995,29 @@ public class Entity implements SealedEntity {
 		return locales;
 	}
 
-	@Override
+	/**
+	 * Checks whether the reference is defined in the schema or is otherwise known.
+	 */
+	public void checkReferenceName(@Nonnull String referenceName) {
+		Assert.isTrue(
+			referencesDefined.contains(referenceName),
+			() -> new ReferenceNotFoundException(referenceName, schema)
+		);
+	}
+
+	/**
+	 * Returns reference contract without checking the existence in the schema.
+	 * Part of the private API.
+	 */
 	@Nullable
-	public <T extends Serializable> T getAttribute(@Nonnull String attributeName) {
-		return attributes.getAttribute(attributeName);
-	}
-
-	@Override
-	@Nullable
-	public <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName) {
-		return attributes.getAttributeArray(attributeName);
-	}
-
-	@Nonnull
-	@Override
-	public Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName) {
-		return attributes.getAttributeValue(attributeName);
-	}
-
-	@Override
-	@Nullable
-	public <T extends Serializable> T getAttribute(@Nonnull String attributeName, @Nonnull Locale locale) {
-		return attributes.getAttribute(attributeName, locale);
-	}
-
-	@Override
-	@Nullable
-	public <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName, @Nonnull Locale locale) {
-		return attributes.getAttributeArray(attributeName, locale);
-	}
-
-	@Nonnull
-	@Override
-	public Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName, @Nonnull Locale locale) {
-		return attributes.getAttributeValue(attributeName, locale);
-	}
-
-	@Override
-	@Nonnull
-	public Optional<AttributeSchemaContract> getAttributeSchema(@Nonnull String attributeName) {
-		return attributes.getAttributeSchema(attributeName);
-	}
-
-	@Override
-	@Nonnull
-	public Set<String> getAttributeNames() {
-		return attributes.getAttributeNames();
-	}
-
-	@Nonnull
-	@Override
-	public Set<AttributeKey> getAttributeKeys() {
-		return attributes.getAttributeKeys();
-	}
-
-	@Nonnull
-	@Override
-	public Collection<AttributeValue> getAttributeValues() {
-		return attributes.getAttributeValues();
-	}
-
-	@Nonnull
-	@Override
-	public Collection<AttributeValue> getAttributeValues(@Nonnull String attributeName) {
-		return attributes.getAttributeValues(attributeName);
-	}
-
-	@Nonnull
-	@Override
-	public Set<Locale> getAttributeLocales() {
-		return attributes.getAttributeLocales();
-	}
-
-	@Nonnull
-	public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
-		return attributes.getAttributeValue(attributeKey);
+	public Optional<ReferenceContract> getReferenceWithoutSchemaCheck(@Nonnull ReferenceKey referenceKey) {
+		return ofNullable(references.get(referenceKey));
 	}
 
 	@Nullable
-	@Override
-	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName) {
-		return associatedData.getAssociatedData(associatedDataName);
-	}
-
-	@Nullable
-	@Override
-	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Class<T> dtoType, @Nonnull ReflectionLookup reflectionLookup) {
-		return associatedData.getAssociatedData(associatedDataName, dtoType, reflectionLookup);
-	}
-
-	@Nullable
-	@Override
-	public <T extends Serializable> T[] getAssociatedDataArray(@Nonnull String associatedDataName) {
-		return associatedData.getAssociatedData(associatedDataName);
-	}
-
-	@Nonnull
-	@Override
-	public Optional<AssociatedDataValue> getAssociatedDataValue(@Nonnull String associatedDataName) {
-		return associatedData.getAssociatedDataValue(associatedDataName);
-	}
-
-	@Nullable
-	@Override
-	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale) {
-		return associatedData.getAssociatedData(associatedDataName, locale);
-	}
-
-	@Nullable
-	@Override
-	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale, @Nonnull Class<T> dtoType, @Nonnull ReflectionLookup reflectionLookup) {
-		return associatedData.getAssociatedData(associatedDataName, locale, dtoType, reflectionLookup);
-	}
-
-	@Nullable
-	@Override
-	public <T extends Serializable> T[] getAssociatedDataArray(@Nonnull String associatedDataName, @Nonnull Locale locale) {
-		return associatedData.getAssociatedData(associatedDataName, locale);
-	}
-
-	@Nonnull
-	@Override
-	public Optional<AssociatedDataValue> getAssociatedDataValue(@Nonnull String associatedDataName, @Nonnull Locale locale) {
-		return associatedData.getAssociatedDataValue(associatedDataName, locale)
-			.or(() -> associatedData.getAssociatedDataValue(associatedDataName));
-	}
-
-	@Nonnull
-	@Override
-	public Optional<AssociatedDataSchemaContract> getAssociatedDataSchema(@Nonnull String associatedDataName) {
-		return associatedData.getAssociatedDataSchema(associatedDataName);
-	}
-
-	@Nonnull
-	@Override
-	public Set<String> getAssociatedDataNames() {
-		return associatedData.getAssociatedDataNames();
-	}
-
-	@Nonnull
-	@Override
-	public Set<AssociatedDataKey> getAssociatedDataKeys() {
-		return associatedData.getAssociatedDataKeys();
-	}
-
-	@Nonnull
-	@Override
-	public Collection<AssociatedDataValue> getAssociatedDataValues() {
-		return associatedData.getAssociatedDataValues();
-	}
-
-	@Nonnull
-	@Override
-	public Collection<AssociatedDataValue> getAssociatedDataValues(@Nonnull String associatedDataName) {
-		return associatedData.getAssociatedDataValues();
-	}
-
-	@Nonnull
-	@Override
-	public Set<Locale> getAssociatedDataLocales() {
-		return associatedData.getAssociatedDataLocales();
-	}
-
-	@Nullable
-	public AssociatedDataValue getAssociatedDataValue(@Nonnull AssociatedDataKey associatedDataKey) {
-		return associatedData.getAssociatedDataValue(associatedDataKey);
-	}
-
-	@Nullable
-	public PriceContract getPrice(@Nonnull PriceKey priceKey) {
-		return prices.getPrice(priceKey);
-	}
-
-	@Nonnull
-	@Override
-	public Optional<PriceContract> getPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency) {
-		return prices.getPrice(priceId, priceList, currency);
-	}
-
-	@Override
-	public boolean isContextAvailable() {
-		return false;
-	}
-
-	@Nonnull
-	@Override
-	public Optional<PriceContract> getPriceForSale() throws ContextMissingException {
-		throw new ContextMissingException();
-	}
-
-	@Nonnull
-	@Override
-	public Optional<PriceContract> getPriceForSaleIfAvailable() {
-		return empty();
-	}
-
-	@Nonnull
-	@Override
-	public List<PriceContract> getAllPricesForSale() {
-		return getAllPricesForSale(null, null, (String) null);
-	}
-
-	@Override
-	public boolean hasPriceInInterval(@Nonnull BigDecimal from, @Nonnull BigDecimal to, @Nonnull QueryPriceMode queryPriceMode) throws ContextMissingException {
-		throw new ContextMissingException();
-	}
-
-	@Nonnull
-	@Override
-	public Collection<PriceContract> getPrices() {
-		return prices.getPrices();
-	}
-
-	@Nonnull
-	@Override
-	public PriceInnerRecordHandling getPriceInnerRecordHandling() {
-		return prices.getPriceInnerRecordHandling();
-	}
-
-	@Override
-	public int pricesVersion() {
-		return prices.pricesVersion();
+	public Optional<ReferenceContract> getReference(@Nonnull ReferenceKey referenceKey) {
+		checkReferenceName(referenceKey.referenceName());
+		return ofNullable(references.get(referenceKey));
 	}
 
 	@Override
@@ -1050,11 +1028,6 @@ public class Entity implements SealedEntity {
 	@Override
 	public int version() {
 		return version;
-	}
-
-	@Nullable
-	public ReferenceContract getReference(@Nonnull ReferenceKey referenceKey) {
-		return references.get(referenceKey);
 	}
 
 	@Nonnull
@@ -1102,6 +1075,15 @@ public class Entity implements SealedEntity {
 	@Override
 	public String toString() {
 		return describe();
+	}
+
+	/**
+	 * DTO for passing merged references and their types.
+	 */
+	private record ReferenceTuple(
+		@Nonnull Collection<ReferenceContract> references,
+		@Nonnull Set<String> referencesDefined
+	) {
 	}
 
 }

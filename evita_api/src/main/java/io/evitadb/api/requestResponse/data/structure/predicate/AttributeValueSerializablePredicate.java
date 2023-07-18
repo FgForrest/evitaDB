@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.structure.predicate;
 
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
@@ -140,6 +141,41 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 		this.attributeSet = attributeSet;
 		this.requiresEntityAttributes = requiresEntityAttributes;
 		this.underlyingPredicate = null;
+	}
+
+	/**
+	 * Returns true if the attributes were fetched along with the entity.
+	 */
+	public boolean wasFetched() {
+		return requiresEntityAttributes;
+	}
+
+	/**
+	 * Method verifies that attributes were fetched with the entity.
+	 */
+	public void checkFetched() throws ContextMissingException {
+		if (!requiresEntityAttributes) {
+			throw ContextMissingException.attributeContextMissing();
+		}
+	}
+
+	/**
+	 * Method verifies that the requested attribute was fetched with the entity.
+	 */
+	public void checkFetched(@Nonnull AttributeKey attributeKey) throws ContextMissingException {
+		if (!(requiresEntityAttributes && (attributeSet.isEmpty() || attributeSet.contains(attributeKey.attributeName())))) {
+			throw ContextMissingException.attributeContextMissing(attributeKey.attributeName());
+		}
+		if (attributeKey.localized() && !(Objects.equals(locale, attributeKey.locale()) || this.locales != null && this.locales.isEmpty() || this.locales.contains(attributeKey.locale()))) {
+			throw ContextMissingException.attributeLocalizationContextMissing(
+				attributeKey.attributeName(),
+				attributeKey.locale(),
+				Stream.concat(
+					this.locale == null ? Stream.empty() : Stream.of(this.locale),
+					this.locales.stream()
+				).distinct()
+			);
+		}
 	}
 
 	public boolean isLocaleSet() {

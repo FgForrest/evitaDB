@@ -42,15 +42,18 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.requestResponse.data.structure.InitialAssociatedDataBuilder.verifyAssociatedDataIsInSchemaAndTypeMatch;
+import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -237,10 +240,9 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 		return this;
 	}
 
-	@Nonnull
-	public Stream<AssociatedDataKey> getAssociatedDataKeysWithoutPredicate() {
-		return getAssociatedDataValuesWithoutPredicate()
-			.map(AssociatedDataValue::key);
+	@Override
+	public boolean associatedDataAvailable() {
+		return this.baseAssociatedData.associatedDataAvailable();
 	}
 
 	@Override
@@ -277,10 +279,6 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 		return getAssociatedDataValueInternal(new AssociatedDataKey(associatedDataName));
 	}
 
-	/*
-		LOCALIZED AssociatedDataS
-	 */
-
 	@Override
 	@Nullable
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale) {
@@ -313,6 +311,16 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Override
 	public Optional<AssociatedDataValue> getAssociatedDataValue(@Nonnull String associatedDataName, @Nonnull Locale locale) {
 		return getAssociatedDataValueInternal(new AssociatedDataKey(associatedDataName, locale));
+	}
+
+	@Nonnull
+	@Override
+	public Optional<AssociatedDataValue> getAssociatedDataValue(@Nonnull AssociatedDataKey associatedDataKey) {
+		return getAssociatedDataValueInternal(associatedDataKey)
+			.or(() -> associatedDataKey.localized() ?
+				getAssociatedDataValueInternal(new AssociatedDataKey(associatedDataKey.associatedDataName())) :
+				empty()
+			);
 	}
 
 	@Nonnull
@@ -388,10 +396,34 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Override
 	public AssociatedData build() {
 		if (isThereAnyChangeInMutations()) {
+			final List<AssociatedDataValue> newAssociatedDataValues = getAssociatedDataValuesWithoutPredicate().toList();
+			final Map<String, AssociatedDataSchemaContract> newAssociatedDataTypes = Stream.concat(
+					baseAssociatedData.associatedDataTypes.values().stream(),
+					newAssociatedDataValues
+						.stream()
+						// filter out new associate data that has no type yet
+						.filter(it -> !baseAssociatedData.associatedDataTypes.containsKey(it.key().associatedDataName()))
+						// create definition for them on the fly
+						.map(AssociatedDataBuilder::createImplicitSchema)
+				)
+				.collect(
+					Collectors.toUnmodifiableMap(
+						AssociatedDataSchemaContract::getName,
+						Function.identity(),
+						(associatedDataSchema, associatedDataSchema2) -> {
+							Assert.isTrue(
+								associatedDataSchema.equals(associatedDataSchema2),
+								"Associated data " + associatedDataSchema.getName() + " has incompatible types in the same entity!"
+							);
+							return associatedDataSchema;
+						}
+					)
+				);
+
 			return new AssociatedData(
 				baseAssociatedData.entitySchema,
-				getAssociatedDataKeysWithoutPredicate().collect(Collectors.toSet()),
-				getAssociatedDataValuesWithoutPredicate().collect(Collectors.toList())
+				newAssociatedDataValues,
+				newAssociatedDataTypes
 			);
 		} else {
 			return baseAssociatedData;
@@ -403,7 +435,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	 */
 	private void verifyAssociatedDataExists(AssociatedDataKey associatedDataKey) {
 		Assert.isTrue(
-			baseAssociatedData.getAssociatedDataValue(associatedDataKey) != null || associatedDataMutations.get(associatedDataKey) instanceof UpsertAssociatedDataMutation,
+			baseAssociatedData.getAssociatedDataValueWithoutSchemaCheck(associatedDataKey).isPresent() || associatedDataMutations.get(associatedDataKey) instanceof UpsertAssociatedDataMutation,
 			"Associated data `" + associatedDataKey + "` doesn't exist!"
 		);
 	}

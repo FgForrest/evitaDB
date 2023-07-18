@@ -26,6 +26,7 @@ package io.evitadb.api.exception;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import lombok.Getter;
 
+import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
@@ -42,4 +43,8 @@ public class UnexpectedResultCountException extends EvitaInvalidUsageException {
 		this.matchedCount = matchedCount;
 	}
 
+	public UnexpectedResultCountException(int matchedCount, @Nonnull String publicMessage) {
+		super(publicMessage);
+		this.matchedCount = matchedCount;
+	}
 }

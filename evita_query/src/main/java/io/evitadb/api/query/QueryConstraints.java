@@ -6372,7 +6372,7 @@ public interface QueryConstraints {
 	@Nonnull
 	static EntityContentRequire[] entityFetchAllContent() {
 		return new EntityContentRequire[]{
-			attributeContent(), associatedDataContent(), priceContentAll(), referenceContentAllWithAttributes(), dataInLocales()
+			hierarchyContent(), attributeContent(), associatedDataContent(), priceContentAll(), referenceContentAllWithAttributes(), dataInLocales()
 		};
 	}
 

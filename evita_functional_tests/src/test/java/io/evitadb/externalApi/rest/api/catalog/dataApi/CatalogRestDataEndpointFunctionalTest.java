@@ -428,11 +428,12 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 			.e(EntityDescriptor.PRIMARY_KEY.name(), hierarchicalEntity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), hierarchicalEntity.getType());
 
-		hierarchicalEntity.getParent()
-			.ifPresent(pk -> dto.e(RestEntityDescriptor.PARENT.name(), pk));
-		hierarchicalEntity.getParentEntity()
-			.ifPresent(parent -> dto.e(RestEntityDescriptor.PARENT_ENTITY.name(), createParentEntityDto(parent, withBody)));
-
+		if (hierarchicalEntity.parentAvailable()) {
+			hierarchicalEntity.getParent()
+				.ifPresent(pk -> dto.e(RestEntityDescriptor.PARENT.name(), pk));
+			hierarchicalEntity.getParentEntity()
+				.ifPresent(parent -> dto.e(RestEntityDescriptor.PARENT_ENTITY.name(), createParentEntityDto(parent, withBody)));
+		}
 
 		final List<String> locales = Arrays.stream(expectedLocales).map(Locale::toLanguageTag).toList();
 		if (!locales.isEmpty()) {

@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedData
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.Droppable;
+import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
@@ -865,9 +866,10 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		// get or create prices container
 		final PricesStoragePart pricesStorageContainer = getPriceStoragePart(entityType, entityPrimaryKey);
 		// update price inner record handling in it - we have to mock the Prices virtual container for this operation
-		final Prices mutatedPrices = localMutation.mutateLocal(
+		final PricesContract mutatedPrices = localMutation.mutateLocal(
 			entitySchema,
 			new Prices(
+				entitySchema,
 				pricesStorageContainer.getVersion(),
 				Collections.emptyList(),
 				pricesStorageContainer.getPriceInnerRecordHandling()

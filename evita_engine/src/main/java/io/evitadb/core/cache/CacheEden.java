@@ -462,6 +462,7 @@ public class CacheEden {
 					new EntityPayload(
 						entityToCache.getDelegate(),
 						entityToCache.getLocalePredicate(),
+						entityToCache.getHierarchyPredicate(),
 						entityToCache.getAttributePredicate(),
 						entityToCache.getAssociatedDataPredicate(),
 						entityToCache.getReferencePredicate(),
@@ -485,6 +486,7 @@ public class CacheEden {
 			entityWrapper.getEntitySchema(),
 			null,
 			cachedPayload.localePredicate(),
+			cachedPayload.hierarchyPredicate(),
 			cachedPayload.attributePredicate(),
 			cachedPayload.associatedDataPredicate(),
 			cachedPayload.referencePredicate(),
@@ -504,6 +506,7 @@ public class CacheEden {
 					new EntityPayload(
 						enrichedEntity.getDelegate(),
 						enrichedEntity.getLocalePredicate(),
+						enrichedEntity.getHierarchyPredicate(),
 						enrichedEntity.getAttributePredicate(),
 						enrichedEntity.getAssociatedDataPredicate(),
 						enrichedEntity.getReferencePredicate(),

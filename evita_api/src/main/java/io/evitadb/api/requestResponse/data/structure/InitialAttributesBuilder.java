@@ -51,6 +51,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -288,14 +289,15 @@ class InitialAttributesBuilder implements AttributesBuilder {
 		}
 	}
 
-	/*
-		LOCALIZED ATTRIBUTES
-	 */
-
 	@Nonnull
 	@Override
 	public AttributesBuilder mutateAttribute(@Nonnull AttributeMutation mutation) {
 		throw new UnsupportedOperationException("You cannot apply mutation when entity is just being created!");
+	}
+
+	@Override
+	public boolean attributesAvailable() {
+		return true;
 	}
 
 	@Override
@@ -371,7 +373,11 @@ class InitialAttributesBuilder implements AttributesBuilder {
 	@Nonnull
 	@Override
 	public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
-		return ofNullable(this.attributeValues.get(attributeKey));
+		return ofNullable(this.attributeValues.get(attributeKey))
+			.or(() -> attributeKey.localized() ?
+				ofNullable(this.attributeValues.get(new AttributeKey(attributeKey.attributeName()))) :
+				empty()
+			);
 	}
 
 	@Nonnull
@@ -413,7 +419,7 @@ class InitialAttributesBuilder implements AttributesBuilder {
 			.stream()
 			.filter(entry -> this.entitySchema.getAttribute(entry.getKey().attributeName()).isEmpty())
 			.map(Entry::getValue)
-			.map(this::createImplicitSchema)
+			.map(AttributesBuilder::createImplicitSchema)
 			.collect(
 				Collectors.toUnmodifiableMap(
 					AttributeSchemaContract::getName,

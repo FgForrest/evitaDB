@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
+import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
@@ -95,7 +96,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 	private final AttributesBuilder attributesBuilder;
 	@Delegate(types = AssociatedDataContract.class)
 	private final AssociatedDataBuilder associatedDataBuilder;
-	@Delegate(types = PricesContract.class)
+	@Delegate(types = PricesContract.class, excludes = Versioned.class)
 	private final PricesBuilder pricesBuilder;
 	private final Map<ReferenceKey, ReferenceContract> references;
 	private Integer parent;
@@ -106,7 +107,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.primaryKey = null;
 		this.attributesBuilder = new InitialAttributesBuilder(schema, null);
 		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
-		this.pricesBuilder = new InitialPricesBuilder();
+		this.pricesBuilder = new InitialPricesBuilder(schema);
 		this.references = new HashMap<>();
 	}
 
@@ -116,7 +117,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.primaryKey = null;
 		this.attributesBuilder = new InitialAttributesBuilder(schema, null);
 		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
-		this.pricesBuilder = new InitialPricesBuilder();
+		this.pricesBuilder = new InitialPricesBuilder(schema);
 		this.references = new HashMap<>();
 	}
 
@@ -126,7 +127,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.schema = EntitySchema._internalBuild(type);
 		this.attributesBuilder = new InitialAttributesBuilder(schema, null);
 		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
-		this.pricesBuilder = new InitialPricesBuilder();
+		this.pricesBuilder = new InitialPricesBuilder(schema);
 		this.references = new HashMap<>();
 	}
 
@@ -136,7 +137,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.primaryKey = primaryKey;
 		this.attributesBuilder = new InitialAttributesBuilder(schema, null);
 		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
-		this.pricesBuilder = new InitialPricesBuilder();
+		this.pricesBuilder = new InitialPricesBuilder(schema);
 		this.references = new HashMap<>();
 	}
 
@@ -159,12 +160,12 @@ public class InitialEntityBuilder implements EntityBuilder {
 				this.attributesBuilder.setAttribute(
 					attributeKey.attributeName(),
 					attributeKey.locale(),
-					(Serializable) attributeValue.value()
+					attributeValue.value()
 				);
 			} else {
 				this.attributesBuilder.setAttribute(
 					attributeKey.attributeName(),
-					(Serializable) attributeValue.value()
+					attributeValue.value()
 				);
 			}
 		}
@@ -184,7 +185,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 				);
 			}
 		}
-		this.pricesBuilder = new InitialPricesBuilder();
+		this.pricesBuilder = new InitialPricesBuilder(schema);
 		ofNullable(priceInnerRecordHandling)
 			.ifPresent(this.pricesBuilder::setPriceInnerRecordHandling);
 		for (PriceContract price : prices) {
@@ -238,6 +239,11 @@ public class InitialEntityBuilder implements EntityBuilder {
 		return primaryKey;
 	}
 
+	@Override
+	public boolean parentAvailable() {
+		return true;
+	}
+
 	@Nonnull
 	@Override
 	public OptionalInt getParent() {
@@ -248,6 +254,11 @@ public class InitialEntityBuilder implements EntityBuilder {
 	@Override
 	public Optional<EntityClassifierWithParent> getParentEntity() {
 		return Optional.empty();
+	}
+
+	@Override
+	public boolean referencesAvailable() {
+		return true;
 	}
 
 	@Nonnull
@@ -543,7 +554,15 @@ public class InitialEntityBuilder implements EntityBuilder {
 			attributesBuilder.build(),
 			associatedDataBuilder.build(),
 			pricesBuilder.build(),
-			getAllLocales()
+			getAllLocales(),
+			Stream.concat(
+				schema.getReferences().keySet().stream(),
+				references.keySet()
+					.stream()
+					.map(ReferenceKey::referenceName)
+			).collect(Collectors.toSet()),
+			schema.isWithHierarchy() || parent != null,
+			false
 		);
 	}
 

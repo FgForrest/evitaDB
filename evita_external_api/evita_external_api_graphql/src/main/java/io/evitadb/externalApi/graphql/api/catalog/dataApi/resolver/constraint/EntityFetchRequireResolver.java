@@ -212,7 +212,7 @@ public class EntityFetchRequireResolver {
 	private Optional<HierarchyContent> resolveHierarchyContent(@Nonnull SelectionSetWrapper selectionSetWrapper,
 															   @Nullable Locale desiredLocale,
 	                                                           @Nonnull EntitySchemaContract currentEntitySchema) {
-		if (!needsParents(selectionSetWrapper)) {
+		if (!needsParents(selectionSetWrapper) && !needsParent(selectionSetWrapper)) {
 			return Optional.empty();
 		}
 
@@ -241,6 +241,12 @@ public class EntityFetchRequireResolver {
 				).orElse(null);
 
 				return hierarchyContent(stopAt, entityFetch);
+			}).or(() -> {
+				if (!selectionSetWrapper.getFields(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name()).isEmpty()) {
+					return Optional.of(hierarchyContent());
+				} else {
+					return Optional.empty();
+				}
 			});
 	}
 

@@ -391,7 +391,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 						),
 						require(
 							strip(0, 1),
-							entityFetch()
+							entityFetch(hierarchyContent())
 						)
 					)
 				).orElseThrow();
@@ -406,7 +406,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 						),
 						require(
 							strip(1, 1),
-							entityFetch()
+							entityFetch(hierarchyContent())
 						)
 					)
 				).orElseThrow();
@@ -437,7 +437,9 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                         }
                     ],
 					"require": {
-					    "entityFetch": {}
+					    "entityFetch": {
+							"hierarchyContent": {}
+					    }
 					  }
 					}
                 }
@@ -467,7 +469,9 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                         }
                     ],
 					"require": {
-					    "entityFetch": {}
+					    "entityFetch": {
+							"hierarchyContent": {}
+					    }
 					  }
 					}
                 }
@@ -944,6 +948,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 						},
 						"require": {
 							"entityFetch": {
+								"hierarchyContent": {}
 					        }
 						}
 					}

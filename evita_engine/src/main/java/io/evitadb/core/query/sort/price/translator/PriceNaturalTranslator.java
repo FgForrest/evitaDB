@@ -23,7 +23,7 @@
 
 package io.evitadb.core.query.sort.price.translator;
 
-import io.evitadb.api.exception.TargetEntityHasNoPricesException;
+import io.evitadb.api.exception.EntityHasNoPricesException;
 import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -55,7 +55,7 @@ public class PriceNaturalTranslator implements OrderingConstraintTranslator<Pric
 			final EntitySchemaContract schema = orderByVisitor.getSchema();
 			Assert.isTrue(
 				schema.isWithPrice(),
-				() -> new TargetEntityHasNoPricesException(schema.getName())
+				() -> new EntityHasNoPricesException(schema.getName())
 			);
 		}
 

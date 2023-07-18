@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.data.mutation.price;
 
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Price;
@@ -47,7 +48,7 @@ import java.io.Serializable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode
-public class SetPriceInnerRecordHandlingMutation implements SchemaEvolvingLocalMutation<Prices, PriceInnerRecordHandling> {
+public class SetPriceInnerRecordHandlingMutation implements SchemaEvolvingLocalMutation<PricesContract, PriceInnerRecordHandling> {
 	@Serial private static final long serialVersionUID = -2047915704875849615L;
 	/**
 	 * Inner price record handling that needs to be set to the entity.
@@ -60,11 +61,12 @@ public class SetPriceInnerRecordHandlingMutation implements SchemaEvolvingLocalM
 
 	@Nonnull
 	@Override
-	public Prices mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable Prices existingValue) {
+	public PricesContract mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable PricesContract existingValue) {
 		if (existingValue == null) {
-			return new Prices(priceInnerRecordHandling);
+			return new Prices(entitySchema, priceInnerRecordHandling);
 		} else if (existingValue.getPriceInnerRecordHandling() != priceInnerRecordHandling) {
 			return new Prices(
+				entitySchema,
 				existingValue.version() + 1,
 				existingValue.getPrices(),
 				priceInnerRecordHandling

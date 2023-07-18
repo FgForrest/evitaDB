@@ -23,7 +23,7 @@
 
 package io.evitadb.core.query.filter.translator.hierarchy;
 
-import io.evitadb.api.exception.TargetEntityIsNotHierarchicalException;
+import io.evitadb.api.exception.EntityIsNotHierarchicalException;
 import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.FilterBy;
@@ -88,7 +88,7 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 					() -> {
 						Assert.isTrue(
 							targetEntitySchema.isWithHierarchy(),
-							() -> new TargetEntityIsNotHierarchicalException(
+							() -> new EntityIsNotHierarchicalException(
 								ofNullable(referenceSchema).map(ReferenceSchemaContract::getName).orElse(null),
 								targetEntitySchema.getName()
 							)

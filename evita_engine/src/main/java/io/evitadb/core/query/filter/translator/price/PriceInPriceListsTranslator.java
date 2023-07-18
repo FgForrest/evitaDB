@@ -23,7 +23,7 @@
 
 package io.evitadb.core.query.filter.translator.price;
 
-import io.evitadb.api.exception.TargetEntityHasNoPricesException;
+import io.evitadb.api.exception.EntityHasNoPricesException;
 import io.evitadb.api.query.filter.PriceBetween;
 import io.evitadb.api.query.filter.PriceInCurrency;
 import io.evitadb.api.query.filter.PriceInPriceLists;
@@ -67,7 +67,7 @@ public class PriceInPriceListsTranslator extends AbstractPriceRelatedConstraintT
 			final EntitySchemaContract schema = filterByVisitor.getSchema();
 			Assert.isTrue(
 				schema.isWithPrice(),
-				() -> new TargetEntityHasNoPricesException(schema.getName())
+				() -> new EntityHasNoPricesException(schema.getName())
 			);
 		}
 
