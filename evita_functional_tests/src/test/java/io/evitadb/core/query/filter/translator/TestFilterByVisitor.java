@@ -85,6 +85,7 @@ public class TestFilterByVisitor extends FilterByVisitor {
 			query,
 			OffsetDateTime.now(),
 			EntityReference.class,
+			null,
 			EvitaRequest.CONVERSION_NOT_SUPPORTED
 		);
 		this.entities = entities;

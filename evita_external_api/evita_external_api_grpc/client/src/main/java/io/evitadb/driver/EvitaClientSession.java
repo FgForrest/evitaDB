@@ -371,6 +371,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			query,
 			OffsetDateTime.now(),
 			expectedType,
+			ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType),
 			this.proxyFactory::createEntityProxy
 		);
 		return queryOneInternal(query, expectedType, evitaRequest);
@@ -383,6 +384,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			query,
 			OffsetDateTime.now(),
 			expectedType,
+			ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType),
 			this.proxyFactory::createEntityProxy
 		);
 		return queryListInternal(query, expectedType, evitaRequest);
@@ -393,6 +395,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	public <S extends Serializable, T extends EvitaResponse<S>> T query(@Nonnull Query query, @Nonnull Class<S> expectedType) throws UnexpectedResultException, InstanceTerminatedException {
 		assertActive();
 		assertRequestMakesSense(query, expectedType);
+		final String entityTypeByExpectedType = ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType);
 
 		final StringWithParameters stringWithParameters = query.toStringWithParameterExtraction();
 		final GrpcQueryResponse grpcResponse = executeWithEvitaSessionService(evitaSessionService ->
@@ -422,6 +425,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 						query,
 						OffsetDateTime.now(),
 						EntityReference.class,
+						null,
 						this.proxyFactory::createEntityProxy
 					)
 				)
@@ -438,6 +442,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 							query,
 							OffsetDateTime.now(),
 							expectedType,
+							entityTypeByExpectedType,
 							this.proxyFactory::createEntityProxy
 						),
 						(entityType, schemaVersion) -> schemaCache.getEntitySchemaOrThrow(
@@ -461,7 +466,16 @@ public class EvitaClientSession implements EvitaSessionContract {
 			//noinspection unchecked
 			return (T) new EvitaEntityResponse<>(
 				query, recordPage,
-				getEvitaResponseExtraResults(grpcResponse, new EvitaRequest(query, OffsetDateTime.now(), EntityReference.class, this.proxyFactory::createEntityProxy))
+				getEvitaResponseExtraResults(
+					grpcResponse,
+					new EvitaRequest(
+						query,
+						OffsetDateTime.now(),
+						expectedType,
+						entityTypeByExpectedType,
+						this.proxyFactory::createEntityProxy
+					)
+				)
 			);
 		}
 	}
@@ -496,6 +510,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			),
 			OffsetDateTime.now(),
 			SealedEntity.class,
+			null,
 			this.proxyFactory::createEntityProxy
 		);
 		return getEntityInternal(entityType, SealedEntity.class, primaryKey, evitaRequest, require);
@@ -514,6 +529,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			),
 			OffsetDateTime.now(),
 			expectedType,
+			ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType),
 			this.proxyFactory::createEntityProxy
 		);
 		return getEntityInternal(entityType, expectedType, primaryKey, evitaRequest, require);
@@ -551,6 +567,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			),
 			OffsetDateTime.now(),
 			expectedType,
+			ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType),
 			this.proxyFactory::createEntityProxy
 		);
 
@@ -592,6 +609,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			),
 			OffsetDateTime.now(),
 			expectedType,
+			ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType),
 			this.proxyFactory::createEntityProxy
 		);
 
@@ -872,6 +890,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 					),
 					OffsetDateTime.now(),
 					SealedEntity.class,
+					null,
 					this.proxyFactory::createEntityProxy
 				),
 				grpcResponse.getEntity(),
@@ -975,6 +994,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 				query,
 				OffsetDateTime.now(),
 				SealedEntity.class,
+				null,
 				this.proxyFactory::createEntityProxy
 			);
 			final StringWithParameters stringWithParameters = query.toStringWithParameterExtraction();
@@ -1284,6 +1304,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 							),
 							OffsetDateTime.now(),
 							expectedType,
+							ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType),
 							this.proxyFactory::createEntityProxy
 						),
 						grpcResponse.getEntity(),
@@ -1335,6 +1356,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 							),
 							OffsetDateTime.now(),
 							expectedType,
+							ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType),
 							this.proxyFactory::createEntityProxy
 						),
 						grpcResponse.getDeletedRootEntity(),

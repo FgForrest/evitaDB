@@ -519,6 +519,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 				),
 				OffsetDateTime.now(),
 				EntityReference.class,
+				null,
 				EvitaRequest.CONVERSION_NOT_SUPPORTED
 			),
 			session
@@ -526,7 +527,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 	}
 
 	@Override
-	public DeletedHierarchy deleteEntityAndItsHierarchy(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+	public <T extends Serializable> DeletedHierarchy<T> deleteEntityAndItsHierarchy(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final EntityIndex globalIndex = getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL));
 		if (globalIndex != null) {
 			final int[] primaryKeys = evitaRequest.getPrimaryKeys();
@@ -540,11 +541,12 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 			for (Entity entityToRemove : entitiesToRemove) {
 				internalDeleteEntity(entityToRemove);
 			}
-			return new DeletedHierarchy(
+			//noinspection unchecked
+			return new DeletedHierarchy<>(
 				removedEntities.size(),
 				removedEntities.stream()
 					.findFirst()
-					.map(it -> wrapToDecorator(
+					.map(it -> (T) wrapToDecorator(
 							evitaRequest, it,
 							referenceFetcher,
 							false
@@ -553,7 +555,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 					.orElse(null)
 			);
 		}
-		return new DeletedHierarchy(0, null);
+		return new DeletedHierarchy<>(0, null);
 	}
 
 	@Override
@@ -1168,6 +1170,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 			),
 			OffsetDateTime.now(),
 			Entity.class,
+			null,
 			EvitaRequest.CONVERSION_NOT_SUPPORTED
 		);
 		return getEntityById(primaryKey, evitaRequest);

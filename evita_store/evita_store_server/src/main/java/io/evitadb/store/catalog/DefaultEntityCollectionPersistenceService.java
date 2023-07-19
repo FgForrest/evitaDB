@@ -460,6 +460,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				),
 				OffsetDateTime.now(),
 				Entity.class,
+				null,
 				EvitaRequest.CONVERSION_NOT_SUPPORTED
 			);
 			final byte recType = memTable.getIdForRecordType(EntityBodyStoragePart.class);
