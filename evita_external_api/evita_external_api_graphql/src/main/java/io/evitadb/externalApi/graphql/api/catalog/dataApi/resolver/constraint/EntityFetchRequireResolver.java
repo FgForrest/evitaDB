@@ -161,18 +161,24 @@ public class EntityFetchRequireResolver {
 	}
 
 	private boolean needsEntityBody(@Nonnull SelectionSetWrapper selectionSetWrapper) {
-		return needsLocales(selectionSetWrapper) ||
+		return needsVersion(selectionSetWrapper) ||
+			needsLocales(selectionSetWrapper) ||
 			needsAttributes(selectionSetWrapper);
 	}
 
 	private boolean needsEntityBody(@Nonnull SelectionSetWrapper selectionSetWrapper, @Nonnull EntitySchemaContract currentEntitySchema) {
-		return needsParent(selectionSetWrapper) ||
+		return needsVersion(selectionSetWrapper) ||
+			needsParent(selectionSetWrapper) ||
 			needsParents(selectionSetWrapper) ||
 			needsLocales(selectionSetWrapper) ||
 			needsAttributes(selectionSetWrapper) ||
 			needsAssociatedData(selectionSetWrapper) ||
 			needsPrices(selectionSetWrapper) ||
 			needsReferences(selectionSetWrapper, currentEntitySchema);
+	}
+
+	private boolean needsVersion(@Nonnull SelectionSetWrapper selectionSetWrapper) {
+		return selectionSetWrapper.contains(GraphQLEntityDescriptor.VERSION.name());
 	}
 
 	private boolean needsParent(@Nonnull SelectionSetWrapper selectionSetWrapper) {

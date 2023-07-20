@@ -23,7 +23,9 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi;
 
-import com.fasterxml.jackson.databind.node.ArrayNode;
+import io.evitadb.api.requestResponse.data.AssociatedDataContract;
+import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
+import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
@@ -31,9 +33,11 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.dataType.Range;
+import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.externalApi.ExternalApiFunctionTestsSupport;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
@@ -41,20 +45,28 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.RestEntityDe
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAssociatedDataDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAttributesDescriptor;
 import io.evitadb.externalApi.rest.api.testSuite.RestEndpointFunctionalTest;
-import io.evitadb.test.Entities;
 import io.evitadb.test.builder.MapBuilder;
-import io.evitadb.utils.StringUtils;
+import io.evitadb.utils.Assert;
+import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.text.NumberFormat;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 
+import static io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer.separateAssociatedDataKeysByLocale;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer.separateAttributeKeysByLocale;
 import static io.evitadb.test.builder.MapBuilder.map;
-import static io.evitadb.test.generator.DataGenerator.*;
 
 /**
  * Ancestor for tests for REST catalog endpoint.
@@ -62,438 +74,287 @@ import static io.evitadb.test.generator.DataGenerator.*;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
-abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctionalTest {
-
-
-	/**
-	 * Returns value of "random" value in the dataset.
-	 */
-	protected <T extends Serializable> T getRandomAttributeValue(@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName) {
-		return getRandomAttributeValue(originalProductEntities, attributeName, 10);
-	}
-
-	/**
-	 * Returns value of "random" value in the dataset.
-	 */
-	protected <T extends Serializable> T getRandomAttributeValue(@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName, int order) {
-		return originalProductEntities
-			.stream()
-			.map(it -> (T) it.getAttribute(attributeName))
-			.filter(Objects::nonNull)
-			.skip(order)
-			.findFirst()
-			.orElseThrow(() -> new IllegalStateException("Failed to localize `" + attributeName + "` attribute!"));
-	}
-
-	/**
-	 * Returns value of "random" value in the dataset.
-	 */
-	protected <T extends Serializable> T getRandomAttributeValue(@Nonnull List<SealedEntity> originalProductEntities,
-	                                                                             @Nonnull String attributeName,
-	                                                                             @Nonnull Locale locale) {
-		return getRandomAttributeValue(originalProductEntities, attributeName, locale, 10);
-	}
-
-	/**
-	 * Returns value of "random" value in the dataset.
-	 */
-	protected <T extends Serializable> T getRandomAttributeValue(@Nonnull List<SealedEntity> originalProductEntities,
-	                                                                             @Nonnull String attributeName,
-	                                                                             @Nonnull Locale locale,
-	                                                                             int order) {
-		return originalProductEntities
-			.stream()
-			.map(it -> (T) it.getAttribute(attributeName, locale))
-			.filter(Objects::nonNull)
-			.skip(order)
-			.findFirst()
-			.orElseThrow(() -> new IllegalStateException("Failed to localize `" + attributeName + "` attribute!"));
-	}
-
+abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctionalTest implements ExternalApiFunctionTestsSupport {
 
 	@Nonnull
-	protected Map<String, Object> createEntityDtoWithFormattedPriceForSale(@Nonnull SealedEntity entity) {
-		final NumberFormat priceFormatter = NumberFormat.getCurrencyInstance(CZECH_LOCALE);
-		priceFormatter.setCurrency(CURRENCY_CZK);
-
-		return map()
-			.e(EntityDescriptor.PRICE_FOR_SALE.name(), map()
-				.e(PriceDescriptor.PRICE_WITH_TAX.name(), priceFormatter.format(entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax()))
-				.build())
-			.build();
+	protected List<Map<String, Object>> createEntityDtos(@Nonnull List<? extends EntityClassifier> entityClassifiers) {
+		return createEntityDtos(entityClassifiers, false);
 	}
 
 	@Nonnull
-	protected Map<String, Object> createEntityDtoWithFormattedPrice(@Nonnull SealedEntity entity) {
-		final NumberFormat priceFormatter = NumberFormat.getCurrencyInstance(CZECH_LOCALE);
-		priceFormatter.setCurrency(CURRENCY_CZK);
-
-		return map()
-			.e(EntityDescriptor.PRICE.name(), map()
-				.e(PriceDescriptor.PRICE_WITH_TAX.name(), priceFormatter.format(entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax()))
-				.build())
-			.build();
+	protected List<Map<String, Object>> createEntityDtos(@Nonnull List<? extends EntityClassifier> entityClassifiers, boolean localized) {
+		return entityClassifiers.stream()
+			.map(it -> createEntityDto(it, localized))
+			.toList();
 	}
 
-
-	@Nonnull
-	protected Map<String, Object> createEntityDtoWithFormattedPrices(@Nonnull SealedEntity entity) {
-		final NumberFormat priceFormatter = NumberFormat.getCurrencyInstance(CZECH_LOCALE);
-		priceFormatter.setCurrency(CURRENCY_CZK);
-
-		return map()
-			.e(EntityDescriptor.PRICES.name(), List.of(
-				map()
-					.e(PriceDescriptor.PRICE_WITH_TAX.name(), priceFormatter.format(entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax()))
-					.build()
-			))
-			.build();
+	@Nullable
+	protected Map<String, Object> createEntityDto(@Nullable EntityClassifier entityClassifier) {
+		return createEntityDto(entityClassifier, false);
 	}
 
-	@Nonnull
-	protected ArrayList<Map<String, Object>> createPricesDto(@Nonnull SealedEntity entity, @Nullable Currency currency, @Nonnull String priceList) {
-		final ArrayList<Map<String, Object>> prices = new ArrayList<>();
-		entity.getPrices().stream()
-			.filter(price -> price.currency().equals(currency) || currency == null)
-			.filter(price -> price.priceList().equals(priceList))
-			.forEach(price -> {
-					prices.add(map()
-						.e(PriceDescriptor.PRICE_ID.name(), price.priceId())
-						.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-						.e(PriceDescriptor.CURRENCY.name(), currency != null ? currency.toString() : CURRENCY_CZK)
-						.e(PriceDescriptor.INNER_RECORD_ID.name(), price.innerRecordId())
-						.e(PriceDescriptor.SELLABLE.name(), price.sellable())
-						.e(PriceDescriptor.PRICE_WITHOUT_TAX.name(), price.priceWithoutTax().toString())
-						.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString())
-						.e(PriceDescriptor.TAX_RATE.name(), price.taxRate().toString())
-						.e(PriceDescriptor.VALIDITY.name(), convertRangeIntoArrayList(price.validity()))
-						.build());
+	@Nullable
+	protected Map<String, Object> createEntityDto(@Nullable EntityClassifier entityClassifier, boolean localized) {
+		if (entityClassifier == null) {
+			return null;
+		}
+
+		final MapBuilder dto = map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entityClassifier.getPrimaryKey())
+			.e(EntityDescriptor.TYPE.name(), entityClassifier.getType());
+
+		if (entityClassifier instanceof SealedEntity entity) {
+			createEntityBodyDto(dto, entity, localized);
+			createAttributesDto(dto, entity.getLocales(), entity, localized);
+			createAssociatedDataDto(dto, entity.getLocales(), entity, localized);
+			createPricesDto(dto, entity);
+			createReferencesDto(dto, entity, localized);
+		} else if (entityClassifier instanceof EntityClassifierWithParent entity) {
+			entity.getParentEntity()
+				.ifPresent(parent -> dto.e(RestEntityDescriptor.PARENT_ENTITY.name(), createEntityDto(parent, localized)));
+		}
+
+		return dto.build();
+	}
+
+	private void createEntityBodyDto(@Nonnull MapBuilder entityDto, @Nonnull SealedEntity entity, boolean localized) {
+		entityDto.e(EntityDescriptor.VERSION.name(), entity.version());
+
+		if (entity.parentAvailable()) {
+			entity.getParent().ifPresent(pk -> entityDto.e(RestEntityDescriptor.PARENT.name(), pk));
+			entity.getParentEntity().ifPresent(parent -> entityDto.e(RestEntityDescriptor.PARENT_ENTITY.name(), createEntityDto(parent, localized)));
+		}
+
+		if (!entity.getLocales().isEmpty()) {
+			entityDto.e(EntityDescriptor.LOCALES.name(), entity.getLocales().stream().map(Locale::toLanguageTag).toList());
+		}
+		if (!entity.getAllLocales().isEmpty()) {
+			entityDto.e(EntityDescriptor.ALL_LOCALES.name(), entity.getAllLocales().stream().map(Locale::toLanguageTag).toList());
+		}
+		if (entity.getPriceInnerRecordHandling() != PriceInnerRecordHandling.UNKNOWN) {
+			entityDto.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), entity.getPriceInnerRecordHandling().name());
+		}
+	}
+
+	private void createAttributesDto(@Nonnull MapBuilder parentDto,
+	                                 @Nonnull Set<Locale> locales,
+	                                 @Nonnull AttributesContract attributes,
+	                                 boolean localized) {
+		if (attributes.attributesAvailable() && !attributes.getAttributeKeys().isEmpty()) {
+			final Set<AttributeKey> attributeKeys = attributes.getAttributeKeys();
+			final MapBuilder attributesDto;
+			if (localized) {
+				Assert.isPremiseValid(
+					locales.size() == 1,
+					"Localized entity must have exactly one locale."
+				);
+				attributesDto = createAttributesOfLangDto(attributes, attributeKeys, locales.iterator().next());
+			} else {
+				attributesDto = map();
+
+				final Map<String, List<AttributeKey>> localeSeparatedKeys = separateAttributeKeysByLocale(locales, attributeKeys);
+
+				final List<AttributesContract.AttributeKey> globalAttributeKeys = localeSeparatedKeys.remove(SectionedAttributesDescriptor.GLOBAL.name());
+				if (!globalAttributeKeys.isEmpty()) {
+					attributesDto.e(SectionedAttributesDescriptor.GLOBAL.name(), createAttributesOfLangDto(attributes, globalAttributeKeys, null));
 				}
-			);
-		return prices;
-	}
 
-	@Nonnull
-	protected ArrayList<Map<String, Object>> createPricesDto(@Nonnull SealedEntity entity) {
-		final ArrayList<Map<String, Object>> prices = new ArrayList<>();
-		entity.getPrices()
-			.forEach(price -> {
-					prices.add(map()
-						.e(PriceDescriptor.PRICE_ID.name(), price.priceId())
-						.e(PriceDescriptor.PRICE_LIST.name(), price.priceList())
-						.e(PriceDescriptor.CURRENCY.name(), price.currency().toString())
-						.e(PriceDescriptor.INNER_RECORD_ID.name(), price.innerRecordId())
-						.e(PriceDescriptor.SELLABLE.name(), price.sellable())
-						.e(PriceDescriptor.PRICE_WITHOUT_TAX.name(), price.priceWithoutTax().toString())
-						.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString())
-						.e(PriceDescriptor.TAX_RATE.name(), price.taxRate().toString())
-						.e(PriceDescriptor.VALIDITY.name(), convertRangeIntoArrayList(price.validity()))
-						.build());
+				final MapBuilder localizedAttributesBuilder = map();
+				for (Entry<String, List<AttributeKey>> entry : localeSeparatedKeys.entrySet()) {
+					final MapBuilder attributesForLocale = createAttributesOfLangDto(attributes, entry.getValue(), Locale.forLanguageTag(entry.getKey()));
+					if (!attributesForLocale.isEmpty()) {
+						localizedAttributesBuilder.e(entry.getKey(), attributesForLocale);
+					}
 				}
-			);
-		return prices;
+				if (!localizedAttributesBuilder.isEmpty()) {
+					attributesDto.e(SectionedAttributesDescriptor.LOCALIZED.name(), localizedAttributesBuilder);
+				}
+			}
+
+			parentDto.e(EntityDescriptor.ATTRIBUTES.name(), attributesDto);
+		}
+	}
+
+	private MapBuilder createAttributesOfLangDto(@Nonnull AttributesContract attributes,
+	                                             @Nonnull Collection<AttributesContract.AttributeKey> attributeKeys,
+	                                             @Nullable Locale locale) {
+		final MapBuilder dto = map();
+		attributeKeys.forEach(attributeKey -> {
+			final Optional<AttributeValue> attributeValue;
+			if (attributeKey.localized()) {
+				Assert.isPremiseValid(
+					locale != null,
+					"Locale must be provided for localized attribute key."
+				);
+				attributeValue = attributes.getAttributeValue(attributeKey.attributeName(), locale);
+			} else {
+				attributeValue = attributes.getAttributeValue(attributeKey.attributeName());
+			}
+
+			if (attributeValue.isPresent()) {
+				dto.e(attributeKey.attributeName(), serializeToJsonValue(attributeValue.get().value()));
+			} else {
+				dto.e(attributeKey.attributeName(), null);
+			}
+		});
+		return dto;
+	}
+
+	private void createAssociatedDataDto(@Nonnull MapBuilder parentDto,
+	                                     @Nonnull Set<Locale> locales,
+	                                     @Nonnull AssociatedDataContract associatedData,
+	                                     boolean localized) {
+		if (associatedData.associatedDataAvailable() && !associatedData.getAssociatedDataKeys().isEmpty()) {
+			final Set<AssociatedDataKey> associatedDataKeys = associatedData.getAssociatedDataKeys();
+			final MapBuilder associatedDataDto;
+			if (localized) {
+				Assert.isPremiseValid(
+					locales.size() == 1,
+					"Localized entity must have exactly one locale."
+				);
+				associatedDataDto = createAssociatedDataOfLangDto(associatedData, associatedDataKeys, locales.iterator().next());
+			} else {
+				associatedDataDto = map();
+
+				final Map<String, List<AssociatedDataKey>> localeSeparatedKeys = separateAssociatedDataKeysByLocale(locales, associatedDataKeys);
+
+				final List<AssociatedDataKey> globalAssociatedData = localeSeparatedKeys.remove(SectionedAssociatedDataDescriptor.GLOBAL.name());
+				if (!globalAssociatedData.isEmpty()) {
+					associatedDataDto.e(SectionedAssociatedDataDescriptor.GLOBAL.name(), createAssociatedDataOfLangDto(associatedData, globalAssociatedData, null));
+				}
+
+				final MapBuilder localizedAssociatedDataBuilder = map();
+				for (Entry<String, List<AssociatedDataKey>> entry : localeSeparatedKeys.entrySet()) {
+					final MapBuilder associatedDataForLocale = createAssociatedDataOfLangDto(associatedData, entry.getValue(), Locale.forLanguageTag(entry.getKey()));
+					if (!associatedDataForLocale.isEmpty()) {
+						localizedAssociatedDataBuilder.e(entry.getKey(), associatedDataForLocale);
+					}
+				}
+				if (!localizedAssociatedDataBuilder.isEmpty()) {
+					associatedDataDto.e(SectionedAssociatedDataDescriptor.LOCALIZED.name(), localizedAssociatedDataBuilder);
+				}
+			}
+
+			parentDto.e(EntityDescriptor.ASSOCIATED_DATA.name(), associatedDataDto);
+		}
+	}
+
+	private MapBuilder createAssociatedDataOfLangDto(@Nonnull AssociatedDataContract associatedData,
+	                                                 @Nonnull Collection<AssociatedDataKey> associatedDataKeys,
+	                                                 @Nullable Locale locale) {
+		final MapBuilder dto = map();
+		associatedDataKeys.forEach(associatedDataKey -> {
+			final Optional<AssociatedDataValue> associatedDataValue;
+			if (associatedDataKey.localized()) {
+				Assert.isPremiseValid(
+					locale != null,
+					"Locale must be provided for localized associated data key."
+				);
+				associatedDataValue = associatedData.getAssociatedDataValue(associatedDataKey.associatedDataName(), locale);
+			} else {
+				associatedDataValue = associatedData.getAssociatedDataValue(associatedDataKey.associatedDataName());
+			}
+
+			if (associatedDataValue.isPresent()) {
+				dto.e(associatedDataKey.associatedDataName(), serializeToJsonValue(associatedDataValue.get().value()));
+			} else {
+				dto.e(associatedDataKey.associatedDataName(), null);
+			}
+		});
+		return dto;
+	}
+
+	private void createPricesDto(@Nonnull MapBuilder entityDto,
+	                             @Nonnull EntityContract entity) {
+		if (entity.pricesAvailable()) {
+			if (!entity.getPrices().isEmpty()) {
+				entityDto.e(
+					EntityDescriptor.PRICES.name(),
+					entity.getPrices()
+						.stream()
+						.map(price -> createEntityPriceDto(price).build())
+						.toList()
+				);
+			}
+
+			entity.getPriceForSaleIfAvailable()
+				.ifPresent(price -> entityDto.e(EntityDescriptor.PRICE_FOR_SALE.name(), createEntityPriceDto(price)));
+		}
 	}
 
 	@Nonnull
-	protected Map<String, Object> createPriceForSaleDto(@Nonnull SealedEntity entity, @Nonnull Currency currency, @Nonnull String priceList) {
-		final PriceContract price = entity.getPriceForSale(currency, null, priceList).orElseThrow();
+	private MapBuilder createEntityPriceDto(@Nonnull PriceContract price) {
 		return map()
 			.e(PriceDescriptor.PRICE_ID.name(), price.priceId())
-			.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-			.e(PriceDescriptor.CURRENCY.name(), currency.toString())
+			.e(PriceDescriptor.PRICE_LIST.name(), price.priceList())
+			.e(PriceDescriptor.CURRENCY.name(), price.currencyCode())
 			.e(PriceDescriptor.INNER_RECORD_ID.name(), price.innerRecordId())
 			.e(PriceDescriptor.SELLABLE.name(), price.sellable())
 			.e(PriceDescriptor.PRICE_WITHOUT_TAX.name(), price.priceWithoutTax().toString())
 			.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString())
 			.e(PriceDescriptor.TAX_RATE.name(), price.taxRate().toString())
-			.e(PriceDescriptor.VALIDITY.name(), convertRangeIntoArrayList(price.validity()))
-			.build();
+			.e(PriceDescriptor.VALIDITY.name(), Optional.ofNullable(price.validity())
+				.map(this::serializeToJsonValue)
+				.orElse(null));
 	}
 
-	@Nullable
-	protected List<String> convertRangeIntoArrayList(@Nullable Range<?> range) {
-		if (range == null) {
-			return null;
+	private void createReferencesDto(@Nonnull MapBuilder entityDto,
+	                                 @Nonnull SealedEntity entity,
+	                                 boolean localized) {
+		if (entity.referencesAvailable() && !entity.getReferences().isEmpty()) {
+			entity.getReferences()
+				.stream()
+				.map(ReferenceContract::getReferenceName)
+				.collect(Collectors.toCollection(TreeSet::new))
+				.forEach(it -> createReferencesOfNameDto(entityDto, entity, it, localized));
 		}
-
-		final ArrayNode serializedRange = (ArrayNode) jsonSerializer.serializeObject(range);
-		final ArrayList<String> listOfValues = new ArrayList<>(2);
-		listOfValues.add(serializedRange.get(0).textValue());
-		listOfValues.add(serializedRange.get(1).textValue());
-		return listOfValues;
 	}
 
-	@Nonnull
-	protected Map<String, Object> createEntityDtoWithPrice(@Nonnull SealedEntity entity) {
-		return map()
-			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-			.e(EntityDescriptor.PRICE.name(), map()
-				.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
-				.e(PriceDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
-				.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-				.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax().toString())
-				.build())
-			.build();
-	}
+	private void createReferencesOfNameDto(@Nonnull MapBuilder entityDto,
+	                                       @Nonnull SealedEntity entity,
+	                                       @Nonnull String referenceName,
+	                                       boolean localized) {
+		final Collection<ReferenceContract> groupedReferences = entity.getReferences(referenceName);
+		final Optional<ReferenceContract> anyReferenceFound = groupedReferences.stream().findFirst();
+		if (anyReferenceFound.isPresent()) {
+			final ReferenceContract firstReference = anyReferenceFound.get();
+			final String nodeReferenceName = firstReference.getReferenceSchema()
+				.map(it -> it.getNameVariant(NamingConvention.CAMEL_CASE))
+				.orElse(referenceName);
 
-	@Nonnull
-	protected Map<String, Object> createEntityDtoWithAssociatedData(@Nonnull SealedEntity entity, @Nonnull Locale requestedLocale,
-	                                                                @Nonnull boolean distinguishLocalizedData) {
-		final ArrayList<Object> entityLocales = new ArrayList<>(1);
-		entityLocales.add(entity.getLocales().stream().filter(locale -> locale.equals(requestedLocale)).findFirst().orElseThrow().toLanguageTag());
+			if (firstReference.getReferenceCardinality() == Cardinality.EXACTLY_ONE ||
+				firstReference.getReferenceCardinality() == Cardinality.ZERO_OR_ONE) {
+				Assert.isPremiseValid(groupedReferences.size() == 1, "Reference cardinality is: " +
+					firstReference.getReferenceCardinality() + " but found " + groupedReferences.size() +
+					" references with same name: " + referenceName);
 
-		final Map<String, Object> associatedData;
-		if (distinguishLocalizedData) {
-			associatedData = map()
-				.e(SectionedAssociatedDataDescriptor.LOCALIZED.name(), map()
-					.e(Locale.ENGLISH.toLanguageTag(), map()
-						.e(ASSOCIATED_DATA_LABELS, map()
-							.build())
-						.build())
-					.build())
-				.build();
-		} else {
-			associatedData = map()
-				.e(ASSOCIATED_DATA_LABELS, map()
-					.build())
-				.build();
-		}
-
-		return map()
-			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-			.e(EntityDescriptor.LOCALES.name(), entityLocales)
-			.e(EntityDescriptor.ALL_LOCALES.name(), entity.getAllLocales().stream().map(Locale::toLanguageTag).toList())
-			.e(EntityDescriptor.ASSOCIATED_DATA.name(), associatedData)
-			.build();
-	}
-
-	/**
-	 * Creates reference DTO - this method can be used when reference {@link io.evitadb.api.requestResponse.schema.Cardinality}
-	 * is ZERO_OR_MORE or ONE_OR_MORE
-	 */
-	@Nonnull
-	protected List<Map<String, Object>> createReferencesDto(@Nonnull SealedEntity entity,
-	                                                        @Nonnull String entityName,
-															boolean withReferencedEntityBody,
-	                                                        boolean withLocales,
-	                                                        @Nullable String[] referenceAttributes) {
-		final Collection<ReferenceContract> referenceContracts = entity.getReferences(entityName);
-		return referenceContracts.stream()
-			.map(reference -> createSingleReferenceDto(reference, withReferencedEntityBody, withLocales, referenceAttributes).build())
-			.toList();
-	}
-
-	/**
-	 * Creates reference DTO - this method can be used when reference {@link io.evitadb.api.requestResponse.schema.Cardinality}
-	 * is ZERO_OR_MORE or ONE_OR_MORE
-	 */
-	@Nonnull
-	protected List<Map<String, Object>> createReferencesDto(@Nonnull List<ReferenceContract> referenceContracts,
-	                                                        boolean withReferencedEntityBody,
-	                                                        boolean withLocales,
-	                                                        @Nullable String[] referenceAttributes) {
-		return referenceContracts.stream()
-			.map(reference -> createSingleReferenceDto(reference, withReferencedEntityBody, withLocales, referenceAttributes).build())
-			.toList();
-	}
-
-	/**
-	 * Creates single reference DTO - this method can be used when reference {@link io.evitadb.api.requestResponse.schema.Cardinality}
-	 * is EXACTLY_ONE or ZERO_OR_ONE
-	 */
-	@Nonnull
-	protected MapBuilder createReferenceDto(@Nonnull SealedEntity entity,
-	                                        @Nonnull String entityName,
-	                                        boolean withReferencedEntityBody,
-	                                        boolean withLocales,
-	                                        @Nullable String[] referenceAttributes) {
-		final Collection<ReferenceContract> referenceContracts = entity.getReferences(entityName);
-		final ReferenceContract reference = referenceContracts.stream().findFirst().orElseThrow();
-
-		return createSingleReferenceDto(reference, withReferencedEntityBody, withLocales, referenceAttributes);
-	}
-
-	protected Map<String, ?> createEntityAttributes(@Nonnull EntityContract entity, boolean distinguishLocalized, @Nullable Locale locale) {
-		if (!entity.getAttributeKeys().isEmpty()) {
-			if (distinguishLocalized) {
-				final MapBuilder attributesMap = map();
-
-				final Map<String, List<AttributeKey>> localeSeparatedKeys = separateAttributeKeysByLocale(entity, entity.getAttributeKeys());
-
-				final List<AttributesContract.AttributeKey> globalAttributes = localeSeparatedKeys.remove(SectionedAttributesDescriptor.GLOBAL.name());
-				if (!globalAttributes.isEmpty()) {
-					attributesMap.e(SectionedAttributesDescriptor.GLOBAL.name(), createAttributesMap(entity, globalAttributes, locale));
-				}
-
-				final MapBuilder localizedAttributesBuilder = map();
-				for (Entry<String, List<AttributeKey>> entry : localeSeparatedKeys.entrySet()) {
-					final Map<String, Object> localized = createAttributesMap(entity, entry.getValue(), locale);
-					if (!localized.isEmpty() && (locale == null || locale.toLanguageTag().equals(entry.getKey()))) {
-						localizedAttributesBuilder.e(entry.getKey(), localized);
-					}
-				}
-				final Map<String, Object> localizedAttributesMap = localizedAttributesBuilder.build();
-				if (!localizedAttributesMap.isEmpty()) {
-					attributesMap.e(SectionedAttributesDescriptor.LOCALIZED.name(), localizedAttributesMap);
-				}
-				return attributesMap.build();
+				entityDto.e(nodeReferenceName, createReferenceDto(entity.getLocales(), firstReference, localized));
 			} else {
-				final Set<AttributeKey> attributeKeys = entity.getAttributeKeys();
-				return createAttributesMap(entity, attributeKeys, locale);
+				entityDto.e(
+					nodeReferenceName,
+					groupedReferences.stream()
+						.map(it -> createReferenceDto(entity.getLocales(), it, localized).build())
+						.toList()
+				);
 			}
-		} else {
-			return map().build();
 		}
 	}
 
-	protected Map<String, Object> createAttributesMap(@Nonnull EntityContract entity, @Nonnull Collection<AttributesContract.AttributeKey> attributeKeys,
-	                                                  @Nonnull Locale locale) {
-		final MapBuilder attributesMap = map();
-		attributeKeys.forEach(attributeKey -> {
-			final Optional<AttributeValue> attributeValue = attributeKey.localized() ?
-				entity.getAttributeValue(attributeKey.attributeName(), locale) :
-				entity.getAttributeValue(attributeKey.attributeName());
-			if (attributeValue.isPresent()) {
-				attributesMap.e(attributeKey.attributeName(), serializeToJsonValue(attributeValue.get().value()));
-			} else {
-				attributesMap.e(attributeKey.attributeName(), null);
-			}
-		});
-		return attributesMap.build();
-	}
-
-	protected MapBuilder createSingleReferenceDto(@Nonnull ReferenceContract reference,
-	                                              boolean withReferencedEntityBody,
-	                                              boolean withLocales,
-	                                              @Nullable String[] referenceAttributes) {
-
-
-		final MapBuilder referenceBuilder = map()
+	@Nonnull
+	private MapBuilder createReferenceDto(@Nonnull Set<Locale> locales, @Nonnull ReferenceContract reference, boolean localized) {
+		final MapBuilder dto = map()
 			.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), reference.getReferencedPrimaryKey());
 
-		if (referenceAttributes == null || referenceAttributes.length > 0) {
-			referenceBuilder.e(ReferenceDescriptor.ATTRIBUTES.name(), convertAttributesIntoMap(reference, referenceAttributes));
-		}
+		reference.getReferencedEntity()
+			.ifPresent(entity -> dto.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), createEntityDto(entity, localized)));
 
-		if (withReferencedEntityBody) {
-			final MapBuilder referenceAttributesBuilder = map()
-				.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey())
-				.e(EntityDescriptor.TYPE.name(), reference.getReferencedEntityType());
-			if (withLocales) {
-				referenceAttributesBuilder
-					.e(EntityDescriptor.ALL_LOCALES.name(), Arrays.asList(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()));
-			}
-			referenceBuilder.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), referenceAttributesBuilder);
-		}
+		reference.getGroupEntity()
+			.map(it -> (EntityClassifier) it)
+			.or(reference::getGroup)
+			.ifPresent(groupEntity -> dto.e(ReferenceDescriptor.GROUP_ENTITY.name(), createEntityDto(groupEntity, localized)));
 
-		return referenceBuilder;
-	}
-
-	protected MapBuilder convertAttributesIntoMap(@Nonnull ReferenceContract reference, @Nullable String[] referenceAttributes) {
-		final MapBuilder attrsMap = map();
-		reference.getAttributeValues()
-			.stream()
-			.filter(it -> referenceAttributes == null || Arrays.asList(referenceAttributes).contains(it.key().attributeName()))
-			.forEach(attributeValue ->
-				attrsMap.e(attributeValue.key().attributeName(), serializeToJsonValue(attributeValue.value())));
-		return attrsMap;
-	}
-
-
-	@Nonnull
-	protected MapBuilder createEntityDto(@Nonnull EntityClassifier entityClassifier, @Nonnull Locale... expectedLocales) {
-		final MapBuilder dto = map()
-			.e(EntityDescriptor.PRIMARY_KEY.name(), entityClassifier.getPrimaryKey())
-			.e(EntityDescriptor.TYPE.name(), entityClassifier.getType());
-
-		if (entityClassifier instanceof EntityContract entity) {
-			final List<String> locales = Arrays.stream(expectedLocales).map(Locale::toLanguageTag).toList();
-			if (!locales.isEmpty()) {
-				dto.e(EntityDescriptor.LOCALES.name(), locales);
-			}
-			final List<String> allLocales = entity.getAllLocales().stream().map(Locale::toLanguageTag).toList();
-			if (!allLocales.isEmpty()) {
-				dto.e(EntityDescriptor.ALL_LOCALES.name(), allLocales);
-			}
-		}
+		createAttributesDto(dto, locales, reference, localized);
 
 		return dto;
-	}
-
-	@Nonnull
-	protected MapBuilder createEntityWithSelfParentsDto(@Nonnull SealedEntity hierarchicalEntity, boolean withBody, @Nonnull Locale... expectedLocales) {
-		final MapBuilder dto = map()
-			.e(EntityDescriptor.PRIMARY_KEY.name(), hierarchicalEntity.getPrimaryKey())
-			.e(EntityDescriptor.TYPE.name(), hierarchicalEntity.getType());
-
-		if (hierarchicalEntity.parentAvailable()) {
-			hierarchicalEntity.getParent()
-				.ifPresent(pk -> dto.e(RestEntityDescriptor.PARENT.name(), pk));
-			hierarchicalEntity.getParentEntity()
-				.ifPresent(parent -> dto.e(RestEntityDescriptor.PARENT_ENTITY.name(), createParentEntityDto(parent, withBody)));
-		}
-
-		final List<String> locales = Arrays.stream(expectedLocales).map(Locale::toLanguageTag).toList();
-		if (!locales.isEmpty()) {
-			dto.e(EntityDescriptor.LOCALES.name(), locales);
-		}
-		final List<String> allLocales = hierarchicalEntity.getAllLocales().stream().map(Locale::toLanguageTag).toList();
-		if (!allLocales.isEmpty()) {
-			dto.e(EntityDescriptor.ALL_LOCALES.name(), allLocales);
-		}
-
-		return dto;
-	}
-
-	@Nonnull
-	protected MapBuilder createParentEntityDto(@Nonnull EntityClassifierWithParent entityClassifier, boolean withBody) {
-		final MapBuilder dto = map()
-			.e(EntityDescriptor.PRIMARY_KEY.name(), entityClassifier.getPrimaryKey())
-			.e(EntityDescriptor.TYPE.name(), entityClassifier.getType());
-
-		if (withBody) {
-			final SealedEntity entity = (SealedEntity) entityClassifier;
-			entity.getParent().ifPresent(pk -> dto.e(RestEntityDescriptor.PARENT.name(), pk));
-		}
-
-		entityClassifier.getParentEntity().ifPresent(parent -> dto.e(RestEntityDescriptor.PARENT_ENTITY.name(), createParentEntityDto(parent, withBody)));
-
-		if (withBody) {
-			final SealedEntity entity = (SealedEntity) entityClassifier;
-			dto
-				.e(EntityDescriptor.ALL_LOCALES.name(), entity.getAllLocales().stream().map(Locale::toLanguageTag).toList())
-				.e(RestEntityDescriptor.ATTRIBUTES.name(), map()
-					.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
-						.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))));
-		}
-
-		return dto;
-	}
-
-	@Nonnull
-	protected MapBuilder createEntityWithReferencedParentsDto(@Nonnull SealedEntity entity,
-	                                                          @Nonnull String referenceName,
-	                                                          boolean withBody,
-	                                                          @Nullable String[] referenceAttributes) {
-
-		return map()
-			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-			.e(EntityDescriptor.TYPE.name(), entity.getType())
-			.e(EntityDescriptor.ALL_LOCALES.name(), entity.getAllLocales().stream().map(Locale::toLanguageTag).toList())
-			.e(StringUtils.toCamelCase(referenceName), entity.getReferences(referenceName)
-				.stream()
-				.map(it -> {
-					final SealedEntity referencedEntity = it.getReferencedEntity().orElseThrow();
-					final MapBuilder builder = map()
-						.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), it.getReferencedPrimaryKey())
-						.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), createEntityWithSelfParentsDto(referencedEntity, withBody));
-					if (referenceAttributes != null && referenceAttributes.length > 0) {
-						builder.e(ReferenceDescriptor.ATTRIBUTES.name(), convertAttributesIntoMap(it, referenceAttributes));
-					}
-					return builder.build();
-				})
-				.toList());
 	}
 }

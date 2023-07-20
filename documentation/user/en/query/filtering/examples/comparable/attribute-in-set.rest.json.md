@@ -5,6 +5,7 @@
       {
         "primaryKey" : 108315,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -17,6 +18,7 @@
       {
         "primaryKey" : 108335,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -29,6 +31,7 @@
       {
         "primaryKey" : 108434,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],

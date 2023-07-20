@@ -358,22 +358,24 @@ public class PrettyPrintingVisitor implements ConstraintVisitor {
 	}
 
 	private void printLeaf(Constraint<?> constraint) {
-		final Serializable[] arguments = constraint.getArguments();
-		for (int i = 0; i < arguments.length; i++) {
-			final Serializable argument = arguments[i];
+		if (constraint.isApplicable()) {
+			final Serializable[] arguments = constraint.getArguments();
+			for (int i = 0; i < arguments.length; i++) {
+				final Serializable argument = arguments[i];
 
-			if (constraint instanceof ConstraintWithSuffix cws && cws.isArgumentImplicitForSuffix(argument)) {
-				continue;
-			}
+				if (constraint instanceof ConstraintWithSuffix cws && cws.isArgumentImplicitForSuffix(argument)) {
+					continue;
+				}
 
-			if (extractParameters) {
-				result.append('?');
-				ofNullable(parameters).ifPresent(it -> it.add(argument));
-			} else {
-				result.append(BaseConstraint.convertToString(argument));
-			}
-			if (i + 1 < arguments.length) {
-				result.append(", ");
+				if (extractParameters) {
+					result.append('?');
+					ofNullable(parameters).ifPresent(it -> it.add(argument));
+				} else {
+					result.append(BaseConstraint.convertToString(argument));
+				}
+				if (i + 1 < arguments.length) {
+					result.append(", ");
+				}
 			}
 		}
 		result.append(ARG_CLOSING);

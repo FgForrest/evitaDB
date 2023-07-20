@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
@@ -67,11 +68,14 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return unknown entity by globally unique attribute")
-	void shouldReturnUnknownEntityByGloballyUniqueAttribute(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnUnknownEntityByGloballyUniqueAttribute(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final String codeAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE);
-		final SealedEntity entityWithCode = findEntity(
-			originalProductEntities,
-			it -> Objects.equals(it.getAttribute(ATTRIBUTE_CODE), codeAttribute)
+
+		final EntityClassifier entity = getEntity(
+			evita,
+			query(
+				filterBy(attributeEquals(ATTRIBUTE_CODE, codeAttribute))
+			)
 		);
 
 		tester.test(TEST_CATALOG)
@@ -95,7 +99,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 				equalTo(
 					map()
 						.e(TYPENAME_FIELD, EntityDescriptor.THIS_GLOBAL.name())
-						.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithCode.getPrimaryKey())
+						.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 						.build()
 				)
@@ -104,12 +108,65 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return version with entity")
+	void shouldReturnVersionWithEntity(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final String codeAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE);
+
+		final SealedEntity entity = getEntity(
+			evita,
+			query(
+				filterBy(attributeEquals(ATTRIBUTE_CODE, codeAttribute)),
+				require(page(1, 1), entityFetch())
+			),
+			SealedEntity.class
+		);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    getEntity(code: "%s") {
+	                        primaryKey
+	                        type
+	                        version
+	                    }
+	                }
+					""",
+				codeAttribute
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				GET_ENTITY_PATH,
+				equalTo(
+					map()
+						.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+						.e(EntityDescriptor.VERSION.name(), entity.version())
+						.build()
+				)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return rich unknown entity by localized globally unique attribute")
-	void shouldReturnRichUnknownEntityByLocalizedGloballyUniqueAttribute(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnRichUnknownEntityByLocalizedGloballyUniqueAttribute(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final String urlAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_URL, Locale.ENGLISH);
-		final SealedEntity entityWithUrl = findEntity(
-			originalProductEntities,
-			it -> Objects.equals(it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH), urlAttribute)
+
+		final SealedEntity entity = getEntity(
+			evita,
+			query(
+				filterBy(
+					attributeEquals(ATTRIBUTE_URL, urlAttribute),
+					entityLocaleEquals(Locale.ENGLISH)
+				),
+				require(
+					entityFetch()
+				)
+			),
+			SealedEntity.class
 		);
 
 		tester.test(TEST_CATALOG)
@@ -137,10 +194,10 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 				GET_ENTITY_PATH,
 				equalTo(
 					map()
-						.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithUrl.getPrimaryKey())
+						.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 						.e(EntityDescriptor.LOCALES.name(), List.of(Locale.ENGLISH.toLanguageTag()))
-						.e(EntityDescriptor.ALL_LOCALES.name(), entityWithUrl.getAllLocales().stream().filter(Objects::nonNull).map(it -> it.toLanguageTag()).toList())
+						.e(EntityDescriptor.ALL_LOCALES.name(), entity.getAllLocales().stream().filter(Objects::nonNull).map(Locale::toLanguageTag).toList())
 						.e(EntityDescriptor.ATTRIBUTES.name(), map()
 							.e(TYPENAME_FIELD, AttributesDescriptor.THIS_GLOBAL.name())
 							.e(ATTRIBUTE_URL, urlAttribute)
@@ -153,12 +210,24 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return localized rich unknown entity by non-localized globally unique attribute")
-	void shouldReturnLocalizedRichUnknownEntityByNonLocalizedGloballyUniqueAttribute(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnLocalizedRichUnknownEntityByNonLocalizedGloballyUniqueAttribute(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final String codeAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE);
-		final SealedEntity entityWithCodeAndUrl = findEntity(
-			originalProductEntities,
-			it -> Objects.equals(it.getAttribute(ATTRIBUTE_CODE), codeAttribute) &&
-				it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH) != null
+
+		final SealedEntity entity = getEntity(
+			evita,
+			query(
+				filterBy(
+					attributeEquals(ATTRIBUTE_CODE, codeAttribute),
+					entityLocaleEquals(Locale.ENGLISH),
+					attributeIsNotNull(ATTRIBUTE_URL)
+				),
+				require(
+					entityFetch(
+						attributeContent(ATTRIBUTE_CODE, ATTRIBUTE_URL)
+					)
+				)
+			),
+			SealedEntity.class
 		);
 
 		tester.test(TEST_CATALOG)
@@ -187,14 +256,14 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 				GET_ENTITY_PATH,
 				equalTo(
 					map()
-						.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithCodeAndUrl.getPrimaryKey())
+						.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 						.e(EntityDescriptor.LOCALES.name(), List.of(Locale.ENGLISH.toLanguageTag()))
-						.e(EntityDescriptor.ALL_LOCALES.name(), entityWithCodeAndUrl.getAllLocales().stream().filter(Objects::nonNull).map(it -> it.toLanguageTag()).toList())
+						.e(EntityDescriptor.ALL_LOCALES.name(), entity.getAllLocales().stream().filter(Objects::nonNull).map(Locale::toLanguageTag).toList())
 						.e(EntityDescriptor.ATTRIBUTES.name(), map()
 							.e(TYPENAME_FIELD, AttributesDescriptor.THIS_GLOBAL.name())
 							.e(ATTRIBUTE_CODE, codeAttribute)
-							.e(ATTRIBUTE_URL, entityWithCodeAndUrl.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH))
+							.e(ATTRIBUTE_URL, entity.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH))
 							.build())
 						.build()
 				)
@@ -204,13 +273,25 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return entity with multiple different global attributes")
-	void shouldReturnUnknownEntityWithMultipleDifferentGlobalAttributes(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnUnknownEntityWithMultipleDifferentGlobalAttributes(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final String urlAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_URL, Locale.ENGLISH);
-		final SealedEntity entity = findEntity(
-			originalProductEntities,
-			it -> Objects.equals(it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH), urlAttribute)
+
+		final SealedEntity entity = getEntity(
+			evita,
+			query(
+				filterBy(
+					attributeEquals(ATTRIBUTE_URL, urlAttribute),
+					entityLocaleEquals(Locale.ENGLISH),
+					attributeIsNotNull(ATTRIBUTE_CODE)
+				),
+				require(
+					entityFetch(
+						attributeContent(ATTRIBUTE_CODE, ATTRIBUTE_URL)
+					)
+				)
+			),
+			SealedEntity.class
 		);
-		final String codeAttribute = entity.getAttribute(ATTRIBUTE_CODE);
 
 		tester.test(TEST_CATALOG)
 			.document(
@@ -222,7 +303,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 	                }
 					""",
 				urlAttribute,
-				codeAttribute
+				entity.getAttribute(ATTRIBUTE_CODE)
 			)
 			.executeAndThen()
 			.statusCode(200)
@@ -240,11 +321,21 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return entity by multiple different global attributes")
-	void shouldReturnUnknownEntityByMultipleDifferentGlobalAttributes(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnUnknownEntityByMultipleDifferentGlobalAttributes(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final String urlAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_URL, Locale.ENGLISH);
-		final SealedEntity entity = findEntity(
-			originalProductEntities,
-			it -> Objects.equals(it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH), urlAttribute)
+
+		final SealedEntity entity = getEntity(
+			evita,
+			query(
+				filterBy(
+					attributeEquals(ATTRIBUTE_URL, urlAttribute),
+					entityLocaleEquals(Locale.ENGLISH)
+				),
+				require(
+					entityFetch()
+				)
+			),
+			SealedEntity.class
 		);
 
 		tester.test(TEST_CATALOG)
@@ -312,14 +403,5 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, hasSize(greaterThan(0)));
-	}
-
-	@Nonnull
-	private SealedEntity findEntity(@Nonnull List<SealedEntity> originalProductEntities,
-	                                @Nonnull Predicate<SealedEntity> filter) {
-		return originalProductEntities.stream()
-			.filter(filter)
-			.findFirst()
-			.orElseThrow(() -> new EvitaInternalError("No entity to test."));
 	}
 }
