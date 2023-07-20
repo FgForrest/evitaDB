@@ -184,6 +184,62 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return product version")
+	void shouldReturnProductVersions(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final List<SealedEntity> entities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					attributeIsNotNull(ATTRIBUTE_CODE)
+				),
+				require(
+					page(1, 2),
+					entityFetch()
+				)
+			),
+			SealedEntity.class
+		);
+
+		final var expectedBody = entities.stream()
+			.map(entity ->
+				map()
+					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+					.e(EntityDescriptor.VERSION.name(), entity.version())
+					.build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            entityPrimaryKeyInSet: [%d, %d]
+	                        }
+	                    ) {
+	                        recordPage {
+	                            data {
+	                                primaryKey
+			                        type
+			                        version
+	                            }
+	                        }
+	                    }
+	                }
+					""",
+				entities.get(0).getPrimaryKey(),
+				entities.get(1).getPrimaryKey()
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_QUERY_DATA_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by non-localized attribute")
 	void shouldReturnProductsByNonLocalizedAttribute(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(

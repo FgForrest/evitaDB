@@ -31,6 +31,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.EvitaSessionManagingInstrumentation;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.tester.GraphQLTester;
@@ -112,6 +113,48 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 							.e(TYPENAME_FIELD, AttributesDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 							.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE, String.class))
 							.build())
+						.build()
+				)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return version for product")
+	void shouldReturnVersionForProduct(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final SealedEntity entity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(attributeIsNotNull(ATTRIBUTE_CODE)),
+				require(page(1, 1), entityFetch())
+			),
+			SealedEntity.class
+		);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    getProduct(primaryKey: %d) {
+	                        primaryKey
+	                        type
+	                        version
+	                    }
+	                }
+					""",
+				entity.getPrimaryKey()
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				GET_PRODUCT_PATH,
+				equalTo(
+					map()
+						.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+						.e(EntityDescriptor.VERSION.name(), entity.version())
 						.build()
 				)
 			);

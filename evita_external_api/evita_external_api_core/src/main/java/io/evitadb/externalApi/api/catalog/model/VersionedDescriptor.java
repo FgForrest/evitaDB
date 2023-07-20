@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.schemaApi.model;
+package io.evitadb.externalApi.api.catalog.model;
 
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;

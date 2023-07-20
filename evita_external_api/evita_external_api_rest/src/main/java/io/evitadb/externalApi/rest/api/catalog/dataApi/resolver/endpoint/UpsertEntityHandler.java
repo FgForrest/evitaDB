@@ -27,7 +27,7 @@ import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.Require;
-import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
@@ -57,7 +57,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class UpsertEntityHandler extends EntityHandler<SealedEntity, CollectionRestHandlingContext> {
+public class UpsertEntityHandler extends EntityHandler<EntityClassifier, CollectionRestHandlingContext> {
 
 	@Nonnull private final RestEntityUpsertMutationConverter mutationResolver;
 	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
@@ -85,7 +85,7 @@ public class UpsertEntityHandler extends EntityHandler<SealedEntity, CollectionR
 
 	@Override
 	@Nonnull
-	protected EndpointResponse<SealedEntity> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected EndpointResponse<EntityClassifier> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final UpsertEntityUpsertRequestDto requestData = parseRequestBody(exchange, UpsertEntityUpsertRequestDto.class);
 
 		if (withPrimaryKeyInPath) {
@@ -108,7 +108,9 @@ public class UpsertEntityHandler extends EntityHandler<SealedEntity, CollectionR
 
 		final EntityContentRequire[] requires = getEntityContentRequires(requestData).orElse(null);
 
-		final SealedEntity upsertedEntity = exchange.session().upsertAndFetchEntity(entityMutation, requires);
+		final EntityClassifier upsertedEntity = requestData.getRequire().isPresent()
+			? exchange.session().upsertAndFetchEntity(entityMutation, requires)
+			: exchange.session().upsertEntity(entityMutation);
 
 		return new SuccessEndpointResponse<>(upsertedEntity);
 	}

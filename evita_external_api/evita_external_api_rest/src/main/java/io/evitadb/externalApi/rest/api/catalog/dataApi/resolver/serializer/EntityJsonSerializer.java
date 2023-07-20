@@ -26,8 +26,10 @@ package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
+import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -36,7 +38,7 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.AssociatedData;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.RestEntityDescriptor;
@@ -51,6 +53,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.stream.Collectors;
 
 /**
  * Handles serializing of Evita entity into JSON structure
@@ -104,8 +107,8 @@ public class EntityJsonSerializer {
 		final ObjectNode rootNode = serializeEntityClassifier(entityClassifier);
 		if (entityClassifier instanceof EntityContract entity) {
 			serializeEntityBody(rootNode, entity);
-			serializeEntityAttributes(rootNode, entity);
-			serializeEntityAssociatedData(rootNode, entity);
+			serializeAttributes(rootNode, entity.getLocales(), entity);
+			serializeAssociatedData(rootNode, entity.getLocales(), entity);
 			serializePrices(rootNode, entity);
 			serializeReferences(rootNode, entity);
 		} else if (entityClassifier instanceof EntityClassifierWithParent entity) {
@@ -127,6 +130,7 @@ public class EntityJsonSerializer {
 	 * Serialize body of entity
 	 */
 	private void serializeEntityBody(@Nonnull ObjectNode rootNode, @Nonnull EntityContract entity) {
+		rootNode.put(RestEntityDescriptor.VERSION.name(), entity.version());
 		entity.getParent().ifPresent(pk -> rootNode.put(RestEntityDescriptor.PARENT.name(), pk));
 		entity.getParentEntity().ifPresent(parent -> rootNode.putIfAbsent(RestEntityDescriptor.PARENT_ENTITY.name(), serialize(parent)));
 
@@ -145,27 +149,29 @@ public class EntityJsonSerializer {
 	/**
 	 * Serialize attributes
 	 */
-	private void serializeEntityAttributes(@Nonnull ObjectNode rootNode, @Nonnull EntityContract entity) {
-		if (!entity.getAttributeKeys().isEmpty()) {
+	private void serializeAttributes(@Nonnull ObjectNode rootNode,
+	                                 @Nonnull Set<Locale> locales,
+	                                 @Nonnull AttributesContract attributes) {
+		if (!attributes.getAttributeKeys().isEmpty()) {
 			final ObjectNode attributesNode = objectJsonSerializer.objectNode();
 			rootNode.putIfAbsent(RestEntityDescriptor.ATTRIBUTES.name(), attributesNode);
-			final Set<AttributeKey> attributeKeys = entity.getAttributeKeys();
+			final Set<AttributeKey> attributeKeys = attributes.getAttributeKeys();
 			if (restHandlingContext.isLocalized()) {
-				writeAttributesIntoNode(attributesNode, attributeKeys, entity);
+				writeAttributesIntoNode(attributesNode, attributeKeys, attributes);
 			} else {
-				final Map<String, List<AttributeKey>> localeSeparatedKeys = separateAttributeKeysByLocale(entity, attributeKeys);
+				final Map<String, List<AttributeKey>> localeSeparatedKeys = separateAttributeKeysByLocale(locales, attributeKeys);
 
 				final List<AttributeKey> globalAttributes = localeSeparatedKeys.remove(SectionedAttributesDescriptor.GLOBAL.name());
 				if(!globalAttributes.isEmpty()) {
 					final ObjectNode globalNode = objectJsonSerializer.objectNode();
 					attributesNode.putIfAbsent(SectionedAttributesDescriptor.GLOBAL.name(), globalNode);
-					writeAttributesIntoNode(globalNode, globalAttributes, entity);
+					writeAttributesIntoNode(globalNode, globalAttributes, attributes);
 				}
 
 				final ObjectNode localizedNode = objectJsonSerializer.objectNode();
 				for (Entry<String, List<AttributeKey>> entry : localeSeparatedKeys.entrySet()) {
 					final ObjectNode langNode = objectJsonSerializer.objectNode();
-					writeAttributesIntoNode(langNode, entry.getValue(), entity);
+					writeAttributesIntoNode(langNode, entry.getValue(), attributes);
 					if(!langNode.isEmpty()) {
 						localizedNode.putIfAbsent(entry.getKey(), langNode);
 					}
@@ -180,26 +186,28 @@ public class EntityJsonSerializer {
 	/**
 	 * Serialize associated data
 	 */
-	private void serializeEntityAssociatedData(@Nonnull ObjectNode rootNode, @Nonnull EntityContract entity) {
-		if (!entity.getAssociatedDataKeys().isEmpty()) {
+	private void serializeAssociatedData(@Nonnull ObjectNode rootNode,
+	                                     @Nonnull Set<Locale> locales,
+	                                     @Nonnull AssociatedDataContract associatedData) {
+		if (!associatedData.getAssociatedDataKeys().isEmpty()) {
 			final ObjectNode associatedDataNode = objectJsonSerializer.objectNode();
-			final Set<AssociatedDataKey> associatedDataKeys = entity.getAssociatedDataKeys();
+			final Set<AssociatedDataKey> associatedDataKeys = associatedData.getAssociatedDataKeys();
 			if (restHandlingContext.isLocalized()) {
-				writeAssociatedDataIntoNode(associatedDataNode, associatedDataKeys, entity);
+				writeAssociatedDataIntoNode(associatedDataNode, associatedDataKeys, associatedData);
 			} else {
-				final Map<String, List<AssociatedDataKey>> localeSeparatedKeys = separateAssociatedDataKeysByLocale(entity, associatedDataKeys);
+				final Map<String, List<AssociatedDataKey>> localeSeparatedKeys = separateAssociatedDataKeysByLocale(locales, associatedDataKeys);
 
 				final List<AssociatedDataKey> globalAssociatedData = localeSeparatedKeys.remove(SectionedAssociatedDataDescriptor.GLOBAL.name());
 				if(!globalAssociatedData.isEmpty()) {
 					final ObjectNode globalNode = objectJsonSerializer.objectNode();
 					associatedDataNode.putIfAbsent(SectionedAssociatedDataDescriptor.GLOBAL.name(), globalNode);
-					writeAssociatedDataIntoNode(globalNode, globalAssociatedData, entity);
+					writeAssociatedDataIntoNode(globalNode, globalAssociatedData, associatedData);
 				}
 
 				final ObjectNode localizedNode = objectJsonSerializer.objectNode();
 				for (Entry<String, List<AssociatedDataKey>> entry : localeSeparatedKeys.entrySet()) {
 					final ObjectNode langNode = objectJsonSerializer.objectNode();
-					writeAssociatedDataIntoNode(langNode, entry.getValue(), entity);
+					writeAssociatedDataIntoNode(langNode, entry.getValue(), associatedData);
 					if(!langNode.isEmpty()) {
 						localizedNode.putIfAbsent(entry.getKey(), langNode);
 					}
@@ -218,64 +226,52 @@ public class EntityJsonSerializer {
 	 * Serialize references
 	 */
 	private void serializeReferences(@Nonnull ObjectNode rootNode, @Nonnull EntityContract entity) {
-		if (!entity.getReferences().isEmpty()) {
-			final Collection<ReferenceContract> references = entity.getReferences();
-
-			final TreeSet<ReferenceContract> uniqueReferences = new TreeSet<>(Comparator.comparing(ReferenceContract::getReferenceName));
-			uniqueReferences.addAll(references);
-
-			for (ReferenceContract reference : uniqueReferences) {
-				serializeReferencesWithSameName(rootNode, entity, reference);
-			}
+		final Collection<ReferenceContract> references = entity.getReferences();
+		if (!references.isEmpty()) {
+			references.stream()
+				.map(ReferenceContract::getReferenceName)
+				.collect(Collectors.toCollection(TreeSet::new))
+				.forEach(it -> serializeReferencesWithSameName(rootNode, entity, it));
 		}
 	}
 
 	/**
 	 * Serialize references of same name
 	 */
-	private void serializeReferencesWithSameName(@Nonnull ObjectNode rootNode, @Nonnull EntityContract entity, ReferenceContract reference) {
-		final Collection<ReferenceContract> groupedReferences = entity.getReferences(reference.getReferenceName());
+	private void serializeReferencesWithSameName(@Nonnull ObjectNode rootNode,
+	                                             @Nonnull EntityContract entity,
+	                                             @Nonnull String referenceName) {
+		final Collection<ReferenceContract> groupedReferences = entity.getReferences(referenceName);
 		final Optional<ReferenceContract> anyReferenceFound = groupedReferences.stream().findFirst();
 		if (anyReferenceFound.isPresent()) {
 			final ReferenceContract firstReference = anyReferenceFound.get();
-			final String nodeReferenceName = reference.getReferenceSchema()
+			final String nodeReferenceName = firstReference.getReferenceSchema()
 				.map(it -> it.getNameVariant(NamingConvention.CAMEL_CASE))
-				.orElseGet(reference::getReferenceName);
-			if (firstReference.getReferenceCardinality() == Cardinality.EXACTLY_ONE || firstReference.getReferenceCardinality() == Cardinality.ZERO_OR_ONE) {
+				.orElse(referenceName);
+
+			if (firstReference.getReferenceCardinality() == Cardinality.EXACTLY_ONE ||
+				firstReference.getReferenceCardinality() == Cardinality.ZERO_OR_ONE) {
 				Assert.isPremiseValid(groupedReferences.size() == 1, "Reference cardinality is: " +
 					firstReference.getReferenceCardinality() + " but found " + groupedReferences.size() +
-					" references with same name: " + reference.getReferenceName());
+					" references with same name: " + referenceName);
 
-				rootNode.putIfAbsent(nodeReferenceName, serializeSingleReference(firstReference));
+				rootNode.putIfAbsent(nodeReferenceName, serializeSingleReference(entity.getLocales(), firstReference));
 			} else {
 				final ArrayNode referencesNode = objectJsonSerializer.arrayNode();
 				rootNode.putIfAbsent(nodeReferenceName, referencesNode);
 
 				for (ReferenceContract groupedReference : groupedReferences) {
-					referencesNode.add(serializeSingleReference(groupedReference));
+					referencesNode.add(serializeSingleReference(entity.getLocales(), groupedReference));
 				}
 			}
 		}
-	}
-
-	private Optional<JsonNode> serializeReferenceAttributes(@Nonnull ReferenceContract reference) {
-		final ObjectNode referenceAttributesNode = objectJsonSerializer.objectNode();
-		for (AttributeValue attributeValue : reference.getAttributeValues()) {
-			if(attributeValue.value() != null) {
-				referenceAttributesNode.putIfAbsent(attributeValue.key().attributeName(), objectJsonSerializer.serializeObject(attributeValue.value()));
-			}
-		}
-		if(!referenceAttributesNode.isEmpty()) {
-			return Optional.of(referenceAttributesNode);
-		}
-		return Optional.empty();
 	}
 
 	/**
 	 * Serializes single reference
 	 */
 	@Nonnull
-	private ObjectNode serializeSingleReference(ReferenceContract reference) {
+	private ObjectNode serializeSingleReference(@Nonnull Set<Locale> locales, @Nonnull ReferenceContract reference) {
 		final ObjectNode referenceNode = objectJsonSerializer.objectNode();
 
 		referenceNode.putIfAbsent(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), objectJsonSerializer.serializeObject(reference.getReferencedPrimaryKey()));
@@ -283,20 +279,12 @@ public class EntityJsonSerializer {
 		reference.getReferencedEntity().ifPresent(sealedEntity ->
 			referenceNode.putIfAbsent(ReferenceDescriptor.REFERENCED_ENTITY.name(), serializeSingleEntity(sealedEntity)));
 
-		final Optional<SealedEntity> groupEntity = reference.getGroupEntity();
-		if(groupEntity.isPresent()) {
-			referenceNode.putIfAbsent(ReferenceDescriptor.GROUP_ENTITY.name(), serializeSingleEntity(groupEntity.get()));
-		} else {
-			reference.getGroup().ifPresent(group -> {
-				final ObjectNode referencedEntityNode = objectJsonSerializer.objectNode();
-				referencedEntityNode.putIfAbsent(RestEntityDescriptor.PRIMARY_KEY.name(), objectJsonSerializer.serializeObject(group.getPrimaryKey()));
-				referencedEntityNode.putIfAbsent(RestEntityDescriptor.TYPE.name(), objectJsonSerializer.serializeObject(group.getType()));
+		reference.getGroupEntity()
+			.map(it -> (EntityClassifier) it)
+			.or(reference::getGroup)
+			.ifPresent(groupEntity -> referenceNode.putIfAbsent(ReferenceDescriptor.GROUP_ENTITY.name(), serializeSingleEntity(groupEntity)));
 
-				referenceNode.putIfAbsent(ReferenceDescriptor.GROUP_ENTITY.name(), referencedEntityNode);
-			});
-		}
-
-		serializeReferenceAttributes(reference).ifPresent(attrs -> referenceNode.putIfAbsent(ReferenceDescriptor.ATTRIBUTES.name(), attrs));
+		serializeAttributes(referenceNode, locales, reference);
 
 		return referenceNode;
 	}
@@ -321,11 +309,11 @@ public class EntityJsonSerializer {
 
 	private void writeAttributesIntoNode(@Nonnull ObjectNode attributesNode,
 	                                     @Nonnull Collection<AttributeKey> attributeKeys,
-	                                     @Nonnull EntityContract entity) {
+	                                     @Nonnull AttributesContract attributes) {
 		for (AttributeKey attributeKey : attributeKeys) {
 			final Optional<AttributeValue> attributeValue = attributeKey.localized() ?
-				entity.getAttributeValue(attributeKey.attributeName(), attributeKey.locale()) :
-				entity.getAttributeValue(attributeKey.attributeName());
+				attributes.getAttributeValue(attributeKey.attributeName(), attributeKey.locale()) :
+				attributes.getAttributeValue(attributeKey.attributeName());
 			if(attributeValue.isPresent() && attributeValue.get().value() != null) {
 				attributesNode.putIfAbsent(attributeKey.attributeName(), objectJsonSerializer.serializeObject(attributeValue.get().value()));
 			} else {
@@ -334,11 +322,13 @@ public class EntityJsonSerializer {
 		}
 	}
 
-	private void writeAssociatedDataIntoNode(@Nonnull ObjectNode attributesNode, @Nonnull Collection<AssociatedDataKey> associatedDataKeys, @Nonnull EntityContract entity) {
+	private void writeAssociatedDataIntoNode(@Nonnull ObjectNode attributesNode,
+	                                         @Nonnull Collection<AssociatedDataKey> associatedDataKeys,
+	                                         @Nonnull AssociatedDataContract associatedData) {
 		for (AssociatedDataKey associatedDataKey : associatedDataKeys) {
 			final Optional<AssociatedDataValue> associatedDataValue = associatedDataKey.localized() ?
-				entity.getAssociatedDataValue(associatedDataKey.associatedDataName(), associatedDataKey.locale()) :
-				entity.getAssociatedDataValue(associatedDataKey.associatedDataName());
+				associatedData.getAssociatedDataValue(associatedDataKey.associatedDataName(), associatedDataKey.locale()) :
+				associatedData.getAssociatedDataValue(associatedDataKey.associatedDataName());
 			attributesNode.putIfAbsent(associatedDataKey.associatedDataName(), associatedDataValue.map(dataValue -> objectJsonSerializer.serializeObject(dataValue.value())).orElse(null));
 			if(associatedDataValue.isPresent()) {
 				attributesNode.putIfAbsent(associatedDataKey.associatedDataName(), objectJsonSerializer.serializeObject(associatedDataValue.get().value()));
@@ -349,10 +339,11 @@ public class EntityJsonSerializer {
 	}
 
 	@Nonnull
-	public static Map<String, List<AttributeKey>> separateAttributeKeysByLocale(@Nonnull EntityContract entity, @Nonnull Set<AttributeKey> attributeKeys) {
-		final Map<String, List<AttributeKey>> localeSeparatedKeys = new HashMap<>(entity.getLocales().size() + 1);
+	public static Map<String, List<AttributeKey>> separateAttributeKeysByLocale(@Nonnull Set<Locale> locales,
+	                                                                            @Nonnull Set<AttributeKey> attributeKeys) {
+		final Map<String, List<AttributeKey>> localeSeparatedKeys = new HashMap<>(locales.size() + 1);
 		localeSeparatedKeys.put(SectionedAttributesDescriptor.GLOBAL.name(), new LinkedList<>());
-		for (Locale locale : entity.getLocales()) {
+		for (Locale locale : locales) {
 			localeSeparatedKeys.put(locale.toLanguageTag(), new LinkedList<>());
 		}
 		for (AttributeKey attributeKey : attributeKeys) {
@@ -368,10 +359,11 @@ public class EntityJsonSerializer {
 	}
 
 	@Nonnull
-	public static Map<String, List<AssociatedDataKey>> separateAssociatedDataKeysByLocale(@Nonnull EntityContract entity, @Nonnull Set<AssociatedDataKey> associatedDataKeys) {
-		final Map<String, List<AssociatedDataKey>> localeSeparatedKeys = new HashMap<>(entity.getLocales().size() + 1);
+	public static Map<String, List<AssociatedDataKey>> separateAssociatedDataKeysByLocale(@Nonnull Set<Locale> locales,
+	                                                                                      @Nonnull Set<AssociatedDataKey> associatedDataKeys) {
+		final Map<String, List<AssociatedDataKey>> localeSeparatedKeys = new HashMap<>(locales.size() + 1);
 		localeSeparatedKeys.put(SectionedAssociatedDataDescriptor.GLOBAL.name(), new LinkedList<>());
-		for (Locale locale : entity.getLocales()) {
+		for (Locale locale : locales) {
 			localeSeparatedKeys.put(locale.toLanguageTag(), new LinkedList<>());
 		}
 		for (AssociatedDataKey associatedDataKey : associatedDataKeys) {

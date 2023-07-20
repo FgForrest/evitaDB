@@ -23,26 +23,22 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi;
 
-import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.rest.RestProvider;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAttributesDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.GetEntityEndpointHeaderDescriptor;
-import io.evitadb.test.tester.RestTester;
-import io.evitadb.test.tester.RestTester.Request;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
+import io.evitadb.test.tester.RestTester;
+import io.evitadb.test.tester.RestTester.Request;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
-import java.util.Locale;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -51,7 +47,6 @@ import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_QUANTITY;
-import static io.evitadb.test.generator.DataGenerator.CZECH_LOCALE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -76,42 +71,23 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndp
 	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_DELETE)
 	@DisplayName("Should delete entity by query")
 	void shouldDeleteEntityByQuery(Evita evita, RestTester tester) {
-		final List<SealedEntity> entitiesToDelete = evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.queryListOfSealedEntities(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							attributeLessThan(ATTRIBUTE_QUANTITY, 5500)
-						),
-						require(
-							strip(0, 2),
-							entityFetch(
-								attributeContent(ATTRIBUTE_CODE)
-							)
-						)
+		final List<SealedEntity> entitiesToDelete = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					attributeLessThan(ATTRIBUTE_QUANTITY, 5500)
+				),
+				require(
+					strip(0, 2),
+					entityFetch(
+						attributeContent(ATTRIBUTE_CODE)
 					)
-				);
-			}
+				)
+			),
+			SealedEntity.class
 		);
 		assertEquals(2, entitiesToDelete.size());
-
-		final var expectedBody = entitiesToDelete.stream()
-			.map(entity ->
-				map()
-					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-					.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-					.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.NONE.name())
-					.e(EntityDescriptor.ATTRIBUTES.name(), map()
-						.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
-							.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))
-							.build())
-						.build())
-					.build()
-			)
-			.toList();
 
 		tester.test(TEST_CATALOG)
 			.httpMethod(Request.METHOD_DELETE)
@@ -134,7 +110,8 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndp
                     """)
 			.executeAndThen()
 			.statusCode(200)
-			.body("", equalTo(expectedBody));
+			// todo lho zdá se že se priceinnerrecordhandling chová jinak při deletu, vrací NONE, normálně vrací UNKNOWN
+			.body("", equalTo(createEntityDtos(entitiesToDelete)));
 
 		assertProductDeleted(entitiesToDelete.get(0).getPrimaryKey(), tester);
 		assertProductDeleted(entitiesToDelete.get(1).getPrimaryKey(), tester);
@@ -144,21 +121,18 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndp
 	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_DELETE)
 	@DisplayName("Should not delete any entity by query")
 	void shouldNotDeleteAnyEntityByQuery(Evita evita, RestTester tester) {
-		final List<EntityReference> entitiesToDelete = evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.queryListOfEntityReferences(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							attributeGreaterThan(ATTRIBUTE_QUANTITY, 1_000_000)
-						),
-						require(
-							strip(0, 1)
-						)
-					)
-				);
-			}
+		final List<EntityClassifier> entitiesToDelete = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					attributeGreaterThan(ATTRIBUTE_QUANTITY, 1_000_000)
+				),
+				require(
+					strip(0, 1)
+				)
+			),
+			true
 		);
 		assertTrue(entitiesToDelete.isEmpty());
 

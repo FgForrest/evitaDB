@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
@@ -73,24 +74,21 @@ public class CatalogGraphQLDeleteEntityMutationsFunctionalTest extends CatalogGr
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_DELETE)
 	@DisplayName("Should delete entity by query")
 	void shouldDeleteEntityByQuery(Evita evita, GraphQLTester tester) {
-		final List<SealedEntity> entitiesToDelete = evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.queryListOfSealedEntities(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							attributeLessThan(ATTRIBUTE_QUANTITY, 5500)
-						),
-						require(
-							strip(0, 2),
-							entityFetch(
-								attributeContent(ATTRIBUTE_CODE)
-							)
-						)
+		final List<SealedEntity> entitiesToDelete = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					attributeLessThan(ATTRIBUTE_QUANTITY, 5500)
+				),
+				require(
+					strip(0, 2),
+					entityFetch(
+						attributeContent(ATTRIBUTE_CODE)
 					)
-				);
-			}
+				)
+			),
+			SealedEntity.class
 		);
 		assertEquals(2, entitiesToDelete.size());
 
@@ -132,21 +130,18 @@ public class CatalogGraphQLDeleteEntityMutationsFunctionalTest extends CatalogGr
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_DELETE)
 	@DisplayName("Should not delete any entity by query")
 	void shouldNotDeleteAnyEntityByQuery(Evita evita, GraphQLTester tester) {
-		final List<EntityReference> entitiesToDelete = evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.queryListOfEntityReferences(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							attributeGreaterThan(ATTRIBUTE_QUANTITY, 1_000_000)
-						),
-						require(
-							strip(0, 1)
-						)
-					)
-				);
-			}
+		final List<EntityClassifier> entitiesToDelete = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					attributeGreaterThan(ATTRIBUTE_QUANTITY, 1_000_000)
+				),
+				require(
+					strip(0, 1)
+				)
+			),
+			true
 		);
 		assertTrue(entitiesToDelete.isEmpty());
 
