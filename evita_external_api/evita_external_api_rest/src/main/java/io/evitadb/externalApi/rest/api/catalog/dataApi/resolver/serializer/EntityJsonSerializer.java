@@ -131,6 +131,7 @@ public class EntityJsonSerializer {
 	 */
 	private void serializeEntityBody(@Nonnull ObjectNode rootNode, @Nonnull EntityContract entity) {
 		rootNode.put(RestEntityDescriptor.VERSION.name(), entity.version());
+
 		if (entity.parentAvailable()) {
 			entity.getParent().ifPresent(pk -> rootNode.put(RestEntityDescriptor.PARENT.name(), pk));
 			entity.getParentEntity().ifPresent(parent -> rootNode.putIfAbsent(RestEntityDescriptor.PARENT_ENTITY.name(), serialize(parent)));
@@ -154,7 +155,7 @@ public class EntityJsonSerializer {
 	private void serializeAttributes(@Nonnull ObjectNode rootNode,
 	                                 @Nonnull Set<Locale> locales,
 	                                 @Nonnull AttributesContract attributes) {
-		if (entity.attributesAvailable() && !attributes.getAttributeKeys().isEmpty()) {
+		if (attributes.attributesAvailable() && !attributes.getAttributeKeys().isEmpty()) {
 			final ObjectNode attributesNode = objectJsonSerializer.objectNode();
 			rootNode.putIfAbsent(RestEntityDescriptor.ATTRIBUTES.name(), attributesNode);
 			final Set<AttributeKey> attributeKeys = attributes.getAttributeKeys();
@@ -191,7 +192,7 @@ public class EntityJsonSerializer {
 	private void serializeAssociatedData(@Nonnull ObjectNode rootNode,
 	                                     @Nonnull Set<Locale> locales,
 	                                     @Nonnull AssociatedDataContract associatedData) {
-		if (entity.associatedDataAvailable() && !associatedData.getAssociatedDataKeys().isEmpty()) {
+		if (associatedData.associatedDataAvailable() && !associatedData.getAssociatedDataKeys().isEmpty()) {
 			final ObjectNode associatedDataNode = objectJsonSerializer.objectNode();
 			final Set<AssociatedDataKey> associatedDataKeys = associatedData.getAssociatedDataKeys();
 			if (restHandlingContext.isLocalized()) {
@@ -228,9 +229,9 @@ public class EntityJsonSerializer {
 	 * Serialize references
 	 */
 	private void serializeReferences(@Nonnull ObjectNode rootNode, @Nonnull EntityContract entity) {
-		final Collection<ReferenceContract> references = entity.getReferences();
-		if (entity.referencesAvailable() && !references.isEmpty()) {
-			references.stream()
+		if (entity.referencesAvailable() && !entity.getReferences().isEmpty()) {
+			entity.getReferences()
+				.stream()
 				.map(ReferenceContract::getReferenceName)
 				.collect(Collectors.toCollection(TreeSet::new))
 				.forEach(it -> serializeReferencesWithSameName(rootNode, entity, it));

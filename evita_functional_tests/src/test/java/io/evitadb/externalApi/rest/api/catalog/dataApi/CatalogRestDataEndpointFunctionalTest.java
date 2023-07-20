@@ -120,8 +120,11 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 	private void createEntityBodyDto(@Nonnull MapBuilder entityDto, @Nonnull SealedEntity entity, boolean localized) {
 		entityDto.e(EntityDescriptor.VERSION.name(), entity.version());
 
-		entity.getParent().ifPresent(pk -> entityDto.e(RestEntityDescriptor.PARENT.name(), pk));
-		entity.getParentEntity().ifPresent(parent -> entityDto.e(RestEntityDescriptor.PARENT_ENTITY.name(), createEntityDto(parent, localized)));
+		if (entity.parentAvailable()) {
+			entity.getParent().ifPresent(pk -> entityDto.e(RestEntityDescriptor.PARENT.name(), pk));
+			entity.getParentEntity().ifPresent(parent -> entityDto.e(RestEntityDescriptor.PARENT_ENTITY.name(), createEntityDto(parent, localized)));
+		}
+
 		if (!entity.getLocales().isEmpty()) {
 			entityDto.e(EntityDescriptor.LOCALES.name(), entity.getLocales().stream().map(Locale::toLanguageTag).toList());
 		}
@@ -137,8 +140,8 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 	                                 @Nonnull Set<Locale> locales,
 	                                 @Nonnull AttributesContract attributes,
 	                                 boolean localized) {
-		final Set<AttributeKey> attributeKeys = attributes.getAttributeKeys();
-		if (!attributeKeys.isEmpty()) {
+		if (attributes.attributesAvailable() && !attributes.getAttributeKeys().isEmpty()) {
+			final Set<AttributeKey> attributeKeys = attributes.getAttributeKeys();
 			final MapBuilder attributesDto;
 			if (localized) {
 				Assert.isPremiseValid(
@@ -201,8 +204,8 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 	                                     @Nonnull Set<Locale> locales,
 	                                     @Nonnull AssociatedDataContract associatedData,
 	                                     boolean localized) {
-		final Set<AssociatedDataKey> associatedDataKeys = associatedData.getAssociatedDataKeys();
-		if (!associatedDataKeys.isEmpty()) {
+		if (associatedData.associatedDataAvailable() && !associatedData.getAssociatedDataKeys().isEmpty()) {
+			final Set<AssociatedDataKey> associatedDataKeys = associatedData.getAssociatedDataKeys();
 			final MapBuilder associatedDataDto;
 			if (localized) {
 				Assert.isPremiseValid(
@@ -263,19 +266,20 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 
 	private void createPricesDto(@Nonnull MapBuilder entityDto,
 	                             @Nonnull EntityContract entity) {
-		final Collection<PriceContract> prices = entity.getPrices();
-		if (!prices.isEmpty()) {
-			entityDto.e(
-				EntityDescriptor.PRICES.name(),
-				entity.getPrices()
-					.stream()
-					.map(price -> createEntityPriceDto(price).build())
-					.toList()
-			);
-		}
+		if (entity.pricesAvailable()) {
+			if (!entity.getPrices().isEmpty()) {
+				entityDto.e(
+					EntityDescriptor.PRICES.name(),
+					entity.getPrices()
+						.stream()
+						.map(price -> createEntityPriceDto(price).build())
+						.toList()
+				);
+			}
 
-		entity.getPriceForSaleIfAvailable()
-			.ifPresent(price -> entityDto.e(EntityDescriptor.PRICE_FOR_SALE.name(), createEntityPriceDto(price)));
+			entity.getPriceForSaleIfAvailable()
+				.ifPresent(price -> entityDto.e(EntityDescriptor.PRICE_FOR_SALE.name(), createEntityPriceDto(price)));
+		}
 	}
 
 	@Nonnull
@@ -297,9 +301,9 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 	private void createReferencesDto(@Nonnull MapBuilder entityDto,
 	                                 @Nonnull SealedEntity entity,
 	                                 boolean localized) {
-		final Collection<ReferenceContract> references = entity.getReferences();
-		if (!references.isEmpty()) {
-			references.stream()
+		if (entity.referencesAvailable() && !entity.getReferences().isEmpty()) {
+			entity.getReferences()
+				.stream()
 				.map(ReferenceContract::getReferenceName)
 				.collect(Collectors.toCollection(TreeSet::new))
 				.forEach(it -> createReferencesOfNameDto(entityDto, entity, it, localized));
