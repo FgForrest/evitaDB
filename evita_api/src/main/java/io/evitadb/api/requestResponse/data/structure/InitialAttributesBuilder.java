@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.AttributesEditor.AttributesBuilder;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -435,14 +436,16 @@ class InitialAttributesBuilder implements AttributesBuilder {
 					}
 				)
 			);
+		final AttributeSchemaProvider<AttributeSchemaContract> attributeSchemaProvider = ofNullable((AttributeSchemaProvider<AttributeSchemaContract>) this.referenceSchema)
+			.orElse(this.entitySchema);
 		return new Attributes(
 			this.entitySchema,
 			this.referenceSchema,
 			this.attributeValues.values(),
 			newAttributes.isEmpty() ?
-				this.entitySchema.getAttributes() :
+				attributeSchemaProvider.getAttributes() :
 				Stream.concat(
-						this.entitySchema.getAttributes().entrySet().stream(),
+						attributeSchemaProvider.getAttributes().entrySet().stream(),
 						newAttributes.entrySet().stream()
 					)
 					.collect(
