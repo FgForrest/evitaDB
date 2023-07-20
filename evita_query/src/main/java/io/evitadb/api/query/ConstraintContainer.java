@@ -150,13 +150,13 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 	}
 
 	/**
-	 * Returns true if query has enough data to be used in query.
-	 * False in case query has no sense - because it couldn't be processed in current state (for
+	 * Returns true if constraint has enough data to be used in query.
+	 * False in case constraint has no sense - because it couldn't be processed in current state (for
 	 * example significant arguments are missing or are invalid).
 	 */
 	@Override
 	public boolean isApplicable() {
-		return children.length > 0;
+		return children.length > 0 || additionalChildren.length > 0;
 	}
 
 	/**
