@@ -1,8 +1,8 @@
 POST /rest/evita/product/query
 
 {
-  "orderBy" : {
-    "random" : true
+  "filterBy" : {
+    "attributeValidityInRange" : "2023-12-05T12:00:00+01:00"
   },
   "require" : {
     "entityFetch" : {

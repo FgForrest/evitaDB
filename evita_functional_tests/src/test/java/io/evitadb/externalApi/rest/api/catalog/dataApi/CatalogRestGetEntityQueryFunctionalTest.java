@@ -24,12 +24,9 @@
 package io.evitadb.externalApi.rest.api.catalog.dataApi;
 
 import io.evitadb.api.query.require.PriceContentMode;
-import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
-import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAttributesDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.GetEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
@@ -40,12 +37,10 @@ import io.evitadb.test.tester.RestTester.Request;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.function.Predicate;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -66,45 +61,46 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return single product by primary key")
-	void shouldReturnSingleProductByPrimaryKey(List<SealedEntity> originalProductEntities, RestTester tester) {
-		final SealedEntity entity = findEntity(
+	void shouldReturnSingleProductByPrimaryKey(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
+		final int pk = findEntityPk(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_CODE) != null
+		);
+
+		final EntityClassifier entity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(pk)
+				),
+				require(
+					entityFetch(
+						attributeContent(ATTRIBUTE_CODE)
+					)
+				)
+			)
 		);
 
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
-				.e(GetEntityEndpointHeaderDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+				.e(GetEntityEndpointHeaderDescriptor.PRIMARY_KEY.name(), pk)
 				.e(GetEntityEndpointHeaderDescriptor.BODY_FETCH.name(), Boolean.TRUE)
 				.e(GetEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT.name(), "code")
 				.build())
 			.executeAndThen()
 			.statusCode(200)
-			.body(
-				"",
-				equalTo(
-					map()
-						.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-						.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-						.e(EntityDescriptor.ATTRIBUTES.name(), map()
-							.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
-								.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))
-								.build())
-							.build())
-						.build()
-				)
-			);
+			.body("", equalTo(createEntityDto(entity)));
 	}
 
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return single product by non-localized attribute")
-	void shouldReturnSingleProductByNonLocalizedAttribute(RestTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnSingleProductByNonLocalizedAttribute(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
 		final String codeAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE);
-		final SealedEntity entityWithCode = findEntity(
+		final int pk = findEntityPk(
 			originalProductEntities,
 			it -> Objects.equals(it.getAttribute(ATTRIBUTE_CODE), codeAttribute) &&
 				it.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE) != null &&
@@ -112,6 +108,21 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 				it.getAllLocales().contains(Locale.ENGLISH)
 		);
 
+		final EntityClassifier entity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					attributeEquals(ATTRIBUTE_CODE, codeAttribute),
+					entityLocaleEquals(CZECH_LOCALE)
+				),
+				require(
+					entityFetch(
+						attributeContent(ATTRIBUTE_CODE, ATTRIBUTE_NAME)
+					)
+				)
+			)
+		);
 
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/product/get")
@@ -124,37 +135,15 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 				.build())
 			.executeAndThen()
 			.statusCode(200)
-			.body(
-				"",
-				equalTo(
-					map()
-						.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithCode.getPrimaryKey())
-						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-						.e(EntityDescriptor.LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag()))
-						.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-						.e(EntityDescriptor.ATTRIBUTES.name(),
-							map()
-								.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
-									.e(ATTRIBUTE_CODE, codeAttribute)
-									.build())
-								.e(SectionedAttributesDescriptor.LOCALIZED.name(), map()
-									.e(CZECH_LOCALE.toLanguageTag(), map()
-										.e(ATTRIBUTE_NAME, entityWithCode.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE))
-										.build())
-									.build())
-								.build()
-						)
-						.build()
-				)
-			);
+			.body("", equalTo(createEntityDto(entity)));
 	}
 
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return single product by non-localized attribute with locale in URL")
-	void shouldReturnSingleProductByNonLocalizedAttributeWithLocaleInUrl(RestTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnSingleProductByNonLocalizedAttributeWithLocaleInUrl(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
 		final String codeAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE);
-		final SealedEntity entityWithCode = findEntity(
+		final int pk = findEntityPk(
 			originalProductEntities,
 			it -> Objects.equals(it.getAttribute(ATTRIBUTE_CODE), codeAttribute) &&
 				it.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE) != null &&
@@ -162,6 +151,21 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 				it.getAllLocales().contains(Locale.ENGLISH)
 		);
 
+		final EntityClassifier entity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					attributeEquals(ATTRIBUTE_CODE, codeAttribute),
+					entityLocaleEquals(CZECH_LOCALE)
+				),
+				require(
+					entityFetch(
+						attributeContent(ATTRIBUTE_CODE, ATTRIBUTE_NAME)
+					)
+				)
+			)
+		);
 
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/" + CZECH_LOCALE.toLanguageTag() + "/product/get")
@@ -169,82 +173,76 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 			.requestParams(map()
 				.e(ATTRIBUTE_CODE, codeAttribute)
 				.e(GetEntityEndpointHeaderDescriptor.BODY_FETCH.name(), Boolean.TRUE)
-				.e(GetEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT.name(), Arrays.asList("code", "name"))
+				.e(GetEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT.name(), Arrays.asList(ATTRIBUTE_CODE, ATTRIBUTE_NAME))
 				.build())
 			.executeAndThen()
 			.statusCode(200)
-			.body(
-				"",
-				equalTo(
-					map()
-						.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithCode.getPrimaryKey())
-						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-						.e(EntityDescriptor.LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag()))
-						.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-						.e(EntityDescriptor.ATTRIBUTES.name(),
-							map()
-								.e(ATTRIBUTE_CODE, codeAttribute)
-								.e(ATTRIBUTE_NAME, entityWithCode.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE))
-								.build()
-						)
-						.build()
-				)
-			);
+			.body("", equalTo(createEntityDto(entity, true)));
 	}
 
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return all attributes for single product")
-	void shouldReturnAllAttributesForSingleProduct(RestTester tester, List<SealedEntity> originalProductEntities) {
-		final SealedEntity entity = findEntity(
+	void shouldReturnAllAttributesForSingleProduct(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+		final int pk = findEntityPk(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_CODE) != null
+		);
+
+		final EntityClassifier entity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(pk),
+					entityLocaleEquals(CZECH_LOCALE)
+				),
+				require(
+					entityFetch(
+						attributeContentAll()
+					)
+				)
+			)
 		);
 
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
-				.e(GetEntityEndpointHeaderDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+				.e(GetEntityEndpointHeaderDescriptor.PRIMARY_KEY.name(), pk)
 				.e(GetEntityEndpointHeaderDescriptor.BODY_FETCH.name(), Boolean.TRUE)
-				.e(GetEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT.name(), Arrays.asList(ATTRIBUTE_CODE, ATTRIBUTE_ALIAS, ATTRIBUTE_QUANTITY,
-					ATTRIBUTE_PRIORITY, TestDataGenerator.ATTRIBUTE_MANUFACTURED, TestDataGenerator.ATTRIBUTE_VISIBLE, TestDataGenerator.ATTRIBUTE_CREATED, ATTRIBUTE_URL, ATTRIBUTE_NAME))
+				.e(GetEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT_ALL.name(), true)
 				.e(GetEntityEndpointHeaderDescriptor.LOCALE.name(), CZECH_LOCALE.toLanguageTag())
 				.build())
 			.executeAndThen()
 			.statusCode(200)
-			.body(
-				"attributes",
-				equalTo(
-					map()
-						.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
-							.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))
-							.e(ATTRIBUTE_ALIAS, entity.getAttribute(ATTRIBUTE_ALIAS))
-							.e(ATTRIBUTE_QUANTITY, serializeToJsonValue(entity.getAttribute(ATTRIBUTE_QUANTITY)))
-							.e(ATTRIBUTE_PRIORITY, serializeToJsonValue(entity.getAttribute(ATTRIBUTE_PRIORITY)))
-							.e(TestDataGenerator.ATTRIBUTE_MANUFACTURED, serializeToJsonValue(entity.getAttribute(TestDataGenerator.ATTRIBUTE_MANUFACTURED)))
-							.e(TestDataGenerator.ATTRIBUTE_VISIBLE, entity.getAttribute(TestDataGenerator.ATTRIBUTE_VISIBLE))
-							.e(TestDataGenerator.ATTRIBUTE_CREATED, serializeToJsonValue(entity.getAttribute(TestDataGenerator.ATTRIBUTE_CREATED)))
-							.build())
-						.e(SectionedAttributesDescriptor.LOCALIZED.name(), map()
-							.e(CZECH_LOCALE.toLanguageTag(), map()
-								.e(ATTRIBUTE_URL, entity.getAttribute(ATTRIBUTE_URL, CZECH_LOCALE))
-								.e(ATTRIBUTE_NAME, entity.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE))
-								.build())
-							.build())
-						.build()
-				)
-			);
+			.body("", equalTo(createEntityDto(entity)));
 	}
 
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return single product by localized attribute")
-	void shouldReturnSingleProductByLocalizedAttribute(RestTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnSingleProductByLocalizedAttribute(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
 		final String urlAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_URL, Locale.ENGLISH);
-		final SealedEntity entityWithUrl = findEntity(
+		final int pk = findEntityPk(
 			originalProductEntities,
 			it -> Objects.equals(it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH), urlAttribute)
+		);
+
+		final EntityClassifier entity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(pk),
+					entityLocaleEquals(Locale.ENGLISH)
+				),
+				require(
+					entityFetch(
+						attributeContent(ATTRIBUTE_URL)
+					)
+				)
+			)
 		);
 
 		tester.test(TEST_CATALOG)
@@ -258,38 +256,19 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 				.build())
 			.executeAndThen()
 			.statusCode(200)
-			.body("",
-				equalTo(
-					map()
-						.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithUrl.getPrimaryKey())
-						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-						.e(EntityDescriptor.LOCALES.name(), List.of(Locale.ENGLISH.toLanguageTag()))
-						.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-						.e(EntityDescriptor.ATTRIBUTES.name(),
-							map()
-								.e(SectionedAttributesDescriptor.LOCALIZED.name(), map()
-									.e(Locale.ENGLISH.toLanguageTag(), map()
-										.e(ATTRIBUTE_URL, urlAttribute)
-										.build())
-									.build())
-								.build()
-						)
-						.build()
-				)
-			);
+			.body("", equalTo(createEntityDto(entity)));
 	}
 
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should filter single product by non-existent price")
 	void shouldFilterSingleProductByNonExistentPrice(RestTester tester, List<SealedEntity> originalProductEntities) {
-		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
+		final int pk = findEntityWithPricePk(originalProductEntities);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/get")
+			.urlPathSuffix("/product/get/" + pk)
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
-				.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_IN_CURRENCY.name(), CURRENCY_CZK.getCurrencyCode())
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_IN_PRICE_LISTS.name(), "nonexistent")
 				.build())
@@ -302,13 +281,12 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for filtering product by non-existent currency")
 	void shouldReturnErrorForFilteringProductByNonExistentCurrency(RestTester tester, List<SealedEntity> originalProductEntities) {
-		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
+		final int pk = findEntityWithPricePk(originalProductEntities);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/get")
+			.urlPathSuffix("/product/get/" + pk)
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
-				.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_IN_CURRENCY.name(), "AAA")
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_IN_PRICE_LISTS.name(), "basic")
 				.build())
@@ -345,142 +323,193 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 			}
 		);
 
-		final var expectedBody = createEntityWithSelfParentsDto(category, false).build();
-
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/category/get/" + 16)
+			.urlPathSuffix("/category/get/" + category.getPrimaryKey())
 			.httpMethod(Request.METHOD_GET)
 			.requestParam(FetchEntityEndpointHeaderDescriptor.HIERARCHY_CONTENT.name(), true)
 			.executeAndExpectOkAndThen()
-			.body("", equalTo(expectedBody));
+			.body("", equalTo(createEntityDto(category)));
 	}
 
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return custom price for sale for single product")
-	void shouldReturnCustomPriceForSaleForSingleProduct(RestTester tester, List<SealedEntity> originalProductEntities) {
-		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
+	void shouldReturnCustomPriceForSaleForSingleProduct(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+		final int pk = findEntityWithPricePk(originalProductEntities);
+
+		final EntityClassifier entity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(pk),
+					priceInCurrency(CURRENCY_CZK),
+					priceInPriceLists("basic")
+				),
+				require(
+					entityFetch(
+						priceContentRespectingFilter()
+					)
+				)
+			)
+		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/get")
+			.urlPathSuffix("/product/get/" + pk)
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
-				.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_IN_CURRENCY.name(), CURRENCY_CZK.getCurrencyCode())
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_IN_PRICE_LISTS.name(), "basic")
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_CONTENT.name(), PriceContentMode.RESPECTING_FILTER.name())
 				.build())
 			.executeAndThen()
 			.statusCode(200)
-			.body("priceForSale", equalTo(createPriceForSaleDto(entity, CURRENCY_CZK, "basic")));
+			.body("", equalTo(createEntityDto(entity)));
 	}
 
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return filtered prices for single product")
-	void shouldReturnFilteredPricesForSingleProduct(RestTester tester, List<SealedEntity> originalProductEntities) {
-		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
+	void shouldReturnFilteredPricesForSingleProduct(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+		final int pk = findEntityWithPricePk(originalProductEntities);
+
+		final EntityClassifier entity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(pk),
+					priceInCurrency(CURRENCY_CZK),
+					priceInPriceLists("basic")
+				),
+				require(
+					entityFetch(
+						priceContentRespectingFilter()
+					)
+				)
+			)
+		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/get")
+			.urlPathSuffix("/product/get/" + pk)
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
-				.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_IN_CURRENCY.name(), CURRENCY_CZK.getCurrencyCode())
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_IN_PRICE_LISTS.name(), "basic")
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_CONTENT.name(), PriceContentMode.RESPECTING_FILTER.name())
 				.build())
 			.executeAndThen()
 			.statusCode(200)
-			.body(
-				"prices",
-				equalTo(createPricesDto(entity, CURRENCY_CZK, "basic"))
-			);
+			.body("", equalTo(createEntityDto(entity)));
 	}
 
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return associated data for single product")
-	void shouldReturnAssociatedDataForSingleProduct(RestTester tester, List<SealedEntity> originalProductEntities) {
-		final SealedEntity entity = findEntity(
+	void shouldReturnAssociatedDataForSingleProduct(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+		final int pk = findEntityPk(
 			originalProductEntities,
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null
 		);
 
+		final EntityClassifier entity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(pk),
+					entityLocaleEquals(Locale.ENGLISH)
+				),
+				require(
+					entityFetch(
+						associatedDataContent(ASSOCIATED_DATA_LABELS)
+					)
+				)
+			)
+		);
+
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/get")
+			.urlPathSuffix("/product/get/" + pk)
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
-				.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))
 				.e(GetEntityEndpointHeaderDescriptor.BODY_FETCH.name(), Boolean.TRUE)
 				.e(GetEntityEndpointHeaderDescriptor.ASSOCIATED_DATA_CONTENT.name(), ASSOCIATED_DATA_LABELS)
 				.e(GetEntityEndpointHeaderDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
 				.build())
 			.executeAndThen()
 			.statusCode(200)
-			.body("", equalTo(createEntityDtoWithAssociatedData(entity, Locale.ENGLISH, true)));
+			.body("", equalTo(createEntityDto(entity)));
 	}
 
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return associated data for single product with locale in URL")
-	void shouldReturnAssociatedDataForSingleProductWithLocaleInUrl(RestTester tester, List<SealedEntity> originalProductEntities) {
-		final SealedEntity entity = findEntity(
+	void shouldReturnAssociatedDataForSingleProductWithLocaleInUrl(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+		final int pk = findEntityPk(
 			originalProductEntities,
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null
 		);
 
+		final EntityClassifier entity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(pk),
+					entityLocaleEquals(Locale.ENGLISH)
+				),
+				require(
+					entityFetch(
+						associatedDataContent(ASSOCIATED_DATA_LABELS)
+					)
+				)
+			)
+		);
+
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/product/get")
+			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/product/get/" + pk)
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
-				.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))
 				.e(GetEntityEndpointHeaderDescriptor.BODY_FETCH.name(), Boolean.TRUE)
 				.e(GetEntityEndpointHeaderDescriptor.ASSOCIATED_DATA_CONTENT.name(), ASSOCIATED_DATA_LABELS)
 				.build())
 			.executeAndThen()
 			.statusCode(200)
-			.body("", equalTo(createEntityDtoWithAssociatedData(entity, Locale.ENGLISH, false)));
+			.body("", equalTo(createEntityDto(entity, true)));
 	}
 
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return reference list for single product")
-	void shouldReturnReferenceListForSingleProduct(RestTester tester, List<SealedEntity> originalProductEntities) {
-		final SealedEntity entity = findEntity(
+	void shouldReturnReferenceListForSingleProduct(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+		final int pk = findEntityPk(
 			originalProductEntities,
 			it -> it.getReferences(Entities.STORE).size() > 1
 		);
 
+		final EntityClassifier entity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(pk)
+				),
+				require(
+					entityFetch(
+						referenceContentAll()
+					)
+				)
+			)
+		);
+
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/get")
+			.urlPathSuffix("/product/get/" + pk)
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
-				.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))
 				.e(GetEntityEndpointHeaderDescriptor.REFERENCE_CONTENT_ALL.name(), true)
 				.build())
 			.executeAndThen()
 			.statusCode(200)
-			.body(
-				Entities.STORE.toLowerCase(),
-				equalTo(createReferencesDto(entity, Entities.STORE, false, false, null))
-			);
-	}
-
-	@Nonnull
-	private SealedEntity findEntity(@Nonnull List<SealedEntity> originalProductEntities,
-	                                @Nonnull Predicate<SealedEntity> filter) {
-		return originalProductEntities.stream()
-			.filter(filter)
-			.findFirst()
-			.orElseThrow(() -> new EvitaInternalError("No entity to test."));
-	}
-
-	@Nonnull
-	private SealedEntity findEntityWithPrice(List<SealedEntity> originalProductEntities) {
-		return findEntity(
-			originalProductEntities,
-			it -> it.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).size() == 1
-		);
+			.body("", equalTo(createEntityDto(entity)));
 	}
 }

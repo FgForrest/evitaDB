@@ -42,6 +42,6 @@ module evita.api {
 
 	requires evita.common;
 	requires evita.query;
-	requires proxycian.bytebuddy;
+	requires static proxycian.bytebuddy;
 
 }

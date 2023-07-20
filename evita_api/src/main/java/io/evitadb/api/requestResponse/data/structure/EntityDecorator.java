@@ -28,6 +28,7 @@ import io.evitadb.api.exception.EntityIsNotHierarchicalException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyContent;
+import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
@@ -1063,6 +1064,9 @@ public class EntityDecorator implements SealedEntity {
 	@Nonnull
 	@Override
 	public PriceInnerRecordHandling getPriceInnerRecordHandling() {
+		if (pricePredicate.getPriceContentMode() == PriceContentMode.NONE) {
+			return PriceInnerRecordHandling.UNKNOWN;
+		}
 		return delegate.getPriceInnerRecordHandling();
 	}
 

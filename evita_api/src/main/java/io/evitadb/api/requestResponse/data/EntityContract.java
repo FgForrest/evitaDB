@@ -188,19 +188,19 @@ public interface EntityContract extends EntityClassifierWithParent, ContentCompa
 			// type - we should assume the key is stored in memory only once (should be enum or String)
 			MemoryMeasuringConstants.REFERENCE_SIZE +
 			// hierarchical placement
-			getParent().stream().mapToObj(it -> MemoryMeasuringConstants.INT_SIZE).findAny().orElse(0) +
+			(!parentAvailable() ? 0 : getParent().stream().mapToObj(it -> MemoryMeasuringConstants.INT_SIZE).findAny().orElse(0)) +
 			// locales
 			getLocales().stream().mapToInt(it -> MemoryMeasuringConstants.REFERENCE_SIZE).sum() +
 			// attributes
-			getAttributeValues().stream().mapToInt(AttributeValue::estimateSize).sum() +
+			(!attributesAvailable() ? 0 : getAttributeValues().stream().mapToInt(AttributeValue::estimateSize).sum()) +
 			// attributes
-			getAssociatedDataValues().stream().mapToInt(AssociatedDataValue::estimateSize).sum() +
+			(!associatedDataAvailable() ? 0 : getAssociatedDataValues().stream().mapToInt(AssociatedDataValue::estimateSize).sum()) +
 			// price inner record handling
 			MemoryMeasuringConstants.BYTE_SIZE +
 			// prices
-			getPrices().stream().mapToInt(PriceContract::estimateSize).sum() +
+			(!pricesAvailable() ? 0 : getPrices().stream().mapToInt(PriceContract::estimateSize).sum()) +
 			// references
-			getReferences().stream().mapToInt(ReferenceContract::estimateSize).sum();
+			(!referencesAvailable() ? 0 : getReferences().stream().mapToInt(ReferenceContract::estimateSize).sum());
 
 	}
 

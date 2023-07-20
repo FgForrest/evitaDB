@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.externalApi.ExternalApiFunctionTestsSupport;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
@@ -58,53 +59,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEndpointFunctionalTest {
-
-	/**
-	 * Returns value of "random" value in the dataset.
-	 */
-	protected <T extends Serializable> T getRandomAttributeValue(@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName) {
-		return getRandomAttributeValue(originalProductEntities, attributeName, 10);
-	}
-
-	/**
-	 * Returns value of "random" value in the dataset.
-	 */
-	protected <T extends Serializable> T getRandomAttributeValue(@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName, int order) {
-		return originalProductEntities
-			.stream()
-			.map(it -> (T) it.getAttribute(attributeName))
-			.filter(Objects::nonNull)
-			.skip(order)
-			.findFirst()
-			.orElseThrow(() -> new IllegalStateException("Failed to localize `" + attributeName + "` attribute!"));
-	}
-
-	/**
-	 * Returns value of "random" value in the dataset.
-	 */
-	protected <T extends Serializable> T getRandomAttributeValue(@Nonnull List<SealedEntity> originalProductEntities,
-	                                                                           @Nonnull String attributeName,
-	                                                                           @Nonnull Locale locale) {
-		return getRandomAttributeValue(originalProductEntities, attributeName, locale, 10);
-	}
-
-	/**
-	 * Returns value of "random" value in the dataset.
-	 */
-	protected <T extends Serializable> T getRandomAttributeValue(@Nonnull List<SealedEntity> originalProductEntities,
-	                                                                           @Nonnull String attributeName,
-	                                                                           @Nonnull Locale locale,
-	                                                                           int order) {
-		return originalProductEntities
-			.stream()
-			.map(it -> (T) it.getAttribute(attributeName, locale))
-			.filter(Objects::nonNull)
-			.skip(order)
-			.findFirst()
-			.orElseThrow(() -> new IllegalStateException("Failed to localize `" + attributeName + "` attribute!"));
-	}
-
+public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEndpointFunctionalTest implements ExternalApiFunctionTestsSupport {
 
 	@Nonnull
 	protected Map<String, Object> createEntityDtoWithFormattedPriceForSale(@Nonnull SealedEntity entity) {

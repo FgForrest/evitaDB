@@ -24,39 +24,30 @@
 package io.evitadb.externalApi.rest.api.catalog.dataApi;
 
 import io.evitadb.api.query.require.PriceContentMode;
-import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
-import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAssociatedDataDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.UnknownEntityEndpointHeaderDescriptor;
-import io.evitadb.test.builder.MapBuilder;
+import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
+import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.tester.RestTester;
 import io.evitadb.test.tester.RestTester.Request;
-import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
-import io.evitadb.test.Entities;
-import io.evitadb.test.annotation.UseDataSet;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import javax.annotation.Nonnull;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.function.Predicate;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.api.query.QueryConstraints.hierarchyContent;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
-import static io.evitadb.test.generator.DataGenerator.*;
+import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_LABELS;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -72,9 +63,14 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 	@DisplayName("Should return unknown entity by globally unique attribute")
 	void shouldReturnUnknownEntityByGloballyUniqueAttribute(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
 		final String codeAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE);
-		final SealedEntity entityWithCode = findEntity(
-			originalProductEntities,
-			it -> Objects.equals(it.getAttribute(ATTRIBUTE_CODE), codeAttribute)
+
+		final EntityClassifier entity = getEntity(
+			evita,
+			query(
+				filterBy(
+					attributeEquals(ATTRIBUTE_CODE, codeAttribute)
+				)
+			)
 		);
 
 		tester.test(TEST_CATALOG)
@@ -86,15 +82,7 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 				.build())
 			.executeAndThen()
 			.statusCode(200)
-			.body(
-				"",
-				equalTo(
-					map()
-						.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithCode.getPrimaryKey())
-						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-						.build()
-				)
-			);
+			.body("", equalTo(createEntityDto(entity)));
 	}
 
 	@Test
@@ -102,11 +90,32 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 	@DisplayName("Should return unknown entity with multiple different global attributes")
 	void shouldReturnUnknownEntityWithMultipleDifferentGlobalAttributes(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
 		final String codeAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE);
-		final SealedEntity entity = findEntity(
-			originalProductEntities,
-			it -> Objects.equals(it.getAttribute(ATTRIBUTE_CODE), codeAttribute)
+		final SealedEntity entityWithCode = getEntity(
+			evita,
+			query(
+				filterBy(
+					attributeEquals(ATTRIBUTE_CODE, codeAttribute)
+				),
+				require(
+					entityFetch(
+						attributeContent(ATTRIBUTE_URL),
+						dataInLocales(Locale.ENGLISH)
+					)
+				)
+			),
+			SealedEntity.class
 		);
-		final String urlAttribute = entity.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH);
+		final String urlAttribute = entityWithCode.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH);
+
+		final EntityClassifier entity = getEntity(
+			evita,
+			query(
+				filterBy(
+					attributeEquals(ATTRIBUTE_CODE, codeAttribute),
+					attributeEquals(ATTRIBUTE_URL, urlAttribute)
+				)
+			)
+		);
 
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/entity/get")
@@ -118,15 +127,7 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 				.build())
 			.executeAndThen()
 			.statusCode(200)
-			.body(
-				"",
-				equalTo(
-					map()
-						.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-						.build()
-				)
-			);
+			.body("", equalTo(createEntityDto(entity)));
 	}
 
 	@Test
@@ -134,9 +135,17 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 	@DisplayName("Should return unknown entity by multiple different global attributes")
 	void shouldReturnUnknownEntityByMultipleDifferentGlobalAttributes(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
 		final String codeAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE);
-		final SealedEntity entity = findEntity(
-			originalProductEntities,
-			it -> Objects.equals(it.getAttribute(ATTRIBUTE_CODE), codeAttribute)
+
+		final EntityClassifier entity = getEntity(
+			evita,
+			query(
+				filterBy(
+					or(
+						attributeEquals(ATTRIBUTE_CODE, codeAttribute),
+						attributeEquals(ATTRIBUTE_URL, "somethingWhichDoesntExist")
+					)
+				)
+			)
 		);
 
 		tester.test(TEST_CATALOG)
@@ -150,15 +159,7 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 				.build())
 			.executeAndThen()
 			.statusCode(200)
-			.body(
-				"",
-				equalTo(
-					map()
-						.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-						.build()
-				)
-			);
+			.body("", equalTo(createEntityDto(entity)));
 	}
 
 
@@ -167,9 +168,19 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 	@DisplayName("Should return rich unknown entity by localized globally unique attribute")
 	void shouldReturnRichUnknownEntityByLocalizedGloballyUniqueAttribute(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
 		final String urlAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_URL, Locale.ENGLISH);
-		final SealedEntity entityWithUrl = findEntity(
-			originalProductEntities,
-			it -> Objects.equals(it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH), urlAttribute)
+
+		final EntityClassifier entity = getEntity(
+			evita,
+			query(
+				filterBy(
+					attributeEquals(ATTRIBUTE_URL, urlAttribute)
+				),
+				require(
+					entityFetch(
+						attributeContentAll()
+					)
+				)
+			)
 		);
 
 		tester.test(TEST_CATALOG)
@@ -181,18 +192,7 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 				.build())
 			.executeAndThen()
 			.statusCode(200)
-			.body(
-				"",
-				equalTo(
-					map()
-						.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithUrl.getPrimaryKey())
-						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-						.e(EntityDescriptor.LOCALES.name(), List.of(Locale.ENGLISH.toLanguageTag()))
-						.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-						.e(EntityDescriptor.ATTRIBUTES.name(), createEntityAttributes(entityWithUrl, true, Locale.ENGLISH))
-						.build()
-				)
-			);
+			.body("", equalTo(createEntityDto(entity)));
 	}
 
 	@Test
@@ -200,9 +200,20 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 	@DisplayName("Should return rich unknown entity by localized globally unique attribute with locale in URL")
 	void shouldReturnRichUnknownEntityByLocalizedGloballyUniqueAttributeWithLocaleInUrl(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
 		final String urlAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_URL, Locale.ENGLISH);
-		final SealedEntity entityWithUrl = findEntity(
-			originalProductEntities,
-			it -> Objects.equals(it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH), urlAttribute)
+
+		final EntityClassifier entity = getEntity(
+			evita,
+			query(
+				filterBy(
+					attributeEquals(ATTRIBUTE_URL, urlAttribute),
+					entityLocaleEquals(Locale.ENGLISH)
+				),
+				require(
+					entityFetch(
+						attributeContentAll()
+					)
+				)
+			)
 		);
 
 		tester.test(TEST_CATALOG)
@@ -214,24 +225,13 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 				.build())
 			.executeAndThen()
 			.statusCode(200)
-			.body(
-				"",
-				equalTo(
-					map()
-						.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithUrl.getPrimaryKey())
-						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-						.e(EntityDescriptor.LOCALES.name(), List.of(Locale.ENGLISH.toLanguageTag()))
-						.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-						.e(EntityDescriptor.ATTRIBUTES.name(), createEntityAttributes(entityWithUrl, false, Locale.ENGLISH))
-						.build()
-				)
-			);
+			.body("", equalTo(createEntityDto(entity, true)));
 	}
 
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error when request contains no parameter")
-	void shouldReturnErrorWhenRequestContainsNoParameter(Evita evita, RestTester tester) {
+	void shouldReturnErrorWhenRequestContainsNoParameter(RestTester tester) {
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/entity/get")
 			.httpMethod(Request.METHOD_GET)
@@ -244,18 +244,33 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return price for single entity")
 	void shouldReturnPriceForSingleEntity(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
-		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
+		final int pk = findEntityWithPricePk(originalProductEntities);
+		final String code = (String) getAttributesByPks(evita, new Integer[]{pk}, ATTRIBUTE_CODE).get(0);
+
+		final EntityClassifier entity = getEntity(
+			evita,
+			query(
+				filterBy(
+					attributeEquals(ATTRIBUTE_CODE, code)
+				),
+				require(
+					entityFetch(
+						priceContentRespectingFilter()
+					)
+				)
+			)
+		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/entity/get")
+			.urlPathSuffix("/entity/get/")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
-				.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))
+				.e(ATTRIBUTE_CODE, code)
 				.e(FetchEntityEndpointHeaderDescriptor.PRICE_CONTENT.name(), PriceContentMode.RESPECTING_FILTER.name())
 				.build())
 			.executeAndThen()
 			.statusCode(200)
-			.body("prices", equalTo(createPricesDto(entity)));
+			.body("", equalTo(createEntityDto(entity)));
 	}
 
 
@@ -264,37 +279,30 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 	@DisplayName("Should return direct category parent entity references")
 	@Disabled
 	void shouldReturnAllDirectCategoryParentEntityReferences(Evita evita, RestTester tester) {
-		final SealedEntity category = evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				final SealedEntity entity = session.queryOneSealedEntity(
-					query(
-						filterBy(
-							attributeEquals(ATTRIBUTE_CODE, "Automotive-21")
-						),
-						require(
-							entityFetch(
-								hierarchyContent()
-							)
-						)
+		final SealedEntity category = getEntity(
+			evita,
+			query(
+				filterBy(
+					attributeEquals(ATTRIBUTE_CODE, "Automotive-21")
+				),
+				require(
+					entityFetch(
+						hierarchyContent()
 					)
-				).orElseThrow();
-
-				// check that it has at least 2 parents
-				assertTrue(entity.getParentEntity().isPresent());
-				assertTrue(entity.getParentEntity().get().getParentEntity().isPresent());
-				return entity;
-			}
+				)
+			),
+			SealedEntity.class
 		);
-
-		final var expectedBody = createEntityWithSelfParentsDto(category, false).build();
+		// check that it has at least 2 parents
+		assertTrue(category.getParentEntity().isPresent());
+		assertTrue(category.getParentEntity().get().getParentEntity().isPresent());
 
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/entity/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParam(FetchEntityEndpointHeaderDescriptor.HIERARCHY_CONTENT.name(), true)
 			.executeAndExpectOkAndThen()
-			.body("", equalTo(expectedBody));
+			.body("", equalTo(createEntityDto(category)));
 	}
 
 
@@ -302,88 +310,37 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return associated data with custom locale for single entity")
 	void shouldReturnAssociatedDataWithCustomLocaleForSingleEntity(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
-		final SealedEntity entity = findEntity(
+		final int pk = findEntityPk(
 			originalProductEntities,
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null
 		);
+		final String code = (String) getAttributesByPks(evita, new Integer[]{pk}, ATTRIBUTE_CODE).get(0);
+
+		final EntityClassifier entity = getEntity(
+			evita,
+			query(
+				filterBy(
+					attributeEquals(ATTRIBUTE_CODE, code),
+					entityLocaleEquals(Locale.ENGLISH)
+				),
+				require(
+					entityFetch(
+						associatedDataContentAll()
+					)
+				)
+			)
+		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/entity/get")
+			.urlPathSuffix("/entity/get/")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
-				.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))
+				.e(ATTRIBUTE_CODE, code)
 				.e(FetchEntityEndpointHeaderDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
 				.e(FetchEntityEndpointHeaderDescriptor.ASSOCIATED_DATA_CONTENT_ALL.name(), Boolean.TRUE)
 				.build())
 			.executeAndThen()
 			.statusCode(200)
-			.body("", equalTo(createEntityDtoWithAssociatedData(entity, Locale.ENGLISH, true)));
-	}
-
-	@Override
-	@Nonnull
-	protected Map<String, Object> createEntityDtoWithAssociatedData(@Nonnull SealedEntity entity, @Nonnull Locale requestedLocale, boolean distinguishLocalizedData) {
-		final ArrayList<Object> entityLocales = new ArrayList<>(1);
-		entityLocales.add(entity.getLocales().stream().filter(locale -> locale.equals(requestedLocale)).findFirst().orElseThrow().toLanguageTag());
-
-		final Map<String, Object> associatedData;
-		if (distinguishLocalizedData) {
-			associatedData = map()
-				.e(SectionedAssociatedDataDescriptor.GLOBAL.name(), map()
-					.e("referencedFiles", map()
-						.build()
-					)
-					.e("localization", map()
-						.build()
-					)
-					.build())
-				.e(SectionedAssociatedDataDescriptor.LOCALIZED.name(), map()
-					.e(Locale.ENGLISH.toLanguageTag(), map()
-						.e(ASSOCIATED_DATA_LABELS, map()
-							.build())
-						.build())
-					.build())
-				.build();
-		} else {
-			associatedData = map()
-				.e("referencedFiles", map()
-					.build()
-				)
-				.e("localization", map()
-					.build()
-				)
-				.e(ASSOCIATED_DATA_LABELS, map()
-					.build())
-				.build();
-		}
-
-		final List<String> locales = entity.getAllLocales().stream().map(Locale::toLanguageTag).toList();
-		final MapBuilder builder = map()
-			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT);
-		if (!locales.isEmpty()) {
-			builder.e(EntityDescriptor.LOCALES.name(), entityLocales);
-		}
-		builder
-			.e(EntityDescriptor.ALL_LOCALES.name(), locales)
-			.e(EntityDescriptor.ASSOCIATED_DATA.name(), associatedData);
-		return builder.build();
-	}
-
-	@Nonnull
-	private SealedEntity findEntity(@Nonnull List<SealedEntity> originalProductEntities,
-	                                @Nonnull Predicate<SealedEntity> filter) {
-		return originalProductEntities.stream()
-			.filter(filter)
-			.findFirst()
-			.orElseThrow(() -> new EvitaInternalError("No entity to test."));
-	}
-
-	@Nonnull
-	private SealedEntity findEntityWithPrice(List<SealedEntity> originalProductEntities) {
-		return findEntity(
-			originalProductEntities,
-			it -> it.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).size() == 1
-		);
+			.body("", equalTo(createEntityDto(entity)));
 	}
 }

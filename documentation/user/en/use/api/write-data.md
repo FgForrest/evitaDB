@@ -167,6 +167,7 @@ instance created from that modified state is incremented by one.
 </LanguageSpecific>
 
 <LanguageSpecific to="java">
+
 Version information is available not only at 
 the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityContract.java</SourceClass> level, 
 but also at more granular levels (such as 
@@ -176,6 +177,15 @@ but also at more granular levels (such as
 
 All model classes that support versioning implement the
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/Versioned.java</SourceClass> interface.
+
+</LanguageSpecific>
+<LanguageSpecific to="graphql,rest">
+
+Version information is available at the entity level. 
+
+</LanguageSpecific>
+
+<LanguageSpecific to="java,graphql,rest">
 
 The version information serves two purposes:
 
@@ -201,6 +211,7 @@ If you need a thorough comparison that compares all model data, you must use the
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/ContentComparator.java</SourceClass>
 interface and implemented by the 
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityContract.java</SourceClass>.
+
 </Note>
 
 </LanguageSpecific>

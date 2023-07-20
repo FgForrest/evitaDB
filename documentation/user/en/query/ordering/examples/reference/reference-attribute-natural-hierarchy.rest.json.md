@@ -5,6 +5,7 @@
       {
         "primaryKey" : 113705,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -17,7 +18,9 @@
           {
             "referencedPrimaryKey" : 66480,
             "attributes" : {
-              "orderInCategory" : -2147483648
+              "global" : {
+                "orderInCategory" : -2147483648
+              }
             }
           }
         ]
@@ -25,6 +28,7 @@
       {
         "primaryKey" : 113709,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -37,7 +41,9 @@
           {
             "referencedPrimaryKey" : 66480,
             "attributes" : {
-              "orderInCategory" : 113705
+              "global" : {
+                "orderInCategory" : 113705
+              }
             }
           }
         ]
@@ -45,6 +51,7 @@
       {
         "primaryKey" : 113713,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -57,7 +64,9 @@
           {
             "referencedPrimaryKey" : 66480,
             "attributes" : {
-              "orderInCategory" : 113709
+              "global" : {
+                "orderInCategory" : 113709
+              }
             }
           }
         ]
@@ -65,6 +74,7 @@
       {
         "primaryKey" : 113714,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -77,7 +87,9 @@
           {
             "referencedPrimaryKey" : 66480,
             "attributes" : {
-              "orderInCategory" : 113713
+              "global" : {
+                "orderInCategory" : 113713
+              }
             }
           }
         ]
@@ -85,6 +97,7 @@
       {
         "primaryKey" : 113716,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -97,7 +110,9 @@
           {
             "referencedPrimaryKey" : 66480,
             "attributes" : {
-              "orderInCategory" : 113714
+              "global" : {
+                "orderInCategory" : 113714
+              }
             }
           }
         ]
@@ -105,6 +120,7 @@
       {
         "primaryKey" : 113718,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -117,7 +133,9 @@
           {
             "referencedPrimaryKey" : 66480,
             "attributes" : {
-              "orderInCategory" : 113716
+              "global" : {
+                "orderInCategory" : 113716
+              }
             }
           }
         ]
@@ -125,6 +143,7 @@
       {
         "primaryKey" : 113720,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -137,7 +156,9 @@
           {
             "referencedPrimaryKey" : 66480,
             "attributes" : {
-              "orderInCategory" : 113718
+              "global" : {
+                "orderInCategory" : 113718
+              }
             }
           }
         ]
@@ -145,6 +166,7 @@
       {
         "primaryKey" : 113721,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -157,7 +179,9 @@
           {
             "referencedPrimaryKey" : 66480,
             "attributes" : {
-              "orderInCategory" : 113720
+              "global" : {
+                "orderInCategory" : 113720
+              }
             }
           }
         ]
@@ -165,6 +189,7 @@
       {
         "primaryKey" : 113725,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -177,7 +202,9 @@
           {
             "referencedPrimaryKey" : 66480,
             "attributes" : {
-              "orderInCategory" : 113721
+              "global" : {
+                "orderInCategory" : 113721
+              }
             }
           }
         ]
@@ -185,6 +212,7 @@
       {
         "primaryKey" : 113727,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -197,7 +225,9 @@
           {
             "referencedPrimaryKey" : 66480,
             "attributes" : {
-              "orderInCategory" : 113725
+              "global" : {
+                "orderInCategory" : 113725
+              }
             }
           }
         ]
@@ -205,6 +235,7 @@
       {
         "primaryKey" : 107891,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -217,7 +248,9 @@
           {
             "referencedPrimaryKey" : 66486,
             "attributes" : {
-              "orderInCategory" : -2147483648
+              "global" : {
+                "orderInCategory" : -2147483648
+              }
             }
           }
         ]
@@ -225,6 +258,7 @@
       {
         "primaryKey" : 107893,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -237,7 +271,9 @@
           {
             "referencedPrimaryKey" : 66486,
             "attributes" : {
-              "orderInCategory" : -2147483648
+              "global" : {
+                "orderInCategory" : -2147483648
+              }
             }
           }
         ]
@@ -245,6 +281,7 @@
       {
         "primaryKey" : 107894,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -257,7 +294,9 @@
           {
             "referencedPrimaryKey" : 66486,
             "attributes" : {
-              "orderInCategory" : -2147483648
+              "global" : {
+                "orderInCategory" : -2147483648
+              }
             }
           }
         ]
@@ -265,6 +304,7 @@
       {
         "primaryKey" : 107895,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -277,7 +317,9 @@
           {
             "referencedPrimaryKey" : 66486,
             "attributes" : {
-              "orderInCategory" : -2147483648
+              "global" : {
+                "orderInCategory" : -2147483648
+              }
             }
           }
         ]
@@ -285,6 +327,7 @@
       {
         "primaryKey" : 107900,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -297,7 +340,9 @@
           {
             "referencedPrimaryKey" : 66486,
             "attributes" : {
-              "orderInCategory" : -2147483648
+              "global" : {
+                "orderInCategory" : -2147483648
+              }
             }
           }
         ]
@@ -305,6 +350,7 @@
       {
         "primaryKey" : 107901,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -317,7 +363,9 @@
           {
             "referencedPrimaryKey" : 66486,
             "attributes" : {
-              "orderInCategory" : -2147483648
+              "global" : {
+                "orderInCategory" : -2147483648
+              }
             }
           }
         ]
@@ -325,6 +373,7 @@
       {
         "primaryKey" : 107902,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -337,7 +386,9 @@
           {
             "referencedPrimaryKey" : 66486,
             "attributes" : {
-              "orderInCategory" : -2147483648
+              "global" : {
+                "orderInCategory" : -2147483648
+              }
             }
           }
         ]
@@ -345,6 +396,7 @@
       {
         "primaryKey" : 107913,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -357,7 +409,9 @@
           {
             "referencedPrimaryKey" : 66486,
             "attributes" : {
-              "orderInCategory" : -2147483648
+              "global" : {
+                "orderInCategory" : -2147483648
+              }
             }
           }
         ]
@@ -365,6 +419,7 @@
       {
         "primaryKey" : 107915,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -377,7 +432,9 @@
           {
             "referencedPrimaryKey" : 66486,
             "attributes" : {
-              "orderInCategory" : -2147483648
+              "global" : {
+                "orderInCategory" : -2147483648
+              }
             }
           }
         ]
@@ -385,6 +442,7 @@
       {
         "primaryKey" : 107917,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -397,7 +455,9 @@
           {
             "referencedPrimaryKey" : 66486,
             "attributes" : {
-              "orderInCategory" : -2147483648
+              "global" : {
+                "orderInCategory" : -2147483648
+              }
             }
           }
         ]

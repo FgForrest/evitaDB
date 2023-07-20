@@ -36,10 +36,10 @@ import javax.annotation.Nullable;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public record RestEndpointExchange(@Nonnull HttpServerExchange serverExchange,
-                            @Nullable EvitaSessionContract session,
-                            @Nonnull String httpMethod,
-                            @Nullable String requestBodyContentType,
-                            @Nullable String preferredResponseContentType) implements EndpointExchange {
+                                   @Nullable EvitaSessionContract session,
+                                   @Nonnull String httpMethod,
+                                   @Nullable String requestBodyContentType,
+                                   @Nullable String preferredResponseContentType) implements EndpointExchange {
 
 	@Override
 	public void close() throws Exception {

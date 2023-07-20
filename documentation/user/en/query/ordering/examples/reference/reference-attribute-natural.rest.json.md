@@ -5,6 +5,7 @@
       {
         "primaryKey" : 113035,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -16,13 +17,16 @@
         "brand" : {
           "referencedPrimaryKey" : 113036,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       },
       {
         "primaryKey" : 113038,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -34,13 +38,16 @@
         "brand" : {
           "referencedPrimaryKey" : 113036,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       },
       {
         "primaryKey" : 113040,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -52,13 +59,16 @@
         "brand" : {
           "referencedPrimaryKey" : 113036,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       },
       {
         "primaryKey" : 113042,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -70,13 +80,16 @@
         "brand" : {
           "referencedPrimaryKey" : 113036,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       },
       {
         "primaryKey" : 113044,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -88,13 +101,16 @@
         "brand" : {
           "referencedPrimaryKey" : 113036,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       },
       {
         "primaryKey" : 113048,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -106,13 +122,16 @@
         "brand" : {
           "referencedPrimaryKey" : 113036,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       },
       {
         "primaryKey" : 113051,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -124,7 +143,9 @@
         "brand" : {
           "referencedPrimaryKey" : 113036,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       }

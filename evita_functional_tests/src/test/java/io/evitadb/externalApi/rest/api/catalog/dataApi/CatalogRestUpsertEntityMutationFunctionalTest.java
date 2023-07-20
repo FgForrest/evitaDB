@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
@@ -85,7 +86,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_UPDATE)
+	@UseDataSet(value = REST_THOUSAND_PRODUCTS_FOR_UPDATE, destroyAfterTest = true)
 	@DisplayName("Should insert single empty entity without PK")
 	void shouldInsertSingleEmptyEntityWithoutPK(RestTester tester) {
 		tester.test(TEST_CATALOG)
@@ -99,19 +100,11 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                     """)
 			.executeAndThen()
 			.statusCode(200)
-			.body(
-				"",
-				equalTo(
-					map()
-						.e(EntityDescriptor.PRIMARY_KEY.name(), 11)
-						.e(EntityDescriptor.TYPE.name(), "empty")
-						.build()
-				)
-			);
+			.body("", equalTo(createEntityDto(new EntityReference("empty", 11))));
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_UPDATE)
+	@UseDataSet(value = REST_THOUSAND_PRODUCTS_FOR_UPDATE, destroyAfterTest = true)
 	@DisplayName("Should insert single empty entity with PK")
 	void shouldInsertSingleEmptyEntityWithPK(RestTester tester) {
 		tester.test(TEST_CATALOG)
@@ -125,19 +118,11 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                     """)
 			.executeAndThen()
 			.statusCode(200)
-			.body(
-				"",
-				equalTo(
-					map()
-						.e(EntityDescriptor.PRIMARY_KEY.name(), 110)
-						.e(EntityDescriptor.TYPE.name(), "emptyWithoutPk")
-						.build()
-				)
-			);
+			.body("", equalTo(createEntityDto(new EntityReference(ENTITY_EMPTY_WITHOUT_PK, 110))));
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_UPDATE)
+	@UseDataSet(value = REST_THOUSAND_PRODUCTS_FOR_UPDATE, destroyAfterTest = true)
 	@DisplayName("Should update product with no mutations")
 	void shouldUpdateProductWithNoMutations(RestTester tester) {
 		tester.test(TEST_CATALOG)
@@ -151,35 +136,24 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                     """)
 			.executeAndThen()
 			.statusCode(200)
-			.body(
-				"",
-				equalTo(
-					map()
-						.e(EntityDescriptor.PRIMARY_KEY.name(), 10)
-						.e(EntityDescriptor.TYPE.name(), "PRODUCT")
-						.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-						.build()
-				)
-			);
+			.body("", equalTo(createEntityDto(new EntityReference(Entities.PRODUCT, 10))));
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_UPDATE)
+	@UseDataSet(value = REST_THOUSAND_PRODUCTS_FOR_UPDATE, destroyAfterTest = true)
 	@DisplayName("Should return error when missing arguments for product upsert")
 	void shouldReturnErrorWhenMissingArgumentsForProductUpsert(RestTester tester) {
 		tester.test(TEST_CATALOG)
 			.httpMethod(Request.METHOD_POST)
 			.urlPathSuffix("/product")
-			.requestBody("""
-                    {}
-                    """)
+			.requestBody("{}")
 			.executeAndThen()
 			.statusCode(400)
 			.body("message", equalTo("EntityExistence is not set in request data."));
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_UPDATE)
+	@UseDataSet(value = REST_THOUSAND_PRODUCTS_FOR_UPDATE, destroyAfterTest = true)
 	@DisplayName("Should return error when missing mutations for product update")
 	void shouldReturnErrorWhenMissingMutationsForProductUpdate(RestTester tester) {
 		tester.test(TEST_CATALOG)
@@ -196,7 +170,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_UPDATE)
+	@UseDataSet(value = REST_THOUSAND_PRODUCTS_FOR_UPDATE, destroyAfterTest = true)
 	@DisplayName("Should update product with attribute mutations")
 	void shouldUpdateProductWithAttributeMutations(RestTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = originalProductEntities.stream()
@@ -207,6 +181,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		final Map<String, Object> expectedBody = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e(EntityDescriptor.VERSION.name(), entity.version() + 1)
 			.e(EntityDescriptor.LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag()))
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 			.e(EntityDescriptor.ATTRIBUTES.name(), map()
@@ -288,7 +263,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_UPDATE)
+	@UseDataSet(value = REST_THOUSAND_PRODUCTS_FOR_UPDATE, destroyAfterTest = true)
 	@DisplayName("Should update product with associated data mutations")
 	void shouldUpdateProductWithAssociatedDataMutations(RestTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = originalProductEntities.stream()
@@ -299,6 +274,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		final Map<String, Object> expectedBody = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e(EntityDescriptor.VERSION.name(), entity.version() + 1)
 			.e(EntityDescriptor.LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag()))
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 			.e(EntityDescriptor.ASSOCIATED_DATA.name(), map()
@@ -377,48 +353,47 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_UPDATE)
+	@UseDataSet(value = REST_THOUSAND_PRODUCTS_FOR_UPDATE, destroyAfterTest = true)
 	@DisplayName("Should update category with hierarchical placement mutations")
 	void shouldUpdateCategoryWithHierarchicalPlacementMutations(Evita evita, RestTester tester) {
-		final SealedEntity entityInTree = evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				final SealedEntity rootEntity = session.queryOneSealedEntity(
-					query(
-						collection(Entities.CATEGORY),
-						filterBy(
-							hierarchyWithinRootSelf(directRelation())
-						),
-						require(
-							strip(0, 1),
-							entityFetch(hierarchyContent())
-						)
-					)
-				).orElseThrow();
-				return session.queryOneSealedEntity(
-					query(
-						collection(Entities.CATEGORY),
-						filterBy(
-							hierarchyWithinSelf(
-								entityPrimaryKeyInSet(rootEntity.getPrimaryKey()),
-								directRelation()
-							)
-						),
-						require(
-							strip(1, 1),
-							entityFetch(hierarchyContent())
-						)
-					)
-				).orElseThrow();
-			}
+		final SealedEntity rootEntity = getEntity(
+			evita,
+			query(
+				collection(Entities.CATEGORY),
+				filterBy(
+					hierarchyWithinRootSelf(directRelation())
+				),
+				require(
+					strip(0, 1),
+					entityFetch(hierarchyContent())
+				)
+			),
+			SealedEntity.class
 		);
-
+		final SealedEntity entityInTree = getEntity(
+			evita,
+			query(
+				collection(Entities.CATEGORY),
+				filterBy(
+					hierarchyWithinSelf(
+						entityPrimaryKeyInSet(rootEntity.getPrimaryKey()),
+						directRelation()
+					)
+				),
+				require(
+					strip(1, 1),
+					entityFetch(hierarchyContent())
+				)
+			),
+			SealedEntity.class
+		);
 		assertTrue(entityInTree.getParent().isPresent());
 
 		final int parent = entityInTree.getParent().orElseThrow();
 		final Map<String, Object> expectedBodyWithHierarchicalPlacement = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.CATEGORY)
+			.e(EntityDescriptor.VERSION.name(), entityInTree.version() + 1)
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 			.e(RestEntityDescriptor.PARENT.name(), parent + 10)
 			.build();
@@ -454,6 +429,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		final Map<String, Object> expectedBodyAfterRemoving = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.CATEGORY)
+			.e(EntityDescriptor.VERSION.name(), entityInTree.version() + 2)
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 			.build();
 
@@ -483,7 +459,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_UPDATE)
+	@UseDataSet(value = REST_THOUSAND_PRODUCTS_FOR_UPDATE, destroyAfterTest = true)
 	@DisplayName("Should update product with new price mutation")
 	void shouldUpdateProductWithNewPriceMutation(RestTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = originalProductEntities.stream()
@@ -496,6 +472,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		final Map<String, Object> expectedBodyWithNewPrice = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e(EntityDescriptor.VERSION.name(), entity.version() + 1)
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.NONE.name())
 			.e(EntityDescriptor.PRICES.name(), List.of(
@@ -573,6 +550,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		final Map<String, Object> expectedBodyWithoutNewPrice = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e(EntityDescriptor.VERSION.name(), entity.version() + 2)
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.NONE.name())
 			.build();
@@ -631,7 +609,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_UPDATE)
+	@UseDataSet(value = REST_THOUSAND_PRODUCTS_FOR_UPDATE, destroyAfterTest = true)
 	@DisplayName("Should update product with price inner handling mutation")
 	void shouldUpdateProductWithPriceInnerRecordHandlingMutation(RestTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = originalProductEntities.stream()
@@ -642,6 +620,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		final Map<String, Object> expectedBody = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e(EntityDescriptor.VERSION.name(), entity.version() + 1)
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.SUM.name())
 			.e(EntityDescriptor.PRICES.name(), List.of(
@@ -711,7 +690,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_UPDATE)
+	@UseDataSet(value = REST_THOUSAND_PRODUCTS_FOR_UPDATE, destroyAfterTest = true)
 	@DisplayName("Should update product with reference mutations")
 	void shouldUpdateProductWithReferenceMutations(RestTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = originalProductEntities.stream()
@@ -727,14 +706,16 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.map(r -> map()
 				.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), r.getReferencedPrimaryKey())
 				.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
-					.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, r.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C)))
+					.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
+						.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, r.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C))))
 				.build())
 			.toList();
 		expectedBody = new LinkedList<>(expectedBody);
 		expectedBody.add(map()
 			.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), 1_000_000_000)
 			.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
-				.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, true))
+				.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
+					.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, true)))
 			.build());
 
 		tester.test(TEST_CATALOG)
@@ -823,7 +804,10 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 	            """)
 			.executeAndThen()
 			.statusCode(200)
-			.body("store.referencedEntity." + EntityDescriptor.PRIMARY_KEY.name(), not(containsInRelativeOrder(1_000_000_000)));
+			.body(
+				resultPath("store", ReferenceDescriptor.REFERENCED_ENTITY, EntityDescriptor.PRIMARY_KEY),
+				not(containsInRelativeOrder(1_000_000_000))
+			);
 
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/product/list")
@@ -843,11 +827,14 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 				entity.getPrimaryKey())
 			.executeAndThen()
 			.statusCode(200)
-			.body("store.referencedEntity." + EntityDescriptor.PRIMARY_KEY.name(), not(containsInRelativeOrder(1_000_000_000)));
+			.body(
+				resultPath("store", ReferenceDescriptor.REFERENCED_ENTITY, EntityDescriptor.PRIMARY_KEY),
+				not(containsInRelativeOrder(1_000_000_000))
+			);
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_UPDATE)
+	@UseDataSet(value = REST_THOUSAND_PRODUCTS_FOR_UPDATE, destroyAfterTest = true)
 	@DisplayName("Should update product with reference group mutations")
 	void shouldUpdateProductWithReferenceGroupMutations(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = originalProductEntities.stream()

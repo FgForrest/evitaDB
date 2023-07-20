@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
@@ -40,6 +41,8 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Predicate;
 
+import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
@@ -103,6 +106,68 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 							.e(TYPENAME_FIELD, GraphQLEntityDescriptor.THIS_GLOBAL.name())
 							.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithCode2.getPrimaryKey())
 							.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+							.build()
+					)
+				)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return entity versions")
+	void shouldReturnEntityVersions(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final String codeAttribute1 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 5);
+		final String codeAttribute2 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 7);
+
+		final SealedEntity entityWithCode1 = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(attributeEquals(ATTRIBUTE_CODE, codeAttribute1)),
+				require(entityFetch())
+			),
+			SealedEntity.class
+		);
+		final SealedEntity entityWithCode2 = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(attributeEquals(ATTRIBUTE_CODE, codeAttribute2)),
+				require(entityFetch())
+			),
+			SealedEntity.class
+		);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listEntity(code: ["%s","%s"]) {
+	                        primaryKey
+	                        type
+	                        version
+	                    }
+	                }
+					""",
+				codeAttribute1,
+				codeAttribute2
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				ENTITY_LIST_PATH,
+				equalTo(
+					List.of(
+						map()
+							.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithCode1.getPrimaryKey())
+							.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+							.e(EntityDescriptor.VERSION.name(), entityWithCode1.version())
+							.build(),
+						map()
+							.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithCode2.getPrimaryKey())
+							.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+							.e(EntityDescriptor.VERSION.name(), entityWithCode2.version())
 							.build()
 					)
 				)
