@@ -32,6 +32,7 @@ import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -154,7 +155,9 @@ public class Attributes implements AttributesContract {
 		this.entitySchema = entitySchema;
 		this.referenceSchema = referenceSchema;
 		this.attributeValues = Collections.emptyMap();
-		this.attributeTypes = entitySchema.getAttributes();
+		this.attributeTypes = ofNullable(referenceSchema)
+			.map(AttributeSchemaProvider::getAttributes)
+			.orElseGet(entitySchema::getAttributes);
 		this.attributeLocales = Collections.emptySet();
 	}
 
