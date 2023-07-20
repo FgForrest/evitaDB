@@ -40,7 +40,11 @@ class PriceInnerRecordHandlingMutationTest extends AbstractMutationTest {
 	@Test
 	void shouldPriceInnerRecordHandlingValue() {
 		final SetPriceInnerRecordHandlingMutation mutation = new SetPriceInnerRecordHandlingMutation(PriceInnerRecordHandling.FIRST_OCCURRENCE);
-		assertEquals(PriceInnerRecordHandling.FIRST_OCCURRENCE, mutation.mutateLocal(productSchema, new Prices(PriceInnerRecordHandling.NONE)).getPriceInnerRecordHandling());
+		assertEquals(
+			PriceInnerRecordHandling.FIRST_OCCURRENCE,
+			mutation.mutateLocal(productSchema, new Prices(productSchema, PriceInnerRecordHandling.NONE))
+				.getPriceInnerRecordHandling()
+		);
 	}
 
 }

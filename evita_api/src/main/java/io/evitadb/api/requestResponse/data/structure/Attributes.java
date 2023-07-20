@@ -32,6 +32,7 @@ import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -46,8 +47,16 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -100,6 +109,14 @@ public class Attributes implements AttributesContract {
 	 */
 	private Set<String> attributeNames;
 	/**
+	 * Optimization that ensures that expensive attribute name resolving happens only once.
+	 */
+	private Set<AttributeKey> attributeKeys;
+	/**
+	 * Optimization that ensures that expensive attribute name resolving happens only once.
+	 */
+	private List<AttributeValue> filteredAttributeValues;
+	/**
 	 * Contains set of all locales that has at least one localized attribute.
 	 */
 	private Set<Locale> attributeLocales;
@@ -138,8 +155,15 @@ public class Attributes implements AttributesContract {
 		this.entitySchema = entitySchema;
 		this.referenceSchema = referenceSchema;
 		this.attributeValues = Collections.emptyMap();
-		this.attributeTypes = entitySchema.getAttributes();
+		this.attributeTypes = ofNullable(referenceSchema)
+			.map(AttributeSchemaProvider::getAttributes)
+			.orElseGet(entitySchema::getAttributes);
 		this.attributeLocales = Collections.emptySet();
+	}
+
+	@Override
+	public boolean attributesAvailable() {
+		return true;
 	}
 
 	@Override
@@ -152,7 +176,7 @@ public class Attributes implements AttributesContract {
 			);
 		Assert.isTrue(
 			!attributeSchema.isLocalized(),
-			() -> ContextMissingException.attributeContextMissing(attributeName)
+			() -> ContextMissingException.localeForAttributeContextMissing(attributeName)
 		);
 		//noinspection unchecked
 		return (T) ofNullable(attributeValues.get(new AttributeKey(attributeName)))
@@ -170,7 +194,7 @@ public class Attributes implements AttributesContract {
 			);
 		Assert.isTrue(
 			!attributeSchema.isLocalized(),
-			() -> ContextMissingException.attributeContextMissing(attributeName)
+			() -> ContextMissingException.localeForAttributeContextMissing(attributeName)
 		);
 		//noinspection unchecked
 		return (T[]) ofNullable(attributeValues.get(new AttributeKey(attributeName)))
@@ -196,47 +220,60 @@ public class Attributes implements AttributesContract {
 	@Override
 	@Nullable
 	public <T extends Serializable> T getAttribute(@Nonnull String attributeName, @Nonnull Locale locale) {
-		ofNullable(attributeTypes.get(attributeName))
+		final AttributeSchemaContract schema = ofNullable(attributeTypes.get(attributeName))
 			.orElseThrow(() -> referenceSchema == null ?
 				new AttributeNotFoundException(attributeName, entitySchema) :
 				new AttributeNotFoundException(attributeName, referenceSchema, entitySchema)
 			);
 		//noinspection unchecked
-		return (T) ofNullable(attributeValues.get(new AttributeKey(attributeName, locale)))
+		return (T) (schema.isLocalized() ?
+			ofNullable(attributeValues.get(new AttributeKey(attributeName, locale))) :
+			ofNullable(attributeValues.get(new AttributeKey(attributeName))))
 			.map(AttributesContract.AttributeValue::value)
-			.orElseGet(() -> ofNullable(attributeValues.get(new AttributeKey(attributeName)))
-				.map(AttributeValue::value)
-				.orElse(null));
+			.orElse(null);
 	}
 
 	@Override
 	@Nullable
 	public <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName, @Nonnull Locale locale) {
-		ofNullable(attributeTypes.get(attributeName))
+		final AttributeSchemaContract schema = ofNullable(attributeTypes.get(attributeName))
 			.orElseThrow(() -> referenceSchema == null ?
 				new AttributeNotFoundException(attributeName, entitySchema) :
 				new AttributeNotFoundException(attributeName, referenceSchema, entitySchema)
 			);
 		//noinspection unchecked,ConstantConditions
-		return (T[]) ofNullable(attributeValues.get(new AttributeKey(attributeName, locale)))
+		return (T[]) (schema.isLocalized() ?
+			ofNullable(attributeValues.get(new AttributeKey(attributeName, locale))) :
+			ofNullable(attributeValues.get(new AttributeKey(attributeName))))
 			.map(AttributesContract.AttributeValue::value)
-			.orElseGet(() -> ofNullable(attributeValues.get(new AttributeKey(attributeName)))
-				.map(AttributeValue::value)
-				.orElse(null));
+			.orElse(null);
 	}
 
-	@Nonnull
 	@Override
+	@Nonnull
 	public Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName, @Nonnull Locale locale) {
-		ofNullable(attributeTypes.get(attributeName))
+		final AttributeSchemaContract schema = ofNullable(attributeTypes.get(attributeName))
 			.orElseThrow(() -> referenceSchema == null ?
 				new AttributeNotFoundException(attributeName, entitySchema) :
 				new AttributeNotFoundException(attributeName, referenceSchema, entitySchema)
 			);
-		return ofNullable(
-			ofNullable(attributeValues.get(new AttributeKey(attributeName, locale)))
-				.orElseGet(() -> attributeValues.get(new AttributeKey(attributeName)))
-		);
+		return schema.isLocalized() ?
+			ofNullable(attributeValues.get(new AttributeKey(attributeName, locale))) :
+			ofNullable(attributeValues.get(new AttributeKey(attributeName)));
+	}
+
+	@Override
+	@Nonnull
+	public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
+		final String attributeName = attributeKey.attributeName();
+		final AttributeSchemaContract schema = ofNullable(attributeTypes.get(attributeName))
+			.orElseThrow(() -> referenceSchema == null ?
+				new AttributeNotFoundException(attributeName, entitySchema) :
+				new AttributeNotFoundException(attributeName, referenceSchema, entitySchema)
+			);
+		return schema.isLocalized() ?
+			ofNullable(attributeValues.get(attributeKey)) :
+			ofNullable(attributeValues.get(attributeKey.localized() ? new AttributeKey(attributeName) : attributeKey));
 	}
 
 	@Override
@@ -250,9 +287,11 @@ public class Attributes implements AttributesContract {
 	public Set<String> getAttributeNames() {
 		if (this.attributeNames == null) {
 			this.attributeNames = this.attributeValues
-				.keySet()
+				.values()
 				.stream()
-				.map(AttributesContract.AttributeKey::attributeName)
+				.filter(attributeValue -> attributeValue.value() != null)
+				.map(attributeValue -> attributeValue.key().attributeName())
+				.filter(key -> attributeTypes.get(key) != null)
 				.collect(
 					Collectors.toCollection(
 						() -> CollectionUtils.createLinkedHashSet(this.attributeValues.size())
@@ -268,7 +307,16 @@ public class Attributes implements AttributesContract {
 	@Nonnull
 	@Override
 	public Set<AttributeKey> getAttributeKeys() {
-		return this.attributeValues.keySet();
+		if (this.attributeKeys == null) {
+			this.attributeKeys = this.attributeValues
+				.values()
+				.stream()
+				.filter(attributeValue -> attributeValue.value() != null)
+				.map(AttributeValue::key)
+				.filter(key -> attributeTypes.get(key.attributeName()) != null)
+				.collect(Collectors.toUnmodifiableSet());
+		}
+		return this.attributeKeys;
 	}
 
 	/**
@@ -276,18 +324,32 @@ public class Attributes implements AttributesContract {
 	 */
 	@Nonnull
 	public Collection<AttributeValue> getAttributeValues() {
-		return this.attributeValues.values();
+		if (this.filteredAttributeValues == null) {
+			this.filteredAttributeValues = this.attributeValues
+				.values()
+				.stream()
+				.filter(ad -> ad.value() != null)
+				.filter(attributeValue -> attributeTypes.get(attributeValue.key().attributeName()) != null)
+				.toList();
+		}
+		return this.filteredAttributeValues;
 	}
 
 	@Nonnull
 	@Override
 	public Collection<AttributeValue> getAttributeValues(@Nonnull String attributeName) {
-		return attributeValues
-			.entrySet()
-			.stream()
-			.filter(it -> attributeName.equals(it.getKey().attributeName()))
-			.map(Entry::getValue)
-			.collect(Collectors.toList());
+		if (attributeTypes.get(attributeName) == null) {
+			throw referenceSchema == null ?
+				new AttributeNotFoundException(attributeName, entitySchema) :
+				new AttributeNotFoundException(attributeName, referenceSchema, entitySchema);
+		} else {
+			return attributeValues
+				.entrySet()
+				.stream()
+				.filter(it -> attributeName.equals(it.getKey().attributeName()))
+				.map(Entry::getValue)
+				.collect(Collectors.toList());
+		}
 	}
 
 	@Nonnull
@@ -305,12 +367,15 @@ public class Attributes implements AttributesContract {
 		return this.attributeLocales;
 	}
 
+
 	/**
-	 * Returns attribute value for passed key.
+	 * Returns attribute by business key without checking if the attribute is defined in the schema.
+	 * Method is part of PRIVATE API.
 	 */
 	@Nonnull
-	public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
-		return ofNullable(this.attributeValues.get(attributeKey));
+	public Optional<AttributeValue> getAttributeValueWithoutSchemaCheck(@Nonnull AttributeKey attributeKey) {
+		return ofNullable(attributeValues.get(attributeKey))
+			.or(() -> attributeKey.localized() ? ofNullable(attributeValues.get(new AttributeKey(attributeKey.attributeName()))) : empty());
 	}
 
 	/**

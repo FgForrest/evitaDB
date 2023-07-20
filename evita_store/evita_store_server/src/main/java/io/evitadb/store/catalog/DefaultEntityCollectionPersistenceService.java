@@ -42,6 +42,7 @@ import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
+import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -251,6 +252,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	public Entity enrichEntity(
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull EntityDecorator entityDecorator,
+		@Nonnull HierarchySerializablePredicate newHierarchyPredicate,
 		@Nonnull AttributeValueSerializablePredicate newAttributePredicate,
 		@Nonnull AssociatedDataValueSerializablePredicate newAssociatedDataPredicate,
 		@Nonnull ReferenceContractSerializablePredicate newReferenceContractPredicate,
@@ -458,6 +460,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				),
 				OffsetDateTime.now(),
 				Entity.class,
+				null,
 				EvitaRequest.CONVERSION_NOT_SUPPORTED
 			);
 			final byte recType = memTable.getIdForRecordType(EntityBodyStoragePart.class);

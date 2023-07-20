@@ -43,7 +43,6 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.function.ExceptionRethrowingFunction;
 import io.evitadb.function.ExceptionRethrowingIntBiFunction;
 import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.ReflectionLookup;
@@ -123,10 +122,6 @@ public class ProxycianFactory implements ProxyFactory {
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull Function<ProxyEntityCacheKey, ProxyRecipe> recipeLocator
 	) {
-		Assert.isTrue(
-			EntityClassifier.class.isAssignableFrom(expectedType),
-			() -> new EntityClassInvalidException(expectedType, "Proxied type `" + expectedType + "` must be a subclass of EntityClassifier!")
-		);
 		try {
 			if (expectedType.isRecord()) {
 				final BestMatchingConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
@@ -344,7 +339,7 @@ public class ProxycianFactory implements ProxyFactory {
 	 * @param entityName the name of the entity for which the recipe should be used (combines with type)
 	 * @param recipe     the Proxycian recipe to be used
 	 */
-	public <T extends EntityClassifier> void registerEntityRecipe(
+	public <T> void registerEntityRecipe(
 		@Nonnull Class<T> type,
 		@Nonnull String entityName,
 		@Nonnull ProxyRecipe recipe

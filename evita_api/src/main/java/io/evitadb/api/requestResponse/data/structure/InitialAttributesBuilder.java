@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.AttributesEditor.AttributesBuilder;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -51,6 +52,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -288,14 +290,15 @@ class InitialAttributesBuilder implements AttributesBuilder {
 		}
 	}
 
-	/*
-		LOCALIZED ATTRIBUTES
-	 */
-
 	@Nonnull
 	@Override
 	public AttributesBuilder mutateAttribute(@Nonnull AttributeMutation mutation) {
 		throw new UnsupportedOperationException("You cannot apply mutation when entity is just being created!");
+	}
+
+	@Override
+	public boolean attributesAvailable() {
+		return true;
 	}
 
 	@Override
@@ -371,7 +374,11 @@ class InitialAttributesBuilder implements AttributesBuilder {
 	@Nonnull
 	@Override
 	public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
-		return ofNullable(this.attributeValues.get(attributeKey));
+		return ofNullable(this.attributeValues.get(attributeKey))
+			.or(() -> attributeKey.localized() ?
+				ofNullable(this.attributeValues.get(new AttributeKey(attributeKey.attributeName()))) :
+				empty()
+			);
 	}
 
 	@Nonnull
@@ -408,12 +415,14 @@ class InitialAttributesBuilder implements AttributesBuilder {
 	@Nonnull
 	@Override
 	public Attributes build() {
+		final AttributeSchemaProvider<AttributeSchemaContract> attributeSchemaProvider = ofNullable((AttributeSchemaProvider<AttributeSchemaContract>) this.referenceSchema)
+			.orElse(this.entitySchema);
 		final Map<String, AttributeSchemaContract> newAttributes = this.attributeValues
 			.entrySet()
 			.stream()
-			.filter(entry -> this.entitySchema.getAttribute(entry.getKey().attributeName()).isEmpty())
+			.filter(entry -> attributeSchemaProvider.getAttribute(entry.getKey().attributeName()).isEmpty())
 			.map(Entry::getValue)
-			.map(this::createImplicitSchema)
+			.map(AttributesBuilder::createImplicitSchema)
 			.collect(
 				Collectors.toUnmodifiableMap(
 					AttributeSchemaContract::getName,
@@ -434,9 +443,9 @@ class InitialAttributesBuilder implements AttributesBuilder {
 			this.referenceSchema,
 			this.attributeValues.values(),
 			newAttributes.isEmpty() ?
-				this.entitySchema.getAttributes() :
+				attributeSchemaProvider.getAttributes() :
 				Stream.concat(
-						this.entitySchema.getAttributes().entrySet().stream(),
+						attributeSchemaProvider.getAttributes().entrySet().stream(),
 						newAttributes.entrySet().stream()
 					)
 					.collect(

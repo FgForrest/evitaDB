@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.exception.AmbiguousPriceException;
 import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
@@ -33,8 +34,10 @@ import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.DateTimeRange;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -60,9 +63,14 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@RequiredArgsConstructor
 public class InitialPricesBuilder implements PricesBuilder {
 	@Serial private static final long serialVersionUID = 4752434728077797252L;
 
+	/**
+	 * Entity schema if available.
+	 */
+	private final EntitySchemaContract entitySchema;
 	private final Map<PriceKey, PriceContract> prices = new HashMap<>(16);
 	@Getter private PriceInnerRecordHandling priceInnerRecordHandling = PriceInnerRecordHandling.NONE;
 
@@ -132,8 +140,29 @@ public class InitialPricesBuilder implements PricesBuilder {
 		return getPrice(new PriceKey(priceId, priceList, currency));
 	}
 
+	@Nonnull
 	@Override
-	public boolean isContextAvailable() {
+	public Optional<PriceContract> getPrice(@Nonnull String priceList, @Nonnull Currency currency) throws UnexpectedResultCountException, ContextMissingException {
+		final List<PriceContract> matchingPrices = getPrices()
+			.stream()
+			.filter(it -> it.priceList().equals(priceList) && it.currency().equals(currency))
+			.toList();
+		if (matchingPrices.size() > 1) {
+			throw new UnexpectedResultCountException(
+				matchingPrices.size(),
+				"More than one price found for price list `" + priceList + "` and currency `" + currency + "`."
+			);
+		}
+		return matchingPrices.isEmpty() ? Optional.empty() : Optional.of(matchingPrices.get(0));
+	}
+
+	@Override
+	public boolean pricesAvailable() {
+		return true;
+	}
+
+	@Override
+	public boolean isPriceForSaleContextAvailable() {
 		return false;
 	}
 
@@ -167,11 +196,12 @@ public class InitialPricesBuilder implements PricesBuilder {
 	}
 
 	@Override
-	public int pricesVersion() {
+	public int version() {
 		return 1;
 	}
 
 	@Nonnull
+	@Override
 	public Optional<PriceContract> getPrice(@Nonnull PriceKey priceKey) {
 		return ofNullable(this.prices.get(priceKey));
 	}
@@ -180,9 +210,11 @@ public class InitialPricesBuilder implements PricesBuilder {
 	@Override
 	public Prices build() {
 		return new Prices(
+			entitySchema,
 			1,
 			prices.values(),
-			priceInnerRecordHandling
+			priceInnerRecordHandling,
+			!prices.isEmpty()
 		);
 	}
 

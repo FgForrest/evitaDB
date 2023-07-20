@@ -66,7 +66,7 @@ import static io.evitadb.api.proxy.impl.ProxyUtils.getResolvedTypes;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class GetReferenceMethodClassifier extends DirectMethodClassification<EntityClassifier, SealedEntityProxyState> {
+public class GetReferenceMethodClassifier extends DirectMethodClassification<Object, SealedEntityProxyState> {
 	/**
 	 * We may reuse singleton instance since advice is stateless.
 	 */
@@ -125,7 +125,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 	 * Creates an implementation of the method returning a single referenced entity wrapped into {@link EntityReference} object.
 	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> singleEntityReferenceResult(
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> singleEntityReferenceResult(
 		@Nonnull String cleanReferenceName,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
@@ -144,7 +144,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 	 * Creates an implementation of the method returning a list of referenced entities wrapped into {@link EntityReference} object.
 	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> listOfEntityReferencesResult(
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> listOfEntityReferencesResult(
 		@Nonnull String cleanReferenceName,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
@@ -161,7 +161,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 	 * Creates an implementation of the method returning a set of referenced entities wrapped into {@link EntityReference} object.
 	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> setOfEntityReferencesResult(
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setOfEntityReferencesResult(
 		@Nonnull String cleanReferenceName,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
@@ -178,7 +178,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 	 * Creates an implementation of the method returning an array of referenced entities wrapped into {@link EntityReference} object.
 	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> arrayOfEntityReferencesResult(
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> arrayOfEntityReferencesResult(
 		@Nonnull String cleanReferenceName,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
@@ -195,7 +195,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 	 * Creates an implementation of the method returning an integer representing a primary key of referenced entity.
 	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> singleEntityIdResult(
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> singleEntityIdResult(
 		@Nonnull String cleanReferenceName,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
@@ -214,7 +214,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 	 * Creates an implementation of the method returning a list of integers representing a primary keys of referenced entities.
 	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> listOfEntityIdsResult(
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> listOfEntityIdsResult(
 		@Nonnull String cleanReferenceName,
 		@Nonnull Function<Object, Object> resultWrapper
 	) {
@@ -231,7 +231,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 	 * Creates an implementation of the method returning a set of integers representing a primary keys of referenced entities.
 	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> setOfEntityIdsResult(
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setOfEntityIdsResult(
 		@Nonnull String cleanReferenceName,
 		@Nonnull Function<Object, Object> resultWrapper
 	) {
@@ -248,7 +248,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 	 * Creates an implementation of the method returning an array of integers representing a primary keys of referenced entities.
 	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> arrayOfEntityIdsResult(
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> arrayOfEntityIdsResult(
 		@Nonnull String cleanReferenceName,
 		@Nonnull Class<? extends Serializable> itemType,
 		@Nonnull UnaryOperator<Object> resultWrapper
@@ -281,7 +281,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 	 * Creates an implementation of the method returning a single referenced entity wrapped into a custom proxy instance.
 	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> singleEntityResult(
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> singleEntityResult(
 		@Nonnull String cleanReferenceName,
 		@Nonnull Class<? extends EntityClassifier> itemType,
 		@Nonnull Function<ReferenceDecorator, Optional<SealedEntity>> entityExtractor,
@@ -303,7 +303,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 	 * Creates an implementation of the method returning a list of referenced entities wrapped into a custom proxy instances.
 	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> listOfEntityResult(
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> listOfEntityResult(
 		@Nonnull String cleanReferenceName,
 		@Nonnull Class<? extends EntityClassifier> itemType,
 		@Nonnull Function<ReferenceDecorator, Optional<SealedEntity>> entityExtractor,
@@ -323,7 +323,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 	 * Creates an implementation of the method returning a set of referenced entities wrapped into a custom proxy instances.
 	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> setOfEntityResult(
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setOfEntityResult(
 		@Nonnull String cleanReferenceName,
 		@Nonnull Class<? extends EntityClassifier> itemType,
 		@Nonnull Function<ReferenceDecorator, Optional<SealedEntity>> entityExtractor,
@@ -343,7 +343,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 	 * Creates an implementation of the method returning an array of referenced entities wrapped into a custom proxy instances.
 	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> arrayOfEntityResult(
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> arrayOfEntityResult(
 		@Nonnull String cleanReferenceName,
 		@Nonnull Class<? extends EntityClassifier> itemType,
 		@Nonnull Function<ReferenceDecorator, Optional<SealedEntity>> entityExtractor,
@@ -362,7 +362,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 	 * Creates an implementation of the method returning a single reference wrapped into a custom proxy instance.
 	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> singleReferenceResult(
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> singleReferenceResult(
 		@Nonnull String cleanReferenceName,
 		@Nonnull Class<?> itemType,
 		@Nonnull UnaryOperator<Object> resultWrapper
@@ -383,7 +383,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 	 * Creates an implementation of the method returning a list of references wrapped into a custom proxy instances.
 	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> listOfReferenceResult(
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> listOfReferenceResult(
 		@Nonnull String cleanReferenceName,
 		@Nonnull Class<?> itemType,
 		@Nonnull UnaryOperator<Object> resultWrapper
@@ -401,7 +401,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 	 * Creates an implementation of the method returning a set of references wrapped into a custom proxy instances.
 	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> setOfReferenceResult(
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setOfReferenceResult(
 		@Nonnull String cleanReferenceName,
 		@Nonnull Class<?> itemType,
 		@Nonnull UnaryOperator<Object> resultWrapper
@@ -419,7 +419,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 	 * Creates an implementation of the method returning an array of references wrapped into a custom proxy instances.
 	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> arrayOfReferenceResult(
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> arrayOfReferenceResult(
 		@Nonnull String cleanReferenceName,
 		@Nonnull Class<?> itemType,
 		@Nonnull UnaryOperator<Object> resultWrapper
@@ -438,7 +438,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 	 * form.
 	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> getReferencedEntity(
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> getReferencedEntity(
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull String cleanReferenceName,
 		@Nullable Class<?> collectionType,
@@ -503,7 +503,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 	 * Method returns implementation of the method returning referenced entities in the form of {@link EntityReference}.
 	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> getEntityReference(
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> getEntityReference(
 		@Nonnull String cleanReferenceName,
 		@Nullable Class<?> collectionType,
 		@Nonnull UnaryOperator<Object> resultWrapper
@@ -523,7 +523,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 	 * Method returns implementation of the method returning referenced entities in the form of integer primary key.
 	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> getEntityId(
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> getEntityId(
 		@Nonnull String cleanReferenceName,
 		@Nullable Class<?> collectionType,
 		@Nullable Class<? extends Serializable> itemType,
@@ -544,7 +544,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Ent
 	 * Method returns implementation of the method returning references entities in the form of custom proxied types.
 	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> getReference(
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> getReference(
 		@Nonnull String cleanReferenceName,
 		@Nullable Class<?> collectionType,
 		@Nonnull Class<?> itemType, UnaryOperator<Object> resultWrapper) {

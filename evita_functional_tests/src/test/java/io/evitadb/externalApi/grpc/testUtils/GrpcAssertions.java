@@ -64,6 +64,7 @@ import java.math.MathContext;
 import java.math.RoundingMode;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
@@ -431,7 +432,7 @@ public class GrpcAssertions {
 
 		//attributes
 		assertAttributes(
-			sealedEntity.getAttributeValues(),
+			sealedEntity.attributesAvailable() ? sealedEntity.getAttributeValues() : Collections.emptyList(),
 			enrichedEntity.getLocalizedAttributesMap(),
 			enrichedEntity.getGlobalAttributesMap(),
 			locales
@@ -439,14 +440,15 @@ public class GrpcAssertions {
 
 		//associated data
 		final List<AssociatedDataContract.AssociatedDataValue> associatedDataValues;
-		if (locales.size() > 1) {
+		if (!sealedEntity.associatedDataAvailable()) {
+			associatedDataValues = Collections.emptyList();
+		} else if (locales.size() > 1) {
 			associatedDataValues = sealedEntity.getAssociatedDataValues().stream().toList();
 		} else if (locales.size() == 1) {
 			associatedDataValues = sealedEntity.getAssociatedDataValues().stream().filter(
-				a -> a.key().locale() == null ||
-					a.key().locale() != null && a.key().locale().getLanguage().equals(
-						locales.stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Suitable locale not found!")).getLanguage()
-					)
+				a -> a.key().locale() == null || a.key().locale().getLanguage().equals(
+					locales.stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Suitable locale not found!")).getLanguage()
+				)
 			).toList();
 		} else {
 			associatedDataValues = sealedEntity.getAssociatedDataValues().stream().filter(a -> a.key().locale() == null).toList();
@@ -469,30 +471,32 @@ public class GrpcAssertions {
 		}
 
 		//prices
-		final Collection<PriceContract> priceValues = sealedEntity.getPrices();
-		final Collection<GrpcPrice> actualPriceValues = enrichedEntity.getPricesList();
-		assertEquals(priceValues.size(), actualPriceValues.size());
-		for (PriceContract price : priceValues) {
-			final GrpcPrice actualPrice = actualPriceValues.stream()
-				.filter(
-					p ->
-						p.getCurrency().getCode().equals(price.currency().getCurrencyCode()) &&
-							p.getPriceId() == price.priceId() &&
-							p.getPriceList().equals(price.priceList())
-				)
-				.findFirst()
-				.orElse(null);
-			assertNotNull(actualPrice);
-			assertPrice(price, actualPrice);
-		}
+		if (sealedEntity.pricesAvailable()) {
+			final Collection<PriceContract> priceValues = sealedEntity.getPrices();
+			final Collection<GrpcPrice> actualPriceValues = enrichedEntity.getPricesList();
+			assertEquals(priceValues.size(), actualPriceValues.size());
+			for (PriceContract price : priceValues) {
+				final GrpcPrice actualPrice = actualPriceValues.stream()
+					.filter(
+						p ->
+							p.getCurrency().getCode().equals(price.currency().getCurrencyCode()) &&
+								p.getPriceId() == price.priceId() &&
+								p.getPriceList().equals(price.priceList())
+					)
+					.findFirst()
+					.orElse(null);
+				assertNotNull(actualPrice);
+				assertPrice(price, actualPrice);
+			}
 
-		try {
-			assertPrice(
-				sealedEntity.getPriceInnerRecordHandling() != PriceInnerRecordHandling.UNKNOWN ? sealedEntity.getPriceForSale().orElse(null) : null,
-				enrichedEntity.getPriceForSale()
-			);
-		} catch (ContextMissingException ex) {
-			//
+			try {
+				assertPrice(
+					sealedEntity.getPriceInnerRecordHandling() != PriceInnerRecordHandling.UNKNOWN ? sealedEntity.getPriceForSale().orElse(null) : null,
+					enrichedEntity.getPriceForSale()
+				);
+			} catch (ContextMissingException ex) {
+				//
+			}
 		}
 
 		assertEquals(
@@ -501,7 +505,8 @@ public class GrpcAssertions {
 		);
 
 		//references
-		final Collection<ReferenceContract> references = sealedEntity.getReferences();
+		final Collection<ReferenceContract> references = sealedEntity.referencesAvailable() ?
+			sealedEntity.getReferences() : Collections.emptyList();
 		final Collection<GrpcReference> actualReferences = enrichedEntity.getReferencesList();
 		assertEquals(references.size(), actualReferences.size());
 		for (ReferenceContract reference : references) {
@@ -584,9 +589,9 @@ public class GrpcAssertions {
 		}
 
 		assertAttributes(
-			expectedReference.getAttributeValues(),
-			actualReference.getLocalizedAttributesMap(),
-			actualReference.getGlobalAttributesMap(),
+			expectedReference.attributesAvailable() ? expectedReference.getAttributeValues() : Collections.emptyList(),
+			expectedReference.attributesAvailable() ? actualReference.getLocalizedAttributesMap() : Collections.emptyMap(),
+			expectedReference.attributesAvailable() ? actualReference.getGlobalAttributesMap() : Collections.emptyMap(),
 			locales
 		);
 	}

@@ -131,8 +131,10 @@ public class EntityJsonSerializer {
 	 */
 	private void serializeEntityBody(@Nonnull ObjectNode rootNode, @Nonnull EntityContract entity) {
 		rootNode.put(RestEntityDescriptor.VERSION.name(), entity.version());
-		entity.getParent().ifPresent(pk -> rootNode.put(RestEntityDescriptor.PARENT.name(), pk));
-		entity.getParentEntity().ifPresent(parent -> rootNode.putIfAbsent(RestEntityDescriptor.PARENT_ENTITY.name(), serialize(parent)));
+		if (entity.parentAvailable()) {
+			entity.getParent().ifPresent(pk -> rootNode.put(RestEntityDescriptor.PARENT.name(), pk));
+			entity.getParentEntity().ifPresent(parent -> rootNode.putIfAbsent(RestEntityDescriptor.PARENT_ENTITY.name(), serialize(parent)));
+		}
 
 		if (!entity.getLocales().isEmpty()) {
 			rootNode.putIfAbsent(RestEntityDescriptor.LOCALES.name(), objectJsonSerializer.serializeObject(entity.getLocales()));
@@ -152,7 +154,7 @@ public class EntityJsonSerializer {
 	private void serializeAttributes(@Nonnull ObjectNode rootNode,
 	                                 @Nonnull Set<Locale> locales,
 	                                 @Nonnull AttributesContract attributes) {
-		if (!attributes.getAttributeKeys().isEmpty()) {
+		if (entity.attributesAvailable() && !attributes.getAttributeKeys().isEmpty()) {
 			final ObjectNode attributesNode = objectJsonSerializer.objectNode();
 			rootNode.putIfAbsent(RestEntityDescriptor.ATTRIBUTES.name(), attributesNode);
 			final Set<AttributeKey> attributeKeys = attributes.getAttributeKeys();
@@ -189,7 +191,7 @@ public class EntityJsonSerializer {
 	private void serializeAssociatedData(@Nonnull ObjectNode rootNode,
 	                                     @Nonnull Set<Locale> locales,
 	                                     @Nonnull AssociatedDataContract associatedData) {
-		if (!associatedData.getAssociatedDataKeys().isEmpty()) {
+		if (entity.associatedDataAvailable() && !associatedData.getAssociatedDataKeys().isEmpty()) {
 			final ObjectNode associatedDataNode = objectJsonSerializer.objectNode();
 			final Set<AssociatedDataKey> associatedDataKeys = associatedData.getAssociatedDataKeys();
 			if (restHandlingContext.isLocalized()) {
@@ -227,7 +229,7 @@ public class EntityJsonSerializer {
 	 */
 	private void serializeReferences(@Nonnull ObjectNode rootNode, @Nonnull EntityContract entity) {
 		final Collection<ReferenceContract> references = entity.getReferences();
-		if (!references.isEmpty()) {
+		if (entity.referencesAvailable() && !references.isEmpty()) {
 			references.stream()
 				.map(ReferenceContract::getReferenceName)
 				.collect(Collectors.toCollection(TreeSet::new))
@@ -293,18 +295,20 @@ public class EntityJsonSerializer {
 	 * Serialize prices
 	 */
 	private void serializePrices(@Nonnull ObjectNode rootNode, @Nonnull EntityContract entity) {
-		final Collection<PriceContract> prices = entity.getPrices();
-		if (!prices.isEmpty()) {
-			final ArrayNode pricesNode = objectJsonSerializer.arrayNode();
-			rootNode.putIfAbsent(RestEntityDescriptor.PRICES.name(), pricesNode);
+		if (entity.pricesAvailable()) {
+			final Collection<PriceContract> prices = entity.getPrices();
+			if (!prices.isEmpty()) {
+				final ArrayNode pricesNode = objectJsonSerializer.arrayNode();
+				rootNode.putIfAbsent(RestEntityDescriptor.PRICES.name(), pricesNode);
 
-			for (PriceContract price : prices) {
-				pricesNode.add(objectJsonSerializer.serializeObject(price));
+				for (PriceContract price : prices) {
+					pricesNode.add(objectJsonSerializer.serializeObject(price));
+				}
 			}
-		}
 
-		entity.getPriceForSaleIfAvailable()
-			.ifPresent(it -> rootNode.putIfAbsent(RestEntityDescriptor.PRICE_FOR_SALE.name(), objectJsonSerializer.serializeObject(it)));
+			entity.getPriceForSaleIfAvailable()
+				.ifPresent(it -> rootNode.putIfAbsent(RestEntityDescriptor.PRICE_FOR_SALE.name(), objectJsonSerializer.serializeObject(it)));
+		}
 	}
 
 	private void writeAttributesIntoNode(@Nonnull ObjectNode attributesNode,

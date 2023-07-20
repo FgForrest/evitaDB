@@ -24,7 +24,6 @@
 package io.evitadb.api.proxy.impl.entity;
 
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -39,7 +38,7 @@ import java.util.Optional;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class GetEntityTypeMethodClassifier extends DirectMethodClassification<EntityClassifier, SealedEntityProxyState> {
+public class GetEntityTypeMethodClassifier extends DirectMethodClassification<Object, SealedEntityProxyState> {
 	/**
 	 * We may reuse singleton instance since advice is stateless.
 	 */

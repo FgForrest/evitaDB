@@ -101,7 +101,6 @@ public class EntityFactory {
 			// always initialize Associated data container
 			new AssociatedData(
 				entitySchema,
-				entityStorageContainer.getAssociatedDataKeys(),
 				// fill all contents of the associated data loaded from storage (may be empty)
 				associatedDataStorageContainers
 					.stream()
@@ -110,8 +109,8 @@ public class EntityFactory {
 			),
 			// when prices container is present - init prices and price inner record handling - otherwise use default config
 			ofNullable(priceStorageContainer)
-				.map(PricesStoragePart::getAsPrices)
-				.orElseGet(() -> new Prices(PriceInnerRecordHandling.UNKNOWN)),
+				.map(it -> it.getAsPrices(entitySchema))
+				.orElseGet(() -> new Prices(entitySchema, PriceInnerRecordHandling.UNKNOWN)),
 			// pass all locales known in the entity container
 			entityStorageContainer.getLocales(),
 			// loaded entity is never dropped - otherwise it could not have been read
@@ -199,13 +198,12 @@ public class EntityFactory {
 				// otherwise combine
 				new AssociatedData(
 					entitySchema,
-					associatedDataValues.keySet(),
 					associatedDataValues.values()
 				),
 			// when prices container is present - init prices and price inner record handling
 			// otherwise use original prices from previous entity contents
 			ofNullable(priceStorageContainer)
-				.map(PricesStoragePart::getAsPrices)
+				.map(it -> it.getAsPrices(entitySchema))
 				.orElse(null),
 			// pass all locales known in the entity container
 			ofNullable(entityStoragePart)

@@ -52,7 +52,7 @@ import static io.evitadb.api.proxy.impl.ProxyUtils.getWrappedGenericType;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class GetParentEntityMethodClassifier extends DirectMethodClassification<EntityClassifier, SealedEntityProxyState> {
+public class GetParentEntityMethodClassifier extends DirectMethodClassification<Object, SealedEntityProxyState> {
 	/**
 	 * We may reuse singleton instance since advice is stateless.
 	 */
@@ -62,7 +62,7 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 	 * Implementation that returns an integer value of parent entity id.
 	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> singleParentIdResult(
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> singleParentIdResult(
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
@@ -73,7 +73,7 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 	 * Implementation that returns an {@link EntityReference} of parent entity.
 	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> singleParentReferenceResult(
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> singleParentReferenceResult(
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
@@ -93,7 +93,7 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 	 * Implementation that returns a custom proxy class wrapping a {@link SealedEntity} object of parent entity.
 	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<EntityClassifier, SealedEntityProxyState> singleParentEntityResult(
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> singleParentEntityResult(
 		@Nonnull Class<? extends EntityClassifier> itemType,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {

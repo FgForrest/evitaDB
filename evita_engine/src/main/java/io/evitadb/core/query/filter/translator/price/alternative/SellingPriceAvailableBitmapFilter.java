@@ -132,7 +132,7 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 					indexedPricePlaces.set(entitySchema.getIndexedPricePlaces());
 				}
 				final int primaryKey = filterByVisitor.translateEntity(entity);
-				if (entityDecorator.isContextAvailable()) {
+				if (entityDecorator.isPriceForSaleContextAvailable()) {
 					// check whether they have valid selling price (applying filter on price lists and currency)
 					entityDecorator.getPriceForSale(filter)
 						// and if there is still selling price add it to the output result

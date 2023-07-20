@@ -25,7 +25,6 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.HierarchyConstraint;
-import io.evitadb.api.query.ReferenceConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
@@ -131,37 +130,24 @@ public class HierarchyContent extends AbstractRequireConstraintContainer impleme
 		return new HierarchyContent(children);
 	}
 
-	/**
-	 * Returns TRUE if all available hierarchyContent were requested to load.
-	 */
-	public boolean isAllRequested() {
-		return ArrayUtils.isEmpty(getArguments());
-	}
-
 	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override
 	public <T extends EntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
 		Assert.isTrue(anotherRequirement instanceof HierarchyContent, "Only HierarchyContent requirement can be combined with this one!");
-		if (isAllRequested()) {
-			return (T) this;
-		} else if (((HierarchyContent) anotherRequirement).isAllRequested()) {
-			return anotherRequirement;
-		} else {
-			return (T) new HierarchyContent(
-				Arrays.stream(
-					new RequireConstraint[]{
-						getStopAt().orElse(null),
-						getEntityFetch()
-							.map(it ->
-								((HierarchyContent) anotherRequirement).getEntityFetch()
-									.map(it::combineWith)
-									.orElse(it)
-							)
-							.orElse(null)
-					}).filter(Objects::nonNull).toArray(RequireConstraint[]::new)
-			);
-		}
+		return (T) new HierarchyContent(
+			Arrays.stream(
+				new RequireConstraint[]{
+					getStopAt().orElse(null),
+					getEntityFetch()
+						.map(it ->
+							((HierarchyContent) anotherRequirement).getEntityFetch()
+								.map(it::combineWith)
+								.orElse(it)
+						)
+						.orElse(null)
+				}).filter(Objects::nonNull).toArray(RequireConstraint[]::new)
+		);
 	}
 
 	@Nonnull

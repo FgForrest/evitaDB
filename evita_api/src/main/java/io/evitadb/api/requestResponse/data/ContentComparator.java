@@ -23,6 +23,8 @@
 
 package io.evitadb.api.requestResponse.data;
 
+import javax.annotation.Nullable;
+
 /**
  * This interface allows to unite access to the full internals object comparison. This comparison is usually done in
  * {@link Object#equals(Object)} method but in Evita immutable objects are {@link Object#hashCode()} and {@link Object#equals(Object)}
@@ -37,6 +39,6 @@ public interface ContentComparator<T> {
 	 * Returns true if single item deep wise differs from the item of other object. This and otherObject must be of
 	 * equal types.
 	 */
-	boolean differsFrom(T otherObject);
+	boolean differsFrom(@Nullable T otherObject);
 
 }

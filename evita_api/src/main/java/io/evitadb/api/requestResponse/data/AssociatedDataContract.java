@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data;
 
+import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -37,6 +38,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
@@ -56,13 +58,13 @@ public interface AssociatedDataContract extends Serializable {
 	 * Returns true if single associated data differs between first and second instance.
 	 */
 	static boolean anyAssociatedDataDifferBetween(AssociatedDataContract first, AssociatedDataContract second) {
-		final Collection<AssociatedDataValue> thisValues = first.getAssociatedDataValues();
-		final Collection<AssociatedDataValue> otherValues = second.getAssociatedDataValues();
+		final Collection<AssociatedDataValue> thisValues = first.associatedDataAvailable() ? first.getAssociatedDataValues() : Collections.emptyList();
+		final Collection<AssociatedDataValue> otherValues = second.associatedDataAvailable() ? second.getAssociatedDataValues() : Collections.emptyList();
 
 		if (thisValues.size() != otherValues.size()) {
 			return true;
 		} else {
-			return first.getAssociatedDataValues()
+			return thisValues
 				.stream()
 				.anyMatch(it -> {
 					final AssociatedDataKey key = it.key();
@@ -74,6 +76,12 @@ public interface AssociatedDataContract extends Serializable {
 				});
 		}
 	}
+
+	/**
+	 * Returns true if entity associated data were fetched along with the entity. Calling this method before calling any
+	 * other method that requires associated data to be fetched will allow you to avoid {@link ContextMissingException}.
+	 */
+	boolean associatedDataAvailable();
 
 	/**
 	 * Returns value associated with the key or null when the associatedData is missing.
@@ -170,6 +178,18 @@ public interface AssociatedDataContract extends Serializable {
 	Set<AssociatedDataKey> getAssociatedDataKeys();
 
 	/**
+	 * Returns array of values associated with the key or null when the associated data is missing.
+	 * When localized associated data is not found it is looked up in generic (non-localized) associated data.
+	 * This makes this method the safest way how to lookup for associated data if caller doesn't know whether it is
+	 * localized or not.
+	 *
+	 * Method returns wrapper dto for the associated data that contains information about the associated data version
+	 * and state.
+	 */
+	@Nonnull
+	Optional<AssociatedDataValue> getAssociatedDataValue(@Nonnull AssociatedDataKey associatedDataKey);
+
+	/**
 	 * Returns collection of all values present in this object.
 	 */
 	@Nonnull
@@ -260,16 +280,16 @@ public interface AssociatedDataContract extends Serializable {
 	record AssociatedDataValue(
 		int version,
 		@Nonnull AssociatedDataKey key,
-		@Nonnull Serializable value,
+		@Nullable Serializable value,
 		boolean dropped
 	) implements Versioned, Droppable, Serializable, ContentComparator<AssociatedDataValue> {
 		@Serial private static final long serialVersionUID = -4732226749198696974L;
 
-		public AssociatedDataValue(@Nonnull AssociatedDataKey key, @Nonnull Serializable value) {
+		public AssociatedDataValue(@Nonnull AssociatedDataKey key, @Nullable Serializable value) {
 			this(1, key, value, false);
 		}
 
-		public AssociatedDataValue(int version, @Nonnull AssociatedDataKey key, @Nonnull Serializable value) {
+		public AssociatedDataValue(int version, @Nonnull AssociatedDataKey key, @Nullable Serializable value) {
 			this(version, key, value, false);
 		}
 

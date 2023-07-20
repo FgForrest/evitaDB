@@ -50,6 +50,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -224,6 +225,11 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	}
 
 	@Override
+	public boolean associatedDataAvailable() {
+		return true;
+	}
+
+	@Override
 	@Nullable
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale) {
 		//noinspection unchecked
@@ -257,6 +263,16 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	}
 
 	@Nonnull
+	@Override
+	public Optional<AssociatedDataValue> getAssociatedDataValue(@Nonnull AssociatedDataKey associatedDataKey) {
+		return ofNullable(this.associatedDataValues.get(associatedDataKey))
+			.or(() -> associatedDataKey.localized() ?
+				ofNullable(this.associatedDataValues.get(new AssociatedDataKey(associatedDataKey.associatedDataName()))) :
+				empty()
+			);
+	}
+
+	@Nonnull
 	public Set<Locale> getAssociatedDataLocales() {
 		return this.associatedDataValues
 				.keySet()
@@ -282,11 +298,10 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Override
 	public AssociatedData build() {
 		// let's check whether there are compatible attributes
-		// noinspection ResultOfMethodCallIgnored
-		this.associatedDataValues
+		final Map<String, AssociatedDataSchemaContract> associatedDataTypes = this.associatedDataValues
 			.values()
 			.stream()
-			.map(this::createImplicitSchema)
+			.map(AssociatedDataBuilder::createImplicitSchema)
 			.collect(
 				Collectors.toMap(
 					AssociatedDataSchemaContract::getName,
@@ -304,9 +319,9 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 			);
 
 		return new AssociatedData(
-				this.entitySchema,
-				this.associatedDataValues.keySet(),
-				this.associatedDataValues.values()
+			this.entitySchema,
+			this.associatedDataValues.values(),
+			associatedDataTypes
 		);
 	}
 

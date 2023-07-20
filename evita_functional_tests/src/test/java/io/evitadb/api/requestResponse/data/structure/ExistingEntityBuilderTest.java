@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.structure;
 
+import io.evitadb.api.exception.EntityIsNotHierarchicalException;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
@@ -117,13 +118,15 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		final Entity updatedEntity = builder.toMutation()
 			.map(it -> it.mutate(initialEntity.getSchema(), initialEntity))
 			.orElse(initialEntity);
-		assertNotNull(updatedEntity.getParent());
+
+		assertFalse(updatedEntity.parentAvailable());
+		assertThrows(EntityIsNotHierarchicalException.class, updatedEntity::getParent);
+		assertThrows(EntityIsNotHierarchicalException.class, updatedEntity::getParentEntity);
 		assertEquals(initialEntity.version() + 1, updatedEntity.version());
-		assertTrue(updatedEntity.getParent().isEmpty());
 	}
 
 	@Test
-	void shouldDefineFacetGroup() {
+	void shouldDefineReferenceGroup() {
 		builder.setReference(BRAND_TYPE, BRAND_TYPE, Cardinality.ZERO_OR_ONE, 1, whichIs -> whichIs.setGroup("Whatever", 8));
 
 		final EntityMutation entityMutation = builder.toMutation().orElseThrow();
@@ -163,6 +166,50 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		final Entity updatedEntity = builder.toMutation().orElseThrow().mutate(initialEntity.getSchema(), initialEntity);
 		assertEquals(initialEntity.version() + 1, updatedEntity.version());
 		assertEquals(of(78), updatedEntity.getParent());
+	}
+
+	@Test
+	void shouldAddNewAttributes() {
+		final Entity updatedInstance = builder
+			.setAttribute("newAttribute", "someValue")
+			.toInstance();
+
+		assertEquals("someValue", updatedInstance.getAttribute("newAttribute"));
+	}
+
+	@Test
+	void shouldAddNewAssociatedData() {
+		final Entity updatedInstance = builder
+			.setAssociatedData("newAttribute", "someValue")
+			.toInstance();
+
+		assertEquals("someValue", updatedInstance.getAssociatedData("newAttribute"));
+	}
+
+	@Test
+	void shouldSetNewParent() {
+		final Entity updatedInstance = builder
+			.setParent(2)
+			.toInstance();
+
+		assertEquals(2, updatedInstance.getParent().orElseThrow());
+	}
+
+	@Test
+	void shouldSetNewReference() {
+		final Entity updatedInstance = builder
+			.setReference(
+				"stock", "stock", Cardinality.ZERO_OR_MORE, 2,
+				whichIs -> whichIs.setAttribute("newAttribute", "someValue")
+			)
+			.toInstance();
+
+		final Collection<ReferenceContract> references = updatedInstance.getReferences("stock");
+		assertEquals(1, references.size());
+
+		final ReferenceContract theStockReference = references.stream().iterator().next();
+		assertNotNull(theStockReference);
+		assertEquals("someValue", theStockReference.getAttribute("newAttribute"));
 	}
 
 	@Test

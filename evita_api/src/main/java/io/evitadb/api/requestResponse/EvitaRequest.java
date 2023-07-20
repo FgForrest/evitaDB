@@ -145,10 +145,11 @@ public class EvitaRequest {
 		@Nonnull Query query,
 		@Nonnull OffsetDateTime alignedNow,
 		@Nonnull Class<?> expectedType,
+		@Nullable String entityTypeByExpectedType,
 		@Nonnull BiFunction<Class<?>, SealedEntity, ?> converter
 	) {
 		final Collection header = query.getCollection();
-		this.entityType = ofNullable(header).map(Collection::getEntityType).orElse(null);
+		this.entityType = ofNullable(header).map(Collection::getEntityType).orElse(entityTypeByExpectedType);
 		this.query = query;
 		this.alignedNow = alignedNow;
 		this.implicitLocale = null;

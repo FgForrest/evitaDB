@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceIdFirstPriceKeyComparator;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.Prices;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.store.entity.model.entity.price.MinimalPriceInternalIdContainer;
 import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 import io.evitadb.store.entity.model.entity.price.PriceWithInternalIds;
@@ -126,9 +127,9 @@ public class PricesStoragePart implements EntityStoragePart {
 	/**
 	 * Returns inner data wrapped to {@link Prices} object that can be wired to {@link Entity}.
 	 */
-	public Prices getAsPrices() {
+	public Prices getAsPrices(@Nonnull EntitySchemaContract entitySchema) {
 		return new Prices(
-			version, Arrays.stream(prices).collect(Collectors.toList()), priceInnerRecordHandling
+			entitySchema, version, Arrays.stream(prices).collect(Collectors.toList()), priceInnerRecordHandling
 		);
 	}
 

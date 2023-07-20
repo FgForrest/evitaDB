@@ -1580,7 +1580,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 					actualFacetSummary,
 					facetEntity -> facetEntity.getAttributeNames().size() == 1 &&
 						facetEntity.getAttribute(ATTRIBUTE_NAME) != null,
-					groupEntity -> groupEntity.getAttributeNames().isEmpty()
+					groupEntity -> !groupEntity.attributesAvailable()
 				);
 
 				return null;
@@ -1643,7 +1643,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 					actualFacetSummary,
 					facetEntity -> facetEntity.getAttributeNames().size() == 1 &&
 						facetEntity.getAttribute(ATTRIBUTE_NAME) != null,
-					groupEntity -> groupEntity.getAttributeNames().isEmpty()
+					groupEntity -> !groupEntity.attributesAvailable()
 				);
 
 				return null;

@@ -26,7 +26,6 @@ package io.evitadb.api.proxy.impl.entity;
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -54,7 +53,7 @@ import static io.evitadb.dataType.EvitaDataTypes.toTargetType;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class GetAttributeMethodClassifier extends DirectMethodClassification<EntityClassifier, SealedEntityProxyState> {
+public class GetAttributeMethodClassifier extends DirectMethodClassification<Object, SealedEntityProxyState> {
 	/**
 	 * We may reuse singleton instance since advice is stateless.
 	 */

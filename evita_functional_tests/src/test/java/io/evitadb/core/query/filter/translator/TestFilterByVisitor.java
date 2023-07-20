@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
+import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
@@ -84,6 +85,7 @@ public class TestFilterByVisitor extends FilterByVisitor {
 			query,
 			OffsetDateTime.now(),
 			EntityReference.class,
+			null,
 			EvitaRequest.CONVERSION_NOT_SUPPORTED
 		);
 		this.entities = entities;
@@ -114,6 +116,7 @@ public class TestFilterByVisitor extends FilterByVisitor {
 				getSchema(),
 				null,
 				new LocaleSerializablePredicate(evitaRequest),
+				new HierarchySerializablePredicate(evitaRequest),
 				new AttributeValueSerializablePredicate(evitaRequest),
 				new AssociatedDataValueSerializablePredicate(evitaRequest),
 				new ReferenceContractSerializablePredicate(evitaRequest),

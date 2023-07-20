@@ -29,7 +29,6 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
-import java.util.Arrays;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -44,14 +43,9 @@ public class PriceContentMisplacedException extends EvitaInvalidUsageException {
 
 	public PriceContentMisplacedException(@Nonnull Stream<RequireConstraint> constraintChain) {
 		super(
-			"The `priceContent` needs to be wrapped inside `entityFetch` or `entityGroupFetch` container: `" +
+			"The `priceContent` needs to be wrapped inside `entityFetch` or `entityGroupFetch` container: " +
 				constraintChain
-					.map(
-						it -> "`" + it.getName() + "(" +
-							Arrays.stream(it.getArguments())
-								.map(String::valueOf)
-								.collect(Collectors.joining(", ")) +
-							")`")
+					.map(it -> "`" + it.toString() + "`")
 					.collect(Collectors.joining(" → "))
 		);
 	}

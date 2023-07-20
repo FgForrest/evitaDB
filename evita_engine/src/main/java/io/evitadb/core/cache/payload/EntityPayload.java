@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
+import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
@@ -45,6 +46,7 @@ import javax.annotation.Nonnull;
  * or {@link ReferenceDecorator#getGroupEntity()} and this would lead to a large graph of entities trapped in the cache.
  *
  * @param localePredicate         predicate filters out non-fetched locales
+ * @param hierarchyPredicate      predicate filters out parent that was not fetched in query
  * @param attributePredicate      predicate filters out attributes that were not fetched in query
  * @param associatedDataPredicate predicate filters out associated data that were not fetched in query
  * @param referencePredicate      predicate filters out references that were not fetched in query
@@ -53,31 +55,19 @@ import javax.annotation.Nonnull;
 public record EntityPayload(
 	@Nonnull Entity entity,
 	@Nonnull LocaleSerializablePredicate localePredicate,
+	@Nonnull HierarchySerializablePredicate hierarchyPredicate,
 	@Nonnull AttributeValueSerializablePredicate attributePredicate,
 	@Nonnull AssociatedDataValueSerializablePredicate associatedDataPredicate,
 	@Nonnull ReferenceContractSerializablePredicate referencePredicate,
 	@Nonnull PriceContractSerializablePredicate pricePredicate
 ) {
 
-	public EntityPayload(
-		@Nonnull Entity entity,
-		@Nonnull LocaleSerializablePredicate localePredicate,
-		@Nonnull AttributeValueSerializablePredicate attributePredicate,
-		@Nonnull AssociatedDataValueSerializablePredicate associatedDataPredicate,
-		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
-		@Nonnull PriceContractSerializablePredicate pricePredicate
-	) {
-		this.entity = entity;
-		this.localePredicate = localePredicate;
-		this.attributePredicate = attributePredicate;
-		this.associatedDataPredicate = associatedDataPredicate;
-		this.referencePredicate = referencePredicate;
-		this.pricePredicate = pricePredicate;
-
-		Assert.isPremiseValid(this.localePredicate.getUnderlyingPredicate() == null, "SanityCheck");
-		Assert.isPremiseValid(this.attributePredicate.getUnderlyingPredicate() == null, "SanityCheck");
-		Assert.isPremiseValid(this.associatedDataPredicate.getUnderlyingPredicate() == null, "SanityCheck");
-		Assert.isPremiseValid(this.referencePredicate.getUnderlyingPredicate() == null, "SanityCheck");
-		Assert.isPremiseValid(this.pricePredicate.getUnderlyingPredicate() == null, "SanityCheck");
+	public EntityPayload {
+		Assert.isPremiseValid(localePredicate.getUnderlyingPredicate() == null, "SanityCheck");
+		Assert.isPremiseValid(hierarchyPredicate.getUnderlyingPredicate() == null, "SanityCheck");
+		Assert.isPremiseValid(attributePredicate.getUnderlyingPredicate() == null, "SanityCheck");
+		Assert.isPremiseValid(associatedDataPredicate.getUnderlyingPredicate() == null, "SanityCheck");
+		Assert.isPremiseValid(referencePredicate.getUnderlyingPredicate() == null, "SanityCheck");
+		Assert.isPremiseValid(pricePredicate.getUnderlyingPredicate() == null, "SanityCheck");
 	}
 }

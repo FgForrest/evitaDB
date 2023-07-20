@@ -25,7 +25,6 @@ package io.evitadb.api.proxy.impl.entity;
 
 import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKeyRef;
 import io.evitadb.utils.ClassUtils;
@@ -44,7 +43,7 @@ import static io.evitadb.dataType.EvitaDataTypes.toWrappedForm;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class GetPrimaryKeyMethodClassifier extends DirectMethodClassification<EntityClassifier, SealedEntityProxyState> {
+public class GetPrimaryKeyMethodClassifier extends DirectMethodClassification<Object, SealedEntityProxyState> {
 	/**
 	 * We may reuse singleton instance since advice is stateless.
 	 */
