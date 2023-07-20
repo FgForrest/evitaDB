@@ -4,6 +4,7 @@
     "entity" : {
       "primaryKey" : 66468,
       "type" : "Category",
+      "version" : 1,
       "allLocales" : [
         "en"
       ],
@@ -20,7 +21,7 @@
         "entity" : {
           "primaryKey" : 66482,
           "type" : "Category",
-          "parent" : 66468,
+          "version" : 1,
           "allLocales" : [
             "en"
           ],
