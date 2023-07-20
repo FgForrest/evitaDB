@@ -415,10 +415,12 @@ class InitialAttributesBuilder implements AttributesBuilder {
 	@Nonnull
 	@Override
 	public Attributes build() {
+		final AttributeSchemaProvider<AttributeSchemaContract> attributeSchemaProvider = ofNullable((AttributeSchemaProvider<AttributeSchemaContract>) this.referenceSchema)
+			.orElse(this.entitySchema);
 		final Map<String, AttributeSchemaContract> newAttributes = this.attributeValues
 			.entrySet()
 			.stream()
-			.filter(entry -> this.entitySchema.getAttribute(entry.getKey().attributeName()).isEmpty())
+			.filter(entry -> attributeSchemaProvider.getAttribute(entry.getKey().attributeName()).isEmpty())
 			.map(Entry::getValue)
 			.map(AttributesBuilder::createImplicitSchema)
 			.collect(
@@ -436,8 +438,6 @@ class InitialAttributesBuilder implements AttributesBuilder {
 					}
 				)
 			);
-		final AttributeSchemaProvider<AttributeSchemaContract> attributeSchemaProvider = ofNullable((AttributeSchemaProvider<AttributeSchemaContract>) this.referenceSchema)
-			.orElse(this.entitySchema);
 		return new Attributes(
 			this.entitySchema,
 			this.referenceSchema,
