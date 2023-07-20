@@ -30,15 +30,11 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.api.query.require.EntityContentRequire;
-import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
-import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ListUnknownEntitiesHeaderDescriptor;
@@ -59,21 +55,18 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Array;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.ARGUMENT_NAME_NAMING_CONVENTION;
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.TYPE_NAME_NAMING_CONVENTION;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
@@ -95,25 +88,20 @@ public class ListUnknownEntitiesDataFetcher extends ReadDataFetcher<DataFetcherR
     @Nonnull
     private final CatalogSchemaContract catalogSchema;
     /**
-     * Function to fetch specific entity schema based on its name.
+     * All locales of all collections.
      */
     @Nonnull
-    private final Function<String, EntitySchemaContract> entitySchemaFetcher;
-    @Nonnull
-    private final Map<String, String> entityDtoObjectTypeNameByEntityType;
+    private final Set<Locale> allPossibleLocales;
 
     @Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 
     public ListUnknownEntitiesDataFetcher(@Nullable Executor executor,
                                           @Nonnull CatalogSchemaContract catalogSchema,
-                                          @Nonnull Set<EntitySchemaContract> allEntitySchemas) {
+                                          @Nonnull Set<Locale> allPossibleLocales) {
         super(executor);
 
         this.catalogSchema = catalogSchema;
-        this.entitySchemaFetcher = catalogSchema::getEntitySchemaOrThrowException;
-        this.entityDtoObjectTypeNameByEntityType = createHashMap(allEntitySchemas.size());
-        allEntitySchemas.forEach(entitySchema ->
-            this.entityDtoObjectTypeNameByEntityType.put(entitySchema.getName(), entitySchema.getNameVariant(TYPE_NAME_NAMING_CONVENTION)));
+        this.allPossibleLocales = allPossibleLocales;
 
         final FilterConstraintResolver filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
         final OrderConstraintResolver orderConstraintResolver = new OrderConstraintResolver(catalogSchema);
@@ -122,7 +110,9 @@ public class ListUnknownEntitiesDataFetcher extends ReadDataFetcher<DataFetcherR
             new AtomicReference<>(filterConstraintResolver)
         );
         this.entityFetchRequireResolver = new EntityFetchRequireResolver(
-            catalogSchema::getEntitySchemaOrThrowException,
+            __ -> {
+                throw new GraphQLInternalError("Global entity shouldn't need to fetch other entities. This should never happen.");
+            },
             filterConstraintResolver,
             orderConstraintResolver,
             requireConstraintResolver
@@ -136,7 +126,7 @@ public class ListUnknownEntitiesDataFetcher extends ReadDataFetcher<DataFetcherR
         final Arguments arguments = Arguments.from(environment, catalogSchema);
 
         final FilterBy filterBy = buildFilterBy(arguments);
-        final Require require = buildRequire(arguments);
+        final Require require = buildRequire(environment, arguments);
         final Query query = query(
             filterBy,
             require
@@ -144,26 +134,12 @@ public class ListUnknownEntitiesDataFetcher extends ReadDataFetcher<DataFetcherR
         log.debug("Generated evitaDB query for single unknown entity fetch `{}`.", query);
 
         final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
-        final List<SealedEntity> entityReferences = evitaSession.queryList(query, SealedEntity.class);
-
-        final List<EntityClassifier> loadedEntities;
-        if (entityReferences.isEmpty()) {
-            loadedEntities = List.of();
-        } else {
-            loadedEntities = entityReferences.stream()
-                .map(entityReference -> {
-                    final String entityType = entityReference.getType();
-                    final EntityContentRequire[] contentRequires = buildEnrichingRequires(environment, entityType);
-                    log.debug("Enriching entity reference `{}` with `{}`.", entityReference, Arrays.toString(contentRequires));
-                    return (EntityClassifier) evitaSession.enrichEntity(entityReference, contentRequires);
-                })
-                .toList();
-        }
+        final List<EntityClassifier> entities = evitaSession.queryList(query, EntityClassifier.class);
 
         final DataFetcherResult.Builder<List<EntityClassifier>> resultBuilder = DataFetcherResult.<List<EntityClassifier>>newResult()
-            .data(loadedEntities);
-        if (!loadedEntities.isEmpty()) {
-            resultBuilder.localContext(EntityQueryContext.builder().build());
+            .data(entities);
+        if (!entities.isEmpty()) {
+            resultBuilder.localContext(EntityQueryContext.empty());
         }
         return resultBuilder.build();
     }
@@ -189,9 +165,16 @@ public class ListUnknownEntitiesDataFetcher extends ReadDataFetcher<DataFetcherR
     }
 
     @Nonnull
-    private Require buildRequire(@Nonnull Arguments arguments) {
+    private Require buildRequire(@Nonnull DataFetchingEnvironment environment, @Nonnull Arguments arguments) {
         final List<RequireConstraint> requireConstraints = new LinkedList<>();
-        requireConstraints.add(entityFetch());
+
+        entityFetchRequireResolver.resolveEntityFetch(
+                SelectionSetWrapper.from(environment.getSelectionSet()),
+                null,
+                catalogSchema,
+                allPossibleLocales
+            )
+            .ifPresent(requireConstraints::add);
 
         if (arguments.limit() != null) {
             requireConstraints.add(strip(0, arguments.limit()));
@@ -200,23 +183,6 @@ public class ListUnknownEntitiesDataFetcher extends ReadDataFetcher<DataFetcherR
         return require(
             requireConstraints.toArray(RequireConstraint[]::new)
         );
-    }
-
-    @Nonnull
-    private EntityContentRequire[] buildEnrichingRequires(@Nonnull DataFetchingEnvironment environment,
-                                                          @Nonnull String entityType) {
-        final Optional<EntityFetch> entityFetch = entityFetchRequireResolver.resolveEntityFetch(
-            SelectionSetWrapper.from(
-                environment.getSelectionSet(),
-                entityDtoObjectTypeNameByEntityType.get(entityType)
-            ),
-            null,
-            entitySchemaFetcher.apply(entityType)
-        );
-
-        return entityFetch
-            .map(EntityFetch::getRequirements)
-            .orElse(new EntityContentRequire[0]);
     }
 
     /**

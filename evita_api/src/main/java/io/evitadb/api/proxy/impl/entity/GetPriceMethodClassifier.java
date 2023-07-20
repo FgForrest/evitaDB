@@ -221,7 +221,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 					theState.getSealedEntity().getPriceForSaleIfAvailable().orElse(null)
 				);
 				Assert.isTrue(
-					result != null || theState.getSealedEntity().isContextAvailable(),
+					result != null || theState.getSealedEntity().isPriceForSaleContextAvailable(),
 					() -> new ContextMissingException()
 				);
 				return result;

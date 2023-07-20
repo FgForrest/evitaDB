@@ -121,21 +121,20 @@ public interface EntityDescriptor extends AttributesProviderDescriptor {
         .type(nonNull(PriceInnerRecordHandling.class))
         .build();
 
-    ObjectDescriptor THIS_INTERFACE = ObjectDescriptor.builder()
-        .name("Entity")
+    ObjectDescriptor THIS_REFERENCE = ObjectDescriptor.builder()
+        .name("EntityReference")
         .description("""
-            Generic the most basic entity.
-            Common ancestor for all specific entities which correspond to specific collections.
+            Pointer to a full entity.
             """)
         .staticFields(List.of(PRIMARY_KEY, TYPE))
         .build();
-    ObjectDescriptor THIS_ENTITY_REFERENCE = ObjectDescriptor.extend(THIS_INTERFACE)
-        .name("EntityReference")
+    ObjectDescriptor THIS_GLOBAL = ObjectDescriptor.extend(THIS_REFERENCE)
+        .name("Entity")
         .description("""
-            Object holding reference to an entity.
+            Catalog-wise entity with only common data across all entity collections.
             """)
         .build();
-    ObjectDescriptor THIS = ObjectDescriptor.extend(THIS_INTERFACE)
+    ObjectDescriptor THIS = ObjectDescriptor.extend(THIS_REFERENCE)
         .name("*")
         .build();
 }

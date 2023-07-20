@@ -922,7 +922,7 @@ public class FullResponseObjectBuilder {
 		if (referencedEntitySchema != null) {
 			return typeRef(EntityDescriptor.THIS.name(referencedEntitySchema));
 		} else {
-			return typeRef(EntityDescriptor.THIS_ENTITY_REFERENCE.name());
+			return typeRef(EntityDescriptor.THIS_REFERENCE.name());
 		}
 	}
 

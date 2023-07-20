@@ -53,6 +53,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithParent;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
 import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
+import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -259,7 +260,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		final Map<String, RequirementContext> referenceEntityFetch = fetchRequest.getReferenceEntityFetch();
 		final QueryContext nestedQueryContext = hierarchyCollection.createQueryContext(queryContext, fetchRequest, queryContext.getEvitaSession());
 		final ReferenceFetcher subReferenceFetcher = createSubReferenceFetcher(
-			fetchRequest.getHierarchyContent(),
+			null,
 			referenceEntityFetch,
 			fetchRequest.getDefaultReferenceRequirement(),
 			nestedQueryContext
@@ -630,7 +631,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull QueryContext queryContext,
 		@Nonnull SealedEntity sealedEntity
 	) {
-		this(hierarchyContent, requirementContext, defaultRequirementContext, queryContext, new ExistingSealedEntityProvider(sealedEntity));
+		this(
+			hierarchyContent, requirementContext, defaultRequirementContext, queryContext,
+			new ExistingEntityDecoratorProvider((EntityDecorator) sealedEntity)
+		);
 	}
 
 	/**
@@ -668,14 +672,20 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		// we need to ensure that references are fetched in order to be able to provide information about them
 		final T richEnoughEntity = ((EntityCollection) entityCollection).ensureReferencesFetched(entity);
 		// prefetch the parents
-		prefetchParents(
-			hierarchyContent,
-			queryContext,
-			entityCollection,
-			richEnoughEntity.getParent()
-				.stream()
-				.toArray()
-		);
+		if (entityCollection.getSchema().isWithHierarchy()) {
+			prefetchParents(
+				hierarchyContent,
+				queryContext,
+				entityCollection,
+				richEnoughEntity instanceof EntityDecorator entityDecorator ?
+					entityDecorator.getParentWithoutCheckingPredicate()
+						.stream()
+						.toArray() :
+					richEnoughEntity.getParent()
+						.stream()
+						.toArray()
+			);
+		}
 		// prefetch the entities
 		prefetchEntities(
 			requirementContext,
@@ -715,16 +725,22 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			richEnoughEntities.add(((EntityCollection) entityCollection).ensureReferencesFetched(entity));
 		}
 		// prefetch the parents
-		prefetchParents(
-			hierarchyContent,
-			queryContext,
-			entityCollection,
-			entities.stream()
-				.map(EntityContract::getParent)
-				.filter(OptionalInt::isPresent)
-				.mapToInt(OptionalInt::getAsInt)
-				.toArray()
-		);
+		if (entityCollection.getSchema().isWithHierarchy()) {
+			prefetchParents(
+				hierarchyContent,
+				queryContext,
+				entityCollection,
+				entities.stream()
+					.map(it ->
+						it instanceof EntityDecorator entityDecorator ?
+							entityDecorator.getParentWithoutCheckingPredicate() :
+							it.getParent()
+					)
+					.filter(OptionalInt::isPresent)
+					.mapToInt(OptionalInt::getAsInt)
+					.toArray()
+			);
+		}
 		// prefetch the entities
 		prefetchEntities(
 			requirementContext,
@@ -993,7 +1009,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 			// second, replace the EntityReferenceWithParent with EntityDecorator if the bodies are requested
 			if (bodyRequired) {
-				final EvitaRequest fetchRequest = queryContext.getEvitaRequest().deriveCopyWith(entityType, hierarchyContent.getEntityFetch().get());
+				final EvitaRequest fetchRequest = queryContext.getEvitaRequest().deriveCopyWith(
+					entityType,
+					hierarchyContent.getEntityFetch().get()
+				);
 				final EntityCollection referencedCollection = queryContext.getEntityCollectionOrThrowException(
 					entityType, "fetch parents"
 				);
@@ -1031,21 +1050,21 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull EntityReferenceWithParent entityReference,
 		@Nonnull Map<Integer, SealedEntity> parentBodies
 	) {
-		return entityReference.getParentEntity()
-			.map(parentEntity -> {
-				final EntityDecorator entityDecorator = (EntityDecorator) parentBodies.get(entityReference.getPrimaryKey());
-				return (SealedEntity) Entity.decorate(
-					entityDecorator,
-					replaceWithSealedEntities((EntityReferenceWithParent) parentEntity, parentBodies),
-					entityDecorator.getLocalePredicate(),
-					entityDecorator.getAttributePredicate(),
-					entityDecorator.getAssociatedDataPredicate(),
-					entityDecorator.getReferencePredicate(),
-					entityDecorator.getPricePredicate(),
-					entityDecorator.getAlignedNow()
-				);
-			})
-			.orElse(parentBodies.get(entityReference.getPrimaryKey()));
+		final SealedEntity sealedEntity = parentBodies.get(entityReference.getPrimaryKey());
+		final EntityDecorator entityDecorator = (EntityDecorator) sealedEntity;
+		return Entity.decorate(
+			entityDecorator,
+			entityReference.getParentEntity()
+				.map(parentEntity -> replaceWithSealedEntities((EntityReferenceWithParent) parentEntity, parentBodies))
+				.orElse(null),
+			entityDecorator.getLocalePredicate(),
+			new HierarchySerializablePredicate(true),
+			entityDecorator.getAttributePredicate(),
+			entityDecorator.getAssociatedDataPredicate(),
+			entityDecorator.getReferencePredicate(),
+			entityDecorator.getPricePredicate(),
+			entityDecorator.getAlignedNow()
+		);
 	}
 
 	/**
@@ -1257,13 +1276,13 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * This implementation looks up to the passed `sealedEntity` for existing referenced entity bodies.
 	 */
 	@RequiredArgsConstructor
-	private static class ExistingSealedEntityProvider implements ExistingEntityProvider {
-		private final SealedEntity sealedEntity;
+	private static class ExistingEntityDecoratorProvider implements ExistingEntityProvider {
+		private final EntityDecorator entityDecorator;
 
 		@Nonnull
 		@Override
 		public Optional<SealedEntity> getExistingParentEntity(int primaryKey) {
-			return sealedEntity.getParentEntity()
+			return entityDecorator.getParentEntityWithoutCheckingPredicate()
 				.filter(SealedEntity.class::isInstance)
 				.map(SealedEntity.class::cast);
 		}
@@ -1271,13 +1290,13 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull
 		@Override
 		public Optional<SealedEntity> getExistingEntity(@Nonnull String referenceName, int primaryKey) {
-			return sealedEntity.getReference(referenceName, primaryKey).flatMap(ReferenceContract::getReferencedEntity);
+			return entityDecorator.getReferenceWithoutCheckingPredicate(referenceName, primaryKey).flatMap(ReferenceContract::getReferencedEntity);
 		}
 
 		@Nonnull
 		@Override
 		public Optional<SealedEntity> getExistingGroupEntity(@Nonnull String referenceName, int primaryKey) {
-			return sealedEntity.getReference(referenceName, primaryKey).flatMap(ReferenceContract::getGroupEntity);
+			return entityDecorator.getReferenceWithoutCheckingPredicate(referenceName, primaryKey).flatMap(ReferenceContract::getGroupEntity);
 		}
 	}
 }

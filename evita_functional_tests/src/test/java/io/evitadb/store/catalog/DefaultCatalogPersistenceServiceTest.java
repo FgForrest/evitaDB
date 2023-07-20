@@ -371,6 +371,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 					),
 					OffsetDateTime.now(),
 					EntityClassifier.class,
+					null,
 					EvitaRequest.CONVERSION_NOT_SUPPORTED
 				),
 				mock(EvitaSession.class)

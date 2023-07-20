@@ -63,6 +63,7 @@ public class PricesSerializer extends Serializer<Prices> {
 		}
 
 		return new Prices(
+			EntitySchemaContext.getEntitySchema(),
 			version, prices, priceInnerRecordHandling
 		);
 	}

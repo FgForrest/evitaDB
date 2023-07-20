@@ -1212,8 +1212,8 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		assertEquals(7, product.getPrimaryKey());
 		assertProductBasicData(products.get(7), product);
 		assertProductAttributes(products.get(7), product, null);
-		assertNull(product.getReferencedFileSet());
-		assertNull(product.getReferencedFileSetAsDifferentProperty());
+		assertThrows(ContextMissingException.class, product::getReferencedFileSet);
+		assertThrows(ContextMissingException.class, product::getReferencedFileSetAsDifferentProperty);
 
 		final ProductInterface enrichedEntity = evitaClient.queryCatalog(
 			TEST_CATALOG,
@@ -1298,8 +1298,8 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		assertEquals(7, limitedProduct.getPrimaryKey());
 		assertProductBasicData(products.get(7), limitedProduct);
 		assertProductAttributes(products.get(7), limitedProduct, null);
-		assertNull(limitedProduct.getReferencedFileSet());
-		assertNull(limitedProduct.getReferencedFileSetAsDifferentProperty());
+		assertThrows(ContextMissingException.class, limitedProduct::getReferencedFileSet);
+		assertThrows(ContextMissingException.class, limitedProduct::getReferencedFileSetAsDifferentProperty);
 	}
 
 	@Test
@@ -1317,23 +1317,21 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldFailGracefullyQueryingListOfSealedEntitiesWithoutProperRequirements(EvitaClient evitaClient) {
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> evitaClient.queryCatalog(
-				TEST_CATALOG,
-				session -> {
-					return session.queryListOfSealedEntities(
-						query(
-							collection(Entities.PRODUCT),
-							filterBy(
-								entityPrimaryKeyInSet(1, 2, 5)
-							)
+	void shouldQueryListOfSealedEntitiesEvenWithoutProperRequirements(EvitaClient evitaClient) {
+		final List<SealedEntity> sealedEntities = evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryListOfSealedEntities(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(1, 2, 5)
 						)
-					);
-				}
-			)
+					)
+				);
+			}
 		);
+		assertEquals(3, sealedEntities.size());
 	}
 
 	@Test

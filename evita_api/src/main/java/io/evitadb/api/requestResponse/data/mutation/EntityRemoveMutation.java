@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.data.mutation;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.Droppable;
+import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.RemoveAssociatedDataMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
@@ -51,6 +52,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.stream.Stream;
 
 /**
@@ -138,7 +140,7 @@ public class EntityRemoveMutation implements EntityMutation {
 	@Nonnull
 	public List<? extends LocalMutation<?, ?>> computeLocalMutationsForEntityRemoval(@Nonnull Entity entity) {
 		return Stream.of(
-				entity.getParent()
+				(entity.parentAvailable() ? entity.getParent() : OptionalInt.empty())
 					.stream()
 					.mapToObj(it -> new RemoveParentMutation()),
 				entity.getReferences()
@@ -170,7 +172,7 @@ public class EntityRemoveMutation implements EntityMutation {
 				Stream.of(
 					new SetPriceInnerRecordHandlingMutation(PriceInnerRecordHandling.NONE)
 				),
-				entity.getPrices()
+				(entity.pricesAvailable() ? entity.getPrices() : Collections.<PriceContract>emptyList())
 					.stream()
 					.filter(Droppable::exists)
 					.map(it -> new RemovePriceMutation(it.priceKey()))

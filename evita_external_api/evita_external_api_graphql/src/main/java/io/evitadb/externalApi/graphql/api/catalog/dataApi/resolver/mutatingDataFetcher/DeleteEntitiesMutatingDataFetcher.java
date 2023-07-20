@@ -119,7 +119,7 @@ public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetche
 
 		return DataFetcherResult.<List<SealedEntity>>newResult()
 			.data(Arrays.asList(deletedEntities))
-			.localContext(EntityQueryContext.builder().build())
+			.localContext(EntityQueryContext.empty())
 			.build();
 	}
 

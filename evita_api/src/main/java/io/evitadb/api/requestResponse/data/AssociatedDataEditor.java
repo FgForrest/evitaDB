@@ -122,7 +122,7 @@ public interface AssociatedDataEditor<W extends AssociatedDataEditor<W>> extends
 		 * Method creates implicit associatedData type for the associatedData value that doesn't map to any existing
 		 * (known) associatedData type of the {@link EntitySchemaContract} schema.
 		 */
-		default AssociatedDataSchemaContract createImplicitSchema(@Nonnull AssociatedDataValue associatedDataValue) {
+		static AssociatedDataSchemaContract createImplicitSchema(@Nonnull AssociatedDataValue associatedDataValue) {
 			return AssociatedDataSchema._internalBuild(
 				associatedDataValue.key().associatedDataName(),
 				null, null,

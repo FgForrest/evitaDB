@@ -183,7 +183,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				.toList();
 
 			final List<SealedEntity> categoriesAvailable = storedCategories.stream()
-				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContent(), referenceContentAll(), dataInLocales()).orElseThrow())
+				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), hierarchyContent(), attributeContent(), referenceContentAll(), dataInLocales()).orElseThrow())
 				.toList();
 			return new DataCarrier(
 				tuple(

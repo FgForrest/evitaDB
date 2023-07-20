@@ -538,8 +538,8 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 		assertProductBasicData(originalProduct, limitedProduct);
 		assertProductAttributes(originalProduct, limitedProduct, null);
-		assertNull(limitedProduct.getReferencedFileSet());
-		assertNull(limitedProduct.getReferencedFileSetAsDifferentProperty());
+		assertThrows(ContextMissingException.class, limitedProduct::getReferencedFileSet);
+		assertThrows(ContextMissingException.class, limitedProduct::getReferencedFileSetAsDifferentProperty);
 	}
 
 	@DisplayName("Should return entity reference")

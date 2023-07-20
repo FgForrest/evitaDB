@@ -42,7 +42,7 @@ public class ParentPrimaryKeyDataFetcher implements DataFetcher<Integer> {
 	@Override
 	public Integer get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final SealedEntity entity = environment.getSource();
-		return entity.getParent().isPresent()
+		return entity.parentAvailable() && entity.getParent().isPresent()
 			? entity.getParent().getAsInt()
 			: null;
 	}

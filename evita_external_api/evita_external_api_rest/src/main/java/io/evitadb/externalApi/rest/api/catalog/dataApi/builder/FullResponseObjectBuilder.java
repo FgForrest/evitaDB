@@ -394,7 +394,7 @@ public class FullResponseObjectBuilder {
 		if (referencedEntitySchema != null) {
 			return typeRefTo(constructEntityObjectName(referencedEntitySchema, localized));
 		} else {
-			return typeRefTo(EntityDescriptor.THIS_ENTITY_REFERENCE.name());
+			return typeRefTo(EntityDescriptor.THIS_REFERENCE.name());
 		}
 	}
 

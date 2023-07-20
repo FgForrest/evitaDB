@@ -41,6 +41,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
@@ -59,8 +60,8 @@ public interface AttributesContract extends Serializable {
 	 * Returns true if single attribute differs between first and second instance.
 	 */
 	static boolean anyAttributeDifferBetween(AttributesContract first, AttributesContract second) {
-		final Collection<AttributeValue> thisValues = first.getAttributeValues();
-		final Collection<AttributeValue> otherValues = second.getAttributeValues();
+		final Collection<AttributeValue> thisValues = first.attributesAvailable() ? first.getAttributeValues() : Collections.emptyList();
+		final Collection<AttributeValue> otherValues = second.attributesAvailable() ? second.getAttributeValues() : Collections.emptyList();
 
 		if (thisValues.size() != otherValues.size()) {
 			return true;
@@ -81,6 +82,12 @@ public interface AttributesContract extends Serializable {
 				});
 		}
 	}
+
+	/**
+	 * Returns true if entity attributes were fetched along with the entity. Calling this method before calling any
+	 * other method that requires attributes to be fetched will allow you to avoid {@link ContextMissingException}.
+	 */
+	boolean attributesAvailable();
 
 	/**
 	 * Returns value associated with the key or null when the attribute is missing.

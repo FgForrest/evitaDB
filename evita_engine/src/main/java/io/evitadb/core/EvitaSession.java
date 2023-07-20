@@ -389,6 +389,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				query.normalizeQuery(),
 				OffsetDateTime.now(),
 				expectedType,
+				ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType),
 				this.proxyFactory::createEntityProxy
 			)
 		);
@@ -408,6 +409,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			query.normalizeQuery(),
 			OffsetDateTime.now(),
 			expectedType,
+			ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType),
 			this.proxyFactory::createEntityProxy
 		);
 
@@ -442,6 +444,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			),
 			OffsetDateTime.now(),
 			EntityReference.class,
+			null,
 			this.proxyFactory::createEntityProxy
 		);
 		final EntityCollectionContract entityCollection = getCatalog().getCollectionForEntityOrThrowException(entityType);
@@ -467,6 +470,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			),
 			OffsetDateTime.now(),
 			expectedType,
+			entityType,
 			this.proxyFactory::createEntityProxy
 		);
 		return entityCollection.getEntity(
@@ -491,6 +495,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			),
 			OffsetDateTime.now(),
 			EntityReference.class,
+			entityType,
 			this.proxyFactory::createEntityProxy
 		);
 		if (partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy) {
@@ -532,6 +537,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			OffsetDateTime.now(),
 			partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy ?
 				sealedEntityProxy.getProxyClass() : partiallyLoadedEntity.getClass(),
+			entityType,
 			this.proxyFactory::createEntityProxy
 		);
 		if (partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy) {
@@ -711,6 +717,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					),
 					OffsetDateTime.now(),
 					SealedEntity.class,
+					null,
 					this.proxyFactory::createEntityProxy
 				),
 				this
@@ -776,6 +783,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			query.normalizeQuery(),
 			OffsetDateTime.now(),
 			EntityReference.class,
+			null,
 			this.proxyFactory::createEntityProxy
 		);
 		return executeInTransactionIfPossible(session -> {
@@ -793,6 +801,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			query.normalizeQuery(),
 			OffsetDateTime.now(),
 			SealedEntity.class,
+			null,
 			this.proxyFactory::createEntityProxy
 		);
 		return executeInTransactionIfPossible(session -> {
@@ -959,6 +968,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					),
 					OffsetDateTime.now(),
 					expectedType,
+					ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType),
 					this.proxyFactory::createEntityProxy
 				),
 				this
@@ -998,6 +1008,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					),
 					OffsetDateTime.now(),
 					expectedType,
+					ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType),
 					this.proxyFactory::createEntityProxy
 				),
 				this

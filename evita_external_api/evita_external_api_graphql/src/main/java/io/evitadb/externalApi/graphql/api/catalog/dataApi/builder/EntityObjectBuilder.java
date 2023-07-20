@@ -34,7 +34,9 @@ import graphql.schema.GraphQLType;
 import io.evitadb.api.query.require.HierarchyStopAt;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
@@ -74,13 +76,17 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
 import static graphql.schema.GraphQLList.list;
 import static graphql.schema.GraphQLNonNull.nonNull;
 import static graphql.schema.GraphQLTypeReference.typeRef;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
+import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.CATALOG_LOCALE_ENUM;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_CURRENCY_ENUM;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_LOCALE_ENUM;
 
@@ -129,23 +135,15 @@ public class EntityObjectBuilder {
 	}
 
 	public void buildCommonTypes() {
-		buildingContext.registerType(EntityDescriptor.THIS_ENTITY_REFERENCE.to(objectBuilderTransformer).build());
-
-		final GraphQLInterfaceType entityClassifierInterface = EntityDescriptor.THIS_INTERFACE.to(interfaceBuilderTransformer).build();
-		buildingContext.registerType(entityClassifierInterface);
-		buildingContext.registerTypeResolver(
-			entityClassifierInterface,
-			new EntityDtoTypeResolver(buildingContext.getEntityTypeToEntityObject())
-		);
-
+		buildingContext.registerType(EntityDescriptor.THIS_REFERENCE.to(objectBuilderTransformer).build());
 		buildingContext.registerType(buildPriceObject());
+		buildingContext.registerType(buildGlobal());
 	}
 
 	@Nonnull
 	public GraphQLObjectType build(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
 		return build(collectionBuildingContext, EntityObjectVariant.DEFAULT);
 	}
-
 
 	@Nonnull
 	public GraphQLObjectType build(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
@@ -162,8 +160,7 @@ public class EntityObjectBuilder {
 		final GraphQLObjectType.Builder entityObjectBuilder = entityDescriptor
 			.to(objectBuilderTransformer)
 			.name(objectName)
-			.description(entitySchema.getDescription())
-			.withInterface(typeRef(GraphQLEntityDescriptor.THIS_INTERFACE.name()));
+			.description(entitySchema.getDescription());
 
 		// build locale fields
 		if (!entitySchema.getLocales().isEmpty()) {
@@ -248,6 +245,28 @@ public class EntityObjectBuilder {
 		}
 
 		return entityObjectBuilder.build();
+	}
+
+	@Nonnull
+	private GraphQLObjectType buildGlobal() {
+		final CatalogSchemaContract catalogSchema = buildingContext.getSchema();
+
+		final GraphQLObjectType.Builder globalEntityObjectBuilder = GraphQLEntityDescriptor.THIS_GLOBAL.to(objectBuilderTransformer);
+
+		if (!buildingContext.getSupportedLocales().isEmpty()) {
+			globalEntityObjectBuilder.field(GraphQLEntityDescriptor.LOCALES.to(fieldBuilderTransformer));
+			globalEntityObjectBuilder.field(GraphQLEntityDescriptor.ALL_LOCALES.to(fieldBuilderTransformer));
+		}
+
+		if (!catalogSchema.getAttributes().isEmpty()) {
+			buildingContext.registerFieldToObject(
+				GraphQLEntityDescriptor.THIS_GLOBAL,
+				globalEntityObjectBuilder,
+				buildGlobalEntityAttributesField()
+			);
+		}
+
+		return globalEntityObjectBuilder.build();
 	}
 
 	@Nonnull
@@ -352,13 +371,39 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
+	private BuiltFieldDescriptor buildGlobalEntityAttributesField() {
+		final CatalogSchemaContract catalogSchema = buildingContext.getSchema();
+		final GraphQLType attributesObject = buildAttributesObject(
+			catalogSchema.getAttributes().values(),
+			AttributesDescriptor.THIS_GLOBAL.name(),
+			false
+		);
+
+		final GraphQLFieldDefinition.Builder attributesFieldBuilder = GraphQLEntityDescriptor.ATTRIBUTES
+			.to(fieldBuilderTransformer)
+			.type(nonNull(attributesObject));
+
+		if (!buildingContext.getSupportedLocales().isEmpty()) {
+			attributesFieldBuilder.argument(AttributesFieldHeaderDescriptor.LOCALE
+				.to(argumentBuilderTransformer)
+				.type(typeRef(CATALOG_LOCALE_ENUM.name())));
+		}
+
+		return new BuiltFieldDescriptor(
+			attributesFieldBuilder.build(),
+			new AttributesDataFetcher()
+		);
+	}
+
+	@Nonnull
 	private BuiltFieldDescriptor buildEntityAttributesField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
 	                                                        @Nonnull EntityObjectVariant version) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 		final GraphQLType attributesObject = switch (version) {
 			case DEFAULT -> buildAttributesObject(
 				entitySchema.getAttributes().values(),
-				AttributesDescriptor.THIS.name(entitySchema)
+				AttributesDescriptor.THIS.name(entitySchema),
+				true
 			);
 			case NON_HIERARCHICAL -> typeRef(AttributesDescriptor.THIS.name(entitySchema));
 			default -> throw new GraphQLSchemaBuildingError("Unsupported version `" + version + "`.");
@@ -381,8 +426,9 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildAttributesObject(@Nonnull Collection<AttributeSchemaContract> attributeSchemas,
-	                                                @Nonnull String objectName) {
+	private GraphQLObjectType buildAttributesObject(@Nonnull Collection<? extends AttributeSchemaContract> attributeSchemas,
+	                                                @Nonnull String objectName,
+	                                                boolean attributesCanBeRequired) {
 		final GraphQLObjectType.Builder attributesBuilder = AttributesDescriptor.THIS
 			.to(objectBuilderTransformer)
 			.name(objectName);
@@ -391,7 +437,7 @@ public class EntityObjectBuilder {
 			buildingContext.registerFieldToObject(
 				objectName,
 				attributesBuilder,
-				buildAttributeField(attributeSchema)
+				buildAttributeField(attributeSchema, attributesCanBeRequired)
 			)
 		);
 
@@ -399,7 +445,7 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildAttributeField(@Nonnull AttributeSchemaContract attributeSchema) {
+	private BuiltFieldDescriptor buildAttributeField(@Nonnull AttributeSchemaContract attributeSchema, boolean canBeRequired) {
 		final GraphQLFieldDefinition.Builder attributeFieldBuilder = newFieldDefinition()
 			.name(attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 			.description(attributeSchema.getDescription())
@@ -408,7 +454,7 @@ public class EntityObjectBuilder {
 
 		final Class<? extends Serializable> attributeType = attributeSchema.getType();
 		if (BigDecimal.class.isAssignableFrom(attributeType)) {
-			if (attributeSchema.isNullable()) {
+			if (attributeSchema.isNullable() || !canBeRequired) {
 				new NullableBigDecimalFieldDecorator(argumentBuilderTransformer).accept(attributeFieldBuilder);
 			} else {
 				new NonNullBigDecimalFieldDecorator(argumentBuilderTransformer).accept(attributeFieldBuilder);
@@ -417,7 +463,7 @@ public class EntityObjectBuilder {
 			attributeFieldDataFetcher = new BigDecimalDataFetcher(new AttributeValueDataFetcher<>(attributeSchema));
 		} else {
 			attributeFieldBuilder.type(
-				(GraphQLOutputType) DataTypesConverter.getGraphQLScalarType(attributeType, !attributeSchema.isNullable())
+				(GraphQLOutputType) DataTypesConverter.getGraphQLScalarType(attributeType, canBeRequired && !attributeSchema.isNullable())
 			);
 			attributeFieldDataFetcher = new AttributeValueDataFetcher<>(attributeSchema);
 		}
@@ -596,7 +642,8 @@ public class EntityObjectBuilder {
 
 		final GraphQLObjectType attributesObject = buildAttributesObject(
 			referenceSchema.getAttributes().values(),
-			referenceAttributesObjectName
+			referenceAttributesObjectName,
+			true
 		);
 
 		final GraphQLFieldDefinition attributesField = ReferenceDescriptor.ATTRIBUTES
@@ -661,7 +708,7 @@ public class EntityObjectBuilder {
 		if (referencedEntitySchema != null) {
 			return typeRef(GraphQLEntityDescriptor.THIS.name(referencedEntitySchema));
 		} else {
-			return typeRef(GraphQLEntityDescriptor.THIS_ENTITY_REFERENCE.name());
+			return typeRef(GraphQLEntityDescriptor.THIS_REFERENCE.name());
 		}
 	}
 

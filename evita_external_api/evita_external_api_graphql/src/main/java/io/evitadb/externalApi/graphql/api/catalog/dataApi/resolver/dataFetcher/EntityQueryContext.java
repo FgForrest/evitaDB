@@ -27,6 +27,7 @@ import graphql.schema.DataFetchingEnvironment;
 import lombok.Builder;
 import lombok.Data;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.Currency;
@@ -55,4 +56,9 @@ public final class EntityQueryContext {
 	@Nullable
 	private final OffsetDateTime desiredPriceValidIn;
 	private final boolean desiredpriceValidInNow;
+
+	@Nonnull
+	public static EntityQueryContext empty() {
+		return EntityQueryContext.builder().build();
+	}
 }

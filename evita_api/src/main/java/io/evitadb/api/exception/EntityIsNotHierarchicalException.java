@@ -23,27 +23,42 @@
 
 package io.evitadb.api.exception;
 
+import io.evitadb.api.query.filter.HierarchyWithin;
+import io.evitadb.api.query.filter.HierarchyWithinRoot;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 
 /**
- * Exception is thrown when price related constraints target an entity that is not marked
- * as {@link EntitySchemaContract#isWithPrice()}.
+ * Exception is thrown when {@link HierarchyWithinRoot} or {@link HierarchyWithin} targets an entity that is not marked
+ * as {@link EntitySchemaContract#isWithHierarchy()}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class TargetEntityHasNoPricesException extends EvitaInvalidUsageException {
-	@Serial private static final long serialVersionUID = 7559807499840163851L;
+public class EntityIsNotHierarchicalException extends EvitaInvalidUsageException {
+	@Serial private static final long serialVersionUID = -2138081433947529964L;
+	@Getter private final String referenceName;
 	@Getter private final String entityType;
 
-	public TargetEntityHasNoPricesException(@Nonnull String entityType) {
+	public EntityIsNotHierarchicalException(@Nonnull String entityType) {
 		super(
-			"Entity `" + entityType + "` targeted by query doesn't allow to keep any prices!"
+			"Entity `" + entityType + "` is not hierarchical!"
 		);
+		this.referenceName = null;
+		this.entityType = entityType;
+	}
+
+	public EntityIsNotHierarchicalException(@Nullable String referenceName, @Nonnull String entityType) {
+		super(
+			referenceName == null ?
+				"Entity `" + entityType + "` targeted by query within hierarchy is not hierarchical!" :
+				"Entity `" + entityType + "` targeted by query within hierarchy through reference `" + referenceName + "` is not hierarchical!"
+		);
+		this.referenceName = referenceName;
 		this.entityType = entityType;
 	}
 }

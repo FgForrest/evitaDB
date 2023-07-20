@@ -165,6 +165,11 @@ public class ReferenceDecorator implements ReferenceContract {
 		return delegate.version();
 	}
 
+	@Override
+	public boolean attributesAvailable() {
+		return attributePredicate.wasFetched();
+	}
+
 	@Nullable
 	@Override
 	public <T extends Serializable> T getAttribute(@Nonnull String attributeName) {
@@ -186,23 +191,24 @@ public class ReferenceDecorator implements ReferenceContract {
 	@Nonnull
 	@Override
 	public Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName) {
-		final Optional<AttributeValue> result;
+		final AttributeKey attributeKey;
 		if (attributePredicate.isLocaleSet()) {
 			final Locale locale = attributePredicate.getLocale();
-			result = locale == null ?
-				delegate.getAttributeValue(attributeName) : delegate.getAttributeValue(attributeName, locale);
+			attributeKey = locale == null ?
+				new AttributeKey(attributeName) : new AttributeKey(attributeName, locale);
 		} else {
-			result = delegate.getAttributeValue(attributeName);
+			attributeKey = new AttributeKey(attributeName);
 		}
-		return result.filter(attributePredicate);
+		attributePredicate.checkFetched(new AttributeKey(attributeName));
+		return delegate.getAttributeValue(attributeKey)
+			.filter(attributePredicate);
 	}
 
 	@Nullable
 	@Override
 	public <T extends Serializable> T getAttribute(@Nonnull String attributeName, @Nonnull Locale locale) {
 		//noinspection unchecked
-		return delegate.getAttributeValue(attributeName, locale)
-			.filter(attributePredicate)
+		return getAttributeValue(new AttributeKey(attributeName, locale))
 			.map(it -> (T) it.value())
 			.orElse(null);
 	}
@@ -211,8 +217,7 @@ public class ReferenceDecorator implements ReferenceContract {
 	@Override
 	public <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName, @Nonnull Locale locale) {
 		//noinspection unchecked
-		return delegate.getAttributeValue(attributeName, locale)
-			.filter(attributePredicate)
+		return getAttributeValue(new AttributeKey(attributeName, locale))
 			.map(it -> (T[]) it.value())
 			.orElse(null);
 	}
@@ -220,8 +225,7 @@ public class ReferenceDecorator implements ReferenceContract {
 	@Nonnull
 	@Override
 	public Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName, @Nonnull Locale locale) {
-		return delegate.getAttributeValue(attributeName, locale)
-			.filter(attributePredicate);
+		return getAttributeValue(new AttributeKey(attributeName, locale));
 	}
 
 	@Nonnull
@@ -251,6 +255,7 @@ public class ReferenceDecorator implements ReferenceContract {
 	@Nonnull
 	@Override
 	public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
+		attributePredicate.checkFetched(attributeKey);
 		return delegate.getAttributeValue(attributeKey)
 			.filter(attributePredicate);
 	}
@@ -259,6 +264,7 @@ public class ReferenceDecorator implements ReferenceContract {
 	@Override
 	public Collection<AttributeValue> getAttributeValues() {
 		if (filteredAttributes == null) {
+			attributePredicate.checkFetched();
 			filteredAttributes = delegate.getAttributeValues()
 				.stream()
 				.filter(attributePredicate)
@@ -270,7 +276,8 @@ public class ReferenceDecorator implements ReferenceContract {
 	@Nonnull
 	@Override
 	public Collection<AttributeValue> getAttributeValues(@Nonnull String attributeName) {
-		return getAttributeValues()
+		attributePredicate.checkFetched(new AttributeKey(attributeName));
+		return delegate.getAttributeValues(attributeName)
 			.stream()
 			.filter(it -> attributeName.equals(it.key().attributeName()))
 			.collect(Collectors.toList());

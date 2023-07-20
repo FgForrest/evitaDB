@@ -27,6 +27,7 @@ import graphql.schema.GraphQLObjectType;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuildingContext;
@@ -34,10 +35,9 @@ import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import java.util.Map;
+import java.util.Locale;
 import java.util.Set;
 
-import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
@@ -52,26 +52,27 @@ public class CatalogGraphQLSchemaBuildingContext extends GraphQLSchemaBuildingCo
 	private final CatalogContract catalog;
 	@Getter
 	@Nonnull
-	private final Set<EntitySchemaContract> entitySchemas;
+	private final Set<Locale> supportedLocales;
 	@Getter
 	@Nonnull
-	private final Map<String, GraphQLObjectType> entityTypeToEntityObject = createHashMap(50);
+	private final Set<EntitySchemaContract> entitySchemas;
 
 	public CatalogGraphQLSchemaBuildingContext(@Nonnull GraphQLConfig config,
 	                                           @Nonnull Evita evita,
 	                                           @Nonnull CatalogContract catalog) {
 		super(config, evita);
 		this.catalog = catalog;
+		this.supportedLocales = createHashSet(20);
 
 		this.entitySchemas = evita.queryCatalog(catalog.getName(), session -> {
 			final Set<String> collections = session.getAllEntityTypes();
 			final Set<EntitySchemaContract> schemas = createHashSet(collections.size());
-			collections.forEach(
-				c -> schemas.add(
-					session.getEntitySchema(c)
-						.orElseThrow(() -> new EvitaInternalError("Entity `" + c + "` schema unexpectedly not found!"))
-				)
-			);
+			collections.forEach(c -> {
+				final SealedEntitySchema entitySchema = session.getEntitySchema(c)
+					.orElseThrow(() -> new EvitaInternalError("Entity `" + c + "` schema unexpectedly not found!"));
+				supportedLocales.addAll(entitySchema.getLocales());
+				schemas.add(entitySchema);
+			});
 			return schemas;
 		});
 	}
@@ -81,8 +82,7 @@ public class CatalogGraphQLSchemaBuildingContext extends GraphQLSchemaBuildingCo
 		return catalog.getSchema();
 	}
 
-	public void registerEntityObject(@Nonnull String entityType, @Nonnull GraphQLObjectType entityObject) {
+	public void registerEntityObject(@Nonnull GraphQLObjectType entityObject) {
 		registerType(entityObject);
-		entityTypeToEntityObject.putIfAbsent(entityType, entityObject);
 	}
 }

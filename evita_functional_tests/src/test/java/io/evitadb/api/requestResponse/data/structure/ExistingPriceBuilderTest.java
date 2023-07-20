@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.data.structure;
 import io.evitadb.api.exception.AmbiguousPriceException;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.dataType.DateTimeRange;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -52,7 +53,7 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 
 	@BeforeEach
 	void setUp() {
-		initialPrices = new InitialPricesBuilder()
+		initialPrices = new InitialPricesBuilder(PRODUCT_SCHEMA)
 				.setPriceInnerRecordHandling(PriceInnerRecordHandling.FIRST_OCCURRENCE)
 				.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 				.setPrice(2, "reference", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, false)
@@ -67,7 +68,7 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 		builder.removePriceInnerRecordHandling();
 		assertEquals(PriceInnerRecordHandling.NONE, builder.getPriceInnerRecordHandling());
 
-		final Prices updatedPrices = builder.build();
+		final PricesContract updatedPrices = builder.build();
 		assertEquals(PriceInnerRecordHandling.NONE, updatedPrices.getPriceInnerRecordHandling());
 	}
 
@@ -86,7 +87,7 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 	void shouldAddNewPrice() {
 		builder.setPrice(5, "discount", CZK, new BigDecimal("56"), new BigDecimal("21"), new BigDecimal("65.25"), true);
 		assertPrice(builder.getPrice(5, "discount", CZK), new BigDecimal("56"), new BigDecimal("21"), new BigDecimal("65.25"), true);
-		final Prices updatedPrices = builder.build();
+		final PricesContract updatedPrices = builder.build();
 		assertPrice(updatedPrices.getPrice(5, "discount", CZK), new BigDecimal("56"), new BigDecimal("21"), new BigDecimal("65.25"),  true);
 
 		final Collection<PriceContract> prices = updatedPrices.getPrices();
@@ -97,7 +98,7 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 	void shouldOverWriteExistingPrice() {
 		builder.setPrice(1, "basic", CZK, new BigDecimal("56"), new BigDecimal("21"), new BigDecimal("65.25"), true);
 		assertPrice(builder.getPrice(1, "basic", CZK), new BigDecimal("56"), new BigDecimal("21"), new BigDecimal("65.25"), true);
-		final Prices updatedPrices = builder.build();
+		final PricesContract updatedPrices = builder.build();
 		assertPrice(updatedPrices.getPrice(1, "basic", CZK), new BigDecimal("56"), new BigDecimal("21"), new BigDecimal("65.25"), true);
 
 		final Collection<PriceContract> prices = updatedPrices.getPrices();
@@ -108,7 +109,7 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 	void shouldRemoveExistingPrice() {
 		builder.removePrice(1, "basic", CZK);
 		assertNull(builder.getPrice(1, "basic", CZK).orElse(null));
-		final Prices updatedPrices = builder.build();
+		final PricesContract updatedPrices = builder.build();
 		assertNull(updatedPrices.getPrice(1, "basic", CZK).orElse(null));
 
 		final Collection<PriceContract> prices = updatedPrices.getPrices();
@@ -121,7 +122,7 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 				.setPrice(3, "basic", EUR, new BigDecimal("56"), new BigDecimal("21"), new BigDecimal("65.25"), true)
 				.removeAllNonTouchedPrices();
 
-		final Prices updatedPrices = builder.build();
+		final PricesContract updatedPrices = builder.build();
 		assertPrice(updatedPrices.getPrice(1, "basic", CZK), new BigDecimal("56"), new BigDecimal("21"), new BigDecimal("65.25"), true);
 		assertPrice(updatedPrices.getPrice(3, "basic", EUR), new BigDecimal("56"), new BigDecimal("21"), new BigDecimal("65.25"), true);
 
@@ -143,7 +144,7 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 	@Test
 	void shouldRefuseAddingConflictingPriceWithExistingPrice() {
 		assertThrows(AmbiguousPriceException.class, () -> {
-			final Prices prices = builder
+			final PricesContract prices = builder
 				.setPrice(10, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 				.build();
 		});
@@ -151,7 +152,7 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldAllowAddingConflictingPriceForDifferentInnerRecordId() {
-		final Prices prices = builder
+		final PricesContract prices = builder
 			.setPrice(10, "basic", CZK, 10, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 			.build();
 
@@ -164,7 +165,7 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 	@Test
 	void shouldRefuseAddingConflictingPriceWithUpsertedPrice() {
 		assertThrows(AmbiguousPriceException.class, () -> {
-			final Prices prices = builder
+			final PricesContract prices = builder
 				.setPrice(10, "vip", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, DateTimeRange.since(OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)), true)
 				.setPrice(11, "vip", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, DateTimeRange.until(OffsetDateTime.of(2022, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)), true)
 				.build();
@@ -173,7 +174,7 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldAllowAddingConflictingPriceWithUpsertedPriceForDifferentInnerRecordId() {
-		final Prices prices = builder
+		final PricesContract prices = builder
 			.setPrice(10, "vip", CZK, 10, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, DateTimeRange.since(OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)), true)
 			.setPrice(11, "vip", CZK, 11, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, DateTimeRange.until(OffsetDateTime.of(2022, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)), true)
 			.build();
@@ -186,7 +187,7 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldNotRefuseAddingConflictingPriceWithAlreadyRemovedPrice() {
-		final Prices prices = builder
+		final PricesContract prices = builder
 			.removePrice(1, "basic", CZK)
 			.setPrice(10, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 			.build();
