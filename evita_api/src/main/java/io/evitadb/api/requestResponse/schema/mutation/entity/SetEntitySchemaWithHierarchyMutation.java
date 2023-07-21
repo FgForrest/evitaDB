@@ -78,7 +78,7 @@ public class SetEntitySchemaWithHierarchyMutation implements CombinableEntitySch
 			return entitySchema;
 		} else {
 			return EntitySchema._internalBuild(
-				entitySchema.getVersion() + 1,
+				entitySchema.version() + 1,
 				entitySchema.getName(),
 				entitySchema.getNameVariants(),
 				entitySchema.getDescription(),

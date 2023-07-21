@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedData
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.Droppable;
+import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
@@ -362,7 +363,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		final AttributeKey affectedAttribute = attributeMutation.getAttributeKey();
 
 		if (attributeMutation instanceof UpsertAttributeMutation) {
-			ofNullable(affectedAttribute.getLocale())
+			ofNullable(affectedAttribute.locale())
 				.ifPresent(locale -> {
 					final EntityBodyStoragePart entityStoragePart = getEntityStoragePart(entityType, entityPrimaryKey, EntityExistence.MUST_EXIST);
 					final OperationResult operationResult = entityStoragePart.addAttributeLocale(locale);
@@ -371,7 +372,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 					}
 				});
 		} else if (attributeMutation instanceof RemoveAttributeMutation) {
-			ofNullable(affectedAttribute.getLocale())
+			ofNullable(affectedAttribute.locale())
 				.ifPresent(locale -> {
 					final AttributesStoragePart attributeStoragePart = getAttributeStoragePart(entityType, entityPrimaryKey, locale);
 					final ReferencesStoragePart referencesStoragePart = getReferencesStoragePart(entityType, entityPrimaryKey);
@@ -482,7 +483,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 				if (checkLocalized && attribute.isLocalized()) {
 					entityLocales.stream()
 						.map(locale -> new AttributeKey(attribute.getName(), locale))
-						.flatMap(key -> ofNullable(availableLocalizedAttributes.get(key.getLocale()))
+						.flatMap(key -> ofNullable(availableLocalizedAttributes.get(key.locale()))
 							.map(it -> it.contains(key)).orElse(false) ? Stream.empty() : Stream.of(key))
 						.forEach(it -> missingAttributeHandler.accept(defaultValue, it));
 				} else if (checkGlobal) {
@@ -573,7 +574,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		final Set<AssociatedDataKey> availableAssociatedDataKeys = entityContainer.getAssociatedDataKeys();
 		final Set<AssociatedDataKey> availableGlobalAssociatedDataKeys = availableAssociatedDataKeys
 			.stream()
-			.filter(it -> it.getLocale() == null)
+			.filter(it -> it.locale() == null)
 			.collect(Collectors.toSet());
 		final Set<Locale> entityLocales = entityStorageContainer.getLocales();
 		final Map<Locale, Set<AssociatedDataKey>> availableLocalizedAssociatedDataKeys = entityLocales
@@ -582,7 +583,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 				Collectors.toMap(
 					Function.identity(),
 					it -> availableAssociatedDataKeys.stream()
-						.filter(key -> Objects.equals(it, key.getLocale()))
+						.filter(key -> Objects.equals(it, key.locale()))
 						.collect(Collectors.toSet())
 				)
 			);
@@ -593,7 +594,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 				if (associatedData.isLocalized()) {
 					return entityLocales.stream()
 						.map(locale -> new AssociatedDataKey(associatedData.getName(), locale))
-						.flatMap(key -> ofNullable(availableLocalizedAssociatedDataKeys.get(key.getLocale()))
+						.flatMap(key -> ofNullable(availableLocalizedAssociatedDataKeys.get(key.locale()))
 							.map(it -> it.contains(key)).orElse(false) ? Stream.empty() : Stream.of(key));
 				} else {
 					final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedData.getName());
@@ -628,9 +629,9 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 							.collect(Collectors.toSet())
 					);
 				}
-				return mandatoryAssociatedData.get().contains(it.getValue().getKey().getAssociatedDataName());
+				return mandatoryAssociatedData.get().contains(it.getValue().key().associatedDataName());
 			})
-			.map(it -> it.getValue().getKey())
+			.map(it -> it.getValue().key())
 			.toList();
 
 		if (!missingMandatedAssociatedData.isEmpty()) {
@@ -678,7 +679,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 					.orElse(EMPTY_ATTRIBUTES)
 			)
 			.filter(Droppable::exists)
-			.map(AttributeValue::getKey)
+			.map(AttributeValue::key)
 			.collect(Collectors.toSet());
 	}
 
@@ -690,7 +691,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		return referenceContract.getAttributeValues()
 			.stream()
 			.filter(Droppable::exists)
-			.map(AttributeValue::getKey)
+			.map(AttributeValue::key)
 			.collect(Collectors.toSet());
 	}
 
@@ -733,9 +734,9 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 */
 	private void updateAttributes(@Nonnull EntitySchemaContract entitySchema, @Nonnull AttributeMutation localMutation) {
 		final AttributeKey attributeKey = localMutation.getAttributeKey();
-		final AttributeSchemaContract attributeDefinition = entitySchema.getAttribute(attributeKey.getAttributeName())
-			.orElseThrow(() -> new EvitaInvalidUsageException("Attribute `" + attributeKey.getAttributeName() + "` is not known for entity `" + entitySchema.getName() + "`."));
-		final AttributesStoragePart attributesStorageContainer = ofNullable(attributeKey.getLocale())
+		final AttributeSchemaContract attributeDefinition = entitySchema.getAttribute(attributeKey.attributeName())
+			.orElseThrow(() -> new EvitaInvalidUsageException("Attribute `" + attributeKey.attributeName() + "` is not known for entity `" + entitySchema.getName() + "`."));
+		final AttributesStoragePart attributesStorageContainer = ofNullable(attributeKey.locale())
 			// get or create locale specific attributes container
 			.map(it -> getAttributeStoragePart(entityType, entityPrimaryKey, it))
 			// get or create locale agnostic container (global one)
@@ -782,14 +783,14 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		if (mutatedValue.exists()) {
 			final EntityBodyStoragePart entityStoragePart = getEntityStoragePart(entityType, entityPrimaryKey, EntityExistence.MUST_EXIST);
 			if (operationResult.operationChangedSetOfLocales()) {
-				Assert.isPremiseValid(associatedDataKey.getLocale() != null, "Locale must not be null!");
-				upsertEntityLanguage(entityStoragePart, this, associatedDataKey.getLocale());
+				Assert.isPremiseValid(associatedDataKey.locale() != null, "Locale must not be null!");
+				upsertEntityLanguage(entityStoragePart, this, associatedDataKey.locale());
 			}
 		} else {
 			final EntityBodyStoragePart entityStoragePart = getEntityStoragePart(entityType, entityPrimaryKey, EntityExistence.MUST_EXIST);
 			if (operationResult.operationChangedSetOfLocales()) {
-				Assert.isPremiseValid(associatedDataKey.getLocale() != null, "Locale must not be null!");
-				removeEntityLanguage(entityStoragePart, this, associatedDataKey.getLocale());
+				Assert.isPremiseValid(associatedDataKey.locale() != null, "Locale must not be null!");
+				removeEntityLanguage(entityStoragePart, this, associatedDataKey.locale());
 			}
 		}
 	}
@@ -865,9 +866,10 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		// get or create prices container
 		final PricesStoragePart pricesStorageContainer = getPriceStoragePart(entityType, entityPrimaryKey);
 		// update price inner record handling in it - we have to mock the Prices virtual container for this operation
-		final Prices mutatedPrices = localMutation.mutateLocal(
+		final PricesContract mutatedPrices = localMutation.mutateLocal(
 			entitySchema,
 			new Prices(
+				entitySchema,
 				pricesStorageContainer.getVersion(),
 				Collections.emptyList(),
 				pricesStorageContainer.getPriceInnerRecordHandling()

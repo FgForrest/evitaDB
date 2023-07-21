@@ -45,7 +45,7 @@ class AssociatedDataValueSerializablePredicateTest {
 	@Test
 	void shouldCreateRicherCopyForNoAssociatedData() {
 		final AssociatedDataValueSerializablePredicate noAssociatedDataRequired = new AssociatedDataValueSerializablePredicate(
-			Collections.emptySet(), Collections.emptySet(), false
+			null, null, Collections.emptySet(), Collections.emptySet(), false
 		);
 
 		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
@@ -58,7 +58,7 @@ class AssociatedDataValueSerializablePredicateTest {
 	@Test
 	void shouldNotCreateRicherCopyForNoAssociatedData() {
 		final AssociatedDataValueSerializablePredicate noAssociatedDataRequired = new AssociatedDataValueSerializablePredicate(
-			Collections.emptySet(), Collections.emptySet(), false
+			null, null, Collections.emptySet(), Collections.emptySet(), false
 		);
 
 		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
@@ -71,7 +71,7 @@ class AssociatedDataValueSerializablePredicateTest {
 	@Test
 	void shouldNotCreateRicherCopyForNoAssociatedDataWhenAssociatedDataPresent() {
 		final AssociatedDataValueSerializablePredicate noAssociatedDataRequired = new AssociatedDataValueSerializablePredicate(
-			Collections.emptySet(), Collections.emptySet(), true
+			null, null, Collections.emptySet(), Collections.emptySet(), true
 		);
 
 		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
@@ -84,7 +84,7 @@ class AssociatedDataValueSerializablePredicateTest {
 	@Test
 	void shouldCreateRicherCopyForGlobalAssociatedData() {
 		final AssociatedDataValueSerializablePredicate globalAssociatedDataRequired = new AssociatedDataValueSerializablePredicate(
-			Collections.emptySet(), Collections.emptySet(), true
+			null, null, Collections.emptySet(), Collections.emptySet(), true
 		);
 
 		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
@@ -97,7 +97,7 @@ class AssociatedDataValueSerializablePredicateTest {
 	@Test
 	void shouldNotCreateRicherCopyForGlobalAssociatedData() {
 		final AssociatedDataValueSerializablePredicate globalAssociatedDataRequired = new AssociatedDataValueSerializablePredicate(
-			Collections.emptySet(), Collections.emptySet(), true
+			null, null, Collections.emptySet(), Collections.emptySet(), true
 		);
 
 		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
@@ -110,7 +110,7 @@ class AssociatedDataValueSerializablePredicateTest {
 	@Test
 	void shouldCreateRicherCopyForGlobalAndLocalizedAssociatedData() {
 		final AssociatedDataValueSerializablePredicate localizedAssociatedDataRequired = new AssociatedDataValueSerializablePredicate(
-			new HashSet<>(Collections.singletonList(Locale.ENGLISH)), Collections.emptySet(), true
+			null, null, new HashSet<>(Collections.singletonList(Locale.ENGLISH)), Collections.emptySet(), true
 		);
 
 		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
@@ -123,7 +123,7 @@ class AssociatedDataValueSerializablePredicateTest {
 	@Test
 	void shouldNotCreateRicherCopyForGlobalAndLocalizedAssociatedData() {
 		final AssociatedDataValueSerializablePredicate localizedAssociatedDataRequired = new AssociatedDataValueSerializablePredicate(
-			new HashSet<>(Arrays.asList(Locale.ENGLISH, Locale.CANADA)), Collections.emptySet(), true
+			null, null, new HashSet<>(Arrays.asList(Locale.ENGLISH, Locale.CANADA)), Collections.emptySet(), true
 		);
 
 		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
@@ -136,7 +136,7 @@ class AssociatedDataValueSerializablePredicateTest {
 	@Test
 	void shouldNotCreateRicherCopyForGlobalAndLocalizedAssociatedDataSubset() {
 		final AssociatedDataValueSerializablePredicate localizedAssociatedDataRequired = new AssociatedDataValueSerializablePredicate(
-			new HashSet<>(Arrays.asList(Locale.ENGLISH, Locale.CANADA)), Collections.emptySet(), true
+			null, null, new HashSet<>(Arrays.asList(Locale.ENGLISH, Locale.CANADA)), Collections.emptySet(), true
 		);
 
 		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
@@ -149,6 +149,8 @@ class AssociatedDataValueSerializablePredicateTest {
 	@Test
 	void shouldCreateRicherCopyForGlobalAndLocalizedAssociatedDataByName() {
 		final AssociatedDataValueSerializablePredicate localizedAssociatedDataRequired = new AssociatedDataValueSerializablePredicate(
+			null,
+			null,
 			new HashSet<>(Collections.singletonList(Locale.ENGLISH)),
 			new HashSet<>(Collections.singletonList("A")),
 			true
@@ -164,6 +166,8 @@ class AssociatedDataValueSerializablePredicateTest {
 	@Test
 	void shouldNotCreateRicherCopyForGlobalAndLocalizedAssociatedDataByName() {
 		final AssociatedDataValueSerializablePredicate localizedAssociatedDataRequired = new AssociatedDataValueSerializablePredicate(
+			null,
+			null,
 			new HashSet<>(Arrays.asList(Locale.ENGLISH, Locale.CANADA)),
 			new HashSet<>(Arrays.asList("A", "B")),
 			true
@@ -179,6 +183,8 @@ class AssociatedDataValueSerializablePredicateTest {
 	@Test
 	void shouldNotCreateRicherCopyForGlobalAndLocalizedAssociatedDataSubsetByName() {
 		final AssociatedDataValueSerializablePredicate localizedAssociatedDataRequired = new AssociatedDataValueSerializablePredicate(
+			null,
+			null,
 			new HashSet<>(Arrays.asList(Locale.ENGLISH, Locale.CANADA)),
 			new HashSet<>(Arrays.asList("A", "B")),
 			true

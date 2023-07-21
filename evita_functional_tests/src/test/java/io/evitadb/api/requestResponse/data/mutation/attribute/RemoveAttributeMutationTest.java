@@ -45,10 +45,10 @@ class RemoveAttributeMutationTest extends AbstractMutationTest {
 	void shouldRemoveAttribute() {
 		final RemoveAttributeMutation mutation = new RemoveAttributeMutation(new AttributeKey("a"));
 		final AttributeValue newValue = mutation.mutateLocal(productSchema, new AttributeValue(new AttributeKey("a"), (byte) 3));
-		assertTrue(newValue.isDropped());
+		assertTrue(newValue.dropped());
 		assertFalse(newValue.exists());
-		assertEquals((byte) 3, newValue.getValue());
-		assertEquals(2L, newValue.getVersion());
+		assertEquals((byte) 3, newValue.value());
+		assertEquals(2L, newValue.version());
 	}
 
 	@Test

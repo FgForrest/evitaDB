@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.structure;
 
+import io.evitadb.api.exception.AssociatedDataNotFoundException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.data.AssociatedDataEditor.AssociatedDataBuilder;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaEditor;
@@ -82,7 +83,7 @@ class InitialAssociatedDataBuilderTest extends AbstractBuilderTest {
 		final AssociatedData associatedData = this.associatedData.setAssociatedData("abc", "DEF")
 			.removeAssociatedData("abc")
 			.build();
-		assertNull(associatedData.getAssociatedData("abc"));
+		assertThrows(AssociatedDataNotFoundException.class, () -> associatedData.getAssociatedData("abc"));
 	}
 
 	@Test
@@ -91,7 +92,7 @@ class InitialAssociatedDataBuilderTest extends AbstractBuilderTest {
 			.setAssociatedData("abc", "DEF")
 			.removeAssociatedData("abc")
 			.build();
-		assertNull(associatedData.getAssociatedData("abc"));
+		assertThrows(AssociatedDataNotFoundException.class, () -> associatedData.getAssociatedData("abc"));
 	}
 
 	@Test

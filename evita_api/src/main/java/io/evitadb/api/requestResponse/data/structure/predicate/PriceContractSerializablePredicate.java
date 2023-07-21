@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.structure.predicate;
 
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.PriceContract;
@@ -39,7 +40,6 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
-import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Collections;
@@ -82,7 +82,7 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 	/**
 	 * Contains the same information as {@link #priceLists} but in the form of the set for faster lookups.
 	 */
-	@Getter @Nonnull private final Set<Serializable> priceListsAsSet;
+	@Getter @Nonnull private final Set<String> priceListsAsSet;
 	/**
 	 * Contains information about underlying predicate that is bound to the {@link EntityDecorator}. This underlying
 	 * predicate represents the scope of the fetched (enriched) entity in its true form (i.e. {@link Entity}) and needs
@@ -140,7 +140,7 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 		@Nullable OffsetDateTime validIn,
 		@Nullable String[] priceLists,
 		@Nullable String[] additionalPriceLists,
-		@Nonnull Set<Serializable> priceListsAsSet,
+		@Nonnull Set<String> priceListsAsSet,
 		boolean contextAvailable
 	) {
 		this.priceContentMode = priceContentMode;
@@ -154,15 +154,62 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 	}
 
 	@Override
-	public boolean test(@Nonnull PriceContract priceContract) {
+	public boolean test(PriceContract priceContract) {
 		return switch (priceContentMode) {
 			case NONE -> false;
 			case ALL -> priceContract.exists();
 			case RESPECTING_FILTER -> priceContract.exists() &&
-				(currency == null || Objects.equals(currency, priceContract.getCurrency())) &&
-				(priceListsAsSet.isEmpty() || priceListsAsSet.contains(priceContract.getPriceList())) &&
-				(validIn == null || ofNullable(priceContract.getValidity()).map(it -> it.isValidFor(validIn)).orElse(true));
+				(currency == null || Objects.equals(currency, priceContract.currency())) &&
+				(priceListsAsSet.isEmpty() || priceListsAsSet.contains(priceContract.priceList())) &&
+				(validIn == null || ofNullable(priceContract.validity()).map(it -> it.isValidFor(validIn)).orElse(true));
 		};
+	}
+
+	/**
+	 * Returns true if the context for price for sale calculation is available.
+	 */
+	public boolean isContextAvailable() {
+		return contextAvailable;
+	}
+
+	/**
+	 * Returns true if the price for particular `currency` and `priceList` combination might exist, but was not fetched
+	 * along with the entity.
+	 */
+	public void checkFetched(@Nullable Currency currency, @Nonnull String... priceList) throws ContextMissingException {
+		switch (priceContentMode) {
+			case NONE -> throw ContextMissingException.pricesNotFetched();
+			case RESPECTING_FILTER -> {
+				if (this.currency != null && currency != null && !Objects.equals(this.currency, currency)) {
+					throw ContextMissingException.pricesNotFetched(currency, this.currency);
+				}
+				if (!priceListsAsSet.isEmpty()) {
+					for (String checkedPriceList : priceList) {
+						if (!priceListsAsSet.contains(checkedPriceList)) {
+							throw ContextMissingException.pricesNotFetched(checkedPriceList, priceListsAsSet);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Returns true if the prices were fetched.
+	 */
+	public boolean isFetched() {
+		return priceContentMode != PriceContentMode.NONE;
+	}
+
+	/**
+	 * Returns true if at least single price was fetched along with the entity.
+	 *
+	 * @throws ContextMissingException if no price was fetched with the entity
+	 */
+	public void checkPricesFetched() throws ContextMissingException {
+		if (priceContentMode == PriceContentMode.NONE) {
+			throw ContextMissingException.pricesNotFetched();
+		}
 	}
 
 	public PriceContractSerializablePredicate createRicherCopyWith(@Nonnull EvitaRequest evitaRequest) {
@@ -200,12 +247,5 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 				);
 			}
 		}
-	}
-
-	/**
-	 * Returns true if the context for price for sale calculation is available.
-	 */
-	public boolean isContextAvailable() {
-		return contextAvailable;
 	}
 }

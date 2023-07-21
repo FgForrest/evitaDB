@@ -8,6 +8,8 @@ module evita.api {
 
 	exports io.evitadb.api;
 	exports io.evitadb.api.configuration;
+	exports io.evitadb.api.proxy;
+	exports io.evitadb.api.proxy.impl;
 	exports io.evitadb.api.requestResponse;
 	exports io.evitadb.api.requestResponse.data;
 	exports io.evitadb.api.requestResponse.data.key;
@@ -32,6 +34,7 @@ module evita.api {
 	exports io.evitadb.api.exception;
 	exports io.evitadb.api.requestResponse.mutation;
 	exports io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound;
+	exports io.evitadb.api.requestResponse.data.annotation;
 
 	requires static lombok;
 	requires static jsr305;
@@ -39,5 +42,6 @@ module evita.api {
 
 	requires evita.common;
 	requires evita.query;
+	requires static proxycian.bytebuddy;
 
 }

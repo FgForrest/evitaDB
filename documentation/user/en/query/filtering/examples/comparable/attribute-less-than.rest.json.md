@@ -5,26 +5,28 @@
       {
         "primaryKey" : 108473,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
         "attributes" : {
           "global" : {
-            "code" : "huawei-talkband-b6",
-            "battery-capacity" : "120.00000"
+            "battery-capacity" : "120.00000",
+            "code" : "huawei-talkband-b6"
           }
         }
       },
       {
         "primaryKey" : 108480,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
         "attributes" : {
           "global" : {
-            "code" : "huawei-watch-3",
-            "battery-capacity" : "120.00000"
+            "battery-capacity" : "120.00000",
+            "code" : "huawei-watch-3"
           }
         }
       }

@@ -77,8 +77,8 @@ public class GraphQLClient extends ApiClient {
 		final URL url = new URL(this.url);
 		final HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 		connection.setRequestMethod("POST");
-		connection.setRequestProperty("Content-Type", "application/graphql+json");
-		connection.setRequestProperty("Accept", "application/graphql+json");
+		connection.setRequestProperty("Content-Type", "application/json");
+		connection.setRequestProperty("Accept", "application/graphql-response+json");
 		connection.setDoOutput(true);
 		return connection;
 	}

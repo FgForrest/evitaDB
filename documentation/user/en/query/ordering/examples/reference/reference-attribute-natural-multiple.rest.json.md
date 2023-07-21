@@ -5,6 +5,7 @@
       {
         "primaryKey" : 106570,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -16,13 +17,16 @@
         "brand" : {
           "referencedPrimaryKey" : 106571,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       },
       {
         "primaryKey" : 106573,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -34,13 +38,16 @@
         "brand" : {
           "referencedPrimaryKey" : 106571,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       },
       {
         "primaryKey" : 106575,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -52,13 +59,16 @@
         "brand" : {
           "referencedPrimaryKey" : 106571,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       },
       {
         "primaryKey" : 106577,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -70,13 +80,16 @@
         "brand" : {
           "referencedPrimaryKey" : 106571,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       },
       {
         "primaryKey" : 106578,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -88,13 +101,16 @@
         "brand" : {
           "referencedPrimaryKey" : 106571,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       },
       {
         "primaryKey" : 106579,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -106,13 +122,16 @@
         "brand" : {
           "referencedPrimaryKey" : 106571,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       },
       {
         "primaryKey" : 106580,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -124,13 +143,16 @@
         "brand" : {
           "referencedPrimaryKey" : 106571,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       },
       {
         "primaryKey" : 106584,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -142,13 +164,16 @@
         "brand" : {
           "referencedPrimaryKey" : 106571,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       },
       {
         "primaryKey" : 106586,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -160,13 +185,16 @@
         "brand" : {
           "referencedPrimaryKey" : 106571,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       },
       {
         "primaryKey" : 106588,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -178,13 +206,16 @@
         "brand" : {
           "referencedPrimaryKey" : 106571,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       },
       {
         "primaryKey" : 106590,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -196,13 +227,16 @@
         "brand" : {
           "referencedPrimaryKey" : 106571,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       },
       {
         "primaryKey" : 108448,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -214,13 +248,16 @@
         "brand" : {
           "referencedPrimaryKey" : 106571,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       },
       {
         "primaryKey" : 108449,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -232,13 +269,16 @@
         "brand" : {
           "referencedPrimaryKey" : 106571,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       },
       {
         "primaryKey" : 108451,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -250,13 +290,16 @@
         "brand" : {
           "referencedPrimaryKey" : 106571,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       },
       {
         "primaryKey" : 108452,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -268,13 +311,16 @@
         "brand" : {
           "referencedPrimaryKey" : 106571,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       },
       {
         "primaryKey" : 113035,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -286,13 +332,16 @@
         "brand" : {
           "referencedPrimaryKey" : 113036,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       },
       {
         "primaryKey" : 113038,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -304,13 +353,16 @@
         "brand" : {
           "referencedPrimaryKey" : 113036,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       },
       {
         "primaryKey" : 113040,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -322,13 +374,16 @@
         "brand" : {
           "referencedPrimaryKey" : 113036,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       },
       {
         "primaryKey" : 113042,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -340,13 +395,16 @@
         "brand" : {
           "referencedPrimaryKey" : 113036,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       },
       {
         "primaryKey" : 113044,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
@@ -358,7 +416,9 @@
         "brand" : {
           "referencedPrimaryKey" : 113036,
           "attributes" : {
-            "orderInBrand" : 0
+            "global" : {
+              "orderInBrand" : 0
+            }
           }
         }
       }

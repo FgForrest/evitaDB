@@ -63,6 +63,10 @@ public class MapBuilder {
 		return this;
 	}
 
+	public boolean isEmpty() {
+		return map.isEmpty();
+	}
+
 	public Map<String, Object> build() {
 		return Collections.unmodifiableMap(map);
 	}

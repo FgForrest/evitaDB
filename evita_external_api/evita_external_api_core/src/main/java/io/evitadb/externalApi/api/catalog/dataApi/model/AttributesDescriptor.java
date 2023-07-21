@@ -42,4 +42,11 @@ public interface AttributesDescriptor {
 			Attributes may be used for fast filtering or can be used to sort along.
 			""")
 		.build();
+
+	/**
+	 * Same as `THIS` but will be used in global entity
+	 */
+	ObjectDescriptor THIS_GLOBAL = ObjectDescriptor.extend(THIS)
+		.name("GlobalAttributes")
+		.build();
 }

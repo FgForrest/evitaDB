@@ -51,11 +51,11 @@ public class UpsertAttributeMutationConverter extends AttributeMutationConverter
 	@Override
 	public GrpcUpsertAttributeMutation convert(@Nonnull UpsertAttributeMutation mutation) {
 		final GrpcUpsertAttributeMutation.Builder builder = GrpcUpsertAttributeMutation.newBuilder()
-			.setAttributeName(mutation.getAttributeKey().getAttributeName())
+			.setAttributeName(mutation.getAttributeKey().attributeName())
 			.setAttributeValue(EvitaDataTypesConverter.toGrpcEvitaValue(mutation.getAttributeValue()));
 
-		if (mutation.getAttributeKey().isLocalized()) {
-			builder.setAttributeLocale(EvitaDataTypesConverter.toGrpcLocale(mutation.getAttributeKey().getLocale()));
+		if (mutation.getAttributeKey().localized()) {
+			builder.setAttributeLocale(EvitaDataTypesConverter.toGrpcLocale(mutation.getAttributeKey().locale()));
 		}
 
 		return builder.build();

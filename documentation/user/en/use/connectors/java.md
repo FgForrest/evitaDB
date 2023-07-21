@@ -16,6 +16,27 @@ describe the usage from the client point of view.
 
 This chapter should contain description both for embedded and for remote evitaDB server.
 
+## Custom contracts
+
+### Runtime requirements
+
+The custom contracts API uses Java proxies under the hood which requires the [Proxycian](https://github.com/FgForrest/Proxycian) 
+library to be present on classpath at runtime. Because the API is optional, we didn't want to bloat the evitaDB
+JAR with the Proxycian library.
+However, when developer wants to use the custom contracts API, the Proxycian library needs to be added as dependency
+```
+<dependency>
+  <groupId>one.edee.oss</groupId>
+  <artifactId>proxycian_bytebuddy</artifactId>
+  <version>1.3.7</version>
+</dependency>
+```
+and also, if the application uses [Java Modules](https://www.oracle.com/corporate/features/understanding-java-9-modules.html), 
+the `--add-modules` parameter needs to be used
+```
+--add-modules proxycian.bytebuddy
+```
+
 ****************************************************************
 
 ## Notes

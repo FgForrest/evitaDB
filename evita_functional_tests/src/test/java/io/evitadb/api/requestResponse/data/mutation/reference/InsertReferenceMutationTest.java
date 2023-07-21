@@ -47,11 +47,11 @@ class InsertReferenceMutationTest extends AbstractMutationTest {
 
 		final ReferenceContract reference = mutation.mutateLocal(productSchema, null);
 		assertNotNull(reference);
-		assertEquals(1, reference.getVersion());
+		assertEquals(1, reference.version());
 		assertEquals("brand", reference.getReferenceName());
 		assertEquals(5, reference.getReferencedPrimaryKey());
 		assertNull(reference.getGroup().orElse(null));
-		assertFalse(reference.isDropped());
+		assertFalse(reference.dropped());
 	}
 
 	@Test

@@ -51,7 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-class PricesContractTest {
+class PricesContractTest extends AbstractBuilderTest {
 	private static final Currency CZK = Currency.getInstance("CZK");
 	private static final Currency EUR = Currency.getInstance("EUR");
 	private static final Currency GBP = Currency.getInstance("GBP");
@@ -70,11 +70,13 @@ class PricesContractTest {
 	@Test
 	void shouldReturnPriceForSaleForNoneStrategy() {
 		final PricesContract prices = new Prices(
+			PRODUCT_SCHEMA,
 			1,
 			Arrays.asList(
 				createStandardPriceSetWithMultiplier(null, BigDecimal.ONE)
 			),
-			PriceInnerRecordHandling.NONE
+			PriceInnerRecordHandling.NONE,
+			true
 		);
 
 		// reference price is not indexed, vip price has not fulfilled validity, logged only is the first
@@ -96,6 +98,7 @@ class PricesContractTest {
 	@Test
 	void shouldReturnPriceForSaleForFirstOccurrence() {
 		final PricesContract prices = new Prices(
+			PRODUCT_SCHEMA,
 			1,
 			Arrays.asList(
 				ArrayUtils.mergeArrays(
@@ -104,7 +107,8 @@ class PricesContractTest {
 					createStandardPriceSetWithMultiplier(3, new BigDecimal("0.5"))
 				)
 			),
-			PriceInnerRecordHandling.FIRST_OCCURRENCE
+			PriceInnerRecordHandling.FIRST_OCCURRENCE,
+			true
 		);
 
 		// variant 3 has smallest multiplier -> prices, it will always take precedence
@@ -128,6 +132,7 @@ class PricesContractTest {
 	@Test
 	void shouldReturnPriceForSaleForFirstOccurrenceWhenOneProductHasPriceInPriceListWithBiggerPriorityButLowerPrice() {
 		final PricesContract prices = new Prices(
+			PRODUCT_SCHEMA,
 			1,
 			Arrays.asList(
 				new Price(new PriceKey(combineIntoId(1, 1), BASIC, CZK), 1, new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), null, true),
@@ -138,7 +143,8 @@ class PricesContractTest {
 				new Price(new PriceKey(combineIntoId(3, 6), BASIC, CZK), 3, new BigDecimal("90"), new BigDecimal("21"), new BigDecimal("108.9"), null, true),
 				new Price(new PriceKey(combineIntoId(3, 7), LOGGED_ONLY, CZK), 3, new BigDecimal("70"), new BigDecimal("21"), new BigDecimal("84.7"), null, true)
 			),
-			PriceInnerRecordHandling.FIRST_OCCURRENCE
+			PriceInnerRecordHandling.FIRST_OCCURRENCE,
+			true
 		);
 
 		// price 5 is the lowest price from all allowed price lists over the inner record id
@@ -148,6 +154,7 @@ class PricesContractTest {
 	@Test
 	void shouldReturnPriceForSaleForSum() {
 		final PricesContract prices = new Prices(
+			PRODUCT_SCHEMA,
 			1,
 			Arrays.asList(
 				ArrayUtils.mergeArrays(
@@ -156,7 +163,8 @@ class PricesContractTest {
 					createStandardPriceSetWithMultiplier(3, new BigDecimal("0.5"))
 				)
 			),
-			PriceInnerRecordHandling.SUM
+			PriceInnerRecordHandling.SUM,
+			true
 		);
 
 		// reference price is not indexed, vip price has not fulfilled validity, logged only is the first
@@ -183,11 +191,13 @@ class PricesContractTest {
 	@Test
 	void shouldResolveHavingPriceInRangeForNoneStrategy() {
 		final PricesContract prices = new Prices(
+			PRODUCT_SCHEMA,
 			1,
 			Arrays.asList(
 				createStandardPriceSetWithMultiplier(null, BigDecimal.ONE)
 			),
-			PriceInnerRecordHandling.NONE
+			PriceInnerRecordHandling.NONE,
+			true
 		);
 
 		// reference price is not indexed, vip price has not fulfilled validity, logged only is the first
@@ -214,6 +224,7 @@ class PricesContractTest {
 	@Test
 	void shouldResolveHavingPriceInRangeForFirstOccurrence() {
 		final PricesContract prices = new Prices(
+			PRODUCT_SCHEMA,
 			1,
 			Arrays.asList(
 				ArrayUtils.mergeArrays(
@@ -222,7 +233,8 @@ class PricesContractTest {
 					createStandardPriceSetWithMultiplier(3, new BigDecimal("0.5"))
 				)
 			),
-			PriceInnerRecordHandling.FIRST_OCCURRENCE
+			PriceInnerRecordHandling.FIRST_OCCURRENCE,
+			true
 		);
 
 		// variant 3 has smallest multiplier -> prices, it will always take precedence
@@ -256,6 +268,7 @@ class PricesContractTest {
 	@Test
 	void shouldResolveHavingPriceInRangeForSum() {
 		final PricesContract prices = new Prices(
+			PRODUCT_SCHEMA,
 			1,
 			Arrays.asList(
 				ArrayUtils.mergeArrays(
@@ -264,7 +277,8 @@ class PricesContractTest {
 					createStandardPriceSetWithMultiplier(3, new BigDecimal("0.5"))
 				)
 			),
-			PriceInnerRecordHandling.SUM
+			PriceInnerRecordHandling.SUM,
+			true
 		);
 
 		// reference price is not indexed, vip price has not fulfilled validity, logged only is the first
@@ -326,7 +340,7 @@ class PricesContractTest {
 			currency, moment, convertToClassifiers(priceLists)
 		).orElseThrow();
 
-		assertEquals(combineIntoId(innerRecordId, expectedPriceId), priceForSale.getPriceId());
+		assertEquals(combineIntoId(innerRecordId, expectedPriceId), priceForSale.priceId());
 	}
 
 	private static void assertPriceForSell(BigDecimal expectedPriceWithoutVat, PricesContract prices, Currency currency, OffsetDateTime moment, String... priceLists) {
@@ -334,7 +348,7 @@ class PricesContractTest {
 			currency, moment, convertToClassifiers(priceLists)
 		).orElseThrow();
 		
-		assertEquals(expectedPriceWithoutVat, priceForSale.getPriceWithoutTax());
+		assertEquals(expectedPriceWithoutVat, priceForSale.priceWithoutTax());
 	}
 
 	private static void assertNoPriceForSell(PricesContract prices, Currency currency, OffsetDateTime moment, String... priceLists) {

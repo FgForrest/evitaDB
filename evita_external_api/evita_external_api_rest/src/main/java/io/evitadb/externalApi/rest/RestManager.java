@@ -38,7 +38,7 @@ import io.evitadb.externalApi.rest.api.system.SystemRestBuilder;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.externalApi.rest.exception.OpenApiInternalError;
 import io.evitadb.externalApi.rest.io.RestExceptionHandler;
-import io.evitadb.externalApi.rest.io.RestHandler;
+import io.evitadb.externalApi.rest.io.RestEndpointHandler;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 import io.undertow.Handlers;
@@ -73,8 +73,8 @@ public class RestManager {
 	 */
 	@Nonnull private final ObjectMapper objectMapper = new ObjectMapper();
 
-	@Nonnull private final RestConfig restConfig;
 	@Nonnull private final Evita evita;
+	@Nonnull private final RestConfig restConfig;
 
 	/**
 	 * All registered endpoint paths for each catalog
@@ -86,9 +86,9 @@ public class RestManager {
 	private final RoutingHandler restRouter = Handlers.routing();
 	@Nonnull private final Map<String, CorsEndpoint> corsEndpoints = createConcurrentHashMap(20);
 
-	public RestManager(@Nonnull RestConfig restConfig, @Nonnull Evita evita) {
-		this.restConfig = restConfig;
+	public RestManager(@Nonnull Evita evita, @Nonnull RestConfig restConfig) {
 		this.evita = evita;
+		this.restConfig = restConfig;
 
 		final long buildingStartTime = System.currentTimeMillis();
 
@@ -198,7 +198,7 @@ public class RestManager {
 	/**
 	 * Registers endpoints into router. Also CORS endpoint is created automatically for this endpoint.
 	 */
-	private void registerRestEndpoint(@Nonnull HttpString method, @Nonnull Path path, @Nonnull RestHandler<?> handler) {
+	private void registerRestEndpoint(@Nonnull HttpString method, @Nonnull Path path, @Nonnull RestEndpointHandler<?, ?> handler) {
 		final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(path.toString(), p -> new CorsEndpoint(restConfig));
 		corsEndpoint.addMetadataFromHandler(handler);
 
@@ -232,12 +232,12 @@ public class RestManager {
 			this.allowedOrigins = restConfig.getAllowedOrigins() == null ? null : Set.of(restConfig.getAllowedOrigins());
 		}
 
-		public void addMetadataFromHandler(@Nonnull RestHandler<?> handler) {
-			allowedMethods.add(handler.getSupportedHttpMethod());
-			if (handler.acceptsRequestBodies()) {
+		public void addMetadataFromHandler(@Nonnull RestEndpointHandler<?, ?> handler) {
+			allowedMethods.addAll(handler.getSupportedHttpMethods());
+			if (!handler.getSupportedRequestContentTypes().isEmpty()) {
 				allowedHeaders.add(Headers.CONTENT_TYPE_STRING);
 			}
-			if (handler.returnsResponseBodies()) {
+			if (!handler.getSupportedResponseContentTypes().isEmpty()) {
 				allowedHeaders.add(Headers.ACCEPT_STRING);
 			}
 		}

@@ -36,8 +36,6 @@ import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.Optional;
 
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION;
-
 /**
  * This class contains information required to process REST API requests. Not all attributes has to be set
  * it depends on needs of particular handler.

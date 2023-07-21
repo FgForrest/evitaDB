@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.util.Optional;
 
 /**
  * Client for creating HTTP REST requests and executing them.
@@ -50,7 +51,7 @@ public class RestClient extends ApiClient {
 	}
 
 	@Nullable
-	public JsonNode call(@Nonnull String method, @Nonnull String resource, @Nullable String body) {
+	public Optional<JsonNode> call(@Nonnull String method, @Nonnull String resource, @Nullable String body) {
 		HttpURLConnection connection = null;
 		try {
 			connection = createConnection(method, resource);
@@ -62,18 +63,18 @@ public class RestClient extends ApiClient {
 
 			final int responseCode = connection.getResponseCode();
 			if (responseCode == 200) {
-				return readResponseBody(connection.getInputStream());
+				return Optional.of(readResponseBody(connection.getInputStream()));
 			}
 			if (responseCode == 404) {
-				return null;
+				return Optional.empty();
 			}
 			if (responseCode >= 400 && responseCode <= 499) {
 				final JsonNode errorResponse = readResponseBody(connection.getErrorStream());
 				final String errorResponseString = objectMapper.writeValueAsString(errorResponse);
-				throw new EvitaInternalError("Call to REST server ended with status " + responseCode + " and response: \n" + errorResponseString);
+				throw new EvitaInternalError("Call to REST server `" + this.url + resource + "` ended with status " + responseCode + " and response: \n" + errorResponseString);
 			}
 
-			throw new EvitaInternalError("Call to REST server ended with status " + responseCode);
+			throw new EvitaInternalError("Call to REST server `" + this.url + resource + "` ended with status " + responseCode);
 		} catch (IOException | URISyntaxException e) {
 			throw new EvitaInternalError("Unexpected error.", e);
 		} finally {
@@ -92,12 +93,5 @@ public class RestClient extends ApiClient {
 		connection.setRequestMethod(method);
 		connection.setDoOutput(true);
 		return connection;
-	}
-
-	private void validateResponseBody(@Nonnull JsonNode responseBody) {
-		Assert.isPremiseValid(
-			!responseBody.isEmpty(),
-			"Call to GraphQL server ended with empty data."
-		);
 	}
 }

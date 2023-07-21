@@ -170,7 +170,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 			final T result;
 			// we need to take care only of array - other collection types, such as List, Set, Map cannot be used as
 			// top level containers because generics cannot be propagated to the methods due to JVM limitations
-			final DataItem root = complexDataObject.getRoot();
+			final DataItem root = complexDataObject.root();
 			if (containerClass.isArray()) {
 				try {
 					//noinspection unchecked
@@ -800,14 +800,14 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 	) throws InvocationTargetException, IllegalAccessException {
 		if (dataItem instanceof DataItemValue dataItemValue) {
 			if (EvitaDataTypes.isSupportedType(propertyType)) {
-				return dataItemValue.getValue();
+				return dataItemValue.value();
 			} else if (float.class.equals(propertyType) || Float.class.equals(propertyType)) {
-				return ofNullable(dataItemValue.getValue()).map(it -> Float.parseFloat(it.toString())).orElse(null);
+				return ofNullable(dataItemValue.value()).map(it -> Float.parseFloat(it.toString())).orElse(null);
 			} else if (double.class.equals(propertyType) || Double.class.equals(propertyType)) {
-				return ofNullable(dataItemValue.getValue()).map(it -> Double.parseDouble(it.toString())).orElse(null);
+				return ofNullable(dataItemValue.value()).map(it -> Double.parseDouble(it.toString())).orElse(null);
 			} else if (propertyType.isEnum()) {
 				//noinspection unchecked
-				return Enum.valueOf((Class<E>)propertyType, dataItemValue.getValue().toString());
+				return Enum.valueOf((Class<E>)propertyType, dataItemValue.value().toString());
 			} else if (Set.class.isAssignableFrom(propertyType)) {
 				return deserializeSet(reflectionLookup, genericReturnType, dataItemValue, extractionCtx);
 			} else if (List.class.isAssignableFrom(propertyType)) {
@@ -817,7 +817,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 			}
 		} else if (dataItem instanceof DataItemArray dataItemArray) {
 			if (EvitaDataTypes.isSupportedType(propertyType)) {
-				return extractItem(dataItemArray.getChildren()[0], reflectionLookup, propertyType, genericReturnType, extractionCtx);
+				return extractItem(dataItemArray.children()[0], reflectionLookup, propertyType, genericReturnType, extractionCtx);
 			} else if (Set.class.isAssignableFrom(propertyType)) {
 				return deserializeSet(reflectionLookup, genericReturnType, dataItemArray, extractionCtx);
 			} else if (List.class.isAssignableFrom(propertyType)) {
@@ -849,7 +849,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 		final Class<? extends Serializable> innerClass = reflectionLookup.extractGenericType(genericReturnType, 0);
 		assertSerializable(innerClass);
 		if (serializedForm instanceof DataItemArray dataItemArray) {
-			final DataItem[] children = dataItemArray.getChildren();
+			final DataItem[] children = dataItemArray.children();
 			if (dataItemArray.isEmpty()) {
 				return new HashSet<>();
 			} else {
@@ -882,7 +882,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 		final Class<? extends Serializable> innerClass = reflectionLookup.extractGenericType(genericReturnType, 0);
 		assertSerializable(innerClass);
 		if (serializedForm instanceof DataItemArray dataItemArray) {
-			final DataItem[] children = dataItemArray.getChildren();
+			final DataItem[] children = dataItemArray.children();
 			if (dataItemArray.isEmpty()) {
 				return new ArrayList<>();
 			} else {
@@ -916,7 +916,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 		final Class<? extends Serializable> innerClass = (Class<? extends Serializable>) ((Class<?>) genericReturnType).getComponentType();
 		assertSerializable(innerClass);
 		if (serializedForm instanceof DataItemArray dataItemArray) {
-			final DataItem[] children = dataItemArray.getChildren();
+			final DataItem[] children = dataItemArray.children();
 			if (dataItemArray.isEmpty()) {
 				return (Object[]) Array.newInstance(innerClass, 0);
 			} else {

@@ -123,11 +123,11 @@ public interface AttributesEditor<W extends AttributesEditor<W>> extends Attribu
 		 * Method creates implicit attribute type for the attribute value that doesn't map to any existing (known) attribute
 		 * type of the {@link EntitySchemaContract} schema.
 		 */
-		default AttributeSchemaContract createImplicitSchema(@Nonnull AttributeValue attributeValue) {
+		static AttributeSchemaContract createImplicitSchema(@Nonnull AttributeValue attributeValue) {
 			return AttributeSchema._internalBuild(
-				attributeValue.getKey().getAttributeName(),
-				Objects.requireNonNull(attributeValue.getValue()).getClass(),
-				attributeValue.getKey().isLocalized()
+				attributeValue.key().attributeName(),
+				Objects.requireNonNull(attributeValue.value()).getClass(),
+				attributeValue.key().localized()
 			);
 		}
 

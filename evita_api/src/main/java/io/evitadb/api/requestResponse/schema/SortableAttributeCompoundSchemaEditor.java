@@ -55,7 +55,7 @@ public interface SortableAttributeCompoundSchemaEditor<S extends SortableAttribu
 		/**
 		 * Returns collection of {@link EntitySchemaMutation} instances describing what changes occurred in the builder
 		 * and which should be applied on the existing parent schema in particular version.
-		 * Each mutation increases {@link Versioned#getVersion()} of the modified object and allows to detect race
+		 * Each mutation increases {@link Versioned#version()} of the modified object and allows to detect race
 		 * conditions based on "optimistic locking" mechanism in very granular way.
 		 */
 		@Nonnull
@@ -64,7 +64,7 @@ public interface SortableAttributeCompoundSchemaEditor<S extends SortableAttribu
 		/**
 		 * Returns collection of {@link SortableAttributeCompoundSchemaMutation} instances describing what changes
 		 * occurred in the builder and which should be applied on the existing parent schema in particular version.
-		 * Each mutation increases {@link Versioned#getVersion()} of the modified object and allows to detect race
+		 * Each mutation increases {@link Versioned#version()} of the modified object and allows to detect race
 		 * conditions based on "optimistic locking" mechanism in very granular way.
 		 *
 		 * All mutations need and will also to implement {@link EntitySchemaMutation} and can be retrieved by calling
@@ -76,7 +76,7 @@ public interface SortableAttributeCompoundSchemaEditor<S extends SortableAttribu
 		/**
 		 * Returns collection of {@link ReferenceSchemaMutation} instances describing what changes occurred in the builder
 		 * and which should be applied on the existing {@link ReferenceSchemaContract} in particular version.
-		 * Each mutation increases {@link Versioned#getVersion()} of the modified object and allows to detect race
+		 * Each mutation increases {@link Versioned#version()} of the modified object and allows to detect race
 		 * conditions based on "optimistic locking" mechanism in very granular way.
 		 *
 		 * All mutations need and will also to implement {@link SortableAttributeCompoundSchemaMutation} and can be retrieved by calling

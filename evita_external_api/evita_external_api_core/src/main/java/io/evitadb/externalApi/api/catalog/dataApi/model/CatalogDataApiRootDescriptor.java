@@ -53,6 +53,12 @@ public interface CatalogDataApiRootDescriptor extends CatalogRootDescriptor {
             Enum of all available currencies in `%s` collection.
             """)
         .build();
+    ObjectDescriptor CATALOG_LOCALE_ENUM = ObjectDescriptor.builder()
+        .name("CatalogLocale")
+        .description("""
+            Enum of all available locales in a catalog.
+            """)
+        .build();
 
     EndpointDescriptor COLLECTIONS = EndpointDescriptor.builder()
         .operation("collections")
@@ -70,7 +76,7 @@ public interface CatalogDataApiRootDescriptor extends CatalogRootDescriptor {
         .description("""
             Finds and returns single entity from unspecified collection by shared arguments between collections.
             """)
-        .type(nullableRef(EntityDescriptor.THIS_INTERFACE))
+        .type(nullableRef(EntityDescriptor.THIS_GLOBAL))
         .build();
 
     EndpointDescriptor LIST_UNKNOWN_ENTITY = EndpointDescriptor.builder()
@@ -80,7 +86,7 @@ public interface CatalogDataApiRootDescriptor extends CatalogRootDescriptor {
         .description("""
             Finds and returns list of entities from unspecified collections by shared arguments between collections.
             """)
-        .type(nullableListRef(EntityDescriptor.THIS_INTERFACE))
+        .type(nullableListRef(EntityDescriptor.THIS_GLOBAL))
         .build();
 
     EndpointDescriptor GET_ENTITY = EndpointDescriptor.builder()

@@ -29,11 +29,8 @@ import java.util.function.Function;
  * Represents a function that accepts two arguments and produces a result.
  * This is the two-arity specialization of {@link Function}.
  *
- * <p>This is a <a href="package-summary.html">functional interface</a>
- * whose functional method is {@link #apply(int, int)}.
- *
  * @see Function
- * @since 1.8
+ * @apiNote inspired by the JDK interface
  */
 @FunctionalInterface
 public interface ToLongDoubleIntBiFunction {

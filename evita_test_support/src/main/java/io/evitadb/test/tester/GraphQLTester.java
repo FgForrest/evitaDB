@@ -38,7 +38,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
-import static io.evitadb.externalApi.graphql.io.GraphQLMimeTypes.APPLICATION_GRAPHQL_JSON;
+import static io.evitadb.externalApi.graphql.io.GraphQLMimeTypes.APPLICATION_GRAPHQL_RESPONSE_JSON;
+import static io.evitadb.externalApi.http.MimeTypes.APPLICATION_JSON;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -140,10 +141,10 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 		 */
 		public ValidatableResponse executeAndThen() {
 			if (!this.headers.containsKey(CONTENT_TYPE_HEADER)) {
-				this.headers.put(CONTENT_TYPE_HEADER, new Header(CONTENT_TYPE_HEADER, APPLICATION_GRAPHQL_JSON));
+				this.headers.put(CONTENT_TYPE_HEADER, new Header(CONTENT_TYPE_HEADER, APPLICATION_JSON));
 			}
 			if (!this.headers.containsKey(ACCEPT_HEADER)) {
-				this.headers.put(ACCEPT_HEADER, new Header(ACCEPT_HEADER, APPLICATION_GRAPHQL_JSON));
+				this.headers.put(ACCEPT_HEADER, new Header(ACCEPT_HEADER, APPLICATION_GRAPHQL_RESPONSE_JSON));
 			}
 			return tester.executeAndThen(this);
 		}

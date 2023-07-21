@@ -21,34 +21,41 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity;
+package io.evitadb.externalApi.graphql.api.model;
 
-import graphql.TypeResolutionEnvironment;
-import graphql.schema.GraphQLObjectType;
-import graphql.schema.TypeResolver;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
-import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
+import graphql.schema.GraphQLEnumType;
+import io.evitadb.externalApi.api.model.ObjectDescriptor;
+import io.evitadb.externalApi.api.model.ObjectDescriptorTransformer;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Set;
 
 /**
- * Resolve specific entity DTO for entity interface based on fetched original entity object.
+ * TODO lho docs
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, 2023
  */
 @RequiredArgsConstructor
-public class EntityDtoTypeResolver implements TypeResolver {
+public class ObjectDescriptorToGraphQLEnumTypeTransformer implements ObjectDescriptorTransformer<GraphQLEnumType.Builder> {
 
-	private final Map<String, GraphQLObjectType> entityTypeToEntityDtoMapping;
+	/**
+	 * Serialized enum values to as items.
+	 */
+	@Nonnull private final Set<Map.Entry<String, ?>> enumValues;
 
-	@Nonnull
 	@Override
-	public GraphQLObjectType getType(@Nonnull TypeResolutionEnvironment env) {
-		final EntityClassifier entity = env.getObject();
-		return Optional.ofNullable(entityTypeToEntityDtoMapping.get(entity.getType()))
-			.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing entity dto for entity type `" + entity.getType() + "`."));
+	public GraphQLEnumType.Builder apply(@Nonnull ObjectDescriptor objectDescriptor) {
+		final GraphQLEnumType.Builder enumBuilder = GraphQLEnumType.newEnum();
+
+		if (objectDescriptor.isNameStatic()) {
+			enumBuilder.name(objectDescriptor.name());
+		}
+		enumBuilder.description(objectDescriptor.description());
+
+		enumValues.forEach(v -> enumBuilder.value(v.getKey(), v.getValue()));
+
+		return enumBuilder;
 	}
 }

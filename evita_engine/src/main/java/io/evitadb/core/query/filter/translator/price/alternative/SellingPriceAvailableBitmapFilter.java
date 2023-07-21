@@ -87,8 +87,8 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 		this.converter = (entityPrimaryKey, indexedPricePlaces, priceQueryMode, priceContract) -> new CumulatedVirtualPriceRecord(
 			entityPrimaryKey,
 			priceQueryMode == QueryPriceMode.WITH_TAX ?
-				NumberUtils.convertToInt(priceContract.getPriceWithTax(), indexedPricePlaces) :
-				NumberUtils.convertToInt(priceContract.getPriceWithoutTax(), indexedPricePlaces),
+				NumberUtils.convertToInt(priceContract.priceWithTax(), indexedPricePlaces) :
+				NumberUtils.convertToInt(priceContract.priceWithoutTax(), indexedPricePlaces),
 			priceQueryMode
 		);
 		this.filter = filter;
@@ -132,7 +132,7 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 					indexedPricePlaces.set(entitySchema.getIndexedPricePlaces());
 				}
 				final int primaryKey = filterByVisitor.translateEntity(entity);
-				if (entityDecorator.isContextAvailable()) {
+				if (entityDecorator.isPriceForSaleContextAvailable()) {
 					// check whether they have valid selling price (applying filter on price lists and currency)
 					entityDecorator.getPriceForSale(filter)
 						// and if there is still selling price add it to the output result

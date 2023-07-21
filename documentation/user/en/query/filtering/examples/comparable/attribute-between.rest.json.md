@@ -5,39 +5,42 @@
       {
         "primaryKey" : 108557,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
         "attributes" : {
           "global" : {
-            "code" : "amazfit-band-5",
-            "battery-capacity" : "125.00000"
+            "battery-capacity" : "125.00000",
+            "code" : "amazfit-band-5"
           }
         }
       },
       {
         "primaryKey" : 108570,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
         "attributes" : {
           "global" : {
-            "code" : "amazfit-neo",
-            "battery-capacity" : "160.00000"
+            "battery-capacity" : "160.00000",
+            "code" : "amazfit-neo"
           }
         }
       },
       {
         "primaryKey" : 108585,
         "type" : "Product",
+        "version" : 1,
         "allLocales" : [
           "en"
         ],
         "attributes" : {
           "global" : {
-            "code" : "fitbit-inspire-2",
-            "battery-capacity" : "148.00000"
+            "battery-capacity" : "148.00000",
+            "code" : "fitbit-inspire-2"
           }
         }
       }

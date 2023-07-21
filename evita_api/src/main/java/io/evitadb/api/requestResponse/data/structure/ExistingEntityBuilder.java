@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
+import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
@@ -55,6 +56,7 @@ import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.SerializablePredicate.ExistsPredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
+import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
@@ -97,6 +99,10 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	 */
 	@Getter private final LocaleSerializablePredicate localePredicate;
 	/**
+	 * This predicate filters out access to the hierarchy parent that were not fetched in query.
+	 */
+	@Getter private final HierarchySerializablePredicate hierarchyPredicate;
+	/**
 	 * This predicate filters out attributes that were not fetched in query.
 	 */
 	@Getter private final AttributeValueSerializablePredicate attributePredicate;
@@ -118,7 +124,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	private final ExistingAttributesBuilder attributesBuilder;
 	@Delegate(types = AssociatedDataContract.class)
 	private final ExistingAssociatedDataBuilder associatedDataBuilder;
-	@Delegate(types = PricesContract.class)
+	@Delegate(types = PricesContract.class, excludes = Versioned.class)
 	private final ExistingPricesBuilder pricesBuilder;
 	private final Map<ReferenceKey, List<ReferenceMutation<?>>> referenceMutations;
 	private final Set<ReferenceKey> removedReferences = new HashSet<>();
@@ -133,11 +139,12 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	public ExistingEntityBuilder(@Nonnull EntityDecorator baseEntity, @Nonnull Collection<LocalMutation<?, ?>> localMutations) {
 		this.baseEntity = baseEntity.getDelegate();
-		this.attributesBuilder = new ExistingAttributesBuilder(this.baseEntity.schema, this.baseEntity.attributes, baseEntity.getAttributePredicate());
+		this.attributesBuilder = new ExistingAttributesBuilder(this.baseEntity.schema, null, this.baseEntity.attributes, baseEntity.getAttributePredicate());
 		this.associatedDataBuilder = new ExistingAssociatedDataBuilder(this.baseEntity.schema, this.baseEntity.associatedData, baseEntity.getAssociatedDataPredicate());
 		this.pricesBuilder = new ExistingPricesBuilder(this.baseEntity.schema, this.baseEntity.prices, baseEntity.getPricePredicate());
 		this.referenceMutations = new HashMap<>();
 		this.localePredicate = baseEntity.getLocalePredicate();
+		this.hierarchyPredicate = baseEntity.getHierarchyPredicate();
 		this.attributePredicate = baseEntity.getAttributePredicate();
 		this.associatedDataPredicate = baseEntity.getAssociatedDataPredicate();
 		this.pricePredicate = baseEntity.getPricePredicate();
@@ -153,11 +160,12 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	public ExistingEntityBuilder(@Nonnull Entity baseEntity, @Nonnull Collection<LocalMutation<?, ?>> localMutations) {
 		this.baseEntity = baseEntity;
-		this.attributesBuilder = new ExistingAttributesBuilder(this.baseEntity.schema, this.baseEntity.attributes, ExistsPredicate.instance());
+		this.attributesBuilder = new ExistingAttributesBuilder(this.baseEntity.schema, null, this.baseEntity.attributes, ExistsPredicate.instance());
 		this.associatedDataBuilder = new ExistingAssociatedDataBuilder(this.baseEntity.schema, this.baseEntity.associatedData, ExistsPredicate.instance());
 		this.pricesBuilder = new ExistingPricesBuilder(this.baseEntity.schema, this.baseEntity.prices, new PriceContractSerializablePredicate());
 		this.referenceMutations = new HashMap<>();
 		this.localePredicate = LocaleSerializablePredicate.DEFAULT_INSTANCE;
+		this.hierarchyPredicate = HierarchySerializablePredicate.DEFAULT_INSTANCE;
 		this.attributePredicate = AttributeValueSerializablePredicate.DEFAULT_INSTANCE;
 		this.associatedDataPredicate = AssociatedDataValueSerializablePredicate.DEFAULT_INSTANCE;
 		this.pricePredicate = PriceContractSerializablePredicate.DEFAULT_INSTANCE;
@@ -193,13 +201,13 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	}
 
 	@Override
-	public boolean isDropped() {
+	public boolean dropped() {
 		return false;
 	}
 
 	@Override
-	public int getVersion() {
-		return baseEntity.getVersion() + 1;
+	public int version() {
+		return baseEntity.version() + 1;
 	}
 
 	@Override
@@ -220,6 +228,11 @@ public class ExistingEntityBuilder implements EntityBuilder {
 		return baseEntity.getPrimaryKey();
 	}
 
+	@Override
+	public boolean parentAvailable() {
+		return baseEntity.parentAvailable();
+	}
+
 	@Nonnull
 	@Override
 	public OptionalInt getParent() {
@@ -232,6 +245,11 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Override
 	public Optional<EntityClassifierWithParent> getParentEntity() {
 		return Optional.empty();
+	}
+
+	@Override
+	public boolean referencesAvailable() {
+		return baseEntity.referencesAvailable();
 	}
 
 	@Nonnull
@@ -495,7 +513,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 		);
 		final ReferenceKey referenceKey = new ReferenceKey(referenceName, referencedPrimaryKey);
 		final EntitySchemaContract schema = getSchema();
-		final Optional<ReferenceContract> existingReference = ofNullable(baseEntity.getReference(referenceKey));
+		final Optional<ReferenceContract> existingReference = baseEntity.getReferenceWithoutSchemaCheck(referenceKey);
 		final ReferenceBuilder referenceBuilder = existingReference
 			.map(it -> (ReferenceBuilder) new ExistingReferenceBuilder(it, schema))
 			.filter(referencePredicate)
@@ -532,7 +550,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 									.map(it ->
 										new ReferenceAttributeMutation(
 											referenceKey,
-											new RemoveAttributeMutation(it.getKey())
+											new RemoveAttributeMutation(it.key())
 										)
 									)
 							),
@@ -559,7 +577,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 		);
 		final ReferenceKey referenceKey = new ReferenceKey(referenceName, referencedPrimaryKey);
 		Assert.isTrue(getReference(referenceName, referencedPrimaryKey).isPresent(), "There's no reference of type " + referenceName + " and primary key " + referencedPrimaryKey + "!");
-		final Optional<ReferenceContract> theReference = ofNullable(baseEntity.getReference(referenceKey))
+		final Optional<ReferenceContract> theReference = baseEntity.getReferenceWithoutSchemaCheck(referenceKey)
 			.filter(referencePredicate);
 		Assert.isTrue(
 			theReference.isPresent(),
@@ -664,7 +682,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 						final ReferenceContract existingReference = builtReferences.get(it.getReferenceKey());
 						final ReferenceContract newReference = it.mutateLocal(getSchema(), existingReference);
 						builtReferences.put(it.getReferenceKey(), newReference);
-						return existingReference == null || newReference.getVersion() > existingReference.getVersion();
+						return existingReference == null || newReference.version() > existingReference.version();
 					})
 			)
 			.flatMap(it -> it)

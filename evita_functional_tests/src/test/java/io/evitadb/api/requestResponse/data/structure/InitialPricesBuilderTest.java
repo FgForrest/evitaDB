@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.data.structure;
 import io.evitadb.api.exception.AmbiguousPriceException;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.PricesContract;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -43,14 +44,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-class InitialPricesBuilderTest {
+class InitialPricesBuilderTest extends AbstractBuilderTest {
 	public static final Currency CZK = Currency.getInstance("CZK");
 	public static final Currency EUR = Currency.getInstance("EUR");
-	private final InitialPricesBuilder builder = new InitialPricesBuilder();
+	private final InitialPricesBuilder builder = new InitialPricesBuilder(PRODUCT_SCHEMA);
 
 	@Test
 	void shouldCreateEntityWithPrices() {
-		final Prices prices = builder.setPriceInnerRecordHandling(PriceInnerRecordHandling.FIRST_OCCURRENCE)
+		final PricesContract prices = builder.setPriceInnerRecordHandling(PriceInnerRecordHandling.FIRST_OCCURRENCE)
 				.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 				.setPrice(2, "reference", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, false)
 				.setPrice(3, "basic", EUR, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
@@ -66,7 +67,7 @@ class InitialPricesBuilderTest {
 
 	@Test
 	void shouldOverwriteIdenticalPrice() {
-		final Prices prices = builder
+		final PricesContract prices = builder
 				.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 				.setPrice(1, "basic", CZK, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)
 				.build();
@@ -78,7 +79,7 @@ class InitialPricesBuilderTest {
 	@Test
 	void shouldRefuseAddingConflictingPrice() {
 		assertThrows(AmbiguousPriceException.class, () -> {
-			final Prices prices = builder
+			final PricesContract prices = builder
 				.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 				.setPrice(2, "basic", CZK, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)
 				.build();
@@ -87,15 +88,15 @@ class InitialPricesBuilderTest {
 
 	@Test
 	void shouldAllowAddingConflictingPriceForDifferentInnerRecordId() {
-		final Prices prices = builder
+		final PricesContract prices = builder
 			.setPrice(1, "basic", CZK, 1, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 			.setPrice(2, "basic", CZK, 2, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)
 			.build();
 
 		final Collection<PriceContract> basicPrices = prices.getPrices(CZK, "basic");
 		assertEquals(2, basicPrices.size());
-		assertTrue(basicPrices.stream().anyMatch(it -> it.getPriceId() == 1));
-		assertTrue(basicPrices.stream().anyMatch(it -> it.getPriceId() == 2));
+		assertTrue(basicPrices.stream().anyMatch(it -> it.priceId() == 1));
+		assertTrue(basicPrices.stream().anyMatch(it -> it.priceId() == 2));
 	}
 
 	@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
@@ -106,9 +107,9 @@ class InitialPricesBuilderTest {
 
 	public static void assertPrice(PriceContract price, BigDecimal priceWithoutTax, BigDecimal taxRate, BigDecimal priceWithTax, boolean indexed) {
 		assertNotNull(price);
-		assertEquals(priceWithoutTax, price.getPriceWithoutTax());
-		assertEquals(taxRate, price.getTaxRate());
-		assertEquals(priceWithTax, price.getPriceWithTax());
-		assertEquals(indexed, price.isSellable());
+		assertEquals(priceWithoutTax, price.priceWithoutTax());
+		assertEquals(taxRate, price.taxRate());
+		assertEquals(priceWithTax, price.priceWithTax());
+		assertEquals(indexed, price.sellable());
 	}
 }

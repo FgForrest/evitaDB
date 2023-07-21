@@ -83,7 +83,7 @@ import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
 
 /**
- * This service contains methods that could be called by gRPC clients on {@link GrpcEvitaSession}
+ * This service contains methods that could be called by gRPC clients on {@link GrpcEvitaSessionAPI}.
  *
  * @author Tomáš Pozler, 2022
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
@@ -456,18 +456,21 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 
 	/**
 	 * Method used to remove single entity along with its nested hierarchy tree by primary key by calling
-	 * {@link EvitaSessionContract#deleteEntityAndItsHierarchy(String, Integer)}.
+	 * {@link EvitaSessionContract#deleteEntityAndItsHierarchy(String, int)} .
 	 *
 	 * @param request          request containing entity type and primary key of removed entity
 	 * @param responseObserver observer on which errors might be thrown and result returned
 	 */
 	@Override
-	public void deleteEntityAndItsHierarchy(@Nonnull GrpcDeleteEntityRequest request, @Nonnull StreamObserver<GrpcDeleteEntityAndItsHierarchyResponse> responseObserver) {
+	public void deleteEntityAndItsHierarchy(
+		@Nonnull GrpcDeleteEntityRequest request,
+		@Nonnull StreamObserver<GrpcDeleteEntityAndItsHierarchyResponse> responseObserver
+	) {
 		final EvitaInternalSessionContract session = ServerSessionInterceptor.SESSION.get();
 		final String entityType = request.getEntityType();
 		final int primaryKey = request.getPrimaryKey().getValue();
 		final String require = request.getRequire();
-		final DeletedHierarchy deletedHierarchy;
+		final DeletedHierarchy<SealedEntity> deletedHierarchy;
 		final EntityContentRequire[] entityContentRequires = require.isEmpty() ?
 			new EntityContentRequire[0] :
 			QueryUtil.parseEntityRequiredContents(
@@ -478,7 +481,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			);
 
 		if (ArrayUtils.isEmpty(entityContentRequires)) {
-			deletedHierarchy = new DeletedHierarchy(
+			deletedHierarchy = new DeletedHierarchy<>(
 				session.deleteEntityAndItsHierarchy(entityType, primaryKey),
 				null
 			);
@@ -522,7 +525,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				deletedEntities = session.deleteEntities(query);
 				deletedEntityBodies = null;
 			} else {
-				deletedEntityBodies = session.deleteEntitiesAndReturnBodies(query);
+				deletedEntityBodies = session.deleteSealedEntitiesAndReturnBodies(query);
 				deletedEntities = deletedEntityBodies.length;
 			}
 
@@ -562,10 +565,13 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		if (query != null) {
 			final EvitaRequest evitaRequest = new EvitaRequest(
 				query.normalizeQuery(),
-				OffsetDateTime.now()
+				OffsetDateTime.now(),
+				EntityClassifier.class,
+				null,
+				EvitaRequest.CONVERSION_NOT_SUPPORTED
 			);
 
-			final EvitaResponse<EntityClassifier> evitaResponse = session.query(evitaRequest, EntityClassifier.class);
+			final EvitaResponse<EntityClassifier> evitaResponse = session.query(evitaRequest);
 			final GrpcQueryResponse.Builder entityBuilder = GrpcQueryResponse.newBuilder();
 			final DataChunk<EntityClassifier> recordPage = evitaResponse.getRecordPage();
 			final GrpcDataChunk.Builder dataChunkBuilder = GrpcDataChunk.newBuilder()
@@ -689,8 +695,14 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		);
 
 		if (query != null) {
-			final EvitaRequest evitaRequest = new EvitaRequest(query, OffsetDateTime.now());
-			final List<EntityClassifier> responseEntities = session.queryList(evitaRequest, EntityClassifier.class);
+			final EvitaRequest evitaRequest = new EvitaRequest(
+				query,
+				OffsetDateTime.now(),
+				EntityClassifier.class,
+				null,
+				EvitaRequest.CONVERSION_NOT_SUPPORTED
+			);
+			final List<EntityClassifier> responseEntities = session.queryList(evitaRequest);
 			final GrpcQueryListResponse.Builder responseBuilder = GrpcQueryListResponse.newBuilder();
 			final EntityFetch entityFetchRequirement = evitaRequest.getEntityRequirement();
 			if (entityFetchRequirement != null) {

@@ -50,6 +50,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 import static java.util.Optional.ofNullable;
@@ -72,24 +73,74 @@ public class FacetSummary implements EvitaResponseExtraResult {
 	@Getter(value = AccessLevel.NONE)
 	@Setter(value = AccessLevel.NONE)
 	@Nonnull
-	private final Map<String, Map<Integer, FacetGroupStatistics>> facetGroupStatistics;
+	private final Map<String, ReferenceStatistics> referenceStatistics;
 
-	public FacetSummary(@Nonnull Collection<FacetGroupStatistics> facetGroupStatistics) {
-		this.facetGroupStatistics = createLinkedHashMap(facetGroupStatistics.size());
-		for (FacetGroupStatistics stat : facetGroupStatistics) {
-			final Integer groupId = ofNullable(stat.getGroupEntity())
-				.map(EntityClassifier::getPrimaryKey)
+	public FacetSummary(@Nonnull Map<String, Collection<FacetGroupStatistics>> referenceStatistics) {
+		final Map<String, ReferenceStatistics> result = createLinkedHashMap(referenceStatistics.size());
+		for (Entry<String, Collection<FacetGroupStatistics>> entry : referenceStatistics.entrySet()) {
+			final FacetGroupStatistics nonGroupedStatistics = entry.getValue()
+				.stream()
+				.filter(it -> it.getGroupEntity() == null)
+				.findFirst()
 				.orElse(null);
-			final Map<Integer, FacetGroupStatistics> groupById = this.facetGroupStatistics.computeIfAbsent(
-				stat.getReferenceName(),
-				s -> createLinkedHashMap(facetGroupStatistics.size())
+			result.put(
+				entry.getKey(),
+				new ReferenceStatistics(
+					nonGroupedStatistics,
+					entry.getValue().stream()
+						.filter(it -> it.getGroupEntity() != null)
+						.collect(
+							Collectors.toMap(
+								it -> it.getGroupEntity().getPrimaryKey(),
+								Function.identity(),
+								(o, o2) -> {
+									throw new EvitaInternalError(
+										"Unexpected duplicate facet group statistics."
+									);
+								},
+								LinkedHashMap::new
+							)
+						)
+				)
 			);
-			Assert.isPremiseValid(
-				!groupById.containsKey(groupId),
-				"There is already facet group for reference `" + stat.getReferenceName() + "` with id `" + groupId + "`."
-			);
-			groupById.put(groupId, stat);
 		}
+		this.referenceStatistics = Collections.unmodifiableMap(result);
+	}
+
+	public FacetSummary(@Nonnull Collection<FacetGroupStatistics> referenceStatistics) {
+		this.referenceStatistics = Collections.unmodifiableMap(
+			referenceStatistics
+				.stream()
+				.collect(
+					Collectors.groupingBy(
+						FacetGroupStatistics::getReferenceName
+					)
+				)
+				.entrySet()
+				.stream()
+				.collect(
+					Collectors.toMap(
+						Entry::getKey,
+						it -> new ReferenceStatistics(
+							it.getValue().stream().filter(group -> group.getGroupEntity() == null).findFirst().orElse(null),
+							it.getValue().stream().filter(group -> group.getGroupEntity() != null)
+								.collect(
+									Collectors.toMap(
+										group -> group.getGroupEntity().getPrimaryKey(),
+										Function.identity(),
+										(o, o2) -> {
+											throw new EvitaInternalError(
+												"There is already facet group for reference `" + it.getKey() +
+													"` with id `" + o.getGroupEntity().getPrimaryKey() + "`."
+											);
+										},
+										LinkedHashMap::new
+									)
+								)
+						)
+					)
+				)
+		);
 	}
 
 	/**
@@ -97,8 +148,8 @@ public class FacetSummary implements EvitaResponseExtraResult {
 	 */
 	@Nullable
 	public FacetGroupStatistics getFacetGroupStatistics(@Nonnull String referencedEntityType) {
-		return ofNullable(facetGroupStatistics.get(referencedEntityType))
-			.map(it -> it.get(null))
+		return ofNullable(referenceStatistics.get(referencedEntityType))
+			.map(ReferenceStatistics::nonGroupedStatistics)
 			.orElse(null);
 	}
 
@@ -107,8 +158,8 @@ public class FacetSummary implements EvitaResponseExtraResult {
 	 */
 	@Nullable
 	public FacetGroupStatistics getFacetGroupStatistics(@Nonnull String referencedEntityType, int groupId) {
-		return ofNullable(facetGroupStatistics.get(referencedEntityType))
-			.map(it -> it.get(groupId))
+		return ofNullable(referenceStatistics.get(referencedEntityType))
+			.map(it -> it.getFacetGroupStatistics(groupId))
 			.orElse(null);
 	}
 
@@ -116,16 +167,21 @@ public class FacetSummary implements EvitaResponseExtraResult {
 	 * Returns collection of all facet statistics aggregated by their group.
 	 */
 	@Nonnull
-	public Collection<FacetGroupStatistics> getFacetGroupStatistics() {
-		return facetGroupStatistics.values()
+	public Collection<FacetGroupStatistics> getReferenceStatistics() {
+		return referenceStatistics.values()
 			.stream()
-			.flatMap(it -> it.values().stream())
+			.flatMap(
+				it -> Stream.concat(
+					it.nonGroupedStatistics() == null ? Stream.empty() : Stream.of(it.nonGroupedStatistics()),
+					it.groupedStatistics().values().stream()
+				)
+			)
 			.toList();
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(facetGroupStatistics);
+		return Objects.hash(referenceStatistics);
 	}
 
 	@Override
@@ -134,24 +190,15 @@ public class FacetSummary implements EvitaResponseExtraResult {
 		if (o == null || getClass() != o.getClass()) return false;
 		FacetSummary that = (FacetSummary) o;
 
-		for (Entry<String, Map<Integer, FacetGroupStatistics>> referenceEntry : facetGroupStatistics.entrySet()) {
-			final Map<Integer, FacetGroupStatistics> statistics = referenceEntry.getValue();
-			final Map<Integer, FacetGroupStatistics> thatStatistics = that.facetGroupStatistics.get(referenceEntry.getKey());
-			if (thatStatistics == null || statistics.size() != thatStatistics.size()) {
+		for (Entry<String, ReferenceStatistics> referenceEntry : referenceStatistics.entrySet()) {
+			final ReferenceStatistics statistics = referenceEntry.getValue();
+			final ReferenceStatistics thatStatistics = that.referenceStatistics.get(referenceEntry.getKey());
+
+			if (!statistics.equals(thatStatistics)) {
 				return false;
-			} else {
-				final Iterator<Entry<Integer, FacetGroupStatistics>> it = statistics.entrySet().iterator();
-				final Iterator<Entry<Integer, FacetGroupStatistics>> thatIt = thatStatistics.entrySet().iterator();
-				while (it.hasNext()) {
-					final Entry<Integer, FacetGroupStatistics> entry = it.next();
-					final Entry<Integer, FacetGroupStatistics> thatEntry = thatIt.next();
-					if (!Objects.equals(entry.getKey(), thatEntry.getKey()) || !Objects.equals(entry.getValue(), thatEntry.getValue())) {
-						return false;
-					}
-				}
 			}
 		}
-		return facetGroupStatistics.equals(that.facetGroupStatistics);
+		return true;
 	}
 
 	@Override
@@ -167,29 +214,88 @@ public class FacetSummary implements EvitaResponseExtraResult {
 		@Nonnull Function<FacetStatistics, String> facetRenderer
 	) {
 		return "Facet summary:\n" +
-			facetGroupStatistics
+			referenceStatistics
 				.entrySet()
 				.stream()
 				.sorted(Entry.comparingByKey())
-				.flatMap(groupsByReferenceName ->
-					groupsByReferenceName.getValue()
-						.values()
-						.stream()
-						.map(statistics -> "\t" + groupsByReferenceName.getKey() + ": " +
-							ofNullable(groupRenderer.apply(statistics)).filter(it -> !it.isBlank())
-								.orElseGet(() -> ofNullable(statistics.getGroupEntity()).map(EntityClassifier::getPrimaryKey).map(Object::toString).orElse("")) +
-							" [" + statistics.getCount() + "]:\n" +
-							statistics
-								.getFacetStatistics()
-								.stream()
-								.map(facet -> "\t\t[" + (facet.isRequested() ? "X" : " ") + "] " +
-									ofNullable(facetRenderer.apply(facet)).filter(it -> !it.isBlank()).orElseGet(() -> String.valueOf(facet.getFacetEntity().getPrimaryKey())) +
-									" (" + facet.getCount() + ")" +
-									ofNullable(facet.getImpact()).map(RequestImpact::toString).map(it -> " " + it).orElse(""))
-								.collect(Collectors.joining("\n"))
-						)
+				.flatMap(
+					refStats -> {
+						final ReferenceStatistics refStatsValue = refStats.getValue();
+						return Stream.concat(
+								refStatsValue.nonGroupedStatistics() == null ?
+									Stream.empty() :
+									Stream.of(refStatsValue.nonGroupedStatistics()),
+								refStatsValue
+									.groupedStatistics()
+									.values()
+									.stream()
+							)
+							.map(statistics -> "\t" + refStats.getKey() + ": " +
+								ofNullable(groupRenderer.apply(statistics)).filter(it -> !it.isBlank())
+									.orElseGet(() -> ofNullable(statistics.getGroupEntity()).map(EntityClassifier::getPrimaryKey).map(Object::toString).orElse("")) +
+								" [" + statistics.getCount() + "]:\n" +
+								statistics
+									.getFacetStatistics()
+									.stream()
+									.map(facet -> "\t\t[" + (facet.isRequested() ? "X" : " ") + "] " +
+										ofNullable(facetRenderer.apply(facet)).filter(it -> !it.isBlank()).orElseGet(() -> String.valueOf(facet.getFacetEntity().getPrimaryKey())) +
+										" (" + facet.getCount() + ")" +
+										ofNullable(facet.getImpact()).map(RequestImpact::toString).map(it -> " " + it).orElse(""))
+									.collect(Collectors.joining("\n"))
+							);
+					}
 				)
 				.collect(Collectors.joining("\n"));
+	}
+
+	/**
+	 * This DTO contains statistics for particular referenced entity - both grouped and non-grouped.
+	 */
+	private record ReferenceStatistics(
+		@Nullable FacetGroupStatistics nonGroupedStatistics,
+		@Nonnull Map<Integer, FacetGroupStatistics> groupedStatistics
+	) {
+
+		@Nullable
+		public FacetGroupStatistics getFacetGroupStatistics(int groupId) {
+			return this.groupedStatistics.get(groupId);
+		}
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) return true;
+			if (o == null || getClass() != o.getClass()) return false;
+
+			ReferenceStatistics that = (ReferenceStatistics) o;
+
+			if (!Objects.equals(nonGroupedStatistics, that.nonGroupedStatistics))
+				return false;
+
+			final Map<Integer, FacetGroupStatistics> statistics = groupedStatistics();
+			final Map<Integer, FacetGroupStatistics> thatStatistics = that.groupedStatistics();
+			if (statistics.size() != thatStatistics.size()) {
+				return false;
+			} else {
+				final Iterator<Entry<Integer, FacetGroupStatistics>> it = statistics.entrySet().iterator();
+				final Iterator<Entry<Integer, FacetGroupStatistics>> thatIt = thatStatistics.entrySet().iterator();
+				while (it.hasNext()) {
+					final Entry<Integer, FacetGroupStatistics> entry = it.next();
+					final Entry<Integer, FacetGroupStatistics> thatEntry = thatIt.next();
+					if (!Objects.equals(entry.getKey(), thatEntry.getKey()) || !Objects.equals(entry.getValue(), thatEntry.getValue())) {
+						return false;
+					}
+				}
+			}
+
+			return true;
+		}
+
+		@Override
+		public int hashCode() {
+			int result = nonGroupedStatistics != null ? nonGroupedStatistics.hashCode() : 0;
+			result = 31 * result + groupedStatistics.hashCode();
+			return result;
+		}
 	}
 
 	/**

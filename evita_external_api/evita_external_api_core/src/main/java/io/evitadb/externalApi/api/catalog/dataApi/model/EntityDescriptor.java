@@ -25,6 +25,7 @@ package io.evitadb.externalApi.api.catalog.dataApi.model;
 
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
@@ -44,7 +45,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface EntityDescriptor extends AttributesProviderDescriptor {
+public interface EntityDescriptor extends VersionedDescriptor, AttributesProviderDescriptor {
 
     PropertyDescriptor PRIMARY_KEY = PropertyDescriptor.builder()
         .name("primaryKey")
@@ -121,21 +122,20 @@ public interface EntityDescriptor extends AttributesProviderDescriptor {
         .type(nonNull(PriceInnerRecordHandling.class))
         .build();
 
-    ObjectDescriptor THIS_INTERFACE = ObjectDescriptor.builder()
-        .name("Entity")
-        .description("""
-            Generic the most basic entity.
-            Common ancestor for all specific entities which correspond to specific collections.
-            """)
-        .staticFields(List.of(PRIMARY_KEY, TYPE))
-        .build();
-    ObjectDescriptor THIS_ENTITY_REFERENCE = ObjectDescriptor.extend(THIS_INTERFACE)
+    ObjectDescriptor THIS_REFERENCE = ObjectDescriptor.builder()
         .name("EntityReference")
         .description("""
-            Object holding reference to an entity.
+            Pointer to a full entity.
+            """)
+        .staticFields(List.of(PRIMARY_KEY, TYPE, VERSION))
+        .build();
+    ObjectDescriptor THIS_GLOBAL = ObjectDescriptor.extend(THIS_REFERENCE)
+        .name("Entity")
+        .description("""
+            Catalog-wise entity with only common data across all entity collections.
             """)
         .build();
-    ObjectDescriptor THIS = ObjectDescriptor.extend(THIS_INTERFACE)
+    ObjectDescriptor THIS = ObjectDescriptor.extend(THIS_REFERENCE)
         .name("*")
         .build();
 }

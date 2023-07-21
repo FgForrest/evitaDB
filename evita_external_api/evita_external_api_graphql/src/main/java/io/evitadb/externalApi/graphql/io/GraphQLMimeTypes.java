@@ -35,5 +35,5 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class GraphQLMimeTypes extends MimeTypes {
 
-    public static final String APPLICATION_GRAPHQL_JSON = "application/graphql+json";
+    public static final String APPLICATION_GRAPHQL_RESPONSE_JSON = "application/graphql-response+json";
 }

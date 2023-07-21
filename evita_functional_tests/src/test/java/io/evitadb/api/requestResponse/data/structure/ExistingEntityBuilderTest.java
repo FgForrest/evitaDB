@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.structure;
 
+import io.evitadb.api.exception.EntityIsNotHierarchicalException;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
@@ -64,10 +65,10 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 
 	public static void assertPrice(Entity updatedInstance, int priceId, String priceList, Currency currency, BigDecimal priceWithoutTax, BigDecimal taxRate, BigDecimal priceWithTax, boolean indexed) {
 		final PriceContract price = updatedInstance.getPrice(priceId, priceList, currency).orElseGet(() -> fail("Price not found!"));
-		assertEquals(priceWithoutTax, price.getPriceWithoutTax());
-		assertEquals(taxRate, price.getTaxRate());
-		assertEquals(priceWithTax, price.getPriceWithTax());
-		assertEquals(indexed, price.isSellable());
+		assertEquals(priceWithoutTax, price.priceWithoutTax());
+		assertEquals(taxRate, price.taxRate());
+		assertEquals(priceWithTax, price.priceWithTax());
+		assertEquals(indexed, price.sellable());
 	}
 
 	@BeforeEach
@@ -117,13 +118,15 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		final Entity updatedEntity = builder.toMutation()
 			.map(it -> it.mutate(initialEntity.getSchema(), initialEntity))
 			.orElse(initialEntity);
-		assertNotNull(updatedEntity.getParent());
-		assertEquals(initialEntity.getVersion() + 1, updatedEntity.getVersion());
-		assertTrue(updatedEntity.getParent().isEmpty());
+
+		assertFalse(updatedEntity.parentAvailable());
+		assertThrows(EntityIsNotHierarchicalException.class, updatedEntity::getParent);
+		assertThrows(EntityIsNotHierarchicalException.class, updatedEntity::getParentEntity);
+		assertEquals(initialEntity.version() + 1, updatedEntity.version());
 	}
 
 	@Test
-	void shouldDefineFacetGroup() {
+	void shouldDefineReferenceGroup() {
 		builder.setReference(BRAND_TYPE, BRAND_TYPE, Cardinality.ZERO_OR_ONE, 1, whichIs -> whichIs.setGroup("Whatever", 8));
 
 		final EntityMutation entityMutation = builder.toMutation().orElseThrow();
@@ -161,8 +164,52 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		assertEquals(of(78), builder.getParent());
 
 		final Entity updatedEntity = builder.toMutation().orElseThrow().mutate(initialEntity.getSchema(), initialEntity);
-		assertEquals(initialEntity.getVersion() + 1, updatedEntity.getVersion());
+		assertEquals(initialEntity.version() + 1, updatedEntity.version());
 		assertEquals(of(78), updatedEntity.getParent());
+	}
+
+	@Test
+	void shouldAddNewAttributes() {
+		final Entity updatedInstance = builder
+			.setAttribute("newAttribute", "someValue")
+			.toInstance();
+
+		assertEquals("someValue", updatedInstance.getAttribute("newAttribute"));
+	}
+
+	@Test
+	void shouldAddNewAssociatedData() {
+		final Entity updatedInstance = builder
+			.setAssociatedData("newAttribute", "someValue")
+			.toInstance();
+
+		assertEquals("someValue", updatedInstance.getAssociatedData("newAttribute"));
+	}
+
+	@Test
+	void shouldSetNewParent() {
+		final Entity updatedInstance = builder
+			.setParent(2)
+			.toInstance();
+
+		assertEquals(2, updatedInstance.getParent().orElseThrow());
+	}
+
+	@Test
+	void shouldSetNewReference() {
+		final Entity updatedInstance = builder
+			.setReference(
+				"stock", "stock", Cardinality.ZERO_OR_MORE, 2,
+				whichIs -> whichIs.setAttribute("newAttribute", "someValue")
+			)
+			.toInstance();
+
+		final Collection<ReferenceContract> references = updatedInstance.getReferences("stock");
+		assertEquals(1, references.size());
+
+		final ReferenceContract theStockReference = references.stream().iterator().next();
+		assertNotNull(theStockReference);
+		assertEquals("someValue", theStockReference.getAttribute("newAttribute"));
 	}
 
 	@Test
@@ -174,7 +221,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			.toInstance();
 
 		assertEquals(5, updatedInstance.getPrices().size());
-		assertTrue(updatedInstance.getPrice(2, "reference", CZK).map(Droppable::isDropped).orElse(false));
+		assertTrue(updatedInstance.getPrice(2, "reference", CZK).map(Droppable::dropped).orElse(false));
 		assertPrice(updatedInstance, 1, "basic", CZK, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true);
 		assertPrice(updatedInstance, 5, "vip", EUR, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true);
 	}

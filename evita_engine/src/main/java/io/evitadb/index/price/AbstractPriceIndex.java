@@ -53,7 +53,7 @@ import static io.evitadb.utils.Assert.notNull;
  * {@link io.evitadb.api.query.filter.PriceBetween}, {@link io.evitadb.api.query.filter.PriceValidIn},
  * {@link PriceNatural}.
  *
- * For each combination of {@link PriceContract#getPriceList()} and {@link PriceContract#getCurrency()} it maintains
+ * For each combination of {@link PriceContract#priceList()} and {@link PriceContract#currency()} it maintains
  * separate filtering index. Pre-sorted indexes are maintained for all prices regardless of their price list
  * relation because there is no guarantee that there will be currency or price list part of the query.
  *
@@ -110,12 +110,12 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 		int priceWithTax
 	) {
 		final T priceListIndex = this.getPriceIndexes().computeIfAbsent(
-			new PriceIndexKey(priceKey.getPriceList(), priceKey.getCurrency(), innerRecordHandling),
+			new PriceIndexKey(priceKey.priceList(), priceKey.currency(), innerRecordHandling),
 			this::createNewPriceListAndCurrencyIndex
 		);
 		return addPrice(
 			priceListIndex, entityPrimaryKey,
-			internalPriceId, priceKey.getPriceId(), innerRecordId,
+			internalPriceId, priceKey.priceId(), innerRecordId,
 			validity, priceWithoutTax, priceWithTax
 		);
 	}
@@ -129,13 +129,13 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 		@Nullable DateTimeRange validity,
 		int priceWithoutTax, int priceWithTax
 	) {
-		final PriceIndexKey lookupKey = new PriceIndexKey(priceKey.getPriceList(), priceKey.getCurrency(), innerRecordHandling);
+		final PriceIndexKey lookupKey = new PriceIndexKey(priceKey.priceList(), priceKey.currency(), innerRecordHandling);
 		final T priceListIndex = this.getPriceIndexes().get(lookupKey);
-		notNull(priceListIndex, "Price index for price list " + priceKey.getPriceList() + " and currency " + priceKey.getCurrency() + " not found!");
+		notNull(priceListIndex, "Price index for price list " + priceKey.priceList() + " and currency " + priceKey.currency() + " not found!");
 
 		removePrice(
 			priceListIndex, entityPrimaryKey,
-			internalPriceId, priceKey.getPriceId(), innerRecordId,
+			internalPriceId, priceKey.priceId(), innerRecordId,
 			validity, priceWithoutTax, priceWithTax
 		);
 

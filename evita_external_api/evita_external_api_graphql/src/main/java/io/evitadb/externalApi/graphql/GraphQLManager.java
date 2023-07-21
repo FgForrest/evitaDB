@@ -72,12 +72,12 @@ public class GraphQLManager {
 	 * Common object mapper for endpoints
 	 */
 	@Nonnull private final ObjectMapper objectMapper = new ObjectMapper();
-
-	@Nonnull private final GraphQLConfig graphQLConfig;
 	/**
 	 * Provides access to Evita private API
 	 */
 	@Nonnull private final Evita evita;
+
+	@Nonnull private final GraphQLConfig graphQLConfig;
 
 	/**
 	 * GraphQL specific endpoint router.
@@ -88,9 +88,9 @@ public class GraphQLManager {
 	 */
 	@Nonnull private final Map<String, RegisteredCatalog> registeredCatalogs = createHashMap(20);
 
-	public GraphQLManager(@Nonnull GraphQLConfig graphQLConfig, @Nonnull Evita evita) {
-		this.graphQLConfig = graphQLConfig;
+	public GraphQLManager(@Nonnull Evita evita, @Nonnull GraphQLConfig graphQLConfig) {
 		this.evita = evita;
+		this.graphQLConfig = graphQLConfig;
 
 		final long buildingStartTime = System.currentTimeMillis();
 
@@ -216,7 +216,7 @@ public class GraphQLManager {
 				new CorsFilter(
 					new GraphQLExceptionHandler(
 						objectMapper,
-						new GraphQLHandler(objectMapper, registeredGraphQLApi.graphQLReference())
+						new GraphQLHandler(objectMapper, evita.getConfiguration(), registeredGraphQLApi.graphQLReference())
 					),
 					graphQLConfig.getAllowedOrigins()
 				)

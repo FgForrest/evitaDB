@@ -151,7 +151,7 @@ public class RestArtificialPageReadState extends AbstractRestArtificialState {
 
 		setRequest(
 			"POST",
-			"product/list",
+			"/rest/test-catalog/product/list",
 			String.format(
 				"""
 					{

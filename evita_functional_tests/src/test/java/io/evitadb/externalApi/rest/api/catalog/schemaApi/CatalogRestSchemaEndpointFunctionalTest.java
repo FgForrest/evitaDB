@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
 import io.evitadb.externalApi.rest.api.resolver.serializer.DataTypeSerializer;
 import io.evitadb.externalApi.rest.api.testSuite.RestEndpointFunctionalTest;
@@ -132,7 +133,7 @@ abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpointFunct
 	@Nonnull
 	protected static Map<String, Object> createEntitySchemaDto(@Nonnull Evita evita, @Nonnull EntitySchemaContract entitySchema) {
 		final MapBuilder entitySchemaDto = map()
-			.e(VersionedDescriptor.VERSION.name(), entitySchema.getVersion())
+			.e(VersionedDescriptor.VERSION.name(), entitySchema.version())
 			.e(NamedSchemaDescriptor.NAME.name(), entitySchema.getName())
 			.e(NamedSchemaDescriptor.NAME_VARIANTS.name(), map()
 				.e(NameVariantsDescriptor.CAMEL_CASE.name(), entitySchema.getNameVariant(NamingConvention.CAMEL_CASE))

@@ -60,7 +60,7 @@ public class PriceBigDecimalDataFetcher extends BigDecimalDataFetcher {
         return new PriceBigDecimal(
             value,
             context.getDesiredLocale(),
-            withCurrency ? ((PriceContract) environment.getSource()).getCurrency() : null
+            withCurrency ? ((PriceContract) environment.getSource()).currency() : null
         );
     }
 }

@@ -26,6 +26,7 @@ package io.evitadb.externalApi.rest.api.testSuite;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.Range;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
@@ -41,6 +42,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 
@@ -82,6 +84,9 @@ public abstract class RestEndpointFunctionalTest {
 	protected Object serializeToJsonValue(@Nullable Object value) {
 		if (value == null) {
 			return null;
+		}
+		if (value instanceof ComplexDataObject cdo) {
+			return Map.of();
 		}
 		if (value instanceof Object[] array) {
 			final ArrayList<Object> objects = new ArrayList<>(array.length);

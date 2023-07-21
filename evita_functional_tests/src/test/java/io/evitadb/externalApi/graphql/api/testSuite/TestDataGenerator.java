@@ -192,6 +192,7 @@ public class TestDataGenerator {
 								.withAttribute(ATTRIBUTE_MANUFACTURED, LocalDate.class, whichIs -> whichIs.filterable().sortable())
 								.withAttribute(ATTRIBUTE_VISIBLE, Boolean.class, whichIs -> whichIs.filterable())
 								.withAttribute(ATTRIBUTE_DEPRECATED, String.class, whichIs -> whichIs
+									.filterable()
 									.deprecated("This is deprecated.")
 									.nullable())
 								.withSortableAttributeCompound(

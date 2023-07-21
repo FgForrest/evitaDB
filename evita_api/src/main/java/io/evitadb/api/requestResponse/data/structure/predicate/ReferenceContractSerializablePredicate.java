@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.structure.predicate;
 
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.AttributeRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
@@ -152,6 +153,31 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		this.implicitLocale = implicitLocale;
 		this.locales = locales;
 		this.underlyingPredicate = null;
+	}
+
+	/**
+	 * Returns true if the references were fetched along with the entity.
+	 */
+	public boolean wasFetched() {
+		return requiresEntityReferences;
+	}
+
+	/**
+	 * Method verifies that references were fetched with the entity.
+	 */
+	public void checkFetched() throws ContextMissingException {
+		if (!requiresEntityReferences) {
+			throw ContextMissingException.referenceContextMissing();
+		}
+	}
+
+	/**
+	 * Method verifies that the requested attribute was fetched with the entity.
+	 */
+	public void checkFetched(@Nonnull String referenceName) throws ContextMissingException {
+		if (!(requiresEntityReferences && (referenceSet.isEmpty() || referenceSet.containsKey(referenceName)))) {
+			throw ContextMissingException.referenceContextMissing(referenceName);
+		}
 	}
 
 	@Override

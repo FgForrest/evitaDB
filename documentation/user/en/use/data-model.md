@@ -160,8 +160,10 @@ Hierarchy definition is part of main entity schema:
 <LanguageSpecific to="graphql">
 
 <Note type="info">
+
 Hierarchy placement is represented by `parentPrimaryKey` and `parents` fields in entity object.
 Hierarchy definition is part of main entity schema.
+
 </Note>
 
 </LanguageSpecific>

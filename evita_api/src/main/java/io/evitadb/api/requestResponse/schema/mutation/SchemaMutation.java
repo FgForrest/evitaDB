@@ -31,7 +31,7 @@ import javax.annotation.concurrent.ThreadSafe;
 
 /**
  * Entity {@link Mutation} allows to execute mutation operations on {@link EntitySchemaContract} object itself.
- * Each change increments {@link EntitySchemaContract#getVersion()} by one.
+ * Each change increments {@link EntitySchemaContract#version()} by one.
  *
  * These traits should help to manage concurrent transactional process as updates to the same entity could be executed
  * safely and concurrently as long as schema modification doesn't overlap. Modification alters only the schema model,

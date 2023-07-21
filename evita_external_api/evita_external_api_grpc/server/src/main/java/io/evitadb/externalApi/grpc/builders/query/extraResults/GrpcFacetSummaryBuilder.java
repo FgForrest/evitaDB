@@ -56,7 +56,7 @@ public class GrpcFacetSummaryBuilder {
 	 * @return list of all group statistics
 	 */
 	public static void buildFacetSummary(@Nonnull Builder extraResults, @Nonnull FacetSummary facetSummary) {
-		final Collection<FacetGroupStatistics> originalGroupStatistics = facetSummary.getFacetGroupStatistics();
+		final Collection<FacetGroupStatistics> originalGroupStatistics = facetSummary.getReferenceStatistics();
 		final List<GrpcFacetGroupStatistics> facetGroupStatistics = new ArrayList<>(originalGroupStatistics.size());
 
 		for (FacetSummary.FacetGroupStatistics groupStatistics : originalGroupStatistics) {

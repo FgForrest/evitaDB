@@ -42,6 +42,7 @@ import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
+import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -251,6 +252,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	public Entity enrichEntity(
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull EntityDecorator entityDecorator,
+		@Nonnull HierarchySerializablePredicate newHierarchyPredicate,
 		@Nonnull AttributeValueSerializablePredicate newAttributePredicate,
 		@Nonnull AssociatedDataValueSerializablePredicate newAssociatedDataPredicate,
 		@Nonnull ReferenceContractSerializablePredicate newReferenceContractPredicate,
@@ -273,7 +275,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 					);
 				}
 
-				final boolean versionDiffers = bodyPart.getVersion() != entityDecorator.getVersion();
+				final boolean versionDiffers = bodyPart.getVersion() != entityDecorator.version();
 
 				// fetch additional data if requested and not already present
 				final ReferencesStoragePart referencesStorageContainer = fetchReferences(
@@ -456,7 +458,10 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 					collection(entitySchema.getName()),
 					require(entityFetchAll())
 				),
-				OffsetDateTime.now()
+				OffsetDateTime.now(),
+				Entity.class,
+				null,
+				EvitaRequest.CONVERSION_NOT_SUPPORTED
 			);
 			final byte recType = memTable.getIdForRecordType(EntityBodyStoragePart.class);
 			return memTable
@@ -851,7 +856,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			attributeKey,
 			new SortIndex(
 				sortIndexCnt.getComparatorBase(),
-				sortIndexCnt.getAttributeKey().getLocale(),
+				sortIndexCnt.getAttributeKey().locale(),
 				sortIndexCnt.getSortedRecords(),
 				sortIndexCnt.getSortedRecordsValues(),
 				sortIndexCnt.getValueCardinalities()
@@ -893,7 +898,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		uniqueIndexes.put(
 			attributeKey,
 			new UniqueIndex(
-				entityType, attributeKey.getAttributeName(),
+				entityType, attributeKey.attributeName(),
 				uniqueIndexCnt.getType(),
 				uniqueIndexCnt.getUniqueValueToRecordId(),
 				uniqueIndexCnt.getRecordIds()
@@ -1055,7 +1060,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				// add all not yet loaded keys
 				allAssociatedDataKeys
 					.stream()
-					.filter(associatedDataKey -> !associatedDataKey.isLocalized() || (requestedLocales != null && (requestedLocales.isEmpty() || requestedLocales.contains(associatedDataKey.getLocale()))))
+					.filter(associatedDataKey -> !associatedDataKey.localized() || (requestedLocales != null && (requestedLocales.isEmpty() || requestedLocales.contains(associatedDataKey.locale()))))
 					.filter(wasNotFetched)
 					.forEach(missingAssociatedDataSet::add);
 			} else {
@@ -1080,7 +1085,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				.map(it -> {
 					// fetch missing associated data from underlying storage
 					final T associatedData = fetcher.apply(
-						new EntityAssociatedDataKey(entityPrimaryKey, it.getAssociatedDataName(), it.getLocale())
+						new EntityAssociatedDataKey(entityPrimaryKey, it.associatedDataName(), it.locale())
 					);
 					// since we know all available keys from the entity header there always should be looked up container
 					notNull(associatedData, "Associated data " + it + " was expected in the storage, but none was found!");

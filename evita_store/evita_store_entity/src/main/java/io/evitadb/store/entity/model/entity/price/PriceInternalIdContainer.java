@@ -33,7 +33,7 @@ import javax.annotation.Nullable;
  * Interface allow accessing internally assigned price identifiers. We use our own identifiers because we need
  * to stick to Java int types in indexes and searching. The priceId and innerRecordId are related to its entity. And
  * prices with same priceId and innerRecordId used in different entity may hold entirely different data -
- * see {@link PriceContract#getPriceId()}.
+ * see {@link PriceContract#priceId()}.
  *
  * So to uniquely address the price we need the combination of entity primary key and the price id, or the entity
  * primary key and inner record id. This would require two ints, or single long to represent. This is quite large data
@@ -47,7 +47,7 @@ import javax.annotation.Nullable;
 public interface PriceInternalIdContainer {
 
 	/**
-	 * Returns internal id for {@link PriceContract#getPriceId()}. The is unique for the price identified
+	 * Returns internal id for {@link PriceContract#priceId()}. The is unique for the price identified
 	 * by {@link PriceKey} inside single entity. The id is different for two prices sharing same {@link PriceKey}
 	 * but are present in different entities.
 	 */

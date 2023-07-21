@@ -53,6 +53,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithParent;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
 import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
+import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -85,6 +86,7 @@ import org.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -101,6 +103,7 @@ import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.evitadb.core.query.extraResult.translator.hierarchyStatistics.AbstractHierarchyTranslator.stopAtConstraintToPredicate;
 import static java.util.Optional.ofNullable;
@@ -126,6 +129,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * Requirement aggregation exported from {@link EvitaRequest#getReferenceEntityFetch()}.
 	 */
 	@Nonnull private final Map<String, RequirementContext> requirementContext;
+	/**
+	 * Default requirement context for the case when the requirement context is not specified for the reference.
+	 */
+	@Nullable private final RequirementContext defaultRequirementContext;
 	/**
 	 * The query context used for querying the entities.
 	 */
@@ -215,6 +222,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		final ReferenceFetcher subReferenceFetcher = createSubReferenceFetcher(
 			fetchRequest.getHierarchyContent(),
 			referenceEntityFetch,
+			fetchRequest.getDefaultReferenceRequirement(),
 			nestedQueryContext
 		);
 
@@ -252,8 +260,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		final Map<String, RequirementContext> referenceEntityFetch = fetchRequest.getReferenceEntityFetch();
 		final QueryContext nestedQueryContext = hierarchyCollection.createQueryContext(queryContext, fetchRequest, queryContext.getEvitaSession());
 		final ReferenceFetcher subReferenceFetcher = createSubReferenceFetcher(
-			fetchRequest.getHierarchyContent(),
+			null,
 			referenceEntityFetch,
+			fetchRequest.getDefaultReferenceRequirement(),
 			nestedQueryContext
 		);
 
@@ -332,6 +341,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	private static ReferenceFetcher createSubReferenceFetcher(
 		@Nullable HierarchyContent hierarchyContent,
 		@Nonnull Map<String, RequirementContext> referenceEntityFetch,
+		@Nullable RequirementContext defaultRequirementContext,
 		@Nonnull QueryContext nestedQueryContext
 	) {
 		return referenceEntityFetch.isEmpty() && hierarchyContent == null ?
@@ -339,6 +349,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			new ReferencedEntityFetcher(
 				hierarchyContent,
 				referenceEntityFetch,
+				defaultRequirementContext,
 				nestedQueryContext
 			);
 	}
@@ -616,10 +627,14 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	public ReferencedEntityFetcher(
 		@Nullable HierarchyContent hierarchyContent,
 		@Nonnull Map<String, RequirementContext> requirementContext,
+		@Nullable RequirementContext defaultRequirementContext,
 		@Nonnull QueryContext queryContext,
 		@Nonnull SealedEntity sealedEntity
 	) {
-		this(hierarchyContent, requirementContext, queryContext, new ExistingSealedEntityProvider(sealedEntity));
+		this(
+			hierarchyContent, requirementContext, defaultRequirementContext, queryContext,
+			new ExistingEntityDecoratorProvider((EntityDecorator) sealedEntity)
+		);
 	}
 
 	/**
@@ -628,9 +643,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	public ReferencedEntityFetcher(
 		@Nullable HierarchyContent hierarchyContent,
 		@Nonnull Map<String, RequirementContext> requirementContext,
+		@Nullable RequirementContext defaultRequirementContext,
 		@Nonnull QueryContext queryContext
 	) {
-		this(hierarchyContent, requirementContext, queryContext, EmptyEntityProvider.INSTANCE);
+		this(hierarchyContent, requirementContext, defaultRequirementContext, queryContext, EmptyEntityProvider.INSTANCE);
 	}
 
 	/**
@@ -639,11 +655,13 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	private ReferencedEntityFetcher(
 		@Nullable HierarchyContent hierarchyContent,
 		@Nonnull Map<String, RequirementContext> requirementContext,
+		@Nullable RequirementContext defaultRequirementContext,
 		@Nonnull QueryContext queryContext,
 		@Nonnull ExistingEntityProvider existingEntityRetriever
 	) {
 		this.hierarchyContent = hierarchyContent;
 		this.requirementContext = requirementContext;
+		this.defaultRequirementContext = defaultRequirementContext;
 		this.queryContext = queryContext;
 		this.existingEntityRetriever = existingEntityRetriever;
 	}
@@ -654,18 +672,26 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		// we need to ensure that references are fetched in order to be able to provide information about them
 		final T richEnoughEntity = ((EntityCollection) entityCollection).ensureReferencesFetched(entity);
 		// prefetch the parents
-		prefetchParents(
-			hierarchyContent,
-			queryContext,
-			entityCollection,
-			richEnoughEntity.getParent()
-				.stream()
-				.toArray()
-		);
+		if (entityCollection.getSchema().isWithHierarchy()) {
+			prefetchParents(
+				hierarchyContent,
+				queryContext,
+				entityCollection,
+				richEnoughEntity instanceof EntityDecorator entityDecorator ?
+					entityDecorator.getParentWithoutCheckingPredicate()
+						.stream()
+						.toArray() :
+					richEnoughEntity.getParent()
+						.stream()
+						.toArray()
+			);
+		}
 		// prefetch the entities
 		prefetchEntities(
 			requirementContext,
+			defaultRequirementContext,
 			queryContext,
+			entityCollection.getSchema(),
 			existingEntityRetriever,
 			(referenceName, entityPk) -> toFormula(
 				(richEnoughEntity instanceof EntityDecorator entityDecorator ? entityDecorator.getDelegate() : richEnoughEntity)
@@ -699,20 +725,28 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			richEnoughEntities.add(((EntityCollection) entityCollection).ensureReferencesFetched(entity));
 		}
 		// prefetch the parents
-		prefetchParents(
-			hierarchyContent,
-			queryContext,
-			entityCollection,
-			entities.stream()
-				.map(EntityContract::getParent)
-				.filter(OptionalInt::isPresent)
-				.mapToInt(OptionalInt::getAsInt)
-				.toArray()
-		);
+		if (entityCollection.getSchema().isWithHierarchy()) {
+			prefetchParents(
+				hierarchyContent,
+				queryContext,
+				entityCollection,
+				entities.stream()
+					.map(it ->
+						it instanceof EntityDecorator entityDecorator ?
+							entityDecorator.getParentWithoutCheckingPredicate() :
+							it.getParent()
+					)
+					.filter(OptionalInt::isPresent)
+					.mapToInt(OptionalInt::getAsInt)
+					.toArray()
+			);
+		}
 		// prefetch the entities
 		prefetchEntities(
 			requirementContext,
+			defaultRequirementContext,
 			queryContext,
+			entityCollection.getSchema(),
 			existingEntityRetriever,
 			(referenceName, entityPk) -> toFormula(
 				richEnoughEntities.stream()
@@ -774,7 +808,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	@Nullable
 	@Override
 	public BiPredicate<Integer, ReferenceDecorator> getEntityFilter(@Nonnull ReferenceSchemaContract referenceSchema) {
-		return ofNullable(requirementContext.get(referenceSchema.getName()))
+		return ofNullable(
+			ofNullable(requirementContext.get(referenceSchema.getName())).orElse(defaultRequirementContext)
+		)
 			.map(it -> {
 				if (it.filterBy() == null) {
 					return null;
@@ -808,23 +844,35 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 */
 	private void prefetchEntities(
 		@Nonnull Map<String, RequirementContext> requirementContext,
+		@Nullable RequirementContext defaultRequirementContext,
 		@Nonnull QueryContext queryContext,
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ExistingEntityProvider existingEntityRetriever,
 		@Nonnull BiFunction<String, Integer, Formula> referencedEntityIdsFormula,
 		@Nonnull BiFunction<String, Integer, Formula> referencedEntityGroupIdsFormula,
 		@Nonnull int[] entityPrimaryKey
 	) {
 		final AtomicReference<FilterByVisitor> filterByVisitor = new AtomicReference<>();
-		this.fetchedEntities = requirementContext
-			.entrySet()
-			.stream()
+		final Stream<Entry<String, RequirementContext>> collectedRequirements = defaultRequirementContext == null ?
+			requirementContext.entrySet().stream() :
+			entitySchema.getReferences()
+				.keySet()
+				.stream()
+				.map(
+					referenceSchemaContract -> new SimpleEntry<>(
+						referenceSchemaContract,
+						requirementContext.getOrDefault(referenceSchemaContract, defaultRequirementContext)
+					)
+				);
+
+		this.fetchedEntities = collectedRequirements
 			.collect(
 				Collectors.toMap(
 					Entry::getKey,
 					it -> {
 						final String referenceName = it.getKey();
 						final RequirementContext requirements = it.getValue();
-						final ReferenceSchemaContract referenceSchema = queryContext.getSchema().getReferenceOrThrowException(referenceName);
+						final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
 
 						final Optional<OrderingDescriptor> orderingDescriptor = ofNullable(requirements.orderBy())
 							.map(OrderBy::getChild)
@@ -961,7 +1009,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 			// second, replace the EntityReferenceWithParent with EntityDecorator if the bodies are requested
 			if (bodyRequired) {
-				final EvitaRequest fetchRequest = queryContext.getEvitaRequest().deriveCopyWith(entityType, hierarchyContent.getEntityFetch().get());
+				final EvitaRequest fetchRequest = queryContext.getEvitaRequest().deriveCopyWith(
+					entityType,
+					hierarchyContent.getEntityFetch().get()
+				);
 				final EntityCollection referencedCollection = queryContext.getEntityCollectionOrThrowException(
 					entityType, "fetch parents"
 				);
@@ -999,21 +1050,21 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull EntityReferenceWithParent entityReference,
 		@Nonnull Map<Integer, SealedEntity> parentBodies
 	) {
-		return entityReference.getParentEntity()
-			.map(parentEntity -> {
-				final EntityDecorator entityDecorator = (EntityDecorator) parentBodies.get(entityReference.getPrimaryKey());
-				return (SealedEntity) Entity.decorate(
-					entityDecorator,
-					replaceWithSealedEntities((EntityReferenceWithParent) parentEntity, parentBodies),
-					entityDecorator.getLocalePredicate(),
-					entityDecorator.getAttributePredicate(),
-					entityDecorator.getAssociatedDataPredicate(),
-					entityDecorator.getReferencePredicate(),
-					entityDecorator.getPricePredicate(),
-					entityDecorator.getAlignedNow()
-				);
-			})
-			.orElse(parentBodies.get(entityReference.getPrimaryKey()));
+		final SealedEntity sealedEntity = parentBodies.get(entityReference.getPrimaryKey());
+		final EntityDecorator entityDecorator = (EntityDecorator) sealedEntity;
+		return Entity.decorate(
+			entityDecorator,
+			entityReference.getParentEntity()
+				.map(parentEntity -> replaceWithSealedEntities((EntityReferenceWithParent) parentEntity, parentBodies))
+				.orElse(null),
+			entityDecorator.getLocalePredicate(),
+			new HierarchySerializablePredicate(true),
+			entityDecorator.getAttributePredicate(),
+			entityDecorator.getAssociatedDataPredicate(),
+			entityDecorator.getReferencePredicate(),
+			entityDecorator.getPricePredicate(),
+			entityDecorator.getAlignedNow()
+		);
 	}
 
 	/**
@@ -1225,13 +1276,13 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * This implementation looks up to the passed `sealedEntity` for existing referenced entity bodies.
 	 */
 	@RequiredArgsConstructor
-	private static class ExistingSealedEntityProvider implements ExistingEntityProvider {
-		private final SealedEntity sealedEntity;
+	private static class ExistingEntityDecoratorProvider implements ExistingEntityProvider {
+		private final EntityDecorator entityDecorator;
 
 		@Nonnull
 		@Override
 		public Optional<SealedEntity> getExistingParentEntity(int primaryKey) {
-			return sealedEntity.getParentEntity()
+			return entityDecorator.getParentEntityWithoutCheckingPredicate()
 				.filter(SealedEntity.class::isInstance)
 				.map(SealedEntity.class::cast);
 		}
@@ -1239,13 +1290,13 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull
 		@Override
 		public Optional<SealedEntity> getExistingEntity(@Nonnull String referenceName, int primaryKey) {
-			return sealedEntity.getReference(referenceName, primaryKey).flatMap(ReferenceContract::getReferencedEntity);
+			return entityDecorator.getReferenceWithoutCheckingPredicate(referenceName, primaryKey).flatMap(ReferenceContract::getReferencedEntity);
 		}
 
 		@Nonnull
 		@Override
 		public Optional<SealedEntity> getExistingGroupEntity(@Nonnull String referenceName, int primaryKey) {
-			return sealedEntity.getReference(referenceName, primaryKey).flatMap(ReferenceContract::getGroupEntity);
+			return entityDecorator.getReferenceWithoutCheckingPredicate(referenceName, primaryKey).flatMap(ReferenceContract::getGroupEntity);
 		}
 	}
 }

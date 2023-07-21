@@ -1580,7 +1580,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 					actualFacetSummary,
 					facetEntity -> facetEntity.getAttributeNames().size() == 1 &&
 						facetEntity.getAttribute(ATTRIBUTE_NAME) != null,
-					groupEntity -> groupEntity.getAttributeNames().isEmpty()
+					groupEntity -> !groupEntity.attributesAvailable()
 				);
 
 				return null;
@@ -1643,7 +1643,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 					actualFacetSummary,
 					facetEntity -> facetEntity.getAttributeNames().size() == 1 &&
 						facetEntity.getAttribute(ATTRIBUTE_NAME) != null,
-					groupEntity -> groupEntity.getAttributeNames().isEmpty()
+					groupEntity -> !groupEntity.attributesAvailable()
 				);
 
 				return null;
@@ -1999,7 +1999,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 		@Nonnull Function<FacetStatistics, String> facetRenderer
 	) {
 		assertNotNull(actualFacetSummary);
-		assertFalse(actualFacetSummary.getFacetGroupStatistics().isEmpty());
+		assertFalse(actualFacetSummary.getReferenceStatistics().isEmpty());
 		assertEquals(
 			new FacetSummaryToStringWrapper(expectedSummary.facetSummary(), groupRenderer, facetRenderer),
 			new FacetSummaryToStringWrapper(actualFacetSummary, groupRenderer, facetRenderer),
@@ -2021,7 +2021,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 		@Nonnull Function<SealedEntity, Boolean> facetEntitiesAssertFunction,
 		@Nonnull Function<SealedEntity, Boolean> groupEntitiesAssertFunction
 	) {
-		facetSummary.getFacetGroupStatistics().forEach(actualFacetGroupStatistics -> {
+		facetSummary.getReferenceStatistics().forEach(actualFacetGroupStatistics -> {
 			if (actualFacetGroupStatistics.getGroupEntity() != null && actualFacetGroupStatistics.getGroupEntity() instanceof final SealedEntity groupEntity) {
 				assertTrue(groupEntitiesAssertFunction.apply(groupEntity));
 			}

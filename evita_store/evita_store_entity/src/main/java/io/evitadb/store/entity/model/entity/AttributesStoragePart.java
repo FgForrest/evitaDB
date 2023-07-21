@@ -102,9 +102,9 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	 */
 	public static long computeUniquePartId(@Nonnull KeyCompressor keyCompressor, @Nonnull EntityAttributesSetKey attributeSetKey) throws CompressionKeyUnknownException {
 		return NumberUtils.join(
-			attributeSetKey.getEntityPrimaryKey(),
+			attributeSetKey.entityPrimaryKey(),
 			keyCompressor.getId(
-				new AttributesSetKey(attributeSetKey.getLocale())
+				new AttributesSetKey(attributeSetKey.locale())
 			)
 		);
 	}
@@ -148,7 +148,7 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	 */
 	@Nullable
 	public Locale getLocale() {
-		return attributeSetKey.getLocale();
+		return attributeSetKey.locale();
 	}
 
 	/**
@@ -175,8 +175,8 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 			AttributeValue.createEmptyComparableAttributeValue(attributeKey),
 			attributeValue -> {
 				final AttributeValue mutatedAttribute = mutator.apply(attributeValue);
-				final Serializable valueAlignedToSchema = EvitaDataTypes.toTargetType(mutatedAttribute.getValue(), attributeDefinition.getType(), attributeDefinition.getIndexedDecimalPlaces());
-				final AttributeValue attributeToUpsert = valueAlignedToSchema == mutatedAttribute.getValue() || valueAlignedToSchema == null ?
+				final Serializable valueAlignedToSchema = EvitaDataTypes.toTargetType(mutatedAttribute.value(), attributeDefinition.getType(), attributeDefinition.getIndexedDecimalPlaces());
+				final AttributeValue attributeToUpsert = valueAlignedToSchema == mutatedAttribute.value() || valueAlignedToSchema == null ?
 					mutatedAttribute : new AttributeValue(mutatedAttribute, valueAlignedToSchema);
 				if (attributeValue == null || attributeValue.differsFrom(mutatedAttribute)) {
 					this.dirty = true;
@@ -201,18 +201,13 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	 *
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
 	 */
-	@Data
 	@Immutable
 	@ThreadSafe
-	public static class EntityAttributesSetKey implements Serializable, Comparable<EntityAttributesSetKey> {
+	public record EntityAttributesSetKey(
+		int entityPrimaryKey,
+		@Nullable Locale locale
+	) implements Serializable, Comparable<EntityAttributesSetKey> {
 		@Serial private static final long serialVersionUID = -5227300829540800269L;
-		private final int entityPrimaryKey;
-		private final Locale locale;
-
-		public EntityAttributesSetKey(int entityPrimaryKey, Locale locale) {
-			this.entityPrimaryKey = entityPrimaryKey;
-			this.locale = locale;
-		}
 
 		@Override
 		public int compareTo(@Nonnull EntityAttributesSetKey o) {

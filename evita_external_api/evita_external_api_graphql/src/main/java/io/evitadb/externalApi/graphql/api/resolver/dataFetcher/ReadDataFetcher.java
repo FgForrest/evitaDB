@@ -25,6 +25,7 @@ package io.evitadb.externalApi.graphql.api.resolver.dataFetcher;
 
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
+import io.evitadb.thread.ShortRunningSupplier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -55,15 +56,10 @@ public abstract class ReadDataFetcher<T> implements DataFetcher<Object> {
 			log.debug("No executor for processing data fetcher `" + getClass().getName() + "`, processing synchronously.");
 			return doGet(environment);
 		}
-		return CompletableFuture.supplyAsync(() -> {
-			try {
-				return doGet(environment);
-			} catch (Throwable e) {
-				// todo lho for debug, should be deleted after
-				log.error("DEBUG: Error occurred during async data fetcher call: ", e);
-				throw e;
-			}
-		}, executor);
+		return CompletableFuture.supplyAsync(
+			new ShortRunningSupplier<>(() -> doGet(environment)),
+			executor
+		);
 	}
 
 	/**

@@ -78,7 +78,7 @@ public class ModifyEntitySchemaDescriptionMutation implements CombinableEntitySc
 			return entitySchema;
 		} else {
 			return EntitySchema._internalBuild(
-				entitySchema.getVersion() + 1,
+				entitySchema.version() + 1,
 				entitySchema.getName(),
 				entitySchema.getNameVariants(),
 				description,

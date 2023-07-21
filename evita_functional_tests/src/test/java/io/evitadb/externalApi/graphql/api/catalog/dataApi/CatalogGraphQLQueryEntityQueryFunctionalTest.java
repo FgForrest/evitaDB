@@ -184,6 +184,62 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return product version")
+	void shouldReturnProductVersions(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final List<SealedEntity> entities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					attributeIsNotNull(ATTRIBUTE_CODE)
+				),
+				require(
+					page(1, 2),
+					entityFetch()
+				)
+			),
+			SealedEntity.class
+		);
+
+		final var expectedBody = entities.stream()
+			.map(entity ->
+				map()
+					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+					.e(EntityDescriptor.VERSION.name(), entity.version())
+					.build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            entityPrimaryKeyInSet: [%d, %d]
+	                        }
+	                    ) {
+	                        recordPage {
+	                            data {
+	                                primaryKey
+			                        type
+			                        version
+	                            }
+	                        }
+	                    }
+	                }
+					""",
+				entities.get(0).getPrimaryKey(),
+				entities.get(1).getPrimaryKey()
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_QUERY_DATA_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by non-localized attribute")
 	void shouldReturnProductsByNonLocalizedAttribute(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
@@ -1567,7 +1623,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
 							.e(PriceDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
 							.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-							.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().getPriceWithTax().toString())
+							.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax().toString())
 							.build()
 					))
 					.build()
@@ -1620,10 +1676,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				map()
 					.e("prices", List.of(
 						map()
-							.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().getPriceWithTax().toString())
+							.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax().toString())
 							.build(),
 						map()
-							.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_VIP).iterator().next().getPriceWithTax().toString())
+							.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_VIP).iterator().next().priceWithTax().toString())
 							.build()
 					))
 					.build()
@@ -3141,7 +3197,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								fromRoot(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(hierarchyContent(), attributeContent()),
 									stopAt(distance(2)),
 									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
 										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
@@ -3216,7 +3272,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								fromNode(
 									"megaMenu",
 									node(filterBy(entityPrimaryKeyInSet(2))),
-									entityFetch(attributeContent()),
+									entityFetch(hierarchyContent(), attributeContent()),
 									stopAt(distance(2)),
 									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
 										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
@@ -3292,7 +3348,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								children(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(hierarchyContent(), attributeContent()),
 									stopAt(distance(1)),
 									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
 										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
@@ -3367,7 +3423,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								parents(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(hierarchyContent(), attributeContent()),
 									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
 										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
 								)
@@ -3441,9 +3497,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								parents(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(hierarchyContent(), attributeContent()),
 									siblings(
-										entityFetch(attributeContent()),
+										entityFetch(hierarchyContent(), attributeContent()),
 										stopAt(distance(2)),
 										statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
 											new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
@@ -3525,7 +3581,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								siblings(
 									"rootSiblings",
-									entityFetch(attributeContent()),
+									entityFetch(hierarchyContent(), attributeContent()),
 									stopAt(distance(1)),
 									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
 										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
@@ -3598,14 +3654,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								fromRoot(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(hierarchyContent(), attributeContent()),
 									stopAt(distance(2)),
 									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
 										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
 								),
 								siblings(
 									"rootSiblings",
-									entityFetch(attributeContent()),
+									entityFetch(hierarchyContent(), attributeContent()),
 									stopAt(distance(1)),
 									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
 										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
@@ -3726,7 +3782,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								fromRoot(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(hierarchyContent(), attributeContent()),
 									stopAt(distance(2)),
 									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
 										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
@@ -3805,7 +3861,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								fromNode(
 									"megaMenu",
 									node(filterBy(entityPrimaryKeyInSet(2))),
-									entityFetch(attributeContent()),
+									entityFetch(hierarchyContent(), attributeContent()),
 									stopAt(distance(2)),
 									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
 										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
@@ -3885,7 +3941,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								children(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(hierarchyContent(), attributeContent()),
 									stopAt(distance(1)),
 									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
 										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
@@ -3964,7 +4020,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								parents(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(hierarchyContent(), attributeContent()),
 									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
 										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
 								)
@@ -4042,9 +4098,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								parents(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(hierarchyContent(), attributeContent()),
 									siblings(
-										entityFetch(attributeContent()),
+										entityFetch(hierarchyContent(), attributeContent()),
 										stopAt(distance(2)),
 										statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
 											new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
@@ -4127,7 +4183,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								siblings(
 									"rootSiblings",
-									entityFetch(attributeContent()),
+									entityFetch(hierarchyContent(), attributeContent()),
 									stopAt(distance(1)),
 									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
 										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
@@ -4206,14 +4262,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								fromRoot(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(hierarchyContent(), attributeContent()),
 									stopAt(distance(2)),
 									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
 										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
 								),
 								siblings(
 									"rootSiblings",
-									entityFetch(attributeContent()),
+									entityFetch(hierarchyContent(), attributeContent()),
 									stopAt(distance(1)),
 									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
 										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
@@ -4330,7 +4386,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 			}
 		);
-		assertFalse(response.getExtraResult(FacetSummary.class).getFacetGroupStatistics().isEmpty());
+		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
 
 		final var expectedBody = createFacetSummaryWithCountsDto(response, Entities.BRAND);
 
@@ -4408,7 +4464,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 			}
 		);
-		assertFalse(response.getExtraResult(FacetSummary.class).getFacetGroupStatistics().isEmpty());
+		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
 
 		final var expectedBody = createFacetSummaryWithImpactsDto(response);
 
@@ -4483,7 +4539,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 			}
 		);
-		assertFalse(response.getExtraResult(FacetSummary.class).getFacetGroupStatistics().isEmpty());
+		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
 
 		final var expectedBody = createFacetSummaryWithCountsDto(response, Entities.PARAMETER);
 
@@ -4559,7 +4615,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 			}
 		);
-		assertFalse(response.getExtraResult(FacetSummary.class).getFacetGroupStatistics().isEmpty());
+		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
 
 		final var expectedBody = createFacetSummaryWithCountsDto(response, Entities.PARAMETER);
 
@@ -4645,7 +4701,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 			}
 		);
-		assertFalse(response.getExtraResult(FacetSummary.class).getFacetGroupStatistics().isEmpty());
+		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
 
 		final var expectedBody = createFacetSummaryWithCountsDto(response, Entities.PARAMETER);
 
@@ -4841,7 +4897,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.e(LevelInfoDescriptor.LEVEL.name(), currentLevel)
 			.e(LevelInfoDescriptor.ENTITY.name(), map()
 				.e(EntityDescriptor.PRIMARY_KEY.name(), levelInfo.entity().getPrimaryKey())
-				.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), entity.getParent().isPresent() ? entity.getParent().getAsInt() : null)
+				.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), entity.parentAvailable() && entity.getParent().isPresent() ? entity.getParent().getAsInt() : null)
 				.e(EntityDescriptor.ATTRIBUTES.name(), map()
 					.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))))
 			.e(LevelInfoDescriptor.HAS_CHILDREN.name(), !levelInfo.children().isEmpty());
@@ -4863,7 +4919,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                                                  @Nonnull String referenceName) {
 		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
 
-		return facetSummary.getFacetGroupStatistics()
+		return facetSummary.getReferenceStatistics()
 			.stream()
 			.filter(groupStatistics -> groupStatistics.getReferenceName().equals(referenceName))
 			.map(groupStatistics ->
@@ -4899,7 +4955,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	private List<Map<String, Object>> createFacetSummaryWithImpactsDto(@Nonnull EvitaResponse<EntityReference> response) {
 		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
 
-		return facetSummary.getFacetGroupStatistics()
+		return facetSummary.getReferenceStatistics()
 			.stream()
 			.map(groupStatistics ->
 				map()

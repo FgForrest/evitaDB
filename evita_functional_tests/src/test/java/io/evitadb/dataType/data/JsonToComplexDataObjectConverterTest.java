@@ -65,7 +65,7 @@ class JsonToComplexDataObjectConverterTest {
 		serializableForm.accept(toJsonConverter);
 
 		final ComplexDataObject deserializedForm = new JsonToComplexDataObjectConverter(objectMapper).fromJson(toJsonConverter.getJsonAsString());
-		serializableForm.accept(new AutoTypingAsserter(deserializedForm.getRoot()));
+		serializableForm.accept(new AutoTypingAsserter(deserializedForm.root()));
 	}
 
 	@Test
@@ -78,7 +78,7 @@ class JsonToComplexDataObjectConverterTest {
 		serializableForm.accept(toJsonConverter);
 
 		final ComplexDataObject deserializedForm = new JsonToComplexDataObjectConverter(objectMapper).fromJson(toJsonConverter.getJsonAsString());
-		serializableForm.accept(new AutoTypingAsserter(deserializedForm.getRoot()));
+		serializableForm.accept(new AutoTypingAsserter(deserializedForm.root()));
 	}
 
 	@RequiredArgsConstructor
@@ -89,8 +89,8 @@ class JsonToComplexDataObjectConverterTest {
 		public void visit(@Nonnull DataItemArray arrayItem) {
 			assertTrue(deserializedForm instanceof DataItemArray);
 			final DataItemArray deserializedItemArray = (DataItemArray) deserializedForm;
-			final DataItem[] serializedChildren = arrayItem.getChildren();
-			final DataItem[] deserializedChildren = deserializedItemArray.getChildren();
+			final DataItem[] serializedChildren = arrayItem.children();
+			final DataItem[] deserializedChildren = deserializedItemArray.children();
 			assertEquals(serializedChildren.length, deserializedChildren.length);
 			for (int i = 0; i < serializedChildren.length; i++) {
 				final DataItem serializedChild = serializedChildren[i];
@@ -126,8 +126,8 @@ class JsonToComplexDataObjectConverterTest {
 		public void visit(@Nonnull DataItemValue valueItem) {
 			assertTrue(deserializedForm instanceof DataItemValue);
 			final DataItemValue deserializedItem = (DataItemValue) deserializedForm;
-			final Serializable serializedValue = valueItem.getValue();
-			final Serializable deserializedValue = deserializedItem.getValue();
+			final Serializable serializedValue = valueItem.value();
+			final Serializable deserializedValue = deserializedItem.value();
 
 			if (deserializedValue.getClass().equals(serializedValue.getClass())) {
 				assertEquals(serializedValue, deserializedValue);

@@ -23,6 +23,9 @@
 
 package io.evitadb.api.requestResponse.data;
 
+import io.evitadb.api.exception.AttributeNotFoundException;
+import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.requestResponse.data.structure.Attributes;
 import io.evitadb.api.requestResponse.data.structure.Entity;
@@ -31,17 +34,14 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ComparatorUtils;
 import io.evitadb.utils.MemoryMeasuringConstants;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.Immutable;
-import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
@@ -60,8 +60,8 @@ public interface AttributesContract extends Serializable {
 	 * Returns true if single attribute differs between first and second instance.
 	 */
 	static boolean anyAttributeDifferBetween(AttributesContract first, AttributesContract second) {
-		final Collection<AttributeValue> thisValues = first.getAttributeValues();
-		final Collection<AttributeValue> otherValues = second.getAttributeValues();
+		final Collection<AttributeValue> thisValues = first.attributesAvailable() ? first.getAttributeValues() : Collections.emptyList();
+		final Collection<AttributeValue> otherValues = second.attributesAvailable() ? second.getAttributeValues() : Collections.emptyList();
 
 		if (thisValues.size() != otherValues.size()) {
 			return true;
@@ -69,19 +69,25 @@ public interface AttributesContract extends Serializable {
 			return thisValues
 				.stream()
 				.anyMatch(it -> {
-					final Serializable thisValue = it.getValue();
-					final AttributeKey key = it.getKey();
-					final AttributeValue other = second.getAttributeValue(key.getAttributeName(), key.getLocale())
+					final Serializable thisValue = it.value();
+					final AttributeKey key = it.key();
+					final AttributeValue other = second.getAttributeValue(key.attributeName(), key.locale())
 						.orElse(null);
 					if (other == null) {
 						return true;
 					} else {
-						final Serializable otherValue = other.getValue();
-						return it.isDropped() != other.isDropped() || QueryUtils.valueDiffers(thisValue, otherValue);
+						final Serializable otherValue = other.value();
+						return it.dropped() != other.dropped() || QueryUtils.valueDiffers(thisValue, otherValue);
 					}
 				});
 		}
 	}
+
+	/**
+	 * Returns true if entity attributes were fetched along with the entity. Calling this method before calling any
+	 * other method that requires attributes to be fetched will allow you to avoid {@link ContextMissingException}.
+	 */
+	boolean attributesAvailable();
 
 	/**
 	 * Returns value associated with the key or null when the attribute is missing.
@@ -93,10 +99,14 @@ public interface AttributesContract extends Serializable {
 	 * final String name = entity.getAttribute("name");
 	 * ```
 	 *
-	 * @throws ClassCastException when attribute is of different type than expected
+	 * @throws ClassCastException         when attribute is of different type than expected
+	 * @throws ContextMissingException    when attribute is localized and entity is not related to any {@link Query} or
+	 *                                    the query lacks locale identifier
+	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 */
 	@Nullable
-	<T extends Serializable> T getAttribute(@Nonnull String attributeName);
+	<T extends Serializable> T getAttribute(@Nonnull String attributeName)
+		throws ContextMissingException, AttributeNotFoundException;
 
 	/**
 	 * Returns value associated with the key or null when the attribute is missing.
@@ -104,10 +114,14 @@ public interface AttributesContract extends Serializable {
 	 * type as an input argument and doesn't rely on Java local variable type inference. This approach needs to be
 	 * used in {@link Optional} or {@link Stream} contexts.
 	 *
-	 * @throws ClassCastException when attribute is of different type than expected
+	 * @throws ClassCastException         when attribute is of different type than expected
+	 * @throws ContextMissingException    when attribute is localized and entity is not related to any {@link Query} or
+	 *                                    the query lacks locale identifier
+	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 */
 	@Nullable
-	default <T extends Serializable> T getAttribute(@Nonnull String attributeName, @Nonnull Class<T> expectedClass) {
+	default <T extends Serializable> T getAttribute(@Nonnull String attributeName, @Nonnull Class<T> expectedClass)
+		throws ContextMissingException, AttributeNotFoundException {
 		return getAttribute(attributeName);
 	}
 
@@ -116,40 +130,53 @@ public interface AttributesContract extends Serializable {
 	 * This method variant differs from {@link #getAttribute(String, Class)} in the sense that it relies on Java local
 	 * variable type inference. It's shorted, but it can't be used on every place.
 	 *
-	 * @throws ClassCastException when attribute is of different type than expected or is not an array
+	 * @throws ClassCastException         when attribute is of different type than expected or is not an array
+	 * @throws ContextMissingException    when attribute is localized and entity is not related to any {@link Query} or
+	 *                                    the query lacks locale identifier
+	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 */
 	@Nullable
-	<T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName);
+	<T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName)
+		throws ContextMissingException, AttributeNotFoundException;
 
 	/**
 	 * Returns array of values associated with the key or null when the attribute is missing.
 	 * This method variant differs from {@link #getAttribute(String)} in the sense that it specifies expected returned
 	 * type as an input argument and doesn't rely on Java local variable type inference.
 	 *
-	 * @throws ClassCastException when attribute is of different type than expected or is not an array
+	 * @throws ClassCastException         when attribute is of different type than expected or is not an array
+	 * @throws ContextMissingException    when attribute is localized and entity is not related to any {@link Query} or
+	 *                                    the query lacks locale identifier
+	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 */
 	@Nullable
-	default <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName, @Nonnull Class<T> expectedType) {
+	default <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName, @Nonnull Class<T> expectedType)
+		throws ContextMissingException, AttributeNotFoundException {
 		return getAttributeArray(attributeName);
 	}
 
 	/**
-	 * Returns value associated with the key or null when the attribute is missing.
+	 * Returns value associated with the key or null when the attribute is missing. This method doesn't throw any
+	 * {@link ContextMissingException}, but instead it returns an empty value even for localized attributes.
 	 *
 	 * Method returns wrapper dto for the attribute that contains information about the attribute version and state.
+	 *
+	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 */
 	@Nonnull
-	Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName);
+	Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName) throws AttributeNotFoundException;
 
 	/**
 	 * Returns value associated with the key or null when the attribute is missing.
 	 * When localized attribute is not found it is looked up in generic (non-localized) attributes. This makes this
 	 * method the safest way how to lookup for attribute if caller doesn't know whether it is localized or not.
 	 *
-	 * @throws ClassCastException when attribute is of different type than expected
+	 * @throws ClassCastException         when attribute is of different type than expected
+	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 */
 	@Nullable
-	<T extends Serializable> T getAttribute(@Nonnull String attributeName, @Nonnull Locale locale);
+	<T extends Serializable> T getAttribute(@Nonnull String attributeName, @Nonnull Locale locale)
+		throws AttributeNotFoundException;
 
 	/**
 	 * Returns value associated with the key or null when the attribute is missing.
@@ -158,9 +185,11 @@ public interface AttributesContract extends Serializable {
 	 * This method variant differs from {@link #getAttribute(String)} in the sense that it specifies expected returned
 	 * type as an input argument and doesn't rely on Java local variable type inference.
 	 *
-	 * @throws ClassCastException when attribute is of different type than expected
+	 * @throws ClassCastException         when attribute is of different type than expected
+	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 */
-	default <T extends Serializable> T getAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nonnull Class<T> expectedType) {
+	default <T extends Serializable> T getAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nonnull Class<T> expectedType)
+		throws AttributeNotFoundException {
 		return getAttribute(attributeName, locale);
 	}
 
@@ -169,10 +198,12 @@ public interface AttributesContract extends Serializable {
 	 * When localized attribute is not found it is looked up in generic (non-localized) attributes. This makes this
 	 * method the safest way how to lookup for attribute if caller doesn't know whether it is localized or not.
 	 *
-	 * @throws ClassCastException when attribute is of different type than expected or is not an array
+	 * @throws ClassCastException         when attribute is of different type than expected or is not an array
+	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 */
 	@Nullable
-	<T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName, @Nonnull Locale locale);
+	<T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName, @Nonnull Locale locale)
+		throws AttributeNotFoundException;
 
 	/**
 	 * Returns array of values associated with the key or null when the attribute is missing.
@@ -181,9 +212,11 @@ public interface AttributesContract extends Serializable {
 	 * This method variant differs from {@link #getAttribute(String)} in the sense that it specifies expected returned
 	 * type as an input argument and doesn't rely on Java local variable type inference.
 	 *
-	 * @throws ClassCastException when attribute is of different type than expected or is not an array
+	 * @throws ClassCastException         when attribute is of different type than expected or is not an array
+	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 */
-	default <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName, @Nonnull Locale locale, @Nonnull Class<T> expectedType) {
+	default <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName, @Nonnull Locale locale, @Nonnull Class<T> expectedType)
+		throws AttributeNotFoundException {
 		return getAttributeArray(attributeName, locale);
 	}
 
@@ -193,9 +226,12 @@ public interface AttributesContract extends Serializable {
 	 * method the safest way how to lookup for attribute if caller doesn't know whether it is localized or not.
 	 *
 	 * Method returns wrapper dto for the attribute that contains information about the attribute version and state.
+	 *
+	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 */
 	@Nonnull
-	Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName, @Nonnull Locale locale);
+	Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName, @Nonnull Locale locale)
+		throws AttributeNotFoundException;
 
 	/**
 	 * Returns definition for the attribute of specified name.
@@ -250,46 +286,36 @@ public interface AttributesContract extends Serializable {
 	/**
 	 * Inner implementation used in {@link Attributes} to represent a proper key in hash map.
 	 *
+	 * @param attributeName unique name of the attribute. Case-sensitive. Distinguishes one associated data item from
+	 *                      another within single entity instance.
+	 * @param locale        contains locale in case the attribute is locale specific (i.e. {@link AttributeSchemaContract#isLocalized()}
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
 	 */
-	@Immutable
-	@ThreadSafe
-	@Data
-	class AttributeKey implements Serializable, Comparable<AttributeKey> {
+	record AttributeKey(
+		@Nonnull String attributeName,
+		@Nullable Locale locale
+
+	) implements Serializable, Comparable<AttributeKey> {
 		@Serial private static final long serialVersionUID = -8516513307116598241L;
 
 		/**
-		 * Unique name of the attribute. Case-sensitive. Distinguishes one associated data item from another within
-		 * single entity instance.
+		 * Constructor for the locale specific attribute.
 		 */
-		private final String attributeName;
-		/**
-		 * Contains locale in case the attribute is locale specific (i.e. {@link AttributeSchemaContract#isLocalized()}
-		 */
-		private final Locale locale;
+		public AttributeKey {
+			Assert.notNull(attributeName, "Attribute name cannot be null!");
+		}
 
 		/**
 		 * Construction for the locale agnostics attribute.
 		 */
 		public AttributeKey(@Nonnull String attributeName) {
-			Assert.notNull(attributeName, "Attribute name cannot be null!");
-			this.attributeName = attributeName;
-			this.locale = null;
-		}
-
-		/**
-		 * Constructor for the locale specific attribute.
-		 */
-		public AttributeKey(@Nonnull String attributeName, @Nullable Locale locale) {
-			Assert.notNull(attributeName, "Attribute name cannot be null!");
-			this.attributeName = attributeName;
-			this.locale = locale;
+			this(attributeName, null);
 		}
 
 		/**
 		 * Returns true if attribute is localized.
 		 */
-		public boolean isLocalized() {
+		public boolean localized() {
 			return locale != null;
 		}
 
@@ -321,61 +347,45 @@ public interface AttributesContract extends Serializable {
 	 * that also carries current version of the value for the sake of optimistic locking and the locale (in case attribute
 	 * is localized).
 	 *
+	 * @param version contains version of this object and gets increased with any attribute update. Allows to execute
+	 *                optimistic locking i.e. avoiding parallel modifications.
+	 * @param key     uniquely identifies the attribute value among other attributes in the same entity instance.
+	 * @param value   contains the current value of the attribute
+	 * @param dropped contains TRUE if attribute was dropped - i.e. removed. Such attributes are not removed (unless
+	 *                tidying process does it), but are lying among other attributes with tombstone flag. Dropped
+	 *                attributes can be overwritten by a new value continuing with the versioning where it was stopped
+	 *                for the last time.
 	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
 	 */
-	@Immutable
-	@ThreadSafe
-	@Data
-	@EqualsAndHashCode(of = {"version", "key"})
-	class AttributeValue implements Versioned, Droppable, Serializable, Comparable<AttributeValue>, ContentComparator<AttributeValue> {
+	record AttributeValue(
+		int version,
+		@Nonnull AttributeKey key,
+		@Nullable Serializable value,
+		boolean dropped
+	) implements Versioned, Droppable, Serializable, Comparable<AttributeValue>, ContentComparator<AttributeValue> {
 		@Serial private static final long serialVersionUID = -5387437940533059959L;
 
 		/**
-		 * Contains version of this object and gets increased with any attribute update. Allows to execute
-		 * optimistic locking i.e. avoiding parallel modifications.
+		 * Method can be used for sorted arrays binary searches but doesn't represent any valid attribute value.
 		 */
-		private final int version;
-		/**
-		 * Uniquely identifies the attribute value among other attributes in the same entity instance.
-		 */
-		@Nonnull private final AttributeKey key;
-		/**
-		 * Contains the current value of the attribute.
-		 */
-		@Nullable private final Serializable value;
-		/**
-		 * Contains TRUE if attribute was dropped - i.e. removed. Such attributes are not removed (unless tidying process
-		 * does it), but are lying among other attributes with tombstone flag. Dropped attributes can be overwritten by
-		 * a new value continuing with the versioning where it was stopped for the last time.
-		 */
-		private final boolean dropped;
+		public static AttributeValue createEmptyComparableAttributeValue(@Nonnull AttributeKey attributeKey) {
+			return new AttributeValue(attributeKey);
+		}
 
 		public AttributeValue(@Nonnull AttributeValue baseAttribute, @Nonnull Serializable replacedValue) {
-			this.version = baseAttribute.version;
-			this.dropped = baseAttribute.dropped;
-			this.key = baseAttribute.key;
-			this.value = replacedValue;
+			this(baseAttribute.version, baseAttribute.key, replacedValue, baseAttribute.dropped);
 		}
 
 		private AttributeValue(@Nonnull AttributeKey attributeKey) {
-			this.version = 1;
-			this.key = attributeKey;
-			this.value = null;
-			this.dropped = false;
+			this(1, attributeKey, null, false);
 		}
 
 		public AttributeValue(@Nonnull AttributeKey attributeKey, @Nonnull Serializable value) {
-			this.version = 1;
-			this.key = attributeKey;
-			this.value = value;
-			this.dropped = false;
+			this(1, attributeKey, value, false);
 		}
 
 		public AttributeValue(int version, @Nonnull AttributeKey attributeKey, @Nonnull Serializable value) {
-			this.version = version;
-			this.key = attributeKey;
-			this.value = value;
-			this.dropped = false;
+			this(version, attributeKey, value, false);
 		}
 
 		public AttributeValue(int version, @Nonnull AttributeKey key, @Nonnull Serializable value, boolean dropped) {
@@ -383,13 +393,6 @@ public interface AttributesContract extends Serializable {
 			this.key = key;
 			this.value = value;
 			this.dropped = dropped;
-		}
-
-		/**
-		 * Method can be used for sorted arrays binary searches but doesn't represent any valid attribute value.
-		 */
-		public static AttributeValue createEmptyComparableAttributeValue(@Nonnull AttributeKey attributeKey) {
-			return new AttributeValue(attributeKey);
 		}
 
 		@Override
@@ -425,10 +428,27 @@ public interface AttributesContract extends Serializable {
 		}
 
 		@Override
+		public boolean equals(Object o) {
+			if (this == o) return true;
+			if (o == null || getClass() != o.getClass()) return false;
+
+			AttributeValue that = (AttributeValue) o;
+
+			if (version != that.version) return false;
+			return key.equals(that.key);
+		}
+
+		public int hashCode() {
+			int result = version;
+			result = 31 * result + key.hashCode();
+			return result;
+		}
+
+		@Override
 		public String toString() {
 			return (dropped ? "❌ " : "") +
-				"\uD83D\uDD11 " + key.getAttributeName() + " " +
-				(key.getLocale() == null ? "" : "(" + key.getLocale() + ")") +
+				"\uD83D\uDD11 " + key.attributeName() + " " +
+				(key.locale() == null ? "" : "(" + key.locale() + ")") +
 				": " +
 				(
 					value instanceof Object[] ?

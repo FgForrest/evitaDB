@@ -24,7 +24,7 @@
 package io.evitadb.core.query.filter.translator.price;
 
 import io.evitadb.api.exception.ContextMissingException;
-import io.evitadb.api.exception.TargetEntityHasNoPricesException;
+import io.evitadb.api.exception.EntityHasNoPricesException;
 import io.evitadb.api.query.filter.PriceBetween;
 import io.evitadb.api.query.filter.PriceInCurrency;
 import io.evitadb.api.query.filter.PriceInPriceLists;
@@ -66,7 +66,7 @@ public class PriceBetweenTranslator extends AbstractPriceRelatedConstraintTransl
 			final EntitySchemaContract schema = filterByVisitor.getSchema();
 			Assert.isTrue(
 				schema.isWithPrice(),
-				() -> new TargetEntityHasNoPricesException(schema.getName())
+				() -> new EntityHasNoPricesException(schema.getName())
 			);
 		}
 
@@ -146,11 +146,11 @@ public class PriceBetweenTranslator extends AbstractPriceRelatedConstraintTransl
 	public static Predicate<PriceContract> createPredicate(int from, int to, QueryPriceMode queryPriceMode, int indexedPricePlaces) {
 		return queryPriceMode == QueryPriceMode.WITH_TAX ?
 			priceContract -> {
-				final int priceWithTax = NumberUtils.convertToInt(priceContract.getPriceWithTax(), indexedPricePlaces);
+				final int priceWithTax = NumberUtils.convertToInt(priceContract.priceWithTax(), indexedPricePlaces);
 				return from <= priceWithTax && to >= priceWithTax;
 			} :
 			priceContract -> {
-				final int priceWithoutTax = NumberUtils.convertToInt(priceContract.getPriceWithoutTax(), indexedPricePlaces);
+				final int priceWithoutTax = NumberUtils.convertToInt(priceContract.priceWithoutTax(), indexedPricePlaces);
 				return from <= priceWithoutTax && to >= priceWithoutTax;
 			};
 	}

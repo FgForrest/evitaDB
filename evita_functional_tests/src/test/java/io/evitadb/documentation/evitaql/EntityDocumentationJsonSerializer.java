@@ -149,13 +149,13 @@ public class EntityDocumentationJsonSerializer extends JsonSerializer<EntityCont
 	 * Writes all attributes from {@link AttributesContract} to a JSON.
 	 */
 	private static void writeAttributes(@Nonnull JsonGenerator gen, @Nonnull AttributesContract value) {
-		if (!value.getAttributeValues().isEmpty()) {
+		if (value.attributesAvailable() && !value.getAttributeValues().isEmpty()) {
 			wrap(() -> {
 				gen.writeFieldName("attributes");
 				gen.writeStartObject();
 				for (AttributeValue attributeValue : value.getAttributeValues()) {
-					final Serializable theValue = attributeValue.getValue();
-					final String fieldName = attributeValue.getKey().toString();
+					final Serializable theValue = attributeValue.value();
+					final String fieldName = attributeValue.key().toString();
 					gen.writeFieldName(fieldName);
 					if (theValue instanceof Number number) {
 						writeNumber(gen, number);
@@ -185,13 +185,13 @@ public class EntityDocumentationJsonSerializer extends JsonSerializer<EntityCont
 	 * Writes all associated data from {@link AssociatedDataContract} to a JSON.
 	 */
 	private static void writeAssociatedData(@Nonnull JsonGenerator gen, @Nonnull AssociatedDataContract value) {
-		if (!value.getAssociatedDataValues().isEmpty()) {
+		if (value.associatedDataAvailable() && !value.getAssociatedDataValues().isEmpty()) {
 			wrap(() -> {
 				gen.writeFieldName("associatedData");
 				gen.writeStartObject();
 				for (AssociatedDataValue associatedDataValue : value.getAssociatedDataValues()) {
-					final Serializable theValue = associatedDataValue.getValue();
-					final String fieldName = associatedDataValue.getKey().toString();
+					final Serializable theValue = associatedDataValue.value();
+					final String fieldName = associatedDataValue.key().toString();
 					if (theValue instanceof Number number) {
 						writeNumber(gen, number);
 					} else if (theValue instanceof String string) {
@@ -224,7 +224,7 @@ public class EntityDocumentationJsonSerializer extends JsonSerializer<EntityCont
 	 * Writes all reference from {@link ReferenceContract} to a JSON.
 	 */
 	private static void writeReferences(@Nonnull JsonGenerator gen, @Nonnull EntityContract value) {
-		if (!value.getReferences().isEmpty()) {
+		if (value.referencesAvailable() && !value.getReferences().isEmpty()) {
 			wrap(() -> {
 				gen.writeFieldName("references");
 				gen.writeStartObject();
@@ -266,23 +266,25 @@ public class EntityDocumentationJsonSerializer extends JsonSerializer<EntityCont
 	 * Writes all prices from {@link PriceContract} to a JSON.
 	 */
 	private static void writePrices(@Nonnull JsonGenerator gen, @Nonnull EntityContract value) {
-		final Optional<PriceContract> priceForSale = value.getPriceForSaleIfAvailable();
+		if (value.pricesAvailable()) {
+			final Optional<PriceContract> priceForSale = value.getPriceForSaleIfAvailable();
 
-		priceForSale.ifPresent(it -> {
-			wrap(() -> gen.writeFieldName("priceForSale"));
-			writePrice(gen, it);
-		});
-
-		if (!value.getPrices().isEmpty()) {
-			wrap(() -> {
-				gen.writeFieldName("prices");
-				gen.writeStartArray();
-				for (PriceContract price : value.getPrices()) {
-					writePrice(gen, price);
-				}
-				gen.writeEndArray();
+			priceForSale.ifPresent(it -> {
+				wrap(() -> gen.writeFieldName("priceForSale"));
+				writePrice(gen, it);
 			});
 
+			if (!value.getPrices().isEmpty()) {
+				wrap(() -> {
+					gen.writeFieldName("prices");
+					gen.writeStartArray();
+					for (PriceContract price : value.getPrices()) {
+						writePrice(gen, price);
+					}
+					gen.writeEndArray();
+				});
+
+			}
 		}
 
 	}
@@ -293,14 +295,14 @@ public class EntityDocumentationJsonSerializer extends JsonSerializer<EntityCont
 	private static void writePrice(@Nonnull JsonGenerator gen, @Nonnull PriceContract value) {
 		wrap(() -> {
 			gen.writeStartObject();
-			gen.writeStringField("currency", value.getCurrency().toString());
-			gen.writeStringField("priceList", value.getPriceList());
-			gen.writeNumberField("priceWithoutTax", value.getPriceWithoutTax());
-			gen.writeNumberField("priceWithTax", value.getPriceWithTax());
-			ofNullable(value.getValidity())
+			gen.writeStringField("currency", value.currency().toString());
+			gen.writeStringField("priceList", value.priceList());
+			gen.writeNumberField("priceWithoutTax", value.priceWithoutTax());
+			gen.writeNumberField("priceWithTax", value.priceWithTax());
+			ofNullable(value.validity())
 				.ifPresent(it -> {
 					wrap(() -> gen.writeFieldName("validity"));
-					writeDateTimeRange(gen, value.getValidity());
+					writeDateTimeRange(gen, value.validity());
 				});
 			gen.writeEndObject();
 		});
@@ -310,12 +312,14 @@ public class EntityDocumentationJsonSerializer extends JsonSerializer<EntityCont
 	public void serialize(EntityContract value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
 		gen.writeStartObject();
 		gen.writeNumberField("primaryKey", value.getPrimaryKey());
-		value.getParent().ifPresent(
-			parent -> wrap(() -> gen.writeNumberField("parent", parent))
-		);
-		value.getParentEntity().ifPresent(
-			parentEntity -> wrap(() -> gen.writeObject(parentEntity))
-		);
+		if (value.parentAvailable()) {
+			value.getParent().ifPresent(
+				parent -> wrap(() -> gen.writeNumberField("parent", parent))
+			);
+			value.getParentEntity().ifPresent(
+				parentEntity -> wrap(() -> gen.writeObject(parentEntity))
+			);
+		}
 		if (value.getPriceInnerRecordHandling() != PriceInnerRecordHandling.UNKNOWN) {
 			gen.writeStringField("priceInnerRecordHandling", value.getPriceInnerRecordHandling().name());
 		}

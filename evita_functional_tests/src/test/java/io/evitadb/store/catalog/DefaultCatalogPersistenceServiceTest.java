@@ -369,7 +369,10 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 						filterBy(entityPrimaryKeyInSet(originEntity.getPrimaryKey())),
 						require(entityFetchAll())
 					),
-					OffsetDateTime.now()
+					OffsetDateTime.now(),
+					EntityClassifier.class,
+					null,
+					EvitaRequest.CONVERSION_NOT_SUPPORTED
 				),
 				mock(EvitaSession.class)
 			);

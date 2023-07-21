@@ -24,6 +24,8 @@
 package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.exception.EntityHasNoPricesException;
+import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.query.filter.PriceInPriceLists;
 import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.query.require.PriceContent;
@@ -35,6 +37,9 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -43,8 +48,9 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.math.BigDecimal;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Currency;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -52,9 +58,11 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static java.util.Optional.ofNullable;
+
 /**
  * Entity prices container allows defining set of prices of the entity.
- * Attributes may be indexed for fast filtering ({@link Price#isSellable()}). Prices are not automatically indexed
+ * Attributes may be indexed for fast filtering ({@link Price#sellable()}). Prices are not automatically indexed
  * in order not to waste precious memory space for data that will never be used in search queries.
  * <p>
  * Filtering in prices is executed by using constraints like {@link io.evitadb.api.query.filter.PriceBetween},
@@ -71,10 +79,18 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 	@Serial private static final long serialVersionUID = -2717054691549391374L;
 
 	/**
+	 * Definition of the entity schema.
+	 */
+	final EntitySchemaContract entitySchema;
+	/**
+	 * Contains true if the entity is allowed to have prices by the schema.
+	 */
+	final boolean withPrice;
+	/**
 	 * Contains version of this object and gets increased with any (direct) entity update. Allows to execute
 	 * optimistic locking i.e. avoiding parallel modifications.
 	 */
-	@Getter final int version;
+	final int version;
 	/**
 	 * Prices are specific to a very few entities, but because correct price computation is very complex in e-commerce
 	 * systems and highly affects performance of the entities filtering and sorting, they deserve first class support
@@ -94,38 +110,92 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 	 */
 	@Getter final PriceInnerRecordHandling priceInnerRecordHandling;
 
-	public Prices(@Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
+	public Prices(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull PriceInnerRecordHandling priceInnerRecordHandling
+	) {
+		this.entitySchema = entitySchema;
+		this.withPrice = entitySchema.isWithPrice();
 		this.version = 1;
-		this.priceIndex = new HashMap<>();
+		this.priceIndex = Collections.emptyMap();
 		this.priceInnerRecordHandling = priceInnerRecordHandling;
 	}
 
-	public Prices(@Nonnull Collection<PriceContract> prices, @Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
+	public Prices(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull Collection<PriceContract> prices,
+		@Nonnull PriceInnerRecordHandling priceInnerRecordHandling
+	) {
+		this.entitySchema = entitySchema;
+		this.withPrice = entitySchema.isWithPrice();
 		this.version = 1;
-		this.priceIndex = prices.stream().collect(Collectors.toUnmodifiableMap(PriceContract::getPriceKey, Function.identity()));
+		this.priceIndex = Collections.unmodifiableMap(
+			prices
+				.stream()
+				.collect(
+					Collectors.toMap(
+						PriceContract::priceKey, Function.identity(),
+						(oldValue, newValue) -> {
+							throw new EvitaInternalError("Duplicate price key " + oldValue.priceKey());
+						},
+						() -> new LinkedHashMap<>(prices.size())
+					)
+				)
+		);
 		this.priceInnerRecordHandling = priceInnerRecordHandling;
 	}
 
-	public Prices(int version, @Nonnull Collection<PriceContract> prices, @Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
+	public Prices(
+		@Nonnull EntitySchemaContract entitySchema,
+		int version,
+		@Nonnull Collection<PriceContract> prices,
+		@Nonnull PriceInnerRecordHandling priceInnerRecordHandling
+	) {
+		this(entitySchema, version, prices, priceInnerRecordHandling, entitySchema.isWithPrice());
+	}
+
+	public Prices(
+		@Nonnull EntitySchemaContract entitySchema,
+		int version,
+		@Nonnull Collection<PriceContract> prices,
+		@Nonnull PriceInnerRecordHandling priceInnerRecordHandling,
+		boolean withPrice
+	) {
+		this.entitySchema = entitySchema;
+		this.withPrice = withPrice;
 		this.version = version;
-		this.priceIndex = prices.stream().collect(Collectors.toUnmodifiableMap(PriceContract::getPriceKey, Function.identity()));
+		this.priceIndex = Collections.unmodifiableMap(
+			prices
+				.stream()
+				.collect(
+					Collectors.toMap(
+						PriceContract::priceKey, Function.identity(),
+						(oldValue, newValue) -> {
+							throw new EvitaInternalError("Duplicate price key " + oldValue.priceKey());
+						},
+						() -> new LinkedHashMap<>(prices.size())
+					)
+				)
+		);
 		this.priceInnerRecordHandling = priceInnerRecordHandling;
 	}
 
-	/**
-	 * Returns version of this object.
-	 */
 	@Override
-	public int getPricesVersion() {
+	public int version() {
 		return version;
 	}
 
 	/**
 	 * Returns price by its business key identification.
 	 */
-	@Nullable
-	public PriceContract getPrice(PriceKey priceKey) {
-		return priceIndex.get(priceKey);
+	@Nonnull
+	@Override
+	public Optional<PriceContract> getPrice(@Nonnull PriceKey priceKey) {
+		Assert.isTrue(
+			withPrice,
+			() -> new EntityHasNoPricesException(entitySchema.getName())
+		);
+		return Optional.ofNullable(priceIndex.get(priceKey));
 	}
 
 	/**
@@ -133,7 +203,42 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 	 */
 	@Nonnull
 	public Optional<PriceContract> getPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency) {
+		Assert.isTrue(
+			withPrice,
+			() -> new EntityHasNoPricesException(entitySchema.getName())
+		);
 		return Optional.ofNullable(priceIndex.get(new PriceKey(priceId, priceList, currency)));
+	}
+
+	@Nonnull
+	@Override
+	public Optional<PriceContract> getPrice(@Nonnull String priceList, @Nonnull Currency currency) throws UnexpectedResultCountException, ContextMissingException {
+		Assert.isTrue(
+			withPrice,
+			() -> new EntityHasNoPricesException(entitySchema.getName())
+		);
+		final List<PriceContract> matchingPrices = priceIndex.entrySet()
+			.stream()
+			.filter(it -> it.getKey().priceList().equals(priceList) && it.getKey().currency().equals(currency))
+			.map(Entry::getValue)
+			.toList();
+		if (matchingPrices.size() > 1) {
+			throw new UnexpectedResultCountException(
+				matchingPrices.size(),
+				"More than one price found for price list `" + priceList + "` and currency `" + currency + "`."
+			);
+		}
+		return matchingPrices.isEmpty() ? Optional.empty() : Optional.of(matchingPrices.get(0));
+	}
+
+	@Override
+	public boolean pricesAvailable() {
+		return withPrice;
+	}
+
+	@Override
+	public boolean isPriceForSaleContextAvailable() {
+		return false;
 	}
 
 	@Nonnull
@@ -164,6 +269,10 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 	 */
 	@Nonnull
 	public Collection<PriceContract> getPrices() {
+		Assert.isTrue(
+			withPrice,
+			() -> new EntityHasNoPricesException(entitySchema.getName())
+		);
 		return priceIndex.values();
 	}
 
@@ -183,6 +292,15 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 	}
 
 	/**
+	 * Returns price by business key without checking if the price is allowed by the schema.
+	 * Method is part of PRIVATE API.
+	 */
+	@Nonnull
+	public Optional<PriceContract> getPriceWithoutSchemaCheck(@Nonnull PriceKey priceKey) {
+		return ofNullable(priceIndex.get(priceKey));
+	}
+
+	/**
 	 * Method returns true if any prices inner data differs from other prices object.
 	 */
 	@Override
@@ -195,7 +313,7 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 		if (priceIndex.size() != otherPrices.priceIndex.size()) return true;
 
 		for (Entry<PriceKey, PriceContract> entry : priceIndex.entrySet()) {
-			final PriceContract otherPrice = otherPrices.getPrice(entry.getKey());
+			final PriceContract otherPrice = otherPrices.getPrice(entry.getKey()).orElse(null);
 			if (otherPrice == null || entry.getValue().differsFrom(otherPrice)) {
 				return true;
 			}
@@ -205,15 +323,19 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 
 	@Override
 	public String toString() {
-		final Collection<PriceContract> prices = getPrices();
-		return "selects " + priceInnerRecordHandling + " from: " +
-			(
-				prices.isEmpty() ?
-					"no price" :
-					prices
-						.stream()
-						.map(Object::toString)
-						.collect(Collectors.joining(", "))
-			);
+		if (pricesAvailable()) {
+			final Collection<PriceContract> prices = getPrices();
+			return "selects " + priceInnerRecordHandling + " from: " +
+				(
+					prices.isEmpty() ?
+						"no price" :
+						prices
+							.stream()
+							.map(Object::toString)
+							.collect(Collectors.joining(", "))
+				);
+		} else {
+			return "entity has no prices";
+		}
 	}
 }

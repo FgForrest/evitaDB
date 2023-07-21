@@ -24,6 +24,8 @@
 package io.evitadb.driver;
 
 import io.evitadb.api.exception.CollectionNotFoundException;
+import io.evitadb.api.proxy.ProxyFactory;
+import io.evitadb.api.proxy.impl.UnsatisfiedDependencyFactory;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
@@ -36,6 +38,8 @@ import io.evitadb.api.requestResponse.schema.mutation.SchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.driver.requestResponse.schema.ClientCatalogSchemaDecorator;
+import io.evitadb.utils.ClassUtils;
+import io.evitadb.utils.ReflectionLookup;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -83,9 +87,19 @@ class EvitaEntitySchemaCache {
 	 * Contains the timestamp of the last check for entity schemas in {@link #cachedSchemas} being obsolete.
 	 */
 	private final AtomicLong lastObsoleteCheck = new AtomicLong();
+	/**
+	 * Contains reference to the proxy factory that is used to create proxies for the entities.
+	 */
+	@Getter private final ProxyFactory proxyFactory;
 
-	public EvitaEntitySchemaCache(@Nonnull String catalogName) {
+	public EvitaEntitySchemaCache(@Nonnull String catalogName, @Nonnull ReflectionLookup reflectionLookup) {
 		this.catalogName = catalogName;
+		this.proxyFactory = ClassUtils.whenPresentOnClasspath(
+			"one.edee.oss.proxycian.bytebuddy.ByteBuddyProxyGenerator",
+			() -> (ProxyFactory) Class.forName("io.evitadb.api.proxy.impl.ProxycianFactory")
+				.getConstructor(ReflectionLookup.class)
+				.newInstance(reflectionLookup)
+		).orElse(UnsatisfiedDependencyFactory.INSTANCE);
 	}
 
 	/**
@@ -171,7 +185,7 @@ class EvitaEntitySchemaCache {
 	) {
 		return fetchEntitySchema(
 			new EntitySchemaWithVersion(entityType, version),
-			schemaWrapper -> schemaWrapper == null || schemaWrapper.getEntitySchema().getVersion() != version,
+			schemaWrapper -> schemaWrapper == null || schemaWrapper.getEntitySchema().version() != version,
 			schemaAccessor
 		);
 	}
@@ -251,14 +265,14 @@ class EvitaEntitySchemaCache {
 			schemaRelevantToSession.ifPresent(it -> {
 				final SchemaWrapper newCachedValue = new SchemaWrapper(it, now);
 				this.cachedSchemas.put(
-					new EntitySchemaWithVersion(cacheKey.entityType(), it.getVersion()),
+					new EntitySchemaWithVersion(cacheKey.entityType(), it.version()),
 					newCachedValue
 				);
 				// initialize the latest known entity schema if missing
 				final LatestEntitySchema latestEntitySchema = new LatestEntitySchema(cacheKey.entityType());
 				final SchemaWrapper latestCachedVersion = this.cachedSchemas.putIfAbsent(latestEntitySchema, newCachedValue);
 				// if not missing verify the stored value is really the latest one and if not rewrite it
-				if (latestCachedVersion != null && latestCachedVersion.getEntitySchema().getVersion() < newCachedValue.getEntitySchema().getVersion()) {
+				if (latestCachedVersion != null && latestCachedVersion.getEntitySchema().version() < newCachedValue.getEntitySchema().version()) {
 					this.cachedSchemas.put(latestEntitySchema, newCachedValue);
 				}
 			});
@@ -288,7 +302,7 @@ class EvitaEntitySchemaCache {
 	}
 
 	/**
-	 * Combines {@link EntitySchema#getName()} with {@link EntitySchema#getVersion()} in single tuple.
+	 * Combines {@link EntitySchema#getName()} with {@link EntitySchema#version()} in single tuple.
 	 */
 	record EntitySchemaWithVersion(
 		@Nonnull String entityType,
@@ -310,7 +324,7 @@ class EvitaEntitySchemaCache {
 	}
 
 	/**
-	 * Combines {@link EntitySchema#getName()} with {@link EntitySchema#getVersion()} in single tuple.
+	 * Combines {@link EntitySchema#getName()} with {@link EntitySchema#version()} in single tuple.
 	 */
 	static class SchemaWrapper {
 		/**

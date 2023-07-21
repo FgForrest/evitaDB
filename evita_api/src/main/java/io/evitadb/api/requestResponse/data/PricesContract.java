@@ -24,10 +24,13 @@
 package io.evitadb.api.requestResponse.data;
 
 import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.exception.EntityHasNoPricesException;
+import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Price;
+import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -53,7 +56,7 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface PricesContract extends Serializable {
+public interface PricesContract extends Versioned, Serializable {
 
 	/**
 	 * Computes a price for which the entity should be sold. Only indexed prices in requested currency, valid
@@ -70,37 +73,37 @@ public interface PricesContract extends Serializable {
 		final Stream<PriceContract> pricesStream = entityPrices
 			.stream()
 			.filter(PriceContract::exists)
-			.filter(PriceContract::isSellable)
-			.filter(it -> currency.equals(it.getCurrency()))
-			.filter(it -> ofNullable(atTheMoment).map(mmt -> it.getValidity() == null || it.getValidity().isValidFor(mmt)).orElse(true))
-			.filter(it -> pLists.containsKey(it.getPriceList()));
+			.filter(PriceContract::sellable)
+			.filter(it -> currency.equals(it.currency()))
+			.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true))
+			.filter(it -> pLists.containsKey(it.priceList()));
 
 		switch (innerRecordHandling) {
 			case NONE -> {
 				return pricesStream
-					.min(Comparator.comparing(o -> pLists.get(o.getPriceList())))
+					.min(Comparator.comparing(o -> pLists.get(o.priceList())))
 					.filter(filterPredicate);
 			}
 			case FIRST_OCCURRENCE -> {
 				final Map<Integer, List<PriceContract>> pricesByInnerId = pricesStream
-					.collect(Collectors.groupingBy(it -> ofNullable(it.getInnerRecordId()).orElse(0)));
+					.collect(Collectors.groupingBy(it -> ofNullable(it.innerRecordId()).orElse(0)));
 				return pricesByInnerId
 					.values()
 					.stream()
 					.map(prices -> prices.stream()
-						.min(Comparator.comparing(o -> pLists.get(o.getPriceList())))
+						.min(Comparator.comparing(o -> pLists.get(o.priceList())))
 						.orElse(null))
 					.filter(Objects::nonNull)
 					.filter(filterPredicate)
-					.min(Comparator.comparing(PriceContract::getPriceWithTax));
+					.min(Comparator.comparing(PriceContract::priceWithTax));
 			}
 			case SUM -> {
 				final List<PriceContract> innerRecordPrices = pricesStream
-					.collect(Collectors.groupingBy(it -> ofNullable(it.getInnerRecordId()).orElse(0)))
+					.collect(Collectors.groupingBy(it -> ofNullable(it.innerRecordId()).orElse(0)))
 					.values()
 					.stream()
 					.map(prices -> prices.stream()
-						.min(Comparator.comparing(o -> pLists.get(o.getPriceList())))
+						.min(Comparator.comparing(o -> pLists.get(o.priceList())))
 						.orElse(null))
 					.filter(Objects::nonNull)
 					.toList();
@@ -110,13 +113,13 @@ public interface PricesContract extends Serializable {
 					final PriceContract firstPrice = innerRecordPrices.get(0);
 					// create virtual sum price
 					final Price resultPrice = new Price(
-						1, firstPrice.getPriceKey(), null,
-						innerRecordPrices.stream().map(PriceContract::getPriceWithoutTax).reduce(BigDecimal::add).orElse(BigDecimal.ZERO),
-						innerRecordPrices.stream().map(PriceContract::getTaxRate).reduce((tax, tax2) -> {
+						1, firstPrice.priceKey(), null,
+						innerRecordPrices.stream().map(PriceContract::priceWithoutTax).reduce(BigDecimal::add).orElse(BigDecimal.ZERO),
+						innerRecordPrices.stream().map(PriceContract::taxRate).reduce((tax, tax2) -> {
 							Assert.isTrue(tax.compareTo(tax2) == 0, "Prices have to have same tax rate in order to compute selling price!");
 							return tax;
 						}).orElse(BigDecimal.ZERO),
-						innerRecordPrices.stream().map(PriceContract::getPriceWithTax).reduce(BigDecimal::add).orElse(BigDecimal.ZERO),
+						innerRecordPrices.stream().map(PriceContract::priceWithTax).reduce(BigDecimal::add).orElse(BigDecimal.ZERO),
 						// computed virtual price has always no validity
 						null,
 						true
@@ -132,17 +135,36 @@ public interface PricesContract extends Serializable {
 	 * Returns true if single price differs between first and second instance.
 	 */
 	static boolean anyPriceDifferBetween(@Nonnull PricesContract first, @Nonnull PricesContract second) {
-		final Collection<PriceContract> thisValues = first.getPrices();
-		final Collection<PriceContract> otherValues = second.getPrices();
+		final Collection<PriceContract> thisValues = first.pricesAvailable() ? first.getPrices() : Collections.emptyList();
+		final Collection<PriceContract> otherValues = second.pricesAvailable() ? second.getPrices() : Collections.emptyList();
 
 		if (thisValues.size() != otherValues.size()) {
 			return true;
 		} else {
 			return thisValues
 				.stream()
-				.anyMatch(it -> it.differsFrom(second.getPrice(it.getPriceId(), it.getPriceList(), it.getCurrency()).orElse(null)));
+				.anyMatch(it -> it.differsFrom(second.getPrice(it.priceId(), it.priceList(), it.currency()).orElse(null)));
 		}
 	}
+
+	/**
+	 * Returns true if entity prices were fetched along with the entity. Calling this method before calling any
+	 * other method that requires prices to be fetched will allow you to avoid {@link ContextMissingException}.
+	 *
+	 * Method also returns false if the prices are not enabled for the entity by the schema. Checking this method
+	 * also allows you to avoid {@link EntityHasNoPricesException} in such case.
+	 */
+	boolean pricesAvailable();
+
+	/**
+	 * Returns price by its business key identification.
+	 *
+	 * @param priceKey business key of the price
+	 * @throws ContextMissingException when the prices were not fetched along with entity but might exist
+	 */
+	@Nullable
+	Optional<PriceContract> getPrice(@Nonnull PriceKey priceKey)
+		throws ContextMissingException;
 
 	/**
 	 * Returns price by its business key identification.
@@ -150,20 +172,35 @@ public interface PricesContract extends Serializable {
 	 * @param priceId   - identification of the price in the external systems
 	 * @param priceList - identification of the price list (either external or internal)
 	 * @param currency  - identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217)
+	 * @throws ContextMissingException when the prices were not fetched along with entity but might exist
 	 */
 	@Nonnull
-	Optional<PriceContract> getPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency);
+	Optional<PriceContract> getPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency)
+		throws ContextMissingException;
+
+	/**
+	 * Returns price by its business key identification.
+	 *
+	 * @param priceList - identification of the price list (either external or internal)
+	 * @param currency  - identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217)
+	 * @throws UnexpectedResultCountException when there is more than one price for the specified price list and currency
+	 * @throws ContextMissingException        when the prices were not fetched along with entity but might exist
+	 */
+	@Nonnull
+	Optional<PriceContract> getPrice(@Nonnull String priceList, @Nonnull Currency currency)
+		throws UnexpectedResultCountException, ContextMissingException;
 
 	/**
 	 * Returns all prices from the specified price list.
 	 *
 	 * @param priceList - identification of the price list (either external or internal)
+	 * @throws ContextMissingException when the prices were not fetched along with entity but might exist
 	 */
 	@Nonnull
-	default Collection<PriceContract> getPrices(@Nonnull String priceList) {
+	default Collection<PriceContract> getPrices(@Nonnull String priceList) throws ContextMissingException {
 		return getPrices()
 			.stream()
-			.filter(it -> priceList.equals(it.getPriceList()))
+			.filter(it -> priceList.equals(it.priceList()))
 			.collect(Collectors.toList());
 	}
 
@@ -171,12 +208,13 @@ public interface PricesContract extends Serializable {
 	 * Returns all prices from the specified currency.
 	 *
 	 * @param currency - identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217)
+	 * @throws ContextMissingException when the prices were not fetched along with entity but might exist
 	 */
 	@Nonnull
-	default Collection<PriceContract> getPrices(@Nonnull Currency currency) {
+	default Collection<PriceContract> getPrices(@Nonnull Currency currency) throws ContextMissingException {
 		return getPrices()
 			.stream()
-			.filter(it -> currency.equals(it.getCurrency()))
+			.filter(it -> currency.equals(it.currency()))
 			.collect(Collectors.toList());
 	}
 
@@ -185,12 +223,13 @@ public interface PricesContract extends Serializable {
 	 *
 	 * @param currency  - identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217)
 	 * @param priceList - identification of the price list (either external or internal)
+	 * @throws ContextMissingException when the prices were not fetched along with entity but might exist
 	 */
 	@Nonnull
-	default Collection<PriceContract> getPrices(@Nonnull Currency currency, @Nonnull String priceList) {
+	default Collection<PriceContract> getPrices(@Nonnull Currency currency, @Nonnull String priceList) throws ContextMissingException {
 		return getPrices()
 			.stream()
-			.filter(it -> currency.equals(it.getCurrency()) && priceList.equals(it.getPriceList()))
+			.filter(it -> currency.equals(it.currency()) && priceList.equals(it.priceList()))
 			.collect(Collectors.toList());
 	}
 
@@ -202,11 +241,21 @@ public interface PricesContract extends Serializable {
 	 * @param currency          - identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217)
 	 * @param atTheMoment       - identification of the moment when the entity is about to be sold
 	 * @param priceListPriority - identification of the price list (either external or internal)
+	 * @throws ContextMissingException when the prices were not fetched along with entity but might exist
 	 */
 	@Nonnull
-	default Optional<PriceContract> getPriceForSale(@Nonnull Currency currency, @Nullable OffsetDateTime atTheMoment, @Nonnull String... priceListPriority) {
+	default Optional<PriceContract> getPriceForSale(@Nonnull Currency currency, @Nullable OffsetDateTime atTheMoment, @Nonnull String... priceListPriority) throws ContextMissingException {
 		return computePriceForSale(getPrices(), getPriceInnerRecordHandling(), currency, atTheMoment, priceListPriority, Objects::nonNull);
 	}
+
+	/**
+	 * Returns true if the entity has context available so that calling {@link #getPriceForSale()} is possible without
+	 * throwing an exception. The exception {@link ContextMissingException} might be still thrown from other methods
+	 * when the input arguments refer to the data that might exist but were not fetched along with the entity.
+	 *
+	 * @see #pricesAvailable() for checking whether any of the prices were fetched
+	 */
+	boolean isPriceForSaleContextAvailable();
 
 	/**
 	 * Returns a price for which the entity should be sold. This method can be used only in context of a {@link Query}
@@ -242,9 +291,11 @@ public interface PricesContract extends Serializable {
 	 * @param currency          - identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217)
 	 * @param atTheMoment       - identification of the moment when the entity is about to be sold
 	 * @param priceListPriority - identification of the price list (either external or internal)
+	 * @throws ContextMissingException when the prices were not fetched along with entity but might exist
 	 */
 	@Nonnull
-	default List<PriceContract> getAllPricesForSale(@Nullable Currency currency, @Nullable OffsetDateTime atTheMoment, @Nullable String... priceListPriority) {
+	default List<PriceContract> getAllPricesForSale(@Nullable Currency currency, @Nullable OffsetDateTime atTheMoment, @Nullable String... priceListPriority)
+		throws ContextMissingException {
 		final Set<Serializable> pLists;
 		if (ArrayUtils.isEmpty(priceListPriority)) {
 			pLists = Collections.emptySet();
@@ -255,11 +306,11 @@ public interface PricesContract extends Serializable {
 		return getPrices()
 			.stream()
 			.filter(PriceContract::exists)
-			.filter(PriceContract::isSellable)
-			.filter(it -> currency == null || currency.equals(it.getCurrency()))
-			.filter(it -> ofNullable(atTheMoment).map(mmt -> it.getValidity() == null || it.getValidity().isValidFor(mmt)).orElse(true))
-			.filter(it -> pLists.isEmpty() || pLists.contains(it.getPriceList()))
-			.collect(Collectors.toList());
+			.filter(PriceContract::sellable)
+			.filter(it -> currency == null || currency.equals(it.currency()))
+			.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true))
+			.filter(it -> pLists.isEmpty() || pLists.contains(it.priceList()))
+			.toList();
 	}
 
 	/**
@@ -270,9 +321,12 @@ public interface PricesContract extends Serializable {
 	 * The method differs from {@link #getPriceForSale()} ()} in the sense of never returning {@link ContextMissingException}
 	 * and returning list of all possibly matching selling prices (not only single one). Returned list may be also
 	 * empty if there is no such price.
+	 *
+	 * @throws ContextMissingException when no prices were fetched along with entity but might exist, but is not thrown
+	 *                                 when some (but not all) prices were fetched along with entity
 	 */
 	@Nonnull
-	List<PriceContract> getAllPricesForSale();
+	List<PriceContract> getAllPricesForSale() throws ContextMissingException;
 
 	/**
 	 * Returns a price for which the entity should be sold. Only indexed prices in requested currency, valid
@@ -285,12 +339,14 @@ public interface PricesContract extends Serializable {
 	 * @param queryPriceMode    - controls whether price with or without tax is used
 	 * @param atTheMoment       - identification of the moment when the entity is about to be sold
 	 * @param priceListPriority - identification of the price list (either external or internal)
+	 * @throws ContextMissingException when the prices were not fetched along with entity but might exist
 	 */
-	default boolean hasPriceInInterval(@Nonnull BigDecimal from, @Nonnull BigDecimal to, @Nonnull QueryPriceMode queryPriceMode, @Nonnull Currency currency, @Nullable OffsetDateTime atTheMoment, @Nonnull String... priceListPriority) {
+	default boolean hasPriceInInterval(@Nonnull BigDecimal from, @Nonnull BigDecimal to, @Nonnull QueryPriceMode queryPriceMode, @Nonnull Currency currency, @Nullable OffsetDateTime atTheMoment, @Nonnull String... priceListPriority)
+		throws ContextMissingException {
 		switch (getPriceInnerRecordHandling()) {
 			case NONE, SUM -> {
 				return getPriceForSale(currency, atTheMoment, priceListPriority)
-					.map(it -> queryPriceMode == QueryPriceMode.WITHOUT_TAX ? it.getPriceWithoutTax() : it.getPriceWithTax())
+					.map(it -> queryPriceMode == QueryPriceMode.WITHOUT_TAX ? it.priceWithoutTax() : it.priceWithTax())
 					.map(it -> from.compareTo(it) <= 0 && to.compareTo(it) >= 0)
 					.orElse(false);
 			}
@@ -303,17 +359,17 @@ public interface PricesContract extends Serializable {
 				final Map<Integer, List<PriceContract>> pricesByInnerRecordId = getPrices()
 					.stream()
 					.filter(PriceContract::exists)
-					.filter(PriceContract::isSellable)
-					.filter(it -> currency.equals(it.getCurrency()))
-					.filter(it -> ofNullable(atTheMoment).map(mmt -> it.getValidity() == null || it.getValidity().isValidFor(mmt)).orElse(true))
-					.filter(it -> pLists.containsKey(it.getPriceList()))
-					.collect(Collectors.groupingBy(it -> ofNullable(it.getInnerRecordId()).orElse(0)));
+					.filter(PriceContract::sellable)
+					.filter(it -> currency.equals(it.currency()))
+					.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true))
+					.filter(it -> pLists.containsKey(it.priceList()))
+					.collect(Collectors.groupingBy(it -> ofNullable(it.innerRecordId()).orElse(0)));
 				return pricesByInnerRecordId
 					.values()
 					.stream()
 					.anyMatch(prices -> prices.stream()
-						.min(Comparator.comparing(o -> pLists.get(o.getPriceList())))
-						.map(it -> queryPriceMode == QueryPriceMode.WITHOUT_TAX ? it.getPriceWithoutTax() : it.getPriceWithTax())
+						.min(Comparator.comparing(o -> pLists.get(o.priceList())))
+						.map(it -> queryPriceMode == QueryPriceMode.WITHOUT_TAX ? it.priceWithoutTax() : it.priceWithTax())
 						.map(it -> from.compareTo(it) <= 0 && to.compareTo(it) >= 0)
 						.orElse(null));
 			}
@@ -332,14 +388,19 @@ public interface PricesContract extends Serializable {
 	 * @param queryPriceMode - controls whether price with or without tax is used
 	 * @throws ContextMissingException when entity is not related to any {@link Query} or the query
 	 *                                 lacks price related constraints
+	 * @throws ContextMissingException when the prices were not fetched along with entity but might exist
 	 */
-	boolean hasPriceInInterval(@Nonnull BigDecimal from, @Nonnull BigDecimal to, @Nonnull QueryPriceMode queryPriceMode) throws ContextMissingException;
+	boolean hasPriceInInterval(@Nonnull BigDecimal from, @Nonnull BigDecimal to, @Nonnull QueryPriceMode queryPriceMode)
+		throws ContextMissingException;
 
 	/**
 	 * Returns all prices of the entity.
+	 *
+	 * @throws ContextMissingException when no prices were not fetched along with entity but might exist, the exception
+	 *                                 is not thrown when some (but not all) prices were fetched along with entity
 	 */
 	@Nonnull
-	Collection<PriceContract> getPrices();
+	Collection<PriceContract> getPrices() throws ContextMissingException;
 
 	/**
 	 * Returns price inner record handling that controls how prices that share same `inner entity id` will behave during
@@ -347,11 +408,5 @@ public interface PricesContract extends Serializable {
 	 */
 	@Nonnull
 	PriceInnerRecordHandling getPriceInnerRecordHandling();
-
-	/**
-	 * Returns version timestamp signalizing change in prices - namely in {@link #getPriceInnerRecordHandling()} because
-	 * {@link PriceContract} is versioned separately.
-	 */
-	int getPricesVersion();
 
 }

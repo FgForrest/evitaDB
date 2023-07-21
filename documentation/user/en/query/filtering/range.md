@@ -64,4 +64,10 @@ products that have no date/time range attribute at all.
 
 </LanguageSpecific>
 
+<LanguageSpecific to="rest">
+
+<MDInclude>[Products valid for December '23](/documentation/user/en/query/filtering/examples/range/attribute-in-range.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
 </Note>

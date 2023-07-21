@@ -36,6 +36,7 @@ import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.utils.Assert;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Optional;
 
@@ -56,23 +57,25 @@ public class EntityGroupFetchTranslator implements RequireConstraintTranslator<E
 			final EntitySchemaContract schema = extraResultPlanningVisitor.isScopeEmpty() ?
 				extraResultPlanningVisitor.getSchema() : getReferencedSchema(extraResultPlanningVisitor);
 
-			extraResultPlanningVisitor.executeInContext(
-				entityGroupFetch,
-				() -> null,
-				() -> schema,
-				() -> {
-					for (RequireConstraint innerConstraint : entityGroupFetch.getChildren()) {
-						innerConstraint.accept(extraResultPlanningVisitor);
+			if (schema != null) {
+				extraResultPlanningVisitor.executeInContext(
+					entityGroupFetch,
+					() -> null,
+					() -> schema,
+					() -> {
+						for (RequireConstraint innerConstraint : entityGroupFetch.getChildren()) {
+							innerConstraint.accept(extraResultPlanningVisitor);
+						}
+						return null;
 					}
-					return null;
-				}
-			);
+				);
+			}
 		}
 		return null;
 	}
 
 	@Nullable
-	private EntitySchemaContract getReferencedSchema(ExtraResultPlanningVisitor extraResultPlanningVisitor) {
+	private EntitySchemaContract getReferencedSchema(@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor) {
 		final ProcessingScope processingScope = extraResultPlanningVisitor.getProcessingScope();
 		final Optional<ReferenceSchemaContract> referenceSchema = processingScope.getReferenceSchema();
 

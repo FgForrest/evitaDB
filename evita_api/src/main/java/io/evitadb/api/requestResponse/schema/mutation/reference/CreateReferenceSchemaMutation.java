@@ -192,7 +192,7 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(name);
 		if (existingReferenceSchema.isEmpty()) {
 			return EntitySchema._internalBuild(
-				entitySchema.getVersion() + 1,
+				entitySchema.version() + 1,
 				entitySchema.getName(),
 				entitySchema.getNameVariants(),
 				entitySchema.getDescription(),

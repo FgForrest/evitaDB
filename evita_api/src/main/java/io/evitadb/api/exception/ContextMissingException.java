@@ -24,11 +24,17 @@
 package io.evitadb.api.exception;
 
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
+import java.util.Currency;
+import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * This exception is thrown when {@link PricesContract#getPriceForSale()} is called and there is no {@link Query} known
@@ -38,6 +44,126 @@ import java.io.Serial;
  */
 public class ContextMissingException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = 2082957443834244040L;
+
+	public static ContextMissingException hierarchyContextMissing() {
+		return new ContextMissingException(
+			"Hierarchy placement was not fetched along with the entity. You need to use `hierarchyContent` requirement in " +
+				"your `require` part of the query."
+		);
+	}
+
+	public static ContextMissingException attributeContextMissing() {
+		return new ContextMissingException(
+			"No attributes were fetched along with the entity. You need to use `attributeContent` requirement in " +
+				"your `require` part of the query."
+		);
+	}
+
+	public static ContextMissingException attributeContextMissing(@Nonnull String attributeName) {
+		return new ContextMissingException(
+			"Attribute `" + attributeName + "` was not fetched along with the entity. You need to use `attributeContent` requirement in " +
+				"your `require` part of the query."
+		);
+	}
+
+	public static ContextMissingException referenceAttributeContextMissing() {
+		return new ContextMissingException(
+			"No reference attributes were fetched along with the entity. You need to use `attributeContent` requirement in " +
+				"`referenceContent` of your `require` part of the query."
+		);
+	}
+
+	public static ContextMissingException referenceAttributeContextMissing(@Nonnull String attributeName) {
+		return new ContextMissingException(
+			"Attribute `" + attributeName + "` was not fetched along with the entity. You need to use `attributeContent` requirement in " +
+				"`referenceContent` of your `require` part of the query."
+		);
+	}
+
+	public static ContextMissingException attributeLocalizationContextMissing(@Nonnull String attributeName, @Nonnull Locale locale, @Nonnull Stream<Locale> fetchedLocales) {
+		return new ContextMissingException(
+			"Attribute `" + attributeName + "` in requested locale `" + locale.toLanguageTag() + "` was not fetched along with the entity. " +
+				"You need to use `dataInLocale` requirement with proper language tag in your `require` part of the query. " +
+				"Entity was fetched with following locales: " + fetchedLocales.map(Locale::toLanguageTag).map(it -> "`" + it + "`").collect(Collectors.joining(", "))
+		);
+	}
+
+	public static ContextMissingException localeForAttributeContextMissing(@Nonnull String attributeName) {
+		return new ContextMissingException(
+			"Attribute `" + attributeName + "` is localized. You need to use `entityLocaleEquals` constraint in " +
+				"your filter part of the query, or you need to call `getAttribute()` method " +
+				"with explicit locale argument!"
+		);
+	}
+
+	public static ContextMissingException associatedDataContextMissing() {
+		return new ContextMissingException(
+			"No associated data were fetched along with the entity. You need to use `associatedDataContent` requirement in " +
+				"your `require` part of the query."
+		);
+	}
+
+	public static ContextMissingException associatedDataContextMissing(@Nonnull String associatedDataName) {
+		return new ContextMissingException(
+			"Associated data `" + associatedDataName + "` was not fetched along with the entity. You need to use `associatedDataContent` requirement in " +
+				"your `require` part of the query."
+		);
+	}
+
+	public static ContextMissingException associatedDataLocalizationContextMissing(@Nonnull String associatedDataName, @Nonnull Locale locale, @Nonnull Stream<Locale> fetchedLocales) {
+		return new ContextMissingException(
+			"Associated data `" + associatedDataName + "` in requested locale `" + locale.toLanguageTag() + "` was not fetched along with the entity. " +
+				"You need to use `dataInLocale` requirement with proper language tag in your `require` part of the query. " +
+				"Entity was fetched with following locales: " + fetchedLocales.map(Locale::toLanguageTag).map(it -> "`" + it + "`").collect(Collectors.joining(", "))
+		);
+	}
+
+	public static ContextMissingException localeForAssociatedDataContextMissing(@Nonnull String associatedDataName) {
+		return new ContextMissingException(
+			"Associated data `" + associatedDataName + "` is localized. You need to use `entityLocaleEquals` constraint in " +
+				"your filter part of the query, or you need to call `getAssociatedData()` method " +
+				"with explicit locale argument!"
+		);
+	}
+
+	public static ContextMissingException pricesNotFetched() {
+		return new ContextMissingException(
+			"Prices were not fetched along with the entity. You need to use `priceContent` requirement with constants" +
+				"`" + PriceContentMode.RESPECTING_FILTER + "` or `" + PriceContentMode.ALL + "` in " +
+				"your `require` part of the query."
+		);
+	}
+
+	public static ContextMissingException pricesNotFetched(@Nonnull Currency requiredCurrency, @Nonnull Currency fetchedCurrency) {
+		return new ContextMissingException(
+			"Prices in currency `" + requiredCurrency.getCurrencyCode() + "` were not fetched along with the entity. " +
+				"Entity was fetched with following currency: `" + fetchedCurrency.getCurrencyCode() + "`"
+		);
+	}
+
+	public static ContextMissingException pricesNotFetched(@Nonnull String requiredPriceList, @Nonnull Set<String> fetchedPriceLists) {
+		return new ContextMissingException(
+			"Prices in price list `" + requiredPriceList + "` were not fetched along with the entity. " +
+				"Entity was fetched with following price lists: " +
+				fetchedPriceLists.stream()
+					.map(it -> "`" + it + "`")
+					.collect(Collectors.joining(", "))
+		);
+	}
+
+	public static ContextMissingException referenceContextMissing() {
+		return new ContextMissingException(
+			"No references were fetched along with the entity. You need to use `referenceContent` requirement in " +
+				"your `require` part of the query."
+		);
+	}
+
+	public static ContextMissingException referenceContextMissing(@Nonnull String referenceName) {
+		return new ContextMissingException(
+			"Reference `" + referenceName + "` was not fetched along with the entity. You need to use `referenceContent` requirement in " +
+				"your `require` part of the query."
+		);
+	}
 
 	public ContextMissingException() {
 		super(

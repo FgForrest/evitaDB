@@ -23,10 +23,14 @@
 
 package io.evitadb.api.requestResponse.data;
 
+import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.exception.EntityIsNotHierarchicalException;
+import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.HierarchyOfReference;
 import io.evitadb.api.query.require.HierarchyOfSelf;
+import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
@@ -43,6 +47,8 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static java.util.Optional.of;
 
 /**
  * Contract for classes that allow reading information about {@link Entity} instance.
@@ -69,6 +75,15 @@ public interface EntityContract extends EntityClassifierWithParent, ContentCompa
 	Integer getPrimaryKey();
 
 	/**
+	 * Returns true if entity hierarchy was fetched along with the entity. Calling this method before calling any
+	 * other method that requires prices to be fetched will allow you to avoid {@link ContextMissingException}.
+	 *
+	 * Method also returns false if the entity is not allowed to be hierarchical by the schema. Checking this method
+	 * also allows you to avoid {@link EntityIsNotHierarchicalException} in such case.
+	 */
+	boolean parentAvailable();
+
+	/**
 	 * Returns hierarchy information about the entity. Hierarchy information allows to compose hierarchy tree composed
 	 * of entities of the same type. Referenced entity is always entity of the same type. Referenced entity must be
 	 * already present in the evitaDB and must also have hierarchy placement set. Root `parentPrimaryKey` (i.e. parent
@@ -77,40 +92,68 @@ public interface EntityContract extends EntityClassifierWithParent, ContentCompa
 	 * Entities may be organized in hierarchical fashion. That means that entity may refer to single parent entity and
 	 * may be referred by multiple child entities. Hierarchy is always composed of entities of same type.
 	 * Each entity must be part of at most single hierarchy (tree).
+	 *
 	 * Hierarchy can limit returned entities by using filtering constraints {@link HierarchyWithin}. It's also used for
 	 * computation of extra data - such as {@link HierarchyOfSelf}. It can also invert type of returned entities in case
 	 * requirement {@link HierarchyOfReference} is used.
+	 *
+	 * @throws EntityIsNotHierarchicalException when {@link EntitySchemaContract#isWithHierarchy()} is false
+	 * @throws ContextMissingException          when {@link HierarchyContent} is not part of the query requirements
 	 */
 	@Nonnull
-	OptionalInt getParent();
+	OptionalInt getParent()
+		throws EntityIsNotHierarchicalException, ContextMissingException;
 
 	/**
 	 * Returns parent entity body. The entity fetch needs to be triggered using {@link HierarchyContent} requirement.
 	 * The property allows to fetch entire parent axis of the entity to the root if requested.
+	 *
+	 * @throws EntityIsNotHierarchicalException when {@link EntitySchemaContract#isWithHierarchy()} is false
+	 * @throws ContextMissingException          when {@link HierarchyContent} is not part of the query requirements
 	 */
 	@Nonnull
-	Optional<EntityClassifierWithParent> getParentEntity();
+	Optional<EntityClassifierWithParent> getParentEntity()
+		throws EntityIsNotHierarchicalException, ContextMissingException;
+
+	/**
+	 * Returns true if entity references were fetched along with the entity. Calling this method before calling any
+	 * other method that requires references to be fetched will allow you to avoid {@link ContextMissingException}.
+	 */
+	boolean referencesAvailable();
 
 	/**
 	 * Returns collection of {@link Reference} of this entity. The references represent relations to other evitaDB
 	 * entities or external entities in different systems.
+	 *
+	 * @throws ContextMissingException when {@link ReferenceContent} is not part of the query requirements
 	 */
 	@Nonnull
-	Collection<ReferenceContract> getReferences();
+	Collection<ReferenceContract> getReferences()
+		throws ContextMissingException;
 
 	/**
 	 * Returns collection of {@link Reference} to certain type of other entities. References represent relations to
 	 * other evitaDB entities or external entities in different systems.
+	 *
+	 * @throws ReferenceNotFoundException when reference with given name is not defined in the schema
+	 * @throws ContextMissingException    when {@link ReferenceContent} is not part of the query requirements
 	 */
 	@Nonnull
-	Collection<ReferenceContract> getReferences(@Nonnull String referenceName);
+	Collection<ReferenceContract> getReferences(@Nonnull String referenceName)
+		throws ContextMissingException, ReferenceNotFoundException;
 
 	/**
 	 * Returns single {@link Reference} instance that is referencing passed entity type with certain primary key.
 	 * The references represent relations to other evitaDB entities or external entities in different systems.
+	 *
+	 * @throws ReferenceNotFoundException when reference with given name is not defined in the schema
+	 * @throws ContextMissingException    when {@link ReferenceContent} is not part of the query requirements
 	 */
 	@Nonnull
-	Optional<ReferenceContract> getReference(@Nonnull String referenceName, int referencedEntityId);
+	Optional<ReferenceContract> getReference(@Nonnull String referenceName, int referencedEntityId)
+		throws ContextMissingException, ReferenceNotFoundException;
+
+	;
 
 	/**
 	 * Returns set of locales this entity has any of localized data in. Although {@link EntitySchemaContract#getLocales()} may
@@ -145,19 +188,19 @@ public interface EntityContract extends EntityClassifierWithParent, ContentCompa
 			// type - we should assume the key is stored in memory only once (should be enum or String)
 			MemoryMeasuringConstants.REFERENCE_SIZE +
 			// hierarchical placement
-			getParent().stream().mapToObj(it -> MemoryMeasuringConstants.INT_SIZE).findAny().orElse(0) +
+			(!parentAvailable() ? 0 : getParent().stream().mapToObj(it -> MemoryMeasuringConstants.INT_SIZE).findAny().orElse(0)) +
 			// locales
 			getLocales().stream().mapToInt(it -> MemoryMeasuringConstants.REFERENCE_SIZE).sum() +
 			// attributes
-			getAttributeValues().stream().mapToInt(AttributeValue::estimateSize).sum() +
+			(!attributesAvailable() ? 0 : getAttributeValues().stream().mapToInt(AttributeValue::estimateSize).sum()) +
 			// attributes
-			getAssociatedDataValues().stream().mapToInt(AssociatedDataValue::estimateSize).sum() +
+			(!associatedDataAvailable() ? 0 : getAssociatedDataValues().stream().mapToInt(AssociatedDataValue::estimateSize).sum()) +
 			// price inner record handling
 			MemoryMeasuringConstants.BYTE_SIZE +
 			// prices
-			getPrices().stream().mapToInt(PriceContract::estimateSize).sum() +
+			(!pricesAvailable() ? 0 : getPrices().stream().mapToInt(PriceContract::estimateSize).sum()) +
 			// references
-			getReferences().stream().mapToInt(ReferenceContract::estimateSize).sum();
+			(!referencesAvailable() ? 0 : getReferences().stream().mapToInt(ReferenceContract::estimateSize).sum());
 
 	}
 
@@ -170,11 +213,14 @@ public interface EntityContract extends EntityClassifierWithParent, ContentCompa
 		if (otherEntity == null) return true;
 
 		if (!Objects.equals(getPrimaryKey(), otherEntity.getPrimaryKey())) return true;
-		if (getVersion() != otherEntity.getVersion()) return true;
-		if (isDropped() != otherEntity.isDropped()) return true;
+		if (version() != otherEntity.version()) return true;
+		if (dropped() != otherEntity.dropped()) return true;
 		if (!getType().equals(otherEntity.getType())) return true;
-		if (getParent().isPresent() != otherEntity.getParent().isPresent()) return true;
-		if (getParent().isPresent() && getParent().getAsInt() != otherEntity.getParent().getAsInt()) return true;
+		if (parentAvailable() != otherEntity.parentAvailable()) return true;
+		if (parentAvailable()) {
+			if (getParent().isPresent() != otherEntity.getParent().isPresent()) return true;
+			if (getParent().isPresent() && getParent().getAsInt() != otherEntity.getParent().getAsInt()) return true;
+		}
 		if (AttributesContract.anyAttributeDifferBetween(this, otherEntity)) return true;
 		if (AssociatedDataContract.anyAssociatedDataDifferBetween(this, otherEntity)) return true;
 		if (getPriceInnerRecordHandling() != otherEntity.getPriceInnerRecordHandling()) return true;
@@ -199,18 +245,14 @@ public interface EntityContract extends EntityClassifierWithParent, ContentCompa
 	 * Method prints details about entity as single line. Use in {@link Object#toString()} implementations.
 	 */
 	default String describe() {
-		final Collection<ReferenceContract> references = getReferences();
-		final Collection<AttributeValue> attributeValues = getAttributeValues();
-		final Collection<AssociatedDataValue> associatedDataValues = getAssociatedDataValues();
-		final Collection<PriceContract> prices = getPrices();
 		final Set<Locale> locales = getLocales();
-		return (isDropped() ? "❌ " : "") +
+		return (dropped() ? "❌ " : "") +
 			"Entity " + getType() + " ID=" + getPrimaryKey() +
-			getParent().stream().mapToObj(it -> ", ↰ " + it).findAny().orElse("") +
-			(references.isEmpty() ? "" : ", " + references.stream().map(ReferenceContract::toString).collect(Collectors.joining(", "))) +
-			(attributeValues.isEmpty() ? "" : ", " + attributeValues.stream().map(AttributeValue::toString).collect(Collectors.joining(", "))) +
-			(associatedDataValues.isEmpty() ? "" : ", " + associatedDataValues.stream().map(AssociatedDataValue::toString).collect(Collectors.joining(", "))) +
-			(prices.isEmpty() ? "" : ", " + prices.stream().map(Object::toString).collect(Collectors.joining(", "))) +
+			(parentAvailable() ? getParent().stream().mapToObj(it -> ", ↰ " + it).findAny().orElse("") : "") +
+			(referencesAvailable() ? "" : ", " + of(getReferences()).filter(it -> !it.isEmpty()).map(it -> it.stream().map(ReferenceContract::toString).collect(Collectors.joining(", "))).orElse("")) +
+			(attributesAvailable() ? of(getAttributeValues()).filter(it -> !it.isEmpty()).map(it -> ", " + it.stream().map(AttributeValue::toString).collect(Collectors.joining(", "))).orElse("") : "") +
+			(associatedDataAvailable() ? of(getAssociatedDataValues()).filter(it -> !it.isEmpty()).map(it -> ", " + it.stream().map(AssociatedDataValue::toString).collect(Collectors.joining(", "))).orElse("") : "") +
+			(pricesAvailable() ? of(getPrices()).filter(it -> !it.isEmpty()).map(it -> ", " + it.stream().map(Object::toString).collect(Collectors.joining(", "))).orElse(null) : "") +
 			(locales.isEmpty() ? "" : ", localized to " + locales.stream().map(Locale::toString).collect(Collectors.joining(", ")));
 	}
 }

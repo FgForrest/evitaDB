@@ -62,14 +62,14 @@ public class RemovePriceMutation extends PriceMutation {
 				() -> new InvalidMutationException("Cannot remove price that doesn't exist!")
 		);
 		return new Price(
-			existingValue.getVersion() + 1,
-			existingValue.getPriceKey(),
-			existingValue.getInnerRecordId(),
-			existingValue.getPriceWithoutTax(),
-			existingValue.getTaxRate(),
-			existingValue.getPriceWithTax(),
-			existingValue.getValidity(),
-			existingValue.isSellable(),
+			existingValue.version() + 1,
+			existingValue.priceKey(),
+			existingValue.innerRecordId(),
+			existingValue.priceWithoutTax(),
+			existingValue.taxRate(),
+			existingValue.priceWithTax(),
+			existingValue.validity(),
+			existingValue.sellable(),
 			true
 		);
 	}

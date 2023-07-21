@@ -23,7 +23,6 @@
 
 package io.evitadb.api.exception;
 
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import lombok.Getter;
 
@@ -31,19 +30,29 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception is thrown when price related constraints target an entity that is not marked
- * as {@link EntitySchemaContract#isWithPrice()}.
+ * Exception is throw when {@link io.evitadb.api.EvitaSessionContract} is asked to return the query result wrapped into
+ * as custom entity interface and it fails to do so due to an invalid interface definition.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class TargetEntityHasNoPricesException extends EvitaInvalidUsageException {
-	@Serial private static final long serialVersionUID = 7559807499840163851L;
-	@Getter private final String entityType;
+public class EntityClassInvalidException extends EvitaInvalidUsageException {
+	@Serial private static final long serialVersionUID = 4659727444287535443L;
+	@Getter private final Class<?> modelClass;
 
-	public TargetEntityHasNoPricesException(@Nonnull String entityType) {
+	public EntityClassInvalidException(@Nonnull Class<?> modelClass, @Nonnull Throwable cause) {
 		super(
-			"Entity `" + entityType + "` targeted by query doesn't allow to keep any prices!"
+			"Failed to wrap `SealedEntity` into class `" + modelClass + "` due to: " + cause.getMessage(),
+			"Failed to wrap `SealedEntity`.",
+			cause
 		);
-		this.entityType = entityType;
+		this.modelClass = modelClass;
+	}
+
+	public EntityClassInvalidException(@Nonnull Class<?> modelClass, @Nonnull String message) {
+		super(
+			"Failed to wrap `SealedEntity` into class `" + modelClass + "` due to: " + message,
+			"Failed to wrap `SealedEntity`."
+		);
+		this.modelClass = modelClass;
 	}
 }

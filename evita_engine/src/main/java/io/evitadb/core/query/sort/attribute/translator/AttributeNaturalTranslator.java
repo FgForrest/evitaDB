@@ -99,6 +99,7 @@ public class AttributeNaturalTranslator
 
 		// if prefetch happens we need to prefetch attributes so that the attribute comparator can work
 		orderByVisitor.addRequirementToPrefetch(attributeSchemaEntityAccessor.getRequirements());
+
 		return Stream.of(
 			new PrefetchedRecordsSorter(comparator),
 			new PreSortedRecordsSorter(

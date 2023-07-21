@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.structure.predicate;
 
+import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.requestResponse.EvitaRequest.AttributeRequest;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
@@ -34,7 +35,9 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * This predicate allows limiting number of attributes visible to the client based on query constraints.
@@ -43,6 +46,10 @@ import java.util.Set;
  */
 public class ReferenceAttributeValueSerializablePredicate implements SerializablePredicate<AttributeValue> {
 	@Serial private static final long serialVersionUID = 2628834850476260927L;
+	/**
+	 * Contains information about single locale defined for the entity.
+	 */
+	@Nullable @Getter private final Locale locale;
 	/**
 	 * Contains information about implicitly derived locale during entity fetch.
 	 */
@@ -61,31 +68,67 @@ public class ReferenceAttributeValueSerializablePredicate implements Serializabl
 		@Nullable Set<Locale> locales,
 		@Nonnull AttributeRequest referenceAttributes
 	) {
+		this.locale = Optional.ofNullable(implicitLocale)
+			.orElseGet(() -> locales != null && locales.size() == 1 ? locales.iterator().next() : null);
 		this.implicitLocale = implicitLocale;
 		this.locales = locales;
 		this.referenceAttributes = referenceAttributes;
 	}
 
+	/**
+	 * Returns true if the attributes were fetched along with the entity.
+	 */
+	public boolean wasFetched() {
+		return referenceAttributes.isRequiresEntityAttributes();
+	}
+
+	/**
+	 * Method verifies that the requested attribute was fetched with the entity.
+	 */
+	public void checkFetched() throws ContextMissingException {
+		if (!referenceAttributes.isRequiresEntityAttributes()) {
+			throw ContextMissingException.referenceAttributeContextMissing();
+		}
+	}
+
+	/**
+	 * Method verifies that the requested attribute was fetched with the entity.
+	 */
+	public void checkFetched(@Nonnull AttributeKey attributeKey) throws ContextMissingException {
+		if (!(referenceAttributes.isRequiresEntityAttributes() && (referenceAttributes.attributeSet().isEmpty() || referenceAttributes.attributeSet().contains(attributeKey.attributeName())))) {
+			throw ContextMissingException.referenceAttributeContextMissing(attributeKey.attributeName());
+		}
+		if (attributeKey.localized() && !(Objects.equals(locale, attributeKey.locale()) || this.locales != null && this.locales.isEmpty() || this.locales.contains(attributeKey.locale()))) {
+			throw ContextMissingException.attributeLocalizationContextMissing(
+				attributeKey.attributeName(),
+				attributeKey.locale(),
+				Stream.concat(
+					this.locale == null ? Stream.empty() : Stream.of(this.locale),
+					this.locales.stream()
+				).distinct()
+			);
+		}
+	}
+
 	public boolean isLocaleSet() {
-		return this.implicitLocale != null || this.locales != null;
+		return this.locale != null || this.implicitLocale != null || this.locales != null;
 	}
 
 	@Override
 	public boolean test(AttributeValue attributeValue) {
 		if (referenceAttributes.isRequiresEntityAttributes()) {
-			final AttributeKey key = attributeValue.getKey();
-			final Locale attributeLocale = attributeValue.getKey().getLocale();
+			final AttributeKey key = attributeValue.key();
+			final Locale attributeLocale = attributeValue.key().locale();
 			final Set<String> attributeSet = referenceAttributes.attributeSet();
 			return attributeValue.exists() &&
 			(
-				!key.isLocalized() ||
+				!key.localized() ||
 					(this.locales != null && (this.locales.isEmpty() || this.locales.contains(attributeLocale))) ||
 					(this.implicitLocale != null && Objects.equals(this.implicitLocale, attributeLocale))
 				) &&
-				(attributeSet.isEmpty() || attributeSet.contains(key.getAttributeName()));
+				(attributeSet.isEmpty() || attributeSet.contains(key.attributeName()));
 		} else {
 			return false;
 		}
 	}
-
 }

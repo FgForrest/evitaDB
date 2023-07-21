@@ -29,8 +29,8 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception is throw when {@link io.evitadb.api.EvitaSession#defineSchemaFromModelClass(Class)} is executed and
- * fails to create schema by the passed model class due a structure error.
+ * Exception is throw when {@link io.evitadb.api.EvitaSessionContract#defineEntitySchemaFromModelClass(Class)} is
+ * executed and fails to create schema by the passed model class due a structure error.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */

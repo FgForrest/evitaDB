@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceIdFirstPriceKeyComparator;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.Prices;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.store.entity.model.entity.price.MinimalPriceInternalIdContainer;
 import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 import io.evitadb.store.entity.model.entity.price.PriceWithInternalIds;
@@ -74,7 +75,7 @@ public class PricesStoragePart implements EntityStoragePart {
 	 */
 	@Getter private final int entityPrimaryKey;
 	/**
-	 * See {@link Prices#getVersion()}.
+	 * See {@link Prices#version()}.
 	 */
 	private final int version;
 	/**
@@ -126,9 +127,9 @@ public class PricesStoragePart implements EntityStoragePart {
 	/**
 	 * Returns inner data wrapped to {@link Prices} object that can be wired to {@link Entity}.
 	 */
-	public Prices getAsPrices() {
+	public Prices getAsPrices(@Nonnull EntitySchemaContract entitySchema) {
 		return new Prices(
-			version, Arrays.stream(prices).collect(Collectors.toList()), priceInnerRecordHandling
+			entitySchema, version, Arrays.stream(prices).collect(Collectors.toList()), priceInnerRecordHandling
 		);
 	}
 
@@ -152,7 +153,7 @@ public class PricesStoragePart implements EntityStoragePart {
 	) {
 		final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
 			this.prices, priceKey,
-			(examinedPrice, pk) -> PriceIdFirstPriceKeyComparator.INSTANCE.compare(examinedPrice.getPriceKey(), pk)
+			(examinedPrice, pk) -> PriceIdFirstPriceKeyComparator.INSTANCE.compare(examinedPrice.priceKey(), pk)
 		);
 		final int position = insertionPosition.position();
 		if (insertionPosition.alreadyPresent()) {
@@ -161,7 +162,7 @@ public class PricesStoragePart implements EntityStoragePart {
 			if (this.prices[position].differsFrom(updatedPriceContract)) {
 				this.prices[position] = new PriceWithInternalIds(
 					updatedPriceContract,
-					updatedPriceContract.isSellable() ?
+					updatedPriceContract.sellable() ?
 						requireNonNull(
 							ofNullable(existingContract.getInternalPriceId())
 								.orElseGet(() -> internalPriceIdResolver.apply(priceKey))
@@ -172,7 +173,7 @@ public class PricesStoragePart implements EntityStoragePart {
 		} else {
 			final PriceContract newPrice = mutator.apply(null);
 			final Integer internalPriceId;
-			if (newPrice.isSellable()) {
+			if (newPrice.sellable()) {
 				internalPriceId = internalPriceIdResolver.apply(priceKey);
 			} else {
 				internalPriceId = null;
@@ -193,7 +194,7 @@ public class PricesStoragePart implements EntityStoragePart {
 	public PriceWithInternalIds getPriceByKey(@Nonnull PriceKey priceKey) {
 		final int index = ArrayUtils.binarySearch(
 			this.prices, priceKey,
-			(examinedPrice, pk) -> PriceIdFirstPriceKeyComparator.INSTANCE.compare(examinedPrice.getPriceKey(), pk)
+			(examinedPrice, pk) -> PriceIdFirstPriceKeyComparator.INSTANCE.compare(examinedPrice.priceKey(), pk)
 		);
 		return index >= 0 ? this.prices[index] : null;
 	}
@@ -206,7 +207,7 @@ public class PricesStoragePart implements EntityStoragePart {
 	public PriceInternalIdContainer findExistingInternalIds(@Nonnull PriceKey priceKey) {
 		Integer internalPriceId = null;
 		for (PriceWithInternalIds price : prices) {
-			if (Objects.equals(priceKey, price.getPriceKey())) {
+			if (Objects.equals(priceKey, price.priceKey())) {
 				internalPriceId = price.getInternalPriceId();
 				break;
 			}

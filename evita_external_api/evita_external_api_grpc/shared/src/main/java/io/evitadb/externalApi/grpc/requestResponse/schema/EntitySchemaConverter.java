@@ -93,7 +93,7 @@ public class EntitySchemaConverter {
 			.putAllAssociatedData(toGrpcAssociatedDataSchemas(entitySchema.getAssociatedData()))
 			.putAllReferences(toGrpcReferenceSchemas(entitySchema.getReferences()))
 			.addAllEvolutionMode(entitySchema.getEvolutionMode().stream().map(EvitaEnumConverter::toGrpcEvolutionMode).toList())
-			.setVersion(entitySchema.getVersion());
+			.setVersion(entitySchema.version());
 
 		if (entitySchema.getDescription() != null) {
 			builder.setDescription(StringValue.newBuilder().setValue(entitySchema.getDescription()).build());

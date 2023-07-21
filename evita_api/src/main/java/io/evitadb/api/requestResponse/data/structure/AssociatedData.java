@@ -23,12 +23,16 @@
 
 package io.evitadb.api.requestResponse.data.structure;
 
+import io.evitadb.api.exception.AssociatedDataNotFoundException;
+import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.query.require.AssociatedDataContent;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AssociatedDataEditor.AssociatedDataBuilder;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.EqualsAndHashCode;
 
@@ -40,6 +44,8 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -49,7 +55,8 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static io.evitadb.utils.CollectionUtils.createHashMap;
+import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
+import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -89,6 +96,14 @@ public class AssociatedData implements AssociatedDataContract {
 	 */
 	private Set<String> associatedDataNames;
 	/**
+	 * Optimization that ensures that expensive associatedData name resolving happens only once.
+	 */
+	private Set<AssociatedDataKey> associatedDataKeys;
+	/**
+	 * Optimization that ensures that expensive associatedData name resolving happens only once.
+	 */
+	private List<AssociatedDataValue> filteredAssociatedDataValues;
+	/**
 	 * Optimization that ensures that expensive associatedData locale resolving happens only once.
 	 */
 	private Set<Locale> associatedDataLocales;
@@ -99,20 +114,15 @@ public class AssociatedData implements AssociatedDataContract {
 	 */
 	public AssociatedData(
 		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull Set<AssociatedDataKey> associatedDataKeys,
-		@Nullable Collection<AssociatedDataValue> associatedDataValues
+		@Nonnull Collection<AssociatedDataValue> associatedDataValues,
+		@Nonnull Map<String, AssociatedDataSchemaContract> associatedDataTypes
 	) {
 		this.entitySchema = entitySchema;
-		this.associatedDataValues = createHashMap(associatedDataKeys.size());
-		for (AssociatedDataKey associatedDataKey : associatedDataKeys) {
-			this.associatedDataValues.put(associatedDataKey, null);
+		this.associatedDataValues = createLinkedHashMap(associatedDataValues.size());
+		for (AssociatedDataValue associatedDataValue : associatedDataValues) {
+			this.associatedDataValues.put(associatedDataValue.key(), associatedDataValue);
 		}
-		if (associatedDataValues != null) {
-			for (AssociatedDataValue associatedDataValue : associatedDataValues) {
-				this.associatedDataValues.put(associatedDataValue.getKey(), associatedDataValue);
-			}
-		}
-		this.associatedDataTypes = entitySchema.getAssociatedData();
+		this.associatedDataTypes = associatedDataTypes;
 	}
 
 	/**
@@ -125,7 +135,18 @@ public class AssociatedData implements AssociatedDataContract {
 	) {
 		this.entitySchema = entitySchema;
 		this.associatedDataValues = ofNullable(associatedDataValues)
-			.map(it -> it.stream().collect(Collectors.toMap(AssociatedDataValue::getKey, Function.identity())))
+			.map(it -> it.stream()
+				.collect(
+					Collectors.toMap(
+						AssociatedDataValue::key,
+						Function.identity(),
+						(attributeValue, attributeValue2) -> {
+							throw new EvitaInvalidUsageException("Duplicated attribute " + attributeValue.key() + "!");
+						},
+						() -> (Map<AssociatedDataKey, AssociatedDataValue>)new LinkedHashMap<AssociatedDataKey, AssociatedDataValue>()
+					)
+				)
+			)
 			.orElse(Collections.emptyMap());
 		this.associatedDataTypes = entitySchema.getAssociatedData();
 	}
@@ -137,19 +158,36 @@ public class AssociatedData implements AssociatedDataContract {
 	}
 
 	@Override
+	public boolean associatedDataAvailable() {
+		return true;
+	}
+
+	@Override
 	@Nullable
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName) {
+		final AssociatedDataSchemaContract associatedDataSchema = ofNullable(associatedDataTypes.get(associatedDataName))
+			.orElseThrow(() -> new AssociatedDataNotFoundException(associatedDataName, entitySchema));
+		Assert.isTrue(
+			!associatedDataSchema.isLocalized(),
+			() -> ContextMissingException.localeForAssociatedDataContextMissing(associatedDataName)
+		);
 		//noinspection unchecked
 		return (T) ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName)))
-			.map(AssociatedDataValue::getValue)
+			.map(AssociatedDataContract.AssociatedDataValue::value)
 			.orElse(null);
 	}
 
 	@Nullable
 	@Override
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Class<T> dtoType, @Nonnull ReflectionLookup reflectionLookup) {
+		final AssociatedDataSchemaContract associatedDataSchema = ofNullable(associatedDataTypes.get(associatedDataName))
+			.orElseThrow(() -> new AssociatedDataNotFoundException(associatedDataName, entitySchema));
+		Assert.isTrue(
+			!associatedDataSchema.isLocalized(),
+			() -> ContextMissingException.localeForAssociatedDataContextMissing(associatedDataName)
+		);
 		return ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName)))
-			.map(AssociatedDataValue::getValue)
+			.map(AssociatedDataContract.AssociatedDataValue::value)
 			.map(it -> ComplexDataObjectConverter.getOriginalForm(it, dtoType, reflectionLookup))
 			.orElse(null);
 	}
@@ -157,52 +195,77 @@ public class AssociatedData implements AssociatedDataContract {
 	@Override
 	@Nullable
 	public <T extends Serializable> T[] getAssociatedDataArray(@Nonnull String associatedDataName) {
+		final AssociatedDataSchemaContract associatedDataSchema = ofNullable(associatedDataTypes.get(associatedDataName))
+			.orElseThrow(() -> new AssociatedDataNotFoundException(associatedDataName, entitySchema));
+		Assert.isTrue(
+			!associatedDataSchema.isLocalized(),
+			() -> ContextMissingException.localeForAssociatedDataContextMissing(associatedDataName)
+		);
 		//noinspection unchecked
 		return (T[]) ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName)))
-			.map(AssociatedDataValue::getValue)
+			.map(AssociatedDataContract.AssociatedDataValue::value)
 			.orElse(null);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<AssociatedDataValue> getAssociatedDataValue(@Nonnull String associatedDataName) {
-		return ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName)));
+		final AssociatedDataSchemaContract associatedDataSchema = ofNullable(associatedDataTypes.get(associatedDataName))
+			.orElseThrow(() -> new AssociatedDataNotFoundException(associatedDataName, entitySchema));
+		if (associatedDataSchema.isLocalized()) {
+			return empty();
+		} else {
+			return ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName)));
+		}
 	}
 
 	@Override
 	@Nullable
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale) {
+		final AssociatedDataSchemaContract schema = ofNullable(associatedDataTypes.get(associatedDataName))
+			.orElseThrow(() -> new AssociatedDataNotFoundException(associatedDataName, entitySchema));
 		//noinspection unchecked
-		return (T) ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName, locale)))
-			.map(AssociatedDataValue::getValue)
-			.orElseGet(() -> getAssociatedData(associatedDataName));
+		return (T) (schema.isLocalized() ?
+			ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName, locale))) :
+			ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName))))
+			.map(AssociatedDataContract.AssociatedDataValue::value)
+			.orElse(null);
 	}
 
 	@Nullable
 	@Override
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale, @Nonnull Class<T> dtoType, @Nonnull ReflectionLookup reflectionLookup) {
-		return ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName, locale)))
-			.map(AssociatedDataValue::getValue)
+		final AssociatedDataSchemaContract schema = ofNullable(associatedDataTypes.get(associatedDataName))
+			.orElseThrow(() -> new AssociatedDataNotFoundException(associatedDataName, entitySchema));
+		return (T) (schema.isLocalized() ?
+			ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName, locale))) :
+			ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName))))
+			.map(AssociatedDataContract.AssociatedDataValue::value)
 			.map(it -> ComplexDataObjectConverter.getOriginalForm(it, dtoType, reflectionLookup))
-			.orElseGet(() -> getAssociatedData(associatedDataName));
+			.orElse(null);
 	}
 
 	@Override
 	@Nullable
 	public <T extends Serializable> T[] getAssociatedDataArray(@Nonnull String associatedDataName, @Nonnull Locale locale) {
-		//noinspection unchecked
-		return (T[]) ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName, locale)))
-			.map(AssociatedDataValue::getValue)
-			.orElseGet(() -> getAssociatedData(associatedDataName));
+		final AssociatedDataSchemaContract schema = ofNullable(associatedDataTypes.get(associatedDataName))
+			.orElseThrow(() -> new AssociatedDataNotFoundException(associatedDataName, entitySchema));
+		//noinspection unchecked,ConstantConditions
+		return (T[]) (schema.isLocalized() ?
+			ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName, locale))) :
+			ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName))))
+			.map(AssociatedDataContract.AssociatedDataValue::value)
+			.orElse(null);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<AssociatedDataValue> getAssociatedDataValue(@Nonnull String associatedDataName, @Nonnull Locale locale) {
-		return ofNullable(
-			ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName, locale)))
-				.orElseGet(() -> associatedDataValues.get(new AssociatedDataKey(associatedDataName)))
-		);
+		final AssociatedDataSchemaContract schema = ofNullable(associatedDataTypes.get(associatedDataName))
+			.orElseThrow(() -> new AssociatedDataNotFoundException(associatedDataName, entitySchema));
+		return schema.isLocalized() ?
+			ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName, locale))) :
+			ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName)));
 	}
 
 	@Override
@@ -216,9 +279,12 @@ public class AssociatedData implements AssociatedDataContract {
 	public Set<String> getAssociatedDataNames() {
 		if (this.associatedDataNames == null) {
 			this.associatedDataNames = this.associatedDataValues
-				.keySet()
+				.values()
 				.stream()
-				.map(AssociatedDataKey::getAssociatedDataName)
+				.filter(ad -> ad.value() != null)
+				.map(AssociatedDataValue::key)
+				.map(AssociatedDataKey::associatedDataName)
+				.filter(dataName -> associatedDataTypes.get(dataName) != null)
 				.collect(Collectors.toSet());
 		}
 		return this.associatedDataNames;
@@ -227,30 +293,47 @@ public class AssociatedData implements AssociatedDataContract {
 	@Nonnull
 	@Override
 	public Set<AssociatedDataKey> getAssociatedDataKeys() {
-		return this.associatedDataValues.keySet();
+		if (this.associatedDataKeys == null) {
+			this.associatedDataKeys = this.associatedDataValues
+				.values()
+				.stream()
+				.filter(ad -> ad.value() != null)
+				.map(AssociatedDataValue::key)
+				.filter(key -> associatedDataTypes.get(key.associatedDataName()) != null)
+				.collect(Collectors.toUnmodifiableSet());
+		}
+		return this.associatedDataKeys;
 	}
 
 	/**
-	 * Returns collection of all associatedDatas of the entity.
+	 * Returns collection of all associated data of the entity.
 	 */
 	@Override
 	@Nonnull
 	public Collection<AssociatedDataValue> getAssociatedDataValues() {
-		return this.associatedDataValues
-			.values()
-			.stream()
-			.filter(Objects::nonNull)
-			.collect(Collectors.toList());
+		if (this.filteredAssociatedDataValues == null) {
+			this.filteredAssociatedDataValues = this.associatedDataValues
+				.values()
+				.stream()
+				.filter(ad -> ad.value() != null)
+				.filter(ad -> associatedDataTypes.get(ad.key().associatedDataName()) != null)
+				.collect(Collectors.toList());
+		}
+		return filteredAssociatedDataValues;
 	}
 
 	@Nonnull
 	@Override
 	public Collection<AssociatedDataValue> getAssociatedDataValues(@Nonnull String associatedDataName) {
-		return associatedDataValues
-			.entrySet()
-			.stream().filter(it -> associatedDataName.equals(it.getKey().getAssociatedDataName()))
-			.map(Entry::getValue)
-			.collect(Collectors.toList());
+		if (associatedDataTypes.get(associatedDataName) == null) {
+			throw new AssociatedDataNotFoundException(associatedDataName, entitySchema);
+		} else {
+			return associatedDataValues
+				.entrySet()
+				.stream().filter(it -> associatedDataName.equals(it.getKey().associatedDataName()))
+				.map(Entry::getValue)
+				.collect(Collectors.toList());
+		}
 	}
 
 	@Nonnull
@@ -260,24 +343,32 @@ public class AssociatedData implements AssociatedDataContract {
 			this.associatedDataLocales = this.associatedDataValues
 				.keySet()
 				.stream()
-				.map(AssociatedDataKey::getLocale)
+				.map(AssociatedDataKey::locale)
 				.filter(Objects::nonNull)
 				.collect(Collectors.toSet());
 		}
 		return this.associatedDataLocales;
 	}
 
-	@Nullable
-	public AssociatedDataValue getAssociatedDataValue(@Nonnull AssociatedDataKey associatedDataKey) {
-		return associatedDataValues.get(associatedDataKey);
+	@Nonnull
+	@Override
+	public Optional<AssociatedDataValue> getAssociatedDataValue(@Nonnull AssociatedDataKey associatedDataKey) {
+		final String associatedDataName = associatedDataKey.associatedDataName();
+		final AssociatedDataSchemaContract schema = ofNullable(associatedDataTypes.get(associatedDataName))
+			.orElseThrow(() -> new AssociatedDataNotFoundException(associatedDataName, entitySchema));
+		return schema.isLocalized() ?
+			ofNullable(associatedDataValues.get(associatedDataKey)) :
+			ofNullable(associatedDataValues.get(associatedDataKey.localized() ? new AssociatedDataKey(associatedDataName) : associatedDataKey));
 	}
 
 	/**
-	 * Returns associatedData value for passed key.
+	 * Returns attribute by business key without checking if the attribute is defined in the schema.
+	 * Method is part of PRIVATE API.
 	 */
-	@Nullable
-	public AssociatedDataValue getAssociatedData(@Nonnull AssociatedDataKey associatedDataKey) {
-		return this.associatedDataValues.get(associatedDataKey);
+	@Nonnull
+	public Optional<AssociatedDataValue> getAssociatedDataValueWithoutSchemaCheck(@Nonnull AssociatedDataKey associatedDataKey) {
+		return ofNullable(associatedDataValues.get(associatedDataKey))
+			.or(() -> associatedDataKey.localized() ? ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataKey.associatedDataName()))) : empty());
 	}
 
 	/**

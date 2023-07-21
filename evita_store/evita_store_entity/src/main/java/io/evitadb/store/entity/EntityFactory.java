@@ -93,13 +93,14 @@ public class EntityFactory {
 			// always initialize Attributes container
 			new Attributes(
 				entitySchema,
+				null,
 				// fill all contents of the attributes loaded from storage (may be empty)
-				attributeValues
+				attributeValues,
+				entitySchema.getAttributes()
 			),
 			// always initialize Associated data container
 			new AssociatedData(
 				entitySchema,
-				entityStorageContainer.getAssociatedDataKeys(),
 				// fill all contents of the associated data loaded from storage (may be empty)
 				associatedDataStorageContainers
 					.stream()
@@ -108,8 +109,8 @@ public class EntityFactory {
 			),
 			// when prices container is present - init prices and price inner record handling - otherwise use default config
 			ofNullable(priceStorageContainer)
-				.map(PricesStoragePart::getAsPrices)
-				.orElseGet(() -> new Prices(PriceInnerRecordHandling.UNKNOWN)),
+				.map(it -> it.getAsPrices(entitySchema))
+				.orElseGet(() -> new Prices(entitySchema, PriceInnerRecordHandling.UNKNOWN)),
 			// pass all locales known in the entity container
 			entityStorageContainer.getLocales(),
 			// loaded entity is never dropped - otherwise it could not have been read
@@ -143,12 +144,12 @@ public class EntityFactory {
 		);
 		for (AttributesStoragePart attributeCnt : attributesStorageContainers) {
 			for (AttributeValue attributeValue : attributeCnt.getAttributes()) {
-				attributeValues.put(attributeValue.getKey(), attributeValue);
+				attributeValues.put(attributeValue.key(), attributeValue);
 			}
 		}
 		// then add all previously loaded attributes - but only when they were not freshly loaded
 		for (AttributeValue attributeValue : entity.getAttributeValues()) {
-			attributeValues.putIfAbsent(attributeValue.getKey(), attributeValue);
+			attributeValues.putIfAbsent(attributeValue.key(), attributeValue);
 		}
 
 		// first use all associated from freshly loaded containers
@@ -157,18 +158,18 @@ public class EntityFactory {
 		);
 		for (AssociatedDataStoragePart associatedDataCnt : associatedDataStorageContainers) {
 			final AssociatedDataValue associatedDataValue = associatedDataCnt.getValue();
-			associatedDataValues.put(associatedDataValue.getKey(), associatedDataValue);
+			associatedDataValues.put(associatedDataValue.key(), associatedDataValue);
 		}
 		// then add all previously loaded associated data - but only when they were not freshly loaded
 		for (AssociatedDataValue associatedDataValue : entity.getAssociatedDataValues()) {
-			associatedDataValues.putIfAbsent(associatedDataValue.getKey(), associatedDataValue);
+			associatedDataValues.putIfAbsent(associatedDataValue.key(), associatedDataValue);
 		}
 
 		return Entity._internalBuild(
 			entity,
 			ofNullable(entityStoragePart)
 				.map(EntityBodyStoragePart::getVersion)
-				.orElse(entity.getVersion()),
+				.orElse(entity.version()),
 			Objects.requireNonNull(entity.getPrimaryKey()),
 			entitySchema,
 			ofNullable(entityStoragePart)
@@ -184,7 +185,12 @@ public class EntityFactory {
 				// use original attributes from the entity contents
 				null :
 				// otherwise combine
-				new Attributes(entitySchema, attributeValues.values()),
+				new Attributes(
+					entitySchema,
+					null,
+					attributeValues.values(),
+					entitySchema.getAttributes()
+				),
 			// when no additional associated data containers were loaded
 			associatedDataStorageContainers.isEmpty() ?
 				// use original associated data from the entity contents
@@ -192,13 +198,12 @@ public class EntityFactory {
 				// otherwise combine
 				new AssociatedData(
 					entitySchema,
-					associatedDataValues.keySet(),
 					associatedDataValues.values()
 				),
 			// when prices container is present - init prices and price inner record handling
 			// otherwise use original prices from previous entity contents
 			ofNullable(priceStorageContainer)
-				.map(PricesStoragePart::getAsPrices)
+				.map(it -> it.getAsPrices(entitySchema))
 				.orElse(null),
 			// pass all locales known in the entity container
 			ofNullable(entityStoragePart)

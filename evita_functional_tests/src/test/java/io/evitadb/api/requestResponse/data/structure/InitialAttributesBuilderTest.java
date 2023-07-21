@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesEditor.AttributesBuilder;
 import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
@@ -47,7 +48,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class InitialAttributesBuilderTest extends AbstractBuilderTest {
-	final InitialAttributesBuilder attributes = new InitialAttributesBuilder(EntitySchema._internalBuild("whatever"));
+	final InitialAttributesBuilder attributes = new InitialAttributesBuilder(EntitySchema._internalBuild("whatever"), null);
 
 	@Test
 	void shouldStoreNewValueAndRetrieveIt() {
@@ -93,7 +94,7 @@ class InitialAttributesBuilderTest extends AbstractBuilderTest {
 		final Attributes attributes = this.attributes.setAttribute("abc", "DEF")
 			.removeAttribute("abc")
 			.build();
-		assertNull(attributes.getAttribute("abc"));
+		assertFalse(attributes.attributeValues.containsKey(new AttributeKey("abc")));
 	}
 
 	@Test
@@ -102,7 +103,7 @@ class InitialAttributesBuilderTest extends AbstractBuilderTest {
 			.setAttribute("abc", "DEF")
 			.removeAttribute("abc")
 			.build();
-		assertNull(attributes.getAttribute("abc"));
+		assertFalse(attributes.attributeValues.containsKey(new AttributeKey("abc")));
 	}
 
 	@Test
@@ -208,7 +209,7 @@ class InitialAttributesBuilderTest extends AbstractBuilderTest {
 			.verifySchemaStrictly()
 			.toInstance();
 
-		final InitialAttributesBuilder attrBuilder = new InitialAttributesBuilder(updatedSchema);
+		final InitialAttributesBuilder attrBuilder = new InitialAttributesBuilder(updatedSchema, null);
 		// try to add unknown attribute
 		assertThrows(InvalidMutationException.class, () -> attrBuilder.setAttribute("new", "A"));
 		// try to add attribute with bad type
@@ -243,7 +244,7 @@ class InitialAttributesBuilderTest extends AbstractBuilderTest {
 			.verifySchemaButAllow(EvolutionMode.ADDING_ATTRIBUTES)
 			.toInstance();
 
-		final InitialAttributesBuilder attrBuilder = new InitialAttributesBuilder(updatedSchema);
+		final InitialAttributesBuilder attrBuilder = new InitialAttributesBuilder(updatedSchema, null);
 		// try to add unknown attribute
 		attrBuilder.setAttribute("new", "A");
 		// try to add unknown localized attribute
@@ -284,7 +285,7 @@ class InitialAttributesBuilderTest extends AbstractBuilderTest {
 			.verifySchemaButAllow(EvolutionMode.ADDING_LOCALES)
 			.toInstance();
 
-		final InitialAttributesBuilder attrBuilder = new InitialAttributesBuilder(updatedSchema);
+		final InitialAttributesBuilder attrBuilder = new InitialAttributesBuilder(updatedSchema, null);
 		final Attributes attrs = attrBuilder
 			.setAttribute("string", "Hi")
 			.setAttribute("int", Locale.ENGLISH, 5)

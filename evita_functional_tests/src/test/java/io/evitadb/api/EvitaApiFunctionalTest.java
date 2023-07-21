@@ -366,7 +366,7 @@ class EvitaApiFunctionalTest {
 				assertNotNull(updatedEntity);
 
 				assertFalse(updatedEntity.getPrices().isEmpty());
-				assertTrue(updatedEntity.getPrices().stream().allMatch(it -> it.getCurrency() == EUR && it.getPriceList().equals("basic")));
+				assertTrue(updatedEntity.getPrices().stream().allMatch(it -> it.currency() == EUR && it.priceList().equals("basic")));
 				assertTrue(updatedEntity.getPriceForSaleIfAvailable().isEmpty(), "Price for sale has no sense in the response!");
 			}
 		);
@@ -444,8 +444,8 @@ class EvitaApiFunctionalTest {
 			assertEquals(new LocalizedLabels().withLabel("name", "iQ700完全內置式洗碗機60厘米XXL"), loadedProduct.getAssociatedData("localizedLabels", Locale.CHINA, LocalizedLabels.class, REFLECTION_LOOKUP));
 			assertEquals(new LocalizedLabels().withLabel("name", "iQ700 Plně vestavná myčka nádobí 60 cm XXL (ve slevě)"), loadedProduct.getAssociatedData("localizedLabels", LOCALE_CZECH, LocalizedLabels.class, REFLECTION_LOOKUP));
 			assertNull(loadedProduct.getAssociatedData("localizedLabels", Locale.ENGLISH));
-			assertEquals(new BigDecimal("499"), Objects.requireNonNull(loadedProduct.getPrice(3, "action", EUR)).orElseThrow().getPriceWithoutTax());
-			assertEquals(new BigDecimal("899"), Objects.requireNonNull(loadedProduct.getPrice(2, "reference", EUR)).orElseThrow().getPriceWithoutTax());
+			assertEquals(new BigDecimal("499"), Objects.requireNonNull(loadedProduct.getPrice(3, "action", EUR)).orElseThrow().priceWithoutTax());
+			assertEquals(new BigDecimal("899"), Objects.requireNonNull(loadedProduct.getPrice(2, "reference", EUR)).orElseThrow().priceWithoutTax());
 			assertNull(loadedProduct.getPrice(1, "reference", CZK).orElse(null));
 			final Collection<ReferenceContract> references = loadedProduct.getReferences(CATEGORY);
 			assertEquals(2, references.size());
@@ -998,7 +998,7 @@ class EvitaApiFunctionalTest {
 				final SealedEntity removedCategory = getCategoryById(session, 1).orElseThrow();
 
 				// delete the root entity
-				final DeletedHierarchy deletionResult = session.deleteEntityAndItsHierarchy(CATEGORY, 1, entityFetchAllContent());
+				final DeletedHierarchy<SealedEntity> deletionResult = session.deleteEntityAndItsHierarchy(CATEGORY, 1, entityFetchAllContent());
 				assertEquals(3, deletionResult.deletedEntities());
 				assertExactlyEquals(removedCategory, deletionResult.deletedRootEntity());
 
@@ -1157,7 +1157,7 @@ class EvitaApiFunctionalTest {
 				assertEquals(3, existingEntities.size());
 
 				// delete the root entity
-				final SealedEntity[] deletedEntities = session.deleteEntitiesAndReturnBodies(
+				final SealedEntity[] deletedEntities = session.deleteSealedEntitiesAndReturnBodies(
 					query(
 						collection(CATEGORY),
 						filterBy(

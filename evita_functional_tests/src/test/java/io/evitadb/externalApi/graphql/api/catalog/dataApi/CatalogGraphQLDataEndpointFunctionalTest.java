@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.externalApi.ExternalApiFunctionTestsSupport;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
@@ -35,7 +36,6 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDes
 import io.evitadb.externalApi.graphql.api.testSuite.GraphQLEndpointFunctionalTest;
 import io.evitadb.test.Entities;
 import io.evitadb.test.builder.MapBuilder;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
@@ -52,7 +52,6 @@ import java.util.Objects;
 
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
@@ -60,53 +59,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEndpointFunctionalTest {
-
-	/**
-	 * Returns value of "random" value in the dataset.
-	 */
-	protected <T extends Serializable> T getRandomAttributeValue(@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName) {
-		return getRandomAttributeValue(originalProductEntities, attributeName, 10);
-	}
-
-	/**
-	 * Returns value of "random" value in the dataset.
-	 */
-	protected <T extends Serializable> T getRandomAttributeValue(@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName, int order) {
-		return originalProductEntities
-			.stream()
-			.map(it -> (T) it.getAttribute(attributeName))
-			.filter(Objects::nonNull)
-			.skip(order)
-			.findFirst()
-			.orElseThrow(() -> new IllegalStateException("Failed to localize `" + attributeName + "` attribute!"));
-	}
-
-	/**
-	 * Returns value of "random" value in the dataset.
-	 */
-	protected <T extends Serializable> T getRandomAttributeValue(@Nonnull List<SealedEntity> originalProductEntities,
-	                                                                           @Nonnull String attributeName,
-	                                                                           @Nonnull Locale locale) {
-		return getRandomAttributeValue(originalProductEntities, attributeName, locale, 10);
-	}
-
-	/**
-	 * Returns value of "random" value in the dataset.
-	 */
-	protected <T extends Serializable> T getRandomAttributeValue(@Nonnull List<SealedEntity> originalProductEntities,
-	                                                                           @Nonnull String attributeName,
-	                                                                           @Nonnull Locale locale,
-	                                                                           int order) {
-		return originalProductEntities
-			.stream()
-			.map(it -> (T) it.getAttribute(attributeName, locale))
-			.filter(Objects::nonNull)
-			.skip(order)
-			.findFirst()
-			.orElseThrow(() -> new IllegalStateException("Failed to localize `" + attributeName + "` attribute!"));
-	}
-
+public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEndpointFunctionalTest implements ExternalApiFunctionTestsSupport {
 
 	@Nonnull
 	protected Map<String, Object> createEntityDtoWithFormattedPriceForSale(@Nonnull SealedEntity entity) {
@@ -115,7 +68,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 
 		return map()
 			.e(EntityDescriptor.PRICE_FOR_SALE.name(), map()
-				.e(PriceDescriptor.PRICE_WITH_TAX.name(), priceFormatter.format(entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().getPriceWithTax()))
+				.e(PriceDescriptor.PRICE_WITH_TAX.name(), priceFormatter.format(entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax()))
 				.build())
 			.build();
 	}
@@ -127,7 +80,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 
 		return map()
 			.e(EntityDescriptor.PRICE.name(), map()
-				.e(PriceDescriptor.PRICE_WITH_TAX.name(), priceFormatter.format(entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().getPriceWithTax()))
+				.e(PriceDescriptor.PRICE_WITH_TAX.name(), priceFormatter.format(entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax()))
 				.build())
 			.build();
 	}
@@ -141,7 +94,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 		return map()
 			.e(EntityDescriptor.PRICES.name(), List.of(
 				map()
-					.e(PriceDescriptor.PRICE_WITH_TAX.name(), priceFormatter.format(entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().getPriceWithTax()))
+					.e(PriceDescriptor.PRICE_WITH_TAX.name(), priceFormatter.format(entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax()))
 					.build()
 			))
 			.build();
@@ -156,7 +109,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 				.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
 				.e(PriceDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
 				.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-				.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().getPriceWithTax().toString())
+				.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax().toString())
 				.build())
 			.build();
 	}
@@ -177,7 +130,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 				.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
 				.e(PriceDescriptor.CURRENCY.name(), currency.toString())
 				.e(PriceDescriptor.PRICE_LIST.name(), priceList)
-				.e(PriceDescriptor.PRICE_WITH_TAX.name(), prices.iterator().next().getPriceWithTax().toString())
+				.e(PriceDescriptor.PRICE_WITH_TAX.name(), prices.iterator().next().priceWithTax().toString())
 				.build())
 			.build();
 	}

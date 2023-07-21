@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.AttributesEditor.AttributesBuilder;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -43,6 +44,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -50,6 +52,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -66,6 +69,10 @@ class InitialAttributesBuilder implements AttributesBuilder {
 	 * Entity schema if available.
 	 */
 	private final EntitySchemaContract entitySchema;
+	/**
+	 * Definition of the reference schema.
+	 */
+	private final ReferenceSchemaContract referenceSchema;
 	/**
 	 * When this flag is set to true - verification on store is suppressed. It can be set to true only when verification
 	 * is encured by calling logic.
@@ -183,8 +190,12 @@ class InitialAttributesBuilder implements AttributesBuilder {
 	/**
 	 * AttributesBuilder constructor that will be used for building brand new {@link Attributes} container.
 	 */
-	InitialAttributesBuilder(@Nonnull EntitySchemaContract entitySchema) {
+	InitialAttributesBuilder(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema
+	) {
 		this.entitySchema = entitySchema;
+		this.referenceSchema = referenceSchema;
 		this.attributeValues = new HashMap<>();
 		this.suppressVerification = false;
 	}
@@ -192,8 +203,13 @@ class InitialAttributesBuilder implements AttributesBuilder {
 	/**
 	 * AttributesBuilder constructor that will be used for building brand new {@link Attributes} container.
 	 */
-	InitialAttributesBuilder(@Nonnull EntitySchemaContract entitySchema, boolean suppressVerification) {
+	InitialAttributesBuilder(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		boolean suppressVerification
+	) {
 		this.entitySchema = entitySchema;
+		this.referenceSchema = referenceSchema;
 		this.attributeValues = new HashMap<>();
 		this.suppressVerification = suppressVerification;
 	}
@@ -274,10 +290,6 @@ class InitialAttributesBuilder implements AttributesBuilder {
 		}
 	}
 
-	/*
-		LOCALIZED ATTRIBUTES
-	 */
-
 	@Nonnull
 	@Override
 	public AttributesBuilder mutateAttribute(@Nonnull AttributeMutation mutation) {
@@ -285,11 +297,16 @@ class InitialAttributesBuilder implements AttributesBuilder {
 	}
 
 	@Override
+	public boolean attributesAvailable() {
+		return true;
+	}
+
+	@Override
 	@Nullable
 	public <T extends Serializable> T getAttribute(@Nonnull String attributeName) {
 		//noinspection unchecked
 		return (T) ofNullable(attributeValues.get(new AttributeKey(attributeName)))
-			.map(AttributeValue::getValue)
+			.map(AttributeValue::value)
 			.orElse(null);
 	}
 
@@ -298,7 +315,7 @@ class InitialAttributesBuilder implements AttributesBuilder {
 	public <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName) {
 		//noinspection unchecked
 		return (T[]) ofNullable(attributeValues.get(new AttributeKey(attributeName)))
-			.map(AttributeValue::getValue)
+			.map(AttributeValue::value)
 			.orElse(null);
 	}
 
@@ -313,7 +330,7 @@ class InitialAttributesBuilder implements AttributesBuilder {
 	public <T extends Serializable> T getAttribute(@Nonnull String attributeName, @Nonnull Locale locale) {
 		//noinspection unchecked
 		return (T) ofNullable(this.attributeValues.get(new AttributeKey(attributeName, locale)))
-			.map(AttributeValue::getValue)
+			.map(AttributeValue::value)
 			.orElse(null);
 	}
 
@@ -322,7 +339,7 @@ class InitialAttributesBuilder implements AttributesBuilder {
 	public <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName, @Nonnull Locale locale) {
 		//noinspection unchecked
 		return (T[]) ofNullable(this.attributeValues.get(new AttributeKey(attributeName, locale)))
-			.map(AttributeValue::getValue)
+			.map(AttributeValue::value)
 			.orElse(null);
 	}
 
@@ -344,7 +361,7 @@ class InitialAttributesBuilder implements AttributesBuilder {
 		return this.attributeValues
 			.keySet()
 			.stream()
-			.map(AttributeKey::getAttributeName)
+			.map(AttributeKey::attributeName)
 			.collect(Collectors.toSet());
 	}
 
@@ -357,7 +374,11 @@ class InitialAttributesBuilder implements AttributesBuilder {
 	@Nonnull
 	@Override
 	public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
-		return ofNullable(this.attributeValues.get(attributeKey));
+		return ofNullable(this.attributeValues.get(attributeKey))
+			.or(() -> attributeKey.localized() ?
+				ofNullable(this.attributeValues.get(new AttributeKey(attributeKey.attributeName()))) :
+				empty()
+			);
 	}
 
 	@Nonnull
@@ -371,7 +392,7 @@ class InitialAttributesBuilder implements AttributesBuilder {
 	public Collection<AttributeValue> getAttributeValues(@Nonnull String attributeName) {
 		return getAttributeValues()
 			.stream()
-			.filter(it -> attributeName.equals(it.getKey().getAttributeName()))
+			.filter(it -> attributeName.equals(it.key().attributeName()))
 			.collect(Collectors.toList());
 	}
 
@@ -380,7 +401,7 @@ class InitialAttributesBuilder implements AttributesBuilder {
 		return this.attributeValues
 			.keySet()
 			.stream()
-			.map(AttributesContract.AttributeKey::getLocale)
+			.map(AttributesContract.AttributeKey::locale)
 			.filter(Objects::nonNull)
 			.collect(Collectors.toSet());
 	}
@@ -394,15 +415,16 @@ class InitialAttributesBuilder implements AttributesBuilder {
 	@Nonnull
 	@Override
 	public Attributes build() {
-		return new Attributes(
-			this.entitySchema,
-			this.attributeValues.values(),
-			this.attributeValues
-			.values()
+		final AttributeSchemaProvider<AttributeSchemaContract> attributeSchemaProvider = ofNullable((AttributeSchemaProvider<AttributeSchemaContract>) this.referenceSchema)
+			.orElse(this.entitySchema);
+		final Map<String, AttributeSchemaContract> newAttributes = this.attributeValues
+			.entrySet()
 			.stream()
-			.map(this::createImplicitSchema)
+			.filter(entry -> attributeSchemaProvider.getAttribute(entry.getKey().attributeName()).isEmpty())
+			.map(Entry::getValue)
+			.map(AttributesBuilder::createImplicitSchema)
 			.collect(
-				Collectors.toMap(
+				Collectors.toUnmodifiableMap(
 					AttributeSchemaContract::getName,
 					Function.identity(),
 					(attributeType, attributeType2) -> {
@@ -415,7 +437,24 @@ class InitialAttributesBuilder implements AttributesBuilder {
 						return attributeType;
 					}
 				)
-			)
+			);
+		return new Attributes(
+			this.entitySchema,
+			this.referenceSchema,
+			this.attributeValues.values(),
+			newAttributes.isEmpty() ?
+				attributeSchemaProvider.getAttributes() :
+				Stream.concat(
+						attributeSchemaProvider.getAttributes().entrySet().stream(),
+						newAttributes.entrySet().stream()
+					)
+					.collect(
+						Collectors.toUnmodifiableMap(
+							Entry::getKey,
+							Entry::getValue
+						)
+					)
+
 		);
 	}
 
