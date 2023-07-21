@@ -120,7 +120,7 @@ public class RestArtificialSingleReadState extends AbstractRestArtificialState {
 		setRequest(
 			"GET",
 			String.format(
-				"%s/product/get?primaryKey=%d%s",
+				"/rest/test-catalog/%s/product/get?primaryKey=%d%s",
 				randomExistingLocale.toLanguageTag(),
 				benchmarkState.getRandom().nextInt(PRODUCT_COUNT) + 1,
 				!parameters.isEmpty() ? "&" + String.join("&", parameters) : ""

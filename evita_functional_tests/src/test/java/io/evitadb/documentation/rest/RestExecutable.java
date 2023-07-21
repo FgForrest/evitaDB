@@ -275,7 +275,7 @@ public class RestExecutable implements Executable, EvitaTestSupport {
 		final RestClient restClient = testContextAccessor.get().getRestClient();
 		final JsonNode theResult;
 		try {
-			theResult = restClient.call(method, path, theQuery);
+			theResult = restClient.call(method, path, theQuery).orElseThrow();
 		} catch (Exception ex) {
 			fail("The query " + theQuery + " failed: " + ex.getMessage(), ex);
 			return;
