@@ -100,8 +100,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
-public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctionalTest {
-	private static final String FIFTY_PRODUCTS = "FiftyProducts";
+public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctionalTest {
+	private static final String HUNDRED_PRODUCTS = "HundredProducts";
 	private static final Locale LOCALE_CZECH = CZECH_LOCALE;
 	private final static BiFunction<SealedEntity, String, int[]> REFERENCED_ID_EXTRACTOR =
 		(entity, referencedType) -> entity.getReferences(referencedType)
@@ -213,7 +213,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 		return workingNode;
 	}
 
-	@DataSet(value = FIFTY_PRODUCTS, destroyAfterClass = true)
+	@DataSet(value = HUNDRED_PRODUCTS, destroyAfterClass = true)
 	@Override
 	DataCarrier setUp(Evita evita) {
 		return super.setUp(evita);
@@ -221,7 +221,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should check existence of the entity")
 	@Test
-	void shouldReturnOnlyPrimaryKey(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+	void shouldReturnOnlyPrimaryKey(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -243,7 +243,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should not return missing entity")
 	@Test
-	void shouldNotReturnMissingEntity(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+	void shouldNotReturnMissingEntity(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -263,7 +263,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should throw exception for price outside entityFetch")
 	@Test
-	void shouldThrowExceptionWhenPriceContentIsOutsideEntityFetch(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+	void shouldThrowExceptionWhenPriceContentIsOutsideEntityFetch(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -287,7 +287,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should throw exception for hierarchy outside entityFetch")
 	@Test
-	void shouldThrowExceptionWhenHierarchyContentIsOutsideEntityFetch(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+	void shouldThrowExceptionWhenHierarchyContentIsOutsideEntityFetch(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -311,7 +311,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should throw exception for non-existing attribute")
 	@Test
-	void shouldThrowExceptionWhenNonExistingAttributeIsAttemptedToBeFetched(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+	void shouldThrowExceptionWhenNonExistingAttributeIsAttemptedToBeFetched(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -337,7 +337,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should throw exception for attribute outside entityFetch")
 	@Test
-	void shouldThrowExceptionWhenAttributeContentIsOutsideEntityFetch(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+	void shouldThrowExceptionWhenAttributeContentIsOutsideEntityFetch(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -361,7 +361,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should throw exception for non-existing associated data")
 	@Test
-	void shouldThrowExceptionWhenNonExistingAssociatedDataIsAttemptedToBeFetched(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+	void shouldThrowExceptionWhenNonExistingAssociatedDataIsAttemptedToBeFetched(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -387,7 +387,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should throw exception for associated data outside entityFetch")
 	@Test
-	void shouldThrowExceptionWhenAssociatedDataContentIsOutsideEntityFetch(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+	void shouldThrowExceptionWhenAssociatedDataContentIsOutsideEntityFetch(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -411,7 +411,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should throw exception for non-existing reference")
 	@Test
-	void shouldThrowExceptionWhenNonExistingReferenceIsAttemptedToBeFetched(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+	void shouldThrowExceptionWhenNonExistingReferenceIsAttemptedToBeFetched(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -437,7 +437,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should throw exception for reference outside entityFetch")
 	@Test
-	void shouldThrowExceptionWhenReferenceContentIsOutsideEntityFetch(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+	void shouldThrowExceptionWhenReferenceContentIsOutsideEntityFetch(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -461,7 +461,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should check existence of multiple entities")
 	@Test
-	void shouldReturnOnlyPrimaryKeys(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+	void shouldReturnOnlyPrimaryKeys(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -489,7 +489,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Single entity by primary key should be found")
 	@Test
-	void shouldRetrieveSingleEntityByPrimaryKey(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+	void shouldRetrieveSingleEntityByPrimaryKey(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -515,7 +515,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Single entity in binary form by primary key should be found")
 	@Test
-	void shouldRetrieveSingleBinaryEntityByPrimaryKey(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+	void shouldRetrieveSingleBinaryEntityByPrimaryKey(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -551,7 +551,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Multiple entities by their primary keys should be found")
 	@Test
-	void shouldRetrieveMultipleEntitiesByPrimaryKey(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+	void shouldRetrieveMultipleEntitiesByPrimaryKey(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -581,7 +581,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Multiple entities by negative query against defined set should be found")
 	@Test
-	void shouldRetrieveMultipleEntitiesByNotAgainstDefinedSetQuery(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+	void shouldRetrieveMultipleEntitiesByNotAgainstDefinedSetQuery(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -614,7 +614,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Multiple entities by negative query against entire superset should be found")
 	@Test
-	void shouldRetrieveMultipleEntitiesByNotAgainstSupersetQuery(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+	void shouldRetrieveMultipleEntitiesByNotAgainstSupersetQuery(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -631,7 +631,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 					)
 				);
 				assertEquals(4, productByPk.getRecordData().size());
-				assertEquals(44, productByPk.getTotalRecordCount());
+				assertEquals(94, productByPk.getTotalRecordCount());
 
 				assertProduct(productByPk.getRecordData().get(0), 1, false, false, false, false);
 				assertProduct(productByPk.getRecordData().get(1), 3, false, false, false, false);
@@ -644,7 +644,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Multiple entities by complex boolean query should be found")
 	@Test
-	void shouldRetrieveMultipleEntitiesByComplexBooleanQuery(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+	void shouldRetrieveMultipleEntitiesByComplexBooleanQuery(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -680,7 +680,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Single entity with attributes only by primary key should be found")
 	@Test
-	void shouldRetrieveSingleEntityWithAttributesByPrimaryKey(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+	void shouldRetrieveSingleEntityWithAttributesByPrimaryKey(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -708,7 +708,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Multiple entities with attributes only by their primary keys should be found")
 	@Test
-	void shouldRetrieveMultipleEntitiesWithAttributesByPrimaryKey(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+	void shouldRetrieveMultipleEntitiesWithAttributesByPrimaryKey(@UseDataSet(HUNDRED_PRODUCTS) Evita evita) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -739,7 +739,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Single entity with attributes in passed language only by primary key should be found")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldRetrieveSingleEntityWithAttributesInLanguageByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
@@ -779,7 +779,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Single entity with attributes in multiple languages only by primary key should be found")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldRetrieveSingleEntityWithAttributesInMultipleLanguagesByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
@@ -820,7 +820,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Multiple entities with attributes in passed language only by their primary keys should be found")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldRetrieveMultipleEntitiesWithAttributesInLanguageByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] pks = originalProducts
@@ -863,7 +863,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Single entity with associated data only by primary key should be found")
 	@Test
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	void shouldRetrieveSingleEntityWithAssociatedDataByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final SealedEntity productWithAssociatedData = originalProducts.stream()
 			.filter(it -> !it.getAssociatedDataValues().isEmpty())
@@ -895,7 +895,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Multiple entities with associated data only by their primary keys should be found")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldRetrieveMultipleEntitiesWithAssociatedDataByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
@@ -933,7 +933,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Multiple entities with associated data in passed language only by their primary keys should be found")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldRetrieveMultipleEntitiesWithAssociatedDataInLanguageDataByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
@@ -972,7 +972,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Multiple entities with associated data in multiple language only by their primary keys should be found")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldRetrieveMultipleEntitiesWithAssociatedDataInMultipleLanguageDataByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
@@ -1012,7 +1012,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Multiple entities with selected associated data only by their primary keys should be found")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldRetrieveMultipleEntitiesWithNamedAssociatedDataByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
@@ -1055,7 +1055,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Multiple entities with selected associated data in passed language only by their primary keys should be found")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldRetrieveMultipleEntitiesWithNamedAssociatedDataInLanguageByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
@@ -1099,7 +1099,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Multiple entities with all prices by their primary keys should be found")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldRetrieveMultipleEntitiesWithAllPricesByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
@@ -1140,7 +1140,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Multiple entities with prices in selected currency by their primary keys should be found")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldRetrieveMultipleEntitiesWithPricesInCurrencyByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
@@ -1189,7 +1189,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Multiple entities with prices in selected price lists by their primary keys should be found")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldRetrieveMultipleEntitiesWithPricesInPriceListsByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
@@ -1243,7 +1243,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Multiple entities with prices valid in specified time by their primary keys should be found")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldRetrieveMultipleEntitiesWithPricesValidInTimeByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final OffsetDateTime theMoment = OffsetDateTime.of(2015, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
@@ -1289,7 +1289,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Multiple entities with references by their primary keys should be found")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldRetrieveMultipleEntitiesWithReferencesByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
@@ -1327,7 +1327,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Multiple entities with specific references by their primary keys should be found")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldRetrieveMultipleEntitiesWithSpecificReferencesByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
@@ -1369,7 +1369,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Multiple entities with specific references with exactly stated attributes can be retrieved")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldRetrieveMultipleEntitiesWithSpecificReferencesByPrimaryKeyWithExactAttributes(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
@@ -1414,7 +1414,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Multiple entities with specific references with all attributes can be retrieved")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldRetrieveMultipleEntitiesWithSpecificReferencesByPrimaryKeyWithAllAttributes(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
@@ -1460,7 +1460,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Multiple entities with specific references with all attributes (default behaviour) can be retrieved")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldRetrieveMultipleEntitiesWithSpecificReferencesByPrimaryKeyWithAllAttributesDefault(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
@@ -1503,7 +1503,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Multiple entities with references by their primary keys should be found")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldRetrieveMultipleEntitiesWithReferencesByTypeAndByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
@@ -1542,7 +1542,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Attributes can be lazy auto loaded")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldLazyLoadAttributes(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
@@ -1578,7 +1578,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Attributes can be lazy auto loaded while respecting language")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldLazyLoadAttributesButLanguageMustBeRespected(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
@@ -1621,7 +1621,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Associated data can be lazy auto loaded")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldLazyLoadAssociatedData(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
@@ -1656,7 +1656,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Associated data can be lazy auto loaded")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldLazyLoadAssociatedDataButLanguageMustBeRespected(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
@@ -1698,7 +1698,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Associated data can be lazy auto loaded in different languages lazily")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldLazyLoadAssociatedDataWithIncrementallyAddingLanguages(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
@@ -1746,7 +1746,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Associated data can be lazy auto loaded incrementally by name")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldLazyLoadAssociatedDataByNameIncrementally(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
@@ -1791,7 +1791,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Prices can be lazy auto loaded")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldLazyLoadAllPrices(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
@@ -1834,7 +1834,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Prices can be lazy auto loaded")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldLazyLoadFilteredPrices(Evita evita, List<SealedEntity> originalProducts) {
 		final SealedEntity product = originalProducts
@@ -1889,7 +1889,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	 */
 
 	@DisplayName("References can be lazy auto loaded")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldLazyLoadReferences(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
@@ -1936,7 +1936,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("References can be lazy auto loaded in iterative fashion")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldLazyLoadReferencesIteratively(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
@@ -1993,7 +1993,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should check existence of the entity")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldLimitRichEntity(Evita evita) {
 		evita.queryCatalog(
@@ -2052,7 +2052,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("References can be eagerly deeply fetched")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldEagerlyDeepFetchReferenceEntityBodies(Evita evita, List<SealedEntity> originalProducts, List<SealedEntity> originalBrands) {
 		final Set<Integer> brandsWithGroupedCategory = originalBrands.stream()
@@ -2151,7 +2151,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("References without index (non-filterable) can be eagerly deeply fetched")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldEagerlyDeepFetchNonFilterableReferenceEntityBodies(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
@@ -2201,7 +2201,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("References can be eagerly deeply fetched in gradual manner")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldLazilyDeepFetchReferenceEntityBodies(Evita evita, List<SealedEntity> originalProducts, List<SealedEntity> originalBrands) {
 		final Set<Integer> brandsWithGroupedCategory = originalBrands.stream()
@@ -2323,7 +2323,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("References can be eagerly deeply fetched, filtered and ordered")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldEagerlyDeepFetchReferenceEntityBodiesFilteredAndOrdered(Evita evita, List<SealedEntity> originalProducts) {
 		final Map<Integer, Set<Integer>> productsWithLotsOfStores = originalProducts.stream()
@@ -2420,7 +2420,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("References can be eagerly deeply fetched, filtered by attribute and ordered")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldEagerlyDeepFetchReferenceEntityBodiesFilteredByAttributeAndOrdered(Evita evita, List<SealedEntity> originalProducts, List<SealedEntity> originalStores) {
 		final Map<Integer, SealedEntity> storesIndexedByPk = originalStores.stream()
@@ -2527,7 +2527,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("References can be eagerly fetched, filtered by attribute and ordered")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldEagerlyFetchReferencesFilteredByAttributeAndOrdered(Evita evita, List<SealedEntity> originalProducts, List<SealedEntity> originalStores) {
 		final Map<Integer, SealedEntity> storesIndexedByPk = originalStores.stream()
@@ -2613,7 +2613,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("References can be eagerly deeply fetched, filtered and ordered (via. getEntity)")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldEagerlyDeepFetchReferenceEntityBodiesFilteredAndOrderedViaGetEntity(Evita evita, List<SealedEntity> originalProducts) {
 		final Map<Integer, Set<Integer>> productsWithLotsOfStores = originalProducts.stream()
@@ -2687,7 +2687,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("References can be eagerly deeply fetched, filtered by reference attribute")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldEagerlyDeepFetchReferenceEntityBodiesFilteredByReferenceAttribute(Evita evita, List<SealedEntity> originalProducts) {
 		final SealedEntity productWithLotsOfParameters = originalProducts.stream()
@@ -2773,7 +2773,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("References can be eagerly deeply fetched, filtered and ordered by both reference and entity attribute")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldEagerlyDeepFetchReferenceEntityBodiesFilteredAndOrderedByReferenceAndEntityAttribute(Evita evita, List<SealedEntity> originalProducts, List<SealedEntity> originalParameters) {
 		final SealedEntity productWithLotsOfParameters = originalProducts.stream()
@@ -2879,7 +2879,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("References can be eagerly deeply fetched in binary form")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldEagerlyDeepFetchReferenceEntityBinaryBodies(Evita evita, List<SealedEntity> originalProducts, List<SealedEntity> originalBrands) {
 		final Set<Integer> brandsWithGroupedCategory = originalBrands.stream()
@@ -2971,7 +2971,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should return hierarchy parent id")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldReturnDirectHierarchyParentId(Evita evita, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
@@ -3010,7 +3010,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should return hierarchy parent entity reference")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldReturnDirectHierarchyParents(Evita evita, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
@@ -3046,7 +3046,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should return hierarchy parent entity references stopping at level two")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldReturnDirectHierarchyParentsUpToLevelTwo(Evita evita, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
@@ -3082,7 +3082,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should return hierarchy parent entity references stopping at distance one")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldReturnDirectHierarchyParentsWithinDistanceOne(Evita evita, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
@@ -3118,7 +3118,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should return hierarchy parent entity references stopping at node defined by attribute filter")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldReturnDirectHierarchyParentsUntilNodeSpecifiedByAttributeFilter(Evita evita, Map<Integer, SealedEntity> originalCategories, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
@@ -3168,7 +3168,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should return hierarchy parent sealed entities")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldReturnDirectHierarchyParentEntities(Evita evita, Hierarchy categoryHierarchy, Map<Integer, SealedEntity> originalCategories) {
 		evita.queryCatalog(
@@ -3207,7 +3207,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should return hierarchy parent sealed entities stopping at level two")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldReturnDirectHierarchyParentEntitiesUpToLevelTwo(Evita evita, Hierarchy categoryHierarchy, Map<Integer, SealedEntity> originalCategories) {
 		evita.queryCatalog(
@@ -3246,7 +3246,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should return hierarchy parent sealed entities stopping at distance one")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldReturnDirectHierarchyParentEntitiesWithinDistanceOne(Evita evita, Hierarchy categoryHierarchy, Map<Integer, SealedEntity> originalCategories) {
 		evita.queryCatalog(
@@ -3285,7 +3285,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should return hierarchy parent sealed entities stopping at node defined by attribute filter")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldReturnDirectHierarchyParentEntitiesUntilNodeSpecifiedByAttributeFilter(Evita evita, Map<Integer, SealedEntity> originalCategories, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
@@ -3339,7 +3339,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should return product hierarchy parent entity reference")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldReturnProductHierarchyParents(Evita evita, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
@@ -3385,7 +3385,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should return product hierarchy parent entity references stopping at level two")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldReturnProductHierarchyParentsUpToLevelTwo(Evita evita, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
@@ -3431,7 +3431,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should return product hierarchy parent entity references stopping at distance one")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldReturnProductHierarchyParentsWithinDistanceOne(Evita evita, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
@@ -3477,7 +3477,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should return product hierarchy parent entity references stopping at node defined by attribute filter")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldReturnProductHierarchyParentsUntilNodeSpecifiedByAttributeFilter(Evita evita, Map<Integer, SealedEntity> originalCategories, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
@@ -3537,7 +3537,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should return product hierarchy parent sealed entities")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldReturnProductHierarchyParentEntities(Evita evita, Hierarchy categoryHierarchy, Map<Integer, SealedEntity> originalCategories) {
 		evita.queryCatalog(
@@ -3579,7 +3579,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should return product hierarchy parent sealed entities stopping at level two")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldReturnProductHierarchyParentEntitiesUpToLevelTwo(Evita evita, Hierarchy categoryHierarchy, Map<Integer, SealedEntity> originalCategories) {
 		evita.queryCatalog(
@@ -3626,7 +3626,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should return product hierarchy parent sealed entities stopping at distance one")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldReturnProductHierarchyParentEntitiesWithinDistanceOne(Evita evita, Hierarchy categoryHierarchy, Map<Integer, SealedEntity> originalCategories) {
 		evita.queryCatalog(
@@ -3673,7 +3673,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should return product hierarchy parent sealed entities stopping at node defined by attribute filter")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldReturnProductHierarchyParentEntitiesUntilNodeSpecifiedByAttributeFilter(Evita evita, Map<Integer, SealedEntity> originalCategories, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
@@ -3735,7 +3735,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should return products sorted by exact order in the filter constraint")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldReturnProductSortedByExactOrderInFilter(Evita evita) {
 		evita.queryCatalog(
@@ -3768,7 +3768,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should return products sorted by exact order")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldReturnProductSortedByExactOrder(Evita evita) {
 		evita.queryCatalog(
@@ -3801,7 +3801,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should throw exception when accessing non-existing attributes")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldThrowExceptionWhenAccessingNonExistingAttributes(Evita evita) {
 		evita.queryCatalog(
@@ -3837,7 +3837,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should throw exception when accessing non-fetched attributes")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldThrowExceptionWhenAccessingNonFetchedAttributes(Evita evita) {
 		evita.queryCatalog(
@@ -3870,9 +3870,15 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should throw exception when accessing attributes in different language than fetched")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
-	void shouldThrowExceptionWhenAccessingAttributesFetchedInAnotherLocale(Evita evita) {
+	void shouldThrowExceptionWhenAccessingAttributesFetchedInAnotherLocale(Evita evita, List<SealedEntity> originalProducts) {
+		final SealedEntity testedProduct = originalProducts
+			.stream()
+			.filter(it -> it.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE, String.class) != null)
+			.findFirst()
+			.orElseThrow();
+
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -3880,7 +3886,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(
-							entityPrimaryKeyInSet(2),
+							entityPrimaryKeyInSet(testedProduct.getPrimaryKey()),
 							entityLocaleEquals(CZECH_LOCALE)
 						),
 						require(
@@ -3902,7 +3908,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should throw exception when accessing non-existing associated data")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldThrowExceptionWhenAccessingNonExistingAssociatedData(Evita evita) {
 		evita.queryCatalog(
@@ -3937,7 +3943,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should throw exception when accessing non-fetched associated data")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldThrowExceptionWhenAccessingNonFetchedAssociatedData(Evita evita) {
 		evita.queryCatalog(
@@ -3966,9 +3972,15 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should throw exception when accessing associated data in different language than fetched")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
-	void shouldThrowExceptionWhenAccessingAssociatedDataFetchedInAnotherLocale(Evita evita) {
+	void shouldThrowExceptionWhenAccessingAssociatedDataFetchedInAnotherLocale(Evita evita, List<SealedEntity> originalProducts) {
+		final SealedEntity testedProduct = originalProducts
+			.stream()
+			.filter(it -> it.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE, String.class) != null)
+			.findFirst()
+			.orElseThrow();
+
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -3976,7 +3988,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(
-							entityPrimaryKeyInSet(2),
+							entityPrimaryKeyInSet(testedProduct.getPrimaryKey()),
 							entityLocaleEquals(CZECH_LOCALE)
 						),
 						require(
@@ -3998,7 +4010,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should throw exception when accessing non-fetched prices")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldThrowExceptionWhenAccessingNonFetchedPrices(Evita evita) {
 		evita.queryCatalog(
@@ -4023,14 +4035,14 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should throw exception when accessing non-fetched and non-filtered prices")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldThrowExceptionWhenAccessingNonFetchedPricesAndNotFilteredPrices(Evita evita, List<SealedEntity> originalProducts) {
 		final SealedEntity exampleProduct = originalProducts.stream()
 			.filter(
-				it -> it.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).size() > 0 &&
-					it.getPrices(CURRENCY_CZK, PRICE_LIST_REFERENCE).size() > 0 &&
-					it.getPrices(CURRENCY_CZK, PRICE_LIST_B2B).size() > 0
+				it -> it.getPrices(CURRENCY_USD, PRICE_LIST_BASIC).size() > 0 &&
+					it.getPrices(CURRENCY_USD, PRICE_LIST_REFERENCE).size() > 0 &&
+					it.getPrices(CURRENCY_USD, PRICE_LIST_VIP).size() > 0
 			)
 			.findFirst()
 			.orElseThrow();
@@ -4043,7 +4055,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 						filterBy(
 							entityPrimaryKeyInSet(exampleProduct.getPrimaryKey()),
 							priceInPriceLists(PRICE_LIST_BASIC),
-							priceInCurrency(CURRENCY_CZK)
+							priceInCurrency(CURRENCY_USD)
 						),
 						require(
 							entityFetch(
@@ -4064,7 +4076,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should throw exception when accessing prices on entity without prices")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldThrowExceptionWhenAccessingPricesOnEntityWithoutPrices(Evita evita) {
 		evita.queryCatalog(
@@ -4084,7 +4096,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should throw exception when accessing parent on entity not allowing hierarchy")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldThrowExceptionWhenAccessingParentOnEntityWithoutAllowedHierarchy(Evita evita) {
 		evita.queryCatalog(
@@ -4108,7 +4120,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should throw exception when accessing non-fetched parent")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldThrowExceptionWhenAccessingNonFetchedParent(Evita evita) {
 		evita.queryCatalog(
@@ -4137,7 +4149,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should throw exception when accessing reference undefined in the schema")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldThrowExceptionWhenAccessingUndefinedReference(Evita evita) {
 		evita.queryCatalog(
@@ -4165,7 +4177,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should throw exception when accessing reference without referenceContent")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldThrowExceptionWhenAccessingReferenceOnPlainEntity(Evita evita) {
 		evita.queryCatalog(
@@ -4197,7 +4209,7 @@ public class EntityFetchingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should throw exception when accessing non-fetched reference")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldThrowExceptionWhenAccessingNonFetchedReference(Evita evita) {
 		evita.queryCatalog(

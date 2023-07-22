@@ -492,6 +492,12 @@ public class DataGenerator {
 				globalUniqueSequencer : uniqueSequencer;
 			if (String.class.equals(type)) {
 				value = generateRandomString(chosenUniqueSequencer, attributesBuilder, attribute, entityType, attributeName, fakerToUse);
+			} else if (type.isArray() && String.class.equals(type.getComponentType())) {
+				final String[] randomArray = new String[fakerToUse.random().nextInt(8)];
+				for (int i = 0; i < randomArray.length; i++) {
+					randomArray[i] = generateRandomString(chosenUniqueSequencer, attributesBuilder, attribute, entityType, attributeName, fakerToUse);
+				}
+				value = randomArray;
 			} else if (Boolean.class.equals(type)) {
 				value = fakerToUse.bool().bool();
 			} else if (Integer.class.equals(type)) {
@@ -734,19 +740,26 @@ public class DataGenerator {
 	@SuppressWarnings("unchecked")
 	private static <T extends Serializable> void generateAndSetAssociatedData(
 		@Nonnull AssociatedDataSchemaContract associatedData,
-		@Nonnull Faker genericFaker,
+		@Nonnull Faker fakerToUse,
 		@Nonnull Consumer<T> generatedValueWriter
 	) {
-		if (associatedData.getType().isArray()) {
-			if (Integer.class.equals(associatedData.getType().getComponentType())) {
-				final Integer[] newValue = new Integer[genericFaker.random().nextInt(8)];
+		final Class<? extends Serializable> type = associatedData.getType();
+		if (type.isArray()) {
+			if (Integer.class.equals(type.getComponentType())) {
+				final Integer[] newValue = new Integer[fakerToUse.random().nextInt(8)];
 				for (int i = 0; i < newValue.length; i++) {
-					newValue[i] = genericFaker.random().nextInt(10000);
+					newValue[i] = fakerToUse.random().nextInt(10000);
 				}
 				generatedValueWriter.accept((T) newValue);
+			} else if (String.class.equals(type.getComponentType())) {
+				final String[] randomArray = new String[fakerToUse.random().nextInt(8)];
+				for (int i = 0; i < randomArray.length; i++) {
+					randomArray[i] = fakerToUse.company().name();
+				}
+				generatedValueWriter.accept((T) randomArray);
 			}
 		} else {
-			final Constructor<? extends Serializable> defaultConstructor = REFLECTION_LOOKUP.findConstructor(associatedData.getType(), Set.of(new ArgumentKey("root", DataItem.class)));
+			final Constructor<? extends Serializable> defaultConstructor = REFLECTION_LOOKUP.findConstructor(type, Set.of(new ArgumentKey("root", DataItem.class)));
 			try {
 				generatedValueWriter.accept(
 					(T) defaultConstructor.newInstance(DataItemMap.EMPTY)

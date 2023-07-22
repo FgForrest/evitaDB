@@ -265,7 +265,8 @@ public class ClassSchemaAnalyzer {
 		} else if (OptionalLong.class.isAssignableFrom(getter.getReturnType())) {
 			theType = long.class;
 		} else if (Collection.class.isAssignableFrom(getter.getReturnType())) {
-			return GenericsUtils.getGenericTypeFromCollection(modelClass, getter.getGenericReturnType());
+			return Array.newInstance(GenericsUtils.getGenericTypeFromCollection(modelClass, getter.getGenericReturnType()), 0)
+				.getClass();
 		} else {
 			theType = getter.getReturnType();
 		}
@@ -295,7 +296,8 @@ public class ClassSchemaAnalyzer {
 		} else if (OptionalLong.class.isAssignableFrom(field.getType())) {
 			theType = long.class;
 		} else if (Collection.class.isAssignableFrom(field.getType())) {
-			return GenericsUtils.getGenericTypeFromCollection(modelClass, field.getType());
+			return Array.newInstance(GenericsUtils.getGenericTypeFromCollection(modelClass, field.getType()), 0)
+				.getClass();
 		} else {
 			theType = field.getType();
 		}
@@ -325,7 +327,8 @@ public class ClassSchemaAnalyzer {
 		} else if (OptionalLong.class.isAssignableFrom(recordComponent.getType())) {
 			theType = long.class;
 		} else if (Collection.class.isAssignableFrom(recordComponent.getType())) {
-			return GenericsUtils.getGenericTypeFromCollection(modelClass, recordComponent.getType());
+			return Array.newInstance(GenericsUtils.getGenericTypeFromCollection(modelClass, recordComponent.getType()), 0)
+				.getClass();
 		} else {
 			theType = recordComponent.getType();
 		}

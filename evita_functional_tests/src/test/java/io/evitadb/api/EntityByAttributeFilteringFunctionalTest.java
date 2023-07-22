@@ -96,7 +96,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
 public class EntityByAttributeFilteringFunctionalTest {
-	private static final String HUNDRED_PRODUCTS = "HundredProducts";
+	private static final String HUNDRED_PRODUCTS = "HundredProductsForAttributeTesting";
 	private static final String ATTRIBUTE_SIZE = "size";
 	private static final String ATTRIBUTE_CREATED = "created";
 	private static final String ATTRIBUTE_CURRENCY = "currency";

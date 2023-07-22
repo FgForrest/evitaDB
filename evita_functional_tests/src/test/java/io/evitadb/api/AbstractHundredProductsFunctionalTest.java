@@ -54,10 +54,12 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_PRIORITY;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class AbstractFiftyProductsFunctionalTest {
+public class AbstractHundredProductsFunctionalTest {
 	public static final String ATTRIBUTE_CATEGORY_LABEL = "label";
 	public static final String ATTRIBUTE_CATEGORY_SHADOW = "shadow";
+	public static final String ATTRIBUTE_MARKETS = "markets";
 	public static final String ATTRIBUTE_OPTIONAL_AVAILABILITY = "optionalAvailability";
+	public static final String ASSOCIATED_DATA_MARKETS = "markets";
 	private static final int SEED = 40;
 	private final DataGenerator dataGenerator = new DataGenerator();
 
@@ -156,6 +158,8 @@ public class AbstractFiftyProductsFunctionalTest {
 						builder -> {
 							builder
 								.withAttribute(ATTRIBUTE_OPTIONAL_AVAILABILITY, Boolean.class, whichIs -> whichIs.filterable().nullable())
+								.withAttribute(ATTRIBUTE_MARKETS, String[].class)
+								.withAssociatedData(ASSOCIATED_DATA_MARKETS, String[].class)
 								.withReferenceToEntity(
 									Entities.CATEGORY,
 									Entities.CATEGORY,
@@ -188,7 +192,7 @@ public class AbstractFiftyProductsFunctionalTest {
 					randomEntityPicker,
 					SEED
 				)
-				.limit(50)
+				.limit(100)
 				.map(session::upsertEntity)
 				.toList();
 
