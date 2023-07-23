@@ -45,7 +45,8 @@ entityFetch(
         optional one or more constraints allowing you to instruct evitaDB to fetch the entity contents; 
         one or all of the constraints may be present:
         <ul>
-            <li>[attributeContent/attributeContentAll](#attribute-content)</li>
+            <li>[attributeContent](#attribute-content)</li>
+            <li>[attributeContentAll](#attribute-content-all)</li>
             <li>[associatedDataContent/associatedDataContentAll](#associated-data-content)</li>
             <li>[dataInLocale](#data-in-locale)</li>
             <li>[hierarchyContent](#hierarchy-content)</li>
