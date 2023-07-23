@@ -1,7 +1,7 @@
 ---
 title: Paging
 perex: |
-  Paging requests help to traverse large lists of records by splitting them into several parts that are requested 
+  Paging request constraints help to traverse large lists of records by splitting them into several parts that are requested 
   separately. This technique is used to reduce the amount of data transferred over the network and to reduce the load 
   on the server. evitaDB supports several ways to paginate query results, which are described in this section.
 date: '23.7.2023'

@@ -1,0 +1,11 @@
+query(
+    collection('Product'),
+    filterBy(
+        entityPrimaryKeyInSet(63049)
+    ),
+    require(
+        entityFetch(
+            attributeContentAll()
+        )
+    )
+)

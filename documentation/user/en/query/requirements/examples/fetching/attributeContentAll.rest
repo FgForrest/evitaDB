@@ -1,0 +1,14 @@
+POST /rest/evita/product/query
+
+{
+  "filterBy" : {
+    "entityPrimaryKeyInSet" : [
+      63049
+    ]
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContentAll" : true
+    }
+  }
+}

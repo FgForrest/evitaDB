@@ -1,0 +1,20 @@
+{
+  queryProduct(
+    filterBy: {
+      entityPrimaryKeyInSet: [
+        63049
+      ],
+      entityLocaleEquals: en
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+          name
+        }
+      }
+    }
+  }
+}

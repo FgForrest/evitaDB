@@ -1,0 +1,18 @@
+POST /rest/evita/product/query
+
+{
+  "filterBy" : {
+    "entityPrimaryKeyInSet" : [
+      63049
+    ],
+    "entityLocaleEquals" : "en"
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code",
+        "name"
+      ]
+    }
+  }
+}

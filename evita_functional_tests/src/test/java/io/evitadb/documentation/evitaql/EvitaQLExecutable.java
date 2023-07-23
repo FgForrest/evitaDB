@@ -39,6 +39,7 @@ import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.PriceInCurrency;
 import io.evitadb.api.query.parser.DefaultQueryParser;
 import io.evitadb.api.query.require.AttributeContent;
+import io.evitadb.api.query.require.DataInLocales;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceContentMode;
@@ -52,6 +53,7 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.PaginatedList;
@@ -315,8 +317,15 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 					.stream()
 					.findFirst()
 			);
+		boolean localizedQuery = ofNullable(query.getFilterBy())
+			.map(filterBy -> QueryUtils.findConstraint(filterBy, EntityLocaleEquals.class))
+			.isPresent() ||
+			ofNullable(query.getRequire())
+				.map(require -> QueryUtils.findConstraint(require, DataInLocales.class))
+				.isPresent();
 
 		// collect headers for the MarkDown table
+		final String entityType = query.getCollection().getEntityType();
 		final String[] headers = Stream.of(
 				Stream.of(ENTITY_PRIMARY_KEY),
 				entityFetch
@@ -324,8 +333,16 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 							it, AttributeContent.class, SeparateEntityContentRequireContainer.class
 						)
 						.stream()
-						.map(AttributeContent::getAttributeNames)
-						.flatMap(Arrays::stream)
+						.flatMap(attributeContent -> {
+							if (attributeContent.isAllRequested()) {
+								final Stream<AttributeSchemaContract> attributes = session.getEntitySchemaOrThrow(entityType).getAttributes().values().stream();
+								return (localizedQuery ? attributes.filter(AttributeSchemaContract::isLocalized) : attributes)
+									.map(AttributeSchemaContract::getName)
+									.filter(attrName -> response.getRecordData().stream().anyMatch(entity -> entity.getAttributeValue(attrName).isPresent()));
+							} else {
+								return Arrays.stream(attributeContent.getAttributeNames());
+							}
+						})
 						.distinct())
 					.orElse(Stream.empty()),
 				entityFetch
@@ -334,14 +351,25 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 						)
 						.stream()
 						.flatMap(refCnt -> {
-							final SealedEntitySchema schema = session.getEntitySchemaOrThrow(query.getCollection().getEntityType());
+							final SealedEntitySchema schema = session.getEntitySchemaOrThrow(entityType);
 							return Arrays.stream(refCnt.getReferenceNames()).filter(Objects::nonNull)
 								.map(schema::getReferenceOrThrowException)
 								.flatMap(ref -> {
 									final AttributeContent attributeContent = QueryUtils.findConstraint(refCnt, AttributeContent.class, SeparateEntityContentRequireContainer.class);
 									if (attributeContent != null) {
-										return Arrays.stream(attributeContent.getAttributeNames())
-											.map(attr -> REF_LINK + ref.getName() + ATTR_LINK + attr);
+										if (attributeContent.isAllRequested()) {
+											final Stream<AttributeSchemaContract> attributes = ref.getAttributes().values().stream();
+											return (localizedQuery ? attributes.filter(AttributeSchemaContract::isLocalized) : attributes)
+												.map(AttributeSchemaContract::getName)
+												.filter(
+													attrName -> response.getRecordData().stream()
+														.flatMap(entity -> entity.getReferences(ref.getName()).stream())
+														.anyMatch(reference -> reference.getAttributeValue(attrName).isPresent())
+												);
+										} else {
+											return Arrays.stream(attributeContent.getAttributeNames())
+												.map(attr -> REF_LINK + ref.getName() + ATTR_LINK + attr);
+										}
 									} else {
 										return Stream.empty();
 									}
