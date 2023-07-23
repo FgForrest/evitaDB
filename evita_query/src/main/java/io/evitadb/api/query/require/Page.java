@@ -76,7 +76,7 @@ public class Page extends AbstractRequireConstraintLeaf implements GenericConstr
 		);
 
 		Assert.isTrue(
-			size == null || number >= 0,
+			size == null || size >= 0,
 			"Page size must be greater than or equal to zero."
 		);
 	}

@@ -1119,7 +1119,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 					"}," +
 					"\"require\": {" +
 					"  \"page\": {" +
-					"     \"number\": 0," +
+					"     \"number\": 1," +
 					"     \"size\": %d"+
 					"    }" +
 					"  }" +
@@ -1182,7 +1182,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 					"}," +
 					"\"require\": {" +
 					"  \"page\": {" +
-					"     \"number\": 0," +
+					"     \"number\": 1," +
 					"     \"size\": 30"+
 					"    }" +
 					"  }" +
@@ -1228,7 +1228,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 				"}," +
 				"\"require\": {" +
 				"  \"page\": {" +
-				"     \"number\": 0," +
+				"     \"number\": 1," +
 				"     \"size\": 5"+
 				"    }" +
 				"  }" +
