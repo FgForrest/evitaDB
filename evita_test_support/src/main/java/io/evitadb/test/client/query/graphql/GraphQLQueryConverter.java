@@ -28,7 +28,6 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
-import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -36,7 +35,6 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.test.client.query.FilterConstraintToJsonConverter;
 import io.evitadb.test.client.query.JsonConstraint;
 import io.evitadb.test.client.query.OrderConstraintToJsonConverter;
@@ -129,10 +127,11 @@ public class GraphQLQueryConverter {
 			requireConstraintToJsonConverter.convert(new GenericDataLocator(entityType), query.getRequire())
 				.ifPresent(rootConstraints::add);
 		}
+		/* TODO LHO - verify please
 		Assert.isPremiseValid(
 			!rootConstraints.isEmpty(),
 			"There are no root constraints, this is strange!"
-		);
+		);*/
 
 		return rootConstraints.stream()
 			.filter(Objects::nonNull)

@@ -25,9 +25,10 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -66,6 +67,15 @@ public class Strip extends AbstractRequireConstraintLeaf implements GenericConst
 		super(
 			Optional.ofNullable(offset).orElse(0),
 			Optional.ofNullable(limit).orElse(20)
+		);
+		Assert.isTrue(
+			offset == null || offset >= 0,
+			"Record offset must be greater than or equal to zero."
+		);
+
+		Assert.isTrue(
+			limit == null || limit >= 0,
+			"Record limit must be greater than or equal to zero."
 		);
 	}
 

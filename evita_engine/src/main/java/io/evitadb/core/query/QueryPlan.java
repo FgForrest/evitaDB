@@ -261,7 +261,7 @@ public class QueryPlan {
 		return Arrays.stream(
 				sorter.sortAndSlice(
 					queryContext, filteringFormula,
-					firstRecordOffset,
+					Math.max(0, firstRecordOffset),
 					firstRecordOffset + evitaRequest.getLimit()
 				)
 			)

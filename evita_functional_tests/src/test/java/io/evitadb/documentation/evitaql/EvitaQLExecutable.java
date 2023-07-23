@@ -55,6 +55,7 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.dataType.StripList;
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import io.evitadb.documentation.JavaPrettyPrintingVisitor;
 import io.evitadb.documentation.UserDocumentationTest.CreateSnippets;
@@ -160,7 +161,9 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 				allow(EntityClassifier.class),
 				allow(EntityClassifierWithParent.class),
 				allow(Hierarchy.class),
-				allow(LevelInfo.class)
+				allow(LevelInfo.class),
+				allow(PaginatedList.class),
+				allow(StripList.class)
 			)
 		);
 		OBJECT_MAPPER.registerModule(new Jdk8Module());

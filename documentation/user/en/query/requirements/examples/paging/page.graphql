@@ -1,0 +1,11 @@
+{
+  queryProduct(
+
+  ) {
+    recordPage {
+      data {
+        primaryKey
+      }
+    }
+  }
+}

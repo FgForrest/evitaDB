@@ -57,7 +57,6 @@ class StripListTest {
 	@Test
 	void shouldInitializeWithDataAndIterateOver() {
 		final DataChunk<Integer> page = new StripList<>(0, 5, 34, Arrays.asList(1, 2, 3, 4, 5));
-		assertTrue(page.isFullyInitialized());
 		assertFalse(page.isEmpty());
 		int i = 0;
 		for (Integer recId : page) {

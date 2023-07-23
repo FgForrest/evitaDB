@@ -1,0 +1,10 @@
+POST /rest/evita/product/query
+
+{
+  "require" : {
+    "page" : {
+      "number" : 2,
+      "size" : 5
+    }
+  }
+}
