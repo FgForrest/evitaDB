@@ -119,6 +119,16 @@ no order was specified in the query.
 <MDInclude sourceVariable="recordPage">[The data chunk with paginated data](/documentation/user/en/query/requirements/examples/paging/page.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+<MDInclude sourceVariable="recordPage">[The data chunk with paginated data](/documentation/user/en/query/requirements/examples/paging/page.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="recordPage">[The data chunk with paginated data](/documentation/user/en/query/requirements/examples/paging/page.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>
 
@@ -217,6 +227,16 @@ no order was specified in the query.
 <LanguageSpecific to="evitaql,java">
 
 <MDInclude sourceVariable="recordPage">[The data chunk with strip list](/documentation/user/en/query/requirements/examples/paging/strip.evitaql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+<MDInclude sourceVariable="recordStrip">[The data chunk with strip list](/documentation/user/en/query/requirements/examples/paging/strip.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="recordPage">[The data chunk with strip list](/documentation/user/en/query/requirements/examples/paging/strip.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
