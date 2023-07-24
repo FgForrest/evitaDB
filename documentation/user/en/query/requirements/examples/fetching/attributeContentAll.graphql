@@ -3,16 +3,21 @@
     filterBy: {
       entityPrimaryKeyInSet: [
         64703
-      ],
-      entityLocaleEquals: en
+      ]
     }
   ) {
     recordPage {
       data {
         primaryKey
         attributes {
+          relatedFiles
           code
-          name
+          visibility
+          breadCrumb
+          validity
+          status
+          changed
+          order
         }
       }
     }

@@ -109,10 +109,20 @@ The query returns the following attributes of the `Product` entity:
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetch with named attributes](/documentation/user/en/query/requirements/examples/fetching/attributeContent.evitaql.md)</MDInclude>
 
-As you can see, the name is in the English localization thanks to the `entityLocaleEquals` filter constraint in 
-the query.
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+<MDInclude sourceVariable="data.queryBrand.recordPage">[The result of an entity fetch with named attributes](/documentation/user/en/query/requirements/examples/fetching/attributeContent.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetch with named attributes](/documentation/user/en/query/requirements/examples/fetching/attributeContent.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+As you can see, the name is in the English localization thanks to the `entityLocaleEquals` filter constraint in 
+the query.
 
 </Note>
 
@@ -145,9 +155,19 @@ The query returns the following attributes of the `Product` entity:
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetch with all attributes](/documentation/user/en/query/requirements/examples/fetching/attributeContentAll.evitaql.md)</MDInclude>
 
-All the localized attributes are missing, because there is no localization context present in the query.
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+<MDInclude sourceVariable="data.queryBrand.recordPage">[The result of an entity fetch with all attributes](/documentation/user/en/query/requirements/examples/fetching/attributeContentAll.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetch with all attributes](/documentation/user/en/query/requirements/examples/fetching/attributeContentAll.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+All the localized attributes are missing, because there is no localization context present in the query.
 
 </Note>
 

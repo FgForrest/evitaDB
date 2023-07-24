@@ -1,5 +1,5 @@
-| entityPrimaryKey | ratingVotes | rating | catalogNumber | minOrderAmount | brandCode | order | stepOrderAmount | visibility  | display-size | codeShort             | unit | isAlias | subType  | status   | changed                   | code                  | availability       | saleRestriction       | ean        | breadCrumb         | orderedQuantity | stockItemPrimaryKey |
-| ---------------- | ----------- | ------ | ------------- | -------------- | --------- | ----- | --------------- | ----------- | ------------ | --------------------- | ---- | ------- | -------- | -------- | ------------------------- | --------------------- | ------------------ | --------------------- | ---------- | ------------------ | --------------- | ------------------- |
-| 63049            | 0           | 0      | '3872990'     | 1.00000        | 'apple'   | 0     | 1.00000         | 'INVISIBLE' | 13.30000     | 'macbook-pro-13-2022' | 'ks' | false   | 'MASTER' | 'ACTIVE' | 2023-06-25T21:40:03+02:00 | 'macbook-pro-13-2022' | 'ALWAYS_AVAILABLE' | 'WITHOUT_RESTRICTION' | '15491963' | 'Laptops/Macbooks' | 0.00000         | 1450                |
+| entityPrimaryKey | code      | visibility | breadCrumb | status   | changed                   | order |
+| ---------------- | --------- | ---------- | ---------- | -------- | ------------------------- | ----- |
+| 64703            | 'samsung' | 'VISIBLE'  | ''         | 'ACTIVE' | 2023-06-25T21:36:22+02:00 | 0     |
 
 ###### **Page** 1/1 **(Total number of results: 1)**

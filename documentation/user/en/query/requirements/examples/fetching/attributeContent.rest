@@ -1,9 +1,9 @@
-POST /rest/evita/product/query
+POST /rest/evita/brand/query
 
 {
   "filterBy" : {
     "entityPrimaryKeyInSet" : [
-      63049
+      64703
     ],
     "entityLocaleEquals" : "en"
   },

@@ -3,9 +3,9 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 	session -> {
 		return session.querySealedEntity(
 			query(
-				collection("Product"),
+				collection("Brand"),
 				filterBy(
-					entityPrimaryKeyInSet(63049)
+					entityPrimaryKeyInSet(64703)
 				),
 				require(
 					entityFetch(

@@ -209,7 +209,7 @@ public class GraphQLQueryConverter {
 
 	@Nonnull
 	private String constructQuery(@Nonnull String collection, @Nonnull String header, @Nonnull String outputFields) {
-		final String arguments = header.isEmpty() ? "" : "(\n" + header + "\n)";
+		final String arguments = header.isEmpty() ? "" : "(\n" + header + "\n  )";
 		return "{\n" +
 			"  query" + StringUtils.toPascalCase(collection) + arguments + " {\n" +
 			outputFields + "\n" +

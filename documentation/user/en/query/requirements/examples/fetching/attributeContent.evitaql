@@ -1,7 +1,7 @@
 query(
-    collection('Product'),
+    collection('Brand'),
     filterBy(
-        entityPrimaryKeyInSet(63049),
+        entityPrimaryKeyInSet(64703),
         entityLocaleEquals('en')
     ),
     require(
