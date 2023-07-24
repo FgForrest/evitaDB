@@ -1379,10 +1379,12 @@ public class DataGenerator {
 			);
 
 			// randomly delete hierarchy placement
-			if (detachedBuilder.getParent().isPresent() && genericFaker.random().nextInt(3) == 0) {
-				detachedBuilder.removeParent();
+			if (detachedBuilder.getSchema().isWithHierarchy()) {
+				if (detachedBuilder.getParent().isPresent() && genericFaker.random().nextInt(3) == 0) {
+					detachedBuilder.removeParent();
+				}
+				generateRandomHierarchy(schema, referencedEntityResolver, getHierarchyIfNeeded(hierarchies, schema), genericFaker, detachedBuilder);
 			}
-			generateRandomHierarchy(schema, referencedEntityResolver, getHierarchyIfNeeded(hierarchies, schema), genericFaker, detachedBuilder);
 
 			final List<Locale> usedLocales = pickRandomFromSet(genericFaker, allLocales);
 
