@@ -121,7 +121,7 @@ no order was specified in the query.
 </LanguageSpecific>
 <LanguageSpecific to="graphql">
 
-<MDInclude sourceVariable="recordPage">[The data chunk with paginated data](/documentation/user/en/query/requirements/examples/paging/page.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The data chunk with paginated data](/documentation/user/en/query/requirements/examples/paging/page.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 <LanguageSpecific to="rest">
@@ -231,7 +231,7 @@ no order was specified in the query.
 </LanguageSpecific>
 <LanguageSpecific to="graphql">
 
-<MDInclude sourceVariable="recordStrip">[The data chunk with strip list](/documentation/user/en/query/requirements/examples/paging/strip.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.recordStrip">[The data chunk with strip list](/documentation/user/en/query/requirements/examples/paging/strip.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 <LanguageSpecific to="rest">

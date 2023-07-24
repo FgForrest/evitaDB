@@ -53,12 +53,12 @@ import java.util.function.Consumer;
  */
 public class HierarchyOfConverter extends RequireConverter {
 
-	private final EntityFetchConverter entityFetchBuilder;
+	private final EntityFetchConverter entityFetchConverter;
 
 	public HierarchyOfConverter(@Nonnull CatalogSchemaContract catalogSchema,
 	                            @Nonnull GraphQLInputJsonPrinter inputJsonPrinter) {
 		super(catalogSchema, inputJsonPrinter);
-		this.entityFetchBuilder = new EntityFetchConverter(catalogSchema, inputJsonPrinter);
+		this.entityFetchConverter = new EntityFetchConverter(catalogSchema, inputJsonPrinter);
 	}
 
 	public void convert(@Nonnull GraphQLOutputFieldsBuilder fieldsBuilder,
@@ -353,7 +353,7 @@ public class HierarchyOfConverter extends RequireConverter {
 			.addPrimitiveField(LevelInfoDescriptor.PARENT_PRIMARY_KEY)
 			.addPrimitiveField(LevelInfoDescriptor.LEVEL)
 			.addObjectField(LevelInfoDescriptor.ENTITY, entityBuilder ->
-				entityFetchBuilder.convert(entityBuilder, entityType, locale, entityFetch));
+				entityFetchConverter.convert(entityBuilder, entityType, locale, entityFetch));
 
 		if (statistics != null) {
 			if (statistics.getStatisticsType().contains(StatisticsType.QUERIED_ENTITY_COUNT)) {
