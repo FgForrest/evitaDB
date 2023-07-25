@@ -23,7 +23,6 @@
 
 package io.evitadb.api;
 
-import io.evitadb.api.EvitaSessionContract.DeletedHierarchy;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.mock.CategoryInterface;
 import io.evitadb.api.mock.ProductCategoryInterface;
@@ -32,6 +31,7 @@ import io.evitadb.api.mock.TestEntity;
 import io.evitadb.api.proxy.SealedEntityReferenceProxy;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
+import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -675,6 +675,42 @@ public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctio
 			originalCategories,
 			null, false
 		);
+	}
+
+	@DisplayName("Should return same proxy instances for repeated calls")
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldReturnSameInstancesForRepeatedCalls(EvitaSessionContract evitaSession) {
+		final Query query = query(
+			collection(Entities.PRODUCT),
+			filterBy(entityPrimaryKeyInSet(1)),
+			require(entityFetchAll())
+		);
+
+		final ProductInterface product = evitaSession.queryOne(query, ProductInterface.class)
+			.orElseThrow();
+
+		for(int i = 0; i < 2; i++) {
+			final ProductCategoryInterface[] array1 = product.getProductCategoriesAsArray();
+			final ProductCategoryInterface[] array2 = product.getProductCategoriesAsArray();
+			for (int j = 0; j < array1.length; j++) {
+				final ProductCategoryInterface productCategory1 = array1[j];
+				final ProductCategoryInterface productCategory2 = array2[j];
+
+				assertSame(productCategory1, productCategory2);
+				assertSame(productCategory1.getCategory(), productCategory2.getCategory());
+			}
+
+			final CategoryInterface[] catArray1 = product.getCategoriesAsArray();
+			final CategoryInterface[] catArray2 = product.getCategoriesAsArray();
+			for (int j = 0; j < catArray1.length; j++) {
+				final CategoryInterface category1 = catArray1[j];
+				final CategoryInterface category2 = catArray2[j];
+
+				assertSame(category1, category2);
+			}
+		}
+
 	}
 
 	@DisplayName("Should return list of entity references")

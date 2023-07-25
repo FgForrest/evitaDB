@@ -26,7 +26,6 @@ package io.evitadb.api.proxy.impl.entity;
 import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
@@ -283,7 +282,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> singleEntityResult(
 		@Nonnull String cleanReferenceName,
-		@Nonnull Class<? extends EntityClassifier> itemType,
+		@Nonnull Class<?> itemType,
 		@Nonnull Function<ReferenceDecorator, Optional<SealedEntity>> entityExtractor,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
@@ -305,7 +304,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> listOfEntityResult(
 		@Nonnull String cleanReferenceName,
-		@Nonnull Class<? extends EntityClassifier> itemType,
+		@Nonnull Class<?> itemType,
 		@Nonnull Function<ReferenceDecorator, Optional<SealedEntity>> entityExtractor,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
@@ -325,7 +324,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setOfEntityResult(
 		@Nonnull String cleanReferenceName,
-		@Nonnull Class<? extends EntityClassifier> itemType,
+		@Nonnull Class<?> itemType,
 		@Nonnull Function<ReferenceDecorator, Optional<SealedEntity>> entityExtractor,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
@@ -345,7 +344,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> arrayOfEntityResult(
 		@Nonnull String cleanReferenceName,
-		@Nonnull Class<? extends EntityClassifier> itemType,
+		@Nonnull Class<?> itemType,
 		@Nonnull Function<ReferenceDecorator, Optional<SealedEntity>> entityExtractor,
 		UnaryOperator<Object> resultWrapper) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
@@ -442,7 +441,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull String cleanReferenceName,
 		@Nullable Class<?> collectionType,
-		@Nonnull Class<? extends EntityClassifier> itemType,
+		@Nonnull Class<?> itemType,
 		@Nullable Entity entityInstance,
 		@Nullable EntityRef entityRefInstance,
 		@Nonnull UnaryOperator<Object> resultWrapper

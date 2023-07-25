@@ -51,6 +51,7 @@ import io.evitadb.api.requestResponse.EvitaEntityResponse;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
+import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -93,6 +94,7 @@ import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import io.grpc.ManagedChannel;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
@@ -199,7 +201,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	/**
 	 * Contains reference to the proxy factory that is used to create proxies for the entities.
 	 */
-	private final ProxyFactory proxyFactory;
+	@Getter private final ProxyFactory proxyFactory;
 	/**
 	 * Flag that is se to TRUE when Evita. is ready to serve application calls.
 	 * Aim of this flag is to refuse any calls after {@link #close()} method has been called.

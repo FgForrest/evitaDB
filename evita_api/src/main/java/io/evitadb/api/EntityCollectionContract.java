@@ -23,12 +23,12 @@
 
 package io.evitadb.api;
 
-import io.evitadb.api.EvitaSessionContract.DeletedHierarchy;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;

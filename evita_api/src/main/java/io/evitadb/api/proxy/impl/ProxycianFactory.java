@@ -51,6 +51,7 @@ import one.edee.oss.proxycian.bytebuddy.ByteBuddyProxyGenerator;
 import one.edee.oss.proxycian.recipe.Advice;
 import one.edee.oss.proxycian.recipe.ProxyRecipe;
 import one.edee.oss.proxycian.trait.delegate.DelegateCallsAdvice;
+import one.edee.oss.proxycian.trait.localDataStore.LocalDataStoreAdvice;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -78,6 +79,7 @@ public class ProxycianFactory implements ProxyFactory {
 		new Class<?>[]{cacheKey.type()},
 		new Advice[]{
 			new DelegateCallsAdvice<>(SealedEntityProxy.class, Function.identity(), true),
+			LocalDataStoreAdvice.INSTANCE,
 			EntityContractAdvice.INSTANCE
 		}
 	);
@@ -89,6 +91,7 @@ public class ProxycianFactory implements ProxyFactory {
 		new Class<?>[]{cacheKey.type()},
 		new Advice[]{
 			new DelegateCallsAdvice<>(SealedEntityReferenceProxy.class, Function.identity(), true),
+			LocalDataStoreAdvice.INSTANCE,
 			EntityReferenceContractAdvice.INSTANCE
 		}
 	);
@@ -345,10 +348,11 @@ public class ProxycianFactory implements ProxyFactory {
 		@Nonnull ProxyRecipe recipe
 	) {
 		final ProxyRecipe theRecipe = new ProxyRecipe(
-			recipe.getInterfacesWith(SealedEntityProxy.class),
+			recipe.getInterfaces(),
 			ArrayUtils.mergeArrays(
 				new Advice[]{
 					new DelegateCallsAdvice<>(SealedEntityProxy.class, Function.identity(), true),
+					LocalDataStoreAdvice.INSTANCE,
 					EntityContractAdvice.INSTANCE
 				},
 				recipe.getAdvices()
@@ -375,10 +379,11 @@ public class ProxycianFactory implements ProxyFactory {
 		@Nonnull ProxyRecipe recipe
 	) {
 		final ProxyRecipe theRecipe = new ProxyRecipe(
-			recipe.getInterfacesWith(SealedEntityReferenceProxy.class),
+			recipe.getInterfaces(),
 			ArrayUtils.mergeArrays(
 				new Advice[]{
 					new DelegateCallsAdvice<>(SealedEntityReferenceProxy.class, Function.identity(), true),
+					LocalDataStoreAdvice.INSTANCE,
 					EntityReferenceContractAdvice.INSTANCE
 				},
 				recipe.getAdvices()

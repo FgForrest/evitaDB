@@ -32,6 +32,7 @@ import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
 import one.edee.oss.proxycian.recipe.ProxyRecipe;
+import one.edee.oss.proxycian.trait.localDataStore.LocalDataStoreProvider;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
@@ -51,7 +52,7 @@ import static io.evitadb.api.proxy.impl.ProxycianFactory.DEFAULT_ENTITY_REFERENC
  */
 @EqualsAndHashCode(of = {"sealedEntity", "proxyClass"})
 @RequiredArgsConstructor(access = AccessLevel.PROTECTED)
-class AbstractEntityProxyState implements Serializable {
+class AbstractEntityProxyState implements Serializable, LocalDataStoreProvider {
 	@Serial private static final long serialVersionUID = -6935480192166155348L;
 	/**
 	 * The sealed entity that is being proxied.
@@ -74,6 +75,14 @@ class AbstractEntityProxyState implements Serializable {
 	 * The reflection lookup instance used to access the reflection data in a memoized fashion.
 	 */
 	@Nonnull protected transient ReflectionLookup reflectionLookup;
+	/**
+	 * Cache for the already generated proxies so that the same method call returns the same instance.
+	 */
+	@Nonnull private transient Map<ProxyInstanceCacheKey, Object> generatedProxyObjects = new ConcurrentHashMap<>();
+	/**
+	 * The local data store that is used to store the data that are not part of the sealed entity.
+	 */
+	private Map<String, Serializable> localDataStore;
 
 	/**
 	 * Returns the sealed entity that is being proxied.
@@ -107,14 +116,31 @@ class AbstractEntityProxyState implements Serializable {
 		return sealedEntity.getSchema();
 	}
 
+	@Override
+	public Map<String, Serializable> getOrCreateLocalDataStore() {
+		if (localDataStore == null) {
+			localDataStore = new ConcurrentHashMap<>();
+		}
+		return localDataStore;
+	}
+
+	@Override
+	public Map<String, Serializable> getLocalDataStoreIfPresent() {
+		return localDataStore;
+	}
+
 	/**
 	 * Method allows to create a new proxy instance of the given sealed entity, using actual proxy recipe configuration.
 	 */
 	@Nonnull
 	public <T> T createEntityProxy(@Nonnull Class<T> entityContract, @Nonnull SealedEntity sealedEntity) {
-		return ProxycianFactory.createProxy(
-			entityContract, recipes, collectedRecipes, sealedEntity, getReflectionLookup(),
-			cacheKey -> collectedRecipes.computeIfAbsent(cacheKey, DEFAULT_ENTITY_RECIPE)
+		//noinspection unchecked
+		return (T) generatedProxyObjects.computeIfAbsent(
+			new ProxyInstanceCacheKey(entityContract, sealedEntity.getType(), sealedEntity.getPrimaryKey(), ProxyType.ENTITY),
+			key -> ProxycianFactory.createProxy(
+				key.proxyClass(), recipes, collectedRecipes, sealedEntity, getReflectionLookup(),
+				cacheKey -> collectedRecipes.computeIfAbsent(cacheKey, DEFAULT_ENTITY_RECIPE)
+			)
 		);
 	}
 
@@ -123,9 +149,13 @@ class AbstractEntityProxyState implements Serializable {
 	 */
 	@Nonnull
 	public <T> T createReferenceProxy(@Nonnull Class<T> referenceContract, @Nonnull ReferenceContract reference) {
-		return ProxycianFactory.createProxy(
-			referenceContract, recipes, collectedRecipes, sealedEntity, reference, getReflectionLookup(),
-			cacheKey -> collectedRecipes.computeIfAbsent(cacheKey, DEFAULT_ENTITY_REFERENCE_RECIPE)
+		//noinspection unchecked
+		return (T) generatedProxyObjects.computeIfAbsent(
+			new ProxyInstanceCacheKey(referenceContract, reference.getReferenceName(), reference.getReferencedPrimaryKey(), ProxyType.REFERENCE),
+			key -> ProxycianFactory.createProxy(
+				key.proxyClass(), recipes, collectedRecipes, sealedEntity, reference, getReflectionLookup(),
+				cacheKey -> collectedRecipes.computeIfAbsent(cacheKey, DEFAULT_ENTITY_REFERENCE_RECIPE)
+			)
 		);
 	}
 
@@ -137,6 +167,31 @@ class AbstractEntityProxyState implements Serializable {
 		ois.defaultReadObject();
 		this.reflectionLookup = ReflectionLookup.NO_CACHE_INSTANCE;
 		this.collectedRecipes = new ConcurrentHashMap<>(recipes);
+		this.generatedProxyObjects = new ConcurrentHashMap<>();
+	}
+
+	/**
+	 * Types of generated proxies.
+	 */
+	private enum ProxyType {
+		ENTITY,
+		REFERENCE
+	}
+
+	/**
+	 * Cache key for generated proxies.
+	 *
+	 * @param proxyClass class of the proxy contract
+	 * @param identifier entity of reference name
+	 * @param primaryKey primary key of the object being wrapped
+	 * @param proxyType  the type of the proxy (entity or reference)
+	 */
+	private record ProxyInstanceCacheKey(
+		@Nonnull Class<?> proxyClass,
+		@Nonnull String identifier,
+		@Nonnull int primaryKey,
+		@Nonnull ProxyType proxyType
+	) {
 	}
 
 }
