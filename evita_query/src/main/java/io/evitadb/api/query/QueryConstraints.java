@@ -1841,18 +1841,18 @@ public interface QueryConstraints {
 	/**
 	 * This `primaryKey` is query that accepts set of {@link Integer}
 	 * that represents primary keys of the entities that should be returned.
-	 *
+	 * 
 	 * Function returns true if entity primary key is part of the passed set of integers.
 	 * This form of entity lookup function is the fastest one.
-	 *
+	 * 
 	 * Only single `primaryKey` query can be used in the query.
-	 *
+	 * 
 	 * Example:
-	 *
+	 * 
 	 * ```
 	 * primaryKey(1, 2, 3)
 	 * ```
-	 */
+	*/
 	@Nullable
 	static EntityPrimaryKeyInSet entityPrimaryKeyInSet(@Nullable int[] primaryKey) {
 		if (primaryKey == null) {

@@ -23,12 +23,15 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.dataType.SupportedEnum;
+
 /**
  * This enum controls whether {@link FacetSummary} should contain only basic statistics about facets - e.g. count only,
  * or whether the selection impact should be computed as well.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@SupportedEnum
 public enum FacetStatisticsDepth {
 
 	/**

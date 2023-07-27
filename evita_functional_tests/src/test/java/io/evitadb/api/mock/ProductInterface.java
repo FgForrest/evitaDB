@@ -24,6 +24,7 @@
 package io.evitadb.api.mock;
 
 import io.evitadb.api.AbstractHundredProductsFunctionalTest;
+import io.evitadb.api.AbstractHundredProductsFunctionalTest.TestEnum;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.annotation.*;
@@ -75,6 +76,9 @@ public interface ProductInterface extends EntityClassifier {
 	@AttributeRef(DataGenerator.ATTRIBUTE_QUANTITY)
 	@Nonnull
 	BigDecimal getQuantityAsDifferentProperty();
+
+	@Attribute(name = AbstractHundredProductsFunctionalTest.ATTRIBUTE_ENUM)
+	TestEnum getEnum();
 
 	@Attribute(name = DataGenerator.ATTRIBUTE_ALIAS)
 	boolean isAlias();

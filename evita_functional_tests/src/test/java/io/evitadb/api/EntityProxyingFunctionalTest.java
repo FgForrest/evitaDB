@@ -425,6 +425,8 @@ public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctio
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantity());
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantityAsDifferentProperty());
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_ALIAS), product.isAlias());
+		assertEquals(TestEnum.valueOf(originalProduct.getAttribute(ATTRIBUTE_ENUM, String.class)), product.getEnum());
+
 		final Optional<Object> optionallyAvailable = ofNullable(originalProduct.getAttribute(ATTRIBUTE_OPTIONAL_AVAILABILITY));
 		assertEquals(optionallyAvailable.orElse(false), product.isOptionallyAvailable());
 		assertEquals(optionallyAvailable, product.getOptionallyAvailable());
@@ -628,17 +630,21 @@ public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctio
 	) {
 		final Random rnd = new Random(seed);
 		final int primaryKey = rnd.nextInt(49) + 1;
-		final Query query = query(
-			collection(Entities.PRODUCT),
-			filterBy(entityPrimaryKeyInSet(primaryKey)),
-			require(entityFetchAll())
-		);
 
 		final SealedEntity theProduct = originalProducts
 			.stream()
 			.filter(it -> it.getPrimaryKey() == primaryKey)
 			.findFirst()
 			.orElseThrow();
+
+		final Query query = query(
+			collection(Entities.PRODUCT),
+			filterBy(
+				entityPrimaryKeyInSet(primaryKey),
+				attributeEquals(ATTRIBUTE_ENUM, TestEnum.valueOf(theProduct.getAttribute(ATTRIBUTE_ENUM, String.class)))
+			),
+			require(entityFetchAll())
+		);
 
 		System.out.println("PK: " + primaryKey);
 		assertProduct(

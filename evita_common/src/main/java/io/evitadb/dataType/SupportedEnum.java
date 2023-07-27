@@ -21,20 +21,21 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.query.filter;
+package io.evitadb.dataType;
 
-import io.evitadb.dataType.SupportedEnum;
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
- * Represents constant or "special" value attribute can have (or has it implicitly, e.g. missing value is represented by {@code null}
- * that is not comparable via {@link Comparable}.
+ * Annotation marks all enums that are supported by EvitaDB and doesn't need to be converted to string.
  *
- * @see AttributeIs
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@SupportedEnum
-public enum AttributeSpecialValue {
-
-	NULL,
-	NOT_NULL
+@Target({ElementType.TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+public @interface SupportedEnum {
 }
