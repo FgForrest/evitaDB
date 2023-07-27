@@ -52,8 +52,10 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -80,6 +82,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("Evita entity proxying functionality")
 @Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
+@TestMethodOrder(MethodOrderer.MethodName.class)
 @Slf4j
 public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctionalTest implements EvitaTestSupport {
 	private static final String HUNDRED_PRODUCTS = "HundredProxyProducts";
@@ -971,7 +974,7 @@ public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctio
 	@DisplayName("Should delete entity")
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
-	void deleteEntity(
+	void x_deleteEntity(
 		EvitaContract evita,
 		List<SealedEntity> originalProducts
 	) {
@@ -1012,7 +1015,7 @@ public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctio
 	@DisplayName("Should delete entity with hierarchy")
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
-	void deleteEntityWithHierarchy(
+	void x_deleteEntityWithHierarchy(
 		EvitaContract evita,
 		Map<Integer, SealedEntity> originalCategories
 	) {
