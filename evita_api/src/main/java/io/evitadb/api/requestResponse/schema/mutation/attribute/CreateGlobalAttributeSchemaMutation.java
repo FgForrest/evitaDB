@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
@@ -108,6 +109,12 @@ public class CreateGlobalAttributeSchemaMutation
 		this.type = type;
 		this.defaultValue = defaultValue;
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
+	}
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.CREATE;
 	}
 
 	@Nullable
@@ -212,7 +219,7 @@ public class CreateGlobalAttributeSchemaMutation
 		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(name).orElse(null);
 		if (existingAttributeSchema == null) {
 			return CatalogSchema._internalBuild(
-				catalogSchema.getVersion() + 1,
+				catalogSchema.version() + 1,
 				catalogSchema.getName(),
 				catalogSchema.getNameVariants(),
 				catalogSchema.getDescription(),

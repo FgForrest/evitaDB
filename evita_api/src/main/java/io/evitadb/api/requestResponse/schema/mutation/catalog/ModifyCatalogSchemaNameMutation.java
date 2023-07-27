@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.mutation.catalog;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
@@ -59,6 +60,12 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 	@Getter @Nonnull private final String newCatalogName;
 	@Getter private final boolean overwriteTarget;
 
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.UPDATE;
+	}
+
 	@Nullable
 	@Override
 	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema) {
@@ -71,7 +78,7 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 			return catalogSchema;
 		} else {
 			return CatalogSchema._internalBuild(
-				catalogSchema.getVersion() + 1,
+				catalogSchema.version() + 1,
 				newCatalogName,
 				NamingConvention.generate(newCatalogName),
 				catalogSchema.getDescription(),

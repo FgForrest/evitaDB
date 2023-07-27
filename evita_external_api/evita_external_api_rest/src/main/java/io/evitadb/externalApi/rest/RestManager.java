@@ -25,6 +25,13 @@ package io.evitadb.externalApi.rest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.requestResponse.cdc.CaptureArea;
+import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.CaptureSince;
+import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.cdc.SchemaSite;
 import io.evitadb.core.CorruptedCatalog;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.http.CorsFilter;
@@ -33,12 +40,13 @@ import io.evitadb.externalApi.http.PathNormalizingHandler;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.api.Rest.Endpoint;
 import io.evitadb.externalApi.rest.api.catalog.CatalogRestBuilder;
+import io.evitadb.externalApi.rest.api.catalog.CatalogRestRefreshingObserver;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSystemEndpoint;
 import io.evitadb.externalApi.rest.api.system.SystemRestBuilder;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.externalApi.rest.exception.OpenApiInternalError;
-import io.evitadb.externalApi.rest.io.RestExceptionHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointHandler;
+import io.evitadb.externalApi.rest.io.RestExceptionHandler;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 import io.undertow.Handlers;
@@ -84,6 +92,10 @@ public class RestManager {
 	 * REST specific endpoint router.
 	 */
 	private final RoutingHandler restRouter = Handlers.routing();
+	/**
+	 * Observer for refreshing REST API endpoints
+	 */
+	@Nonnull private final CatalogRestRefreshingObserver observer = new CatalogRestRefreshingObserver(this);
 	@Nonnull private final Map<String, CorsEndpoint> corsEndpoints = createConcurrentHashMap(20);
 
 	public RestManager(@Nonnull Evita evita, @Nonnull RestConfig restConfig) {
@@ -94,6 +106,11 @@ public class RestManager {
 
 		// register initial endpoints
 		registerSystemApi();
+
+		evita.registerSystemChangeCapture(
+			new ChangeSystemCaptureRequest(CaptureContent.HEADER),
+			observer
+		);
 		this.evita.getCatalogs().forEach(catalog -> registerCatalog(catalog.getName()));
 		corsEndpoints.forEach((path, endpoint) -> restRouter.add("OPTIONS", path, endpoint.toHandler()));
 
@@ -117,6 +134,13 @@ public class RestManager {
 		Assert.isPremiseValid(
 			!registeredCatalogEndpoints.containsKey(catalogName),
 			() -> new OpenApiInternalError("Catalog `" + catalogName + "` has been already registered.")
+		);
+		catalog.registerChangeDataCapture(
+			new ChangeDataCaptureRequest(
+				CaptureArea.SCHEMA, new SchemaSite(Operation.values()), CaptureContent.HEADER,
+				new CaptureSince(catalog.getLastCommittedTransactionId())
+			),
+			observer
 		);
 
 		final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(restConfig, evita, catalog);

@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -64,6 +65,12 @@ import java.util.stream.Collectors;
 public class RemoveReferenceSchemaMutation implements ReferenceSchemaMutation, CombinableEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = -7746714314557968775L;
 	@Getter @Nonnull private final String name;
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.REMOVE;
+	}
 
 	@Nullable
 	@Override

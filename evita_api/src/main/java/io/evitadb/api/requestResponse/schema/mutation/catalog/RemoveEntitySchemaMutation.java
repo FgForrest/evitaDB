@@ -24,6 +24,8 @@
 package io.evitadb.api.requestResponse.schema.mutation.catalog;
 
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
@@ -39,7 +41,7 @@ import java.io.Serial;
 
 /**
  * Mutation is responsible for removing an existing {@link EntitySchemaContract} - or more precisely the entity
- * collection instance itself. The mutation is used by {@link CatalogContract#deleteCollectionOfEntity(String)} method
+ * collection instance itself. The mutation is used by {@link CatalogContract#deleteCollectionOfEntity(String, EvitaSessionContract)}  method
  * internally.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -57,6 +59,12 @@ public class RemoveEntitySchemaMutation implements LocalCatalogSchemaMutation {
 	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema) {
 		// do nothing - the mutation is handled differently
 		return catalogSchema;
+	}
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.REMOVE;
 	}
 
 	@Override

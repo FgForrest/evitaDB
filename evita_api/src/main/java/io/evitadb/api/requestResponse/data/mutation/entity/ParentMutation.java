@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.mutation.entity;
 
 import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
@@ -31,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.dataType.ClassifierType;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
 
@@ -48,6 +50,18 @@ import java.util.OptionalInt;
 @EqualsAndHashCode
 public abstract class ParentMutation implements SchemaEvolvingLocalMutation<OptionalInt, Integer> {
 	@Serial private static final long serialVersionUID = -4870057553122671488L;
+
+	@Nonnull
+	@Override
+	public ClassifierType getClassifierType() {
+		return ClassifierType.ENTITY;
+	}
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.UPDATE;
+	}
 
 	@Nonnull
 	@Override

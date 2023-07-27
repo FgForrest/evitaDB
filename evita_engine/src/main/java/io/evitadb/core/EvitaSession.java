@@ -46,6 +46,8 @@ import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureObserver;
+import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureRequest;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -328,6 +330,17 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Nonnull
 	@Override
+	public UUID registerChangeDataCapture(@Nonnull ChangeDataCaptureRequest request, @Nonnull ChangeDataCaptureObserver callback) {
+		return getCatalog().registerChangeDataCapture(request, callback);
+	}
+
+	@Override
+	public void unregisterChangeDataCapture(@Nonnull UUID uuid) {
+		getCatalog().unregisterChangeDataCapture(uuid);
+	}
+
+	@Nonnull
+	@Override
 	public SealedEntitySchema defineEntitySchemaFromModelClass(@Nonnull Class<?> modelClass) {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
@@ -584,7 +597,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		}
 		return executeInTransactionIfPossible(session -> {
 			getCatalog().updateSchema(session, schemaMutation);
-			return getCatalogSchema().getVersion();
+			return getCatalogSchema().version();
 		});
 	}
 

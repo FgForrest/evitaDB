@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -105,6 +106,12 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 		this.referencedGroupTypeManaged = referencedGroupTypeManaged;
 		this.indexed = indexed;
 		this.faceted = faceted;
+	}
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.CREATE;
 	}
 
 	@Nullable

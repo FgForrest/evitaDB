@@ -38,8 +38,13 @@ import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.proxy.impl.UnsatisfiedDependencyFactory;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.cdc.CaptureArea;
+import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureObserver;
+import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
@@ -56,6 +61,8 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveEntitySchema
 import io.evitadb.core.Transaction.CommitUpdateInstructionSet;
 import io.evitadb.core.buffer.DataStoreTxMemoryBuffer;
 import io.evitadb.core.cache.CacheSupervisor;
+import io.evitadb.core.cdc.CatalogChangeCaptureBlock;
+import io.evitadb.core.cdc.CatalogChangeObserver;
 import io.evitadb.core.exception.StorageImplementationNotFoundException;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.QueryPlan;
@@ -190,6 +197,11 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 */
 	private final SequenceService sequenceService = new SequenceService();
 	/**
+	 * Change observer that is used to notify all registered {@link ChangeDataCaptureObserver} about changes in the
+	 * catalog.
+	 */
+	private final CatalogChangeObserver changeObserver;
+	/**
 	 * Contains reference to the proxy factory that is used to create proxies for the entities.
 	 */
 	@Getter private final ProxyFactory proxyFactory;
@@ -236,6 +248,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 			catalogSchema.getName(), SequenceType.ENTITY_COLLECTION, 1
 		);
 		this.catalogIndex = new CatalogIndex(this);
+		this.changeObserver = new CatalogChangeObserver(catalogSchema.getName());
 		this.proxyFactory = ClassUtils.whenPresentOnClasspath(
 			"one.edee.oss.proxycian.bytebuddy.ByteBuddyProxyGenerator",
 			() -> (ProxyFactory) Class.forName("io.evitadb.api.proxy.impl.ProxycianFactory")
@@ -300,6 +313,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 					)
 				)
 		);
+		this.changeObserver = new CatalogChangeObserver(catalogSchema.getName());
 		this.proxyFactory = ClassUtils.whenPresentOnClasspath(
 			"one.edee.oss.proxycian.bytebuddy.ByteBuddyProxyGenerator",
 			() -> (ProxyFactory) Class.forName("io.evitadb.api.proxy.impl.ProxycianFactory")
@@ -318,6 +332,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		long lastCommittedTransactionId,
 		@Nonnull AtomicInteger entityTypeSequence,
 		@Nonnull Map<String, EntityCollection> entityCollections,
+		@Nonnull CatalogChangeObserver changeObserver,
 		@Nonnull ProxyFactory proxyFactory
 	) {
 		this.state = new AtomicReference<>(catalogState);
@@ -353,6 +368,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 					)
 				)
 		);
+		this.changeObserver = changeObserver;
 		this.proxyFactory = proxyFactory;
 	}
 
@@ -417,14 +433,14 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		final CatalogSchemaContract nextSchema = updatedSchema;
 		Assert.isPremiseValid(updatedSchema != null, "Catalog cannot be dropped by updating schema!");
 		Assert.isPremiseValid(updatedSchema instanceof CatalogSchema, "Mutation is expected to produce CatalogSchema instance!");
-		if (updatedSchema.getVersion() > currentSchema.getVersion()) {
+		if (updatedSchema.version() > currentSchema.version()) {
 			final CatalogSchema updatedInternalSchema = (CatalogSchema) updatedSchema;
 			final CatalogSchemaDecorator originalSchemaBeforeExchange = this.schema.compareAndExchange(
 				this.schema.get(),
 				new CatalogSchemaDecorator(updatedInternalSchema)
 			);
 			Assert.isTrue(
-				originalSchemaBeforeExchange.getVersion() == currentSchema.getVersion(),
+				originalSchemaBeforeExchange.version() == currentSchema.version(),
 				() -> new ConcurrentSchemaUpdateException(currentSchema, nextSchema)
 			);
 			this.dataStoreBuffer.update(new CatalogSchemaStoragePart(updatedInternalSchema));
@@ -522,7 +538,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		final CatalogSchemaContract updatedSchema = updateSchema(
 			session, new RemoveEntitySchemaMutation(entityType)
 		);
-		return updatedSchema.getVersion() > originalSchema.getVersion();
+		return updatedSchema.version() > originalSchema.version();
 	}
 
 	@Override
@@ -531,7 +547,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		final CatalogSchemaContract updatedSchema = updateSchema(
 			session, new ModifyEntitySchemaNameMutation(entityType, newName, false)
 		);
-		return updatedSchema.getVersion() > originalSchema.getVersion();
+		return updatedSchema.version() > originalSchema.version();
 	}
 
 	@Override
@@ -541,7 +557,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 			session,
 			new ModifyEntitySchemaNameMutation(entityTypeToBeReplacedWith, entityTypeToBeReplaced, true)
 		);
-		return updatedSchema.getVersion() > originalSchema.getVersion();
+		return updatedSchema.version() > originalSchema.version();
 	}
 
 	@Override
@@ -585,6 +601,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				id,
 				entityTypeSequence,
 				newCollections,
+				changeObserver,
 				proxyFactory
 			);
 			newCollections.values().forEach(it -> it.updateReferenceToCatalog(catalogAfterRename));
@@ -739,7 +756,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 			);
 
 			if (transaction != null) {
-				if (newSchema.getVersion() != storedSchema.catalogSchema().getVersion()) {
+				if (newSchema.version() != storedSchema.catalogSchema().version()) {
 					this.ioService.putStoragePart(transaction.getId(), new CatalogSchemaStoragePart(newSchema.getDelegate()));
 				}
 
@@ -763,6 +780,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				id,
 				entityTypeSequence,
 				possiblyUpdatedCollections,
+				changeObserver,
 				proxyFactory
 			);
 		} else {
@@ -782,6 +800,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 					id,
 					entityTypeSequence,
 					possiblyUpdatedCollections,
+					changeObserver,
 					proxyFactory
 				);
 			} else {
@@ -798,6 +817,47 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		this.entityCollections.removeLayer(transactionalLayer);
 		this.catalogIndex.removeLayer(transactionalLayer);
 		this.entityCollectionsByPrimaryKey.removeLayer(transactionalLayer);
+	}
+
+	@Nonnull
+	@Override
+	public UUID registerChangeDataCapture(@Nonnull ChangeDataCaptureRequest request, @Nonnull ChangeDataCaptureObserver callback) {
+		return changeObserver.registerObserver(this, request, callback);
+	}
+
+	@Override
+	public boolean unregisterChangeDataCapture(@Nonnull UUID uuid) {
+		return changeObserver.unregisterObserver(uuid);
+	}
+
+	/**
+	 * TODO JNO - implement and document me
+	 */
+	public void notifyObservers(
+		@Nonnull CaptureArea captureArea,
+		@Nonnull Operation changeDataOperation,
+		@Nullable String entityType,
+		@Nullable Integer entityTypePrimaryKey,
+		@Nullable Integer entityPrimaryKey,
+		@Nullable Integer newVersion,
+		@Nullable Mutation mutation,
+		@Nonnull CatalogChangeCaptureBlock captureBlock
+		) {
+		changeObserver.notifyObservers(
+			changeDataOperation, captureArea,
+			entityType,
+			entityTypePrimaryKey,
+			entityPrimaryKey,
+			newVersion, mutation, captureBlock
+		);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	public CatalogChangeCaptureBlock createChangeCaptureBlock() {
+		return new CatalogChangeCaptureBlock(changeObserver);
 	}
 
 	/*

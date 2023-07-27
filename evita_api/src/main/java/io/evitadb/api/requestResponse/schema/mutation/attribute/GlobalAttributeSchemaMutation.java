@@ -57,7 +57,7 @@ public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, 
 			return catalogSchema;
 		} else {
 			return CatalogSchema._internalBuild(
-				catalogSchema.getVersion() + 1,
+				catalogSchema.version() + 1,
 				catalogSchema.getName(),
 				catalogSchema.getNameVariants(),
 				catalogSchema.getDescription(),

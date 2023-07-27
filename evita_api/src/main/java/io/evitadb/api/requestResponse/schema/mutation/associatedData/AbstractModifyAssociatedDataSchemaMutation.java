@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.associatedData;
 
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -52,6 +53,12 @@ import java.util.stream.Stream;
 abstract class AbstractModifyAssociatedDataSchemaMutation implements EntitySchemaMutation, AssociatedDataSchemaMutation {
 	@Serial private static final long serialVersionUID = -4384492921045013953L;
 	@Getter @Nonnull protected final String name;
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.UPDATE;
+	}
 
 	/**
 	 * Replaces existing associated data schema with updated one but only when those schemas differ. Otherwise,

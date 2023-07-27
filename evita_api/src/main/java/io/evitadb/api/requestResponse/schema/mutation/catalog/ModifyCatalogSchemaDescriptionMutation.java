@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.mutation.catalog;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
@@ -58,6 +59,13 @@ public class ModifyCatalogSchemaDescriptionMutation implements CombinableCatalog
 	@Serial private static final long serialVersionUID = -367741086084429615L;
 	@Nullable @Getter private final String description;
 
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.UPDATE;
+	}
+
+
 	@Nullable
 	@Override
 	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation) {
@@ -80,7 +88,7 @@ public class ModifyCatalogSchemaDescriptionMutation implements CombinableCatalog
 			return catalogSchema;
 		} else {
 			return CatalogSchema._internalBuild(
-				catalogSchema.getVersion() + 1,
+				catalogSchema.version() + 1,
 				catalogSchema.getName(),
 				catalogSchema.getNameVariants(),
 				description,

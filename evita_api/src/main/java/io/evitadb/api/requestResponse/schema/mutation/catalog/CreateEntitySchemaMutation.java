@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema.mutation.catalog;
 
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
@@ -57,6 +58,12 @@ public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation {
 	public CreateEntitySchemaMutation(@Nonnull String name) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, name);
 		this.name = name;
+	}
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.CREATE;
 	}
 
 	@Nullable

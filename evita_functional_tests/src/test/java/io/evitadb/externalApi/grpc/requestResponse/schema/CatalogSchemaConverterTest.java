@@ -97,7 +97,7 @@ class CatalogSchemaConverterTest {
 	}
 
 	private static void assertCatalogSchema(@Nonnull CatalogSchemaContract expected, @Nonnull CatalogSchemaContract actual) {
-		assertEquals(expected.getVersion(), actual.getVersion());
+		assertEquals(expected.version(), actual.version());
 		assertEquals(expected.getName(), actual.getName());
 		assertEquals(expected.getDescription(), actual.getDescription());
 		assertEquals(expected.getNameVariants(), actual.getNameVariants());

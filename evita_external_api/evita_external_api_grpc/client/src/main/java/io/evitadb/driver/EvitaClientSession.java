@@ -51,6 +51,8 @@ import io.evitadb.api.requestResponse.EvitaEntityResponse;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
+import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureObserver;
+import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureRequest;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
@@ -297,6 +299,18 @@ public class EvitaClientSession implements EvitaSessionContract {
 			);
 			closeInternally();
 		}
+	}
+
+	@Nonnull
+	@Override
+	public UUID registerChangeDataCapture(@Nonnull ChangeDataCaptureRequest request, @Nonnull ChangeDataCaptureObserver callback) {
+		// TODO TPO - implement
+		return null;
+	}
+
+	@Override
+	public void unregisterChangeDataCapture(@Nonnull UUID uuid) {
+		// TODO TPO - implement
 	}
 
 	@Nonnull

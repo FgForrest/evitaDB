@@ -26,11 +26,19 @@ package io.evitadb.externalApi.graphql;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import graphql.GraphQL;
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.requestResponse.cdc.CaptureArea;
+import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.CaptureSince;
+import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.cdc.SchemaSite;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.core.CorruptedCatalog;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.graphql.api.catalog.CatalogGraphQLBuilder;
+import io.evitadb.externalApi.graphql.api.catalog.CatalogGraphQLRefreshingObserver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.CatalogDataApiGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.CatalogSchemaApiGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.system.SystemGraphQLBuilder;
@@ -84,6 +92,10 @@ public class GraphQLManager {
 	 */
 	@Nonnull private final RoutingHandler graphQLRouter = Handlers.routing();
 	/**
+	 * Observer for refreshing GraphQL API endpoints
+	 */
+	@Nonnull private final CatalogGraphQLRefreshingObserver observer = new CatalogGraphQLRefreshingObserver(this);
+	/**
 	 * Already registered catalogs (corresponds to existing endpoints as well)
 	 */
 	@Nonnull private final Map<String, RegisteredCatalog> registeredCatalogs = createHashMap(20);
@@ -96,6 +108,8 @@ public class GraphQLManager {
 
 		// register initial endpoints
 		registerSystemApi();
+
+		evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER), observer);
 		this.evita.getCatalogs().forEach(catalog -> registerCatalog(catalog.getName()));
 
 		log.info("Built GraphQL API in " + StringUtils.formatPreciseNano(System.currentTimeMillis() - buildingStartTime));
@@ -118,6 +132,13 @@ public class GraphQLManager {
 		Assert.isPremiseValid(
 			!registeredCatalogs.containsKey(catalogName),
 			() -> new GraphQLInternalError("Catalog `" + catalogName + "` has been already registered.")
+		);
+		catalog.registerChangeDataCapture(
+			new ChangeDataCaptureRequest(
+				CaptureArea.SCHEMA, new SchemaSite(Operation.values()), CaptureContent.HEADER,
+				new CaptureSince(catalog.getLastCommittedTransactionId())
+			),
+			observer
 		);
 
 		try {

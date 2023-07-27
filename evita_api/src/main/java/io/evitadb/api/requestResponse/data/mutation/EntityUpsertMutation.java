@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.mutation;
 
 import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -105,6 +106,12 @@ public class EntityUpsertMutation implements EntityMutation {
 		this.entityType = entityType;
 		this.entityExistence = entityExistence;
 		this.localMutations = Arrays.asList(localMutations);
+	}
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.UPDATE;
 	}
 
 	@Nonnull

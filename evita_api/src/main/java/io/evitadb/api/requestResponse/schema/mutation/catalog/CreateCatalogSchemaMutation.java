@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema.mutation.catalog;
 
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
@@ -59,6 +60,12 @@ public class CreateCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 	public CreateCatalogSchemaMutation(@Nonnull String catalogName) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.CATALOG, catalogName);
 		this.catalogName = catalogName;
+	}
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.CREATE;
 	}
 
 	@Nullable

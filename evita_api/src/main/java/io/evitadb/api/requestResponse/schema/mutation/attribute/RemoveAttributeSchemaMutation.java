@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -79,6 +80,12 @@ public class RemoveAttributeSchemaMutation implements
 		this.name = name;
 	}
 
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.REMOVE;
+	}
+
 	@Nullable
 	@Override
 	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation) {
@@ -122,7 +129,7 @@ public class RemoveAttributeSchemaMutation implements
 			return catalogSchema;
 		} else {
 			return CatalogSchema._internalBuild(
-				catalogSchema.getVersion() + 1,
+				catalogSchema.version() + 1,
 				catalogSchema.getName(),
 				catalogSchema.getNameVariants(),
 				catalogSchema.getDescription(),

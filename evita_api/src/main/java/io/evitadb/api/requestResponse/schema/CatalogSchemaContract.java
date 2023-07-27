@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema;
 
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.data.ContentComparator;
+import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
@@ -44,14 +45,9 @@ import java.util.Set;
  */
 public interface CatalogSchemaContract
 	extends NamedSchemaContract,
+	Versioned,
 	ContentComparator<CatalogSchemaContract>,
 	AttributeSchemaProvider<GlobalAttributeSchemaContract> {
-
-	/**
-	 * Contains version of this definition object and gets increased with any catalog schema update. Allows to execute
-	 * optimistic locking i.e. avoiding parallel modifications.
-	 */
-	int getVersion();
 
 	/**
 	 * Returns set of allowed evolution modes. These allow to specify how strict is evitaDB when unknown information is

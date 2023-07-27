@@ -23,11 +23,18 @@
 
 package io.evitadb.externalApi.graphql.api.catalog;
 
-import io.evitadb.api.CatalogStructuralChangeObserver;
+import io.evitadb.api.requestResponse.cdc.CaptureArea;
+import io.evitadb.api.requestResponse.cdc.ChangeDataCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureObserver;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureObserver;
 import io.evitadb.externalApi.graphql.GraphQLManager;
+import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Collection;
+import java.util.Objects;
 
 /**
  * Updates GraphQL API endpoints and their GraphQL instances based on Evita updates.
@@ -36,37 +43,38 @@ import javax.annotation.Nonnull;
  */
 // TOBEDONE LHO: consider more efficient GraphQL schema updating when only part of Evita schema is updated
 @RequiredArgsConstructor
-public class CatalogGraphQLRefreshingObserver implements CatalogStructuralChangeObserver {
-
+public class CatalogGraphQLRefreshingObserver implements ChangeSystemCaptureObserver, ChangeDataCaptureObserver {
 	private final GraphQLManager graphQLManager;
 
 	@Override
-	public void onCatalogCreate(@Nonnull String catalogName) {
-		graphQLManager.registerCatalog(catalogName);
+	public void onTransactionCommit(long transactionId, @Nonnull Collection<ChangeDataCapture> events) {
+		String catalogUpdated = null;
+		for (ChangeDataCapture event : events) {
+			if (event.area() == CaptureArea.SCHEMA) {
+				Assert.isTrue(
+					catalogUpdated == null || Objects.equals(catalogUpdated, event.catalog()),
+					"Transactions are expected to always contain events from the same catalog."
+				);
+				catalogUpdated = event.catalog();
+			}
+		}
+
+		if (catalogUpdated != null) {
+			graphQLManager.refreshCatalog(catalogUpdated);
+		}
 	}
 
 	@Override
-	public void onCatalogDelete(@Nonnull String catalogName) {
-		graphQLManager.unregisterCatalog(catalogName);
+	public void onChange(@Nonnull ChangeSystemCapture event) {
+		switch (event.operation()) {
+			case CREATE -> graphQLManager.registerCatalog(event.catalog());
+			case UPDATE -> graphQLManager.refreshCatalog(event.catalog());
+			case REMOVE -> graphQLManager.unregisterCatalog(event.catalog());
+		}
 	}
 
 	@Override
-	public void onEntityCollectionCreate(@Nonnull String catalogName, @Nonnull String entityType) {
-		graphQLManager.refreshCatalog(catalogName);
-	}
-
-	@Override
-	public void onEntityCollectionDelete(@Nonnull String catalogName, @Nonnull String entityType) {
-		graphQLManager.refreshCatalog(catalogName);
-	}
-
-	@Override
-	public void onCatalogSchemaUpdate(@Nonnull String catalogName) {
-		graphQLManager.refreshCatalog(catalogName);
-	}
-
-	@Override
-	public void onEntitySchemaUpdate(@Nonnull String catalogName, @Nonnull String entityType) {
-		graphQLManager.refreshCatalog(catalogName);
+	public void onTermination() {
+		// do nothing, there are no resources to free
 	}
 }

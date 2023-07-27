@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.entity;
 
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
@@ -58,6 +59,12 @@ public class SetEntitySchemaWithPriceMutation implements CombinableEntitySchemaM
 	@Serial private static final long serialVersionUID = 1203377065876143030L;
 	@Getter private final boolean withPrice;
 	@Getter private final int indexedPricePlaces;
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.UPDATE;
+	}
 
 	@Nullable
 	@Override

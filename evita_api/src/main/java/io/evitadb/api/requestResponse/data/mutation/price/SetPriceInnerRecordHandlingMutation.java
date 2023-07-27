@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.mutation.price;
 
 import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
@@ -34,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.dataType.ClassifierType;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -57,6 +59,18 @@ public class SetPriceInnerRecordHandlingMutation implements SchemaEvolvingLocalM
 
 	public SetPriceInnerRecordHandlingMutation(@Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
 		this.priceInnerRecordHandling = priceInnerRecordHandling;
+	}
+
+	@Nonnull
+	@Override
+	public ClassifierType getClassifierType() {
+		return ClassifierType.ENTITY;
+	}
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.UPDATE;
 	}
 
 	@Nonnull

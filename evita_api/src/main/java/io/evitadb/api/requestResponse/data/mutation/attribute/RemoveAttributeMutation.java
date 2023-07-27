@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.mutation.attribute;
 
 import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -57,6 +58,12 @@ public class RemoveAttributeMutation extends AttributeMutation {
 
 	public RemoveAttributeMutation(@Nonnull String attributeName, @Nonnull Locale locale) {
 		super(new AttributeKey(attributeName, locale));
+	}
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.REMOVE;
 	}
 
 	@Nonnull

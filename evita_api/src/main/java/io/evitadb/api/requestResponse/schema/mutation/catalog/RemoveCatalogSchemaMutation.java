@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema.mutation.catalog;
 
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.utils.Assert;
@@ -51,6 +52,12 @@ import java.io.Serial;
 public class RemoveCatalogSchemaMutation implements TopLevelCatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = -8605223733449045709L;
 	@Getter @Nonnull private final String catalogName;
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.REMOVE;
+	}
 
 	@Nullable
 	@Override

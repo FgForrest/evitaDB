@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.dataType.ClassifierType;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -71,6 +72,12 @@ public abstract class AssociatedDataMutation implements LocalMutation<Associated
 	protected AssociatedDataMutation(@Nonnull AssociatedDataKey associatedDataKey) {
 		Assert.isTrue(associatedDataKey != null, "Associated data key cannot be null for set associated data mutation!");
 		this.associatedDataKey = associatedDataKey;
+	}
+
+	@Nonnull
+	@Override
+	public ClassifierType getClassifierType() {
+		return ClassifierType.ASSOCIATED_DATA;
 	}
 
 	@Override

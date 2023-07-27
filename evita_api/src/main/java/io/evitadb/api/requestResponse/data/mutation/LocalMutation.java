@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.data.mutation;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.dataType.ClassifierType;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -53,6 +54,12 @@ import javax.annotation.concurrent.ThreadSafe;
 public interface LocalMutation<T, S extends Comparable<S>> extends Mutation, Comparable<LocalMutation<T, S>> {
 	long PRIORITY_REMOVAL = 10L;
 	long PRIORITY_UPSERT = 0L;
+
+	/**
+	 * Returns mutation classifier type.
+	 */
+	@Nonnull
+	ClassifierType getClassifierType();
 
 	/**
 	 * Executes the real mutation. Fabricates new attribute value that will be used in next version of the entity.

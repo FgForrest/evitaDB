@@ -27,7 +27,6 @@ import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
-import io.evitadb.externalApi.rest.api.catalog.CatalogRestRefreshingObserver;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
 
 import javax.annotation.Nonnull;
@@ -57,7 +56,6 @@ public class RestProviderRegistrar implements ExternalApiProviderRegistrar<RestC
 	                                                @Nonnull ApiOptions apiOptions,
 	                                                @Nonnull RestConfig restConfiguration) {
 		final RestManager restManager = new RestManager(evita, restConfiguration);
-		evita.registerStructuralChangeObserver(new CatalogRestRefreshingObserver(restManager));
 		return new RestProvider(restConfiguration, restManager.getRestRouter());
 	}
 }

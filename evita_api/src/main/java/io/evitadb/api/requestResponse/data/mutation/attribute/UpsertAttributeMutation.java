@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.mutation.attribute;
 
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -58,6 +59,12 @@ public class UpsertAttributeMutation extends AttributeSchemaEvolvingMutation {
 	public UpsertAttributeMutation(@Nonnull String attributeName, @Nonnull Locale locale, @Nonnull Serializable value) {
 		super(new AttributeKey(attributeName, locale));
 		this.value = value;
+	}
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.UPDATE;
 	}
 
 	@Override

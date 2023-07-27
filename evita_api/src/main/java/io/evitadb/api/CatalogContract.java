@@ -29,6 +29,8 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureObserver;
+import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureRequest;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -40,6 +42,7 @@ import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Catalog is a fragment of evitaDB database that can be compared to a schema of relational database. Catalog allows
@@ -88,6 +91,11 @@ public interface CatalogContract {
 	 * on disk.
 	 */
 	long getVersion();
+
+	/**
+	 * Returns id of the transaction ({@link TransactionContract#getId()}) that was successfully committed to the disk.
+	 */
+	long getLastCommittedTransactionId();
 
 	/**
 	 * Returns true if catalog supports transactions.
@@ -211,6 +219,21 @@ public interface CatalogContract {
 	 */
 	@Nonnull
 	Optional<SealedEntitySchema> getEntitySchema(@Nonnull String entityType);
+
+	/**
+	 * TODO JNO - document me
+	 */
+	@Nonnull
+	UUID registerChangeDataCapture(
+		@Nonnull ChangeDataCaptureRequest request,
+		@Nonnull ChangeDataCaptureObserver callback
+	);
+
+	/**
+	 * TODO JNO - document me
+	 * @param uuid
+	 */
+	boolean unregisterChangeDataCapture(@Nonnull UUID uuid);
 
 	/**
 	 * Changes state of the catalog from {@link CatalogState#WARMING_UP} to {@link CatalogState#ALIVE}.

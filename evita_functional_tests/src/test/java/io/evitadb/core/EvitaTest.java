@@ -40,6 +40,12 @@ import io.evitadb.api.mock.MockCatalogStructuralChangeObserver;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.cdc.CaptureArea;
+import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.CaptureSince;
+import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.SchemaSite;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
@@ -110,6 +116,7 @@ class EvitaTest implements EvitaTestSupport {
 	private static final Currency CURRENCY_EUR = Currency.getInstance("EUR");
 	private static final String PRICE_LIST_BASIC = "basic";
 	private static final String PRICE_LIST_VIP = "vip";
+	private final MockCatalogStructuralChangeObserver observer = new MockCatalogStructuralChangeObserver();
 	private Evita evita;
 
 	@BeforeEach
@@ -119,6 +126,19 @@ class EvitaTest implements EvitaTestSupport {
 			getEvitaConfiguration()
 		);
 		evita.defineCatalog(TEST_CATALOG);
+		evita.registerSystemChangeCapture(
+			new ChangeSystemCaptureRequest(CaptureContent.BODY),
+			observer
+		);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.registerChangeDataCapture(
+					new ChangeDataCaptureRequest(CaptureArea.SCHEMA, new SchemaSite(), CaptureContent.BODY, new CaptureSince(0L)),
+					observer
+				);
+			}
+		);
 	}
 
 	@AfterEach
@@ -669,15 +689,15 @@ class EvitaTest implements EvitaTestSupport {
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
-		MockCatalogStructuralChangeObserver.reset();
+		observer.reset();
 
 		evita.updateCatalog(TEST_CATALOG, session -> {
 			session.renameCollection(Entities.PRODUCT, Entities.STORE);
 			assertEquals(Entities.STORE, session.getEntitySchemaOrThrow(Entities.STORE).getName());
 		});
 
-		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionCreated(TEST_CATALOG, Entities.STORE));
-		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
+		assertEquals(1, observer.getEntityCollectionCreated(TEST_CATALOG, Entities.STORE));
+		assertEquals(1, observer.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
 
 		evita.queryCatalog(TEST_CATALOG, session -> {
 			assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
@@ -715,14 +735,14 @@ class EvitaTest implements EvitaTestSupport {
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
-		MockCatalogStructuralChangeObserver.reset();
+		observer.reset();
 
 		evita.updateCatalog(TEST_CATALOG, session -> {
 			session.replaceCollection(Entities.CATEGORY, Entities.PRODUCT);
 		});
 
-		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionSchemaUpdated(TEST_CATALOG, Entities.CATEGORY));
-		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
+		assertEquals(1, observer.getEntityCollectionSchemaUpdated(TEST_CATALOG, Entities.CATEGORY));
+		assertEquals(1, observer.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
 
 		evita.queryCatalog(TEST_CATALOG, session -> {
 			assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
@@ -741,15 +761,15 @@ class EvitaTest implements EvitaTestSupport {
 			session.goLiveAndClose();
 		});
 
-		MockCatalogStructuralChangeObserver.reset();
+		observer.reset();
 
 		evita.updateCatalog(TEST_CATALOG, session -> {
 			session.renameCollection(Entities.PRODUCT, Entities.STORE);
 			assertEquals(Entities.STORE, session.getEntitySchemaOrThrow(Entities.STORE).getName());
 		});
 
-		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionCreated(TEST_CATALOG, Entities.STORE));
-		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
+		assertEquals(1, observer.getEntityCollectionCreated(TEST_CATALOG, Entities.STORE));
+		assertEquals(1, observer.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
 
 		evita.queryCatalog(TEST_CATALOG, session -> {
 			assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
@@ -767,14 +787,14 @@ class EvitaTest implements EvitaTestSupport {
 			session.goLiveAndClose();
 		});
 
-		MockCatalogStructuralChangeObserver.reset();
+		observer.reset();
 
 		evita.updateCatalog(TEST_CATALOG, session -> {
 			session.replaceCollection(Entities.CATEGORY, Entities.PRODUCT);
 		});
 
-		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionSchemaUpdated(TEST_CATALOG, Entities.CATEGORY));
-		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
+		assertEquals(1, observer.getEntityCollectionSchemaUpdated(TEST_CATALOG, Entities.CATEGORY));
+		assertEquals(1, observer.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
 
 		evita.queryCatalog(TEST_CATALOG, session -> {
 			assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
@@ -1247,14 +1267,14 @@ class EvitaTest implements EvitaTestSupport {
 		final AtomicInteger versionBeforeRename = new AtomicInteger();
 		if (catalogState == CatalogState.ALIVE) {
 			evita.updateCatalog(TEST_CATALOG, session -> {
-				versionBeforeRename.set(session.getCatalogSchema().getVersion());
+				versionBeforeRename.set(session.getCatalogSchema().version());
 				session.goLiveAndClose();
 			});
 		} else {
 			evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
-					versionBeforeRename.set(session.getCatalogSchema().getVersion());
+					versionBeforeRename.set(session.getCatalogSchema().version());
 				}
 			);
 		}
@@ -1269,7 +1289,7 @@ class EvitaTest implements EvitaTestSupport {
 			session -> {
 				assertEquals(renamedCatalogName, session.getCatalogSchema().getName());
 				assertEquals(2, session.getEntityCollectionSize(Entities.BRAND));
-				assertEquals(versionBeforeRename.get() + 1, session.getCatalogSchema().getVersion());
+				assertEquals(versionBeforeRename.get() + 1, session.getCatalogSchema().version());
 				return null;
 			}
 		);
@@ -1320,14 +1340,14 @@ class EvitaTest implements EvitaTestSupport {
 		final AtomicInteger versionBeforeRename = new AtomicInteger();
 		if (catalogState == CatalogState.ALIVE) {
 			evita.updateCatalog(temporaryCatalogName, session -> {
-				versionBeforeRename.set(session.getCatalogSchema().getVersion());
+				versionBeforeRename.set(session.getCatalogSchema().version());
 				session.goLiveAndClose();
 			});
 		} else {
 			evita.queryCatalog(
 				temporaryCatalogName,
 				session -> {
-					versionBeforeRename.set(session.getCatalogSchema().getVersion());
+					versionBeforeRename.set(session.getCatalogSchema().version());
 				}
 			);
 		}
@@ -1343,7 +1363,7 @@ class EvitaTest implements EvitaTestSupport {
 				assertEquals(TEST_CATALOG, session.getCatalogSchema().getName());
 				assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.BRAND));
 				assertEquals(2, session.getEntityCollectionSize(Entities.PRODUCT));
-				assertEquals(versionBeforeRename.get() + 1, session.getCatalogSchema().getVersion());
+				assertEquals(versionBeforeRename.get() + 1, session.getCatalogSchema().version());
 				return null;
 			}
 		);

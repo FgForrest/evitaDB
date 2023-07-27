@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.catalog;
 
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
@@ -66,6 +67,12 @@ public class DisallowEvolutionModeInCatalogSchemaMutation implements LocalCatalo
 		this.evolutionModes.addAll(Arrays.asList(evolutionModes));
 	}
 
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.UPDATE;
+	}
+
 	@Nullable
 	@Override
 	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema) {
@@ -75,7 +82,7 @@ public class DisallowEvolutionModeInCatalogSchemaMutation implements LocalCatalo
 			return catalogSchema;
 		} else {
 			return CatalogSchema._internalBuild(
-				catalogSchema.getVersion() + 1,
+				catalogSchema.version() + 1,
 				catalogSchema.getName(),
 				catalogSchema.getNameVariants(),
 				catalogSchema.getDescription(),

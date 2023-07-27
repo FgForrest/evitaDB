@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
@@ -74,6 +75,12 @@ public abstract class AttributeMutation implements LocalMutation<AttributeValue,
 
 	protected AttributeMutation(@Nonnull AttributeKey attributeKey) {
 		this.attributeKey = attributeKey;
+	}
+
+	@Nonnull
+	@Override
+	public ClassifierType getClassifierType() {
+		return ClassifierType.ATTRIBUTE;
 	}
 
 	@Override

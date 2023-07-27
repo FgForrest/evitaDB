@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.entity;
 
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
@@ -58,6 +59,11 @@ public class SetEntitySchemaWithHierarchyMutation implements CombinableEntitySch
 	@Serial private static final long serialVersionUID = 5706690342982246498L;
 	@Getter private final boolean withHierarchy;
 
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.UPDATE;
+	}
 
 	@Nullable
 	@Override

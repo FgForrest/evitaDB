@@ -23,6 +23,9 @@
 
 package io.evitadb.api.requestResponse.mutation;
 
+import io.evitadb.api.requestResponse.cdc.Operation;
+
+import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serializable;
@@ -37,5 +40,11 @@ import java.io.Serializable;
 @Immutable
 @ThreadSafe
 public interface Mutation extends Serializable {
+
+	/**
+	 * Returns operation classification.
+	 */
+	@Nonnull
+	Operation getOperation();
 
 }

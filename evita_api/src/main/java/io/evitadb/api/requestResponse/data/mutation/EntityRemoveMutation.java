@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.mutation;
 
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.Droppable;
@@ -81,6 +82,12 @@ public class EntityRemoveMutation implements EntityMutation {
 	) {
 		this.entityType = entityType;
 		this.entityPrimaryKey = entityPrimaryKey;
+	}
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.REMOVE;
 	}
 
 	@Nonnull

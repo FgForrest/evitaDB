@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.mutation.reference;
 
 import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
@@ -83,6 +84,12 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey> imp
 		this.referenceKey = referenceKey;
 		this.referenceCardinality = referenceCardinality;
 		this.referencedEntityType = referencedEntityType;
+	}
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.CREATE;
 	}
 
 	@Override

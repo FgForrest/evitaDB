@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.mutation.associatedData;
 
 import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -55,6 +56,12 @@ public class RemoveAssociatedDataMutation extends AssociatedDataMutation {
 
 	public RemoveAssociatedDataMutation(@Nonnull String associatedDataName, @Nonnull Locale locale) {
 		super(new AssociatedDataKey(associatedDataName, locale));
+	}
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.REMOVE;
 	}
 
 	@Nonnull

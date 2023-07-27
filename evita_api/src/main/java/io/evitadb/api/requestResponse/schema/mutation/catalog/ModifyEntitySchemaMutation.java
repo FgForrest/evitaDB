@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.catalog;
 
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper;
@@ -60,6 +61,12 @@ public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutati
 	public ModifyEntitySchemaMutation(@Nonnull String entityType, @Nonnull EntitySchemaMutation... schemaMutations) {
 		this.entityType = entityType;
 		this.schemaMutations = schemaMutations;
+	}
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.UPDATE;
 	}
 
 	@Nullable

@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.mutation.reference;
 
 import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
@@ -53,6 +54,12 @@ public class RemoveReferenceMutation extends ReferenceMutation<ReferenceKey> {
 
 	public RemoveReferenceMutation(@Nonnull String referenceName, int primaryKey) {
 		this(new ReferenceKey(referenceName, primaryKey));
+	}
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.REMOVE;
 	}
 
 	@Nonnull

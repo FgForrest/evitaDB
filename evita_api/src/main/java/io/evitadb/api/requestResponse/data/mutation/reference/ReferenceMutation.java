@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
+import io.evitadb.dataType.ClassifierType;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -53,4 +54,9 @@ public abstract class ReferenceMutation<T extends Comparable<T>> implements Loca
 		this(new ReferenceKey(referenceName, primaryKey));
 	}
 
+	@Nonnull
+	@Override
+	public ClassifierType getClassifierType() {
+		return ClassifierType.REFERENCE;
+	}
 }

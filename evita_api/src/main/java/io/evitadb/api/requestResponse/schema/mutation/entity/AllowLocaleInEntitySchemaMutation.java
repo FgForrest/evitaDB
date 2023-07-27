@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.entity;
 
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
@@ -64,6 +65,12 @@ public class AllowLocaleInEntitySchemaMutation implements CombinableEntitySchema
 
 	public AllowLocaleInEntitySchemaMutation(@Nonnull Locale... locales) {
 		this.locales = locales;
+	}
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.UPDATE;
 	}
 
 	@Nullable

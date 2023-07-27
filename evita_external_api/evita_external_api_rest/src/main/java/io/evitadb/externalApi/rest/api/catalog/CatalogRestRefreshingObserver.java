@@ -23,18 +23,24 @@
 
 package io.evitadb.externalApi.rest.api.catalog;
 
-import io.evitadb.api.CatalogStructuralChangeObserver;
+import io.evitadb.api.requestResponse.cdc.CaptureArea;
+import io.evitadb.api.requestResponse.cdc.ChangeDataCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureObserver;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureObserver;
 import io.evitadb.externalApi.rest.RestManager;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import java.util.Collection;
+import java.util.Objects;
 
 /**
  * This observer allows to react on changes in Catalog's structure and reload OpenAPI and REST handlers if necessary.
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class CatalogRestRefreshingObserver implements CatalogStructuralChangeObserver {
-
+public class CatalogRestRefreshingObserver implements ChangeSystemCaptureObserver, ChangeDataCaptureObserver {
 	private final RestManager restManager;
 
 	public CatalogRestRefreshingObserver(@Nonnull RestManager restManager) {
@@ -42,32 +48,35 @@ public class CatalogRestRefreshingObserver implements CatalogStructuralChangeObs
 	}
 
 	@Override
-	public void onCatalogCreate(@Nonnull String catalogName) {
-		restManager.registerCatalog(catalogName);
+	public void onTransactionCommit(long transactionId, @Nonnull Collection<ChangeDataCapture> events) {
+		String catalogUpdated = null;
+		for (ChangeDataCapture event : events) {
+			if (event.area() == CaptureArea.SCHEMA) {
+				Assert.isTrue(
+					catalogUpdated == null || Objects.equals(catalogUpdated, event.catalog()),
+					"Transactions are expected to always contain events from the same catalog."
+				);
+				catalogUpdated = event.catalog();
+			}
+		}
+
+		if (catalogUpdated != null) {
+			restManager.refreshCatalog(catalogUpdated);
+		}
 	}
 
 	@Override
-	public void onCatalogDelete(@Nonnull String catalogName) {
-		restManager.unregisterCatalog(catalogName);
+	public void onChange(@Nonnull ChangeSystemCapture event) {
+		switch (event.operation()) {
+			case CREATE -> restManager.registerCatalog(event.catalog());
+			case UPDATE -> restManager.refreshCatalog(event.catalog());
+			case REMOVE -> restManager.unregisterCatalog(event.catalog());
+		}
 	}
 
 	@Override
-	public void onEntityCollectionCreate(@Nonnull String catalogName, @Nonnull String entityType) {
-		restManager.refreshCatalog(catalogName);
+	public void onTermination() {
+		// do nothing, there are no resources to free
 	}
 
-	@Override
-	public void onEntityCollectionDelete(@Nonnull String catalogName, @Nonnull String entityType) {
-		restManager.refreshCatalog(catalogName);
-	}
-
-	@Override
-	public void onCatalogSchemaUpdate(@Nonnull String catalogName) {
-		restManager.refreshCatalog(catalogName);
-	}
-
-	@Override
-	public void onEntitySchemaUpdate(@Nonnull String catalogName, @Nonnull String entityType) {
-		restManager.refreshCatalog(catalogName);
-	}
 }

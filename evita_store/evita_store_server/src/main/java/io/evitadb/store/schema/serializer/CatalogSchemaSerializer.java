@@ -50,7 +50,7 @@ public class CatalogSchemaSerializer extends Serializer<CatalogSchema> {
 
 	@Override
 	public void write(Kryo kryo, Output output, CatalogSchema catalogSchema) {
-		output.writeInt(catalogSchema.getVersion());
+		output.writeInt(catalogSchema.version());
 		output.writeString(
 			Optional.ofNullable(CatalogSchemaStoragePart.getSerializationCatalogName())
 				.orElseGet(catalogSchema::getName)

@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -52,6 +53,12 @@ import java.util.stream.Stream;
 abstract class AbstractModifyReferenceDataSchemaMutation implements EntitySchemaMutation, ReferenceSchemaMutation {
 	@Serial private static final long serialVersionUID = 3160594356938000407L;
 	@Getter @Nonnull protected final String name;
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.UPDATE;
+	}
 
 	/**
 	 * Replaces existing reference schema with updated one but only when those schemas differ. Otherwise,

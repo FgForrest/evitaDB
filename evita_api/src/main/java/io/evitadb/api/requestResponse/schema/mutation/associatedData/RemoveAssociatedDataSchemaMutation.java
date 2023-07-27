@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.associatedData;
 
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -65,6 +66,12 @@ public class RemoveAssociatedDataSchemaMutation
 	implements AssociatedDataSchemaMutation, CombinableEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = 5455262123304001612L;
 	@Getter @Nonnull private final String name;
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.REMOVE;
+	}
 
 	@Nullable
 	@Override

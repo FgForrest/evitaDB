@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -67,6 +68,12 @@ public class SetAttributeSchemaGloballyUniqueMutation
 	public SetAttributeSchemaGloballyUniqueMutation(@Nonnull String name, boolean uniqueGlobally) {
 		this.name = name;
 		this.uniqueGlobally = uniqueGlobally;
+	}
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.UPDATE;
 	}
 
 	@Nullable

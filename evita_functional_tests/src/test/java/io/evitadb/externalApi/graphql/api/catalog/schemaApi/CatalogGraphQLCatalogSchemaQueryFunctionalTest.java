@@ -30,9 +30,9 @@ import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
-import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -93,7 +93,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 				equalTo(
 					map()
 						.e(TYPENAME_FIELD, CatalogSchemaDescriptor.THIS.name())
-						.e(CatalogSchemaDescriptor.VERSION.name(), catalogSchema.getVersion())
+						.e(CatalogSchemaDescriptor.VERSION.name(), catalogSchema.version())
 						.e(CatalogSchemaDescriptor.NAME.name(), catalogSchema.getName())
 						.e(CatalogSchemaDescriptor.NAME_VARIANTS.name(), map()
 							.e(TYPENAME_FIELD, NameVariantsDescriptor.THIS.name())

@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.mutation.associatedData;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -91,6 +92,12 @@ public class CreateAssociatedDataSchemaMutation
 		this.type = type;
 		this.localized = localized;
 		this.nullable = nullable;
+	}
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.CREATE;
 	}
 
 	@Nullable

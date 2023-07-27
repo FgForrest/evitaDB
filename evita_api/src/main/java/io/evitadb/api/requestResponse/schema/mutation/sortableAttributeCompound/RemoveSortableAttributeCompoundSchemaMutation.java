@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound;
 
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -71,6 +72,12 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 
 	public RemoveSortableAttributeCompoundSchemaMutation(@Nonnull String name) {
 		this.name = name;
+	}
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.REMOVE;
 	}
 
 	@Nullable

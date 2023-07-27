@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -69,6 +70,12 @@ public class ModifySortableAttributeCompoundSchemaDescriptionMutation
 	public ModifySortableAttributeCompoundSchemaDescriptionMutation(@Nonnull String name, @Nullable String description) {
 		this.name = name;
 		this.description = description;
+	}
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.UPDATE;
 	}
 
 	@Nullable

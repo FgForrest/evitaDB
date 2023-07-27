@@ -26,6 +26,8 @@ package io.evitadb.api;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.exception.CatalogAlreadyPresentException;
 import io.evitadb.api.exception.InstanceTerminatedException;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureObserver;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
@@ -52,6 +54,21 @@ import java.util.function.Function;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface EvitaContract extends AutoCloseable {
+
+	/**
+	 * TODO JNO - document me
+	 */
+	@Nonnull
+	UUID registerSystemChangeCapture(
+		@Nonnull ChangeSystemCaptureRequest request,
+		@Nonnull ChangeSystemCaptureObserver callback
+	);
+
+	/**
+	 * TODO JNO - document me
+	 * @param uuid
+	 */
+	boolean unregisterSystemChangeCapture(@Nonnull UUID uuid);
 
 	/**
 	 * Creates {@link EvitaSessionContract} for querying the database.

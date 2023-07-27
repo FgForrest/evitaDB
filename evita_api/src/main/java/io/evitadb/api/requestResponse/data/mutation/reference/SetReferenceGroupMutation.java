@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.mutation.reference;
 
 import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
@@ -89,6 +90,12 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 		super(referenceName, referencedEntityPrimaryKey);
 		this.groupType = groupType;
 		this.groupPrimaryKey = groupPrimaryKey;
+	}
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.UPDATE;
 	}
 
 	@Nonnull

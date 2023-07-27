@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.mutation.attribute;
 
 import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -97,6 +98,12 @@ public class ApplyDeltaAttributeMutation<T extends Number> extends AttributeSche
 		super(new AttributeKey(attributeName, locale));
 		this.delta = delta;
 		this.requiredRangeAfterApplication = requiredRangeAfterApplication;
+	}
+
+	@Nonnull
+	@Override
+	public Operation getOperation() {
+		return Operation.UPDATE;
 	}
 
 	@Override

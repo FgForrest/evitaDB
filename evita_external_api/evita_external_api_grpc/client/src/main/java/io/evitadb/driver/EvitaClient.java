@@ -29,6 +29,8 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.exception.InstanceTerminatedException;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureObserver;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
@@ -182,6 +184,19 @@ public class EvitaClient implements EvitaContract {
 			}
 		};;
 		this.active.set(true);
+	}
+
+	@Nonnull
+	@Override
+	public UUID registerSystemChangeCapture(@Nonnull ChangeSystemCaptureRequest request, @Nonnull ChangeSystemCaptureObserver callback) {
+		// TODO TPO - implement
+		return null;
+	}
+
+	@Override
+	public boolean unregisterSystemChangeCapture(@Nonnull UUID uuid) {
+		// TODO TPO - implement
+		return false;
 	}
 
 	@Nonnull

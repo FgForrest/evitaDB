@@ -47,6 +47,8 @@ import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
 import io.evitadb.api.query.require.Strip;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureObserver;
+import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureRequest;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -155,6 +157,21 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 */
 	@Override
 	void close();
+
+	/**
+	 * TODO JNO - document me
+	 */
+	@Nonnull
+	UUID registerChangeDataCapture(
+		@Nonnull ChangeDataCaptureRequest request,
+		@Nonnull ChangeDataCaptureObserver callback
+	);
+
+	/**
+	 * TODO JNO - document me
+	 * @param uuid
+	 */
+	void unregisterChangeDataCapture(@Nonnull UUID uuid);
 
 	/**
 	 * Method creates new a new entity schema and collection for it in the catalog this session is tied to. It returns
@@ -618,7 +635,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 		return catalogSchemaBuilder.toMutation()
 			.map(ModifyCatalogSchemaMutation::getSchemaMutations)
 			.map(this::updateCatalogSchema)
-			.orElseGet(() -> getCatalogSchema().getVersion());
+			.orElseGet(() -> getCatalogSchema().version());
 	}
 
 	/**

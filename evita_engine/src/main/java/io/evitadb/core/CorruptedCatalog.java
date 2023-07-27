@@ -31,6 +31,8 @@ import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureObserver;
+import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureRequest;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
@@ -45,6 +47,7 @@ import java.io.Serializable;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * This implementation of {@link CatalogContract} represents a catalog instance that cannot be loaded into a memory due
@@ -84,6 +87,11 @@ public final class CorruptedCatalog implements CatalogContract {
 
 	@Override
 	public long getVersion() {
+		throw new CatalogCorruptedException(this);
+	}
+
+	@Override
+	public long getLastCommittedTransactionId() {
 		throw new CatalogCorruptedException(this);
 	}
 
@@ -176,4 +184,14 @@ public final class CorruptedCatalog implements CatalogContract {
 		// we don't need to terminate corrupted catalog
 	}
 
+	@Nonnull
+	@Override
+	public UUID registerChangeDataCapture(@Nonnull ChangeDataCaptureRequest request, @Nonnull ChangeDataCaptureObserver callback) {
+		throw new CatalogCorruptedException(this);
+	}
+
+	@Override
+	public boolean unregisterChangeDataCapture(@Nonnull UUID uuid) {
+		throw new CatalogCorruptedException(this);
+	}
 }

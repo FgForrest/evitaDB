@@ -23,128 +23,119 @@
 
 package io.evitadb.api.mock;
 
-import io.evitadb.api.CatalogStructuralChangeObserver;
+import io.evitadb.api.requestResponse.cdc.CaptureArea;
+import io.evitadb.api.requestResponse.cdc.ChangeDataCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureObserver;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureObserver;
+import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
 /**
- * This observer allows to test {@link CatalogStructuralChangeObserver} behaviour.
+ * This observer allows to test {@link ChangeSystemCaptureObserver} and {@link ChangeDataCaptureObserver} behaviour.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class MockCatalogStructuralChangeObserver implements CatalogStructuralChangeObserver {
-	private final static ThreadLocal<Map<String, Integer>> CATALOG_CREATED = new ThreadLocal<>();
-	private final static ThreadLocal<Map<String, Integer>> CATALOG_DELETED = new ThreadLocal<>();
-	private final static ThreadLocal<Map<String, Integer>> CATALOG_SCHEMA_UPDATED = new ThreadLocal<>();
-	private final static ThreadLocal<Map<EntityCollectionCatalogRecord, Integer>> ENTITY_COLLECTION_CREATED = new ThreadLocal<>();
-	private final static ThreadLocal<Map<EntityCollectionCatalogRecord, Integer>> ENTITY_COLLECTION_DELETED = new ThreadLocal<>();
-	private final static ThreadLocal<Map<EntityCollectionCatalogRecord, Integer>> ENTITY_COLLECTION_SCHEMA_UPDATED = new ThreadLocal<>();
+public class MockCatalogStructuralChangeObserver implements ChangeSystemCaptureObserver, ChangeDataCaptureObserver {
+	private final Map<String, Integer> catalogCreated = new HashMap<>();
+	private final Map<String, Integer> catalogUpdated = new HashMap<>();
+	private final Map<String, Integer> catalogDeleted = new HashMap<>();
+	private final Map<String, Integer> catalogSchemaUpdated = new HashMap<>();
+	private final Map<EntityCollectionCatalogRecord, Integer> entityCollectionCreated = new HashMap<>();
+	private final Map<EntityCollectionCatalogRecord, Integer> entityCollectionUpdated = new HashMap<>();
+	private final Map<EntityCollectionCatalogRecord, Integer> entityCollectionDeleted = new HashMap<>();
 
-	public static void reset() {
-		CATALOG_CREATED.remove();
-		CATALOG_DELETED.remove();
-		CATALOG_SCHEMA_UPDATED.remove();
-		ENTITY_COLLECTION_CREATED.remove();
-		ENTITY_COLLECTION_DELETED.remove();
-		ENTITY_COLLECTION_SCHEMA_UPDATED.remove();
+	public void reset() {
+		catalogCreated.clear();
+		catalogUpdated.clear();
+		catalogDeleted.clear();
+		catalogSchemaUpdated.clear();
+		entityCollectionCreated.clear();
+		entityCollectionUpdated.clear();
+		entityCollectionDeleted.clear();
+		entityCollectionUpdated.clear();
 	}
 
-	public static int getOrInitializeCollectionMonitor(@Nonnull String catalogName) {
-		return getOrInitializeCatalogMonitor(CATALOG_CREATED)
-			.getOrDefault(catalogName, 0);
+	public int getCatalogCreated(@Nonnull String catalogName) {
+		return catalogCreated.getOrDefault(catalogName, 0);
 	}
 
-	public static int getCatalogDeleted(@Nonnull String catalogName) {
-		return getOrInitializeCatalogMonitor(CATALOG_DELETED)
-			.getOrDefault(catalogName, 0);
+	public int getCatalogDeleted(@Nonnull String catalogName) {
+		return catalogDeleted.getOrDefault(catalogName, 0);
 	}
 
-	public static int getCatalogSchemaUpdated(@Nonnull String catalogName) {
-		return getOrInitializeCatalogMonitor(CATALOG_SCHEMA_UPDATED)
-			.getOrDefault(catalogName, 0);
+	public int getCatalogSchemaUpdated(@Nonnull String catalogName) {
+		return catalogSchemaUpdated.getOrDefault(catalogName, 0);
 	}
 
-	public static int getEntityCollectionCreated(@Nonnull String catalogName, @Nonnull String entityType) {
-		return getOrInitializeCollectionMonitor(ENTITY_COLLECTION_CREATED)
-			.getOrDefault(new EntityCollectionCatalogRecord(catalogName, entityType), 0);
+	public int getEntityCollectionCreated(@Nonnull String catalogName, @Nonnull String entityType) {
+		return entityCollectionCreated.getOrDefault(new EntityCollectionCatalogRecord(catalogName, entityType), 0);
 	}
 
-	public static int getEntityCollectionDeleted(@Nonnull String catalogName, @Nonnull String entityType) {
-		return getOrInitializeCollectionMonitor(ENTITY_COLLECTION_DELETED)
-			.getOrDefault(new EntityCollectionCatalogRecord(catalogName, entityType), 0);
+	public int getEntityCollectionUpdated(@Nonnull String catalogName, @Nonnull String entityType) {
+		return entityCollectionUpdated.getOrDefault(new EntityCollectionCatalogRecord(catalogName, entityType), 0);
 	}
 
-	public static int getEntityCollectionSchemaUpdated(@Nonnull String catalogName, @Nonnull String entityType) {
-		return getOrInitializeCollectionMonitor(ENTITY_COLLECTION_SCHEMA_UPDATED)
-			.getOrDefault(new EntityCollectionCatalogRecord(catalogName, entityType), 0);
+	public int getEntityCollectionDeleted(@Nonnull String catalogName, @Nonnull String entityType) {
+		return entityCollectionDeleted.getOrDefault(new EntityCollectionCatalogRecord(catalogName, entityType), 0);
 	}
 
-	@Nonnull
-	private static Map<String, Integer> getOrInitializeCatalogMonitor(ThreadLocal<Map<String, Integer>> threadLocal) {
-		return Optional.ofNullable(threadLocal.get())
-			.orElseGet(() -> {
-				final HashMap<String, Integer> theMap = new HashMap<>();
-				threadLocal.set(theMap);
-				return theMap;
-			});
+	public int getEntityCollectionSchemaUpdated(@Nonnull String catalogName, @Nonnull String entityType) {
+		return entityCollectionUpdated.getOrDefault(new EntityCollectionCatalogRecord(catalogName, entityType), 0);
 	}
 
-	@Nonnull
-	private static Map<EntityCollectionCatalogRecord, Integer> getOrInitializeCollectionMonitor(ThreadLocal<Map<EntityCollectionCatalogRecord, Integer>> threadLocal) {
-		return Optional.ofNullable(threadLocal.get())
-			.orElseGet(() -> {
-				final HashMap<EntityCollectionCatalogRecord, Integer> theMap = new HashMap<>();
-				threadLocal.set(theMap);
-				return theMap;
-			});
+
+	@Override
+	public void onChange(@Nonnull ChangeSystemCapture event) {
+		switch (event.operation()) {
+			case CREATE -> catalogCreated
+				.compute(event.catalog(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
+			case UPDATE -> catalogUpdated
+				.compute(event.catalog(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
+			case REMOVE -> catalogDeleted
+				.compute(event.catalog(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
+		}
 	}
 
 	@Override
-	public void onCatalogCreate(@Nonnull String catalogName) {
-		getOrInitializeCatalogMonitor(CATALOG_CREATED)
-			.compute(catalogName, (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
+	public void onTransactionCommit(long transactionId, @Nonnull Collection<ChangeDataCapture> events) {
+		for (ChangeDataCapture event : events) {
+			if (event.area() == CaptureArea.SCHEMA) {
+				if (event.entityType() != null) {
+					switch (event.operation()) {
+						case CREATE -> entityCollectionCreated
+							.compute(
+								new EntityCollectionCatalogRecord(event.catalog(), event.entityType()),
+								(entityCollectionRecord, counter) -> counter == null ? 1 : counter + 1
+							);
+						case UPDATE -> entityCollectionUpdated
+							.compute(
+								new EntityCollectionCatalogRecord(event.catalog(), event.entityType()),
+								(entityCollectionRecord, counter) -> counter == null ? 1 : counter + 1
+							);
+						case REMOVE -> entityCollectionDeleted
+							.compute(
+								new EntityCollectionCatalogRecord(event.catalog(), event.entityType()),
+								(entityCollectionRecord, counter) -> counter == null ? 1 : counter + 1
+							);
+					}
+				} else {
+					Assert.isTrue(event.operation() == Operation.UPDATE, "Only UPDATE operation is supported for catalog schema!");
+					catalogSchemaUpdated
+						.compute(event.catalog(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
+				}
+			}
+		}
 	}
 
 	@Override
-	public void onCatalogDelete(@Nonnull String catalogName) {
-		getOrInitializeCatalogMonitor(CATALOG_DELETED)
-			.compute(catalogName, (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
-	}
-
-	@Override
-	public void onEntityCollectionCreate(@Nonnull String catalogName, @Nonnull String entityType) {
-		getOrInitializeCollectionMonitor(ENTITY_COLLECTION_CREATED)
-			.compute(
-				new EntityCollectionCatalogRecord(catalogName, entityType),
-				(entityCollectionRecord, counter) -> counter == null ? 1 : counter + 1
-			);
-	}
-
-	@Override
-	public void onEntityCollectionDelete(@Nonnull String catalogName, @Nonnull String entityType) {
-		getOrInitializeCollectionMonitor(ENTITY_COLLECTION_DELETED)
-			.compute(
-				new EntityCollectionCatalogRecord(catalogName, entityType),
-				(entityCollectionRecord, counter) -> counter == null ? 1 : counter + 1
-			);
-	}
-
-	@Override
-	public void onCatalogSchemaUpdate(@Nonnull String catalogName) {
-		getOrInitializeCatalogMonitor(CATALOG_SCHEMA_UPDATED)
-			.compute(catalogName, (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
-	}
-
-	@Override
-	public void onEntitySchemaUpdate(@Nonnull String catalogName, @Nonnull String entityType) {
-		getOrInitializeCollectionMonitor(ENTITY_COLLECTION_SCHEMA_UPDATED)
-			.compute(
-				new EntityCollectionCatalogRecord(catalogName, entityType),
-				(entityCollectionRecord, counter) -> counter == null ? 1 : counter + 1
-			);
+	public void onTermination() {
+		// do nothing - no resources needs to be released
 	}
 
 	private record EntityCollectionCatalogRecord(@Nonnull String catalogName, @Nonnull String entityType) {
