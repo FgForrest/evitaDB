@@ -586,15 +586,16 @@ public final class Evita implements EvitaContract {
 				catalogNameToBeReplacedWith, Operation.REMOVE,
 				() -> modifyCatalogSchemaName
 			);
-			if (previousCatalog != null) {
+			if (previousCatalog == null) {
+				changeObserver.notifyObservers(
+					catalogNameToBeReplaced, Operation.CREATE,
+					() -> modifyCatalogSchemaName
+				);
+			} else {
 				changeObserver.notifyObservers(
 					catalogNameToBeReplaced, Operation.UPDATE, () -> modifyCatalogSchemaName
 				);
 			}
-			changeObserver.notifyObservers(
-				catalogNameToBeReplaced, Operation.CREATE,
-				() -> modifyCatalogSchemaName
-			);
 
 			// now remove the catalog that was renamed to, we need observers to be still able to access it and therefore
 			// and therefore the removal only takes place here
