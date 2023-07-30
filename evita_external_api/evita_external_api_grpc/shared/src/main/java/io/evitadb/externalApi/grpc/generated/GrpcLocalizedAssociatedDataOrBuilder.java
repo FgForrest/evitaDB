@@ -31,10 +31,22 @@ public interface GrpcLocalizedAssociatedDataOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The map, where the key is the name of the associated data and the value is the associated data value.
+   * The localization is held on the entity level - specific language tag is used as a key of the outer map on the
+   * SealedEntity level.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; associatedData = 1;</code>
    */
   int getAssociatedDataCount();
   /**
+   * <pre>
+   * The map, where the key is the name of the associated data and the value is the associated data value.
+   * The localization is held on the entity level - specific language tag is used as a key of the outer map on the
+   * SealedEntity level.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; associatedData = 1;</code>
    */
   boolean containsAssociatedData(
@@ -46,11 +58,23 @@ public interface GrpcLocalizedAssociatedDataOrBuilder extends
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue>
   getAssociatedData();
   /**
+   * <pre>
+   * The map, where the key is the name of the associated data and the value is the associated data value.
+   * The localization is held on the entity level - specific language tag is used as a key of the outer map on the
+   * SealedEntity level.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; associatedData = 1;</code>
    */
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue>
   getAssociatedDataMap();
   /**
+   * <pre>
+   * The map, where the key is the name of the associated data and the value is the associated data value.
+   * The localization is held on the entity level - specific language tag is used as a key of the outer map on the
+   * SealedEntity level.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; associatedData = 1;</code>
    */
 
@@ -58,6 +82,12 @@ public interface GrpcLocalizedAssociatedDataOrBuilder extends
       java.lang.String key,
       io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue defaultValue);
   /**
+   * <pre>
+   * The map, where the key is the name of the associated data and the value is the associated data value.
+   * The localization is held on the entity level - specific language tag is used as a key of the outer map on the
+   * SealedEntity level.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; associatedData = 1;</code>
    */
 

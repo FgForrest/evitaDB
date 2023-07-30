@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Wrapper for representing an array of QueryPriceModeArray enums.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray}
  */
 public final class GrpcQueryPriceModeArray extends
@@ -144,6 +148,10 @@ private static final long serialVersionUID = 0L;
             }
           };
   /**
+   * <pre>
+   * Value that supports storing a QueryPriceMode array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode value = 1;</code>
    * @return A list containing the value.
    */
@@ -153,6 +161,10 @@ private static final long serialVersionUID = 0L;
         java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode>(value_, value_converter_);
   }
   /**
+   * <pre>
+   * Value that supports storing a QueryPriceMode array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode value = 1;</code>
    * @return The count of value.
    */
@@ -161,6 +173,10 @@ private static final long serialVersionUID = 0L;
     return value_.size();
   }
   /**
+   * <pre>
+   * Value that supports storing a QueryPriceMode array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode value = 1;</code>
    * @param index The index of the element to return.
    * @return The value at the given index.
@@ -170,6 +186,10 @@ private static final long serialVersionUID = 0L;
     return value_converter_.convert(value_.get(index));
   }
   /**
+   * <pre>
+   * Value that supports storing a QueryPriceMode array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode value = 1;</code>
    * @return A list containing the enum numeric values on the wire for value.
    */
@@ -179,6 +199,10 @@ private static final long serialVersionUID = 0L;
     return value_;
   }
   /**
+   * <pre>
+   * Value that supports storing a QueryPriceMode array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode value = 1;</code>
    * @param index The index of the value to return.
    * @return The enum numeric value on the wire of value at the given index.
@@ -359,6 +383,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Wrapper for representing an array of QueryPriceModeArray enums.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray}
    */
   public static final class Builder extends
@@ -527,6 +555,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Value that supports storing a QueryPriceMode array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode value = 1;</code>
      * @return A list containing the value.
      */
@@ -535,6 +567,10 @@ private static final long serialVersionUID = 0L;
           java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode>(value_, value_converter_);
     }
     /**
+     * <pre>
+     * Value that supports storing a QueryPriceMode array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode value = 1;</code>
      * @return The count of value.
      */
@@ -542,6 +578,10 @@ private static final long serialVersionUID = 0L;
       return value_.size();
     }
     /**
+     * <pre>
+     * Value that supports storing a QueryPriceMode array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode value = 1;</code>
      * @param index The index of the element to return.
      * @return The value at the given index.
@@ -550,6 +590,10 @@ private static final long serialVersionUID = 0L;
       return value_converter_.convert(value_.get(index));
     }
     /**
+     * <pre>
+     * Value that supports storing a QueryPriceMode array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode value = 1;</code>
      * @param index The index to set the value at.
      * @param value The value to set.
@@ -566,6 +610,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Value that supports storing a QueryPriceMode array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode value = 1;</code>
      * @param value The value to add.
      * @return This builder for chaining.
@@ -580,6 +628,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Value that supports storing a QueryPriceMode array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode value = 1;</code>
      * @param values The value to add.
      * @return This builder for chaining.
@@ -594,6 +646,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Value that supports storing a QueryPriceMode array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode value = 1;</code>
      * @return This builder for chaining.
      */
@@ -604,6 +660,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Value that supports storing a QueryPriceMode array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode value = 1;</code>
      * @return A list containing the enum numeric values on the wire for value.
      */
@@ -612,6 +672,10 @@ private static final long serialVersionUID = 0L;
       return java.util.Collections.unmodifiableList(value_);
     }
     /**
+     * <pre>
+     * Value that supports storing a QueryPriceMode array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode value = 1;</code>
      * @param index The index of the value to return.
      * @return The enum numeric value on the wire of value at the given index.
@@ -620,6 +684,10 @@ private static final long serialVersionUID = 0L;
       return value_.get(index);
     }
     /**
+     * <pre>
+     * Value that supports storing a QueryPriceMode array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode value = 1;</code>
      * @param index The index of the value to return.
      * @return The enum numeric value on the wire of value at the given index.
@@ -633,6 +701,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Value that supports storing a QueryPriceMode array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode value = 1;</code>
      * @param value The enum numeric value on the wire for value to add.
      * @return This builder for chaining.
@@ -644,6 +716,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Value that supports storing a QueryPriceMode array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode value = 1;</code>
      * @param values The enum numeric values on the wire for value to add.
      * @return This builder for chaining.

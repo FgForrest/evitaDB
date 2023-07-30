@@ -31,6 +31,10 @@ public interface GrpcRenameCollectionResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * True, if the collection was renamed.
+   * </pre>
+   *
    * <code>bool renamed = 1;</code>
    * @return The renamed.
    */

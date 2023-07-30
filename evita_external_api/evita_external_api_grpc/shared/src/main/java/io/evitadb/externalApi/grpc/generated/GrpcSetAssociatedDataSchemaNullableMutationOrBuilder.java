@@ -31,11 +31,21 @@ public interface GrpcSetAssociatedDataSchemaNullableMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+   * within single entity instance.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
   java.lang.String getName();
   /**
+   * <pre>
+   * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+   * within single entity instance.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -43,6 +53,11 @@ public interface GrpcSetAssociatedDataSchemaNullableMutationOrBuilder extends
       getNameBytes();
 
   /**
+   * <pre>
+   * When associated data is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+   * non-null checks upon upserting of the entity.
+   * </pre>
+   *
    * <code>bool nullable = 2;</code>
    * @return The nullable.
    */

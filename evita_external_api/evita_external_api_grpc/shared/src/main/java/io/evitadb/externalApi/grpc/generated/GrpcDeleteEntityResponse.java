@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Response to DeleteEntity request.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityResponse}
  */
 public final class GrpcDeleteEntityResponse extends
@@ -174,6 +178,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int ENTITYREFERENCE_FIELD_NUMBER = 1;
   /**
+   * <pre>
+   * The deleted entity reference.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
    * @return Whether the entityReference field is set.
    */
@@ -182,6 +190,10 @@ private static final long serialVersionUID = 0L;
     return responseCase_ == 1;
   }
   /**
+   * <pre>
+   * The deleted entity reference.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
    * @return The entityReference.
    */
@@ -193,6 +205,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance();
   }
   /**
+   * <pre>
+   * The deleted entity reference.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
    */
   @java.lang.Override
@@ -205,6 +221,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int ENTITY_FIELD_NUMBER = 2;
   /**
+   * <pre>
+   * The deleted entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
    * @return Whether the entity field is set.
    */
@@ -213,6 +233,10 @@ private static final long serialVersionUID = 0L;
     return responseCase_ == 2;
   }
   /**
+   * <pre>
+   * The deleted entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
    * @return The entity.
    */
@@ -224,6 +248,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance();
   }
   /**
+   * <pre>
+   * The deleted entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
    */
   @java.lang.Override
@@ -418,6 +446,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Response to DeleteEntity request.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityResponse}
    */
   public static final class Builder extends
@@ -606,6 +638,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> entityReferenceBuilder_;
     /**
+     * <pre>
+     * The deleted entity reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      * @return Whether the entityReference field is set.
      */
@@ -614,6 +650,10 @@ private static final long serialVersionUID = 0L;
       return responseCase_ == 1;
     }
     /**
+     * <pre>
+     * The deleted entity reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      * @return The entityReference.
      */
@@ -632,6 +672,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The deleted entity reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      */
     public Builder setEntityReference(io.evitadb.externalApi.grpc.generated.GrpcEntityReference value) {
@@ -648,6 +692,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The deleted entity reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      */
     public Builder setEntityReference(
@@ -662,6 +710,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The deleted entity reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      */
     public Builder mergeEntityReference(io.evitadb.externalApi.grpc.generated.GrpcEntityReference value) {
@@ -684,6 +736,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The deleted entity reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      */
     public Builder clearEntityReference() {
@@ -703,12 +759,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The deleted entity reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder getEntityReferenceBuilder() {
       return getEntityReferenceFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * The deleted entity reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      */
     @java.lang.Override
@@ -723,6 +787,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The deleted entity reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -747,6 +815,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> entityBuilder_;
     /**
+     * <pre>
+     * The deleted entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
      * @return Whether the entity field is set.
      */
@@ -755,6 +827,10 @@ private static final long serialVersionUID = 0L;
       return responseCase_ == 2;
     }
     /**
+     * <pre>
+     * The deleted entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
      * @return The entity.
      */
@@ -773,6 +849,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The deleted entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
      */
     public Builder setEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
@@ -789,6 +869,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The deleted entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
      */
     public Builder setEntity(
@@ -803,6 +887,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The deleted entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
      */
     public Builder mergeEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
@@ -825,6 +913,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The deleted entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
      */
     public Builder clearEntity() {
@@ -844,12 +936,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The deleted entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder getEntityBuilder() {
       return getEntityFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * The deleted entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
      */
     @java.lang.Override
@@ -864,6 +964,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The deleted entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

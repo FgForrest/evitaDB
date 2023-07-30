@@ -27,6 +27,12 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Prices are specific to a very few entities, but because correct price computation is very complex in e-commerce systems
+ * and highly affects performance of the entities filtering and sorting, they deserve first class support in entity model.
+ * It is pretty common in B2B systems single product has assigned dozens of prices for the different customers.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcPrice}
  */
 public final class GrpcPrice extends
@@ -206,6 +212,12 @@ private static final long serialVersionUID = 0L;
   public static final int PRICEID_FIELD_NUMBER = 1;
   private int priceId_;
   /**
+   * <pre>
+   * Contains identification of the price in the external systems. This id is expected to be used for the synchronization
+   * of the price in relation with the primary source of the prices.
+   * This id is used to uniquely find a price within same price list and currency and is mandatory.
+   * </pre>
+   *
    * <code>int32 priceId = 1;</code>
    * @return The priceId.
    */
@@ -217,6 +229,15 @@ private static final long serialVersionUID = 0L;
   public static final int PRICELIST_FIELD_NUMBER = 2;
   private volatile java.lang.Object priceList_;
   /**
+   * <pre>
+   * Contains identification of the price list in the external system. Each price must reference a price list. Price list
+   * identification may refer to another Evita entity or may contain any external price list identification
+   * (for example id or unique name of the price list in the external system).
+   * Single entity is expected to have single price for the price list unless there is validity specified.
+   * In other words there is no sense to have multiple concurrently valid prices for the same entity that have roots
+   * in the same price list.
+   * </pre>
+   *
    * <code>string priceList = 2;</code>
    * @return The priceList.
    */
@@ -234,6 +255,15 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Contains identification of the price list in the external system. Each price must reference a price list. Price list
+   * identification may refer to another Evita entity or may contain any external price list identification
+   * (for example id or unique name of the price list in the external system).
+   * Single entity is expected to have single price for the price list unless there is validity specified.
+   * In other words there is no sense to have multiple concurrently valid prices for the same entity that have roots
+   * in the same price list.
+   * </pre>
+   *
    * <code>string priceList = 2;</code>
    * @return The bytes for priceList.
    */
@@ -255,6 +285,10 @@ private static final long serialVersionUID = 0L;
   public static final int CURRENCY_FIELD_NUMBER = 3;
   private io.evitadb.externalApi.grpc.generated.GrpcCurrency currency_;
   /**
+   * <pre>
+   * Identification of the currency.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
    * @return Whether the currency field is set.
    */
@@ -263,6 +297,10 @@ private static final long serialVersionUID = 0L;
     return currency_ != null;
   }
   /**
+   * <pre>
+   * Identification of the currency.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
    * @return The currency.
    */
@@ -271,6 +309,10 @@ private static final long serialVersionUID = 0L;
     return currency_ == null ? io.evitadb.externalApi.grpc.generated.GrpcCurrency.getDefaultInstance() : currency_;
   }
   /**
+   * <pre>
+   * Identification of the currency.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
    */
   @java.lang.Override
@@ -281,6 +323,13 @@ private static final long serialVersionUID = 0L;
   public static final int INNERRECORDID_FIELD_NUMBER = 4;
   private com.google.protobuf.Int32Value innerRecordId_;
   /**
+   * <pre>
+   * Some special products (such as master products, or product sets) may contain prices of all "subordinate" products
+   * so that the aggregating product can represent them in certain views on the product. In that case there is need
+   * to distinguish the projected prices of the subordinate product in the one that represents them.
+   * Inner record id must contain positive value.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value innerRecordId = 4;</code>
    * @return Whether the innerRecordId field is set.
    */
@@ -289,6 +338,13 @@ private static final long serialVersionUID = 0L;
     return innerRecordId_ != null;
   }
   /**
+   * <pre>
+   * Some special products (such as master products, or product sets) may contain prices of all "subordinate" products
+   * so that the aggregating product can represent them in certain views on the product. In that case there is need
+   * to distinguish the projected prices of the subordinate product in the one that represents them.
+   * Inner record id must contain positive value.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value innerRecordId = 4;</code>
    * @return The innerRecordId.
    */
@@ -297,6 +353,13 @@ private static final long serialVersionUID = 0L;
     return innerRecordId_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : innerRecordId_;
   }
   /**
+   * <pre>
+   * Some special products (such as master products, or product sets) may contain prices of all "subordinate" products
+   * so that the aggregating product can represent them in certain views on the product. In that case there is need
+   * to distinguish the projected prices of the subordinate product in the one that represents them.
+   * Inner record id must contain positive value.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value innerRecordId = 4;</code>
    */
   @java.lang.Override
@@ -307,6 +370,10 @@ private static final long serialVersionUID = 0L;
   public static final int PRICEWITHOUTTAX_FIELD_NUMBER = 5;
   private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithoutTax_;
   /**
+   * <pre>
+   * Price without tax.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithoutTax = 5;</code>
    * @return Whether the priceWithoutTax field is set.
    */
@@ -315,6 +382,10 @@ private static final long serialVersionUID = 0L;
     return priceWithoutTax_ != null;
   }
   /**
+   * <pre>
+   * Price without tax.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithoutTax = 5;</code>
    * @return The priceWithoutTax.
    */
@@ -323,6 +394,10 @@ private static final long serialVersionUID = 0L;
     return priceWithoutTax_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : priceWithoutTax_;
   }
   /**
+   * <pre>
+   * Price without tax.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithoutTax = 5;</code>
    */
   @java.lang.Override
@@ -333,6 +408,10 @@ private static final long serialVersionUID = 0L;
   public static final int TAXRATE_FIELD_NUMBER = 6;
   private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate_;
   /**
+   * <pre>
+   * Price with tax.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
    * @return Whether the taxRate field is set.
    */
@@ -341,6 +420,10 @@ private static final long serialVersionUID = 0L;
     return taxRate_ != null;
   }
   /**
+   * <pre>
+   * Price with tax.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
    * @return The taxRate.
    */
@@ -349,6 +432,10 @@ private static final long serialVersionUID = 0L;
     return taxRate_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : taxRate_;
   }
   /**
+   * <pre>
+   * Price with tax.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
    */
   @java.lang.Override
@@ -359,6 +446,10 @@ private static final long serialVersionUID = 0L;
   public static final int PRICEWITHTAX_FIELD_NUMBER = 7;
   private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax_;
   /**
+   * <pre>
+   * Tax rate percentage (i.e. for 19% it'll be 19.00)
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
    * @return Whether the priceWithTax field is set.
    */
@@ -367,6 +458,10 @@ private static final long serialVersionUID = 0L;
     return priceWithTax_ != null;
   }
   /**
+   * <pre>
+   * Tax rate percentage (i.e. for 19% it'll be 19.00)
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
    * @return The priceWithTax.
    */
@@ -375,6 +470,10 @@ private static final long serialVersionUID = 0L;
     return priceWithTax_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : priceWithTax_;
   }
   /**
+   * <pre>
+   * Tax rate percentage (i.e. for 19% it'll be 19.00)
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
    */
   @java.lang.Override
@@ -385,6 +484,10 @@ private static final long serialVersionUID = 0L;
   public static final int VALIDITY_FIELD_NUMBER = 8;
   private io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange validity_;
   /**
+   * <pre>
+   * Date and time interval for which the price is valid (inclusive).
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange validity = 8;</code>
    * @return Whether the validity field is set.
    */
@@ -393,6 +496,10 @@ private static final long serialVersionUID = 0L;
     return validity_ != null;
   }
   /**
+   * <pre>
+   * Date and time interval for which the price is valid (inclusive).
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange validity = 8;</code>
    * @return The validity.
    */
@@ -401,6 +508,10 @@ private static final long serialVersionUID = 0L;
     return validity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.getDefaultInstance() : validity_;
   }
   /**
+   * <pre>
+   * Date and time interval for which the price is valid (inclusive).
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange validity = 8;</code>
    */
   @java.lang.Override
@@ -411,6 +522,13 @@ private static final long serialVersionUID = 0L;
   public static final int SELLABLE_FIELD_NUMBER = 9;
   private boolean sellable_;
   /**
+   * <pre>
+   * Controls whether price is subject to filtering / sorting logic, non-sellable prices will be fetched along with
+   * entity but won't be considered when evaluating search. These prices may be
+   * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
+   * as "usual price") but are not considered as the "selling" price.
+   * </pre>
+   *
    * <code>bool sellable = 9;</code>
    * @return The sellable.
    */
@@ -422,6 +540,11 @@ private static final long serialVersionUID = 0L;
   public static final int VERSION_FIELD_NUMBER = 10;
   private int version_;
   /**
+   * <pre>
+   * Contains version of this price and gets increased with any entity type update. Allows to execute
+   * optimistic locking i.e. avoiding parallel modifications.
+   * </pre>
+   *
    * <code>int32 version = 10;</code>
    * @return The version.
    */
@@ -715,6 +838,12 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Prices are specific to a very few entities, but because correct price computation is very complex in e-commerce systems
+   * and highly affects performance of the entities filtering and sorting, they deserve first class support in entity model.
+   * It is pretty common in B2B systems single product has assigned dozens of prices for the different customers.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcPrice}
    */
   public static final class Builder extends
@@ -966,6 +1095,12 @@ private static final long serialVersionUID = 0L;
 
     private int priceId_ ;
     /**
+     * <pre>
+     * Contains identification of the price in the external systems. This id is expected to be used for the synchronization
+     * of the price in relation with the primary source of the prices.
+     * This id is used to uniquely find a price within same price list and currency and is mandatory.
+     * </pre>
+     *
      * <code>int32 priceId = 1;</code>
      * @return The priceId.
      */
@@ -974,6 +1109,12 @@ private static final long serialVersionUID = 0L;
       return priceId_;
     }
     /**
+     * <pre>
+     * Contains identification of the price in the external systems. This id is expected to be used for the synchronization
+     * of the price in relation with the primary source of the prices.
+     * This id is used to uniquely find a price within same price list and currency and is mandatory.
+     * </pre>
+     *
      * <code>int32 priceId = 1;</code>
      * @param value The priceId to set.
      * @return This builder for chaining.
@@ -985,6 +1126,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains identification of the price in the external systems. This id is expected to be used for the synchronization
+     * of the price in relation with the primary source of the prices.
+     * This id is used to uniquely find a price within same price list and currency and is mandatory.
+     * </pre>
+     *
      * <code>int32 priceId = 1;</code>
      * @return This builder for chaining.
      */
@@ -997,6 +1144,15 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object priceList_ = "";
     /**
+     * <pre>
+     * Contains identification of the price list in the external system. Each price must reference a price list. Price list
+     * identification may refer to another Evita entity or may contain any external price list identification
+     * (for example id or unique name of the price list in the external system).
+     * Single entity is expected to have single price for the price list unless there is validity specified.
+     * In other words there is no sense to have multiple concurrently valid prices for the same entity that have roots
+     * in the same price list.
+     * </pre>
+     *
      * <code>string priceList = 2;</code>
      * @return The priceList.
      */
@@ -1013,6 +1169,15 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains identification of the price list in the external system. Each price must reference a price list. Price list
+     * identification may refer to another Evita entity or may contain any external price list identification
+     * (for example id or unique name of the price list in the external system).
+     * Single entity is expected to have single price for the price list unless there is validity specified.
+     * In other words there is no sense to have multiple concurrently valid prices for the same entity that have roots
+     * in the same price list.
+     * </pre>
+     *
      * <code>string priceList = 2;</code>
      * @return The bytes for priceList.
      */
@@ -1030,6 +1195,15 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains identification of the price list in the external system. Each price must reference a price list. Price list
+     * identification may refer to another Evita entity or may contain any external price list identification
+     * (for example id or unique name of the price list in the external system).
+     * Single entity is expected to have single price for the price list unless there is validity specified.
+     * In other words there is no sense to have multiple concurrently valid prices for the same entity that have roots
+     * in the same price list.
+     * </pre>
+     *
      * <code>string priceList = 2;</code>
      * @param value The priceList to set.
      * @return This builder for chaining.
@@ -1045,6 +1219,15 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains identification of the price list in the external system. Each price must reference a price list. Price list
+     * identification may refer to another Evita entity or may contain any external price list identification
+     * (for example id or unique name of the price list in the external system).
+     * Single entity is expected to have single price for the price list unless there is validity specified.
+     * In other words there is no sense to have multiple concurrently valid prices for the same entity that have roots
+     * in the same price list.
+     * </pre>
+     *
      * <code>string priceList = 2;</code>
      * @return This builder for chaining.
      */
@@ -1055,6 +1238,15 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains identification of the price list in the external system. Each price must reference a price list. Price list
+     * identification may refer to another Evita entity or may contain any external price list identification
+     * (for example id or unique name of the price list in the external system).
+     * Single entity is expected to have single price for the price list unless there is validity specified.
+     * In other words there is no sense to have multiple concurrently valid prices for the same entity that have roots
+     * in the same price list.
+     * </pre>
+     *
      * <code>string priceList = 2;</code>
      * @param value The bytes for priceList to set.
      * @return This builder for chaining.
@@ -1075,6 +1267,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> currencyBuilder_;
     /**
+     * <pre>
+     * Identification of the currency.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      * @return Whether the currency field is set.
      */
@@ -1082,6 +1278,10 @@ private static final long serialVersionUID = 0L;
       return currencyBuilder_ != null || currency_ != null;
     }
     /**
+     * <pre>
+     * Identification of the currency.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      * @return The currency.
      */
@@ -1093,6 +1293,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Identification of the currency.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      */
     public Builder setCurrency(io.evitadb.externalApi.grpc.generated.GrpcCurrency value) {
@@ -1109,6 +1313,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Identification of the currency.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      */
     public Builder setCurrency(
@@ -1123,6 +1331,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Identification of the currency.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      */
     public Builder mergeCurrency(io.evitadb.externalApi.grpc.generated.GrpcCurrency value) {
@@ -1141,6 +1353,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Identification of the currency.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      */
     public Builder clearCurrency() {
@@ -1155,6 +1371,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Identification of the currency.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder getCurrencyBuilder() {
@@ -1163,6 +1383,10 @@ private static final long serialVersionUID = 0L;
       return getCurrencyFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Identification of the currency.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder getCurrencyOrBuilder() {
@@ -1174,6 +1398,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Identification of the currency.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1194,6 +1422,13 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> innerRecordIdBuilder_;
     /**
+     * <pre>
+     * Some special products (such as master products, or product sets) may contain prices of all "subordinate" products
+     * so that the aggregating product can represent them in certain views on the product. In that case there is need
+     * to distinguish the projected prices of the subordinate product in the one that represents them.
+     * Inner record id must contain positive value.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value innerRecordId = 4;</code>
      * @return Whether the innerRecordId field is set.
      */
@@ -1201,6 +1436,13 @@ private static final long serialVersionUID = 0L;
       return innerRecordIdBuilder_ != null || innerRecordId_ != null;
     }
     /**
+     * <pre>
+     * Some special products (such as master products, or product sets) may contain prices of all "subordinate" products
+     * so that the aggregating product can represent them in certain views on the product. In that case there is need
+     * to distinguish the projected prices of the subordinate product in the one that represents them.
+     * Inner record id must contain positive value.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value innerRecordId = 4;</code>
      * @return The innerRecordId.
      */
@@ -1212,6 +1454,13 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Some special products (such as master products, or product sets) may contain prices of all "subordinate" products
+     * so that the aggregating product can represent them in certain views on the product. In that case there is need
+     * to distinguish the projected prices of the subordinate product in the one that represents them.
+     * Inner record id must contain positive value.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value innerRecordId = 4;</code>
      */
     public Builder setInnerRecordId(com.google.protobuf.Int32Value value) {
@@ -1228,6 +1477,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Some special products (such as master products, or product sets) may contain prices of all "subordinate" products
+     * so that the aggregating product can represent them in certain views on the product. In that case there is need
+     * to distinguish the projected prices of the subordinate product in the one that represents them.
+     * Inner record id must contain positive value.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value innerRecordId = 4;</code>
      */
     public Builder setInnerRecordId(
@@ -1242,6 +1498,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Some special products (such as master products, or product sets) may contain prices of all "subordinate" products
+     * so that the aggregating product can represent them in certain views on the product. In that case there is need
+     * to distinguish the projected prices of the subordinate product in the one that represents them.
+     * Inner record id must contain positive value.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value innerRecordId = 4;</code>
      */
     public Builder mergeInnerRecordId(com.google.protobuf.Int32Value value) {
@@ -1260,6 +1523,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Some special products (such as master products, or product sets) may contain prices of all "subordinate" products
+     * so that the aggregating product can represent them in certain views on the product. In that case there is need
+     * to distinguish the projected prices of the subordinate product in the one that represents them.
+     * Inner record id must contain positive value.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value innerRecordId = 4;</code>
      */
     public Builder clearInnerRecordId() {
@@ -1274,6 +1544,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Some special products (such as master products, or product sets) may contain prices of all "subordinate" products
+     * so that the aggregating product can represent them in certain views on the product. In that case there is need
+     * to distinguish the projected prices of the subordinate product in the one that represents them.
+     * Inner record id must contain positive value.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value innerRecordId = 4;</code>
      */
     public com.google.protobuf.Int32Value.Builder getInnerRecordIdBuilder() {
@@ -1282,6 +1559,13 @@ private static final long serialVersionUID = 0L;
       return getInnerRecordIdFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Some special products (such as master products, or product sets) may contain prices of all "subordinate" products
+     * so that the aggregating product can represent them in certain views on the product. In that case there is need
+     * to distinguish the projected prices of the subordinate product in the one that represents them.
+     * Inner record id must contain positive value.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value innerRecordId = 4;</code>
      */
     public com.google.protobuf.Int32ValueOrBuilder getInnerRecordIdOrBuilder() {
@@ -1293,6 +1577,13 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Some special products (such as master products, or product sets) may contain prices of all "subordinate" products
+     * so that the aggregating product can represent them in certain views on the product. In that case there is need
+     * to distinguish the projected prices of the subordinate product in the one that represents them.
+     * Inner record id must contain positive value.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value innerRecordId = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1313,6 +1604,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> priceWithoutTaxBuilder_;
     /**
+     * <pre>
+     * Price without tax.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithoutTax = 5;</code>
      * @return Whether the priceWithoutTax field is set.
      */
@@ -1320,6 +1615,10 @@ private static final long serialVersionUID = 0L;
       return priceWithoutTaxBuilder_ != null || priceWithoutTax_ != null;
     }
     /**
+     * <pre>
+     * Price without tax.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithoutTax = 5;</code>
      * @return The priceWithoutTax.
      */
@@ -1331,6 +1630,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Price without tax.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithoutTax = 5;</code>
      */
     public Builder setPriceWithoutTax(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
@@ -1347,6 +1650,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Price without tax.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithoutTax = 5;</code>
      */
     public Builder setPriceWithoutTax(
@@ -1361,6 +1668,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Price without tax.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithoutTax = 5;</code>
      */
     public Builder mergePriceWithoutTax(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
@@ -1379,6 +1690,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Price without tax.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithoutTax = 5;</code>
      */
     public Builder clearPriceWithoutTax() {
@@ -1393,6 +1708,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Price without tax.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithoutTax = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder getPriceWithoutTaxBuilder() {
@@ -1401,6 +1720,10 @@ private static final long serialVersionUID = 0L;
       return getPriceWithoutTaxFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Price without tax.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithoutTax = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getPriceWithoutTaxOrBuilder() {
@@ -1412,6 +1735,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Price without tax.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithoutTax = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1432,6 +1759,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> taxRateBuilder_;
     /**
+     * <pre>
+     * Price with tax.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
      * @return Whether the taxRate field is set.
      */
@@ -1439,6 +1770,10 @@ private static final long serialVersionUID = 0L;
       return taxRateBuilder_ != null || taxRate_ != null;
     }
     /**
+     * <pre>
+     * Price with tax.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
      * @return The taxRate.
      */
@@ -1450,6 +1785,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Price with tax.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
      */
     public Builder setTaxRate(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
@@ -1466,6 +1805,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Price with tax.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
      */
     public Builder setTaxRate(
@@ -1480,6 +1823,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Price with tax.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
      */
     public Builder mergeTaxRate(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
@@ -1498,6 +1845,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Price with tax.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
      */
     public Builder clearTaxRate() {
@@ -1512,6 +1863,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Price with tax.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder getTaxRateBuilder() {
@@ -1520,6 +1875,10 @@ private static final long serialVersionUID = 0L;
       return getTaxRateFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Price with tax.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getTaxRateOrBuilder() {
@@ -1531,6 +1890,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Price with tax.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1551,6 +1914,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> priceWithTaxBuilder_;
     /**
+     * <pre>
+     * Tax rate percentage (i.e. for 19% it'll be 19.00)
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
      * @return Whether the priceWithTax field is set.
      */
@@ -1558,6 +1925,10 @@ private static final long serialVersionUID = 0L;
       return priceWithTaxBuilder_ != null || priceWithTax_ != null;
     }
     /**
+     * <pre>
+     * Tax rate percentage (i.e. for 19% it'll be 19.00)
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
      * @return The priceWithTax.
      */
@@ -1569,6 +1940,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Tax rate percentage (i.e. for 19% it'll be 19.00)
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
      */
     public Builder setPriceWithTax(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
@@ -1585,6 +1960,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Tax rate percentage (i.e. for 19% it'll be 19.00)
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
      */
     public Builder setPriceWithTax(
@@ -1599,6 +1978,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Tax rate percentage (i.e. for 19% it'll be 19.00)
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
      */
     public Builder mergePriceWithTax(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
@@ -1617,6 +2000,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Tax rate percentage (i.e. for 19% it'll be 19.00)
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
      */
     public Builder clearPriceWithTax() {
@@ -1631,6 +2018,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Tax rate percentage (i.e. for 19% it'll be 19.00)
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder getPriceWithTaxBuilder() {
@@ -1639,6 +2030,10 @@ private static final long serialVersionUID = 0L;
       return getPriceWithTaxFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Tax rate percentage (i.e. for 19% it'll be 19.00)
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getPriceWithTaxOrBuilder() {
@@ -1650,6 +2045,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Tax rate percentage (i.e. for 19% it'll be 19.00)
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1670,6 +2069,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeOrBuilder> validityBuilder_;
     /**
+     * <pre>
+     * Date and time interval for which the price is valid (inclusive).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange validity = 8;</code>
      * @return Whether the validity field is set.
      */
@@ -1677,6 +2080,10 @@ private static final long serialVersionUID = 0L;
       return validityBuilder_ != null || validity_ != null;
     }
     /**
+     * <pre>
+     * Date and time interval for which the price is valid (inclusive).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange validity = 8;</code>
      * @return The validity.
      */
@@ -1688,6 +2095,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Date and time interval for which the price is valid (inclusive).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange validity = 8;</code>
      */
     public Builder setValidity(io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange value) {
@@ -1704,6 +2115,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Date and time interval for which the price is valid (inclusive).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange validity = 8;</code>
      */
     public Builder setValidity(
@@ -1718,6 +2133,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Date and time interval for which the price is valid (inclusive).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange validity = 8;</code>
      */
     public Builder mergeValidity(io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange value) {
@@ -1736,6 +2155,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Date and time interval for which the price is valid (inclusive).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange validity = 8;</code>
      */
     public Builder clearValidity() {
@@ -1750,6 +2173,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Date and time interval for which the price is valid (inclusive).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange validity = 8;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.Builder getValidityBuilder() {
@@ -1758,6 +2185,10 @@ private static final long serialVersionUID = 0L;
       return getValidityFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Date and time interval for which the price is valid (inclusive).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange validity = 8;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeOrBuilder getValidityOrBuilder() {
@@ -1769,6 +2200,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Date and time interval for which the price is valid (inclusive).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange validity = 8;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1787,6 +2222,13 @@ private static final long serialVersionUID = 0L;
 
     private boolean sellable_ ;
     /**
+     * <pre>
+     * Controls whether price is subject to filtering / sorting logic, non-sellable prices will be fetched along with
+     * entity but won't be considered when evaluating search. These prices may be
+     * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
+     * as "usual price") but are not considered as the "selling" price.
+     * </pre>
+     *
      * <code>bool sellable = 9;</code>
      * @return The sellable.
      */
@@ -1795,6 +2237,13 @@ private static final long serialVersionUID = 0L;
       return sellable_;
     }
     /**
+     * <pre>
+     * Controls whether price is subject to filtering / sorting logic, non-sellable prices will be fetched along with
+     * entity but won't be considered when evaluating search. These prices may be
+     * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
+     * as "usual price") but are not considered as the "selling" price.
+     * </pre>
+     *
      * <code>bool sellable = 9;</code>
      * @param value The sellable to set.
      * @return This builder for chaining.
@@ -1806,6 +2255,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Controls whether price is subject to filtering / sorting logic, non-sellable prices will be fetched along with
+     * entity but won't be considered when evaluating search. These prices may be
+     * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
+     * as "usual price") but are not considered as the "selling" price.
+     * </pre>
+     *
      * <code>bool sellable = 9;</code>
      * @return This builder for chaining.
      */
@@ -1818,6 +2274,11 @@ private static final long serialVersionUID = 0L;
 
     private int version_ ;
     /**
+     * <pre>
+     * Contains version of this price and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
      * <code>int32 version = 10;</code>
      * @return The version.
      */
@@ -1826,6 +2287,11 @@ private static final long serialVersionUID = 0L;
       return version_;
     }
     /**
+     * <pre>
+     * Contains version of this price and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
      * <code>int32 version = 10;</code>
      * @param value The version to set.
      * @return This builder for chaining.
@@ -1837,6 +2303,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains version of this price and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
      * <code>int32 version = 10;</code>
      * @return This builder for chaining.
      */

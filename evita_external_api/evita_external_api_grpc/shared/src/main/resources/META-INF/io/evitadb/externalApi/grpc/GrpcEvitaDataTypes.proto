@@ -2,168 +2,282 @@ syntax = "proto3";
 
 package io.evitadb.externalApi.grpc.generated;
 option java_multiple_files = true;
+option csharp_namespace = "EvitaDB";
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 import "GrpcEnums.proto";
 
+// Representation of IntegerNumberRange structures with optional from and to values.
 message GrpcIntegerNumberRange {
+  // The lower bound of the range.
   google.protobuf.Int32Value from = 1;
+  // The upper bound of the range.
   google.protobuf.Int32Value to = 2;
 }
 
+// Representation of LongNumberRange structures with optional from and to values.
 message GrpcLongNumberRange {
+  // The lower bound of the range.
   google.protobuf.Int64Value from = 1;
+  // The upper bound of the range.
   google.protobuf.Int64Value to = 2;
 }
 
+// Representation of BigDecimalNumberRange structures with optional from and to values.
 message GrpcBigDecimalNumberRange {
+  // The lower bound of the range.
   GrpcBigDecimal from = 1;
+  // The upper bound of the range.
   GrpcBigDecimal to = 2;
+  // The number of decimal places to compare.
   int32 decimalPlacesToCompare = 3;
 }
 
+// Representation of DateTimeRange structures with optional from and to values.
 message GrpcDateTimeRange {
+  // The lower bound of the range.
   GrpcOffsetDateTime from = 1;
+  // The upper bound of the range.
   GrpcOffsetDateTime to = 2;
 }
 
+// Representation of Java's BigDecimal class with arbitrary precision.
 message GrpcBigDecimal {
+  // The unscaled value of the BigDecimal.
   uint32 scale = 1;
+  // The precision of the BigDecimal.
   uint32 precision = 2;
+  // The byte serialized value in integer form.
   bytes value = 3;
+  // The string serialized value.
   string valueString = 4;
 }
 
+// Structure for representing Locale objects specified by language tag.
 message GrpcLocale {
+  // The language tag of the locale.
   string languageTag = 1;
 }
 
+// Structure for representing Currency objects specified by currency code.
 message GrpcCurrency {
+  // The currency code of the currency.
   string code = 1;
 }
 
+// Structure for universal representation of DateTime objects with an offset.
 message GrpcOffsetDateTime {
+  // The date and time of the object internally represented by unix timestamp.
   google.protobuf.Timestamp timestamp = 1;
+  // The offset of the object in seconds.
+  // Templates for offset:
+  //   Z - for UTC
+  //  +h
+  //  +hh
+  //  +hh:mm
+  //  -hh:mm
+  //  +hhmm
+  //  -hhmm
+  //  +hh:mm:ss
+  //  -hh:mm:ss
+  //  +hhmmss
+  //  -hhmms
   string offset = 2;
 }
 
+// Wrapper for representing an array of strings.
 message GrpcStringArray {
+  // Value that supports storing a string array.
   repeated string value = 1;
 }
 
+// Wrapper for representing an array of integers.
 message GrpcIntegerArray {
+  // Value that supports storing an integer array.
   repeated int32 value = 1;
 }
 
+// Wrapper for representing an array of longs.
 message GrpcLongArray {
+  // Value that supports storing a long array.
   repeated int64 value = 1;
 }
 
+// Wrapper for representing an array of booleans.
 message GrpcBooleanArray {
+  // Value that supports storing a boolean array.
   repeated bool value = 1;
 }
 
+// Wrapper for representing an array of BigDecimals.
 message GrpcBigDecimalArray {
+  // Value that supports storing a BigDecimal array.
   repeated GrpcBigDecimal value = 1;
 }
 
+// Wrapper for representing an array of DateTimeRanges.
 message GrpcDateTimeRangeArray {
+  // Value that supports storing a DateTimeRange array.
   repeated GrpcDateTimeRange value = 1;
 }
 
+// Wrapper for representing an array of IntegerNumberRanges.
 message GrpcIntegerNumberRangeArray {
+  // Value that supports storing an IntegerNumberRange array.
   repeated GrpcIntegerNumberRange value = 1;
 }
 
+// Wrapper for representing an array of LongNumberRanges.
 message GrpcLongNumberRangeArray {
+  // Value that supports storing a LongNumberRange array.
   repeated GrpcLongNumberRange value = 1;
 }
 
+// Wrapper for representing an array of BigDecimalNumberRanges.
 message GrpcBigDecimalNumberRangeArray {
+  // Value that supports storing a BigDecimalNumberRange array.
   repeated GrpcBigDecimalNumberRange value = 1;
 }
 
+// Wrapper for representing an array of OffsetDateTimes.
 message GrpcOffsetDateTimeArray {
+  // Value that supports storing an OffsetDateTime array.
   repeated GrpcOffsetDateTime value = 1;
 }
 
+// Wrapper for representing an array of Locales.
 message GrpcLocaleArray {
+  // Value that supports storing a Locale array.
   repeated GrpcLocale value = 1;
 }
 
+// Wrapper for representing an array of Currencies.
 message GrpcCurrencyArray {
+  // Value that supports storing a Currency array.
   repeated GrpcCurrency value = 1;
 }
 
+// Wrapper for representing an array of FacetStatisticsDepth enums.
 message GrpcFacetStatisticsDepthArray {
+  // Value that supports storing a FacetStatisticsDepth array.
   repeated GrpcFacetStatisticsDepth value = 1;
 }
 
+// Wrapper for representing an array of QueryPriceModeArray enums.
 message GrpcQueryPriceModeArray {
+  // Value that supports storing a QueryPriceMode array.
   repeated GrpcQueryPriceMode value = 1;
 }
 
+// Wrapper for representing an array of PriceContentMode enums.
 message GrpcPriceContentModeArray {
+  // Value that supports storing a PriceContentMode array.
   repeated GrpcPriceContentMode value = 1;
 }
 
+// Wrapper for representing an array of AttributeSpecialValue enums.
 message GrpcAttributeSpecialValueArray {
+  // Value that supports storing an AttributeSpecialValue array.
   repeated GrpcAttributeSpecialValue value = 1;
 }
 
+// Wrapper for representing an array of OrderDirection enums.
 message GrpcOrderDirectionArray {
+  // Value that supports storing an OrderDirection array.
   repeated GrpcOrderDirection value = 1;
 }
 
+// Wrapper for representing an array of EmptyHierarchicalEntityBehaviour enums.
 message GrpcEmptyHierarchicalEntityBehaviourArray {
+  // Value that supports storing an EmptyHierarchicalEntityBehaviour array.
   repeated GrpcEmptyHierarchicalEntityBehaviour value = 1;
 }
 
+// Wrapper for representing an array of StatisticsBase enums.
 message GrpcStatisticsBaseArray {
+  // Value that supports storing a StatisticsBase array.
   repeated GrpcStatisticsBase value = 1;
 }
 
+// Wrapper for representing an array of StatisticsType enums.
 message GrpcStatisticsTypeArray {
+  // Value that supports storing a StatisticsType array.
   repeated GrpcStatisticsType value = 1;
 }
 
+// Structure that holds one of the supported data type values, its type and version of stored value.
 message GrpcEvitaValue {
+  // The stored value. May by only one of the following at the time.
   oneof value {
+    // String value.
     string stringValue = 1;
+    // Integer value.
     int32 integerValue = 2;
+    // Long value.
     int64 longValue = 3;
+    // Boolean value.
     bool booleanValue = 4;
+    // BigDecimal value.
     GrpcBigDecimal bigDecimalValue = 5;
+    // DateTimeRange value.
     GrpcDateTimeRange dateTimeRangeValue = 6;
+    // IntegerNumberRange value.
     GrpcIntegerNumberRange integerNumberRangeValue = 7;
+    // LongNumberRange value.
     GrpcLongNumberRange longNumberRangeValue = 8;
+    // BigDecimalNumberRange value.
     GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;
+    // OffsetDateTime value.
     GrpcOffsetDateTime offsetDateTimeValue = 10;
+    // Locale value.
     GrpcLocale localeValue = 11;
+    // Currency value.
     GrpcCurrency currencyValue = 12;
 
+    // Array of string values.
     GrpcStringArray stringArrayValue = 13;
+    // Array of integer values.
     GrpcIntegerArray integerArrayValue = 14;
+    // Array of long values.
     GrpcLongArray longArrayValue = 15;
+    // Array of boolean values.
     GrpcBooleanArray booleanArrayValue = 16;
+    // Array of BigDecimal values.
     GrpcBigDecimalArray bigDecimalArrayValue = 17;
+    // Array of DateTimeRange values.
     GrpcDateTimeRangeArray dateTimeRangeArrayValue = 18;
+    // Array of IntegerNumberRange values.
     GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 19;
+    // Array of LongNumberRange values.
     GrpcLongNumberRangeArray longNumberRangeArrayValue = 20;
+    // Array of BigDecimalNumberRange values.
     GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 21;
+    // Array of OffsetDateTime values.
     GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 22;
+    // Array of Locale values.
     GrpcLocaleArray localeArrayValue = 23;
+    // Array of Currency values.
     GrpcCurrencyArray currencyArrayValue = 24;
   }
+  // The type of the stored value.
   GrpcEvitaDataType type = 30;
+  // Contains version of this value and gets increased with any entity type update. Allows to execute
+  //			optimistic locking i.e. avoiding parallel modifications.
   google.protobuf.Int32Value version = 31;
 }
 
+// Structure that holds AssociatedData value. Might be one of the supported data types or a JSON string that will be
+// internally converted into ComplexDataObject.
 message GrpcEvitaAssociatedDataValue {
+  // The stored value. May by only one of the following at the time.
   oneof value {
+    // Primitive value.
     GrpcEvitaValue primitiveValue = 1;
+    // JSON string value.
     string jsonValue = 2;
   }
+  // Contains version of this value and gets increased with any entity type update. Allows to execute
+  //			optimistic locking i.e. avoiding parallel modifications.
   google.protobuf.Int32Value version = 3;
 }

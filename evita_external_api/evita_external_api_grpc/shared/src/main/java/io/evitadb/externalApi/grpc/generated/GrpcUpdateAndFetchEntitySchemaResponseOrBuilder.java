@@ -31,16 +31,28 @@ public interface GrpcUpdateAndFetchEntitySchemaResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Modified entity schema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
    * @return Whether the entitySchema field is set.
    */
   boolean hasEntitySchema();
   /**
+   * <pre>
+   * Modified entity schema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
    * @return The entitySchema.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntitySchema getEntitySchema();
   /**
+   * <pre>
+   * Modified entity schema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOrBuilder getEntitySchemaOrBuilder();

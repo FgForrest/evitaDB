@@ -31,11 +31,19 @@ public interface GrpcSetAttributeSchemaSortableMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the attribute the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
   java.lang.String getName();
   /**
+   * <pre>
+   * Name of the attribute the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -43,6 +51,12 @@ public interface GrpcSetAttributeSchemaSortableMutationOrBuilder extends
       getNameBytes();
 
   /**
+   * <pre>
+   * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+   * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+   * (memory/disk) space in the form of index.
+   * </pre>
+   *
    * <code>bool sortable = 2;</code>
    * @return The sortable.
    */

@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * This mutation allows to create / update / remove attribute of the reference.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcReferenceAttributeMutation}
  */
 public final class GrpcReferenceAttributeMutation extends
@@ -131,6 +135,10 @@ private static final long serialVersionUID = 0L;
   public static final int REFERENCENAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object referenceName_;
   /**
+   * <pre>
+   * Unique identifier of the reference.
+   * </pre>
+   *
    * <code>string referenceName = 1;</code>
    * @return The referenceName.
    */
@@ -148,6 +156,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Unique identifier of the reference.
+   * </pre>
+   *
    * <code>string referenceName = 1;</code>
    * @return The bytes for referenceName.
    */
@@ -169,6 +181,11 @@ private static final long serialVersionUID = 0L;
   public static final int REFERENCEPRIMARYKEY_FIELD_NUMBER = 2;
   private int referencePrimaryKey_;
   /**
+   * <pre>
+   * Primary key of the referenced entity. Might be also any integer that uniquely identifies some external
+   * resource not maintained by Evita.
+   * </pre>
+   *
    * <code>int32 referencePrimaryKey = 2;</code>
    * @return The referencePrimaryKey.
    */
@@ -180,6 +197,10 @@ private static final long serialVersionUID = 0L;
   public static final int ATTRIBUTEMUTATION_FIELD_NUMBER = 3;
   private io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation attributeMutation_;
   /**
+   * <pre>
+   * One attribute mutation to update / insert / delete single attribute of the reference.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation attributeMutation = 3;</code>
    * @return Whether the attributeMutation field is set.
    */
@@ -188,6 +209,10 @@ private static final long serialVersionUID = 0L;
     return attributeMutation_ != null;
   }
   /**
+   * <pre>
+   * One attribute mutation to update / insert / delete single attribute of the reference.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation attributeMutation = 3;</code>
    * @return The attributeMutation.
    */
@@ -196,6 +221,10 @@ private static final long serialVersionUID = 0L;
     return attributeMutation_ == null ? io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation.getDefaultInstance() : attributeMutation_;
   }
   /**
+   * <pre>
+   * One attribute mutation to update / insert / delete single attribute of the reference.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation attributeMutation = 3;</code>
    */
   @java.lang.Override
@@ -385,6 +414,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * This mutation allows to create / update / remove attribute of the reference.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcReferenceAttributeMutation}
    */
   public static final class Builder extends
@@ -554,6 +587,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object referenceName_ = "";
     /**
+     * <pre>
+     * Unique identifier of the reference.
+     * </pre>
+     *
      * <code>string referenceName = 1;</code>
      * @return The referenceName.
      */
@@ -570,6 +607,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Unique identifier of the reference.
+     * </pre>
+     *
      * <code>string referenceName = 1;</code>
      * @return The bytes for referenceName.
      */
@@ -587,6 +628,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Unique identifier of the reference.
+     * </pre>
+     *
      * <code>string referenceName = 1;</code>
      * @param value The referenceName to set.
      * @return This builder for chaining.
@@ -602,6 +647,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Unique identifier of the reference.
+     * </pre>
+     *
      * <code>string referenceName = 1;</code>
      * @return This builder for chaining.
      */
@@ -612,6 +661,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Unique identifier of the reference.
+     * </pre>
+     *
      * <code>string referenceName = 1;</code>
      * @param value The bytes for referenceName to set.
      * @return This builder for chaining.
@@ -630,6 +683,11 @@ private static final long serialVersionUID = 0L;
 
     private int referencePrimaryKey_ ;
     /**
+     * <pre>
+     * Primary key of the referenced entity. Might be also any integer that uniquely identifies some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>int32 referencePrimaryKey = 2;</code>
      * @return The referencePrimaryKey.
      */
@@ -638,6 +696,11 @@ private static final long serialVersionUID = 0L;
       return referencePrimaryKey_;
     }
     /**
+     * <pre>
+     * Primary key of the referenced entity. Might be also any integer that uniquely identifies some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>int32 referencePrimaryKey = 2;</code>
      * @param value The referencePrimaryKey to set.
      * @return This builder for chaining.
@@ -649,6 +712,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Primary key of the referenced entity. Might be also any integer that uniquely identifies some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>int32 referencePrimaryKey = 2;</code>
      * @return This builder for chaining.
      */
@@ -663,6 +731,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcAttributeMutationOrBuilder> attributeMutationBuilder_;
     /**
+     * <pre>
+     * One attribute mutation to update / insert / delete single attribute of the reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation attributeMutation = 3;</code>
      * @return Whether the attributeMutation field is set.
      */
@@ -670,6 +742,10 @@ private static final long serialVersionUID = 0L;
       return attributeMutationBuilder_ != null || attributeMutation_ != null;
     }
     /**
+     * <pre>
+     * One attribute mutation to update / insert / delete single attribute of the reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation attributeMutation = 3;</code>
      * @return The attributeMutation.
      */
@@ -681,6 +757,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * One attribute mutation to update / insert / delete single attribute of the reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation attributeMutation = 3;</code>
      */
     public Builder setAttributeMutation(io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation value) {
@@ -697,6 +777,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * One attribute mutation to update / insert / delete single attribute of the reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation attributeMutation = 3;</code>
      */
     public Builder setAttributeMutation(
@@ -711,6 +795,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * One attribute mutation to update / insert / delete single attribute of the reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation attributeMutation = 3;</code>
      */
     public Builder mergeAttributeMutation(io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation value) {
@@ -729,6 +817,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * One attribute mutation to update / insert / delete single attribute of the reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation attributeMutation = 3;</code>
      */
     public Builder clearAttributeMutation() {
@@ -743,6 +835,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * One attribute mutation to update / insert / delete single attribute of the reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation attributeMutation = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation.Builder getAttributeMutationBuilder() {
@@ -751,6 +847,10 @@ private static final long serialVersionUID = 0L;
       return getAttributeMutationFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * One attribute mutation to update / insert / delete single attribute of the reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation attributeMutation = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcAttributeMutationOrBuilder getAttributeMutationOrBuilder() {
@@ -762,6 +862,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * One attribute mutation to update / insert / delete single attribute of the reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation attributeMutation = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

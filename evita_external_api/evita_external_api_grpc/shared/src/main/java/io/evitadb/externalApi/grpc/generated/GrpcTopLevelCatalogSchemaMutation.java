@@ -27,6 +27,11 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * This structure encapsulates all mutations that needs to be executed on entire evitaDB level and not locally to
+ * single catalog schema instance.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation}
  */
 public final class GrpcTopLevelCatalogSchemaMutation extends
@@ -190,6 +195,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int CREATECATALOGSCHEMAMUTATION_FIELD_NUMBER = 1;
   /**
+   * <pre>
+   * Mutation is responsible for setting up a new CatalogSchema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation createCatalogSchemaMutation = 1;</code>
    * @return Whether the createCatalogSchemaMutation field is set.
    */
@@ -198,6 +207,10 @@ private static final long serialVersionUID = 0L;
     return mutationCase_ == 1;
   }
   /**
+   * <pre>
+   * Mutation is responsible for setting up a new CatalogSchema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation createCatalogSchemaMutation = 1;</code>
    * @return The createCatalogSchemaMutation.
    */
@@ -209,6 +222,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Mutation is responsible for setting up a new CatalogSchema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation createCatalogSchemaMutation = 1;</code>
    */
   @java.lang.Override
@@ -221,6 +238,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int MODIFYCATALOGSCHEMANAMEMUTATION_FIELD_NUMBER = 2;
   /**
+   * <pre>
+   * Mutation is responsible for renaming an existing CatalogSchema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation modifyCatalogSchemaNameMutation = 2;</code>
    * @return Whether the modifyCatalogSchemaNameMutation field is set.
    */
@@ -229,6 +250,10 @@ private static final long serialVersionUID = 0L;
     return mutationCase_ == 2;
   }
   /**
+   * <pre>
+   * Mutation is responsible for renaming an existing CatalogSchema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation modifyCatalogSchemaNameMutation = 2;</code>
    * @return The modifyCatalogSchemaNameMutation.
    */
@@ -240,6 +265,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Mutation is responsible for renaming an existing CatalogSchema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation modifyCatalogSchemaNameMutation = 2;</code>
    */
   @java.lang.Override
@@ -252,6 +281,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int REMOVECATALOGSCHEMAMUTATION_FIELD_NUMBER = 3;
   /**
+   * <pre>
+   * Mutation is responsible for removing an existing CatalogSchema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation removeCatalogSchemaMutation = 3;</code>
    * @return Whether the removeCatalogSchemaMutation field is set.
    */
@@ -260,6 +293,10 @@ private static final long serialVersionUID = 0L;
     return mutationCase_ == 3;
   }
   /**
+   * <pre>
+   * Mutation is responsible for removing an existing CatalogSchema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation removeCatalogSchemaMutation = 3;</code>
    * @return The removeCatalogSchemaMutation.
    */
@@ -271,6 +308,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Mutation is responsible for removing an existing CatalogSchema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation removeCatalogSchemaMutation = 3;</code>
    */
   @java.lang.Override
@@ -480,6 +521,11 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * This structure encapsulates all mutations that needs to be executed on entire evitaDB level and not locally to
+   * single catalog schema instance.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation}
    */
   public static final class Builder extends
@@ -679,6 +725,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutationOrBuilder> createCatalogSchemaMutationBuilder_;
     /**
+     * <pre>
+     * Mutation is responsible for setting up a new CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation createCatalogSchemaMutation = 1;</code>
      * @return Whether the createCatalogSchemaMutation field is set.
      */
@@ -687,6 +737,10 @@ private static final long serialVersionUID = 0L;
       return mutationCase_ == 1;
     }
     /**
+     * <pre>
+     * Mutation is responsible for setting up a new CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation createCatalogSchemaMutation = 1;</code>
      * @return The createCatalogSchemaMutation.
      */
@@ -705,6 +759,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Mutation is responsible for setting up a new CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation createCatalogSchemaMutation = 1;</code>
      */
     public Builder setCreateCatalogSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation value) {
@@ -721,6 +779,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for setting up a new CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation createCatalogSchemaMutation = 1;</code>
      */
     public Builder setCreateCatalogSchemaMutation(
@@ -735,6 +797,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for setting up a new CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation createCatalogSchemaMutation = 1;</code>
      */
     public Builder mergeCreateCatalogSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation value) {
@@ -757,6 +823,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for setting up a new CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation createCatalogSchemaMutation = 1;</code>
      */
     public Builder clearCreateCatalogSchemaMutation() {
@@ -776,12 +846,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for setting up a new CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation createCatalogSchemaMutation = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation.Builder getCreateCatalogSchemaMutationBuilder() {
       return getCreateCatalogSchemaMutationFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Mutation is responsible for setting up a new CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation createCatalogSchemaMutation = 1;</code>
      */
     @java.lang.Override
@@ -796,6 +874,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Mutation is responsible for setting up a new CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation createCatalogSchemaMutation = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -820,6 +902,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutationOrBuilder> modifyCatalogSchemaNameMutationBuilder_;
     /**
+     * <pre>
+     * Mutation is responsible for renaming an existing CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation modifyCatalogSchemaNameMutation = 2;</code>
      * @return Whether the modifyCatalogSchemaNameMutation field is set.
      */
@@ -828,6 +914,10 @@ private static final long serialVersionUID = 0L;
       return mutationCase_ == 2;
     }
     /**
+     * <pre>
+     * Mutation is responsible for renaming an existing CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation modifyCatalogSchemaNameMutation = 2;</code>
      * @return The modifyCatalogSchemaNameMutation.
      */
@@ -846,6 +936,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Mutation is responsible for renaming an existing CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation modifyCatalogSchemaNameMutation = 2;</code>
      */
     public Builder setModifyCatalogSchemaNameMutation(io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation value) {
@@ -862,6 +956,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for renaming an existing CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation modifyCatalogSchemaNameMutation = 2;</code>
      */
     public Builder setModifyCatalogSchemaNameMutation(
@@ -876,6 +974,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for renaming an existing CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation modifyCatalogSchemaNameMutation = 2;</code>
      */
     public Builder mergeModifyCatalogSchemaNameMutation(io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation value) {
@@ -898,6 +1000,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for renaming an existing CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation modifyCatalogSchemaNameMutation = 2;</code>
      */
     public Builder clearModifyCatalogSchemaNameMutation() {
@@ -917,12 +1023,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for renaming an existing CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation modifyCatalogSchemaNameMutation = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation.Builder getModifyCatalogSchemaNameMutationBuilder() {
       return getModifyCatalogSchemaNameMutationFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Mutation is responsible for renaming an existing CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation modifyCatalogSchemaNameMutation = 2;</code>
      */
     @java.lang.Override
@@ -937,6 +1051,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Mutation is responsible for renaming an existing CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation modifyCatalogSchemaNameMutation = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -961,6 +1079,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutationOrBuilder> removeCatalogSchemaMutationBuilder_;
     /**
+     * <pre>
+     * Mutation is responsible for removing an existing CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation removeCatalogSchemaMutation = 3;</code>
      * @return Whether the removeCatalogSchemaMutation field is set.
      */
@@ -969,6 +1091,10 @@ private static final long serialVersionUID = 0L;
       return mutationCase_ == 3;
     }
     /**
+     * <pre>
+     * Mutation is responsible for removing an existing CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation removeCatalogSchemaMutation = 3;</code>
      * @return The removeCatalogSchemaMutation.
      */
@@ -987,6 +1113,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Mutation is responsible for removing an existing CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation removeCatalogSchemaMutation = 3;</code>
      */
     public Builder setRemoveCatalogSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation value) {
@@ -1003,6 +1133,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for removing an existing CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation removeCatalogSchemaMutation = 3;</code>
      */
     public Builder setRemoveCatalogSchemaMutation(
@@ -1017,6 +1151,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for removing an existing CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation removeCatalogSchemaMutation = 3;</code>
      */
     public Builder mergeRemoveCatalogSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation value) {
@@ -1039,6 +1177,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for removing an existing CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation removeCatalogSchemaMutation = 3;</code>
      */
     public Builder clearRemoveCatalogSchemaMutation() {
@@ -1058,12 +1200,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for removing an existing CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation removeCatalogSchemaMutation = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation.Builder getRemoveCatalogSchemaMutationBuilder() {
       return getRemoveCatalogSchemaMutationFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Mutation is responsible for removing an existing CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation removeCatalogSchemaMutation = 3;</code>
      */
     @java.lang.Override
@@ -1078,6 +1228,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Mutation is responsible for removing an existing CatalogSchema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation removeCatalogSchemaMutation = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

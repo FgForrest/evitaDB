@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Mutation is responsible for adding one or more currencies to a `EntitySchema.currencies` in `EntitySchema`.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcAllowCurrencyInEntitySchemaMutation}
  */
 public final class GrpcAllowCurrencyInEntitySchemaMutation extends
@@ -120,6 +124,10 @@ private static final long serialVersionUID = 0L;
   public static final int CURRENCIES_FIELD_NUMBER = 1;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCurrency> currencies_;
   /**
+   * <pre>
+   * Set of all currencies that could be used for prices in entities of this type.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
    */
   @java.lang.Override
@@ -127,6 +135,10 @@ private static final long serialVersionUID = 0L;
     return currencies_;
   }
   /**
+   * <pre>
+   * Set of all currencies that could be used for prices in entities of this type.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
    */
   @java.lang.Override
@@ -135,6 +147,10 @@ private static final long serialVersionUID = 0L;
     return currencies_;
   }
   /**
+   * <pre>
+   * Set of all currencies that could be used for prices in entities of this type.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
    */
   @java.lang.Override
@@ -142,6 +158,10 @@ private static final long serialVersionUID = 0L;
     return currencies_.size();
   }
   /**
+   * <pre>
+   * Set of all currencies that could be used for prices in entities of this type.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
    */
   @java.lang.Override
@@ -149,6 +169,10 @@ private static final long serialVersionUID = 0L;
     return currencies_.get(index);
   }
   /**
+   * <pre>
+   * Set of all currencies that could be used for prices in entities of this type.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
    */
   @java.lang.Override
@@ -315,6 +339,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Mutation is responsible for adding one or more currencies to a `EntitySchema.currencies` in `EntitySchema`.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcAllowCurrencyInEntitySchemaMutation}
    */
   public static final class Builder extends
@@ -512,6 +540,10 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> currenciesBuilder_;
 
     /**
+     * <pre>
+     * Set of all currencies that could be used for prices in entities of this type.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCurrency> getCurrenciesList() {
@@ -522,6 +554,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Set of all currencies that could be used for prices in entities of this type.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
      */
     public int getCurrenciesCount() {
@@ -532,6 +568,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Set of all currencies that could be used for prices in entities of this type.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCurrency getCurrencies(int index) {
@@ -542,6 +582,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Set of all currencies that could be used for prices in entities of this type.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
      */
     public Builder setCurrencies(
@@ -559,6 +603,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set of all currencies that could be used for prices in entities of this type.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
      */
     public Builder setCurrencies(
@@ -573,6 +621,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set of all currencies that could be used for prices in entities of this type.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
      */
     public Builder addCurrencies(io.evitadb.externalApi.grpc.generated.GrpcCurrency value) {
@@ -589,6 +641,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set of all currencies that could be used for prices in entities of this type.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
      */
     public Builder addCurrencies(
@@ -606,6 +662,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set of all currencies that could be used for prices in entities of this type.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
      */
     public Builder addCurrencies(
@@ -620,6 +680,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set of all currencies that could be used for prices in entities of this type.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
      */
     public Builder addCurrencies(
@@ -634,6 +698,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set of all currencies that could be used for prices in entities of this type.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
      */
     public Builder addAllCurrencies(
@@ -649,6 +717,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set of all currencies that could be used for prices in entities of this type.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
      */
     public Builder clearCurrencies() {
@@ -662,6 +734,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set of all currencies that could be used for prices in entities of this type.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
      */
     public Builder removeCurrencies(int index) {
@@ -675,6 +751,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set of all currencies that could be used for prices in entities of this type.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder getCurrenciesBuilder(
@@ -682,6 +762,10 @@ private static final long serialVersionUID = 0L;
       return getCurrenciesFieldBuilder().getBuilder(index);
     }
     /**
+     * <pre>
+     * Set of all currencies that could be used for prices in entities of this type.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder getCurrenciesOrBuilder(
@@ -692,6 +776,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Set of all currencies that could be used for prices in entities of this type.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> 
@@ -703,6 +791,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Set of all currencies that could be used for prices in entities of this type.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder addCurrenciesBuilder() {
@@ -710,6 +802,10 @@ private static final long serialVersionUID = 0L;
           io.evitadb.externalApi.grpc.generated.GrpcCurrency.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Set of all currencies that could be used for prices in entities of this type.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder addCurrenciesBuilder(
@@ -718,6 +814,10 @@ private static final long serialVersionUID = 0L;
           index, io.evitadb.externalApi.grpc.generated.GrpcCurrency.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Set of all currencies that could be used for prices in entities of this type.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder> 

@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Response to a catalog rename request.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse}
  */
 public final class GrpcRenameCatalogResponse extends
@@ -111,6 +115,10 @@ private static final long serialVersionUID = 0L;
   public static final int SUCCESS_FIELD_NUMBER = 1;
   private boolean success_;
   /**
+   * <pre>
+   * Indicator whether the catalog was renamed successfully.
+   * </pre>
+   *
    * <code>bool success = 1;</code>
    * @return The success.
    */
@@ -276,6 +284,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Response to a catalog rename request.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse}
    */
   public static final class Builder extends
@@ -424,6 +436,10 @@ private static final long serialVersionUID = 0L;
 
     private boolean success_ ;
     /**
+     * <pre>
+     * Indicator whether the catalog was renamed successfully.
+     * </pre>
+     *
      * <code>bool success = 1;</code>
      * @return The success.
      */
@@ -432,6 +448,10 @@ private static final long serialVersionUID = 0L;
       return success_;
     }
     /**
+     * <pre>
+     * Indicator whether the catalog was renamed successfully.
+     * </pre>
+     *
      * <code>bool success = 1;</code>
      * @param value The success to set.
      * @return This builder for chaining.
@@ -443,6 +463,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Indicator whether the catalog was renamed successfully.
+     * </pre>
+     *
      * <code>bool success = 1;</code>
      * @return This builder for chaining.
      */

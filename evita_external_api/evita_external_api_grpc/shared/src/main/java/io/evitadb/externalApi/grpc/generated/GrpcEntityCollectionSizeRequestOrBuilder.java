@@ -31,11 +31,19 @@ public interface GrpcEntityCollectionSizeRequestOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The entity type of the collection - (count of entities stored).
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The entityType.
    */
   java.lang.String getEntityType();
   /**
+   * <pre>
+   * The entity type of the collection - (count of entities stored).
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The bytes for entityType.
    */

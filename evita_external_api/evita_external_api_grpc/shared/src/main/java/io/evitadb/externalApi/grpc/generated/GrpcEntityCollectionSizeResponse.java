@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Response to GetEntityCollectionSize request.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionSizeResponse}
  */
 public final class GrpcEntityCollectionSizeResponse extends
@@ -111,6 +115,10 @@ private static final long serialVersionUID = 0L;
   public static final int SIZE_FIELD_NUMBER = 1;
   private int size_;
   /**
+   * <pre>
+   * The size of the collection.
+   * </pre>
+   *
    * <code>int32 size = 1;</code>
    * @return The size.
    */
@@ -275,6 +283,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Response to GetEntityCollectionSize request.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionSizeResponse}
    */
   public static final class Builder extends
@@ -423,6 +435,10 @@ private static final long serialVersionUID = 0L;
 
     private int size_ ;
     /**
+     * <pre>
+     * The size of the collection.
+     * </pre>
+     *
      * <code>int32 size = 1;</code>
      * @return The size.
      */
@@ -431,6 +447,10 @@ private static final long serialVersionUID = 0L;
       return size_;
     }
     /**
+     * <pre>
+     * The size of the collection.
+     * </pre>
+     *
      * <code>int32 size = 1;</code>
      * @param value The size to set.
      * @return This builder for chaining.
@@ -442,6 +462,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The size of the collection.
+     * </pre>
+     *
      * <code>int32 size = 1;</code>
      * @return This builder for chaining.
      */

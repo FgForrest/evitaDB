@@ -31,11 +31,19 @@ public interface GrpcSetReferenceSchemaFilterableMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the reference the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
   java.lang.String getName();
   /**
+   * <pre>
+   * Name of the reference the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -43,6 +51,15 @@ public interface GrpcSetReferenceSchemaFilterableMutationOrBuilder extends
       getNameBytes();
 
   /**
+   * <pre>
+   * Whether the index for this reference should be created and maintained allowing to filter by
+   * `referenceHaving` filtering constraints. Index is also required when reference is `faceted`.
+   * Do not mark reference as faceted unless you know that you'll need to filter / sort entities by this reference.
+   * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+   * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+   * alongside other references if requested.
+   * </pre>
+   *
    * <code>bool filterable = 2;</code>
    * @return The filterable.
    */

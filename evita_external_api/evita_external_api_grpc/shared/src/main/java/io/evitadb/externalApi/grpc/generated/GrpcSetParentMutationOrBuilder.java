@@ -31,6 +31,10 @@ public interface GrpcSetParentMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Optional new primary key of parent entity. If null, this entity is at the root of hierarchy.
+   * </pre>
+   *
    * <code>int32 primaryKey = 1;</code>
    * @return The primaryKey.
    */

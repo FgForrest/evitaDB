@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Response to Query request.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcQueryResponse}
  */
 public final class GrpcQueryResponse extends
@@ -132,6 +136,10 @@ private static final long serialVersionUID = 0L;
   public static final int RECORDPAGE_FIELD_NUMBER = 1;
   private io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage_;
   /**
+   * <pre>
+   * The fetched record page with entities.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
    * @return Whether the recordPage field is set.
    */
@@ -140,6 +148,10 @@ private static final long serialVersionUID = 0L;
     return recordPage_ != null;
   }
   /**
+   * <pre>
+   * The fetched record page with entities.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
    * @return The recordPage.
    */
@@ -148,6 +160,10 @@ private static final long serialVersionUID = 0L;
     return recordPage_ == null ? io.evitadb.externalApi.grpc.generated.GrpcDataChunk.getDefaultInstance() : recordPage_;
   }
   /**
+   * <pre>
+   * The fetched record page with entities.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
    */
   @java.lang.Override
@@ -158,6 +174,10 @@ private static final long serialVersionUID = 0L;
   public static final int EXTRARESULTS_FIELD_NUMBER = 2;
   private io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults_;
   /**
+   * <pre>
+   * The computed extra results.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
    * @return Whether the extraResults field is set.
    */
@@ -166,6 +186,10 @@ private static final long serialVersionUID = 0L;
     return extraResults_ != null;
   }
   /**
+   * <pre>
+   * The computed extra results.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
    * @return The extraResults.
    */
@@ -174,6 +198,10 @@ private static final long serialVersionUID = 0L;
     return extraResults_ == null ? io.evitadb.externalApi.grpc.generated.GrpcExtraResults.getDefaultInstance() : extraResults_;
   }
   /**
+   * <pre>
+   * The computed extra results.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
    */
   @java.lang.Override
@@ -358,6 +386,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Response to Query request.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcQueryResponse}
    */
   public static final class Builder extends
@@ -530,6 +562,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcDataChunk, io.evitadb.externalApi.grpc.generated.GrpcDataChunk.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataChunkOrBuilder> recordPageBuilder_;
     /**
+     * <pre>
+     * The fetched record page with entities.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
      * @return Whether the recordPage field is set.
      */
@@ -537,6 +573,10 @@ private static final long serialVersionUID = 0L;
       return recordPageBuilder_ != null || recordPage_ != null;
     }
     /**
+     * <pre>
+     * The fetched record page with entities.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
      * @return The recordPage.
      */
@@ -548,6 +588,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The fetched record page with entities.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
      */
     public Builder setRecordPage(io.evitadb.externalApi.grpc.generated.GrpcDataChunk value) {
@@ -564,6 +608,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The fetched record page with entities.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
      */
     public Builder setRecordPage(
@@ -578,6 +626,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The fetched record page with entities.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
      */
     public Builder mergeRecordPage(io.evitadb.externalApi.grpc.generated.GrpcDataChunk value) {
@@ -596,6 +648,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The fetched record page with entities.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
      */
     public Builder clearRecordPage() {
@@ -610,6 +666,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The fetched record page with entities.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcDataChunk.Builder getRecordPageBuilder() {
@@ -618,6 +678,10 @@ private static final long serialVersionUID = 0L;
       return getRecordPageFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * The fetched record page with entities.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcDataChunkOrBuilder getRecordPageOrBuilder() {
@@ -629,6 +693,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The fetched record page with entities.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -649,6 +717,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcExtraResults, io.evitadb.externalApi.grpc.generated.GrpcExtraResults.Builder, io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOrBuilder> extraResultsBuilder_;
     /**
+     * <pre>
+     * The computed extra results.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
      * @return Whether the extraResults field is set.
      */
@@ -656,6 +728,10 @@ private static final long serialVersionUID = 0L;
       return extraResultsBuilder_ != null || extraResults_ != null;
     }
     /**
+     * <pre>
+     * The computed extra results.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
      * @return The extraResults.
      */
@@ -667,6 +743,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The computed extra results.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
      */
     public Builder setExtraResults(io.evitadb.externalApi.grpc.generated.GrpcExtraResults value) {
@@ -683,6 +763,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The computed extra results.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
      */
     public Builder setExtraResults(
@@ -697,6 +781,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The computed extra results.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
      */
     public Builder mergeExtraResults(io.evitadb.externalApi.grpc.generated.GrpcExtraResults value) {
@@ -715,6 +803,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The computed extra results.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
      */
     public Builder clearExtraResults() {
@@ -729,6 +821,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The computed extra results.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcExtraResults.Builder getExtraResultsBuilder() {
@@ -737,6 +833,10 @@ private static final long serialVersionUID = 0L;
       return getExtraResultsFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * The computed extra results.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOrBuilder getExtraResultsOrBuilder() {
@@ -748,6 +848,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The computed extra results.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

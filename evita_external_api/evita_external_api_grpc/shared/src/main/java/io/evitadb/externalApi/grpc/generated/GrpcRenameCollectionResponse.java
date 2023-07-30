@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Response to RenameCollection request.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRenameCollectionResponse}
  */
 public final class GrpcRenameCollectionResponse extends
@@ -111,6 +115,10 @@ private static final long serialVersionUID = 0L;
   public static final int RENAMED_FIELD_NUMBER = 1;
   private boolean renamed_;
   /**
+   * <pre>
+   * True, if the collection was renamed.
+   * </pre>
+   *
    * <code>bool renamed = 1;</code>
    * @return The renamed.
    */
@@ -276,6 +284,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Response to RenameCollection request.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRenameCollectionResponse}
    */
   public static final class Builder extends
@@ -424,6 +436,10 @@ private static final long serialVersionUID = 0L;
 
     private boolean renamed_ ;
     /**
+     * <pre>
+     * True, if the collection was renamed.
+     * </pre>
+     *
      * <code>bool renamed = 1;</code>
      * @return The renamed.
      */
@@ -432,6 +448,10 @@ private static final long serialVersionUID = 0L;
       return renamed_;
     }
     /**
+     * <pre>
+     * True, if the collection was renamed.
+     * </pre>
+     *
      * <code>bool renamed = 1;</code>
      * @param value The renamed to set.
      * @return This builder for chaining.
@@ -443,6 +463,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * True, if the collection was renamed.
+     * </pre>
+     *
      * <code>bool renamed = 1;</code>
      * @return This builder for chaining.
      */

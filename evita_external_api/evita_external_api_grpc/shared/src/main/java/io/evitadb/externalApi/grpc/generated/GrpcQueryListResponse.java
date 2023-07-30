@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Response for query request executed when searched for a list of entities. The used field is decided by the require block in the query.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse}
  */
 public final class GrpcQueryListResponse extends
@@ -447,6 +451,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Response for query request executed when searched for a list of entities. The used field is decided by the require block in the query.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse}
    */
   public static final class Builder extends

@@ -31,24 +31,44 @@ public interface GrpcOffsetDateTimeArrayOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Value that supports storing an OffsetDateTime array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value = 1;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime> 
       getValueList();
   /**
+   * <pre>
+   * Value that supports storing an OffsetDateTime array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getValue(int index);
   /**
+   * <pre>
+   * Value that supports storing an OffsetDateTime array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value = 1;</code>
    */
   int getValueCount();
   /**
+   * <pre>
+   * Value that supports storing an OffsetDateTime array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value = 1;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
       getValueOrBuilderList();
   /**
+   * <pre>
+   * Value that supports storing an OffsetDateTime array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getValueOrBuilder(

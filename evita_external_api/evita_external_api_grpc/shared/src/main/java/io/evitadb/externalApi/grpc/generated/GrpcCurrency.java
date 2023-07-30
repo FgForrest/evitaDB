@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Structure for representing Currency objects specified by currency code.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCurrency}
  */
 public final class GrpcCurrency extends
@@ -113,6 +117,10 @@ private static final long serialVersionUID = 0L;
   public static final int CODE_FIELD_NUMBER = 1;
   private volatile java.lang.Object code_;
   /**
+   * <pre>
+   * The currency code of the currency.
+   * </pre>
+   *
    * <code>string code = 1;</code>
    * @return The code.
    */
@@ -130,6 +138,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * The currency code of the currency.
+   * </pre>
+   *
    * <code>string code = 1;</code>
    * @return The bytes for code.
    */
@@ -303,6 +315,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Structure for representing Currency objects specified by currency code.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCurrency}
    */
   public static final class Builder extends
@@ -452,6 +468,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object code_ = "";
     /**
+     * <pre>
+     * The currency code of the currency.
+     * </pre>
+     *
      * <code>string code = 1;</code>
      * @return The code.
      */
@@ -468,6 +488,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The currency code of the currency.
+     * </pre>
+     *
      * <code>string code = 1;</code>
      * @return The bytes for code.
      */
@@ -485,6 +509,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The currency code of the currency.
+     * </pre>
+     *
      * <code>string code = 1;</code>
      * @param value The code to set.
      * @return This builder for chaining.
@@ -500,6 +528,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The currency code of the currency.
+     * </pre>
+     *
      * <code>string code = 1;</code>
      * @return This builder for chaining.
      */
@@ -510,6 +542,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The currency code of the currency.
+     * </pre>
+     *
      * <code>string code = 1;</code>
      * @param value The bytes for code to set.
      * @return This builder for chaining.

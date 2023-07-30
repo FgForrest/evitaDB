@@ -2,118 +2,249 @@ syntax = "proto3";
 
 package io.evitadb.externalApi.grpc.generated;
 option java_multiple_files = true;
+option csharp_namespace = "EvitaDB";
 
 import "GrpcEvitaDataTypes.proto";
 import "GrpcEnums.proto";
 import "google/protobuf/wrappers.proto";
 
+// Mutation is responsible for setting up a new `AttributeSchema` in the `EntitySchema`.
+// Mutation can be used for altering also the existing `AttributeSchema` alone.
 message GrpcCreateAttributeSchemaMutation {
+  // Name of the attribute the mutation is targeting.
   string name = 1;
+  // Contains description of the model is optional but helps authors of the schema / client API to better
+  // explain the original purpose of the model to the consumers.
   google.protobuf.StringValue description = 2;
+  // Deprecation notice contains information about planned removal of this attribute from the model / client API.
+  // This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
   google.protobuf.StringValue deprecationNotice = 3;
+  // When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+  // having certain value of this attribute among other entities in the same collection.
   bool unique = 4;
+  // When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+  // as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+  // (memory/disk) space in the form of index.
   bool filterable = 5;
+  // When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+  // as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+  // (memory/disk) space in the form of index.
   bool sortable = 6;
+  // Localized attribute has to be ALWAYS used in connection with specific `locale`. In other
+  // words - it cannot be stored unless associated locale is also provided.
   bool localized = 7;
+  // 	When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+  //	non-null checks upon upserting of the entity.
   bool nullable = 8;
+  // Type of the attribute. Must be one of supported data types or its array.
   GrpcEvitaDataType type = 9;
+  // 	Determines how many fractional places are important when entities are compared during filtering or sorting. It is
+  //	significant to know that all values of this attribute will be converted to `Integer`, so the attribute
+  //	number must not ever exceed maximum limits of `Integer` type when scaling the number by the power
+  //	of ten using `indexedDecimalPlaces` as exponent.
   int32 indexedDecimalPlaces = 10;
+  // Default value is used when the entity is created without this attribute specified. Default values allow to pass
+  // non-null checks even if no attributes of such name are specified.
   GrpcEvitaValue defaultValue = 11;
 }
 
+// Mutation is responsible for setting up a new `GlobalAttributeSchema` in the `CatalogSchema`.
+// Mutation can be used for altering also the existing `GlobalAttributeSchema` alone.
 message GrpcCreateGlobalAttributeSchemaMutation {
+  // Name of the attribute the mutation is targeting.
   string name = 1;
+  // Contains description of the model is optional but helps authors of the schema / client API to better
+  // explain the original purpose of the model to the consumers.
   google.protobuf.StringValue description = 2;
+  // Deprecation notice contains information about planned removal of this attribute from the model / client API.
+  // This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
   google.protobuf.StringValue deprecationNotice = 3;
+  // When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+  // having certain value of this attribute among other entities in the same collection.
   bool unique = 4;
+  // When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+  // entity having certain value of this attribute in entire catalog.
   bool uniqueGlobally = 5;
+  // When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+  // as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+  // (memory/disk) space in the form of index.
   bool filterable = 6;
+  // When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+  // as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+  // (memory/disk) space in the form of index.
   bool sortable = 7;
+  // Localized attribute has to be ALWAYS used in connection with specific `locale`. In other
+  // words - it cannot be stored unless associated locale is also provided.
   bool localized = 8;
+  // When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+  // non-null checks upon upserting of the entity.
   bool nullable = 9;
+  // Type of the attribute. Must be one of supported data types or its array.
   GrpcEvitaDataType type = 10;
+  // Determines how many fractional places are important when entities are compared during filtering or sorting. It is
+  // significant to know that all values of this attribute will be converted to `Integer`, so the attribute
+  // number must not ever exceed maximum limits of `Integer` type when scaling the number by the power
+  // of ten using `indexedDecimalPlaces` as exponent.
   int32 indexedDecimalPlaces = 11;
+  // Default value is used when the entity is created without this attribute specified. Default values allow to pass
+  // non-null checks even if no attributes of such name are specified.
   GrpcEvitaValue defaultValue = 12;
 }
 
+// Mutation is responsible for setting value to a `AttributeSchema.defaultValue` in `EntitySchema`.
+// Mutation can be used for altering also the existing `AttributeSchema` or GlobalAttributeSchema` alone.
 message GrpcModifyAttributeSchemaDefaultValueMutation {
+  // Name of the attribute the mutation is targeting.
   string name = 1;
+  // Default value is used when the entity is created without this attribute specified. Default values allow to pass
+  // non-null checks even if no attributes of such name are specified.
   GrpcEvitaValue defaultValue = 2;
 }
 
+// Mutation is responsible for setting value to a `AttributeSchema.deprecationNotice` in `EntitySchema`.
+// Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
 message GrpcModifyAttributeSchemaDeprecationNoticeMutation {
+  // Name of the attribute the mutation is targeting.
   string name = 1;
+  // Deprecation notice contains information about planned removal of this attribute from the model / client API.
+  // This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
   google.protobuf.StringValue deprecationNotice = 2;
 }
 
+// Mutation is responsible for setting value to a `AttributeSchema.description` in `EntitySchema`.
+// Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
 message GrpcModifyAttributeSchemaDescriptionMutation {
+  // Name of the attribute the mutation is targeting.
   string name = 1;
+  // Contains description of the model is optional but helps authors of the schema / client API to better
+  // explain the original purpose of the model to the consumers.
   google.protobuf.StringValue description = 2;
 }
 
+// Mutation is responsible for renaming an existing `AttributeSchema` in `EntitySchema` or `GlobalAttributeSchema` in `CatalogSchema`.
+// Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
 message GrpcModifyAttributeSchemaNameMutation {
+  // Name of the attribute the mutation is targeting.
   string name = 1;
+  // New name of the attribute the mutation is targeting.
   string newName = 2;
 }
 
+// Mutation is responsible for setting value to a `AttributeSchema.type` in `EntitySchema`.
+// Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
 message GrpcModifyAttributeSchemaTypeMutation {
+  // Name of the attribute the mutation is targeting.
   string name = 1;
+  // Type of the attribute. Must be one of supported data types or its array.
   GrpcEvitaDataType type = 2;
+  // Determines how many fractional places are important when entities are compared during filtering or sorting.
   int32 indexedDecimalPlaces = 3;
 }
 
+// Mutation is responsible for removing an existing `AttributeSchema` in the `EntitySchema` or `GlobalAttributeSchema`
+// in the `CatalogSchema`. Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
 message GrpcRemoveAttributeSchemaMutation {
+  // Name of the attribute the mutation is targeting.
   string name = 1;
 }
 
+// Mutation is responsible for setting value to a `AttributeSchema.filterable` in `EntitySchema`.
+// Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
 message GrpcSetAttributeSchemaFilterableMutation {
+  // Name of the attribute the mutation is targeting.
   string name = 1;
+  // When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+  // as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+  // (memory/disk) space in the form of index.
   bool filterable = 2;
 }
 
+// Mutation is responsible for setting value to a `GlobalAttributeSchema.uniqueGlobally` in `EntitySchema`.
+// Mutation can be used for altering also the existing `GlobalAttributeSchema` alone.
 message GrpcSetAttributeSchemaGloballyUniqueMutation {
+  // Name of the attribute the mutation is targeting.
   string name = 1;
+  // When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+  // entity having certain value of this attribute in entire catalog.
   bool uniqueGlobally = 2;
 }
 
+// Mutation is responsible for setting value to a `AttributeSchema.localized` in `EntitySchema`.
+// Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
 message GrpcSetAttributeSchemaLocalizedMutation {
+  // Name of the attribute the mutation is targeting.
   string name = 1;
+  // Localized attribute has to be ALWAYS used in connection with specific `locale`. In other
+  // words - it cannot be stored unless associated locale is also provided.
   bool localized = 2;
 }
 
+// Mutation is responsible for setting value to a `AttributeSchema.nullable` in `EntitySchema`.
+// Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
 message GrpcSetAttributeSchemaNullableMutation {
+  // Name of the attribute the mutation is targeting.
   string name = 1;
+  // When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+  // non-null checks upon upserting of the entity.
   bool nullable = 2;
 }
 
+// Mutation is responsible for setting value to a `AttributeSchema.sortable` in `EntitySchema`.
+// Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
 message GrpcSetAttributeSchemaSortableMutation {
+  // Name of the attribute the mutation is targeting.
   string name = 1;
+  // When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+  // as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+  // (memory/disk) space in the form of index.
   bool sortable = 2;
 }
 
+// Mutation is responsible for setting value to a `AttributeSchema.unique` in `EntitySchema`.
+// Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
 message GrpcSetAttributeSchemaUniqueMutation {
+  // Name of the attribute the mutation is targeting.
   string name = 1;
+  // When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+  // having certain value of this attribute among other entities in the same collection.
   bool unique = 2;
 }
 
+// Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.
 message GrpcUseGlobalAttributeSchemaMutation {
+  // Name of the attribute the mutation is targeting.
   string name = 1;
 }
 
+// Mutation of an attribute schema.
 message GrpcAttributeSchemaMutation {
+  // Type of the mutation.
   oneof mutation {
+    // Mutation is responsible for setting up a new `AttributeSchema` in the `EntitySchema`.
     GrpcCreateAttributeSchemaMutation createAttributeSchemaMutation = 3;
+    // Mutation is responsible for modifying a default value of an existing `AttributeSchema` in the `EntitySchema`.
     GrpcModifyAttributeSchemaDefaultValueMutation modifyAttributeSchemaDefaultValueMutation = 4;
+    // Mutation is responsible for modifying a deprecation notice of an existing `AttributeSchema` in the `EntitySchema`.
     GrpcModifyAttributeSchemaDeprecationNoticeMutation modifyAttributeSchemaDeprecationNoticeMutation = 5;
+    // Mutation is responsible for modifying a description of an existing `AttributeSchema` in the `EntitySchema`.
     GrpcModifyAttributeSchemaDescriptionMutation modifyAttributeSchemaDescriptionMutation = 6;
+    // Mutation is responsible for renaming an existing `AttributeSchema` in `EntitySchema` or `GlobalAttributeSchema` in `CatalogSchema`.
     GrpcModifyAttributeSchemaNameMutation modifyAttributeSchemaNameMutation = 7;
+    // Mutation is responsible for modifying a type of an existing `AttributeSchema` in the `EntitySchema`.
     GrpcModifyAttributeSchemaTypeMutation modifyAttributeSchemaTypeMutation = 8;
+    // Mutation is responsible for removing an existing `AttributeSchema` in the `EntitySchema` or `GlobalAttributeSchema`
     GrpcRemoveAttributeSchemaMutation removeAttributeSchemaMutation = 9;
+    // Mutation is responsible for setting value `AttributeSchema.filterable` in `EntitySchema`.
     GrpcSetAttributeSchemaFilterableMutation setAttributeSchemaFilterableMutation = 10;
+    // Mutation is responsible for setting value `AttributeSchema.localized` in `EntitySchema`.
     GrpcSetAttributeSchemaLocalizedMutation setAttributeSchemaLocalizedMutation = 11;
+    // Mutation is responsible for setting value `AttributeSchema.nullable` in `EntitySchema`.
     GrpcSetAttributeSchemaNullableMutation setAttributeSchemaNullableMutation = 12;
+    // Mutation is responsible for setting value `AttributeSchema.sortable` in `EntitySchema`.
     GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 13;
+    // Mutation is responsible for setting value `AttributeSchema.unique` in `EntitySchema`.
     GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 14;
+    // Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.
     GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 15;
   }
 }

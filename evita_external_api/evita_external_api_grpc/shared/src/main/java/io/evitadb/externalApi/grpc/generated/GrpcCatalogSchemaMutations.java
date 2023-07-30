@@ -123,7 +123,8 @@ public final class GrpcCatalogSchemaMutations {
       "\n\"GrpcModifyEntitySchemaNameMutation\022\014\n\004" +
       "name\030\001 \001(\t\022\017\n\007newName\030\002 \001(\t\022\027\n\017overwrite" +
       "Target\030\003 \001(\010\".\n\036GrpcRemoveEntitySchemaMu" +
-      "tation\022\014\n\004name\030\001 \001(\tB\002P\001b\006proto3"
+      "tation\022\014\n\004name\030\001 \001(\tB\014P\001\252\002\007EvitaDBb\006prot" +
+      "o3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

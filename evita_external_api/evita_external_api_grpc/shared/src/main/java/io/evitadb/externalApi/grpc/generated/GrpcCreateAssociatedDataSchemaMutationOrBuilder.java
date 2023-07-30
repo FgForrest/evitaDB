@@ -31,11 +31,21 @@ public interface GrpcCreateAssociatedDataSchemaMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+   * within single entity instance.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
   java.lang.String getName();
   /**
+   * <pre>
+   * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+   * within single entity instance.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -43,53 +53,105 @@ public interface GrpcCreateAssociatedDataSchemaMutationOrBuilder extends
       getNameBytes();
 
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 2;</code>
    * @return Whether the description field is set.
    */
   boolean hasDescription();
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 2;</code>
    * @return The description.
    */
   com.google.protobuf.StringValue getDescription();
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 2;</code>
    */
   com.google.protobuf.StringValueOrBuilder getDescriptionOrBuilder();
 
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this associated data from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
    * @return Whether the deprecationNotice field is set.
    */
   boolean hasDeprecationNotice();
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this associated data from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
    * @return The deprecationNotice.
    */
   com.google.protobuf.StringValue getDeprecationNotice();
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this associated data from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
    */
   com.google.protobuf.StringValueOrBuilder getDeprecationNoticeOrBuilder();
 
   /**
+   * <pre>
+   * Contains the data type of the entity. Must be one of supported types or may
+   * represent complex type - which is JSON object that can be automatically converted
+   * to the set of basic types.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 4;</code>
    * @return The enum numeric value on the wire for type.
    */
   int getTypeValue();
   /**
+   * <pre>
+   * Contains the data type of the entity. Must be one of supported types or may
+   * represent complex type - which is JSON object that can be automatically converted
+   * to the set of basic types.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 4;</code>
    * @return The type.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType getType();
 
   /**
+   * <pre>
+   * Localized associated data has to be ALWAYS used in connection with specific `locale`. In other
+   * words - it cannot be stored unless associated locale is also provided.
+   * </pre>
+   *
    * <code>bool localized = 5;</code>
    * @return The localized.
    */
   boolean getLocalized();
 
   /**
+   * <pre>
+   * When associated data is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+   * non-null checks upon upserting of the entity.
+   * </pre>
+   *
    * <code>bool nullable = 6;</code>
    * @return The nullable.
    */

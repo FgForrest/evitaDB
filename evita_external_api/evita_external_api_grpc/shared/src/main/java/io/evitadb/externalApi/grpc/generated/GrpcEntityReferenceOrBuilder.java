@@ -31,11 +31,23 @@ public interface GrpcEntityReferenceOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Type of entity.
+   * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+   * entity type entity is uniquely represented by primary key.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The entityType.
    */
   java.lang.String getEntityType();
   /**
+   * <pre>
+   * Type of entity.
+   * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+   * entity type entity is uniquely represented by primary key.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The bytes for entityType.
    */
@@ -43,12 +55,22 @@ public interface GrpcEntityReferenceOrBuilder extends
       getEntityTypeBytes();
 
   /**
+   * <pre>
+   * Unique Integer positive number representing the entity. Can be used for fast lookup for
+   * entity (entities). Primary key must be unique within the same entity type.
+   * </pre>
+   *
    * <code>int32 primaryKey = 2;</code>
    * @return The primaryKey.
    */
   int getPrimaryKey();
 
   /**
+   * <pre>
+   * Contains version of this entity and gets increased with any entity type update. Allows to execute
+   * optimistic locking i.e. avoiding parallel modifications.
+   * </pre>
+   *
    * <code>int32 version = 3;</code>
    * @return The version.
    */

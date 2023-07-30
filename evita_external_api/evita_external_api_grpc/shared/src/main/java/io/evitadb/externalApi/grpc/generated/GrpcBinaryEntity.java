@@ -27,6 +27,13 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Response carries entities in a binary format and is part of the PRIVATE API that is used by Java driver. The client
+ * that receives the binary data must know how to deserialize them using Kryo deserializers which are internal to
+ * the evitaDB (and even if they had been public they could not have been used because Kryo is not ported to other
+ * platforms than Java). The response is triggered by BinaryForm query requirement.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity}
  */
 public final class GrpcBinaryEntity extends
@@ -89,17 +96,17 @@ private static final long serialVersionUID = 0L;
             primaryKey_ = input.readInt32();
             break;
           }
-          case 32: {
+          case 24: {
 
             schemaVersion_ = input.readInt32();
             break;
           }
-          case 42: {
+          case 34: {
 
             entityStoragePart_ = input.readBytes();
             break;
           }
-          case 50: {
+          case 42: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
               attributeStorageParts_ = new java.util.ArrayList<com.google.protobuf.ByteString>();
               mutable_bitField0_ |= 0x00000001;
@@ -107,7 +114,7 @@ private static final long serialVersionUID = 0L;
             attributeStorageParts_.add(input.readBytes());
             break;
           }
-          case 58: {
+          case 50: {
             if (!((mutable_bitField0_ & 0x00000002) != 0)) {
               associatedDataStorageParts_ = new java.util.ArrayList<com.google.protobuf.ByteString>();
               mutable_bitField0_ |= 0x00000002;
@@ -115,12 +122,12 @@ private static final long serialVersionUID = 0L;
             associatedDataStorageParts_.add(input.readBytes());
             break;
           }
-          case 66: {
+          case 58: {
 
             priceStoragePart_ = input.readBytes();
             break;
           }
-          case 74: {
+          case 66: {
 
             referenceStoragePart_ = input.readBytes();
             break;
@@ -166,6 +173,12 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITYTYPE_FIELD_NUMBER = 1;
   private volatile java.lang.Object entityType_;
   /**
+   * <pre>
+   * Type of entity.
+   * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+   * entity type entity is uniquely represented by primary key.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The entityType.
    */
@@ -183,6 +196,12 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Type of entity.
+   * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+   * entity type entity is uniquely represented by primary key.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The bytes for entityType.
    */
@@ -204,6 +223,11 @@ private static final long serialVersionUID = 0L;
   public static final int PRIMARYKEY_FIELD_NUMBER = 2;
   private int primaryKey_;
   /**
+   * <pre>
+   * Unique Integer positive number representing the entity. Can be used for fast lookup for
+   * entity (entities). Primary key must be unique within the same entity type.
+   * </pre>
+   *
    * <code>int32 primaryKey = 2;</code>
    * @return The primaryKey.
    */
@@ -212,10 +236,15 @@ private static final long serialVersionUID = 0L;
     return primaryKey_;
   }
 
-  public static final int SCHEMAVERSION_FIELD_NUMBER = 4;
+  public static final int SCHEMAVERSION_FIELD_NUMBER = 3;
   private int schemaVersion_;
   /**
-   * <code>int32 schemaVersion = 4;</code>
+   * <pre>
+   * Contains version of this entity schema and gets increased with any entity type update. Allows to execute
+   * optimistic locking i.e. avoiding parallel modifications.
+   * </pre>
+   *
+   * <code>int32 schemaVersion = 3;</code>
    * @return The schemaVersion.
    */
   @java.lang.Override
@@ -223,10 +252,14 @@ private static final long serialVersionUID = 0L;
     return schemaVersion_;
   }
 
-  public static final int ENTITYSTORAGEPART_FIELD_NUMBER = 5;
+  public static final int ENTITYSTORAGEPART_FIELD_NUMBER = 4;
   private com.google.protobuf.ByteString entityStoragePart_;
   /**
-   * <code>bytes entityStoragePart = 5;</code>
+   * <pre>
+   * Serialized representation of the entity body.
+   * </pre>
+   *
+   * <code>bytes entityStoragePart = 4;</code>
    * @return The entityStoragePart.
    */
   @java.lang.Override
@@ -234,10 +267,14 @@ private static final long serialVersionUID = 0L;
     return entityStoragePart_;
   }
 
-  public static final int ATTRIBUTESTORAGEPARTS_FIELD_NUMBER = 6;
+  public static final int ATTRIBUTESTORAGEPARTS_FIELD_NUMBER = 5;
   private java.util.List<com.google.protobuf.ByteString> attributeStorageParts_;
   /**
-   * <code>repeated bytes attributeStorageParts = 6;</code>
+   * <pre>
+   * Serialized representation of entity attributes.
+   * </pre>
+   *
+   * <code>repeated bytes attributeStorageParts = 5;</code>
    * @return A list containing the attributeStorageParts.
    */
   @java.lang.Override
@@ -246,14 +283,22 @@ private static final long serialVersionUID = 0L;
     return attributeStorageParts_;
   }
   /**
-   * <code>repeated bytes attributeStorageParts = 6;</code>
+   * <pre>
+   * Serialized representation of entity attributes.
+   * </pre>
+   *
+   * <code>repeated bytes attributeStorageParts = 5;</code>
    * @return The count of attributeStorageParts.
    */
   public int getAttributeStoragePartsCount() {
     return attributeStorageParts_.size();
   }
   /**
-   * <code>repeated bytes attributeStorageParts = 6;</code>
+   * <pre>
+   * Serialized representation of entity attributes.
+   * </pre>
+   *
+   * <code>repeated bytes attributeStorageParts = 5;</code>
    * @param index The index of the element to return.
    * @return The attributeStorageParts at the given index.
    */
@@ -261,10 +306,14 @@ private static final long serialVersionUID = 0L;
     return attributeStorageParts_.get(index);
   }
 
-  public static final int ASSOCIATEDDATASTORAGEPARTS_FIELD_NUMBER = 7;
+  public static final int ASSOCIATEDDATASTORAGEPARTS_FIELD_NUMBER = 6;
   private java.util.List<com.google.protobuf.ByteString> associatedDataStorageParts_;
   /**
-   * <code>repeated bytes associatedDataStorageParts = 7;</code>
+   * <pre>
+   * Serialized representation of entity associated data.
+   * </pre>
+   *
+   * <code>repeated bytes associatedDataStorageParts = 6;</code>
    * @return A list containing the associatedDataStorageParts.
    */
   @java.lang.Override
@@ -273,14 +322,22 @@ private static final long serialVersionUID = 0L;
     return associatedDataStorageParts_;
   }
   /**
-   * <code>repeated bytes associatedDataStorageParts = 7;</code>
+   * <pre>
+   * Serialized representation of entity associated data.
+   * </pre>
+   *
+   * <code>repeated bytes associatedDataStorageParts = 6;</code>
    * @return The count of associatedDataStorageParts.
    */
   public int getAssociatedDataStoragePartsCount() {
     return associatedDataStorageParts_.size();
   }
   /**
-   * <code>repeated bytes associatedDataStorageParts = 7;</code>
+   * <pre>
+   * Serialized representation of entity associated data.
+   * </pre>
+   *
+   * <code>repeated bytes associatedDataStorageParts = 6;</code>
    * @param index The index of the element to return.
    * @return The associatedDataStorageParts at the given index.
    */
@@ -288,10 +345,14 @@ private static final long serialVersionUID = 0L;
     return associatedDataStorageParts_.get(index);
   }
 
-  public static final int PRICESTORAGEPART_FIELD_NUMBER = 8;
+  public static final int PRICESTORAGEPART_FIELD_NUMBER = 7;
   private com.google.protobuf.ByteString priceStoragePart_;
   /**
-   * <code>bytes priceStoragePart = 8;</code>
+   * <pre>
+   * Serialized representation of entity prices.
+   * </pre>
+   *
+   * <code>bytes priceStoragePart = 7;</code>
    * @return The priceStoragePart.
    */
   @java.lang.Override
@@ -299,10 +360,14 @@ private static final long serialVersionUID = 0L;
     return priceStoragePart_;
   }
 
-  public static final int REFERENCESTORAGEPART_FIELD_NUMBER = 9;
+  public static final int REFERENCESTORAGEPART_FIELD_NUMBER = 8;
   private com.google.protobuf.ByteString referenceStoragePart_;
   /**
-   * <code>bytes referenceStoragePart = 9;</code>
+   * <pre>
+   * Serialized representation of entity references.
+   * </pre>
+   *
+   * <code>bytes referenceStoragePart = 8;</code>
    * @return The referenceStoragePart.
    */
   @java.lang.Override
@@ -331,22 +396,22 @@ private static final long serialVersionUID = 0L;
       output.writeInt32(2, primaryKey_);
     }
     if (schemaVersion_ != 0) {
-      output.writeInt32(4, schemaVersion_);
+      output.writeInt32(3, schemaVersion_);
     }
     if (!entityStoragePart_.isEmpty()) {
-      output.writeBytes(5, entityStoragePart_);
+      output.writeBytes(4, entityStoragePart_);
     }
     for (int i = 0; i < attributeStorageParts_.size(); i++) {
-      output.writeBytes(6, attributeStorageParts_.get(i));
+      output.writeBytes(5, attributeStorageParts_.get(i));
     }
     for (int i = 0; i < associatedDataStorageParts_.size(); i++) {
-      output.writeBytes(7, associatedDataStorageParts_.get(i));
+      output.writeBytes(6, associatedDataStorageParts_.get(i));
     }
     if (!priceStoragePart_.isEmpty()) {
-      output.writeBytes(8, priceStoragePart_);
+      output.writeBytes(7, priceStoragePart_);
     }
     if (!referenceStoragePart_.isEmpty()) {
-      output.writeBytes(9, referenceStoragePart_);
+      output.writeBytes(8, referenceStoragePart_);
     }
     unknownFields.writeTo(output);
   }
@@ -366,11 +431,11 @@ private static final long serialVersionUID = 0L;
     }
     if (schemaVersion_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(4, schemaVersion_);
+        .computeInt32Size(3, schemaVersion_);
     }
     if (!entityStoragePart_.isEmpty()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBytesSize(5, entityStoragePart_);
+        .computeBytesSize(4, entityStoragePart_);
     }
     {
       int dataSize = 0;
@@ -392,11 +457,11 @@ private static final long serialVersionUID = 0L;
     }
     if (!priceStoragePart_.isEmpty()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBytesSize(8, priceStoragePart_);
+        .computeBytesSize(7, priceStoragePart_);
     }
     if (!referenceStoragePart_.isEmpty()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBytesSize(9, referenceStoragePart_);
+        .computeBytesSize(8, referenceStoragePart_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -556,6 +621,13 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Response carries entities in a binary format and is part of the PRIVATE API that is used by Java driver. The client
+   * that receives the binary data must know how to deserialize them using Kryo deserializers which are internal to
+   * the evitaDB (and even if they had been public they could not have been used because Kryo is not ported to other
+   * platforms than Java). The response is triggered by BinaryForm query requirement.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity}
    */
   public static final class Builder extends
@@ -771,6 +843,12 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object entityType_ = "";
     /**
+     * <pre>
+     * Type of entity.
+     * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+     * entity type entity is uniquely represented by primary key.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @return The entityType.
      */
@@ -787,6 +865,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Type of entity.
+     * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+     * entity type entity is uniquely represented by primary key.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @return The bytes for entityType.
      */
@@ -804,6 +888,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Type of entity.
+     * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+     * entity type entity is uniquely represented by primary key.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @param value The entityType to set.
      * @return This builder for chaining.
@@ -819,6 +909,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Type of entity.
+     * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+     * entity type entity is uniquely represented by primary key.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @return This builder for chaining.
      */
@@ -829,6 +925,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Type of entity.
+     * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+     * entity type entity is uniquely represented by primary key.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @param value The bytes for entityType to set.
      * @return This builder for chaining.
@@ -847,6 +949,11 @@ private static final long serialVersionUID = 0L;
 
     private int primaryKey_ ;
     /**
+     * <pre>
+     * Unique Integer positive number representing the entity. Can be used for fast lookup for
+     * entity (entities). Primary key must be unique within the same entity type.
+     * </pre>
+     *
      * <code>int32 primaryKey = 2;</code>
      * @return The primaryKey.
      */
@@ -855,6 +962,11 @@ private static final long serialVersionUID = 0L;
       return primaryKey_;
     }
     /**
+     * <pre>
+     * Unique Integer positive number representing the entity. Can be used for fast lookup for
+     * entity (entities). Primary key must be unique within the same entity type.
+     * </pre>
+     *
      * <code>int32 primaryKey = 2;</code>
      * @param value The primaryKey to set.
      * @return This builder for chaining.
@@ -866,6 +978,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Unique Integer positive number representing the entity. Can be used for fast lookup for
+     * entity (entities). Primary key must be unique within the same entity type.
+     * </pre>
+     *
      * <code>int32 primaryKey = 2;</code>
      * @return This builder for chaining.
      */
@@ -878,7 +995,12 @@ private static final long serialVersionUID = 0L;
 
     private int schemaVersion_ ;
     /**
-     * <code>int32 schemaVersion = 4;</code>
+     * <pre>
+     * Contains version of this entity schema and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
+     * <code>int32 schemaVersion = 3;</code>
      * @return The schemaVersion.
      */
     @java.lang.Override
@@ -886,7 +1008,12 @@ private static final long serialVersionUID = 0L;
       return schemaVersion_;
     }
     /**
-     * <code>int32 schemaVersion = 4;</code>
+     * <pre>
+     * Contains version of this entity schema and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
+     * <code>int32 schemaVersion = 3;</code>
      * @param value The schemaVersion to set.
      * @return This builder for chaining.
      */
@@ -897,7 +1024,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>int32 schemaVersion = 4;</code>
+     * <pre>
+     * Contains version of this entity schema and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
+     * <code>int32 schemaVersion = 3;</code>
      * @return This builder for chaining.
      */
     public Builder clearSchemaVersion() {
@@ -909,7 +1041,11 @@ private static final long serialVersionUID = 0L;
 
     private com.google.protobuf.ByteString entityStoragePart_ = com.google.protobuf.ByteString.EMPTY;
     /**
-     * <code>bytes entityStoragePart = 5;</code>
+     * <pre>
+     * Serialized representation of the entity body.
+     * </pre>
+     *
+     * <code>bytes entityStoragePart = 4;</code>
      * @return The entityStoragePart.
      */
     @java.lang.Override
@@ -917,7 +1053,11 @@ private static final long serialVersionUID = 0L;
       return entityStoragePart_;
     }
     /**
-     * <code>bytes entityStoragePart = 5;</code>
+     * <pre>
+     * Serialized representation of the entity body.
+     * </pre>
+     *
+     * <code>bytes entityStoragePart = 4;</code>
      * @param value The entityStoragePart to set.
      * @return This builder for chaining.
      */
@@ -931,7 +1071,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>bytes entityStoragePart = 5;</code>
+     * <pre>
+     * Serialized representation of the entity body.
+     * </pre>
+     *
+     * <code>bytes entityStoragePart = 4;</code>
      * @return This builder for chaining.
      */
     public Builder clearEntityStoragePart() {
@@ -949,7 +1093,11 @@ private static final long serialVersionUID = 0L;
        }
     }
     /**
-     * <code>repeated bytes attributeStorageParts = 6;</code>
+     * <pre>
+     * Serialized representation of entity attributes.
+     * </pre>
+     *
+     * <code>repeated bytes attributeStorageParts = 5;</code>
      * @return A list containing the attributeStorageParts.
      */
     public java.util.List<com.google.protobuf.ByteString>
@@ -958,14 +1106,22 @@ private static final long serialVersionUID = 0L;
                java.util.Collections.unmodifiableList(attributeStorageParts_) : attributeStorageParts_;
     }
     /**
-     * <code>repeated bytes attributeStorageParts = 6;</code>
+     * <pre>
+     * Serialized representation of entity attributes.
+     * </pre>
+     *
+     * <code>repeated bytes attributeStorageParts = 5;</code>
      * @return The count of attributeStorageParts.
      */
     public int getAttributeStoragePartsCount() {
       return attributeStorageParts_.size();
     }
     /**
-     * <code>repeated bytes attributeStorageParts = 6;</code>
+     * <pre>
+     * Serialized representation of entity attributes.
+     * </pre>
+     *
+     * <code>repeated bytes attributeStorageParts = 5;</code>
      * @param index The index of the element to return.
      * @return The attributeStorageParts at the given index.
      */
@@ -973,7 +1129,11 @@ private static final long serialVersionUID = 0L;
       return attributeStorageParts_.get(index);
     }
     /**
-     * <code>repeated bytes attributeStorageParts = 6;</code>
+     * <pre>
+     * Serialized representation of entity attributes.
+     * </pre>
+     *
+     * <code>repeated bytes attributeStorageParts = 5;</code>
      * @param index The index to set the value at.
      * @param value The attributeStorageParts to set.
      * @return This builder for chaining.
@@ -989,7 +1149,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated bytes attributeStorageParts = 6;</code>
+     * <pre>
+     * Serialized representation of entity attributes.
+     * </pre>
+     *
+     * <code>repeated bytes attributeStorageParts = 5;</code>
      * @param value The attributeStorageParts to add.
      * @return This builder for chaining.
      */
@@ -1003,7 +1167,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated bytes attributeStorageParts = 6;</code>
+     * <pre>
+     * Serialized representation of entity attributes.
+     * </pre>
+     *
+     * <code>repeated bytes attributeStorageParts = 5;</code>
      * @param values The attributeStorageParts to add.
      * @return This builder for chaining.
      */
@@ -1016,7 +1184,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated bytes attributeStorageParts = 6;</code>
+     * <pre>
+     * Serialized representation of entity attributes.
+     * </pre>
+     *
+     * <code>repeated bytes attributeStorageParts = 5;</code>
      * @return This builder for chaining.
      */
     public Builder clearAttributeStorageParts() {
@@ -1034,7 +1206,11 @@ private static final long serialVersionUID = 0L;
        }
     }
     /**
-     * <code>repeated bytes associatedDataStorageParts = 7;</code>
+     * <pre>
+     * Serialized representation of entity associated data.
+     * </pre>
+     *
+     * <code>repeated bytes associatedDataStorageParts = 6;</code>
      * @return A list containing the associatedDataStorageParts.
      */
     public java.util.List<com.google.protobuf.ByteString>
@@ -1043,14 +1219,22 @@ private static final long serialVersionUID = 0L;
                java.util.Collections.unmodifiableList(associatedDataStorageParts_) : associatedDataStorageParts_;
     }
     /**
-     * <code>repeated bytes associatedDataStorageParts = 7;</code>
+     * <pre>
+     * Serialized representation of entity associated data.
+     * </pre>
+     *
+     * <code>repeated bytes associatedDataStorageParts = 6;</code>
      * @return The count of associatedDataStorageParts.
      */
     public int getAssociatedDataStoragePartsCount() {
       return associatedDataStorageParts_.size();
     }
     /**
-     * <code>repeated bytes associatedDataStorageParts = 7;</code>
+     * <pre>
+     * Serialized representation of entity associated data.
+     * </pre>
+     *
+     * <code>repeated bytes associatedDataStorageParts = 6;</code>
      * @param index The index of the element to return.
      * @return The associatedDataStorageParts at the given index.
      */
@@ -1058,7 +1242,11 @@ private static final long serialVersionUID = 0L;
       return associatedDataStorageParts_.get(index);
     }
     /**
-     * <code>repeated bytes associatedDataStorageParts = 7;</code>
+     * <pre>
+     * Serialized representation of entity associated data.
+     * </pre>
+     *
+     * <code>repeated bytes associatedDataStorageParts = 6;</code>
      * @param index The index to set the value at.
      * @param value The associatedDataStorageParts to set.
      * @return This builder for chaining.
@@ -1074,7 +1262,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated bytes associatedDataStorageParts = 7;</code>
+     * <pre>
+     * Serialized representation of entity associated data.
+     * </pre>
+     *
+     * <code>repeated bytes associatedDataStorageParts = 6;</code>
      * @param value The associatedDataStorageParts to add.
      * @return This builder for chaining.
      */
@@ -1088,7 +1280,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated bytes associatedDataStorageParts = 7;</code>
+     * <pre>
+     * Serialized representation of entity associated data.
+     * </pre>
+     *
+     * <code>repeated bytes associatedDataStorageParts = 6;</code>
      * @param values The associatedDataStorageParts to add.
      * @return This builder for chaining.
      */
@@ -1101,7 +1297,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated bytes associatedDataStorageParts = 7;</code>
+     * <pre>
+     * Serialized representation of entity associated data.
+     * </pre>
+     *
+     * <code>repeated bytes associatedDataStorageParts = 6;</code>
      * @return This builder for chaining.
      */
     public Builder clearAssociatedDataStorageParts() {
@@ -1113,7 +1313,11 @@ private static final long serialVersionUID = 0L;
 
     private com.google.protobuf.ByteString priceStoragePart_ = com.google.protobuf.ByteString.EMPTY;
     /**
-     * <code>bytes priceStoragePart = 8;</code>
+     * <pre>
+     * Serialized representation of entity prices.
+     * </pre>
+     *
+     * <code>bytes priceStoragePart = 7;</code>
      * @return The priceStoragePart.
      */
     @java.lang.Override
@@ -1121,7 +1325,11 @@ private static final long serialVersionUID = 0L;
       return priceStoragePart_;
     }
     /**
-     * <code>bytes priceStoragePart = 8;</code>
+     * <pre>
+     * Serialized representation of entity prices.
+     * </pre>
+     *
+     * <code>bytes priceStoragePart = 7;</code>
      * @param value The priceStoragePart to set.
      * @return This builder for chaining.
      */
@@ -1135,7 +1343,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>bytes priceStoragePart = 8;</code>
+     * <pre>
+     * Serialized representation of entity prices.
+     * </pre>
+     *
+     * <code>bytes priceStoragePart = 7;</code>
      * @return This builder for chaining.
      */
     public Builder clearPriceStoragePart() {
@@ -1147,7 +1359,11 @@ private static final long serialVersionUID = 0L;
 
     private com.google.protobuf.ByteString referenceStoragePart_ = com.google.protobuf.ByteString.EMPTY;
     /**
-     * <code>bytes referenceStoragePart = 9;</code>
+     * <pre>
+     * Serialized representation of entity references.
+     * </pre>
+     *
+     * <code>bytes referenceStoragePart = 8;</code>
      * @return The referenceStoragePart.
      */
     @java.lang.Override
@@ -1155,7 +1371,11 @@ private static final long serialVersionUID = 0L;
       return referenceStoragePart_;
     }
     /**
-     * <code>bytes referenceStoragePart = 9;</code>
+     * <pre>
+     * Serialized representation of entity references.
+     * </pre>
+     *
+     * <code>bytes referenceStoragePart = 8;</code>
      * @param value The referenceStoragePart to set.
      * @return This builder for chaining.
      */
@@ -1169,7 +1389,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>bytes referenceStoragePart = 9;</code>
+     * <pre>
+     * Serialized representation of entity references.
+     * </pre>
+     *
+     * <code>bytes referenceStoragePart = 8;</code>
      * @return This builder for chaining.
      */
     public Builder clearReferenceStoragePart() {

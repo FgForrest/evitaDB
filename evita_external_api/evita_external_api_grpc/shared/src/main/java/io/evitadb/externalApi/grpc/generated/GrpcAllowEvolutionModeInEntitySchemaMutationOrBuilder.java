@@ -31,28 +31,58 @@ public interface GrpcAllowEvolutionModeInEntitySchemaMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Set of allowed evolution modes. These allow to specify how strict is evitaDB when unknown information is
+   * presented to her for the first time. When no evolution mode is set, each violation of the `EntitySchema` is
+   * reported by an error. This behaviour can be changed by this evolution mode, however.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode evolutionModes = 1;</code>
    * @return A list containing the evolutionModes.
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode> getEvolutionModesList();
   /**
+   * <pre>
+   * Set of allowed evolution modes. These allow to specify how strict is evitaDB when unknown information is
+   * presented to her for the first time. When no evolution mode is set, each violation of the `EntitySchema` is
+   * reported by an error. This behaviour can be changed by this evolution mode, however.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode evolutionModes = 1;</code>
    * @return The count of evolutionModes.
    */
   int getEvolutionModesCount();
   /**
+   * <pre>
+   * Set of allowed evolution modes. These allow to specify how strict is evitaDB when unknown information is
+   * presented to her for the first time. When no evolution mode is set, each violation of the `EntitySchema` is
+   * reported by an error. This behaviour can be changed by this evolution mode, however.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode evolutionModes = 1;</code>
    * @param index The index of the element to return.
    * @return The evolutionModes at the given index.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode getEvolutionModes(int index);
   /**
+   * <pre>
+   * Set of allowed evolution modes. These allow to specify how strict is evitaDB when unknown information is
+   * presented to her for the first time. When no evolution mode is set, each violation of the `EntitySchema` is
+   * reported by an error. This behaviour can be changed by this evolution mode, however.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode evolutionModes = 1;</code>
    * @return A list containing the enum numeric values on the wire for evolutionModes.
    */
   java.util.List<java.lang.Integer>
   getEvolutionModesValueList();
   /**
+   * <pre>
+   * Set of allowed evolution modes. These allow to specify how strict is evitaDB when unknown information is
+   * presented to her for the first time. When no evolution mode is set, each violation of the `EntitySchema` is
+   * reported by an error. This behaviour can be changed by this evolution mode, however.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode evolutionModes = 1;</code>
    * @param index The index of the value to return.
    * @return The enum numeric value on the wire of evolutionModes at the given index.

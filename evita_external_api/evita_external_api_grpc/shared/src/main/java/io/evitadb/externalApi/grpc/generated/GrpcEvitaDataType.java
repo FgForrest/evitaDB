@@ -27,167 +27,331 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * This enum contains all supported types in evitaDB query context.
+ * </pre>
+ *
  * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType}
  */
 public enum GrpcEvitaDataType
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
+   * <pre>
+   * Represents string data type.
+   * </pre>
+   *
    * <code>STRING = 0;</code>
    */
   STRING(0),
   /**
+   * <pre>
+   * Represents byte data type.
+   * </pre>
+   *
    * <code>BYTE = 1;</code>
    */
   BYTE(1),
   /**
+   * <pre>
+   * Represents short data type.
+   * </pre>
+   *
    * <code>SHORT = 2;</code>
    */
   SHORT(2),
   /**
+   * <pre>
+   * Represents integer data type.
+   * </pre>
+   *
    * <code>INTEGER = 3;</code>
    */
   INTEGER(3),
   /**
+   * <pre>
+   * Represents long data type.
+   * </pre>
+   *
    * <code>LONG = 4;</code>
    */
   LONG(4),
   /**
+   * <pre>
+   * Represents boolean data type.
+   * </pre>
+   *
    * <code>BOOLEAN = 5;</code>
    */
   BOOLEAN(5),
   /**
+   * <pre>
+   * Represents character data type.
+   * </pre>
+   *
    * <code>CHARACTER = 6;</code>
    */
   CHARACTER(6),
   /**
+   * <pre>
+   * Represents BigDecimal data type.
+   * </pre>
+   *
    * <code>BIG_DECIMAL = 7;</code>
    */
   BIG_DECIMAL(7),
   /**
+   * <pre>
+   * Represents OffsetDateTime data type.
+   * </pre>
+   *
    * <code>OFFSET_DATE_TIME = 8;</code>
    */
   OFFSET_DATE_TIME(8),
   /**
+   * <pre>
+   * Represents LocalDateTime data type.
+   * </pre>
+   *
    * <code>LOCAL_DATE_TIME = 9;</code>
    */
   LOCAL_DATE_TIME(9),
   /**
+   * <pre>
+   * Represents LocalDate data type.
+   * </pre>
+   *
    * <code>LOCAL_DATE = 10;</code>
    */
   LOCAL_DATE(10),
   /**
+   * <pre>
+   * Represents LocalTime data type.
+   * </pre>
+   *
    * <code>LOCAL_TIME = 11;</code>
    */
   LOCAL_TIME(11),
   /**
+   * <pre>
+   * Represents DateTimeRange data type.
+   * </pre>
+   *
    * <code>DATE_TIME_RANGE = 12;</code>
    */
   DATE_TIME_RANGE(12),
   /**
+   * <pre>
+   * Represents BigDecimalNumberRange data type.
+   * </pre>
+   *
    * <code>BIG_DECIMAL_NUMBER_RANGE = 13;</code>
    */
   BIG_DECIMAL_NUMBER_RANGE(13),
   /**
+   * <pre>
+   * Represents LongNumberRange data type.
+   * </pre>
+   *
    * <code>LONG_NUMBER_RANGE = 14;</code>
    */
   LONG_NUMBER_RANGE(14),
   /**
+   * <pre>
+   * Represents IntegerNumberRange data type.
+   * </pre>
+   *
    * <code>INTEGER_NUMBER_RANGE = 15;</code>
    */
   INTEGER_NUMBER_RANGE(15),
   /**
+   * <pre>
+   * Represents ShortNumberRange data type.
+   * </pre>
+   *
    * <code>SHORT_NUMBER_RANGE = 16;</code>
    */
   SHORT_NUMBER_RANGE(16),
   /**
+   * <pre>
+   * Represents ByteNumberRange data type.
+   * </pre>
+   *
    * <code>BYTE_NUMBER_RANGE = 17;</code>
    */
   BYTE_NUMBER_RANGE(17),
   /**
+   * <pre>
+   * Represents Locale data type.
+   * </pre>
+   *
    * <code>LOCALE = 18;</code>
    */
   LOCALE(18),
   /**
+   * <pre>
+   * Represents Currency data type.
+   * </pre>
+   *
    * <code>CURRENCY = 19;</code>
    */
   CURRENCY(19),
   /**
+   * <pre>
+   * Represents string array data type.
+   * </pre>
+   *
    * <code>STRING_ARRAY = 20;</code>
    */
   STRING_ARRAY(20),
   /**
+   * <pre>
+   * Represents byte array data type.
+   * </pre>
+   *
    * <code>BYTE_ARRAY = 21;</code>
    */
   BYTE_ARRAY(21),
   /**
+   * <pre>
+   * Represents short array data type.
+   * </pre>
+   *
    * <code>SHORT_ARRAY = 22;</code>
    */
   SHORT_ARRAY(22),
   /**
+   * <pre>
+   * Represents integer array data type.
+   * </pre>
+   *
    * <code>INTEGER_ARRAY = 23;</code>
    */
   INTEGER_ARRAY(23),
   /**
+   * <pre>
+   * Represents long array data type.
+   * </pre>
+   *
    * <code>LONG_ARRAY = 24;</code>
    */
   LONG_ARRAY(24),
   /**
+   * <pre>
+   * Represents boolean array data type.
+   * </pre>
+   *
    * <code>BOOLEAN_ARRAY = 25;</code>
    */
   BOOLEAN_ARRAY(25),
   /**
+   * <pre>
+   * Represents character array data type.
+   * </pre>
+   *
    * <code>CHARACTER_ARRAY = 26;</code>
    */
   CHARACTER_ARRAY(26),
   /**
+   * <pre>
+   * Represents BigDecimal array data type.
+   * </pre>
+   *
    * <code>BIG_DECIMAL_ARRAY = 27;</code>
    */
   BIG_DECIMAL_ARRAY(27),
   /**
+   * <pre>
+   * Represents OffsetDateTime array data type.
+   * </pre>
+   *
    * <code>OFFSET_DATE_TIME_ARRAY = 28;</code>
    */
   OFFSET_DATE_TIME_ARRAY(28),
   /**
+   * <pre>
+   * Represents LocalDateTime array data type.
+   * </pre>
+   *
    * <code>LOCAL_DATE_TIME_ARRAY = 29;</code>
    */
   LOCAL_DATE_TIME_ARRAY(29),
   /**
+   * <pre>
+   * Represents LocalDate array data type.
+   * </pre>
+   *
    * <code>LOCAL_DATE_ARRAY = 30;</code>
    */
   LOCAL_DATE_ARRAY(30),
   /**
+   * <pre>
+   * Represents LocalTime array data type.
+   * </pre>
+   *
    * <code>LOCAL_TIME_ARRAY = 31;</code>
    */
   LOCAL_TIME_ARRAY(31),
   /**
+   * <pre>
+   * Represents DateTimeRange array data type.
+   * </pre>
+   *
    * <code>DATE_TIME_RANGE_ARRAY = 32;</code>
    */
   DATE_TIME_RANGE_ARRAY(32),
   /**
+   * <pre>
+   * Represents BigDecimalNumberRange array data type.
+   * </pre>
+   *
    * <code>BIG_DECIMAL_NUMBER_RANGE_ARRAY = 33;</code>
    */
   BIG_DECIMAL_NUMBER_RANGE_ARRAY(33),
   /**
+   * <pre>
+   * Represents LongNumberRange array data type.
+   * </pre>
+   *
    * <code>LONG_NUMBER_RANGE_ARRAY = 34;</code>
    */
   LONG_NUMBER_RANGE_ARRAY(34),
   /**
+   * <pre>
+   * Represents IntegerNumberRange array data type.
+   * </pre>
+   *
    * <code>INTEGER_NUMBER_RANGE_ARRAY = 35;</code>
    */
   INTEGER_NUMBER_RANGE_ARRAY(35),
   /**
+   * <pre>
+   * Represents ShortNumberRange array data type.
+   * </pre>
+   *
    * <code>SHORT_NUMBER_RANGE_ARRAY = 36;</code>
    */
   SHORT_NUMBER_RANGE_ARRAY(36),
   /**
+   * <pre>
+   * Represents ByteNumberRange array data type.
+   * </pre>
+   *
    * <code>BYTE_NUMBER_RANGE_ARRAY = 37;</code>
    */
   BYTE_NUMBER_RANGE_ARRAY(37),
   /**
+   * <pre>
+   * Represents Locale array data type.
+   * </pre>
+   *
    * <code>LOCALE_ARRAY = 38;</code>
    */
   LOCALE_ARRAY(38),
   /**
+   * <pre>
+   * Represents Currency array data type.
+   * </pre>
+   *
    * <code>CURRENCY_ARRAY = 39;</code>
    */
   CURRENCY_ARRAY(39),
@@ -195,162 +359,322 @@ public enum GrpcEvitaDataType
   ;
 
   /**
+   * <pre>
+   * Represents string data type.
+   * </pre>
+   *
    * <code>STRING = 0;</code>
    */
   public static final int STRING_VALUE = 0;
   /**
+   * <pre>
+   * Represents byte data type.
+   * </pre>
+   *
    * <code>BYTE = 1;</code>
    */
   public static final int BYTE_VALUE = 1;
   /**
+   * <pre>
+   * Represents short data type.
+   * </pre>
+   *
    * <code>SHORT = 2;</code>
    */
   public static final int SHORT_VALUE = 2;
   /**
+   * <pre>
+   * Represents integer data type.
+   * </pre>
+   *
    * <code>INTEGER = 3;</code>
    */
   public static final int INTEGER_VALUE = 3;
   /**
+   * <pre>
+   * Represents long data type.
+   * </pre>
+   *
    * <code>LONG = 4;</code>
    */
   public static final int LONG_VALUE = 4;
   /**
+   * <pre>
+   * Represents boolean data type.
+   * </pre>
+   *
    * <code>BOOLEAN = 5;</code>
    */
   public static final int BOOLEAN_VALUE = 5;
   /**
+   * <pre>
+   * Represents character data type.
+   * </pre>
+   *
    * <code>CHARACTER = 6;</code>
    */
   public static final int CHARACTER_VALUE = 6;
   /**
+   * <pre>
+   * Represents BigDecimal data type.
+   * </pre>
+   *
    * <code>BIG_DECIMAL = 7;</code>
    */
   public static final int BIG_DECIMAL_VALUE = 7;
   /**
+   * <pre>
+   * Represents OffsetDateTime data type.
+   * </pre>
+   *
    * <code>OFFSET_DATE_TIME = 8;</code>
    */
   public static final int OFFSET_DATE_TIME_VALUE = 8;
   /**
+   * <pre>
+   * Represents LocalDateTime data type.
+   * </pre>
+   *
    * <code>LOCAL_DATE_TIME = 9;</code>
    */
   public static final int LOCAL_DATE_TIME_VALUE = 9;
   /**
+   * <pre>
+   * Represents LocalDate data type.
+   * </pre>
+   *
    * <code>LOCAL_DATE = 10;</code>
    */
   public static final int LOCAL_DATE_VALUE = 10;
   /**
+   * <pre>
+   * Represents LocalTime data type.
+   * </pre>
+   *
    * <code>LOCAL_TIME = 11;</code>
    */
   public static final int LOCAL_TIME_VALUE = 11;
   /**
+   * <pre>
+   * Represents DateTimeRange data type.
+   * </pre>
+   *
    * <code>DATE_TIME_RANGE = 12;</code>
    */
   public static final int DATE_TIME_RANGE_VALUE = 12;
   /**
+   * <pre>
+   * Represents BigDecimalNumberRange data type.
+   * </pre>
+   *
    * <code>BIG_DECIMAL_NUMBER_RANGE = 13;</code>
    */
   public static final int BIG_DECIMAL_NUMBER_RANGE_VALUE = 13;
   /**
+   * <pre>
+   * Represents LongNumberRange data type.
+   * </pre>
+   *
    * <code>LONG_NUMBER_RANGE = 14;</code>
    */
   public static final int LONG_NUMBER_RANGE_VALUE = 14;
   /**
+   * <pre>
+   * Represents IntegerNumberRange data type.
+   * </pre>
+   *
    * <code>INTEGER_NUMBER_RANGE = 15;</code>
    */
   public static final int INTEGER_NUMBER_RANGE_VALUE = 15;
   /**
+   * <pre>
+   * Represents ShortNumberRange data type.
+   * </pre>
+   *
    * <code>SHORT_NUMBER_RANGE = 16;</code>
    */
   public static final int SHORT_NUMBER_RANGE_VALUE = 16;
   /**
+   * <pre>
+   * Represents ByteNumberRange data type.
+   * </pre>
+   *
    * <code>BYTE_NUMBER_RANGE = 17;</code>
    */
   public static final int BYTE_NUMBER_RANGE_VALUE = 17;
   /**
+   * <pre>
+   * Represents Locale data type.
+   * </pre>
+   *
    * <code>LOCALE = 18;</code>
    */
   public static final int LOCALE_VALUE = 18;
   /**
+   * <pre>
+   * Represents Currency data type.
+   * </pre>
+   *
    * <code>CURRENCY = 19;</code>
    */
   public static final int CURRENCY_VALUE = 19;
   /**
+   * <pre>
+   * Represents string array data type.
+   * </pre>
+   *
    * <code>STRING_ARRAY = 20;</code>
    */
   public static final int STRING_ARRAY_VALUE = 20;
   /**
+   * <pre>
+   * Represents byte array data type.
+   * </pre>
+   *
    * <code>BYTE_ARRAY = 21;</code>
    */
   public static final int BYTE_ARRAY_VALUE = 21;
   /**
+   * <pre>
+   * Represents short array data type.
+   * </pre>
+   *
    * <code>SHORT_ARRAY = 22;</code>
    */
   public static final int SHORT_ARRAY_VALUE = 22;
   /**
+   * <pre>
+   * Represents integer array data type.
+   * </pre>
+   *
    * <code>INTEGER_ARRAY = 23;</code>
    */
   public static final int INTEGER_ARRAY_VALUE = 23;
   /**
+   * <pre>
+   * Represents long array data type.
+   * </pre>
+   *
    * <code>LONG_ARRAY = 24;</code>
    */
   public static final int LONG_ARRAY_VALUE = 24;
   /**
+   * <pre>
+   * Represents boolean array data type.
+   * </pre>
+   *
    * <code>BOOLEAN_ARRAY = 25;</code>
    */
   public static final int BOOLEAN_ARRAY_VALUE = 25;
   /**
+   * <pre>
+   * Represents character array data type.
+   * </pre>
+   *
    * <code>CHARACTER_ARRAY = 26;</code>
    */
   public static final int CHARACTER_ARRAY_VALUE = 26;
   /**
+   * <pre>
+   * Represents BigDecimal array data type.
+   * </pre>
+   *
    * <code>BIG_DECIMAL_ARRAY = 27;</code>
    */
   public static final int BIG_DECIMAL_ARRAY_VALUE = 27;
   /**
+   * <pre>
+   * Represents OffsetDateTime array data type.
+   * </pre>
+   *
    * <code>OFFSET_DATE_TIME_ARRAY = 28;</code>
    */
   public static final int OFFSET_DATE_TIME_ARRAY_VALUE = 28;
   /**
+   * <pre>
+   * Represents LocalDateTime array data type.
+   * </pre>
+   *
    * <code>LOCAL_DATE_TIME_ARRAY = 29;</code>
    */
   public static final int LOCAL_DATE_TIME_ARRAY_VALUE = 29;
   /**
+   * <pre>
+   * Represents LocalDate array data type.
+   * </pre>
+   *
    * <code>LOCAL_DATE_ARRAY = 30;</code>
    */
   public static final int LOCAL_DATE_ARRAY_VALUE = 30;
   /**
+   * <pre>
+   * Represents LocalTime array data type.
+   * </pre>
+   *
    * <code>LOCAL_TIME_ARRAY = 31;</code>
    */
   public static final int LOCAL_TIME_ARRAY_VALUE = 31;
   /**
+   * <pre>
+   * Represents DateTimeRange array data type.
+   * </pre>
+   *
    * <code>DATE_TIME_RANGE_ARRAY = 32;</code>
    */
   public static final int DATE_TIME_RANGE_ARRAY_VALUE = 32;
   /**
+   * <pre>
+   * Represents BigDecimalNumberRange array data type.
+   * </pre>
+   *
    * <code>BIG_DECIMAL_NUMBER_RANGE_ARRAY = 33;</code>
    */
   public static final int BIG_DECIMAL_NUMBER_RANGE_ARRAY_VALUE = 33;
   /**
+   * <pre>
+   * Represents LongNumberRange array data type.
+   * </pre>
+   *
    * <code>LONG_NUMBER_RANGE_ARRAY = 34;</code>
    */
   public static final int LONG_NUMBER_RANGE_ARRAY_VALUE = 34;
   /**
+   * <pre>
+   * Represents IntegerNumberRange array data type.
+   * </pre>
+   *
    * <code>INTEGER_NUMBER_RANGE_ARRAY = 35;</code>
    */
   public static final int INTEGER_NUMBER_RANGE_ARRAY_VALUE = 35;
   /**
+   * <pre>
+   * Represents ShortNumberRange array data type.
+   * </pre>
+   *
    * <code>SHORT_NUMBER_RANGE_ARRAY = 36;</code>
    */
   public static final int SHORT_NUMBER_RANGE_ARRAY_VALUE = 36;
   /**
+   * <pre>
+   * Represents ByteNumberRange array data type.
+   * </pre>
+   *
    * <code>BYTE_NUMBER_RANGE_ARRAY = 37;</code>
    */
   public static final int BYTE_NUMBER_RANGE_ARRAY_VALUE = 37;
   /**
+   * <pre>
+   * Represents Locale array data type.
+   * </pre>
+   *
    * <code>LOCALE_ARRAY = 38;</code>
    */
   public static final int LOCALE_ARRAY_VALUE = 38;
   /**
+   * <pre>
+   * Represents Currency array data type.
+   * </pre>
+   *
    * <code>CURRENCY_ARRAY = 39;</code>
    */
   public static final int CURRENCY_ARRAY_VALUE = 39;

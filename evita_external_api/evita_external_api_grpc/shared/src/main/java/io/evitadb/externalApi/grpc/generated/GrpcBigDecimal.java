@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Representation of Java's BigDecimal class with arbitrary precision.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcBigDecimal}
  */
 public final class GrpcBigDecimal extends
@@ -129,6 +133,10 @@ private static final long serialVersionUID = 0L;
   public static final int SCALE_FIELD_NUMBER = 1;
   private int scale_;
   /**
+   * <pre>
+   * The unscaled value of the BigDecimal.
+   * </pre>
+   *
    * <code>uint32 scale = 1;</code>
    * @return The scale.
    */
@@ -140,6 +148,10 @@ private static final long serialVersionUID = 0L;
   public static final int PRECISION_FIELD_NUMBER = 2;
   private int precision_;
   /**
+   * <pre>
+   * The precision of the BigDecimal.
+   * </pre>
+   *
    * <code>uint32 precision = 2;</code>
    * @return The precision.
    */
@@ -151,6 +163,10 @@ private static final long serialVersionUID = 0L;
   public static final int VALUE_FIELD_NUMBER = 3;
   private com.google.protobuf.ByteString value_;
   /**
+   * <pre>
+   * The byte serialized value in integer form.
+   * </pre>
+   *
    * <code>bytes value = 3;</code>
    * @return The value.
    */
@@ -162,6 +178,10 @@ private static final long serialVersionUID = 0L;
   public static final int VALUESTRING_FIELD_NUMBER = 4;
   private volatile java.lang.Object valueString_;
   /**
+   * <pre>
+   * The string serialized value.
+   * </pre>
+   *
    * <code>string valueString = 4;</code>
    * @return The valueString.
    */
@@ -179,6 +199,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * The string serialized value.
+   * </pre>
+   *
    * <code>string valueString = 4;</code>
    * @return The bytes for valueString.
    */
@@ -385,6 +409,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Representation of Java's BigDecimal class with arbitrary precision.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcBigDecimal}
    */
   public static final class Builder extends
@@ -552,6 +580,10 @@ private static final long serialVersionUID = 0L;
 
     private int scale_ ;
     /**
+     * <pre>
+     * The unscaled value of the BigDecimal.
+     * </pre>
+     *
      * <code>uint32 scale = 1;</code>
      * @return The scale.
      */
@@ -560,6 +592,10 @@ private static final long serialVersionUID = 0L;
       return scale_;
     }
     /**
+     * <pre>
+     * The unscaled value of the BigDecimal.
+     * </pre>
+     *
      * <code>uint32 scale = 1;</code>
      * @param value The scale to set.
      * @return This builder for chaining.
@@ -571,6 +607,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The unscaled value of the BigDecimal.
+     * </pre>
+     *
      * <code>uint32 scale = 1;</code>
      * @return This builder for chaining.
      */
@@ -583,6 +623,10 @@ private static final long serialVersionUID = 0L;
 
     private int precision_ ;
     /**
+     * <pre>
+     * The precision of the BigDecimal.
+     * </pre>
+     *
      * <code>uint32 precision = 2;</code>
      * @return The precision.
      */
@@ -591,6 +635,10 @@ private static final long serialVersionUID = 0L;
       return precision_;
     }
     /**
+     * <pre>
+     * The precision of the BigDecimal.
+     * </pre>
+     *
      * <code>uint32 precision = 2;</code>
      * @param value The precision to set.
      * @return This builder for chaining.
@@ -602,6 +650,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The precision of the BigDecimal.
+     * </pre>
+     *
      * <code>uint32 precision = 2;</code>
      * @return This builder for chaining.
      */
@@ -614,6 +666,10 @@ private static final long serialVersionUID = 0L;
 
     private com.google.protobuf.ByteString value_ = com.google.protobuf.ByteString.EMPTY;
     /**
+     * <pre>
+     * The byte serialized value in integer form.
+     * </pre>
+     *
      * <code>bytes value = 3;</code>
      * @return The value.
      */
@@ -622,6 +678,10 @@ private static final long serialVersionUID = 0L;
       return value_;
     }
     /**
+     * <pre>
+     * The byte serialized value in integer form.
+     * </pre>
+     *
      * <code>bytes value = 3;</code>
      * @param value The value to set.
      * @return This builder for chaining.
@@ -636,6 +696,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The byte serialized value in integer form.
+     * </pre>
+     *
      * <code>bytes value = 3;</code>
      * @return This builder for chaining.
      */
@@ -648,6 +712,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object valueString_ = "";
     /**
+     * <pre>
+     * The string serialized value.
+     * </pre>
+     *
      * <code>string valueString = 4;</code>
      * @return The valueString.
      */
@@ -664,6 +732,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The string serialized value.
+     * </pre>
+     *
      * <code>string valueString = 4;</code>
      * @return The bytes for valueString.
      */
@@ -681,6 +753,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The string serialized value.
+     * </pre>
+     *
      * <code>string valueString = 4;</code>
      * @param value The valueString to set.
      * @return This builder for chaining.
@@ -696,6 +772,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The string serialized value.
+     * </pre>
+     *
      * <code>string valueString = 4;</code>
      * @return This builder for chaining.
      */
@@ -706,6 +786,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The string serialized value.
+     * </pre>
+     *
      * <code>string valueString = 4;</code>
      * @param value The bytes for valueString to set.
      * @return This builder for chaining.

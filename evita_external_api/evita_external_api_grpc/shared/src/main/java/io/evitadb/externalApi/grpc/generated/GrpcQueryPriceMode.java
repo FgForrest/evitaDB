@@ -27,15 +27,27 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Determines which price will be used for filtering.
+ * </pre>
+ *
  * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode}
  */
 public enum GrpcQueryPriceMode
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
+   * <pre>
+   * Price computation operations will use actual price with tax added for filtering.
+   * </pre>
+   *
    * <code>WITH_TAX = 0;</code>
    */
   WITH_TAX(0),
   /**
+   * <pre>
+   * Price computation operations will use actual price without tax added for filtering.
+   * </pre>
+   *
    * <code>WITHOUT_TAX = 1;</code>
    */
   WITHOUT_TAX(1),
@@ -43,10 +55,18 @@ public enum GrpcQueryPriceMode
   ;
 
   /**
+   * <pre>
+   * Price computation operations will use actual price with tax added for filtering.
+   * </pre>
+   *
    * <code>WITH_TAX = 0;</code>
    */
   public static final int WITH_TAX_VALUE = 0;
   /**
+   * <pre>
+   * Price computation operations will use actual price without tax added for filtering.
+   * </pre>
+   *
    * <code>WITHOUT_TAX = 1;</code>
    */
   public static final int WITHOUT_TAX_VALUE = 1;

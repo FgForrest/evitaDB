@@ -31,60 +31,123 @@ public interface GrpcHistogramOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Returns left bound of the first bucket. It represents the smallest value encountered in the returned set.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal min = 1;</code>
    * @return Whether the min field is set.
    */
   boolean hasMin();
   /**
+   * <pre>
+   * Returns left bound of the first bucket. It represents the smallest value encountered in the returned set.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal min = 1;</code>
    * @return The min.
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getMin();
   /**
+   * <pre>
+   * Returns left bound of the first bucket. It represents the smallest value encountered in the returned set.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal min = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getMinOrBuilder();
 
   /**
+   * <pre>
+   * Returns right bound of the last bucket of the histogram. Each bucket contains only left bound threshold, so this
+   * value is necessary so that first histogram buckets makes any sense. This value is exceptional in the sense that
+   * it represents the biggest value encountered in the returned set and represents inclusive right bound for the
+   * last bucket.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max = 2;</code>
    * @return Whether the max field is set.
    */
   boolean hasMax();
   /**
+   * <pre>
+   * Returns right bound of the last bucket of the histogram. Each bucket contains only left bound threshold, so this
+   * value is necessary so that first histogram buckets makes any sense. This value is exceptional in the sense that
+   * it represents the biggest value encountered in the returned set and represents inclusive right bound for the
+   * last bucket.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max = 2;</code>
    * @return The max.
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getMax();
   /**
+   * <pre>
+   * Returns right bound of the last bucket of the histogram. Each bucket contains only left bound threshold, so this
+   * value is necessary so that first histogram buckets makes any sense. This value is exceptional in the sense that
+   * it represents the biggest value encountered in the returned set and represents inclusive right bound for the
+   * last bucket.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getMaxOrBuilder();
 
   /**
+   * <pre>
+   * Returns count of all entities that are covered by this histogram. It's plain sum of occurrences of all buckets
+   * in the histogram.
+   * </pre>
+   *
    * <code>int32 overallCount = 3;</code>
    * @return The overallCount.
    */
   int getOverallCount();
 
   /**
+   * <pre>
+   * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+   * values.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket> 
       getBucketsList();
   /**
+   * <pre>
+   * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+   * values.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket getBuckets(int index);
   /**
+   * <pre>
+   * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+   * values.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
    */
   int getBucketsCount();
   /**
+   * <pre>
+   * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+   * values.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder> 
       getBucketsOrBuilderList();
   /**
+   * <pre>
+   * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+   * values.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder getBucketsOrBuilder(

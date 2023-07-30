@@ -27,6 +27,11 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * This DTO represents single hierarchical entity in the statistics tree. It contains identification of the entity,
+ * the cardinality of queried entities that refer to it and information about children level.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcLevelInfo}
  */
 public final class GrpcLevelInfo extends
@@ -172,6 +177,10 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITYREFERENCE_FIELD_NUMBER = 1;
   private io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference_;
   /**
+   * <pre>
+   * Hierarchical entity reference at position in tree represented by this object.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
    * @return Whether the entityReference field is set.
    */
@@ -180,6 +189,10 @@ private static final long serialVersionUID = 0L;
     return entityReference_ != null;
   }
   /**
+   * <pre>
+   * Hierarchical entity reference at position in tree represented by this object.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
    * @return The entityReference.
    */
@@ -188,6 +201,10 @@ private static final long serialVersionUID = 0L;
     return entityReference_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance() : entityReference_;
   }
   /**
+   * <pre>
+   * Hierarchical entity reference at position in tree represented by this object.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
    */
   @java.lang.Override
@@ -198,6 +215,10 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITY_FIELD_NUMBER = 2;
   private io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity_;
   /**
+   * <pre>
+   * Hierarchical entity at position in tree represented by this object.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
    * @return Whether the entity field is set.
    */
@@ -206,6 +227,10 @@ private static final long serialVersionUID = 0L;
     return entity_ != null;
   }
   /**
+   * <pre>
+   * Hierarchical entity at position in tree represented by this object.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
    * @return The entity.
    */
@@ -214,6 +239,10 @@ private static final long serialVersionUID = 0L;
     return entity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : entity_;
   }
   /**
+   * <pre>
+   * Hierarchical entity at position in tree represented by this object.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
    */
   @java.lang.Override
@@ -224,6 +253,11 @@ private static final long serialVersionUID = 0L;
   public static final int QUERIEDENTITYCOUNT_FIELD_NUMBER = 3;
   private com.google.protobuf.Int32Value queriedEntityCount_;
   /**
+   * <pre>
+   * Contains the number of queried entities that refer directly to this `entity` or to any of its children
+   * entities.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
    * @return Whether the queriedEntityCount field is set.
    */
@@ -232,6 +266,11 @@ private static final long serialVersionUID = 0L;
     return queriedEntityCount_ != null;
   }
   /**
+   * <pre>
+   * Contains the number of queried entities that refer directly to this `entity` or to any of its children
+   * entities.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
    * @return The queriedEntityCount.
    */
@@ -240,6 +279,11 @@ private static final long serialVersionUID = 0L;
     return queriedEntityCount_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : queriedEntityCount_;
   }
   /**
+   * <pre>
+   * Contains the number of queried entities that refer directly to this `entity` or to any of its children
+   * entities.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
    */
   @java.lang.Override
@@ -250,6 +294,12 @@ private static final long serialVersionUID = 0L;
   public static final int CHILDRENCOUNT_FIELD_NUMBER = 4;
   private com.google.protobuf.Int32Value childrenCount_;
   /**
+   * <pre>
+   * Contains number of hierarchical entities that are referring to this `entity` as its parent.
+   * The count will respect behaviour settings and will not count empty children in case `REMOVE_EMPTY` is
+   * used for computation.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
    * @return Whether the childrenCount field is set.
    */
@@ -258,6 +308,12 @@ private static final long serialVersionUID = 0L;
     return childrenCount_ != null;
   }
   /**
+   * <pre>
+   * Contains number of hierarchical entities that are referring to this `entity` as its parent.
+   * The count will respect behaviour settings and will not count empty children in case `REMOVE_EMPTY` is
+   * used for computation.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
    * @return The childrenCount.
    */
@@ -266,6 +322,12 @@ private static final long serialVersionUID = 0L;
     return childrenCount_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : childrenCount_;
   }
   /**
+   * <pre>
+   * Contains number of hierarchical entities that are referring to this `entity` as its parent.
+   * The count will respect behaviour settings and will not count empty children in case `REMOVE_EMPTY` is
+   * used for computation.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
    */
   @java.lang.Override
@@ -276,6 +338,10 @@ private static final long serialVersionUID = 0L;
   public static final int ITEMS_FIELD_NUMBER = 5;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo> items_;
   /**
+   * <pre>
+   * Contains hierarchy info of the entities that are subordinate (children) of this `entity`.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
    */
   @java.lang.Override
@@ -283,6 +349,10 @@ private static final long serialVersionUID = 0L;
     return items_;
   }
   /**
+   * <pre>
+   * Contains hierarchy info of the entities that are subordinate (children) of this `entity`.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
    */
   @java.lang.Override
@@ -291,6 +361,10 @@ private static final long serialVersionUID = 0L;
     return items_;
   }
   /**
+   * <pre>
+   * Contains hierarchy info of the entities that are subordinate (children) of this `entity`.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
    */
   @java.lang.Override
@@ -298,6 +372,10 @@ private static final long serialVersionUID = 0L;
     return items_.size();
   }
   /**
+   * <pre>
+   * Contains hierarchy info of the entities that are subordinate (children) of this `entity`.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
    */
   @java.lang.Override
@@ -305,6 +383,10 @@ private static final long serialVersionUID = 0L;
     return items_.get(index);
   }
   /**
+   * <pre>
+   * Contains hierarchy info of the entities that are subordinate (children) of this `entity`.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
    */
   @java.lang.Override
@@ -535,6 +617,11 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * This DTO represents single hierarchical entity in the statistics tree. It contains identification of the entity,
+   * the cardinality of queried entities that refer to it and information about children level.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcLevelInfo}
    */
   public static final class Builder extends
@@ -779,6 +866,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> entityReferenceBuilder_;
     /**
+     * <pre>
+     * Hierarchical entity reference at position in tree represented by this object.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      * @return Whether the entityReference field is set.
      */
@@ -786,6 +877,10 @@ private static final long serialVersionUID = 0L;
       return entityReferenceBuilder_ != null || entityReference_ != null;
     }
     /**
+     * <pre>
+     * Hierarchical entity reference at position in tree represented by this object.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      * @return The entityReference.
      */
@@ -797,6 +892,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Hierarchical entity reference at position in tree represented by this object.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      */
     public Builder setEntityReference(io.evitadb.externalApi.grpc.generated.GrpcEntityReference value) {
@@ -813,6 +912,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Hierarchical entity reference at position in tree represented by this object.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      */
     public Builder setEntityReference(
@@ -827,6 +930,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Hierarchical entity reference at position in tree represented by this object.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      */
     public Builder mergeEntityReference(io.evitadb.externalApi.grpc.generated.GrpcEntityReference value) {
@@ -845,6 +952,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Hierarchical entity reference at position in tree represented by this object.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      */
     public Builder clearEntityReference() {
@@ -859,6 +970,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Hierarchical entity reference at position in tree represented by this object.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder getEntityReferenceBuilder() {
@@ -867,6 +982,10 @@ private static final long serialVersionUID = 0L;
       return getEntityReferenceFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Hierarchical entity reference at position in tree represented by this object.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder getEntityReferenceOrBuilder() {
@@ -878,6 +997,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Hierarchical entity reference at position in tree represented by this object.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -898,6 +1021,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> entityBuilder_;
     /**
+     * <pre>
+     * Hierarchical entity at position in tree represented by this object.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
      * @return Whether the entity field is set.
      */
@@ -905,6 +1032,10 @@ private static final long serialVersionUID = 0L;
       return entityBuilder_ != null || entity_ != null;
     }
     /**
+     * <pre>
+     * Hierarchical entity at position in tree represented by this object.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
      * @return The entity.
      */
@@ -916,6 +1047,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Hierarchical entity at position in tree represented by this object.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
      */
     public Builder setEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
@@ -932,6 +1067,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Hierarchical entity at position in tree represented by this object.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
      */
     public Builder setEntity(
@@ -946,6 +1085,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Hierarchical entity at position in tree represented by this object.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
      */
     public Builder mergeEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
@@ -964,6 +1107,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Hierarchical entity at position in tree represented by this object.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
      */
     public Builder clearEntity() {
@@ -978,6 +1125,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Hierarchical entity at position in tree represented by this object.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder getEntityBuilder() {
@@ -986,6 +1137,10 @@ private static final long serialVersionUID = 0L;
       return getEntityFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Hierarchical entity at position in tree represented by this object.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getEntityOrBuilder() {
@@ -997,6 +1152,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Hierarchical entity at position in tree represented by this object.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1017,6 +1176,11 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> queriedEntityCountBuilder_;
     /**
+     * <pre>
+     * Contains the number of queried entities that refer directly to this `entity` or to any of its children
+     * entities.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
      * @return Whether the queriedEntityCount field is set.
      */
@@ -1024,6 +1188,11 @@ private static final long serialVersionUID = 0L;
       return queriedEntityCountBuilder_ != null || queriedEntityCount_ != null;
     }
     /**
+     * <pre>
+     * Contains the number of queried entities that refer directly to this `entity` or to any of its children
+     * entities.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
      * @return The queriedEntityCount.
      */
@@ -1035,6 +1204,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains the number of queried entities that refer directly to this `entity` or to any of its children
+     * entities.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
      */
     public Builder setQueriedEntityCount(com.google.protobuf.Int32Value value) {
@@ -1051,6 +1225,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains the number of queried entities that refer directly to this `entity` or to any of its children
+     * entities.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
      */
     public Builder setQueriedEntityCount(
@@ -1065,6 +1244,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains the number of queried entities that refer directly to this `entity` or to any of its children
+     * entities.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
      */
     public Builder mergeQueriedEntityCount(com.google.protobuf.Int32Value value) {
@@ -1083,6 +1267,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains the number of queried entities that refer directly to this `entity` or to any of its children
+     * entities.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
      */
     public Builder clearQueriedEntityCount() {
@@ -1097,6 +1286,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains the number of queried entities that refer directly to this `entity` or to any of its children
+     * entities.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
      */
     public com.google.protobuf.Int32Value.Builder getQueriedEntityCountBuilder() {
@@ -1105,6 +1299,11 @@ private static final long serialVersionUID = 0L;
       return getQueriedEntityCountFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Contains the number of queried entities that refer directly to this `entity` or to any of its children
+     * entities.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
      */
     public com.google.protobuf.Int32ValueOrBuilder getQueriedEntityCountOrBuilder() {
@@ -1116,6 +1315,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains the number of queried entities that refer directly to this `entity` or to any of its children
+     * entities.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1136,6 +1340,12 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> childrenCountBuilder_;
     /**
+     * <pre>
+     * Contains number of hierarchical entities that are referring to this `entity` as its parent.
+     * The count will respect behaviour settings and will not count empty children in case `REMOVE_EMPTY` is
+     * used for computation.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
      * @return Whether the childrenCount field is set.
      */
@@ -1143,6 +1353,12 @@ private static final long serialVersionUID = 0L;
       return childrenCountBuilder_ != null || childrenCount_ != null;
     }
     /**
+     * <pre>
+     * Contains number of hierarchical entities that are referring to this `entity` as its parent.
+     * The count will respect behaviour settings and will not count empty children in case `REMOVE_EMPTY` is
+     * used for computation.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
      * @return The childrenCount.
      */
@@ -1154,6 +1370,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains number of hierarchical entities that are referring to this `entity` as its parent.
+     * The count will respect behaviour settings and will not count empty children in case `REMOVE_EMPTY` is
+     * used for computation.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
      */
     public Builder setChildrenCount(com.google.protobuf.Int32Value value) {
@@ -1170,6 +1392,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains number of hierarchical entities that are referring to this `entity` as its parent.
+     * The count will respect behaviour settings and will not count empty children in case `REMOVE_EMPTY` is
+     * used for computation.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
      */
     public Builder setChildrenCount(
@@ -1184,6 +1412,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains number of hierarchical entities that are referring to this `entity` as its parent.
+     * The count will respect behaviour settings and will not count empty children in case `REMOVE_EMPTY` is
+     * used for computation.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
      */
     public Builder mergeChildrenCount(com.google.protobuf.Int32Value value) {
@@ -1202,6 +1436,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains number of hierarchical entities that are referring to this `entity` as its parent.
+     * The count will respect behaviour settings and will not count empty children in case `REMOVE_EMPTY` is
+     * used for computation.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
      */
     public Builder clearChildrenCount() {
@@ -1216,6 +1456,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains number of hierarchical entities that are referring to this `entity` as its parent.
+     * The count will respect behaviour settings and will not count empty children in case `REMOVE_EMPTY` is
+     * used for computation.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
      */
     public com.google.protobuf.Int32Value.Builder getChildrenCountBuilder() {
@@ -1224,6 +1470,12 @@ private static final long serialVersionUID = 0L;
       return getChildrenCountFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Contains number of hierarchical entities that are referring to this `entity` as its parent.
+     * The count will respect behaviour settings and will not count empty children in case `REMOVE_EMPTY` is
+     * used for computation.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
      */
     public com.google.protobuf.Int32ValueOrBuilder getChildrenCountOrBuilder() {
@@ -1235,6 +1487,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains number of hierarchical entities that are referring to this `entity` as its parent.
+     * The count will respect behaviour settings and will not count empty children in case `REMOVE_EMPTY` is
+     * used for computation.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1264,6 +1522,10 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcLevelInfo, io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder, io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder> itemsBuilder_;
 
     /**
+     * <pre>
+     * Contains hierarchy info of the entities that are subordinate (children) of this `entity`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo> getItemsList() {
@@ -1274,6 +1536,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains hierarchy info of the entities that are subordinate (children) of this `entity`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
     public int getItemsCount() {
@@ -1284,6 +1550,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains hierarchy info of the entities that are subordinate (children) of this `entity`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLevelInfo getItems(int index) {
@@ -1294,6 +1564,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains hierarchy info of the entities that are subordinate (children) of this `entity`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
     public Builder setItems(
@@ -1311,6 +1585,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains hierarchy info of the entities that are subordinate (children) of this `entity`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
     public Builder setItems(
@@ -1325,6 +1603,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains hierarchy info of the entities that are subordinate (children) of this `entity`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
     public Builder addItems(io.evitadb.externalApi.grpc.generated.GrpcLevelInfo value) {
@@ -1341,6 +1623,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains hierarchy info of the entities that are subordinate (children) of this `entity`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
     public Builder addItems(
@@ -1358,6 +1644,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains hierarchy info of the entities that are subordinate (children) of this `entity`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
     public Builder addItems(
@@ -1372,6 +1662,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains hierarchy info of the entities that are subordinate (children) of this `entity`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
     public Builder addItems(
@@ -1386,6 +1680,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains hierarchy info of the entities that are subordinate (children) of this `entity`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
     public Builder addAllItems(
@@ -1401,6 +1699,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains hierarchy info of the entities that are subordinate (children) of this `entity`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
     public Builder clearItems() {
@@ -1414,6 +1716,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains hierarchy info of the entities that are subordinate (children) of this `entity`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
     public Builder removeItems(int index) {
@@ -1427,6 +1733,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains hierarchy info of the entities that are subordinate (children) of this `entity`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder getItemsBuilder(
@@ -1434,6 +1744,10 @@ private static final long serialVersionUID = 0L;
       return getItemsFieldBuilder().getBuilder(index);
     }
     /**
+     * <pre>
+     * Contains hierarchy info of the entities that are subordinate (children) of this `entity`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder getItemsOrBuilder(
@@ -1444,6 +1758,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains hierarchy info of the entities that are subordinate (children) of this `entity`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder> 
@@ -1455,6 +1773,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains hierarchy info of the entities that are subordinate (children) of this `entity`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder addItemsBuilder() {
@@ -1462,6 +1784,10 @@ private static final long serialVersionUID = 0L;
           io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Contains hierarchy info of the entities that are subordinate (children) of this `entity`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder addItemsBuilder(
@@ -1470,6 +1796,10 @@ private static final long serialVersionUID = 0L;
           index, io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Contains hierarchy info of the entities that are subordinate (children) of this `entity`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder> 

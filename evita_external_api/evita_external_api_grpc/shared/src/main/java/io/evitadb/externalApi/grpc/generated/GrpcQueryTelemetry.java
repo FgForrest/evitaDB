@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * This DTO contains detailed information about query processing time and its decomposition to single operations.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry}
  */
 public final class GrpcQueryTelemetry extends
@@ -150,6 +154,10 @@ private static final long serialVersionUID = 0L;
   public static final int OPERATION_FIELD_NUMBER = 1;
   private int operation_;
   /**
+   * <pre>
+   * Phase of the query processing.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPhase operation = 1;</code>
    * @return The enum numeric value on the wire for operation.
    */
@@ -157,6 +165,10 @@ private static final long serialVersionUID = 0L;
     return operation_;
   }
   /**
+   * <pre>
+   * Phase of the query processing.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPhase operation = 1;</code>
    * @return The operation.
    */
@@ -169,6 +181,10 @@ private static final long serialVersionUID = 0L;
   public static final int START_FIELD_NUMBER = 2;
   private long start_;
   /**
+   * <pre>
+   * Date and time of the start of this step in nanoseconds.
+   * </pre>
+   *
    * <code>int64 start = 2;</code>
    * @return The start.
    */
@@ -180,6 +196,10 @@ private static final long serialVersionUID = 0L;
   public static final int STEPS_FIELD_NUMBER = 3;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry> steps_;
   /**
+   * <pre>
+   * Internal steps of this telemetry step (operation decomposition).
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
    */
   @java.lang.Override
@@ -187,6 +207,10 @@ private static final long serialVersionUID = 0L;
     return steps_;
   }
   /**
+   * <pre>
+   * Internal steps of this telemetry step (operation decomposition).
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
    */
   @java.lang.Override
@@ -195,6 +219,10 @@ private static final long serialVersionUID = 0L;
     return steps_;
   }
   /**
+   * <pre>
+   * Internal steps of this telemetry step (operation decomposition).
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
    */
   @java.lang.Override
@@ -202,6 +230,10 @@ private static final long serialVersionUID = 0L;
     return steps_.size();
   }
   /**
+   * <pre>
+   * Internal steps of this telemetry step (operation decomposition).
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
    */
   @java.lang.Override
@@ -209,6 +241,10 @@ private static final long serialVersionUID = 0L;
     return steps_.get(index);
   }
   /**
+   * <pre>
+   * Internal steps of this telemetry step (operation decomposition).
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
    */
   @java.lang.Override
@@ -220,6 +256,10 @@ private static final long serialVersionUID = 0L;
   public static final int ARGUMENTS_FIELD_NUMBER = 4;
   private com.google.protobuf.LazyStringList arguments_;
   /**
+   * <pre>
+   * Arguments of the processing phase.
+   * </pre>
+   *
    * <code>repeated string arguments = 4;</code>
    * @return A list containing the arguments.
    */
@@ -228,6 +268,10 @@ private static final long serialVersionUID = 0L;
     return arguments_;
   }
   /**
+   * <pre>
+   * Arguments of the processing phase.
+   * </pre>
+   *
    * <code>repeated string arguments = 4;</code>
    * @return The count of arguments.
    */
@@ -235,6 +279,10 @@ private static final long serialVersionUID = 0L;
     return arguments_.size();
   }
   /**
+   * <pre>
+   * Arguments of the processing phase.
+   * </pre>
+   *
    * <code>repeated string arguments = 4;</code>
    * @param index The index of the element to return.
    * @return The arguments at the given index.
@@ -243,6 +291,10 @@ private static final long serialVersionUID = 0L;
     return arguments_.get(index);
   }
   /**
+   * <pre>
+   * Arguments of the processing phase.
+   * </pre>
+   *
    * <code>repeated string arguments = 4;</code>
    * @param index The index of the value to return.
    * @return The bytes of the arguments at the given index.
@@ -255,6 +307,10 @@ private static final long serialVersionUID = 0L;
   public static final int SPENTTIME_FIELD_NUMBER = 5;
   private long spentTime_;
   /**
+   * <pre>
+   * Duration in nanoseconds.
+   * </pre>
+   *
    * <code>int64 spentTime = 5;</code>
    * @return The spentTime.
    */
@@ -472,6 +528,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * This DTO contains detailed information about query processing time and its decomposition to single operations.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry}
    */
   public static final class Builder extends
@@ -693,6 +753,10 @@ private static final long serialVersionUID = 0L;
 
     private int operation_ = 0;
     /**
+     * <pre>
+     * Phase of the query processing.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPhase operation = 1;</code>
      * @return The enum numeric value on the wire for operation.
      */
@@ -700,6 +764,10 @@ private static final long serialVersionUID = 0L;
       return operation_;
     }
     /**
+     * <pre>
+     * Phase of the query processing.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPhase operation = 1;</code>
      * @param value The enum numeric value on the wire for operation to set.
      * @return This builder for chaining.
@@ -711,6 +779,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Phase of the query processing.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPhase operation = 1;</code>
      * @return The operation.
      */
@@ -721,6 +793,10 @@ private static final long serialVersionUID = 0L;
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcQueryPhase.UNRECOGNIZED : result;
     }
     /**
+     * <pre>
+     * Phase of the query processing.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPhase operation = 1;</code>
      * @param value The operation to set.
      * @return This builder for chaining.
@@ -735,6 +811,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Phase of the query processing.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPhase operation = 1;</code>
      * @return This builder for chaining.
      */
@@ -747,6 +827,10 @@ private static final long serialVersionUID = 0L;
 
     private long start_ ;
     /**
+     * <pre>
+     * Date and time of the start of this step in nanoseconds.
+     * </pre>
+     *
      * <code>int64 start = 2;</code>
      * @return The start.
      */
@@ -755,6 +839,10 @@ private static final long serialVersionUID = 0L;
       return start_;
     }
     /**
+     * <pre>
+     * Date and time of the start of this step in nanoseconds.
+     * </pre>
+     *
      * <code>int64 start = 2;</code>
      * @param value The start to set.
      * @return This builder for chaining.
@@ -766,6 +854,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Date and time of the start of this step in nanoseconds.
+     * </pre>
+     *
      * <code>int64 start = 2;</code>
      * @return This builder for chaining.
      */
@@ -789,6 +881,10 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder> stepsBuilder_;
 
     /**
+     * <pre>
+     * Internal steps of this telemetry step (operation decomposition).
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry> getStepsList() {
@@ -799,6 +895,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Internal steps of this telemetry step (operation decomposition).
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
      */
     public int getStepsCount() {
@@ -809,6 +909,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Internal steps of this telemetry step (operation decomposition).
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry getSteps(int index) {
@@ -819,6 +923,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Internal steps of this telemetry step (operation decomposition).
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
      */
     public Builder setSteps(
@@ -836,6 +944,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Internal steps of this telemetry step (operation decomposition).
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
      */
     public Builder setSteps(
@@ -850,6 +962,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Internal steps of this telemetry step (operation decomposition).
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
      */
     public Builder addSteps(io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry value) {
@@ -866,6 +982,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Internal steps of this telemetry step (operation decomposition).
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
      */
     public Builder addSteps(
@@ -883,6 +1003,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Internal steps of this telemetry step (operation decomposition).
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
      */
     public Builder addSteps(
@@ -897,6 +1021,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Internal steps of this telemetry step (operation decomposition).
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
      */
     public Builder addSteps(
@@ -911,6 +1039,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Internal steps of this telemetry step (operation decomposition).
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
      */
     public Builder addAllSteps(
@@ -926,6 +1058,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Internal steps of this telemetry step (operation decomposition).
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
      */
     public Builder clearSteps() {
@@ -939,6 +1075,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Internal steps of this telemetry step (operation decomposition).
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
      */
     public Builder removeSteps(int index) {
@@ -952,6 +1092,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Internal steps of this telemetry step (operation decomposition).
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.Builder getStepsBuilder(
@@ -959,6 +1103,10 @@ private static final long serialVersionUID = 0L;
       return getStepsFieldBuilder().getBuilder(index);
     }
     /**
+     * <pre>
+     * Internal steps of this telemetry step (operation decomposition).
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder getStepsOrBuilder(
@@ -969,6 +1117,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Internal steps of this telemetry step (operation decomposition).
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder> 
@@ -980,6 +1132,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Internal steps of this telemetry step (operation decomposition).
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.Builder addStepsBuilder() {
@@ -987,6 +1143,10 @@ private static final long serialVersionUID = 0L;
           io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Internal steps of this telemetry step (operation decomposition).
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.Builder addStepsBuilder(
@@ -995,6 +1155,10 @@ private static final long serialVersionUID = 0L;
           index, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Internal steps of this telemetry step (operation decomposition).
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.Builder> 
@@ -1024,6 +1188,10 @@ private static final long serialVersionUID = 0L;
        }
     }
     /**
+     * <pre>
+     * Arguments of the processing phase.
+     * </pre>
+     *
      * <code>repeated string arguments = 4;</code>
      * @return A list containing the arguments.
      */
@@ -1032,6 +1200,10 @@ private static final long serialVersionUID = 0L;
       return arguments_.getUnmodifiableView();
     }
     /**
+     * <pre>
+     * Arguments of the processing phase.
+     * </pre>
+     *
      * <code>repeated string arguments = 4;</code>
      * @return The count of arguments.
      */
@@ -1039,6 +1211,10 @@ private static final long serialVersionUID = 0L;
       return arguments_.size();
     }
     /**
+     * <pre>
+     * Arguments of the processing phase.
+     * </pre>
+     *
      * <code>repeated string arguments = 4;</code>
      * @param index The index of the element to return.
      * @return The arguments at the given index.
@@ -1047,6 +1223,10 @@ private static final long serialVersionUID = 0L;
       return arguments_.get(index);
     }
     /**
+     * <pre>
+     * Arguments of the processing phase.
+     * </pre>
+     *
      * <code>repeated string arguments = 4;</code>
      * @param index The index of the value to return.
      * @return The bytes of the arguments at the given index.
@@ -1056,6 +1236,10 @@ private static final long serialVersionUID = 0L;
       return arguments_.getByteString(index);
     }
     /**
+     * <pre>
+     * Arguments of the processing phase.
+     * </pre>
+     *
      * <code>repeated string arguments = 4;</code>
      * @param index The index to set the value at.
      * @param value The arguments to set.
@@ -1072,6 +1256,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Arguments of the processing phase.
+     * </pre>
+     *
      * <code>repeated string arguments = 4;</code>
      * @param value The arguments to add.
      * @return This builder for chaining.
@@ -1087,6 +1275,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Arguments of the processing phase.
+     * </pre>
+     *
      * <code>repeated string arguments = 4;</code>
      * @param values The arguments to add.
      * @return This builder for chaining.
@@ -1100,6 +1292,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Arguments of the processing phase.
+     * </pre>
+     *
      * <code>repeated string arguments = 4;</code>
      * @return This builder for chaining.
      */
@@ -1110,6 +1306,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Arguments of the processing phase.
+     * </pre>
+     *
      * <code>repeated string arguments = 4;</code>
      * @param value The bytes of the arguments to add.
      * @return This builder for chaining.
@@ -1128,6 +1328,10 @@ private static final long serialVersionUID = 0L;
 
     private long spentTime_ ;
     /**
+     * <pre>
+     * Duration in nanoseconds.
+     * </pre>
+     *
      * <code>int64 spentTime = 5;</code>
      * @return The spentTime.
      */
@@ -1136,6 +1340,10 @@ private static final long serialVersionUID = 0L;
       return spentTime_;
     }
     /**
+     * <pre>
+     * Duration in nanoseconds.
+     * </pre>
+     *
      * <code>int64 spentTime = 5;</code>
      * @param value The spentTime to set.
      * @return This builder for chaining.
@@ -1147,6 +1355,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Duration in nanoseconds.
+     * </pre>
+     *
      * <code>int64 spentTime = 5;</code>
      * @return This builder for chaining.
      */

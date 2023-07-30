@@ -31,10 +31,18 @@ public interface GrpcHierarchyOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Map holds the statistics represented by user-specified output name of requested hierarchy.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 1;</code>
    */
   int getHierarchyCount();
   /**
+   * <pre>
+   * Map holds the statistics represented by user-specified output name of requested hierarchy.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 1;</code>
    */
   boolean containsHierarchy(
@@ -46,11 +54,19 @@ public interface GrpcHierarchyOrBuilder extends
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos>
   getHierarchy();
   /**
+   * <pre>
+   * Map holds the statistics represented by user-specified output name of requested hierarchy.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 1;</code>
    */
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos>
   getHierarchyMap();
   /**
+   * <pre>
+   * Map holds the statistics represented by user-specified output name of requested hierarchy.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 1;</code>
    */
 
@@ -58,6 +74,10 @@ public interface GrpcHierarchyOrBuilder extends
       java.lang.String key,
       io.evitadb.externalApi.grpc.generated.GrpcLevelInfos defaultValue);
   /**
+   * <pre>
+   * Map holds the statistics represented by user-specified output name of requested hierarchy.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 1;</code>
    */
 

@@ -31,23 +31,39 @@ public interface GrpcEntityTypesResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The list of all entity types.
+   * </pre>
+   *
    * <code>repeated string entityTypes = 1;</code>
    * @return A list containing the entityTypes.
    */
   java.util.List<java.lang.String>
       getEntityTypesList();
   /**
+   * <pre>
+   * The list of all entity types.
+   * </pre>
+   *
    * <code>repeated string entityTypes = 1;</code>
    * @return The count of entityTypes.
    */
   int getEntityTypesCount();
   /**
+   * <pre>
+   * The list of all entity types.
+   * </pre>
+   *
    * <code>repeated string entityTypes = 1;</code>
    * @param index The index of the element to return.
    * @return The entityTypes at the given index.
    */
   java.lang.String getEntityTypes(int index);
   /**
+   * <pre>
+   * The list of all entity types.
+   * </pre>
+   *
    * <code>repeated string entityTypes = 1;</code>
    * @param index The index of the value to return.
    * @return The bytes of the entityTypes at the given index.

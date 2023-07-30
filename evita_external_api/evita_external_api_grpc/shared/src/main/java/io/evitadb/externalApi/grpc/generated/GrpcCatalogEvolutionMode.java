@@ -27,11 +27,22 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Evolution mode allows to specify how strict is evitaDB when unknown information is presented to her for the first
+ * time. When no evolution mode is set, each violation of the EntitySchema is
+ * reported by an exception. However, this behaviour can be changed by this evolution mode.
+ * </pre>
+ *
  * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode}
  */
 public enum GrpcCatalogEvolutionMode
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
+   * <pre>
+   * When new entity is inserted and no collection of its entity type exists, it is silently
+   * created with empty schema and with all Evolution modes allowed.
+   * </pre>
+   *
    * <code>ADDING_ENTITY_TYPES = 0;</code>
    */
   ADDING_ENTITY_TYPES(0),
@@ -39,6 +50,11 @@ public enum GrpcCatalogEvolutionMode
   ;
 
   /**
+   * <pre>
+   * When new entity is inserted and no collection of its entity type exists, it is silently
+   * created with empty schema and with all Evolution modes allowed.
+   * </pre>
+   *
    * <code>ADDING_ENTITY_TYPES = 0;</code>
    */
   public static final int ADDING_ENTITY_TYPES_VALUE = 0;

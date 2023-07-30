@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Mutation is responsible for setting a `EntitySchema.withHierarchy` in `EntitySchema`.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithHierarchyMutation}
  */
 public final class GrpcSetEntitySchemaWithHierarchyMutation extends
@@ -111,6 +115,16 @@ private static final long serialVersionUID = 0L;
   public static final int WITHHIERARCHY_FIELD_NUMBER = 1;
   private boolean withHierarchy_;
   /**
+   * <pre>
+   * Whether entities of this type are organized in a tree like structure (hierarchy) where certain entities
+   * are subordinate of other entities.
+   * Entities may be organized in hierarchical fashion. That means that entity may refer to single parent entity and may be
+   * referred by multiple child entities. Hierarchy is always composed of entities of same type.
+   * Each entity must be part of at most single hierarchy (tree).
+   * Hierarchy can limit returned entities by using filtering constraints `hierarchy_{reference name}_within`. It's also used for
+   * computation of extra data - such as `hierarchyParents`.
+   * </pre>
+   *
    * <code>bool withHierarchy = 1;</code>
    * @return The withHierarchy.
    */
@@ -276,6 +290,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Mutation is responsible for setting a `EntitySchema.withHierarchy` in `EntitySchema`.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithHierarchyMutation}
    */
   public static final class Builder extends
@@ -424,6 +442,16 @@ private static final long serialVersionUID = 0L;
 
     private boolean withHierarchy_ ;
     /**
+     * <pre>
+     * Whether entities of this type are organized in a tree like structure (hierarchy) where certain entities
+     * are subordinate of other entities.
+     * Entities may be organized in hierarchical fashion. That means that entity may refer to single parent entity and may be
+     * referred by multiple child entities. Hierarchy is always composed of entities of same type.
+     * Each entity must be part of at most single hierarchy (tree).
+     * Hierarchy can limit returned entities by using filtering constraints `hierarchy_{reference name}_within`. It's also used for
+     * computation of extra data - such as `hierarchyParents`.
+     * </pre>
+     *
      * <code>bool withHierarchy = 1;</code>
      * @return The withHierarchy.
      */
@@ -432,6 +460,16 @@ private static final long serialVersionUID = 0L;
       return withHierarchy_;
     }
     /**
+     * <pre>
+     * Whether entities of this type are organized in a tree like structure (hierarchy) where certain entities
+     * are subordinate of other entities.
+     * Entities may be organized in hierarchical fashion. That means that entity may refer to single parent entity and may be
+     * referred by multiple child entities. Hierarchy is always composed of entities of same type.
+     * Each entity must be part of at most single hierarchy (tree).
+     * Hierarchy can limit returned entities by using filtering constraints `hierarchy_{reference name}_within`. It's also used for
+     * computation of extra data - such as `hierarchyParents`.
+     * </pre>
+     *
      * <code>bool withHierarchy = 1;</code>
      * @param value The withHierarchy to set.
      * @return This builder for chaining.
@@ -443,6 +481,16 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Whether entities of this type are organized in a tree like structure (hierarchy) where certain entities
+     * are subordinate of other entities.
+     * Entities may be organized in hierarchical fashion. That means that entity may refer to single parent entity and may be
+     * referred by multiple child entities. Hierarchy is always composed of entities of same type.
+     * Each entity must be part of at most single hierarchy (tree).
+     * Hierarchy can limit returned entities by using filtering constraints `hierarchy_{reference name}_within`. It's also used for
+     * computation of extra data - such as `hierarchyParents`.
+     * </pre>
+     *
      * <code>bool withHierarchy = 1;</code>
      * @return This builder for chaining.
      */

@@ -31,646 +31,1243 @@ public interface GrpcEntitySchemaMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Mutation is responsible for setting up a new `AssociatedDataSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateAssociatedDataSchemaMutation createAssociatedDataSchemaMutation = 1;</code>
    * @return Whether the createAssociatedDataSchemaMutation field is set.
    */
   boolean hasCreateAssociatedDataSchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting up a new `AssociatedDataSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateAssociatedDataSchemaMutation createAssociatedDataSchemaMutation = 1;</code>
    * @return The createAssociatedDataSchemaMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcCreateAssociatedDataSchemaMutation getCreateAssociatedDataSchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting up a new `AssociatedDataSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateAssociatedDataSchemaMutation createAssociatedDataSchemaMutation = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcCreateAssociatedDataSchemaMutationOrBuilder getCreateAssociatedDataSchemaMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AssociatedDataSchemaContract.deprecationNotice` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaDeprecationNoticeMutation modifyAssociatedDataSchemaDeprecationNoticeMutation = 2;</code>
    * @return Whether the modifyAssociatedDataSchemaDeprecationNoticeMutation field is set.
    */
   boolean hasModifyAssociatedDataSchemaDeprecationNoticeMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AssociatedDataSchemaContract.deprecationNotice` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaDeprecationNoticeMutation modifyAssociatedDataSchemaDeprecationNoticeMutation = 2;</code>
    * @return The modifyAssociatedDataSchemaDeprecationNoticeMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaDeprecationNoticeMutation getModifyAssociatedDataSchemaDeprecationNoticeMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AssociatedDataSchemaContract.deprecationNotice` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaDeprecationNoticeMutation modifyAssociatedDataSchemaDeprecationNoticeMutation = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaDeprecationNoticeMutationOrBuilder getModifyAssociatedDataSchemaDeprecationNoticeMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AssociatedDataSchema.description` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaDescriptionMutation modifyAssociatedDataSchemaDescriptionMutation = 3;</code>
    * @return Whether the modifyAssociatedDataSchemaDescriptionMutation field is set.
    */
   boolean hasModifyAssociatedDataSchemaDescriptionMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AssociatedDataSchema.description` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaDescriptionMutation modifyAssociatedDataSchemaDescriptionMutation = 3;</code>
    * @return The modifyAssociatedDataSchemaDescriptionMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaDescriptionMutation getModifyAssociatedDataSchemaDescriptionMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AssociatedDataSchema.description` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaDescriptionMutation modifyAssociatedDataSchemaDescriptionMutation = 3;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaDescriptionMutationOrBuilder getModifyAssociatedDataSchemaDescriptionMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for renaming an existing `AssociatedDataSchema` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaNameMutation modifyAssociatedDataSchemaNameMutation = 4;</code>
    * @return Whether the modifyAssociatedDataSchemaNameMutation field is set.
    */
   boolean hasModifyAssociatedDataSchemaNameMutation();
   /**
+   * <pre>
+   * Mutation is responsible for renaming an existing `AssociatedDataSchema` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaNameMutation modifyAssociatedDataSchemaNameMutation = 4;</code>
    * @return The modifyAssociatedDataSchemaNameMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaNameMutation getModifyAssociatedDataSchemaNameMutation();
   /**
+   * <pre>
+   * Mutation is responsible for renaming an existing `AssociatedDataSchema` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaNameMutation modifyAssociatedDataSchemaNameMutation = 4;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaNameMutationOrBuilder getModifyAssociatedDataSchemaNameMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AssociatedDataSchema.type` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaTypeMutation modifyAssociatedDataSchemaTypeMutation = 5;</code>
    * @return Whether the modifyAssociatedDataSchemaTypeMutation field is set.
    */
   boolean hasModifyAssociatedDataSchemaTypeMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AssociatedDataSchema.type` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaTypeMutation modifyAssociatedDataSchemaTypeMutation = 5;</code>
    * @return The modifyAssociatedDataSchemaTypeMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaTypeMutation getModifyAssociatedDataSchemaTypeMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AssociatedDataSchema.type` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaTypeMutation modifyAssociatedDataSchemaTypeMutation = 5;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaTypeMutationOrBuilder getModifyAssociatedDataSchemaTypeMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for removing an existing `AssociatedDataSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataSchemaMutation removeAssociatedDataSchemaMutation = 6;</code>
    * @return Whether the removeAssociatedDataSchemaMutation field is set.
    */
   boolean hasRemoveAssociatedDataSchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for removing an existing `AssociatedDataSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataSchemaMutation removeAssociatedDataSchemaMutation = 6;</code>
    * @return The removeAssociatedDataSchemaMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataSchemaMutation getRemoveAssociatedDataSchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for removing an existing `AssociatedDataSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataSchemaMutation removeAssociatedDataSchemaMutation = 6;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataSchemaMutationOrBuilder getRemoveAssociatedDataSchemaMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AssociatedDataSchema.localized` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaLocalizedMutation setAssociatedDataSchemaLocalizedMutation = 7;</code>
    * @return Whether the setAssociatedDataSchemaLocalizedMutation field is set.
    */
   boolean hasSetAssociatedDataSchemaLocalizedMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AssociatedDataSchema.localized` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaLocalizedMutation setAssociatedDataSchemaLocalizedMutation = 7;</code>
    * @return The setAssociatedDataSchemaLocalizedMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaLocalizedMutation getSetAssociatedDataSchemaLocalizedMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AssociatedDataSchema.localized` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaLocalizedMutation setAssociatedDataSchemaLocalizedMutation = 7;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaLocalizedMutationOrBuilder getSetAssociatedDataSchemaLocalizedMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AssociatedDataSchema.nullable` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaNullableMutation setAssociatedDataSchemaNullableMutation = 8;</code>
    * @return Whether the setAssociatedDataSchemaNullableMutation field is set.
    */
   boolean hasSetAssociatedDataSchemaNullableMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AssociatedDataSchema.nullable` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaNullableMutation setAssociatedDataSchemaNullableMutation = 8;</code>
    * @return The setAssociatedDataSchemaNullableMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaNullableMutation getSetAssociatedDataSchemaNullableMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AssociatedDataSchema.nullable` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaNullableMutation setAssociatedDataSchemaNullableMutation = 8;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaNullableMutationOrBuilder getSetAssociatedDataSchemaNullableMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting up a new `AttributeSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateAttributeSchemaMutation createAttributeSchemaMutation = 9;</code>
    * @return Whether the createAttributeSchemaMutation field is set.
    */
   boolean hasCreateAttributeSchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting up a new `AttributeSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateAttributeSchemaMutation createAttributeSchemaMutation = 9;</code>
    * @return The createAttributeSchemaMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcCreateAttributeSchemaMutation getCreateAttributeSchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting up a new `AttributeSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateAttributeSchemaMutation createAttributeSchemaMutation = 9;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcCreateAttributeSchemaMutationOrBuilder getCreateAttributeSchemaMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.defaultValue` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDefaultValueMutation modifyAttributeSchemaDefaultValueMutation = 10;</code>
    * @return Whether the modifyAttributeSchemaDefaultValueMutation field is set.
    */
   boolean hasModifyAttributeSchemaDefaultValueMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.defaultValue` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDefaultValueMutation modifyAttributeSchemaDefaultValueMutation = 10;</code>
    * @return The modifyAttributeSchemaDefaultValueMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDefaultValueMutation getModifyAttributeSchemaDefaultValueMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.defaultValue` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDefaultValueMutation modifyAttributeSchemaDefaultValueMutation = 10;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDefaultValueMutationOrBuilder getModifyAttributeSchemaDefaultValueMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.deprecationNotice` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDeprecationNoticeMutation modifyAttributeSchemaDeprecationNoticeMutation = 11;</code>
    * @return Whether the modifyAttributeSchemaDeprecationNoticeMutation field is set.
    */
   boolean hasModifyAttributeSchemaDeprecationNoticeMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.deprecationNotice` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDeprecationNoticeMutation modifyAttributeSchemaDeprecationNoticeMutation = 11;</code>
    * @return The modifyAttributeSchemaDeprecationNoticeMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDeprecationNoticeMutation getModifyAttributeSchemaDeprecationNoticeMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.deprecationNotice` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDeprecationNoticeMutation modifyAttributeSchemaDeprecationNoticeMutation = 11;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDeprecationNoticeMutationOrBuilder getModifyAttributeSchemaDeprecationNoticeMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.description` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDescriptionMutation modifyAttributeSchemaDescriptionMutation = 12;</code>
    * @return Whether the modifyAttributeSchemaDescriptionMutation field is set.
    */
   boolean hasModifyAttributeSchemaDescriptionMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.description` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDescriptionMutation modifyAttributeSchemaDescriptionMutation = 12;</code>
    * @return The modifyAttributeSchemaDescriptionMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDescriptionMutation getModifyAttributeSchemaDescriptionMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.description` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDescriptionMutation modifyAttributeSchemaDescriptionMutation = 12;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDescriptionMutationOrBuilder getModifyAttributeSchemaDescriptionMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for renaming an existing `AttributeSchema` in `EntitySchema` or `GlobalAttributeSchema` in `CatalogSchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaNameMutation modifyAttributeSchemaNameMutation = 13;</code>
    * @return Whether the modifyAttributeSchemaNameMutation field is set.
    */
   boolean hasModifyAttributeSchemaNameMutation();
   /**
+   * <pre>
+   * Mutation is responsible for renaming an existing `AttributeSchema` in `EntitySchema` or `GlobalAttributeSchema` in `CatalogSchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaNameMutation modifyAttributeSchemaNameMutation = 13;</code>
    * @return The modifyAttributeSchemaNameMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaNameMutation getModifyAttributeSchemaNameMutation();
   /**
+   * <pre>
+   * Mutation is responsible for renaming an existing `AttributeSchema` in `EntitySchema` or `GlobalAttributeSchema` in `CatalogSchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaNameMutation modifyAttributeSchemaNameMutation = 13;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaNameMutationOrBuilder getModifyAttributeSchemaNameMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.type` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaTypeMutation modifyAttributeSchemaTypeMutation = 14;</code>
    * @return Whether the modifyAttributeSchemaTypeMutation field is set.
    */
   boolean hasModifyAttributeSchemaTypeMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.type` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaTypeMutation modifyAttributeSchemaTypeMutation = 14;</code>
    * @return The modifyAttributeSchemaTypeMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaTypeMutation getModifyAttributeSchemaTypeMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.type` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaTypeMutation modifyAttributeSchemaTypeMutation = 14;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaTypeMutationOrBuilder getModifyAttributeSchemaTypeMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for removing an existing `AttributeSchema` in the `EntitySchema` or `GlobalAttributeSchema`
+   * in the `CatalogSchema`. Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeSchemaMutation removeAttributeSchemaMutation = 15;</code>
    * @return Whether the removeAttributeSchemaMutation field is set.
    */
   boolean hasRemoveAttributeSchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for removing an existing `AttributeSchema` in the `EntitySchema` or `GlobalAttributeSchema`
+   * in the `CatalogSchema`. Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeSchemaMutation removeAttributeSchemaMutation = 15;</code>
    * @return The removeAttributeSchemaMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeSchemaMutation getRemoveAttributeSchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for removing an existing `AttributeSchema` in the `EntitySchema` or `GlobalAttributeSchema`
+   * in the `CatalogSchema`. Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeSchemaMutation removeAttributeSchemaMutation = 15;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeSchemaMutationOrBuilder getRemoveAttributeSchemaMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.filterable` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaFilterableMutation setAttributeSchemaFilterableMutation = 16;</code>
    * @return Whether the setAttributeSchemaFilterableMutation field is set.
    */
   boolean hasSetAttributeSchemaFilterableMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.filterable` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaFilterableMutation setAttributeSchemaFilterableMutation = 16;</code>
    * @return The setAttributeSchemaFilterableMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaFilterableMutation getSetAttributeSchemaFilterableMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.filterable` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaFilterableMutation setAttributeSchemaFilterableMutation = 16;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaFilterableMutationOrBuilder getSetAttributeSchemaFilterableMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.localized` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaLocalizedMutation setAttributeSchemaLocalizedMutation = 17;</code>
    * @return Whether the setAttributeSchemaLocalizedMutation field is set.
    */
   boolean hasSetAttributeSchemaLocalizedMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.localized` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaLocalizedMutation setAttributeSchemaLocalizedMutation = 17;</code>
    * @return The setAttributeSchemaLocalizedMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaLocalizedMutation getSetAttributeSchemaLocalizedMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.localized` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaLocalizedMutation setAttributeSchemaLocalizedMutation = 17;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaLocalizedMutationOrBuilder getSetAttributeSchemaLocalizedMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.nullable` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNullableMutation setAttributeSchemaNullableMutation = 18;</code>
    * @return Whether the setAttributeSchemaNullableMutation field is set.
    */
   boolean hasSetAttributeSchemaNullableMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.nullable` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNullableMutation setAttributeSchemaNullableMutation = 18;</code>
    * @return The setAttributeSchemaNullableMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNullableMutation getSetAttributeSchemaNullableMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.nullable` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNullableMutation setAttributeSchemaNullableMutation = 18;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNullableMutationOrBuilder getSetAttributeSchemaNullableMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.sortable` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 19;</code>
    * @return Whether the setAttributeSchemaSortableMutation field is set.
    */
   boolean hasSetAttributeSchemaSortableMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.sortable` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 19;</code>
    * @return The setAttributeSchemaSortableMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation getSetAttributeSchemaSortableMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.sortable` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 19;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutationOrBuilder getSetAttributeSchemaSortableMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.unique` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 20;</code>
    * @return Whether the setAttributeSchemaUniqueMutation field is set.
    */
   boolean hasSetAttributeSchemaUniqueMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.unique` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 20;</code>
    * @return The setAttributeSchemaUniqueMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation getSetAttributeSchemaUniqueMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.unique` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 20;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutationOrBuilder getSetAttributeSchemaUniqueMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 21;</code>
    * @return Whether the useGlobalAttributeSchemaMutation field is set.
    */
   boolean hasUseGlobalAttributeSchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 21;</code>
    * @return The useGlobalAttributeSchemaMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation getUseGlobalAttributeSchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 21;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutationOrBuilder getUseGlobalAttributeSchemaMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for adding one or more currencies to a `EntitySchema.currencies` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAllowCurrencyInEntitySchemaMutation allowCurrencyInEntitySchemaMutation = 22;</code>
    * @return Whether the allowCurrencyInEntitySchemaMutation field is set.
    */
   boolean hasAllowCurrencyInEntitySchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for adding one or more currencies to a `EntitySchema.currencies` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAllowCurrencyInEntitySchemaMutation allowCurrencyInEntitySchemaMutation = 22;</code>
    * @return The allowCurrencyInEntitySchemaMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcAllowCurrencyInEntitySchemaMutation getAllowCurrencyInEntitySchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for adding one or more currencies to a `EntitySchema.currencies` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAllowCurrencyInEntitySchemaMutation allowCurrencyInEntitySchemaMutation = 22;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcAllowCurrencyInEntitySchemaMutationOrBuilder getAllowCurrencyInEntitySchemaMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for adding one or more modes to a `EntitySchema.evolutionMode` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAllowEvolutionModeInEntitySchemaMutation allowEvolutionModeInEntitySchemaMutation = 23;</code>
    * @return Whether the allowEvolutionModeInEntitySchemaMutation field is set.
    */
   boolean hasAllowEvolutionModeInEntitySchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for adding one or more modes to a `EntitySchema.evolutionMode` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAllowEvolutionModeInEntitySchemaMutation allowEvolutionModeInEntitySchemaMutation = 23;</code>
    * @return The allowEvolutionModeInEntitySchemaMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcAllowEvolutionModeInEntitySchemaMutation getAllowEvolutionModeInEntitySchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for adding one or more modes to a `EntitySchema.evolutionMode` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAllowEvolutionModeInEntitySchemaMutation allowEvolutionModeInEntitySchemaMutation = 23;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcAllowEvolutionModeInEntitySchemaMutationOrBuilder getAllowEvolutionModeInEntitySchemaMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for adding one or more locales to a `EntitySchema.locales` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAllowLocaleInEntitySchemaMutation allowLocaleInEntitySchemaMutation = 24;</code>
    * @return Whether the allowLocaleInEntitySchemaMutation field is set.
    */
   boolean hasAllowLocaleInEntitySchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for adding one or more locales to a `EntitySchema.locales` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAllowLocaleInEntitySchemaMutation allowLocaleInEntitySchemaMutation = 24;</code>
    * @return The allowLocaleInEntitySchemaMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcAllowLocaleInEntitySchemaMutation getAllowLocaleInEntitySchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for adding one or more locales to a `EntitySchema.locales` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAllowLocaleInEntitySchemaMutation allowLocaleInEntitySchemaMutation = 24;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcAllowLocaleInEntitySchemaMutationOrBuilder getAllowLocaleInEntitySchemaMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for removing one or more currencies from a `EntitySchema.currencies` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDisallowCurrencyInEntitySchemaMutation disallowCurrencyInEntitySchemaMutation = 25;</code>
    * @return Whether the disallowCurrencyInEntitySchemaMutation field is set.
    */
   boolean hasDisallowCurrencyInEntitySchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for removing one or more currencies from a `EntitySchema.currencies` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDisallowCurrencyInEntitySchemaMutation disallowCurrencyInEntitySchemaMutation = 25;</code>
    * @return The disallowCurrencyInEntitySchemaMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcDisallowCurrencyInEntitySchemaMutation getDisallowCurrencyInEntitySchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for removing one or more currencies from a `EntitySchema.currencies` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDisallowCurrencyInEntitySchemaMutation disallowCurrencyInEntitySchemaMutation = 25;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcDisallowCurrencyInEntitySchemaMutationOrBuilder getDisallowCurrencyInEntitySchemaMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for removing one or more modes from a `EntitySchema.evolutionMode` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDisallowEvolutionModeInEntitySchemaMutation disallowEvolutionModeInEntitySchemaMutation = 26;</code>
    * @return Whether the disallowEvolutionModeInEntitySchemaMutation field is set.
    */
   boolean hasDisallowEvolutionModeInEntitySchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for removing one or more modes from a `EntitySchema.evolutionMode` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDisallowEvolutionModeInEntitySchemaMutation disallowEvolutionModeInEntitySchemaMutation = 26;</code>
    * @return The disallowEvolutionModeInEntitySchemaMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcDisallowEvolutionModeInEntitySchemaMutation getDisallowEvolutionModeInEntitySchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for removing one or more modes from a `EntitySchema.evolutionMode` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDisallowEvolutionModeInEntitySchemaMutation disallowEvolutionModeInEntitySchemaMutation = 26;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcDisallowEvolutionModeInEntitySchemaMutationOrBuilder getDisallowEvolutionModeInEntitySchemaMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for removing one or more locales to a `EntitySchema.locales` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDisallowLocaleInEntitySchemaMutation disallowLocaleInEntitySchemaMutation = 27;</code>
    * @return Whether the disallowLocaleInEntitySchemaMutation field is set.
    */
   boolean hasDisallowLocaleInEntitySchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for removing one or more locales to a `EntitySchema.locales` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDisallowLocaleInEntitySchemaMutation disallowLocaleInEntitySchemaMutation = 27;</code>
    * @return The disallowLocaleInEntitySchemaMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcDisallowLocaleInEntitySchemaMutation getDisallowLocaleInEntitySchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for removing one or more locales to a `EntitySchema.locales` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDisallowLocaleInEntitySchemaMutation disallowLocaleInEntitySchemaMutation = 27;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcDisallowLocaleInEntitySchemaMutationOrBuilder getDisallowLocaleInEntitySchemaMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting a `EntitySchema.deprecationNotice` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaDeprecationNoticeMutation modifyEntitySchemaDeprecationNoticeMutation = 28;</code>
    * @return Whether the modifyEntitySchemaDeprecationNoticeMutation field is set.
    */
   boolean hasModifyEntitySchemaDeprecationNoticeMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting a `EntitySchema.deprecationNotice` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaDeprecationNoticeMutation modifyEntitySchemaDeprecationNoticeMutation = 28;</code>
    * @return The modifyEntitySchemaDeprecationNoticeMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaDeprecationNoticeMutation getModifyEntitySchemaDeprecationNoticeMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting a `EntitySchema.deprecationNotice` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaDeprecationNoticeMutation modifyEntitySchemaDeprecationNoticeMutation = 28;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaDeprecationNoticeMutationOrBuilder getModifyEntitySchemaDeprecationNoticeMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting a `EntitySchema.description` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaDescriptionMutation modifyEntitySchemaDescriptionMutation = 29;</code>
    * @return Whether the modifyEntitySchemaDescriptionMutation field is set.
    */
   boolean hasModifyEntitySchemaDescriptionMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting a `EntitySchema.description` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaDescriptionMutation modifyEntitySchemaDescriptionMutation = 29;</code>
    * @return The modifyEntitySchemaDescriptionMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaDescriptionMutation getModifyEntitySchemaDescriptionMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting a `EntitySchema.description` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaDescriptionMutation modifyEntitySchemaDescriptionMutation = 29;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaDescriptionMutationOrBuilder getModifyEntitySchemaDescriptionMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting a `EntitySchema.withGeneratedPrimaryKey` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithGeneratedPrimaryKeyMutation setEntitySchemaWithGeneratedPrimaryKeyMutation = 30;</code>
    * @return Whether the setEntitySchemaWithGeneratedPrimaryKeyMutation field is set.
    */
   boolean hasSetEntitySchemaWithGeneratedPrimaryKeyMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting a `EntitySchema.withGeneratedPrimaryKey` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithGeneratedPrimaryKeyMutation setEntitySchemaWithGeneratedPrimaryKeyMutation = 30;</code>
    * @return The setEntitySchemaWithGeneratedPrimaryKeyMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithGeneratedPrimaryKeyMutation getSetEntitySchemaWithGeneratedPrimaryKeyMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting a `EntitySchema.withGeneratedPrimaryKey` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithGeneratedPrimaryKeyMutation setEntitySchemaWithGeneratedPrimaryKeyMutation = 30;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithGeneratedPrimaryKeyMutationOrBuilder getSetEntitySchemaWithGeneratedPrimaryKeyMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting a `EntitySchema.withHierarchy` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithHierarchyMutation setEntitySchemaWithHierarchyMutation = 31;</code>
    * @return Whether the setEntitySchemaWithHierarchyMutation field is set.
    */
   boolean hasSetEntitySchemaWithHierarchyMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting a `EntitySchema.withHierarchy` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithHierarchyMutation setEntitySchemaWithHierarchyMutation = 31;</code>
    * @return The setEntitySchemaWithHierarchyMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithHierarchyMutation getSetEntitySchemaWithHierarchyMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting a `EntitySchema.withHierarchy` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithHierarchyMutation setEntitySchemaWithHierarchyMutation = 31;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithHierarchyMutationOrBuilder getSetEntitySchemaWithHierarchyMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting a `EntitySchema.withPrice` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithPriceMutation setEntitySchemaWithPriceMutation = 32;</code>
    * @return Whether the setEntitySchemaWithPriceMutation field is set.
    */
   boolean hasSetEntitySchemaWithPriceMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting a `EntitySchema.withPrice` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithPriceMutation setEntitySchemaWithPriceMutation = 32;</code>
    * @return The setEntitySchemaWithPriceMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithPriceMutation getSetEntitySchemaWithPriceMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting a `EntitySchema.withPrice` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithPriceMutation setEntitySchemaWithPriceMutation = 32;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithPriceMutationOrBuilder getSetEntitySchemaWithPriceMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting up a new `ReferenceSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReferenceSchemaMutation createReferenceSchemaMutation = 33;</code>
    * @return Whether the createReferenceSchemaMutation field is set.
    */
   boolean hasCreateReferenceSchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting up a new `ReferenceSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReferenceSchemaMutation createReferenceSchemaMutation = 33;</code>
    * @return The createReferenceSchemaMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcCreateReferenceSchemaMutation getCreateReferenceSchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting up a new `ReferenceSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReferenceSchemaMutation createReferenceSchemaMutation = 33;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcCreateReferenceSchemaMutationOrBuilder getCreateReferenceSchemaMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is a holder for a single `AttributeSchema` that affect any of `ReferenceSchema.attributes` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceAttributeSchemaMutation modifyReferenceAttributeSchemaMutation = 34;</code>
    * @return Whether the modifyReferenceAttributeSchemaMutation field is set.
    */
   boolean hasModifyReferenceAttributeSchemaMutation();
   /**
+   * <pre>
+   * Mutation is a holder for a single `AttributeSchema` that affect any of `ReferenceSchema.attributes` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceAttributeSchemaMutation modifyReferenceAttributeSchemaMutation = 34;</code>
    * @return The modifyReferenceAttributeSchemaMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceAttributeSchemaMutation getModifyReferenceAttributeSchemaMutation();
   /**
+   * <pre>
+   * Mutation is a holder for a single `AttributeSchema` that affect any of `ReferenceSchema.attributes` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceAttributeSchemaMutation modifyReferenceAttributeSchemaMutation = 34;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceAttributeSchemaMutationOrBuilder getModifyReferenceAttributeSchemaMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.cardinality` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaCardinalityMutation modifyReferenceSchemaCardinalityMutation = 35;</code>
    * @return Whether the modifyReferenceSchemaCardinalityMutation field is set.
    */
   boolean hasModifyReferenceSchemaCardinalityMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.cardinality` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaCardinalityMutation modifyReferenceSchemaCardinalityMutation = 35;</code>
    * @return The modifyReferenceSchemaCardinalityMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaCardinalityMutation getModifyReferenceSchemaCardinalityMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.cardinality` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaCardinalityMutation modifyReferenceSchemaCardinalityMutation = 35;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaCardinalityMutationOrBuilder getModifyReferenceSchemaCardinalityMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.deprecationNotice` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDeprecationNoticeMutation modifyReferenceSchemaDeprecationNoticeMutation = 36;</code>
    * @return Whether the modifyReferenceSchemaDeprecationNoticeMutation field is set.
    */
   boolean hasModifyReferenceSchemaDeprecationNoticeMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.deprecationNotice` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDeprecationNoticeMutation modifyReferenceSchemaDeprecationNoticeMutation = 36;</code>
    * @return The modifyReferenceSchemaDeprecationNoticeMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDeprecationNoticeMutation getModifyReferenceSchemaDeprecationNoticeMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.deprecationNotice` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDeprecationNoticeMutation modifyReferenceSchemaDeprecationNoticeMutation = 36;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDeprecationNoticeMutationOrBuilder getModifyReferenceSchemaDeprecationNoticeMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.description` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDescriptionMutation modifyReferenceSchemaDescriptionMutation = 37;</code>
    * @return Whether the modifyReferenceSchemaDescriptionMutation field is set.
    */
   boolean hasModifyReferenceSchemaDescriptionMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.description` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDescriptionMutation modifyReferenceSchemaDescriptionMutation = 37;</code>
    * @return The modifyReferenceSchemaDescriptionMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDescriptionMutation getModifyReferenceSchemaDescriptionMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.description` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDescriptionMutation modifyReferenceSchemaDescriptionMutation = 37;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDescriptionMutationOrBuilder getModifyReferenceSchemaDescriptionMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for renaming an existing `ReferenceSchema` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaNameMutation modifyReferenceSchemaNameMutation = 38;</code>
    * @return Whether the modifyReferenceSchemaNameMutation field is set.
    */
   boolean hasModifyReferenceSchemaNameMutation();
   /**
+   * <pre>
+   * Mutation is responsible for renaming an existing `ReferenceSchema` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaNameMutation modifyReferenceSchemaNameMutation = 38;</code>
    * @return The modifyReferenceSchemaNameMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaNameMutation getModifyReferenceSchemaNameMutation();
   /**
+   * <pre>
+   * Mutation is responsible for renaming an existing `ReferenceSchema` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaNameMutation modifyReferenceSchemaNameMutation = 38;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaNameMutationOrBuilder getModifyReferenceSchemaNameMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.referencedGroupType` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaRelatedEntityGroupMutation modifyReferenceSchemaRelatedEntityGroupMutation = 39;</code>
    * @return Whether the modifyReferenceSchemaRelatedEntityGroupMutation field is set.
    */
   boolean hasModifyReferenceSchemaRelatedEntityGroupMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.referencedGroupType` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaRelatedEntityGroupMutation modifyReferenceSchemaRelatedEntityGroupMutation = 39;</code>
    * @return The modifyReferenceSchemaRelatedEntityGroupMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaRelatedEntityGroupMutation getModifyReferenceSchemaRelatedEntityGroupMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.referencedGroupType` in `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaRelatedEntityGroupMutation modifyReferenceSchemaRelatedEntityGroupMutation = 39;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaRelatedEntityGroupMutationOrBuilder getModifyReferenceSchemaRelatedEntityGroupMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.referencedEntityType` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaRelatedEntityMutation modifyReferenceSchemaRelatedEntityMutation = 40;</code>
    * @return Whether the modifyReferenceSchemaRelatedEntityMutation field is set.
    */
   boolean hasModifyReferenceSchemaRelatedEntityMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.referencedEntityType` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaRelatedEntityMutation modifyReferenceSchemaRelatedEntityMutation = 40;</code>
    * @return The modifyReferenceSchemaRelatedEntityMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaRelatedEntityMutation getModifyReferenceSchemaRelatedEntityMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.referencedEntityType` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaRelatedEntityMutation modifyReferenceSchemaRelatedEntityMutation = 40;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaRelatedEntityMutationOrBuilder getModifyReferenceSchemaRelatedEntityMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for removing an existing `ReferenceSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceSchemaMutation removeReferenceSchemaMutation = 41;</code>
    * @return Whether the removeReferenceSchemaMutation field is set.
    */
   boolean hasRemoveReferenceSchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for removing an existing `ReferenceSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceSchemaMutation removeReferenceSchemaMutation = 41;</code>
    * @return The removeReferenceSchemaMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceSchemaMutation getRemoveReferenceSchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for removing an existing `ReferenceSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceSchemaMutation removeReferenceSchemaMutation = 41;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceSchemaMutationOrBuilder getRemoveReferenceSchemaMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.faceted` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation setReferenceSchemaFacetedMutation = 42;</code>
    * @return Whether the setReferenceSchemaFacetedMutation field is set.
    */
   boolean hasSetReferenceSchemaFacetedMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.faceted` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation setReferenceSchemaFacetedMutation = 42;</code>
    * @return The setReferenceSchemaFacetedMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation getSetReferenceSchemaFacetedMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.faceted` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation setReferenceSchemaFacetedMutation = 42;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutationOrBuilder getSetReferenceSchemaFacetedMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.indexed` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation setReferenceSchemaIndexedMutation = 43;</code>
    * @return Whether the setReferenceSchemaIndexedMutation field is set.
    */
   boolean hasSetReferenceSchemaIndexedMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.indexed` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation setReferenceSchemaIndexedMutation = 43;</code>
    * @return The setReferenceSchemaIndexedMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation getSetReferenceSchemaIndexedMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.indexed` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation setReferenceSchemaIndexedMutation = 43;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutationOrBuilder getSetReferenceSchemaIndexedMutationOrBuilder();
