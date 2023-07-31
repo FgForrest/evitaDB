@@ -27,7 +27,6 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 
@@ -104,7 +103,7 @@ public class Not extends AbstractFilterConstraintContainer implements GenericCon
 	private Not() {}
 
 	@Creator
-	public Not(@Nonnull @Child FilterConstraint child) {
+	public Not(@Nonnull FilterConstraint child) {
 		super(child);
 	}
 

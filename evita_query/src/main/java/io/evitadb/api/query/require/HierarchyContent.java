@@ -27,7 +27,6 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.HierarchyConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.utils.ArrayUtils;
@@ -85,7 +84,7 @@ public class HierarchyContent extends AbstractRequireConstraintContainer impleme
 	}
 
 	@Creator(silentImplicitClassifier = true)
-	public HierarchyContent(@Nullable @Child HierarchyStopAt stopAt, @Nullable @Child EntityFetch entityFetch) {
+	public HierarchyContent(@Nullable HierarchyStopAt stopAt, @Nullable EntityFetch entityFetch) {
 		super(
 			NO_ARGS,
 			Arrays.stream(new RequireConstraint[]{stopAt, entityFetch}).filter(Objects::nonNull).toArray(RequireConstraint[]::new)

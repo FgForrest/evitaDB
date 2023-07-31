@@ -27,9 +27,8 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
-import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
-import io.evitadb.api.query.descriptor.annotation.Value;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -78,7 +77,7 @@ public class AttributeStartsWith extends AbstractAttributeFilterConstraintLeaf i
 
 	@Creator
 	public AttributeStartsWith(@Nonnull @Classifier String attributeName,
-	                           @Nonnull @Value String textToSearch) {
+	                           @Nonnull String textToSearch) {
 		super(attributeName, textToSearch);
 	}
 

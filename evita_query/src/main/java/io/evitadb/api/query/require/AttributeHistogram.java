@@ -26,9 +26,8 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.AttributeConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
-import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
-import io.evitadb.api.query.descriptor.annotation.Value;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
@@ -73,8 +72,8 @@ public class AttributeHistogram extends AbstractRequireConstraintLeaf implements
 	}
 
 	@Creator
-	public AttributeHistogram(@Value int requestedBucketCount,
-	                          @Nonnull @Value String... attributeNames) {
+	public AttributeHistogram(int requestedBucketCount,
+	                          @Nonnull String... attributeNames) {
 		super(ArrayUtils.mergeArrays(new Serializable[]{requestedBucketCount}, attributeNames));
 	}
 

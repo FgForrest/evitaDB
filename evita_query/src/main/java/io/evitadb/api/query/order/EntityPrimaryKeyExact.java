@@ -28,7 +28,6 @@ import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -72,7 +71,7 @@ public class EntityPrimaryKeyExact extends AbstractOrderConstraintLeaf implement
 	}
 
 	@Creator(implicitClassifier = "primaryKey")
-	public EntityPrimaryKeyExact(@Nonnull @Value Integer... primaryKeys) {
+	public EntityPrimaryKeyExact(@Nonnull Integer... primaryKeys) {
 		super(primaryKeys);
 	}
 

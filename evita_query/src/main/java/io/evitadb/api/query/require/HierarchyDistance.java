@@ -27,7 +27,6 @@ import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 
@@ -92,7 +91,7 @@ public class HierarchyDistance extends AbstractRequireConstraintLeaf implements 
 	}
 
 	@Creator
-	public HierarchyDistance(@Value int distance) {
+	public HierarchyDistance(int distance) {
 		// because this query can be used only within some other hierarchy query, it would be
 		// unnecessary to duplicate the hierarchy prefix
 		super(CONSTRAINT_NAME, distance);
