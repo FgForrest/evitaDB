@@ -28,7 +28,6 @@ import io.evitadb.api.query.PriceConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceContentMode;
 
@@ -105,7 +104,7 @@ public class PriceInPriceLists extends AbstractFilterConstraintLeaf implements P
 	}
 
 	@Creator
-	public PriceInPriceLists(@Nonnull @Value String... priceLists) {
+	public PriceInPriceLists(@Nonnull String... priceLists) {
 		super(priceLists);
 	}
 

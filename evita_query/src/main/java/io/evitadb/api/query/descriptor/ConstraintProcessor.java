@@ -56,6 +56,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -83,7 +84,7 @@ class ConstraintProcessor {
 			final ConstraintPropertyType propertyType = resolveConstraintPropertyType(constraintClass);
 
 			final SupportedValues supportedValues = resolveSupportedValues(constraintDefinition);
-			final List<ConstraintCreator> creators = resolveCreators(constraintClass);
+			final List<ConstraintCreator> creators = resolveCreators(constraintClass, type);
 
 			creators.forEach((creator) -> {
 				final ConstraintDescriptor descriptor = new ConstraintDescriptor(
@@ -124,7 +125,7 @@ class ConstraintProcessor {
 	 * Resolves concrete constraint type enum from constraint class interfaces.
 	 */
 	@Nonnull
-	private ConstraintType resolveConstraintType(@Nonnull Class<? extends Constraint<?>> constraintClass) {
+	private ConstraintType resolveConstraintType(@Nonnull Class<?> constraintClass) {
 		return Arrays.stream(ConstraintType.values())
 			.filter(t -> t.getRepresentingInterface().isAssignableFrom(constraintClass))
 			.findFirst()
@@ -172,7 +173,8 @@ class ConstraintProcessor {
 	 * and associates them with full names.
 	 */
 	@Nonnull
-	private List<ConstraintCreator> resolveCreators(@Nonnull Class<? extends Constraint<?>> constraintClass) {
+	private List<ConstraintCreator> resolveCreators(@Nonnull Class<? extends Constraint<?>> constraintClass,
+	                                                @Nonnull ConstraintType constraintType) {
 		return findCreators(constraintClass)
 			.stream()
 			.map(creatorTemplate -> {
@@ -182,7 +184,10 @@ class ConstraintProcessor {
 					? null
 					: creatorDefinition.suffix();
 
-				final List<ParameterDescriptor> parameterDescriptors = resolveCreatorParameters(creatorTemplate);
+				final List<ParameterDescriptor> parameterDescriptors = resolveCreatorParameters(
+					creatorTemplate,
+					constraintType
+				);
 
 				final ImplicitClassifier implicitClassifier;
 				if (creatorDefinition.silentImplicitClassifier() && !creatorDefinition.implicitClassifier().isEmpty()) {
@@ -251,7 +256,7 @@ class ConstraintProcessor {
 	 * Transforms creator constructor Java parameters to its corresponding descriptors in same order.
 	 */
 	@Nonnull
-	private List<ParameterDescriptor> resolveCreatorParameters(@Nonnull Executable creator) {
+	private List<ParameterDescriptor> resolveCreatorParameters(@Nonnull Executable creator, @Nonnull ConstraintType constraintType) {
 		final List<ParameterDescriptor> parameterDescriptors = new LinkedList<>();
 
 		final Parameter[] creatorParameters = creator.getParameters();
@@ -265,27 +270,29 @@ class ConstraintProcessor {
 				continue;
 			}
 
-			final ValueParameterDescriptor valueParameter = resolveValueParameter(parameter);
-			if (valueParameter != null) {
-				parameterDescriptors.add(valueParameter);
+			final Optional<ValueParameterDescriptor> valueParameter = resolveValueParameter(parameter);
+			if (valueParameter.isPresent()) {
+				parameterDescriptors.add(valueParameter.get());
 				continue;
 			}
 
-			final ChildParameterDescriptor childParameter = resolveChildParameter(
+			final Optional<ChildParameterDescriptor> childParameter = resolveChildParameter(
 				parameter,
-				creator.getDeclaringClass()
+				creator.getDeclaringClass(),
+				constraintType
 			);
-			if (childParameter != null) {
-				parameterDescriptors.add(childParameter);
+			if (childParameter.isPresent()) {
+				parameterDescriptors.add(childParameter.get());
 				continue;
 			}
 
-			final AdditionalChildParameterDescriptor additionalChildParameter = resolveAdditionalChildParameter(
+			final Optional<AdditionalChildParameterDescriptor> additionalChildParameter = resolveAdditionalChildParameter(
 				parameter,
-				creator.getDeclaringClass()
+				creator.getDeclaringClass(),
+				constraintType
 			);
-			if (additionalChildParameter != null) {
-				parameterDescriptors.add(additionalChildParameter);
+			if (additionalChildParameter.isPresent()) {
+				parameterDescriptors.add(additionalChildParameter.get());
 				continue;
 			}
 
@@ -321,95 +328,149 @@ class ConstraintProcessor {
 	/**
 	 * Tries to resolve constructor parameter as value parameter.
 	 */
-	@Nullable
-	private ValueParameterDescriptor resolveValueParameter(@Nonnull Parameter parameter) {
-		final Value value = parameter.getAnnotation(Value.class);
-		if (value == null) {
-			return null;
-		}
-
+	@Nonnull
+	private Optional<ValueParameterDescriptor> resolveValueParameter(@Nonnull Parameter parameter) {
+		final Value definition = parameter.getAnnotation(Value.class);
 		//noinspection unchecked
-		return new ValueParameterDescriptor(
-			parameter.getName(),
-			(Class<? extends Serializable>) parameter.getType(),
-			isParameterRequired(parameter),
-			value.requiresPlainType()
-		);
+		final Class<? extends Serializable> parameterType = (Class<? extends Serializable>) parameter.getType();
+		final Class<?> parameterItemType = parameterType.isArray() ? parameterType.getComponentType() : parameterType;
+
+		if (definition != null) {
+			return Optional.of(
+				new ValueParameterDescriptor(
+					parameter.getName(),
+					parameterType,
+					isParameterRequired(parameter),
+					definition.requiresPlainType()
+				)
+			);
+		} else {
+			if (!Constraint.class.isAssignableFrom(parameterItemType)) {
+				return Optional.of(
+					new ValueParameterDescriptor(
+						parameter.getName(),
+						parameterType,
+						isParameterRequired(parameter),
+						false
+					)
+				);
+			}
+
+			// parameter doesn't have appropriate value type
+			return Optional.empty();
+		}
 	}
 
 	/**
 	 * Tries to resolve constructor parameter as direct child parameter.
 	 */
-	@Nullable
-	private ChildParameterDescriptor resolveChildParameter(@Nonnull Parameter parameter,
-	                                                       @Nonnull Class<?> constraintClass) {
-		Assert.isPremiseValid(
-			ConstraintContainer.class.isAssignableFrom(constraintClass),
-			"Constraint `" + constraintClass.getName() + "` have child but it is not a container."
-		);
-
-		final Child child = parameter.getAnnotation(Child.class);
-		if (child == null) {
-			return null;
-		}
-
+	@Nonnull
+	private Optional<ChildParameterDescriptor> resolveChildParameter(@Nonnull Parameter parameter,
+	                                                                 @Nonnull Class<?> constraintClass,
+	                                                                 @Nonnull ConstraintType constraintType) {
+		final Child definition = parameter.getAnnotation(Child.class);
 		final Class<?> parameterType = parameter.getType();
-		Assert.isPremiseValid(
-			Constraint.class.isAssignableFrom(parameterType) ||
-				(parameterType.isArray() && Constraint.class.isAssignableFrom(parameterType.getComponentType())),
-			"Constraint `" + constraintClass.getName() + "` have child that is not a constraint."
-		);
+		final Class<?> parameterItemType = parameterType.isArray() ? parameterType.getComponentType() : parameterType;
 
-		//noinspection unchecked
-		return new ChildParameterDescriptor(
-			parameter.getName(),
-			parameterType,
-			isParameterRequired(parameter),
-			child.domain(),
-			child.uniqueChildren(),
-			Arrays.stream(child.allowed())
-				.map(c -> (Class<Constraint<?>>) c)
-				.collect(Collectors.toUnmodifiableSet()),
-			Arrays.stream(child.forbidden())
-				.map(c -> (Class<Constraint<?>>) c)
-				.collect(Collectors.toUnmodifiableSet())
-		);
+		if (definition != null) {
+			Assert.isPremiseValid(
+				ConstraintContainer.class.isAssignableFrom(constraintClass),
+				"Constraint `" + constraintClass.getName() + "` have child but it is not a container."
+			);
+			Assert.isPremiseValid(
+				Constraint.class.isAssignableFrom(parameterItemType),
+				"Constraint `" + constraintClass.getName() + "` have child that is not a constraint."
+			);
+			//noinspection unchecked
+			return Optional.of(
+				new ChildParameterDescriptor(
+					parameter.getName(),
+					parameterType,
+					isParameterRequired(parameter),
+					definition.domain(),
+					definition.uniqueChildren(),
+					Arrays.stream(definition.allowed())
+						.map(c -> (Class<Constraint<?>>) c)
+						.collect(Collectors.toUnmodifiableSet()),
+					Arrays.stream(definition.forbidden())
+						.map(c -> (Class<Constraint<?>>) c)
+						.collect(Collectors.toUnmodifiableSet())
+				)
+			);
+		} else {
+			// trying to guess default type of parameter as fallback
+			if (Constraint.class.isAssignableFrom(parameterItemType) &&
+				constraintType.equals(resolveConstraintType(parameterItemType)) &&
+				ConstraintContainer.class.isAssignableFrom(constraintClass)) {
+				return Optional.of(
+					new ChildParameterDescriptor(
+						parameter.getName(),
+						parameterType,
+						isParameterRequired(parameter),
+						ConstraintDomain.DEFAULT,
+						false,
+						Set.of(),
+						Set.of()
+					)
+				);
+			}
+
+			// parameter doesn't have appropriate child constraint type
+			return Optional.empty();
+		}
 	}
 
 	/**
 	 * Tries to resolve constructor parameter as additional child parameter.
 	 */
-	@Nullable
-	private AdditionalChildParameterDescriptor resolveAdditionalChildParameter(@Nonnull Parameter parameter,
-	                                                                           @Nonnull Class<?> constraintClass) {
-		Assert.isPremiseValid(
-			ConstraintContainer.class.isAssignableFrom(constraintClass),
-			"Constraint `" + constraintClass.getName() + "` have additional child but it is not a container."
-		);
-
-		final AdditionalChild additionalChild = parameter.getAnnotation(AdditionalChild.class);
-		if (additionalChild == null) {
-			return null;
-		}
-
+	@Nonnull
+	private Optional<AdditionalChildParameterDescriptor> resolveAdditionalChildParameter(@Nonnull Parameter parameter,
+	                                                                                     @Nonnull Class<?> constraintClass,
+	                                                                                     @Nonnull ConstraintType constraintType) {
+		final AdditionalChild definition = parameter.getAnnotation(AdditionalChild.class);
 		final Class<?> parameterType = parameter.getType();
-		Assert.isPremiseValid(
-			// Because the additional child constraint is usually another separate container, it is possible that it has
-			// its own array of constraints, that's why we don't support arrays of the actual container. Also, if it would
-			// be just basic constraint instead of container we would have to have logic additional implicit containers in place
-			// which currently doesn't make sense.
-			!parameterType.isArray() && ConstraintContainer.class.isAssignableFrom(parameterType),
-			"Constraint `" + constraintClass.getName() + "` have additional child that is not a constraint container or is an array of constraints."
-		);
 
-		//noinspection unchecked
-		return new AdditionalChildParameterDescriptor(
-			resolveConstraintType((Class<? extends Constraint<?>>) parameterType),
-			parameter.getName(),
-			parameterType,
-			isParameterRequired(parameter),
-			additionalChild.domain()
-		);
+		if (definition != null) {
+			Assert.isPremiseValid(
+				ConstraintContainer.class.isAssignableFrom(constraintClass),
+				"Constraint `" + constraintClass.getName() + "` have additional child but it is not a container."
+			);
+			Assert.isPremiseValid(
+				// Because the additional child constraint is usually another separate container, it is possible that it has
+				// its own array of constraints, that's why we don't support arrays of the actual container. Also, if it would
+				// be just basic constraint instead of container we would have to have logic additional implicit containers in place
+				// which currently doesn't make sense.
+				!parameterType.isArray() && ConstraintContainer.class.isAssignableFrom(parameterType),
+				"Constraint `" + constraintClass.getName() + "` have additional child that is not a constraint container or is an array of constraints."
+			);
+			return Optional.of(
+				new AdditionalChildParameterDescriptor(
+					resolveConstraintType(parameterType),
+					parameter.getName(),
+					parameterType,
+					isParameterRequired(parameter),
+					definition.domain()
+				)
+			);
+		} else {
+			// trying to guess default type of parameter as fallback
+			if (ConstraintContainer.class.isAssignableFrom(parameterType) &&
+				ConstraintContainer.class.isAssignableFrom(constraintClass) &&
+				!constraintType.equals(resolveConstraintType(parameterType))) {
+				return Optional.of(
+					new AdditionalChildParameterDescriptor(
+						resolveConstraintType(parameterType),
+						parameter.getName(),
+						parameterType,
+						isParameterRequired(parameter),
+						ConstraintDomain.DEFAULT
+					)
+				);
+			}
+
+			// parameter doesn't have appropriate additional child constraint type
+			return Optional.empty();
+		}
 	}
 
 	/**

@@ -30,7 +30,6 @@ import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.FilterBy;
 
@@ -99,7 +98,7 @@ public class AttributeNatural extends AbstractOrderConstraintLeaf implements Att
     }
 
     @Creator
-    public AttributeNatural(@Nonnull @Classifier String attributeName, @Nonnull @Value OrderDirection orderDirection) {
+    public AttributeNatural(@Nonnull @Classifier String attributeName, @Nonnull OrderDirection orderDirection) {
         super(attributeName, orderDirection);
     }
 

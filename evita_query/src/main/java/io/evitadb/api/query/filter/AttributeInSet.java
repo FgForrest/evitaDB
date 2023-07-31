@@ -29,7 +29,6 @@ import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -80,7 +79,7 @@ public class AttributeInSet extends AbstractAttributeFilterConstraintLeaf implem
 
 	@Creator
 	public <T extends Serializable> AttributeInSet(@Nonnull @Classifier String attributeName,
-	                                               @Nonnull @Value T... attributeValues) {
+	                                               @Nonnull T... attributeValues) {
 		super(concat(attributeName, attributeValues));
 	}
 

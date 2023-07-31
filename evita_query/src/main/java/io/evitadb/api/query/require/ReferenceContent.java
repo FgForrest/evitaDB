@@ -30,9 +30,7 @@ import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.ReferenceConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
 import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
-import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
@@ -106,7 +104,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	}
 
 	@Creator(suffix = SUFFIX_ALL_WITH_ATTRIBUTES)
-	public ReferenceContent(@Nullable @Child AttributeContent attributeContent) {
+	public ReferenceContent(@Nullable AttributeContent attributeContent) {
 		super(
 			ofNullable(attributeContent).orElse(new AttributeContent())
 		);
@@ -123,10 +121,10 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	@Creator
 	public ReferenceContent(
 		@Nonnull @Classifier String referenceName,
-		@Nullable @AdditionalChild FilterBy filterBy,
-		@Nullable @AdditionalChild OrderBy orderBy,
-		@Nullable @Child EntityFetch entityFetch,
-		@Nullable @Child EntityGroupFetch entityGroupFetch
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityFetch entityFetch,
+		@Nullable EntityGroupFetch entityGroupFetch
 	) {
 		super(
 			ofNullable(referenceName).map(it -> (Serializable[]) new String[]{it}).orElse(NO_ARGS),
@@ -137,11 +135,11 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	@Creator(suffix = SUFFIX_WITH_ATTRIBUTES)
 	public ReferenceContent(
 		@Nonnull @Classifier String referenceName,
-		@Nullable @AdditionalChild FilterBy filterBy,
-		@Nullable @AdditionalChild OrderBy orderBy,
-		@Nullable @Child AttributeContent attributeContent,
-		@Nullable @Child EntityFetch entityFetch,
-		@Nullable @Child EntityGroupFetch entityGroupFetch
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityFetch,
+		@Nullable EntityGroupFetch entityGroupFetch
 	) {
 		super(
 			ofNullable(referenceName).map(it -> (Serializable[])new String[] { it }).orElse(NO_ARGS),

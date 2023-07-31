@@ -28,7 +28,6 @@ import io.evitadb.api.query.PriceConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -65,7 +64,7 @@ public class PriceNatural extends AbstractOrderConstraintLeaf implements PriceCo
 	}
 
 	@Creator
-	public PriceNatural(@Nonnull @Value OrderDirection orderDirection) {
+	public PriceNatural(@Nonnull OrderDirection orderDirection) {
 		super(orderDirection);
 	}
 

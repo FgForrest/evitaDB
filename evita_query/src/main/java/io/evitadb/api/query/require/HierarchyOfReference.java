@@ -27,11 +27,9 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
-import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
@@ -139,9 +137,9 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer
 	@Creator
 	public HierarchyOfReference(
 		@Nonnull @Classifier String referenceName,
-		@Nullable @Value EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
+		@Nullable EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
 		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) OrderBy orderBy,
-		@Nonnull @Child HierarchyRequireConstraint... requirements
+		@Nonnull HierarchyRequireConstraint... requirements
 	) {
 		super(
 			new Serializable[]{
