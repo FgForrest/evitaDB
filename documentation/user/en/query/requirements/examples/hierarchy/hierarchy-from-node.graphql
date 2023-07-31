@@ -21,7 +21,6 @@
               distance: 1
             }
           ) {
-            parentPrimaryKey
             level
             entity {
               primaryKey
@@ -32,7 +31,6 @@
             }
             queriedEntityCount
             childrenCount
-            hasChildren
           }
           sideMenu2: fromNode(
             node: {
@@ -44,7 +42,6 @@
               distance: 1
             }
           ) {
-            parentPrimaryKey
             level
             entity {
               primaryKey
@@ -55,7 +52,6 @@
             }
             queriedEntityCount
             childrenCount
-            hasChildren
           }
         }
       }

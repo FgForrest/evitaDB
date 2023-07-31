@@ -350,7 +350,6 @@ public class HierarchyOfConverter extends RequireConverter {
 	                                  @Nullable EntityFetch entityFetch,
 	                                  @Nullable HierarchyStatistics statistics) {
 		levelInfoBuilder
-			.addPrimitiveField(LevelInfoDescriptor.PARENT_PRIMARY_KEY)
 			.addPrimitiveField(LevelInfoDescriptor.LEVEL)
 			.addObjectField(LevelInfoDescriptor.ENTITY, entityBuilder ->
 				entityFetchConverter.convert(entityBuilder, entityType, locale, entityFetch));
@@ -363,7 +362,5 @@ public class HierarchyOfConverter extends RequireConverter {
 				levelInfoBuilder.addPrimitiveField(LevelInfoDescriptor.CHILDREN_COUNT);
 			}
 		}
-
-		levelInfoBuilder.addPrimitiveField(LevelInfoDescriptor.HAS_CHILDREN);
 	}
 }
