@@ -135,7 +135,6 @@ class ConstraintProcessorTest {
 	void shouldNotProcessIncorrectlyDefinedConstraint() {
 		assertThrows(EvitaInternalError.class, () -> new ConstraintProcessor().process(Set.of(UnannotatedConstraint.class)));
 		assertThrows(EvitaInternalError.class, () -> new ConstraintProcessor().process(Set.of(ConstraintWithoutCreator.class)));
-		assertThrows(EvitaInternalError.class, () -> new ConstraintProcessor().process(Set.of(ConstraintWithUnannotatedParameters.class)));
 		assertThrows(EvitaInternalError.class, () -> new ConstraintProcessor().process(Set.of(ConstraintWithoutType.class)));
 		assertThrows(EvitaInternalError.class, () -> new ConstraintProcessor().process(Set.of(ConstraintWithoutPropertyType.class)));
 		assertThrows(EvitaInternalError.class, () -> new ConstraintProcessor().process(Set.of(ConstraintWithDuplicateCreators.class)));
@@ -438,28 +437,10 @@ class ConstraintProcessorTest {
 		name = "something",
 		shortDescription = "This is a constraint."
 	)
-	private static class ConstraintWithUnannotatedParameters extends AbstractAttributeFilterConstraintLeaf {
-
-		@Creator
-		public ConstraintWithUnannotatedParameters(@Nonnull Long value) {
-			super(value);
-		}
-
-		@Nonnull
-		@Override
-		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-			return null;
-		}
-	}
-
-	@ConstraintDefinition(
-		name = "something",
-		shortDescription = "This is a constraint."
-	)
 	private static class ConstraintWithConstructorAndFactoryMethod extends AbstractAttributeFilterConstraintLeaf {
 
 		@Creator
-		public ConstraintWithConstructorAndFactoryMethod(@Nonnull @Value Long value) {
+		public ConstraintWithConstructorAndFactoryMethod(@Nonnull Long value) {
 			super(value);
 		}
 
@@ -648,7 +629,7 @@ class ConstraintProcessorTest {
 		}
 
 		@Creator(suffix = "other")
-		public ConstraintWithDuplicateCreators(@Nonnull @Value String value) {
+		public ConstraintWithDuplicateCreators(@Nonnull String value) {
 		}
 
 		@Nonnull
@@ -716,8 +697,8 @@ class ConstraintProcessorTest {
 	private static class ConstraintWithMultipleAdditionalChildren extends AbstractAttributeFilterConstraintContainer {
 
 		@Creator
-		public ConstraintWithMultipleAdditionalChildren(@Nonnull @AdditionalChild OrderBy orderBy,
-		                                                @Nonnull @AdditionalChild Require require) {
+		public ConstraintWithMultipleAdditionalChildren(@Nonnull OrderBy orderBy,
+		                                                @Nonnull Require require) {
 		}
 	}
 
@@ -728,8 +709,8 @@ class ConstraintProcessorTest {
 	private static class ConstraintWithMultipleSameAdditionalChildren extends AbstractAttributeFilterConstraintLeaf {
 
 		@Creator
-		public ConstraintWithMultipleSameAdditionalChildren(@Nonnull @AdditionalChild Require require,
-		                                                    @Nonnull @AdditionalChild Require require2) {
+		public ConstraintWithMultipleSameAdditionalChildren(@Nonnull Require require,
+		                                                    @Nonnull Require require2) {
 		}
 
 		@Nonnull

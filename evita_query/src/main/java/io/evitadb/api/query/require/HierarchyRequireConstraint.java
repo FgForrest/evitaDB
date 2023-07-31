@@ -26,7 +26,6 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.HierarchyConstraint;
 import io.evitadb.api.query.RequireConstraint;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**

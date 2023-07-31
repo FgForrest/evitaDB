@@ -27,7 +27,6 @@ import io.evitadb.api.query.PriceConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -63,7 +62,7 @@ public class PriceHistogram extends AbstractRequireConstraintLeaf implements Pri
 	}
 
 	@Creator
-	public PriceHistogram(@Value int requestedBucketCount) {
+	public PriceHistogram(int requestedBucketCount) {
 		super(requestedBucketCount);
 	}
 

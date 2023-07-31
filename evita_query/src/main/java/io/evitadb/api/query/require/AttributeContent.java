@@ -30,7 +30,6 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -86,7 +85,7 @@ public class AttributeContent extends AbstractRequireConstraintLeaf
 	}
 
 	@Creator
-	public AttributeContent(@Nonnull @Value String... attributeNames) {
+	public AttributeContent(@Nonnull String... attributeNames) {
 		super(attributeNames);
 	}
 

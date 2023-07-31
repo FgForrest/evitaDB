@@ -28,7 +28,6 @@ import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -65,7 +64,7 @@ public class Page extends AbstractRequireConstraintLeaf implements GenericConstr
 	}
 
 	@Creator
-	public Page(@Nullable @Value Integer number, @Nullable @Value Integer size) {
+	public Page(@Nullable Integer number, @Nullable Integer size) {
 		super(
 			Optional.ofNullable(number).orElse(1),
 			Optional.ofNullable(size).orElse(20)

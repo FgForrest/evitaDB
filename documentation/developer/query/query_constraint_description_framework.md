@@ -113,8 +113,9 @@ public class AttributeEquals extends /* ... */ {
 
 Then, at least one constructor or factory method must be annotated with
 the `io.evitadb.api.query.descriptor.annotation.Creator` to mark it as a *creator*. A *creator*
-may define a custom suffix (to form *full name*) and an implicit classifier and all of its parameters (if there are any)
-must be annotated with the  `io.evitadb.api.query.descriptor.annotation.Classifier`, 
+may define a custom suffix (to form *full name*) and an implicit classifier. By default, the `ConstraintProcessor` tries
+to guess appropriate type of each parameter if there is no annotation associated with it.
+Otherwise, parameters can be annotated with the  `io.evitadb.api.query.descriptor.annotation.Classifier`, 
 `io.evitadb.api.query.descriptor.annotation.Value`, `io.evitadb.api.query.descriptor.annotation.Child`, or
 `io.evitadb.api.query.descriptor.annotation.AdditionalChild`.
 
@@ -122,7 +123,7 @@ Basic *creator* may look like this:
 ```java
 @Creator
 public AttributeIs(@Nonnull @Classifier String attributeName,
-                   @Nonnull @Value AttributeSpecialValue specialValue) {
+                   @Nonnull AttributeSpecialValue specialValue) {
     /* ... */
 }
 ```
@@ -130,7 +131,7 @@ or in case of factory method:
 ```java
 @Creator
 public static AttributeIs attributeIs(@Nonnull @Classifier String attributeName,
-                                      @Nonnull @Value AttributeSpecialValue specialValue) {
+                                      @Nonnull AttributeSpecialValue specialValue) {
     /* ... */
 }
 ```
@@ -139,6 +140,15 @@ Each *full name*, defined by *base name* of constraint and suffix of *creator*s,
 Each *creator* then conform to single unique constraint *descriptor*, i.e. if constraint has multiple creators
 there will be multiple *descriptor*s describing single constraint, each with different *full name* and corresponding
 *creator*.
+
+#### Guessing the parameter type
+
+As mentioned above, if parameter doesn't have any parameter-defining annotation associated with it, the `ConstraintProcessor`
+tries to guess the type of parameter based on its data type and other metadata. To override this default logic or to
+customize parameter metadata, the parameter can be explicitly annotated with concrete parameter-defining annotation.
+One exception is that it cannot detect classifier parameters because they overlap with value parameters. 
+Therefore, if a value parameter should be a classifier, it must be explicitly annotated with the 
+`io.evitadb.api.query.descriptor.annotation.Classifier` annotation.
 
 #### Classifier
 
@@ -153,10 +163,9 @@ Explicit one should be used anywhere where the constraint is able to handle mult
 
 #### Values
 
-Other *creator* constructor parameters must be annotated as values or children. Value parameters are primitive
-arguments (strings, ints, ...) and are annotated with
-the `io.evitadb.api.query.descriptor.annotation.Value` annotation. Constructor can have multiple value
-parameters.
+*Creator* parameters that are annotated with `io.evitadb.api.query.descriptor.annotation.Value` or
+their data type represents simple value (string, integer,... not a constraint) are considered to be value parameters.
+Constructor can have multiple value parameters.
 
 #### Children
 
@@ -165,8 +174,9 @@ children that are of the same type as the parent container is and directly corre
 On the other hand, additional children extend such containers with possibility of adding constraint containers
 of different constraint type, e.g. require container can have its own embedded filter container.
 
-Such a parameter must be annotated with the `io.evitadb.api.query.descriptor.annotation.Child` annotation. With this annotation,
-multiple parameters can be annotated in single constructor.
+If a parameter is annotated with the `io.evitadb.api.query.descriptor.annotation.Child` annotation or its data type represents
+a constraint of same type as is its parent container, such parameter is considered to be a child parameter. There can be multiple
+child parameters in a single *creator*.
 Additionally, one can mark array of children as unique where each child constraint can be used only once. This is useful
 for constraint containers where only limited number of child constraints are allowed.
 By default, only subclasses of the parameter type are allowed which are then limited to subset defined by context of current
@@ -174,9 +184,11 @@ By default, only subclasses of the parameter type are allowed which are then lim
 To further limit allowed child constraints, one can specify set of `allowed` or `forbidden` constraints in this
 annotation.
 
-Additional child parameters must be annotated with the `io.evitadb.api.query.descriptor.annotation.AdditionalChild` annotation
-and cannot be of same constraint type as the parent container. However, there are some limitations in place to simplify
-processing logic of these annotations and to produce reasonable JSON objects (which are also quite limited for our use cases).
+If a parameter is annotated with the `io.evitadb.api.query.descriptor.annotation.AdditionalChild` annotation or its data
+type represents a constraint container of different type than is its parent container, such parameter is considered to be
+an additional child parameter. There can be multiple additional child parameters in a single *creator*. 
+However, there are some limitations in place to simplify processing logic of these annotations and to produce reasonable 
+JSON objects (which are also quite limited for our use cases).
 The type of parameter must be some concrete generic constraint container of desired constraint type, so that it generates
 enclosing JSON object automatically. Also, the container must have *creator* with only one parameter which 
 must be the `io.evitadb.api.query.descriptor.annotation.Child`.
@@ -194,21 +206,21 @@ More complex set of *creator*s combining options described above may look like t
 ```java
 @Creator
 public HierarchyWithin(@Nonnull @Classifier String entityType,
-                       @Nonnull @Value Integer ofParent,
+                       @Nonnull Integer ofParent,
                        @Nonnull @Child(uniqueChildren = true) HierarchySpecificationFilterConstraint... with) {
     /* ... */
 }
 
 @Creator(suffix = "self", silentImplicitClassifier = true)
-public HierarchyWithin(@Nonnull @Value Integer ofParent,
+public HierarchyWithin(@Nonnull Integer ofParent,
                        @Nonnull @Child(uniqueChildren = true) HierarchySpecificationFilterConstraint... with) {
     /* ... */
 }
 
 @Creator
 public ReferenceContent(@Nonnull @Classifier String referenceName,
-                        @Nullable @AdditionalChild FilterBy filterBy,
-                        @Nullable @AdditionalChild OrderBy orderBy,
+                        @Nullable FilterBy filterBy, // additional child
+                        @Nullable OrderBy orderBy, // additional child
                         @Nullable @Child(uniqueChildren = true) EntityRequire... requirements) {
     /* ... */
 }   
