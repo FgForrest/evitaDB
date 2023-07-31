@@ -4042,7 +4042,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 			.filter(
 				it -> it.getPrices(CURRENCY_USD, PRICE_LIST_BASIC).size() > 0 &&
 					it.getPrices(CURRENCY_USD, PRICE_LIST_REFERENCE).size() > 0 &&
-					it.getPrices(CURRENCY_USD, PRICE_LIST_VIP).size() > 0
+					it.getPrices(CURRENCY_USD, PRICE_LIST_B2B).size() > 0
 			)
 			.findFirst()
 			.orElseThrow();

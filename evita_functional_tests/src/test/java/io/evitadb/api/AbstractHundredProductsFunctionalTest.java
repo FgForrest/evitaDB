@@ -58,6 +58,7 @@ public class AbstractHundredProductsFunctionalTest {
 	public static final String ATTRIBUTE_CATEGORY_LABEL = "label";
 	public static final String ATTRIBUTE_CATEGORY_SHADOW = "shadow";
 	public static final String ATTRIBUTE_MARKETS = "markets";
+	public static final String ATTRIBUTE_ENUM = "enum";
 	public static final String ATTRIBUTE_OPTIONAL_AVAILABILITY = "optionalAvailability";
 	public static final String ASSOCIATED_DATA_MARKETS = "markets";
 	private static final int SEED = 40;
@@ -152,6 +153,11 @@ public class AbstractHundredProductsFunctionalTest {
 				.map(session::upsertEntity)
 				.toList();
 
+			dataGenerator.registerValueGenerator(
+				Entities.PRODUCT, ATTRIBUTE_ENUM,
+				faker -> TestEnum.values()[faker.random().nextInt(TestEnum.values().length)].name()
+			);
+
 			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
 					dataGenerator.getSampleProductSchema(
 						session,
@@ -159,6 +165,7 @@ public class AbstractHundredProductsFunctionalTest {
 							builder
 								.withAttribute(ATTRIBUTE_OPTIONAL_AVAILABILITY, Boolean.class, whichIs -> whichIs.filterable().nullable())
 								.withAttribute(ATTRIBUTE_MARKETS, String[].class)
+								.withAttribute(ATTRIBUTE_ENUM, String.class, whichIs -> whichIs.filterable().sortable())
 								.withAssociatedData(ASSOCIATED_DATA_MARKETS, String[].class)
 								.withReferenceToEntity(
 									Entities.CATEGORY,
@@ -231,4 +238,11 @@ public class AbstractHundredProductsFunctionalTest {
 			);
 		});
 	}
+
+	public enum TestEnum {
+
+		ONE, TWO, THREE
+
+	}
+
 }

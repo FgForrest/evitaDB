@@ -23,12 +23,15 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.dataType.SupportedEnum;
+
 /**
  * The enumeration controls {@link HierarchyOfReference} behaviour whether the hierarchical nodes that are not referred
  * by any of the queried entities should be part of the result hierarchy statistics tree.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@SupportedEnum
 public enum EmptyHierarchicalEntityBehaviour {
 
 	LEAVE_EMPTY, REMOVE_EMPTY

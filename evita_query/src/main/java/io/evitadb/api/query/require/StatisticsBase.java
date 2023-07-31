@@ -23,10 +23,13 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.dataType.SupportedEnum;
+
 /**
  * The enum specifies whether the hierarchy statistics cardinality will be based on a complete query filter by
  * constraint or only the part without user defined filter.
  */
+@SupportedEnum
 public enum StatisticsBase {
 
 	COMPLETE_FILTER, WITHOUT_USER_FILTER
