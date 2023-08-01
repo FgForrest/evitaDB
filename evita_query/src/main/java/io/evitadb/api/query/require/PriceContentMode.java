@@ -23,9 +23,12 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.dataType.SupportedEnum;
+
 /**
  * Determines which prices will be fetched along with entity.
  */
+@SupportedEnum
 public enum PriceContentMode {
 
 	NONE, RESPECTING_FILTER, ALL

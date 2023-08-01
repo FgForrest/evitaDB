@@ -27,7 +27,6 @@ import io.evitadb.api.query.PriceConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.api.query.order.PriceNatural;
 
 import javax.annotation.Nonnull;
@@ -61,7 +60,7 @@ public class PriceType extends AbstractRequireConstraintLeaf implements PriceCon
 	@Serial private static final long serialVersionUID = -7156758352138266166L;
 
 	@Creator
-	public PriceType(@Nonnull @Value QueryPriceMode queryPriceMode) {
+	public PriceType(@Nonnull QueryPriceMode queryPriceMode) {
 		super(queryPriceMode);
 	}
 

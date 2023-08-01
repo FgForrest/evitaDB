@@ -249,7 +249,7 @@ public interface EntityContract extends EntityClassifierWithParent, ContentCompa
 		return (dropped() ? "❌ " : "") +
 			"Entity " + getType() + " ID=" + getPrimaryKey() +
 			(parentAvailable() ? getParent().stream().mapToObj(it -> ", ↰ " + it).findAny().orElse("") : "") +
-			(referencesAvailable() ? "" : ", " + of(getReferences()).filter(it -> !it.isEmpty()).map(it -> it.stream().map(ReferenceContract::toString).collect(Collectors.joining(", "))).orElse("")) +
+			(referencesAvailable() ? ", " + of(getReferences()).filter(it -> !it.isEmpty()).map(it -> it.stream().map(ReferenceContract::toString).collect(Collectors.joining(", "))).orElse("") : "") +
 			(attributesAvailable() ? of(getAttributeValues()).filter(it -> !it.isEmpty()).map(it -> ", " + it.stream().map(AttributeValue::toString).collect(Collectors.joining(", "))).orElse("") : "") +
 			(associatedDataAvailable() ? of(getAssociatedDataValues()).filter(it -> !it.isEmpty()).map(it -> ", " + it.stream().map(AssociatedDataValue::toString).collect(Collectors.joining(", "))).orElse("") : "") +
 			(pricesAvailable() ? of(getPrices()).filter(it -> !it.isEmpty()).map(it -> ", " + it.stream().map(Object::toString).collect(Collectors.joining(", "))).orElse(null) : "") +

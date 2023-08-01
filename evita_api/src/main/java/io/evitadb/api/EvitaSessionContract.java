@@ -32,6 +32,7 @@ import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.exception.UnexpectedResultException;
+import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.RequireConstraint;
@@ -46,6 +47,7 @@ import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
 import io.evitadb.api.query.require.Strip;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -1010,15 +1012,10 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	long getInactivityDurationInSeconds();
 
 	/**
-	 * Provides access to the result of {@link #deleteEntityAndItsHierarchy(String, int, EntityContentRequire...)} .
-	 *
-	 * @param deletedEntities   count of all removed entities in the hierarchy
-	 * @param deletedRootEntity requested contents of the removed root entity
+	 * Returns implementation of the proxy factory that is used to wrap the returned {@link SealedEntity} into a custom
+	 * Java types.
 	 */
-	record DeletedHierarchy<T>(
-		int deletedEntities,
-		@Nullable T deletedRootEntity
-	) {
-	}
+	@Nonnull
+	ProxyFactory getProxyFactory();
 
 }

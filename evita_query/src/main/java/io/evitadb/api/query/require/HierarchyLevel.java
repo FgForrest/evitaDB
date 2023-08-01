@@ -27,7 +27,6 @@ import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 
@@ -85,7 +84,7 @@ public class HierarchyLevel extends AbstractRequireConstraintLeaf implements Hie
 	}
 
 	@Creator
-	public HierarchyLevel(@Value int level) {
+	public HierarchyLevel(int level) {
 		super(CONSTRAINT_NAME, level);
 		Assert.isTrue(level > 0, () -> new EvitaInvalidUsageException("Level must be greater than zero. Level 1 represents root node."));
 

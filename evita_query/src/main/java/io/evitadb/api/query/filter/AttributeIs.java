@@ -26,10 +26,9 @@ package io.evitadb.api.query.filter;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
-import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
-import io.evitadb.api.query.descriptor.annotation.Value;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -71,7 +70,7 @@ public class AttributeIs extends AbstractAttributeFilterConstraintLeaf implement
 
 	@Creator
 	public AttributeIs(@Nonnull @Classifier String attributeName,
-	                   @Nonnull @Value AttributeSpecialValue attributeSpecialValue) {
+	                   @Nonnull AttributeSpecialValue attributeSpecialValue) {
 		super(attributeName, attributeSpecialValue);
 	}
 

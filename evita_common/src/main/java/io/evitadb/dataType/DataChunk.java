@@ -67,11 +67,6 @@ public sealed interface DataChunk<T extends Serializable> extends Iterable<T>, S
 	int getTotalRecordCount();
 
 	/**
-	 * Returns true if PaginatedList is initialized with data (i.e. records are available).
-	 */
-	boolean isFullyInitialized();
-
-	/**
 	 * Returns true if current page is the first page in the result set.
 	 */
 	boolean isFirst();

@@ -29,7 +29,6 @@ import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -74,7 +73,7 @@ public class AttributeContains extends AbstractAttributeFilterConstraintLeaf {
 
 	@Creator
 	public AttributeContains(@Nonnull @Classifier String attributeName,
-	                         @Nonnull @Value String textToSearch) {
+	                         @Nonnull String textToSearch) {
 		super(attributeName, textToSearch);
 	}
 

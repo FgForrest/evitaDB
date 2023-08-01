@@ -32,7 +32,6 @@ import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalErr
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -57,29 +56,24 @@ public class SpecificHierarchyDataFetcher implements DataFetcher<List<LevelInfoD
 		);
 
 		final List<LevelInfoDto> flattenedHierarchy = new LinkedList<>();
-		hierarchy.forEach(rootLevelInfo -> createLevelInfoDto(flattenedHierarchy, null, rootLevelInfo, 1));
+		hierarchy.forEach(rootLevelInfo -> createLevelInfoDto(flattenedHierarchy, rootLevelInfo, 1));
 
 		return flattenedHierarchy;
 	}
 
 	private void createLevelInfoDto(@Nonnull List<LevelInfoDto> flattenedHierarchy,
-	                                @Nullable LevelInfo parentLevelInfo,
 	                                @Nonnull LevelInfo levelInfo,
 	                                int currentLevel) {
 		final LevelInfoDto currentLevelInfoDto = new LevelInfoDto(
-			parentLevelInfo != null
-				? parentLevelInfo.entity().getPrimaryKey()
-				: null,
 			currentLevel,
 			levelInfo.entity(),
 			levelInfo.queriedEntityCount(),
-			levelInfo.childrenCount(),
-			!levelInfo.children().isEmpty()
+			levelInfo.childrenCount()
 		);
 		flattenedHierarchy.add(currentLevelInfoDto);
 
 		levelInfo.children()
-			.forEach(childLevelInfo -> createLevelInfoDto(flattenedHierarchy, levelInfo, childLevelInfo, currentLevel + 1));
+			.forEach(childLevelInfo -> createLevelInfoDto(flattenedHierarchy, childLevelInfo, currentLevel + 1));
 	}
 
 }

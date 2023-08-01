@@ -27,7 +27,6 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
-import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.order.OrderBy;
@@ -111,7 +110,7 @@ public class HierarchyOfSelf extends AbstractRequireConstraintContainer
 	@Creator(silentImplicitClassifier = true)
 	public HierarchyOfSelf(
 		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) OrderBy orderBy,
-		@Nonnull @Child HierarchyRequireConstraint... requirements
+		@Nonnull HierarchyRequireConstraint... requirements
 	) {
 		super(new Serializable[0], requirements, orderBy);
 	}

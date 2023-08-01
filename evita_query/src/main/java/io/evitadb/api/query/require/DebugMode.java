@@ -23,9 +23,12 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.dataType.SupportedEnum;
+
 /**
  * Determines the extra mode for the query planning and execution to support our integration tests.
  */
+@SupportedEnum
 public enum DebugMode {
 
 	/**

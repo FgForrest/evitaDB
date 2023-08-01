@@ -113,11 +113,6 @@ public final class StripList<T extends Serializable> implements DataChunk<T> {
 	}
 
 	@Override
-	public boolean isFullyInitialized() {
-		return data != null;
-	}
-
-	@Override
 	public boolean isFirst() {
 		return offset == 0;
 	}

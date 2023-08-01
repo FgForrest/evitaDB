@@ -170,8 +170,8 @@ public class SetAttributeSchemaFilterableMutation
 		Assert.isTrue(
 			referenceSchema.isIndexed(),
 			() -> new InvalidSchemaMutationException(
-				"The reference `" + name + "` is in entity `" + entitySchema.getName() + "` is not indexed! " +
-					"Non-indexed references must not contain filterable attribute!"
+				"The reference `" + referenceSchema.getName() + "` is in entity `" + entitySchema.getName() + "` is not indexed! " +
+					"Non-indexed references must not contain filterable attribute `" + name + "`!"
 			)
 		);
 		final AttributeSchemaContract existingAttributeSchema = referenceSchema.getAttribute(name)

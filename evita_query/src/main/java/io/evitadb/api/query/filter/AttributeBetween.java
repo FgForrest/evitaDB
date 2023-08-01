@@ -26,9 +26,9 @@ package io.evitadb.api.query.filter;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
-import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
@@ -38,9 +38,9 @@ import java.io.Serializable;
 
 /**
  * This `between` is query that compares value of the attribute with name passed in first argument with the value passed
- * in the second argument and value passed in third argument. First argument must be {@link String}, second and third 
+ * in the second argument and value passed in third argument. First argument must be {@link String}, second and third
  * argument may be any of {@link Comparable} type.
- * 
+ *
  * Type of the attribute value and second argument must be convertible one to another otherwise `between` function
  * returns false.
  *

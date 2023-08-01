@@ -30,7 +30,6 @@ import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.FilterGroupBy;
 import io.evitadb.api.query.filter.UserFilter;
@@ -120,7 +119,7 @@ public class FacetSummary extends AbstractRequireConstraintContainer
 
 	@Creator
 	public FacetSummary(
-		@Nonnull @Value FacetStatisticsDepth statisticsDepth,
+		@Nonnull FacetStatisticsDepth statisticsDepth,
 		@Nonnull @Child(uniqueChildren = true) EntityRequire... requirements) {
 		this(new Serializable[]{statisticsDepth}, requirements);
 	}

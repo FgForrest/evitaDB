@@ -339,7 +339,7 @@ public class Reference implements ReferenceContract {
 		return (dropped ? "❌ " : "") +
 			"References `" + referenceKey.referenceName() + "` " + referenceKey.primaryKey() +
 			(group == null ? "" : " in " + group) +
-			", attrs: " + attributes;
+			(attributes.attributesAvailable() ? ", attrs: " + attributes : "");
 	}
 
 }

@@ -1838,6 +1838,29 @@ public interface QueryConstraints {
 		return new EntityPrimaryKeyInSet(primaryKey);
 	}
 
+	/**
+	 * This `primaryKey` is query that accepts set of {@link Integer}
+	 * that represents primary keys of the entities that should be returned.
+	 * 
+	 * Function returns true if entity primary key is part of the passed set of integers.
+	 * This form of entity lookup function is the fastest one.
+	 * 
+	 * Only single `primaryKey` query can be used in the query.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * primaryKey(1, 2, 3)
+	 * ```
+	*/
+	@Nullable
+	static EntityPrimaryKeyInSet entityPrimaryKeyInSet(@Nullable int[] primaryKey) {
+		if (primaryKey == null) {
+			return null;
+		}
+		return new EntityPrimaryKeyInSet(Arrays.stream(primaryKey).boxed().toArray(Integer[]::new));
+	}
+
 	/*
 		ORDERING
 	 */
@@ -4466,11 +4489,11 @@ public interface QueryConstraints {
 	 * ```
 	*/
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable String referencedEntityType) {
-		if (referencedEntityType == null) {
+	static ReferenceContent referenceContent(@Nullable String referenceName) {
+		if (referenceName == null) {
 			return new ReferenceContent();
 		}
-		return new ReferenceContent(referencedEntityType);
+		return new ReferenceContent(referenceName);
 	}
 
 	/**
@@ -4488,9 +4511,9 @@ public interface QueryConstraints {
 	 * ```
 	*/
 	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable String... attributeNames) {
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable String... attributeNames) {
 		return new ReferenceContent(
-			referencedEntityType, null, null,
+			referenceName, null, null,
 			attributeContent(attributeNames), null, null
 		);
 	}
@@ -4510,8 +4533,8 @@ public interface QueryConstraints {
 	 * ```
 	*/
 	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType) {
-		return new ReferenceContent(referencedEntityType, null, null, null, null, null);
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName) {
+		return new ReferenceContent(referenceName, null, null, null, null, null);
 	}
 
 
@@ -4530,9 +4553,9 @@ public interface QueryConstraints {
 	 * ```
 	*/
 	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable AttributeContent attributeContent) {
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable AttributeContent attributeContent) {
 		return new ReferenceContent(
-			referencedEntityType, null, null,
+			referenceName, null, null,
 			attributeContent, null, null
 		);
 	}
@@ -4552,11 +4575,11 @@ public interface QueryConstraints {
 	 * ```
 	*/
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable String... referencedEntityType) {
-		if (referencedEntityType == null) {
+	static ReferenceContent referenceContent(@Nullable String... referenceName) {
+		if (referenceName == null) {
 			return new ReferenceContent();
 		}
-		return new ReferenceContent(referencedEntityType);
+		return new ReferenceContent(referenceName);
 	}
 
 	/**
@@ -4574,15 +4597,15 @@ public interface QueryConstraints {
 	 * ```
 	*/
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable String referencedEntityType, @Nullable EntityFetch entityRequirement) {
-		if (referencedEntityType == null && entityRequirement == null) {
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable EntityFetch entityRequirement) {
+		if (referenceName == null && entityRequirement == null) {
 			return new ReferenceContent();
 		}
-		if (referencedEntityType == null) {
+		if (referenceName == null) {
 			return new ReferenceContent(entityRequirement, null);
 		}
 		return new ReferenceContent(
-			referencedEntityType,  null, null, entityRequirement, null
+			referenceName,  null, null, entityRequirement, null
 		);
 	}
 
@@ -4601,9 +4624,9 @@ public interface QueryConstraints {
 	 * ```
 	*/
 	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable EntityFetch entityRequirement) {
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent(
-			referencedEntityType,  null, null,
+			referenceName,  null, null,
 			null, entityRequirement, null
 		);
 	}
@@ -4623,9 +4646,9 @@ public interface QueryConstraints {
 	 * ```
 	*/
 	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent(
-			referencedEntityType,  null, null,
+			referenceName,  null, null,
 			attributeContent, entityRequirement, null
 		);
 	}
@@ -4645,14 +4668,14 @@ public interface QueryConstraints {
 	 * ```
 	*/
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable String referencedEntityType, @Nullable EntityGroupFetch groupEntityRequirement) {
-		if (referencedEntityType == null && groupEntityRequirement == null) {
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable EntityGroupFetch groupEntityRequirement) {
+		if (referenceName == null && groupEntityRequirement == null) {
 			return new ReferenceContent();
 		}
-		if (referencedEntityType == null) {
+		if (referenceName == null) {
 			return new ReferenceContent(null, groupEntityRequirement);
 		}
-		return new ReferenceContent(referencedEntityType, null, null, null, groupEntityRequirement);
+		return new ReferenceContent(referenceName, null, null, null, groupEntityRequirement);
 	}
 
 	/**
@@ -4670,9 +4693,9 @@ public interface QueryConstraints {
 	 * ```
 	*/
 	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable EntityGroupFetch groupEntityRequirement) {
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(
-			referencedEntityType, null, null,
+			referenceName, null, null,
 			null, null, groupEntityRequirement
 		);
 	}
@@ -4692,9 +4715,9 @@ public interface QueryConstraints {
 	 * ```
 	*/
 	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referencedEntityType, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
+	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(
-			referencedEntityType, null, null,
+			referenceName, null, null,
 			attributeContent, null, groupEntityRequirement
 		);
 	}
@@ -4714,11 +4737,11 @@ public interface QueryConstraints {
 	 * ```
 	*/
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable String referencedEntityType, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		if (referencedEntityType == null) {
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		if (referenceName == null) {
 			return new ReferenceContent(entityRequirement, groupEntityRequirement);
 		}
-		return new ReferenceContent(referencedEntityType, null, null, entityRequirement, groupEntityRequirement);
+		return new ReferenceContent(referenceName, null, null, entityRequirement, groupEntityRequirement);
 	}
 
 	/**
@@ -4737,10 +4760,10 @@ public interface QueryConstraints {
 	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(
-		@Nonnull String referencedEntityType, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement
+		@Nonnull String referenceName, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement
 	) {
 		return new ReferenceContent(
-			referencedEntityType, null, null,
+			referenceName, null, null,
 			entityRequirement, groupEntityRequirement
 		);
 	}
@@ -4761,11 +4784,11 @@ public interface QueryConstraints {
 	*/
 	@Nonnull
 	static ReferenceContent referenceContentWithAttributes(
-		@Nonnull String referencedEntityType, @Nullable AttributeContent attributeContent,
+		@Nonnull String referenceName, @Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement
 	) {
 		return new ReferenceContent(
-			referencedEntityType, null, null,
+			referenceName, null, null,
 			attributeContent, entityRequirement, groupEntityRequirement
 		);
 	}

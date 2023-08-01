@@ -28,7 +28,6 @@ import io.evitadb.api.query.PriceConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -74,7 +73,7 @@ public class PriceInCurrency extends AbstractFilterConstraintLeaf implements Pri
 	}
 
 	@Creator
-	public PriceInCurrency(@Nonnull @Value Currency currency) {
+	public PriceInCurrency(@Nonnull Currency currency) {
 		super(currency);
 	}
 

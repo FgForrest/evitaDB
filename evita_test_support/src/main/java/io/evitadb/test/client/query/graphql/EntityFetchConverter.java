@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.externalApi.api.ExternalApiNamingConventions;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
@@ -97,17 +98,33 @@ public class EntityFetchConverter extends RequireConverter {
 			}
 		}
 
-		convertAttributeContent(fieldsBuilder, entityFetch);
+		convertAttributeContent(fieldsBuilder, locale, entityFetch, entitySchema.get());
 		convertPriceContent(fieldsBuilder, locale, entityFetch);
 		convertReferenceContents(fieldsBuilder, entityType, locale, entityFetch, entitySchema.get());
 	}
 
 	private static void convertAttributeContent(@Nonnull GraphQLOutputFieldsBuilder entityFieldsBuilder,
-	                                            @Nonnull EntityFetchRequire entityFetch) {
+												@Nullable Locale locale,
+	                                            @Nonnull EntityFetchRequire entityFetch,
+	                                            @Nonnull EntitySchemaContract entitySchema) {
 		final AttributeContent attributeContent = QueryUtils.findConstraint(entityFetch, AttributeContent.class, SeparateEntityContentRequireContainer.class);
 		if (attributeContent != null) {
-			final String[] attributeNames = attributeContent.getAttributeNames();
-			Assert.isPremiseValid(attributeNames.length > 0, "Fetching all attributes is not supported by GraphQL.");
+			final String[] attributeNames;
+			if (attributeContent.getAttributeNames().length > 0) {
+				attributeNames = attributeContent.getAttributeNames();
+			} else {
+				attributeNames = entitySchema.getAttributes()
+					.values()
+					.stream()
+					.filter(it -> {
+						if (!it.isLocalized()) {
+							return true;
+						}
+						return locale != null;
+					})
+					.map(it -> it.getNameVariant(ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION))
+					.toArray(String[]::new);
+			}
 
 			entityFieldsBuilder.addObjectField(
 				EntityDescriptor.ATTRIBUTES,

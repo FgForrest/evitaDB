@@ -1,0 +1,11 @@
+query(
+    collection('Brand'),
+    filterBy(
+        entityPrimaryKeyInSet(64703)
+    ),
+    require(
+        entityFetch(
+            attributeContentAll()
+        )
+    )
+)

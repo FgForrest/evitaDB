@@ -23,13 +23,15 @@
 
 package io.evitadb.api.mock;
 
-import io.evitadb.api.AbstractFiftyProductsFunctionalTest;
+import io.evitadb.api.AbstractHundredProductsFunctionalTest;
+import io.evitadb.api.AbstractHundredProductsFunctionalTest.TestEnum;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.annotation.*;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.test.Entities;
 import io.evitadb.test.generator.DataGenerator;
+import io.evitadb.test.generator.DataGenerator.Labels;
 import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
 
 import javax.annotation.Nonnull;
@@ -75,13 +77,16 @@ public interface ProductInterface extends EntityClassifier {
 	@Nonnull
 	BigDecimal getQuantityAsDifferentProperty();
 
+	@Attribute(name = AbstractHundredProductsFunctionalTest.ATTRIBUTE_ENUM)
+	TestEnum getEnum();
+
 	@Attribute(name = DataGenerator.ATTRIBUTE_ALIAS)
 	boolean isAlias();
 
-	@Attribute(name = AbstractFiftyProductsFunctionalTest.ATTRIBUTE_OPTIONAL_AVAILABILITY)
+	@Attribute(name = AbstractHundredProductsFunctionalTest.ATTRIBUTE_OPTIONAL_AVAILABILITY)
 	boolean isOptionallyAvailable();
 
-	@Attribute(name = AbstractFiftyProductsFunctionalTest.ATTRIBUTE_OPTIONAL_AVAILABILITY)
+	@Attribute(name = AbstractHundredProductsFunctionalTest.ATTRIBUTE_OPTIONAL_AVAILABILITY)
 	Optional<Boolean> getOptionallyAvailable();
 
 	@AssociatedData(name = DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES)
@@ -185,5 +190,26 @@ public interface ProductInterface extends EntityClassifier {
 
 	@Price
 	PriceContract[] getAllPricesAsArray();
+
+	@AssociatedDataRef(DataGenerator.ASSOCIATED_DATA_LABELS)
+	Labels getLabels();
+
+	@AssociatedDataRef(AbstractHundredProductsFunctionalTest.ASSOCIATED_DATA_MARKETS)
+	String[] getMarkets();
+
+	@AssociatedDataRef(AbstractHundredProductsFunctionalTest.ASSOCIATED_DATA_MARKETS)
+	Set<String> getMarketsAsSet();
+
+	@AssociatedDataRef(AbstractHundredProductsFunctionalTest.ATTRIBUTE_MARKETS)
+	List<String> getMarketsAsList();
+
+	@AttributeRef(AbstractHundredProductsFunctionalTest.ATTRIBUTE_MARKETS)
+	String[] getMarketsAttribute();
+
+	@AttributeRef(AbstractHundredProductsFunctionalTest.ATTRIBUTE_MARKETS)
+	Set<String> getMarketsAttributeAsSet();
+
+	@AttributeRef(AbstractHundredProductsFunctionalTest.ATTRIBUTE_MARKETS)
+	List<String> getMarketsAttributeAsList();
 
 }

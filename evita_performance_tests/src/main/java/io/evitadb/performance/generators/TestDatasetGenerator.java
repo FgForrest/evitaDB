@@ -239,10 +239,10 @@ public interface TestDatasetGenerator {
 									entityProcessor.accept(it);
 									createdEntityReferenceProcessor.accept(new EntityReference(it.getType(), it.getPrimaryKey()));
 									entityCount.incrementAndGet();
-									priceCount.addAndGet(it.getPrices().size());
-									attributeCount.addAndGet(it.getAttributeValues().size());
-									associatedDataCount.addAndGet(it.getAssociatedDataValues().size());
-									referenceCount.addAndGet(it.getReferences().size());
+									priceCount.addAndGet(it.pricesAvailable() ? it.getPrices().size() : 0);
+									attributeCount.addAndGet(it.attributesAvailable() ? it.getAttributeValues().size() : 0);
+									associatedDataCount.addAndGet(it.associatedDataAvailable() ? it.getAssociatedDataValues().size() : 0);
+									referenceCount.addAndGet(it.referencesAvailable() ? it.getReferences().size() : 0);
 								});
 							totalEntityCount.addAndGet(response.getRecordData().size());
 						} while (response.getRecordPage().hasNext());
