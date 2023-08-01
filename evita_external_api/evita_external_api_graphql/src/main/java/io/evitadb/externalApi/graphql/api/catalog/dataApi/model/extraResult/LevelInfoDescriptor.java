@@ -40,13 +40,6 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  */
 public interface LevelInfoDescriptor {
 
-	PropertyDescriptor PARENT_PRIMARY_KEY = PropertyDescriptor.builder()
-		.name("parentPrimaryKey")
-		.description("""
-			Primary key of parent hierarchical entity if this entity is not root entity.
-			""")
-		.type(nullable(Integer.class))
-		.build();
 	PropertyDescriptor LEVEL = PropertyDescriptor.builder()
 		.name("level")
 		.description("""
@@ -79,13 +72,6 @@ public interface LevelInfoDescriptor {
 			""")
 		.type(nonNull(Integer.class))
 		.build();
-	PropertyDescriptor HAS_CHILDREN = PropertyDescriptor.builder()
-		.name("hasChildren")
-		.description("""
-			Whether this hierarchical entity has any child entities.
-						""")
-		.type(nonNull(Boolean.class))
-		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("*LevelInfo")
@@ -93,6 +79,6 @@ public interface LevelInfoDescriptor {
 			This DTO represents single hierarchical entity in the hierarchy tree. It contains identification of the entity,
 			the cardinality of queried entities that refer to it and information about children level.
 			""")
-		.staticFields(List.of(PARENT_PRIMARY_KEY, LEVEL, QUERIED_ENTITY_COUNT, CHILDREN_COUNT, HAS_CHILDREN))
+		.staticFields(List.of(LEVEL, QUERIED_ENTITY_COUNT, CHILDREN_COUNT))
 		.build();
 }

@@ -4880,27 +4880,22 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Nonnull
 	private List<Map<String, Object>> createFlattenedHierarchy(@Nonnull List<LevelInfo> hierarchy) {
 		final List<Map<String, Object>> flattenedHierarchy = new LinkedList<>();
-		hierarchy.forEach(levelInfo -> createFlattenedHierarchy(flattenedHierarchy, null, levelInfo, 1));
+		hierarchy.forEach(levelInfo -> createFlattenedHierarchy(flattenedHierarchy, levelInfo, 1));
 		return flattenedHierarchy;
 	}
 
 	private void createFlattenedHierarchy(@Nonnull List<Map<String, Object>> flattenedHierarchy,
-	                                      @Nullable LevelInfo parentLevelInfo,
 	                                      @Nonnull LevelInfo levelInfo,
 	                                      int currentLevel) {
 		final SealedEntity entity = (SealedEntity) levelInfo.entity();
 
 		final MapBuilder currentLevelInfoDto = map()
-			.e(LevelInfoDescriptor.PARENT_PRIMARY_KEY.name(), parentLevelInfo != null
-				? parentLevelInfo.entity().getPrimaryKey()
-				: null)
 			.e(LevelInfoDescriptor.LEVEL.name(), currentLevel)
 			.e(LevelInfoDescriptor.ENTITY.name(), map()
 				.e(EntityDescriptor.PRIMARY_KEY.name(), levelInfo.entity().getPrimaryKey())
 				.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), entity.parentAvailable() && entity.getParent().isPresent() ? entity.getParent().getAsInt() : null)
 				.e(EntityDescriptor.ATTRIBUTES.name(), map()
-					.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))))
-			.e(LevelInfoDescriptor.HAS_CHILDREN.name(), !levelInfo.children().isEmpty());
+					.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))));
 
 		if (levelInfo.queriedEntityCount() != null) {
 			currentLevelInfoDto.e(LevelInfoDescriptor.QUERIED_ENTITY_COUNT.name(), levelInfo.queriedEntityCount());
@@ -4911,7 +4906,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		flattenedHierarchy.add(currentLevelInfoDto.build());
 
 		levelInfo.children()
-			.forEach(childLevelInfo -> createFlattenedHierarchy(flattenedHierarchy, levelInfo, childLevelInfo, currentLevel + 1));
+			.forEach(childLevelInfo -> createFlattenedHierarchy(flattenedHierarchy, childLevelInfo, currentLevel + 1));
 	}
 
 	@Nonnull
@@ -5014,7 +5009,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	private static String getLevelInfoFragment(@Nonnull EnumSet<StatisticsType> statisticsTypes) {
 		return String.format(
             """
-				parentPrimaryKey
 				level
 				entity {
 					primaryKey
@@ -5025,7 +5019,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				}
 				%s
 				%s
-				hasChildren
 				""",
 			statisticsTypes.contains(StatisticsType.QUERIED_ENTITY_COUNT) ? LevelInfoDescriptor.QUERIED_ENTITY_COUNT.name() : "",
 			statisticsTypes.contains(StatisticsType.CHILDREN_COUNT) ? LevelInfoDescriptor.CHILDREN_COUNT.name() : ""
