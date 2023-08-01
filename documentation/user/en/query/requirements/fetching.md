@@ -26,7 +26,8 @@ entityFetch(
         attributeContentAll|
         associatedDataContent|
         associatedDataContentAll|
-        dataInLocale|
+        dataInLocales|
+        dataInLocalesAll|
         hierarchyContent|       
         priceContent|
         priceContentAll|
@@ -47,8 +48,10 @@ entityFetch(
         <ul>
             <li>[attributeContent](#attribute-content)</li>
             <li>[attributeContentAll](#attribute-content-all)</li>
-            <li>[associatedDataContent/associatedDataContentAll](#associated-data-content)</li>
-            <li>[dataInLocale](#data-in-locale)</li>
+            <li>[associatedDataContent](#associated-data-content)</li>
+            <li>[associatedDataContentAll](#associated-data-content-all)</li>
+            <li>[dataInLocales](#data-in-locales)</li>
+            <li>[dataInLocalesAll](#data-in-locales-all)</li>
             <li>[hierarchyContent](#hierarchy-content)</li>
             <li>[priceContent/priceContentAll/priceContentRespectingFilter](#price-content)</li>
             <li>[referenceContent/referenceContentWithAttributes/referenceContentAll/referenceContentAllWithAttributes](#reference-content)</li>
@@ -84,16 +87,22 @@ attributeContent(
 </dl>
 
 The `attributeContent` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/AttributeContent.java</SourceClass>) 
-requirement is used to retrieve one or more entity or reference attributes. Localized attributes are only fetched if 
-there is a *locale context* in the query, either by using the [`entityLocaleEquals`](../filtering/locale.md#entity-locale-equals) 
-filter constraint or the [`dataInLocale`](#data-in-locale) require constraint. All entity attributes are fetched from 
-disk in bulk, so specifying only a few of them in the `attributeContent` requirement only reduces the amount of data 
-transferred over the network.
+requirement is used to retrieve one or more entity or reference [attributes](../../use/data-model.md#attributes-unique-filterable-sortable-localized). [Localized attributes](../../use/data-model.md#localized-attributes) 
+are only fetched if there is a *locale context* in the query, either by using the [`entityLocaleEquals`](../filtering/locale.md#entity-locale-equals) 
+filter constraint or the [`dataInLocales`](#data-in-locale) require constraint.
 
-To select a `code` and localized `name` attribute for the `product` entity, use the following query:
+<Note type="info">
+
+All entity attributes are fetched from disk in bulk, so specifying only a few of them in the `attributeContent`
+requirement only reduces the amount of data transferred over the network. It's not bad to fetch all the attributes of 
+an entity using [`attributeContentAll`](#attribute-content-all).
+
+</Note>
+
+To select a `code` and localized `name` attribute for the `Brand` entity, use the following query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
-[Getting code and name of the product](/documentation/user/en/query/requirements/examples/fetching/attributeContent.evitaql)
+[Getting code and name of the brand](/documentation/user/en/query/requirements/examples/fetching/attributeContent.evitaql)
 </SourceCodeTabs>
 
 <Note type="info">
@@ -103,7 +112,7 @@ To select a `code` and localized `name` attribute for the `product` entity, use 
 ##### The result of an entity fetch with named attributes
 </NoteTitle>
 
-The query returns the following attributes of the `Product` entity:
+The query returns the following attributes of the `Brand` entity:
 
 <LanguageSpecific to="evitaql,java">
 
@@ -126,7 +135,7 @@ the query.
 
 </Note>
 
-### Attribute all content
+### Attribute content all
 
 ```evitaql-syntax
 attributeContentAll()
@@ -136,10 +145,10 @@ This constraint is a shorthand for the `attributeContent` constraint with all en
 the entity or reference schema. This constraint variant is an alternative to using the SQL wildcard `*` in the `SELECT` 
 clause. 
 
-To select all non-localized attributes for the `Product` entity, use the following query:
+To select all non-localized attributes for the `Brand` entity, use the following query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
-[Getting code and name of the product](/documentation/user/en/query/requirements/examples/fetching/attributeContentAll.evitaql)
+[Getting code and name of the brand](/documentation/user/en/query/requirements/examples/fetching/attributeContentAll.evitaql)
 </SourceCodeTabs>
 
 <Note type="info">
@@ -149,7 +158,7 @@ To select all non-localized attributes for the `Product` entity, use the followi
 ##### The result of an entity fetch with all attributes
 </NoteTitle>
 
-The query returns the following attributes of the `Product` entity:
+The query returns the following attributes of the `Brand` entity:
 
 <LanguageSpecific to="evitaql,java">
 
@@ -172,7 +181,267 @@ All the localized attributes are missing, because there is no localization conte
 </Note>
 
 ## Associated data content
-## Data in locale
+
+```evitaql-syntax
+associatedDataContent(
+    argument:string+
+)
+```
+
+<dl>
+    <dt>argument:string+</dt>
+    <dd>
+        one or more mandatory entity associated data names to be fetched along with the entity
+    </dd>
+</dl>
+
+The `associatedDataContent` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/AssociatedDataContent.java</SourceClass>)
+requirement is used to retrieve one or more entity [associated data](../../use/data-model.md#associated-data). 
+[Localized associated data](../../use/data-model.md#localized-associated-data) are only fetched if
+there is a *locale context* in the query, either by using the [`entityLocaleEquals`](../filtering/locale.md#entity-locale-equals)
+filter constraint or the [`dataInLocales`](#data-in-locale) require constraint.
+
+To select a *allActiveurls* and localized *localization* associated data for the `Brand` entity, use the following query:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+[Getting code and name of the brand](/documentation/user/en/query/requirements/examples/fetching/associatedDataContent.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetch with named associated data
+</NoteTitle>
+
+The query returns the following associated data of the `Brand` entity:
+
+<LanguageSpecific to="evitaql,java">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetch with named associated data](/documentation/user/en/query/requirements/examples/fetching/associatedDataContent.evitaql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+<MDInclude sourceVariable="data.queryBrand.recordPage">[The result of an entity fetch with named associated data](/documentation/user/en/query/requirements/examples/fetching/associatedDataContent.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetch with named associated data](/documentation/user/en/query/requirements/examples/fetching/associatedDataContent.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+As you can see, the *localization* related data item contains the texts in the English localization thanks
+to the `entityLocaleEquals` filter constraint in the query. The *allActiveUrls* is a non-localized related
+data item that contains active URL addresses for a particular brand in different languages that could
+be used to generate a language selection menu for this brand record.
+
+</Note>
+
+### Associated data content all
+
+```evitaql-syntax
+associatedDataContentAll()
+```
+
+This constraint is a shorthand for the `associatedDataContent` constraint with all entity associated data defined in
+the entity schema. This constraint variant is an alternative to using the SQL wildcard `*` in the `SELECT` clause.
+
+<Note type="warning">
+
+Because the associated data is expected to store large amounts of unstructured data, each of the data is stored as
+a separate record. You should always fetch only the associated data you need, as fetching all of it will slow down
+the processing of the request. The [`associatedDataContentAll`](#associated-data-content-all) request should only be
+used for debugging or exploratory purposes and should not be included in production code.
+
+</Note>
+
+To select all non-localized associated data for the `Brand` entity, use the following query:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+[Getting code and name of the brand](/documentation/user/en/query/requirements/examples/fetching/associatedDataContentAll.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetch with all the associated data
+</NoteTitle>
+
+The query returns the following associated data of the `Brand` entity:
+
+<LanguageSpecific to="evitaql,java">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetch with all the associated data](/documentation/user/en/query/requirements/examples/fetching/associatedDataContentAll.evitaql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+<MDInclude sourceVariable="data.queryBrand.recordPage">[The result of an entity fetch with all the associated data](/documentation/user/en/query/requirements/examples/fetching/associatedDataContentAll.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetch with all the associated data](/documentation/user/en/query/requirements/examples/fetching/associatedDataContentAll.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+All the localized associated data are missing, because there is no localization context present in the query.
+
+</Note>
+
+## Data in locales
+
+```evitaql-syntax
+dataInLocales(
+    argument:string+
+)
+```
+
+<dl>
+    <dt>argument:string+</dt>
+    <dd>
+        a mandatory specification of the one or more [locales](https://en.wikipedia.org/wiki/IETF_language_tag) in which
+        the localized entity or reference localized attributes and entity associated data will be fetched; examples of 
+        a valid language tags are: `en-US` or `en-GB`, `cs` or `cs-CZ`, `de` or `de-AT`, `de-CH`, `fr` or `fr-CA` etc.
+    </dd>
+</dl>
+
+The `dataInLocales` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/DataInLocales.java</SourceClass>)
+requirement is used in two scenarios:
+
+1. there is no *locale context* in the filter part of the query, because you don't want to exclude entities without
+   the requested locale from the result, but you want to fetch the localized data in one or more languages if they
+   are available for the entity or reference
+2. there is a *locale context* in the filter part of the query, but you want to fetch the localized data in different
+   or additional languages than the one specified in the *locale context*
+
+If the locale filter is missing in the query, but you still want to access the localized data, you can use the following 
+query:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+[Getting localized name of the brand](/documentation/user/en/query/requirements/examples/fetching/dataInLocales.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with explicit locale
+</NoteTitle>
+
+The query returns the following localized attributes of the `Brand` entity:
+
+<LanguageSpecific to="evitaql,java">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetch with localized attributes](/documentation/user/en/query/requirements/examples/fetching/dataInLocales.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+<MDInclude sourceVariable="data.queryBrand.recordPage">[The result of an entity fetch with localized attributes](/documentation/user/en/query/requirements/examples/fetching/dataInLocales.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetch with localized attributes](/documentation/user/en/query/requirements/examples/fetching/dataInLocales.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+If the `dataInLocales` requirement was not used in the query, accessing the *name* attribute would throw an exception. 
+In the example above, the *name* attribute is accessible in the Czech locale even though the `entityLocaleEquals` filter 
+constraint was not used at all.
+
+</Note>
+
+To demonstrate the second scenario, let's say you want to filter a brand that has a Czech localization, but you want to
+get Czech, German, and English *name* attribute values. The following query will do the job:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+[Getting code and name of the brand in multiple locales](/documentation/user/en/query/requirements/examples/fetching/dataInLocalesWithFilter.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with multiple locales
+</NoteTitle>
+
+The query returns the following localized attributes of the `Brand` entity:
+
+<LanguageSpecific to="evitaql,java">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetch with localized attributes in multiple locales](/documentation/user/en/query/requirements/examples/fetching/dataInLocalesWithFilter.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+<MDInclude sourceVariable="data.queryBrand.recordPage">[The result of an entity fetch with localized attributes in multiple locales](/documentation/user/en/query/requirements/examples/fetching/dataInLocalesWithFilter.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetch with localized attributes in multiple locales](/documentation/user/en/query/requirements/examples/fetching/dataInLocalesWithFilter.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+As you can see the localized attributes are available for the Czech and English locales but not for the German locale.
+The entity is still present in the result, because the filter constraint enforces the Czech locale context, which is
+satisfied by the entity.
+
+</Note>
+
+## Data in locales all
+
+```evitaql-syntax
+dataInLocalesAll()
+```
+
+The `dataInLocalesAll` allows you to retrieve attributes and associated data in all available locales. This is usually 
+useful in scenarios where you are publishing the data from the primary data source and you need to create/update all 
+the data in one go. If you are accessing the data as a client application, you will probably always want to fetch 
+the data in a specific locale, which means you will use the `dataInLocales` requirement with a single locale 
+or `entityLocaleEquals` filtering constraint instead.
+
+To fetch entity in all locales available, use the following query:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+[Getting localized name of the brand](/documentation/user/en/query/requirements/examples/fetching/dataInLocalesAll.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched in all available locales
+</NoteTitle>
+
+The query returns the following localized attributes of the `Brand` entity:
+
+<LanguageSpecific to="evitaql,java">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetch in all available locales](/documentation/user/en/query/requirements/examples/fetching/dataInLocalesAll.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+<MDInclude sourceVariable="data.queryBrand.recordPage">[The result of an entity fetch in all available locales](/documentation/user/en/query/requirements/examples/fetching/dataInLocalesAll.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetch in all available locales](/documentation/user/en/query/requirements/examples/fetching/dataInLocalesAll.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+As you can see, the entity is returned with the Czech and English locales for which the localized attributes or 
+associated data are available.
+
+</Note>
+
 ## Hierarchy content
 ## Price content
 ## Reference content

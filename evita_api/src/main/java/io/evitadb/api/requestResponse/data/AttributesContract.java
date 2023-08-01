@@ -90,6 +90,13 @@ public interface AttributesContract extends Serializable {
 	boolean attributesAvailable();
 
 	/**
+	 * Returns true if entity attributes were fetched in specified locale along with the entity. Calling this method
+	 * before calling any other method that requires attributes to be fetched will allow you to avoid
+	 * {@link ContextMissingException}.
+	 */
+	boolean attributesAvailable(@Nonnull Locale locale);
+
+	/**
 	 * Returns value associated with the key or null when the attribute is missing.
 	 * This method variant differs from {@link #getAttribute(String, Class)} in the sense that it relies on Java local
 	 * variable type inference. It's shorted, but it can't be used on every place. You may safely use in this context:
@@ -101,7 +108,7 @@ public interface AttributesContract extends Serializable {
 	 *
 	 * @throws ClassCastException         when attribute is of different type than expected
 	 * @throws ContextMissingException    when attribute is localized and entity is not related to any {@link Query} or
-	 *                                    the query lacks locale identifier
+	 *                                    the query lacks locale identifier, or the attribute was not fetched at all
 	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 */
 	@Nullable
@@ -116,7 +123,7 @@ public interface AttributesContract extends Serializable {
 	 *
 	 * @throws ClassCastException         when attribute is of different type than expected
 	 * @throws ContextMissingException    when attribute is localized and entity is not related to any {@link Query} or
-	 *                                    the query lacks locale identifier
+	 *                                    the query lacks locale identifier, or the attribute was not fetched at all
 	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 */
 	@Nullable
@@ -132,7 +139,7 @@ public interface AttributesContract extends Serializable {
 	 *
 	 * @throws ClassCastException         when attribute is of different type than expected or is not an array
 	 * @throws ContextMissingException    when attribute is localized and entity is not related to any {@link Query} or
-	 *                                    the query lacks locale identifier
+	 *                                    the query lacks locale identifier, or the attribute was not fetched at all
 	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 */
 	@Nullable
@@ -146,7 +153,7 @@ public interface AttributesContract extends Serializable {
 	 *
 	 * @throws ClassCastException         when attribute is of different type than expected or is not an array
 	 * @throws ContextMissingException    when attribute is localized and entity is not related to any {@link Query} or
-	 *                                    the query lacks locale identifier
+	 *                                    the query lacks locale identifier, or the attribute was not fetched at all
 	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 */
 	@Nullable
@@ -162,6 +169,8 @@ public interface AttributesContract extends Serializable {
 	 * Method returns wrapper dto for the attribute that contains information about the attribute version and state.
 	 *
 	 * @throws AttributeNotFoundException when attribute is not defined in the schema
+	 * @throws ContextMissingException    when attribute is localized and entity is not related to any {@link Query} or
+	 *                                    the query lacks locale identifier, or the attribute was not fetched at all
 	 */
 	@Nonnull
 	Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName) throws AttributeNotFoundException;
@@ -173,6 +182,7 @@ public interface AttributesContract extends Serializable {
 	 *
 	 * @throws ClassCastException         when attribute is of different type than expected
 	 * @throws AttributeNotFoundException when attribute is not defined in the schema
+	 * @throws ContextMissingException    when the query lacks locale identifier, or the attribute was not fetched at all
 	 */
 	@Nullable
 	<T extends Serializable> T getAttribute(@Nonnull String attributeName, @Nonnull Locale locale)
@@ -187,6 +197,7 @@ public interface AttributesContract extends Serializable {
 	 *
 	 * @throws ClassCastException         when attribute is of different type than expected
 	 * @throws AttributeNotFoundException when attribute is not defined in the schema
+	 * @throws ContextMissingException    when the query lacks locale identifier, or the attribute was not fetched at all
 	 */
 	default <T extends Serializable> T getAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nonnull Class<T> expectedType)
 		throws AttributeNotFoundException {
@@ -200,6 +211,7 @@ public interface AttributesContract extends Serializable {
 	 *
 	 * @throws ClassCastException         when attribute is of different type than expected or is not an array
 	 * @throws AttributeNotFoundException when attribute is not defined in the schema
+	 * @throws ContextMissingException    when the query lacks locale identifier, or the attribute was not fetched at all
 	 */
 	@Nullable
 	<T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName, @Nonnull Locale locale)
@@ -214,6 +226,7 @@ public interface AttributesContract extends Serializable {
 	 *
 	 * @throws ClassCastException         when attribute is of different type than expected or is not an array
 	 * @throws AttributeNotFoundException when attribute is not defined in the schema
+	 * @throws ContextMissingException    when the query lacks locale identifier, or the attribute was not fetched at all
 	 */
 	default <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName, @Nonnull Locale locale, @Nonnull Class<T> expectedType)
 		throws AttributeNotFoundException {
@@ -228,6 +241,7 @@ public interface AttributesContract extends Serializable {
 	 * Method returns wrapper dto for the attribute that contains information about the attribute version and state.
 	 *
 	 * @throws AttributeNotFoundException when attribute is not defined in the schema
+	 * @throws ContextMissingException    when the query lacks locale identifier, or the attribute was not fetched at all
 	 */
 	@Nonnull
 	Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName, @Nonnull Locale locale)
@@ -258,6 +272,10 @@ public interface AttributesContract extends Serializable {
 	 * method the safest way how to lookup for attribute if caller doesn't know whether it is localized or not.
 	 *
 	 * Method returns wrapper dto for the attribute that contains information about the attribute version and state.
+	 *
+	 * @throws AttributeNotFoundException when attribute is not defined in the schema
+	 * @throws ContextMissingException    when attribute is localized and entity is not related to any {@link Query} or
+	 *                                    the query lacks locale identifier, or the attribute was not fetched at all
 	 */
 	@Nonnull
 	Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey);
@@ -272,6 +290,10 @@ public interface AttributesContract extends Serializable {
 	/**
 	 * Returns collection of all values of `attributeName` present in this object. This method has usually sense
 	 * only when there is attribute in multiple localizations.
+	 *
+	 * @throws AttributeNotFoundException when attribute is not defined in the schema
+	 * @throws ContextMissingException    when attribute is localized and entity is not related to any {@link Query} or
+	 *                                    the query lacks locale identifier, or the attribute was not fetched at all
 	 */
 	@Nonnull
 	Collection<AttributeValue> getAttributeValues(@Nonnull String attributeName);

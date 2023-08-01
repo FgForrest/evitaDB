@@ -1,0 +1,13 @@
+query(
+    collection('Brand'),
+    filterBy(
+        entityPrimaryKeyInSet(64703),
+        entityLocaleEquals('cs')
+    ),
+    require(
+        entityFetch(
+            attributeContent('code', 'name'),
+            dataInLocales('cs', 'de', 'en')
+        )
+    )
+)

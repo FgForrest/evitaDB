@@ -302,6 +302,11 @@ class InitialAttributesBuilder implements AttributesBuilder {
 	}
 
 	@Override
+	public boolean attributesAvailable(@Nonnull Locale locale) {
+		return true;
+	}
+
+	@Override
 	@Nullable
 	public <T extends Serializable> T getAttribute(@Nonnull String attributeName) {
 		//noinspection unchecked

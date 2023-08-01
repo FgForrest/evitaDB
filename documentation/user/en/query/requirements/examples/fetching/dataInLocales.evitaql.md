@@ -1,4 +1,4 @@
-| entityPrimaryKey | code      | 🇬🇧 name |
+| entityPrimaryKey | code      | 🇨🇿 name |
 | ---------------- | --------- | --------- |
 | 64703            | 'samsung' | 'Samsung' |
 

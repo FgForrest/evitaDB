@@ -374,6 +374,11 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	}
 
 	@Override
+	public boolean attributesAvailable(@Nonnull Locale locale) {
+		return this.baseAttributes.attributesAvailable(locale);
+	}
+
+	@Override
 	@Nullable
 	public <T extends Serializable> T getAttribute(@Nonnull String attributeName) {
 		//noinspection unchecked
