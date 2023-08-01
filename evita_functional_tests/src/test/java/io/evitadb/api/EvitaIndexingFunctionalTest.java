@@ -45,7 +45,9 @@ import java.util.Locale;
 import static io.evitadb.api.EvitaApiFunctionalTest.LOGO;
 import static io.evitadb.api.EvitaApiFunctionalTest.SIEMENS_TITLE;
 import static io.evitadb.api.query.QueryConstraints.associatedDataContent;
+import static io.evitadb.api.query.QueryConstraints.associatedDataContentAll;
 import static io.evitadb.api.query.QueryConstraints.attributeContent;
+import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.test.Entities.BRAND;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
@@ -93,7 +95,7 @@ public class EvitaIndexingFunctionalTest {
 				session.upsertEntity(createBrand(session, 1));
 
 				// change the unique value
-				final SealedEntity theBrand = session.getEntity(BRAND, 1, attributeContent())
+				final SealedEntity theBrand = session.getEntity(BRAND, 1, attributeContentAll())
 					.orElseThrow();
 
 				session.upsertEntity(theBrand.openForWrite().setAttribute(ATTRIBUTE_CODE, "otherCode"));
@@ -117,7 +119,7 @@ public class EvitaIndexingFunctionalTest {
 				session.upsertEntity(createBrand(session, 1));
 
 				// change the unique value
-				final SealedEntity theBrand = session.getEntity(BRAND, 1, attributeContent())
+				final SealedEntity theBrand = session.getEntity(BRAND, 1, attributeContentAll())
 					.orElseThrow();
 				session.deleteEntity(BRAND, theBrand.getPrimaryKey());
 
@@ -163,7 +165,7 @@ public class EvitaIndexingFunctionalTest {
 
 				//some custom logic to load proper entity
 				final SealedEntity entity = session
-					.getEntity("Product", 1, associatedDataContent())
+					.getEntity("Product", 1, associatedDataContentAll())
 					.orElseThrow();
 				//deserialize the associated data
 				assertNotNull(

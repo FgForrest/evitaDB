@@ -25,9 +25,7 @@ package io.evitadb.api.query.require;
 
 import org.junit.jupiter.api.Test;
 
-import static io.evitadb.api.query.QueryConstraints.associatedDataContent;
-import static io.evitadb.api.query.QueryConstraints.attributeContent;
-import static io.evitadb.api.query.QueryConstraints.entityGroupFetch;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -42,14 +40,14 @@ class EntityGroupFetchTest {
 		final EntityGroupFetch entityGroupFetch = entityGroupFetch();
 		assertNotNull(entityGroupFetch);
 
-		final EntityGroupFetch entityGroupFetch2 = entityGroupFetch(attributeContent(), associatedDataContent());
-		assertArrayEquals(new EntityContentRequire[] {attributeContent(), associatedDataContent()}, entityGroupFetch2.getRequirements());
+		final EntityGroupFetch entityGroupFetch2 = entityGroupFetch(attributeContentAll(), associatedDataContentAll());
+		assertArrayEquals(new EntityContentRequire[] {attributeContentAll(), associatedDataContentAll()}, entityGroupFetch2.getRequirements());
 	}
 
 	@Test
 	void shouldRecognizeApplicability() {
 		assertTrue(entityGroupFetch().isApplicable());
-		assertTrue(entityGroupFetch(attributeContent()).isApplicable());
+		assertTrue(entityGroupFetch(attributeContentAll()).isApplicable());
 	}
 
 	@Test
@@ -57,7 +55,7 @@ class EntityGroupFetchTest {
 		final EntityGroupFetch entityGroupFetch = entityGroupFetch();
 		assertEquals("entityGroupFetch()", entityGroupFetch.toString());
 
-		final EntityGroupFetch entityGroupFetch2 = entityGroupFetch(attributeContent());
+		final EntityGroupFetch entityGroupFetch2 = entityGroupFetch(attributeContentAll());
 		assertEquals("entityGroupFetch(attributeContentAll())", entityGroupFetch2.toString());
 	}
 
@@ -66,8 +64,8 @@ class EntityGroupFetchTest {
 		assertNotSame(entityGroupFetch(), entityGroupFetch());
 		assertEquals(entityGroupFetch(), entityGroupFetch());
 		assertEquals(entityGroupFetch().hashCode(), entityGroupFetch().hashCode());
-		assertEquals(entityGroupFetch(attributeContent()), entityGroupFetch(attributeContent()));
-		assertEquals(entityGroupFetch(attributeContent()).hashCode(), entityGroupFetch(attributeContent()).hashCode());
+		assertEquals(entityGroupFetch(attributeContentAll()), entityGroupFetch(attributeContentAll()));
+		assertEquals(entityGroupFetch(attributeContentAll()).hashCode(), entityGroupFetch(attributeContent()).hashCode());
 		assertNotEquals(entityGroupFetch(), entityGroupFetch(attributeContent()));
 		assertNotEquals(entityGroupFetch().hashCode(), entityGroupFetch(attributeContent()).hashCode());
 	}
@@ -80,13 +78,13 @@ class EntityGroupFetchTest {
 		);
 
 		assertEquals(
-			entityGroupFetch(attributeContent("code", "name"), associatedDataContent()),
-			entityGroupFetch(attributeContent("code"), associatedDataContent()).combineWith(entityGroupFetch(attributeContent("name")))
+			entityGroupFetch(attributeContent("code", "name"), associatedDataContentAll()),
+			entityGroupFetch(attributeContent("code"), associatedDataContentAll()).combineWith(entityGroupFetch(attributeContent("name")))
 		);
 
 		assertEquals(
-			entityGroupFetch(attributeContent("code", "name"), associatedDataContent()),
-			entityGroupFetch(attributeContent("code"), associatedDataContent()).combineWith(entityGroupFetch(attributeContent("name")))
+			entityGroupFetch(attributeContent("code", "name"), associatedDataContentAll()),
+			entityGroupFetch(attributeContent("code"), associatedDataContentAll()).combineWith(entityGroupFetch(attributeContent("name")))
 		);
 	}
 }

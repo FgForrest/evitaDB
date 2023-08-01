@@ -350,7 +350,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 								entityPrimaryKeyInSet(1)
 							),
 							require(
-								attributeContent()
+								attributeContentAll()
 							)
 						)
 					)
@@ -400,7 +400,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 								entityPrimaryKeyInSet(1)
 							),
 							require(
-								associatedDataContent()
+								associatedDataContentAll()
 							)
 						)
 					)
@@ -692,7 +692,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						),
 						require(
 							entityFetch(
-								attributeContent()
+								attributeContentAll()
 							)
 						)
 					)
@@ -720,7 +720,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						),
 						require(
 							entityFetch(
-								attributeContent()
+								attributeContentAll()
 							),
 							page(1, 4)
 						)
@@ -762,7 +762,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						),
 						require(
 							entityFetch(
-								attributeContent()
+								attributeContentAll()
 							)
 						)
 					)
@@ -802,7 +802,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						),
 						require(
 							entityFetch(
-								attributeContent(),
+								attributeContentAll(),
 								dataInLocales(LOCALE_CZECH, Locale.ENGLISH)
 							)
 						)
@@ -846,7 +846,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						),
 						require(
 							entityFetch(
-								attributeContent()
+								attributeContentAll()
 							)
 						)
 					)
@@ -880,7 +880,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						),
 						require(
 							entityFetch(
-								associatedDataContent()
+								associatedDataContentAll()
 							)
 						)
 					)
@@ -914,7 +914,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						),
 						require(
 							entityFetch(
-								associatedDataContent()
+								associatedDataContentAll()
 							),
 							page(1, 4)
 						)
@@ -956,7 +956,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						),
 						require(
 							entityFetch(
-								associatedDataContent()
+								associatedDataContentAll()
 							)
 						)
 					)
@@ -995,7 +995,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						),
 						require(
 							entityFetch(
-								associatedDataContent(),
+								associatedDataContentAll(),
 								dataInLocales(LOCALE_CZECH, Locale.ENGLISH)
 							)
 						)
@@ -1570,7 +1570,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				final SealedEntity product = productByPk.getRecordData().get(0);
 				assertProduct(product, entitiesMatchingTheRequirements[0], false, false, false, false);
 
-				final SealedEntity enrichedProduct = session.enrichEntity(product, attributeContent());
+				final SealedEntity enrichedProduct = session.enrichEntity(product, attributeContentAll());
 				assertProduct(enrichedProduct, entitiesMatchingTheRequirements[0], true, false, false, false);
 				return null;
 			}
@@ -1610,7 +1610,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				final SealedEntity product = productByPk.getRecordData().get(0);
 				assertProduct(product, 1, false, false, false, false);
 
-				final SealedEntity enrichedProduct = session.enrichEntity(product, attributeContent());
+				final SealedEntity enrichedProduct = session.enrichEntity(product, attributeContentAll());
 				assertProduct(enrichedProduct, 1, true, false, false, false);
 				assertNotNull(enrichedProduct.getAttribute(ATTRIBUTE_NAME, LOCALE_CZECH));
 				assertEquals((String) enrichedProduct.getAttribute(ATTRIBUTE_NAME, LOCALE_CZECH), enrichedProduct.getAttribute(ATTRIBUTE_NAME));
@@ -1648,7 +1648,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 
 				final SealedEntity product = productByPk.getRecordData().get(0);
 				assertProduct(product, entitiesMatchingTheRequirements[0], false, false, false, false);
-				final SealedEntity enrichedProduct = session.enrichEntity(product, associatedDataContent());
+				final SealedEntity enrichedProduct = session.enrichEntity(product, associatedDataContentAll());
 				assertProduct(enrichedProduct, entitiesMatchingTheRequirements[0], false, true, false, false);
 				return null;
 			}
@@ -1688,7 +1688,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 
 				final SealedEntity product = productByPk.getRecordData().get(0);
 				assertProduct(product, entitiesMatchingTheRequirements[0], false, false, false, false);
-				final SealedEntity enrichedProduct = session.enrichEntity(product, associatedDataContent());
+				final SealedEntity enrichedProduct = session.enrichEntity(product, associatedDataContentAll());
 				assertNotNull(enrichedProduct.getAssociatedData(ASSOCIATED_DATA_LABELS, LOCALE_CZECH));
 				assertEquals(enrichedProduct.getAssociatedDataValue(ASSOCIATED_DATA_LABELS, LOCALE_CZECH), enrichedProduct.getAssociatedDataValue(ASSOCIATED_DATA_LABELS));
 				assertNull(enrichedProduct.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH));
@@ -1731,7 +1731,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				final SealedEntity product = productByPk.getRecordData().get(0);
 				assertProduct(product, entitiesMatchingTheRequirements[0], false, false, false, false);
 
-				final SealedEntity enrichedProduct = session.enrichEntity(product, associatedDataContent());
+				final SealedEntity enrichedProduct = session.enrichEntity(product, associatedDataContentAll());
 				assertNotNull(enrichedProduct.getAssociatedData(ASSOCIATED_DATA_LABELS, LOCALE_CZECH));
 				assertEquals(enrichedProduct.getAssociatedDataValue(ASSOCIATED_DATA_LABELS, LOCALE_CZECH), enrichedProduct.getAssociatedDataValue(ASSOCIATED_DATA_LABELS));
 				assertNull(enrichedProduct.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH));
@@ -2034,13 +2034,13 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				assertFalse(limitedToBodyAndPrices.associatedDataAvailable());
 				assertThrows(ContextMissingException.class, limitedToBodyAndPrices::getAssociatedDataValues);
 
-				final SealedEntity limitedToAttributes = session.enrichOrLimitEntity(product, attributeContent(), dataInLocales());
+				final SealedEntity limitedToAttributes = session.enrichOrLimitEntity(product, attributeContent(), dataInLocalesAll());
 				assertThrows(ContextMissingException.class, limitedToAttributes::getPrices);
 				assertTrue(limitedToAttributes.getAttributeValues().size() > 0);
 				assertFalse(limitedToAttributes.associatedDataAvailable());
 				assertThrows(ContextMissingException.class, limitedToAttributes::getAssociatedDataValues);
 
-				final SealedEntity limitedToAssociatedData = session.enrichOrLimitEntity(product, associatedDataContent(), dataInLocales());
+				final SealedEntity limitedToAssociatedData = session.enrichOrLimitEntity(product, associatedDataContentAll(), dataInLocalesAll());
 				assertThrows(ContextMissingException.class, limitedToAssociatedData::getPrices);
 				assertFalse(limitedToAssociatedData.attributesAvailable());
 				assertThrows(ContextMissingException.class, limitedToAssociatedData::getAttributeValues);
@@ -2085,14 +2085,14 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 										referenceContent(
 											Entities.STORE,
 											entityFetch(attributeContent()),
-											entityGroupFetch(attributeContent(), associatedDataContent())
+											entityGroupFetch(attributeContent(), associatedDataContentAll())
 										)
 									),
 									entityGroupFetch(attributeContent())
 								),
 								referenceContent(
 									Entities.STORE,
-									entityFetch(attributeContent(), associatedDataContent())
+									entityFetch(attributeContent(), associatedDataContentAll())
 								)
 							)
 						)
@@ -2267,14 +2267,14 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 							referenceContent(
 								Entities.STORE,
 								entityFetch(attributeContent()),
-								entityGroupFetch(attributeContent(), associatedDataContent())
+								entityGroupFetch(attributeContent(), associatedDataContentAll())
 							)
 						),
 						entityGroupFetch(attributeContent())
 					),
 					referenceContent(
 						Entities.STORE,
-						entityFetch(attributeContent(), associatedDataContent())
+						entityFetch(attributeContent(), associatedDataContentAll())
 					)
 				);
 
@@ -2371,7 +2371,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 											attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)
 										)
 									),
-									entityFetch(attributeContent(), associatedDataContent())
+									entityFetch(attributeContent(), associatedDataContentAll())
 								)
 							)
 						)
@@ -2480,7 +2480,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 											attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)
 										)
 									),
-									entityFetch(attributeContent(), associatedDataContent())
+									entityFetch(attributeContent(), associatedDataContentAll())
 								)
 							)
 						)
@@ -2653,7 +2653,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 								attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)
 							)
 						),
-						entityFetch(attributeContent(), associatedDataContent())
+						entityFetch(attributeContent(), associatedDataContentAll())
 					)
 				).orElseThrow();
 
@@ -2733,7 +2733,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 									),
 									entityFetch(
 										attributeContent(),
-										associatedDataContent()
+										associatedDataContentAll()
 									)
 								)
 							)
@@ -2840,7 +2840,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 									orderBy(
 										attributeNatural(ATTRIBUTE_CATEGORY_PRIORITY, OrderDirection.DESC)
 									),
-									entityFetch(attributeContent(), associatedDataContent())
+									entityFetch(attributeContent(), associatedDataContentAll())
 								)
 							)
 						)
@@ -2912,14 +2912,14 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 										referenceContent(
 											Entities.STORE,
 											entityFetch(attributeContent()),
-											entityGroupFetch(attributeContent(), associatedDataContent())
+											entityGroupFetch(attributeContent(), associatedDataContentAll())
 										)
 									),
 									entityGroupFetch(attributeContent())
 								),
 								referenceContent(
 									Entities.STORE,
-									entityFetch(attributeContent(), associatedDataContent())
+									entityFetch(attributeContent(), associatedDataContentAll())
 								)
 							)
 						)

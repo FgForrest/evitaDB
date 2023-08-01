@@ -414,7 +414,7 @@ public interface QueryConstraints {
 
 	/**
 	 * This `between` is query that compares value of the attribute with name passed in first argument with the value passed
-	 * in the second argument and value passed in third argument. First argument must be {@link String}, second and third 
+	 * in the second argument and value passed in third argument. First argument must be {@link String}, second and third
 	 * argument may be any of {@link Comparable} type.
 	 * 
 	 * Type of the attribute value and second argument must be convertible one to another otherwise `between` function
@@ -4405,7 +4405,37 @@ public interface QueryConstraints {
 	 * Example that fetches all available global and localized data:
 	 * 
 	 * ```
-	 * dataInLocales()
+	 * dataInLocalesAll()
+	 * ```
+	*/
+	@Nonnull
+	static DataInLocales dataInLocalesAll() {
+		return new DataInLocales();
+	}
+
+	/**
+	 * This `dataInLocales` query is require query that accepts zero or more {@link Locale} arguments. When this
+	 * require query is used, result contains [entity attributes and associated data](../model/entity_model.md)
+	 * localized in required languages as well as global ones. If query contains no argument, global data and data
+	 * localized to all languages are returned. If query is not present in the query, only global attributes and
+	 * associated data are returned.
+	 * 
+	 * **Note:** if {@link EntityLocaleEquals}is used in the filter part of the query and `dataInLanguage`
+	 * require query is missing, the system implicitly uses `dataInLanguage` matching the language in filter query.
+	 * 
+	 * Only single `dataInLanguage` query can be used in the query.
+	 * 
+	 * Example that fetches only global and `en-US` localized attributes and associated data (considering there are multiple
+	 * language localizations):
+	 * 
+	 * ```
+	 * dataInLocales('en-US')
+	 * ```
+	 * 
+	 * Example that fetches all available global and localized data:
+	 * 
+	 * ```
+	 * dataInLocalesAll()
 	 * ```
 	*/
 	@Nonnull
@@ -6355,7 +6385,7 @@ public interface QueryConstraints {
 		return entityFetch(
 			attributeContentAll(), hierarchyContent(),
 			associatedDataContentAll(), priceContentAll(),
-			referenceContentAllWithAttributes(), dataInLocales()
+			referenceContentAllWithAttributes(), dataInLocalesAll()
 		);
 	}
 
@@ -6367,7 +6397,7 @@ public interface QueryConstraints {
 		return entityGroupFetch(
 			attributeContentAll(), hierarchyContent(),
 			associatedDataContentAll(), priceContentAll(),
-			referenceContentAllWithAttributes(), dataInLocales()
+			referenceContentAllWithAttributes(), dataInLocalesAll()
 		);
 	}
 
@@ -6395,7 +6425,7 @@ public interface QueryConstraints {
 	@Nonnull
 	static EntityContentRequire[] entityFetchAllContent() {
 		return new EntityContentRequire[]{
-			hierarchyContent(), attributeContent(), associatedDataContent(), priceContentAll(), referenceContentAllWithAttributes(), dataInLocales()
+			hierarchyContent(), attributeContentAll(), associatedDataContentAll(), priceContentAll(), referenceContentAllWithAttributes(), dataInLocalesAll()
 		};
 	}
 

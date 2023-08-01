@@ -26,6 +26,7 @@ package io.evitadb.api.query.require;
 import org.junit.jupiter.api.Test;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContent;
+import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -37,7 +38,7 @@ class AttributeContentTest {
 
 	@Test
 	void shouldCreateViaFactoryClassWorkAsExpected() {
-		final AttributeContent attributeContent = attributeContent();
+		final AttributeContent attributeContent = attributeContentAll();
 		assertArrayEquals(new String[0], attributeContent.getAttributeNames());
 
 		final AttributeContent attributeContent2 = attributeContent("a", "b");
@@ -46,8 +47,8 @@ class AttributeContentTest {
 
 	@Test
 	void shouldRecognizeApplicability() {
-		assertTrue(attributeContent().isApplicable());
-		assertTrue(attributeContent().isApplicable());
+		assertTrue(attributeContentAll().isApplicable());
+		assertTrue(attributeContentAll().isApplicable());
 		assertTrue(attributeContent("a").isApplicable());
 		assertTrue(attributeContent("a", "b").isApplicable());
 	}
@@ -62,19 +63,19 @@ class AttributeContentTest {
 	void shouldConformToEqualsAndHashContract() {
 		assertNotSame(attributeContent("a", "b"), attributeContent("a", "b"));
 		assertEquals(attributeContent("a", "b"), attributeContent("a", "b"));
-		assertEquals(attributeContent(), attributeContent());
+		assertEquals(attributeContentAll(), attributeContentAll());
 		assertNotEquals(attributeContent("a", "e"), attributeContent("a", "b"));
 		assertNotEquals(attributeContent("a", "e"), attributeContent("a"));
 		assertEquals(attributeContent("a", "b").hashCode(), attributeContent("a", "b").hashCode());
-		assertEquals(attributeContent().hashCode(), attributeContent().hashCode());
+		assertEquals(attributeContentAll().hashCode(), attributeContentAll().hashCode());
 		assertNotEquals(attributeContent("a", "e").hashCode(), attributeContent("a", "b").hashCode());
 		assertNotEquals(attributeContent("a", "e").hashCode(), attributeContent("a").hashCode());
 	}
 
 	@Test
 	void shouldCombineWithAnotherConstraint() {
-		assertEquals(attributeContent(), attributeContent().combineWith(attributeContent("A")));
-		assertEquals(attributeContent(), attributeContent("A").combineWith(attributeContent()));
+		assertEquals(attributeContentAll(), attributeContentAll().combineWith(attributeContent("A")));
+		assertEquals(attributeContentAll(), attributeContent("A").combineWith(attributeContentAll()));
 		assertEquals(attributeContent("A"), attributeContent("A").combineWith(attributeContent("A")));
 		assertEquals(attributeContent("A", "B"), attributeContent("A").combineWith(attributeContent("B")));
 	}

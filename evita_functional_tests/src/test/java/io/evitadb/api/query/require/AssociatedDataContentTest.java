@@ -26,6 +26,7 @@ package io.evitadb.api.query.require;
 import org.junit.jupiter.api.Test;
 
 import static io.evitadb.api.query.QueryConstraints.associatedDataContent;
+import static io.evitadb.api.query.QueryConstraints.associatedDataContentAll;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -37,7 +38,7 @@ class AssociatedDataContentTest {
 
 	@Test
 	void shouldCreateViaFactoryClassWorkAsExpected() {
-		final AssociatedDataContent associatedDataContent = associatedDataContent();
+		final AssociatedDataContent associatedDataContent = associatedDataContentAll();
 		assertArrayEquals(new String[0], associatedDataContent.getAssociatedDataNames());
 
 		final AssociatedDataContent associatedDataContent2 = associatedDataContent("a", "b");
@@ -46,7 +47,7 @@ class AssociatedDataContentTest {
 
 	@Test
 	void shouldRecognizeApplicability() {
-		assertTrue(associatedDataContent().isApplicable());
+		assertTrue(associatedDataContentAll().isApplicable());
 		assertTrue(associatedDataContent("a").isApplicable());
 		assertTrue(associatedDataContent("a", "c").isApplicable());
 	}
@@ -61,19 +62,19 @@ class AssociatedDataContentTest {
 	void shouldConformToEqualsAndHashContract() {
 		assertNotSame(associatedDataContent("a", "b"), associatedDataContent("a", "b"));
 		assertEquals(associatedDataContent("a", "b"), associatedDataContent("a", "b"));
-		assertEquals(associatedDataContent(), associatedDataContent());
+		assertEquals(associatedDataContentAll(), associatedDataContentAll());
 		assertNotEquals(associatedDataContent("a", "b"), associatedDataContent("a", "e"));
 		assertNotEquals(associatedDataContent("a", "b"), associatedDataContent("a"));
 		assertEquals(associatedDataContent("a", "b").hashCode(), associatedDataContent("a", "b").hashCode());
-		assertEquals(associatedDataContent().hashCode(), associatedDataContent().hashCode());
+		assertEquals(associatedDataContentAll().hashCode(), associatedDataContentAll().hashCode());
 		assertNotEquals(associatedDataContent("a", "b").hashCode(), associatedDataContent("a", "e").hashCode());
 		assertNotEquals(associatedDataContent("a", "b").hashCode(), associatedDataContent("a").hashCode());
 	}
 
 	@Test
 	void shouldCombineWithAnotherConstraint() {
-		assertEquals(associatedDataContent(), associatedDataContent().combineWith(associatedDataContent("A")));
-		assertEquals(associatedDataContent(), associatedDataContent("A").combineWith(associatedDataContent()));
+		assertEquals(associatedDataContentAll(), associatedDataContentAll().combineWith(associatedDataContent("A")));
+		assertEquals(associatedDataContentAll(), associatedDataContent("A").combineWith(associatedDataContentAll()));
 		assertEquals(associatedDataContent("A"), associatedDataContent("A").combineWith(associatedDataContent("A")));
 		assertEquals(associatedDataContent("A", "B"), associatedDataContent("A").combineWith(associatedDataContent("B")));
 	}

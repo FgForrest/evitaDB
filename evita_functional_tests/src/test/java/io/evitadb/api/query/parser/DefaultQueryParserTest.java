@@ -153,11 +153,11 @@ class DefaultQueryParserTest {
                 ),
                 require(
                     entityFetch(
-                        attributeContent(),
-                        associatedDataContent(),
+                        attributeContentAll(),
+                        associatedDataContentAll(),
                         priceContentAll(),
                         referenceContentAll(),
-                        dataInLocales()
+                        dataInLocalesAll()
                     )
                 )
             ),
@@ -173,7 +173,7 @@ class DefaultQueryParserTest {
                                     associatedDataContentAll(),
                                     priceContentAll(),
                                     referenceContentAll(),
-                                    dataInLocales()
+                                    dataInLocalesAll()
                          		)
                          	)
                          )
@@ -197,7 +197,7 @@ class DefaultQueryParserTest {
                 collection("a"),
                 filterBy(attributeEqualsTrue("b")),
                 orderBy(random()),
-                require(attributeContent())
+                require(attributeContentAll())
             ),
             parser.parseQueryUnsafe("query(collection('a'),filterBy(attributeEqualsTrue('b')),orderBy(random()),require(attributeContentAll()))")
         );

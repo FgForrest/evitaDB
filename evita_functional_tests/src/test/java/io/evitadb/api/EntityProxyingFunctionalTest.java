@@ -898,20 +898,20 @@ public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctio
 				),
 				require(
 					entityFetch(
-						attributeContent(),
-						associatedDataContent(),
+						attributeContentAll(),
+						associatedDataContentAll(),
 						priceContentAll(),
 						referenceContentAllWithAttributes(
 							entityFetch(
 								hierarchyContent(
 									entityFetchAll()
 								),
-								attributeContent(),
-								associatedDataContent()
+								attributeContentAll(),
+								associatedDataContentAll()
 							),
 							entityGroupFetch(
-								attributeContent(),
-								associatedDataContent()
+								attributeContentAll(),
+								associatedDataContentAll()
 							)
 						)
 					)
@@ -947,20 +947,20 @@ public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctio
 		final Optional<ProductInterface> productRef = evitaSession.getEntity(
 			ProductInterface.class,
 			theProduct.getPrimaryKey(),
-			attributeContent(),
-			associatedDataContent(),
+			attributeContentAll(),
+			associatedDataContentAll(),
 			priceContentAll(),
 			referenceContentAllWithAttributes(
 				entityFetch(
 					hierarchyContent(
 						entityFetchAll()
 					),
-					attributeContent(),
-					associatedDataContent()
+					attributeContentAll(),
+					associatedDataContentAll()
 				),
 				entityGroupFetchAll()
 			),
-			dataInLocales()
+			dataInLocalesAll()
 		);
 
 		assertProduct(
