@@ -1343,14 +1343,31 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return price for products outside of filter")
-	@Disabled("TODO LHO: should not return price for products outside of filter")
-	void shouldReturnPriceForProductsOutsideOfFilter(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+//	@Disabled("TODO LHO: should not return price for products outside of filter")
+	void shouldReturnPriceForProductsOutsideOfFilter(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrices(originalProductEntities, 2, PRICE_LIST_BASIC, CURRENCY_CZK, CURRENCY_EUR);
 
 		final var expectedBody = createBasicPageResponse(
 			entities,
 			it -> createEntityDtoWithPrice(it, CURRENCY_USD, PRICE_LIST_BASIC)
 		);
+
+		queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					attributeInSet(ATTRIBUTE_CODE, null),
+					priceInCurrency(CURRENCY_CZK),
+					priceInPriceLists(PRICE_LIST_BASIC)
+				),
+				require(
+					entityFetch(
+						priceContentAll()
+					)
+				)
+			)
+		)
 
 		tester.test(TEST_CATALOG)
 			.document(
