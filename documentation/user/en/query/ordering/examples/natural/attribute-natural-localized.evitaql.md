@@ -1,4 +1,4 @@
-| entityPrimaryKey | name                   |
+| entityPrimaryKey | 🇨🇿 name              |
 | ---------------- | ---------------------- |
 | 103885           | 'Alcatel 3T 10 (2020)' |
 | 103911           | 'Apple iPad 10'        |
