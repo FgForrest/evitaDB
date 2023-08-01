@@ -1,7 +1,6 @@
 ```json
 [
   {
-    "parentPrimaryKey" : null,
     "level" : 1,
     "entity" : {
       "primaryKey" : 66480,
@@ -11,11 +10,9 @@
       }
     },
     "queriedEntityCount" : 10,
-    "childrenCount" : 0,
-    "hasChildren" : false
+    "childrenCount" : 0
   },
   {
-    "parentPrimaryKey" : null,
     "level" : 1,
     "entity" : {
       "primaryKey" : 66481,
@@ -25,11 +22,9 @@
       }
     },
     "queriedEntityCount" : 285,
-    "childrenCount" : 3,
-    "hasChildren" : false
+    "childrenCount" : 3
   },
   {
-    "parentPrimaryKey" : null,
     "level" : 1,
     "entity" : {
       "primaryKey" : 66482,
@@ -39,11 +34,9 @@
       }
     },
     "queriedEntityCount" : 116,
-    "childrenCount" : 4,
-    "hasChildren" : false
+    "childrenCount" : 4
   },
   {
-    "parentPrimaryKey" : null,
     "level" : 1,
     "entity" : {
       "primaryKey" : 66483,
@@ -53,11 +46,9 @@
       }
     },
     "queriedEntityCount" : 50,
-    "childrenCount" : 0,
-    "hasChildren" : false
+    "childrenCount" : 0
   },
   {
-    "parentPrimaryKey" : null,
     "level" : 1,
     "entity" : {
       "primaryKey" : 66484,
@@ -67,11 +58,9 @@
       }
     },
     "queriedEntityCount" : 20,
-    "childrenCount" : 1,
-    "hasChildren" : false
+    "childrenCount" : 1
   },
   {
-    "parentPrimaryKey" : null,
     "level" : 1,
     "entity" : {
       "primaryKey" : 66537,
@@ -81,8 +70,7 @@
       }
     },
     "queriedEntityCount" : 20,
-    "childrenCount" : 0,
-    "hasChildren" : false
+    "childrenCount" : 0
   }
 ]
 ```

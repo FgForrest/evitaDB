@@ -1,7 +1,6 @@
 ```json
 [
   {
-    "parentPrimaryKey" : null,
     "level" : 1,
     "entity" : {
       "primaryKey" : 66466,
@@ -9,11 +8,9 @@
       "attributes" : {
         "code" : "portables"
       }
-    },
-    "hasChildren" : true
+    }
   },
   {
-    "parentPrimaryKey" : 66466,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66471,
@@ -21,11 +18,9 @@
       "attributes" : {
         "code" : "phones"
       }
-    },
-    "hasChildren" : false
+    }
   },
   {
-    "parentPrimaryKey" : 66466,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66472,
@@ -33,11 +28,9 @@
       "attributes" : {
         "code" : "tablets"
       }
-    },
-    "hasChildren" : false
+    }
   },
   {
-    "parentPrimaryKey" : 66466,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66473,
@@ -45,11 +38,9 @@
       "attributes" : {
         "code" : "e-readers"
       }
-    },
-    "hasChildren" : false
+    }
   },
   {
-    "parentPrimaryKey" : null,
     "level" : 1,
     "entity" : {
       "primaryKey" : 66467,
@@ -57,11 +48,9 @@
       "attributes" : {
         "code" : "laptops"
       }
-    },
-    "hasChildren" : true
+    }
   },
   {
-    "parentPrimaryKey" : 66467,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66474,
@@ -69,11 +58,9 @@
       "attributes" : {
         "code" : "netbooks"
       }
-    },
-    "hasChildren" : false
+    }
   },
   {
-    "parentPrimaryKey" : 66467,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66475,
@@ -81,11 +68,9 @@
       "attributes" : {
         "code" : "ultrabooks"
       }
-    },
-    "hasChildren" : false
+    }
   },
   {
-    "parentPrimaryKey" : 66467,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66476,
@@ -93,11 +78,9 @@
       "attributes" : {
         "code" : "gaming"
       }
-    },
-    "hasChildren" : false
+    }
   },
   {
-    "parentPrimaryKey" : 66467,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66477,
@@ -105,11 +88,9 @@
       "attributes" : {
         "code" : "workstations"
       }
-    },
-    "hasChildren" : false
+    }
   },
   {
-    "parentPrimaryKey" : 66467,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66478,
@@ -117,11 +98,9 @@
       "attributes" : {
         "code" : "touch"
       }
-    },
-    "hasChildren" : false
+    }
   },
   {
-    "parentPrimaryKey" : 66467,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66479,
@@ -129,11 +108,9 @@
       "attributes" : {
         "code" : "macbooks"
       }
-    },
-    "hasChildren" : false
+    }
   },
   {
-    "parentPrimaryKey" : null,
     "level" : 1,
     "entity" : {
       "primaryKey" : 66468,
@@ -141,11 +118,9 @@
       "attributes" : {
         "code" : "accessories"
       }
-    },
-    "hasChildren" : true
+    }
   },
   {
-    "parentPrimaryKey" : 66468,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66480,
@@ -153,11 +128,9 @@
       "attributes" : {
         "code" : "christmas-electronics"
       }
-    },
-    "hasChildren" : false
+    }
   },
   {
-    "parentPrimaryKey" : 66468,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66481,
@@ -165,11 +138,9 @@
       "attributes" : {
         "code" : "smart-wearable"
       }
-    },
-    "hasChildren" : false
+    }
   },
   {
-    "parentPrimaryKey" : 66468,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66482,
@@ -177,11 +148,9 @@
       "attributes" : {
         "code" : "audio"
       }
-    },
-    "hasChildren" : false
+    }
   },
   {
-    "parentPrimaryKey" : 66468,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66483,
@@ -189,11 +158,9 @@
       "attributes" : {
         "code" : "monitors"
       }
-    },
-    "hasChildren" : false
+    }
   },
   {
-    "parentPrimaryKey" : 66468,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66484,
@@ -201,11 +168,9 @@
       "attributes" : {
         "code" : "keyboards"
       }
-    },
-    "hasChildren" : false
+    }
   },
   {
-    "parentPrimaryKey" : 66468,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66537,
@@ -213,11 +178,9 @@
       "attributes" : {
         "code" : "mouses"
       }
-    },
-    "hasChildren" : false
+    }
   },
   {
-    "parentPrimaryKey" : null,
     "level" : 1,
     "entity" : {
       "primaryKey" : 66469,
@@ -225,11 +188,9 @@
       "attributes" : {
         "code" : "vouchers"
       }
-    },
-    "hasChildren" : true
+    }
   },
   {
-    "parentPrimaryKey" : 66469,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66493,
@@ -237,11 +198,9 @@
       "attributes" : {
         "code" : "vouchers-for-shareholders"
       }
-    },
-    "hasChildren" : false
+    }
   },
   {
-    "parentPrimaryKey" : null,
     "level" : 1,
     "entity" : {
       "primaryKey" : 66470,
@@ -249,8 +208,7 @@
       "attributes" : {
         "code" : "prepared-products"
       }
-    },
-    "hasChildren" : false
+    }
   }
 ]
 ```

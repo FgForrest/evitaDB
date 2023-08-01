@@ -1,7 +1,6 @@
 ```json
 [
   {
-    "parentPrimaryKey" : null,
     "level" : 1,
     "entity" : {
       "primaryKey" : 66466,
@@ -11,11 +10,9 @@
       }
     },
     "queriedEntityCount" : 1396,
-    "childrenCount" : 3,
-    "hasChildren" : true
+    "childrenCount" : 3
   },
   {
-    "parentPrimaryKey" : 66466,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66471,
@@ -25,11 +22,9 @@
       }
     },
     "queriedEntityCount" : 977,
-    "childrenCount" : 0,
-    "hasChildren" : false
+    "childrenCount" : 0
   },
   {
-    "parentPrimaryKey" : 66466,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66472,
@@ -39,11 +34,9 @@
       }
     },
     "queriedEntityCount" : 378,
-    "childrenCount" : 0,
-    "hasChildren" : false
+    "childrenCount" : 0
   },
   {
-    "parentPrimaryKey" : 66466,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66473,
@@ -53,11 +46,9 @@
       }
     },
     "queriedEntityCount" : 41,
-    "childrenCount" : 0,
-    "hasChildren" : false
+    "childrenCount" : 0
   },
   {
-    "parentPrimaryKey" : null,
     "level" : 1,
     "entity" : {
       "primaryKey" : 66467,
@@ -67,11 +58,9 @@
       }
     },
     "queriedEntityCount" : 2314,
-    "childrenCount" : 6,
-    "hasChildren" : true
+    "childrenCount" : 6
   },
   {
-    "parentPrimaryKey" : 66467,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66474,
@@ -81,11 +70,9 @@
       }
     },
     "queriedEntityCount" : 86,
-    "childrenCount" : 0,
-    "hasChildren" : false
+    "childrenCount" : 0
   },
   {
-    "parentPrimaryKey" : 66467,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66475,
@@ -95,11 +82,9 @@
       }
     },
     "queriedEntityCount" : 291,
-    "childrenCount" : 0,
-    "hasChildren" : false
+    "childrenCount" : 0
   },
   {
-    "parentPrimaryKey" : 66467,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66476,
@@ -109,11 +94,9 @@
       }
     },
     "queriedEntityCount" : 105,
-    "childrenCount" : 0,
-    "hasChildren" : false
+    "childrenCount" : 0
   },
   {
-    "parentPrimaryKey" : 66467,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66477,
@@ -123,11 +106,9 @@
       }
     },
     "queriedEntityCount" : 89,
-    "childrenCount" : 0,
-    "hasChildren" : false
+    "childrenCount" : 0
   },
   {
-    "parentPrimaryKey" : 66467,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66478,
@@ -137,11 +118,9 @@
       }
     },
     "queriedEntityCount" : 55,
-    "childrenCount" : 0,
-    "hasChildren" : false
+    "childrenCount" : 0
   },
   {
-    "parentPrimaryKey" : 66467,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66479,
@@ -151,11 +130,9 @@
       }
     },
     "queriedEntityCount" : 92,
-    "childrenCount" : 0,
-    "hasChildren" : false
+    "childrenCount" : 0
   },
   {
-    "parentPrimaryKey" : null,
     "level" : 1,
     "entity" : {
       "primaryKey" : 66468,
@@ -165,11 +142,9 @@
       }
     },
     "queriedEntityCount" : 501,
-    "childrenCount" : 6,
-    "hasChildren" : true
+    "childrenCount" : 6
   },
   {
-    "parentPrimaryKey" : 66468,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66480,
@@ -179,11 +154,9 @@
       }
     },
     "queriedEntityCount" : 10,
-    "childrenCount" : 0,
-    "hasChildren" : false
+    "childrenCount" : 0
   },
   {
-    "parentPrimaryKey" : 66468,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66481,
@@ -193,11 +166,9 @@
       }
     },
     "queriedEntityCount" : 285,
-    "childrenCount" : 3,
-    "hasChildren" : false
+    "childrenCount" : 3
   },
   {
-    "parentPrimaryKey" : 66468,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66482,
@@ -207,11 +178,9 @@
       }
     },
     "queriedEntityCount" : 116,
-    "childrenCount" : 4,
-    "hasChildren" : false
+    "childrenCount" : 4
   },
   {
-    "parentPrimaryKey" : 66468,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66483,
@@ -221,11 +190,9 @@
       }
     },
     "queriedEntityCount" : 50,
-    "childrenCount" : 0,
-    "hasChildren" : false
+    "childrenCount" : 0
   },
   {
-    "parentPrimaryKey" : 66468,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66484,
@@ -235,11 +202,9 @@
       }
     },
     "queriedEntityCount" : 20,
-    "childrenCount" : 1,
-    "hasChildren" : false
+    "childrenCount" : 1
   },
   {
-    "parentPrimaryKey" : 66468,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66537,
@@ -249,11 +214,9 @@
       }
     },
     "queriedEntityCount" : 20,
-    "childrenCount" : 0,
-    "hasChildren" : false
+    "childrenCount" : 0
   },
   {
-    "parentPrimaryKey" : null,
     "level" : 1,
     "entity" : {
       "primaryKey" : 66469,
@@ -263,11 +226,9 @@
       }
     },
     "queriedEntityCount" : 12,
-    "childrenCount" : 1,
-    "hasChildren" : true
+    "childrenCount" : 1
   },
   {
-    "parentPrimaryKey" : 66469,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66493,
@@ -277,11 +238,9 @@
       }
     },
     "queriedEntityCount" : 6,
-    "childrenCount" : 0,
-    "hasChildren" : false
+    "childrenCount" : 0
   },
   {
-    "parentPrimaryKey" : null,
     "level" : 1,
     "entity" : {
       "primaryKey" : 66470,
@@ -291,8 +250,7 @@
       }
     },
     "queriedEntityCount" : 92,
-    "childrenCount" : 0,
-    "hasChildren" : false
+    "childrenCount" : 0
   }
 ]
 ```
