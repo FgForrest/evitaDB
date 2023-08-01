@@ -26,15 +26,7 @@ package io.evitadb.test.client.query.graphql;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.require.AttributeContent;
-import io.evitadb.api.query.require.EntityContentRequire;
-import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.api.query.require.EntityFetchRequire;
-import io.evitadb.api.query.require.EntityGroupFetch;
-import io.evitadb.api.query.require.PriceContent;
-import io.evitadb.api.query.require.PriceContentMode;
-import io.evitadb.api.query.require.ReferenceContent;
-import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
+import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -68,6 +60,7 @@ public class EntityFetchConverter extends RequireConverter {
 
 	private static final Set<Class<? extends Constraint<RequireConstraint>>> SUPPORTED_CHILDREN = Set.of(
 		AttributeContent.class,
+		AssociatedDataContent.class,
 		PriceContent.class,
 		ReferenceContent.class
 	);
@@ -99,6 +92,7 @@ public class EntityFetchConverter extends RequireConverter {
 		}
 
 		convertAttributeContent(fieldsBuilder, locale, entityFetch, entitySchema.get());
+		convertAssociatedDataContent(fieldsBuilder, locale, entityFetch, entitySchema.get());
 		convertPriceContent(fieldsBuilder, locale, entityFetch);
 		convertReferenceContents(fieldsBuilder, entityType, locale, entityFetch, entitySchema.get());
 	}
@@ -131,6 +125,40 @@ public class EntityFetchConverter extends RequireConverter {
 				attributesBuilder -> {
 					for (String attributeName : attributeNames) {
 						attributesBuilder.addPrimitiveField(StringUtils.toCamelCase(attributeName));
+					}
+				}
+			);
+		}
+	}
+
+	private static void convertAssociatedDataContent(@Nonnull GraphQLOutputFieldsBuilder entityFieldsBuilder,
+	                                                 @Nullable Locale locale,
+	                                                 @Nonnull EntityFetchRequire entityFetch,
+	                                                 @Nonnull EntitySchemaContract entitySchema) {
+		final AssociatedDataContent associatedDataContent = QueryUtils.findConstraint(entityFetch, AssociatedDataContent.class, SeparateEntityContentRequireContainer.class);
+		if (associatedDataContent != null) {
+			final String[] associatedDataNames;
+			if (associatedDataContent.getAssociatedDataNames().length > 0) {
+				associatedDataNames = associatedDataContent.getAssociatedDataNames();
+			} else {
+				associatedDataNames = entitySchema.getAssociatedData()
+					.values()
+					.stream()
+					.filter(it -> {
+						if (!it.isLocalized()) {
+							return true;
+						}
+						return locale != null;
+					})
+					.map(it -> it.getNameVariant(ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION))
+					.toArray(String[]::new);
+			}
+
+			entityFieldsBuilder.addObjectField(
+				EntityDescriptor.ASSOCIATED_DATA,
+				associatedDataBuilder -> {
+					for (String associatedDataName : associatedDataNames) {
+						associatedDataBuilder.addPrimitiveField(StringUtils.toCamelCase(associatedDataName));
 					}
 				}
 			);
