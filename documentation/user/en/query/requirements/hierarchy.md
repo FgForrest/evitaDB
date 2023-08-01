@@ -56,11 +56,34 @@ These top hierarchy requirements must have at least one of the following hierarc
 
 #### Constraint to result association
 
+<LanguageSpecific to="evitaql,java,rest">
 There can be multiple sub-constraints, and each constraint can be duplicated (usually with different settings).
 Each hierarchy sub-constraint defines a [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) 
 argument with a named value that allows to associate the request constraint with the computed result data structure
 in <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass>
 extra result.
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+There can be multiple sub-requirements, and each requirement can be duplicated (usually with different settings), but in
+such case, each requirement must be aliased with unique name (see examples below). Each such sub-requirements then returns
+a list of hierarchy tree nodes.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Result hierarchy tree structure
+</NoteTitle>
+
+In GraphQL, returning tree data structures of unknown depth is problematic and cannot be solved in developer-friendly way.
+That's why we opted for a solution where the tree is returned as a flat list of nodes. Each node contains information
+about its depth level in the original tree, so that the tree can be reconstructed on the client side.
+
+Note that the list of nodes is sorted in [depth-first](https://en.wikipedia.org/wiki/Depth-first_search) order, which 
+can be used to simplify the reconstruction of the tree on the client side.
+
+</Note>
+</LanguageSpecific>
 
 <Note type="info">
 
@@ -77,8 +100,13 @@ returns menu items that contain direct children of the *Audio* category and its 
 [Hierarchy request association](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-data-structure-association.java)
 </SourceCodeTabs>
 
+<LanguageSpecific to="evitaql,java,rest">
 Both menu components are stored in the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass>
 extra result data structure and are available under the labels that correspond to those used in request constraints.
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+Using the custom aliases for hierarchies, you can easily create custom menu data structures.
+</LanguageSpecific>
 
 <LanguageSpecific to="evitaql,java">
 
