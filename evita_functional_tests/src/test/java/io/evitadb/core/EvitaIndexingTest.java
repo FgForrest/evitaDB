@@ -550,7 +550,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity entity = session.getEntity(Entities.PRODUCT, 1, dataInLocales())
+				final SealedEntity entity = session.getEntity(Entities.PRODUCT, 1, dataInLocalesAll())
 					.orElseThrow();
 
 				final Set<Locale> locales = entity.getLocales();
@@ -566,7 +566,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocales())
+				session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocalesAll())
 					.orElseThrow()
 					.openForWrite()
 					.removeAttribute(ATTRIBUTE_NAME, Locale.ENGLISH)
@@ -577,7 +577,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity entity = session.getEntity(Entities.PRODUCT, 1, dataInLocales())
+				final SealedEntity entity = session.getEntity(Entities.PRODUCT, 1, dataInLocalesAll())
 					.orElseThrow();
 
 				final Set<Locale> locales = entity.getLocales();
@@ -624,7 +624,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity entity = session.getEntity(Entities.PRODUCT, 1, dataInLocales())
+				final SealedEntity entity = session.getEntity(Entities.PRODUCT, 1, dataInLocalesAll())
 					.orElseThrow();
 
 				final Set<Locale> locales = entity.getLocales();
@@ -644,7 +644,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				session.getEntity(Entities.PRODUCT, 1, referenceContentAll(), dataInLocales())
+				session.getEntity(Entities.PRODUCT, 1, referenceContentAll(), dataInLocalesAll())
 					.orElseThrow()
 					.openForWrite()
 					.setReference(Entities.BRAND, 1, thatIs -> thatIs
@@ -657,7 +657,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity entity = session.getEntity(Entities.PRODUCT, 1, dataInLocales())
+				final SealedEntity entity = session.getEntity(Entities.PRODUCT, 1, dataInLocalesAll())
 					.orElseThrow();
 
 				final Set<Locale> locales = entity.getLocales();
@@ -676,7 +676,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				session.getEntity(Entities.PRODUCT, 1, referenceContentAll(), dataInLocales())
+				session.getEntity(Entities.PRODUCT, 1, referenceContentAll(), dataInLocalesAll())
 					.orElseThrow()
 					.openForWrite()
 					.removeReference(Entities.BRAND, 3)
@@ -687,7 +687,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity entity = session.getEntity(Entities.PRODUCT, 1, dataInLocales())
+				final SealedEntity entity = session.getEntity(Entities.PRODUCT, 1, dataInLocalesAll())
 					.orElseThrow();
 
 				final Set<Locale> locales = entity.getLocales();
@@ -722,7 +722,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity entity = session.getEntity(Entities.PRODUCT, 1, dataInLocales())
+				final SealedEntity entity = session.getEntity(Entities.PRODUCT, 1, dataInLocalesAll())
 					.orElseThrow();
 
 				final Set<Locale> locales = entity.getLocales();
@@ -738,7 +738,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				session.getEntity(Entities.PRODUCT, 1, associatedDataContent(), dataInLocales())
+				session.getEntity(Entities.PRODUCT, 1, associatedDataContentAll(), dataInLocalesAll())
 					.orElseThrow()
 					.openForWrite()
 					.removeAssociatedData(ATTRIBUTE_NAME, Locale.ENGLISH)
@@ -749,7 +749,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity entity = session.getEntity(Entities.PRODUCT, 1, dataInLocales())
+				final SealedEntity entity = session.getEntity(Entities.PRODUCT, 1, dataInLocalesAll())
 					.orElseThrow();
 
 				final Set<Locale> locales = entity.getLocales();
@@ -801,7 +801,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocales(), referenceContentAll())
+				final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocalesAll(), referenceContentAll())
 					.orElseThrow();
 
 				assertEquals("01", product.getAttribute(ATTRIBUTE_EAN));
@@ -842,7 +842,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocales(), referenceContentAll())
+				final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocalesAll(), referenceContentAll())
 					.orElseThrow();
 
 				assertEquals("A", product.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
@@ -859,7 +859,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
-						session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocales(), referenceContentAll())
+						session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocalesAll(), referenceContentAll())
 							.orElseThrow()
 							.openForWrite()
 							.removeAttribute(ATTRIBUTE_DESCRIPTION, Locale.FRENCH)
@@ -872,7 +872,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocales(), referenceContentAll())
+				session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocalesAll(), referenceContentAll())
 					.orElseThrow()
 					.openForWrite()
 					.removeAttribute(ATTRIBUTE_NAME, Locale.FRENCH)
@@ -884,7 +884,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocales(), referenceContentAll())
+				final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocalesAll(), referenceContentAll())
 					.orElseThrow();
 
 				assertEquals("A", product.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
@@ -995,7 +995,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				TEST_CATALOG,
 				session -> {
 					session
-						.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocales(), referenceContentAll())
+						.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocalesAll(), referenceContentAll())
 						.orElseThrow()
 						.openForWrite()
 						.removeAttribute(ATTRIBUTE_EAN)
@@ -1091,7 +1091,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				TEST_CATALOG,
 				session -> {
 					session
-						.getEntity(Entities.PRODUCT, 1, associatedDataContent(), dataInLocales())
+						.getEntity(Entities.PRODUCT, 1, associatedDataContentAll(), dataInLocalesAll())
 						.orElseThrow()
 						.openForWrite()
 						.removeAssociatedData(ATTRIBUTE_EAN)
@@ -1649,7 +1649,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				assertNull(globalIndex.getSortIndex(new AttributeKey(attributeCodeEan)));
 				assertNull(globalIndex.getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH)));
 
-				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), dataInLocales())
+				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), dataInLocalesAll())
 					.orElseThrow()
 					.openForWrite()
 					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "The product")
@@ -1664,7 +1664,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 				assertArrayEquals(new int[] {1}, englishSortIndex.getRecordsEqualTo(new Comparable<?>[] {"ABC", null}).getArray());
 
-				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), dataInLocales())
+				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), dataInLocalesAll())
 					.orElseThrow()
 					.openForWrite()
 					.setAttribute(ATTRIBUTE_EAN, Locale.CANADA, "123")
@@ -1695,7 +1695,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				final String attributeCodeEan = ATTRIBUTE_CODE + StringUtils.capitalize(ATTRIBUTE_EAN);
-				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), dataInLocales())
+				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), dataInLocalesAll())
 					.orElseThrow()
 					.openForWrite()
 					.setAttribute(ATTRIBUTE_EAN, Locale.CANADA, "578")
@@ -1729,7 +1729,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			session -> {
 				final String attributeCodeEan = ATTRIBUTE_CODE + StringUtils.capitalize(ATTRIBUTE_EAN);
 
-				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), dataInLocales())
+				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), dataInLocalesAll())
 					.orElseThrow()
 					.openForWrite()
 					.removeAttribute(ATTRIBUTE_NAME, Locale.ENGLISH)
@@ -1752,7 +1752,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				assertNotNull(canadianSortIndex);
 				assertArrayEquals(new int[] {1}, canadianSortIndex.getRecordsEqualTo(new Comparable<?>[] {"ABC", "123"}).getArray());
 
-				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), dataInLocales())
+				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), dataInLocalesAll())
 					.orElseThrow()
 					.openForWrite()
 					.removeAttribute(ATTRIBUTE_EAN, Locale.CANADA)
@@ -2054,7 +2054,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					assertArrayEquals(new int[] {1}, sortIndex.getRecordsEqualTo(expected).getArray());
 				};
 
-				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocales())
+				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocalesAll())
 					.orElseThrow()
 					.openForWrite()
 					.setReference(Entities.CATEGORY, 10, whichIs -> whichIs
@@ -2068,7 +2068,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				verifyIndexContents.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Comparable<?>[] {null, null});
 				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), Locale.CANADA, new Comparable<?>[] {null, null});
 
-				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocales())
+				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocalesAll())
 					.orElseThrow()
 					.openForWrite()
 					.setReference(Entities.CATEGORY, 10, whichIs -> whichIs
@@ -2106,7 +2106,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					assertArrayEquals(new int[] {1}, sortIndex.getRecordsEqualTo(expected).getArray());
 				};
 
-				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocales())
+				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocalesAll())
 					.orElseThrow()
 					.openForWrite()
 					.setReference(
@@ -2143,7 +2143,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			session -> {
 				final String attributeCodeEan = ATTRIBUTE_CODE + StringUtils.capitalize(ATTRIBUTE_EAN);
 
-				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocales())
+				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocalesAll())
 					.orElseThrow()
 					.openForWrite()
 					.setReference(Entities.CATEGORY, 10, whichIs -> whichIs
@@ -2160,7 +2160,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				assertNull(getHierarchyIndex(productCollection, Entities.CATEGORY, 10).getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH)));
 				assertNotNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 20).getSortIndex(new AttributeKey(attributeCodeEan, Locale.CANADA)));
 
-				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocales())
+				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocalesAll())
 					.orElseThrow()
 					.openForWrite()
 					.setReference(Entities.BRAND, 20, whichIs -> whichIs

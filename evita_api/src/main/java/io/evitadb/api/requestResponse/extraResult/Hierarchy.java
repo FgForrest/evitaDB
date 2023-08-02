@@ -69,7 +69,7 @@ import static java.util.Optional.ofNullable;
  *     ),
  *     require(
  *         page(1, 20),
- *         hierarchyStatisticsOfReference('categories', entityFetch(attributeContent()))
+ *         hierarchyStatisticsOfReference('categories', entityFetch(attributeContentAll()))
  *     )
  * )
  * </pre>

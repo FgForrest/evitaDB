@@ -25,9 +25,7 @@ package io.evitadb.api.query.require;
 
 import org.junit.jupiter.api.Test;
 
-import static io.evitadb.api.query.QueryConstraints.associatedDataContent;
-import static io.evitadb.api.query.QueryConstraints.attributeContent;
-import static io.evitadb.api.query.QueryConstraints.entityFetch;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -42,14 +40,14 @@ class EntityFetchTest {
 		final EntityFetch entityFetch = entityFetch();
 		assertNotNull(entityFetch);
 
-		final EntityFetch entityFetch2 = entityFetch(attributeContent(), associatedDataContent());
-		assertArrayEquals(new EntityContentRequire[] {attributeContent(), associatedDataContent()}, entityFetch2.getRequirements());
+		final EntityFetch entityFetch2 = entityFetch(attributeContentAll(), associatedDataContentAll());
+		assertArrayEquals(new EntityContentRequire[] {attributeContentAll(), associatedDataContentAll()}, entityFetch2.getRequirements());
 	}
 
 	@Test
 	void shouldRecognizeApplicability() {
 		assertTrue(entityFetch().isApplicable());
-		assertTrue(entityFetch(attributeContent()).isApplicable());
+		assertTrue(entityFetch(attributeContentAll()).isApplicable());
 	}
 
 	@Test
@@ -57,7 +55,7 @@ class EntityFetchTest {
 		final EntityFetch entityFetch = entityFetch();
 		assertEquals("entityFetch()", entityFetch.toString());
 
-		final EntityFetch entityFetch2 = entityFetch(attributeContent());
+		final EntityFetch entityFetch2 = entityFetch(attributeContentAll());
 		assertEquals("entityFetch(attributeContentAll())", entityFetch2.toString());
 	}
 
@@ -66,10 +64,10 @@ class EntityFetchTest {
 		assertNotSame(entityFetch(), entityFetch());
 		assertEquals(entityFetch(), entityFetch());
 		assertEquals(entityFetch().hashCode(), entityFetch().hashCode());
-		assertEquals(entityFetch(attributeContent()), entityFetch(attributeContent()));
-		assertEquals(entityFetch(attributeContent()).hashCode(), entityFetch(attributeContent()).hashCode());
-		assertNotEquals(entityFetch(), entityFetch(attributeContent()));
-		assertNotEquals(entityFetch().hashCode(), entityFetch(attributeContent()).hashCode());
+		assertEquals(entityFetch(attributeContentAll()), entityFetch(attributeContentAll()));
+		assertEquals(entityFetch(attributeContentAll()).hashCode(), entityFetch(attributeContentAll()).hashCode());
+		assertNotEquals(entityFetch(), entityFetch(attributeContentAll()));
+		assertNotEquals(entityFetch().hashCode(), entityFetch(attributeContentAll()).hashCode());
 	}
 
 	@Test
@@ -80,13 +78,13 @@ class EntityFetchTest {
 		);
 
 		assertEquals(
-			entityFetch(attributeContent("code", "name"), associatedDataContent()),
-			entityFetch(attributeContent("code"), associatedDataContent()).combineWith(entityFetch(attributeContent("name")))
+			entityFetch(attributeContent("code", "name"), associatedDataContentAll()),
+			entityFetch(attributeContent("code"), associatedDataContentAll()).combineWith(entityFetch(attributeContent("name")))
 		);
 
 		assertEquals(
-			entityFetch(attributeContent("code", "name"), associatedDataContent()),
-			entityFetch(attributeContent("code"), associatedDataContent()).combineWith(entityFetch(attributeContent("name")))
+			entityFetch(attributeContent("code", "name"), associatedDataContentAll()),
+			entityFetch(attributeContent("code"), associatedDataContentAll()).combineWith(entityFetch(attributeContent("name")))
 		);
 	}
 }

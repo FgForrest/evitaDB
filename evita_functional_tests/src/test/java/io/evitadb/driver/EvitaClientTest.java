@@ -793,7 +793,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 									associatedDataContentAll(),
 									priceContentAll(),
 									referenceContentAll(),
-									dataInLocales()
+									dataInLocalesAll()
 								) :
 								entityFetch(
 									hierarchyContent(entityFetchAll()),
@@ -801,7 +801,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 									associatedDataContentAll(),
 									priceContentAll(),
 									referenceContentAll(entityFetchAll()),
-									dataInLocales()
+									dataInLocalesAll()
 								)
 						)
 					)

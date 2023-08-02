@@ -388,7 +388,7 @@ class EvitaApiFunctionalTest {
 					.setPriceInnerRecordHandling(PriceInnerRecordHandling.SUM);
 				// store entity back to the database
 				final SealedEntity updatedEntity = session.upsertAndFetchEntity(updatedProduct, priceContentAll());
-				
+
 				assertNotNull(updatedEntity);
 				assertEquals(PriceInnerRecordHandling.SUM, updatedEntity.getPriceInnerRecordHandling());
 
@@ -535,7 +535,7 @@ class EvitaApiFunctionalTest {
 
 				// enrich original entity that was partially fetched BEFORE the modifications
 				final SealedEntity enrichedOriginalEntity = session.enrichEntity(
-					createdEntity, associatedDataContent(), dataInLocales()
+					createdEntity, associatedDataContentAll(), dataInLocalesAll()
 				);
 
 				// the enriched result reflects all the actual data even if it had all already fetched
@@ -597,7 +597,7 @@ class EvitaApiFunctionalTest {
 
 				// enrich original entity that was partially fetched BEFORE the modifications
 				final SealedEntity enrichedOriginalEntity = session.enrichEntity(
-					createdEntity, associatedDataContent(), dataInLocales()
+					createdEntity, associatedDataContentAll(), dataInLocalesAll()
 				);
 
 				// the enriched result reflects all the actual data even if it had all already fetched
@@ -639,7 +639,7 @@ class EvitaApiFunctionalTest {
 
 				// enrich original entity that was partially fetched BEFORE the modifications
 				final SealedEntity enrichedOriginalEntityAgain = session.enrichEntity(
-					createdEntity, associatedDataContent(), dataInLocales()
+					createdEntity, associatedDataContentAll(), dataInLocalesAll()
 				);
 
 				// the enriched result reflects all the actual data even if it had all already fetched
@@ -693,7 +693,7 @@ class EvitaApiFunctionalTest {
 				assertThrows(
 					EntityAlreadyRemovedException.class,
 					() -> session.enrichEntity(
-						createdEntity, associatedDataContent(), dataInLocales()
+						createdEntity, associatedDataContentAll(), dataInLocalesAll()
 					)
 				);
 
@@ -1538,7 +1538,7 @@ class EvitaApiFunctionalTest {
 			query(
 				collection(BRAND),
 				filterBy(entityPrimaryKeyInSet(primaryKey)),
-				require(entityFetch(attributeContent(), dataInLocales()))
+				require(entityFetch(attributeContentAll(), dataInLocalesAll()))
 			)
 		);
 	}
@@ -1601,7 +1601,7 @@ class EvitaApiFunctionalTest {
 				),
 				require(
 					entityFetch(
-						attributeContent()
+						attributeContentAll()
 					)
 				)
 			),

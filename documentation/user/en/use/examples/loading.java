@@ -1,6 +1,6 @@
 //some custom logic to load proper entity
 final SealedEntity entity = session
-	.getEntity("Product", 1, associatedDataContent())
+	.getEntity("Product", 1, associatedDataContentAll())
 	.orElseThrow();
 //deserialize the associated data
 final ProductStockAvailability stockAvailability = entity.getAssociatedData(

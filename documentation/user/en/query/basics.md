@@ -60,7 +60,7 @@ query(
     ),
     require(
         entityFetch(
-			attributeContent(), priceContentAll()
+			attributeContentAll(), priceContentAll()
 		),
         facetSummary()
     )

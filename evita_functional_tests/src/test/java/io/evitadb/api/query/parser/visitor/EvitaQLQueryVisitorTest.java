@@ -75,7 +75,7 @@ class EvitaQLQueryVisitorTest {
         assertEquals(
             query(
                 collection("a"),
-                require(attributeContent())
+                require(attributeContentAll())
             ),
             parseQuery("query(collection('a'),require(attributeContentAll()))")
         );
@@ -85,7 +85,7 @@ class EvitaQLQueryVisitorTest {
                 collection("a"),
                 filterBy(attributeEquals("a", 1L)),
                 orderBy(attributeNatural("c")),
-                require(attributeContent())
+                require(attributeContentAll())
             ),
             parseQuery(
                 "query(require(attributeContentAll()),collection('a'),orderBy(attributeNatural('c')),filterBy(attributeEquals('a',?)))",
@@ -98,7 +98,7 @@ class EvitaQLQueryVisitorTest {
                 collection("a"),
                 filterBy(attributeEquals("a", 1L)),
                 orderBy(attributeNatural("c")),
-                require(attributeContent())
+                require(attributeContentAll())
             ),
             parseQuery(
                 "query(require(attributeContentAll()),collection('a'),orderBy(attributeNatural('c')),filterBy(attributeEquals('a',@value)))",
@@ -196,7 +196,7 @@ class EvitaQLQueryVisitorTest {
         assertEquals(
                 query(
                         collection("a"),
-                        require(attributeContent())
+                        require(attributeContentAll())
                 ),
                 parseQueryUnsafe("query(collection('a'),require(attributeContentAll()))")
         );
@@ -206,7 +206,7 @@ class EvitaQLQueryVisitorTest {
                         collection("a"),
                         filterBy(attributeEquals("a", 1L)),
                         orderBy(attributeNatural("c")),
-                        require(attributeContent())
+                        require(attributeContentAll())
                 ),
                 parseQueryUnsafe("query(require(attributeContentAll()),collection('a'),orderBy(attributeNatural('c')),filterBy(attributeEquals('a',1)))")
         );
@@ -224,7 +224,7 @@ class EvitaQLQueryVisitorTest {
                                 attributeNatural("c"),
                                 priceNatural()
                         ),
-                        require(attributeContent())
+                        require(attributeContentAll())
                 ),
                 parseQueryUnsafe(
                     """

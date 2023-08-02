@@ -51,6 +51,7 @@ import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContent;
+import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.api.query.QueryConstraints.priceContentRespectingFilter;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
@@ -90,7 +91,7 @@ public class SumPriceEntityByPriceFilteringFunctionalTest extends EntityByPriceF
 				.toList();
 
 			return storedProducts.stream()
-				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContent(), priceContentRespectingFilter()).orElseThrow())
+				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContentAll(), priceContentRespectingFilter()).orElseThrow())
 				.collect(Collectors.toList());
 		});
 	}

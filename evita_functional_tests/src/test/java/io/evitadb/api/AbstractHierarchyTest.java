@@ -292,7 +292,7 @@ abstract class AbstractHierarchyTest {
 						entityPrimaryKeyInSet(categoryId)
 					)
 				),
-				require(entityFetch(attributeContent()))
+				require(entityFetch(attributeContentAll()))
 			),
 			SealedEntity.class
 		).getRecordData().get(0);

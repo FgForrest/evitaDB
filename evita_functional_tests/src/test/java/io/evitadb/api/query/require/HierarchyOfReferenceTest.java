@@ -75,7 +75,7 @@ class HierarchyOfReferenceTest {
 				orderBy(attributeNatural("name")),
 				new HierarchyRequireConstraint[0]).isApplicable()
 		);
-		assertTrue(hierarchyOfReference("category", fromRoot("megaMenu", entityFetch(attributeContent()))).isApplicable());
+		assertTrue(hierarchyOfReference("category", fromRoot("megaMenu", entityFetch(attributeContentAll()))).isApplicable());
 	}
 
 	@Test

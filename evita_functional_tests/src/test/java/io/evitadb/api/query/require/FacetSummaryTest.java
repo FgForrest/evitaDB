@@ -118,8 +118,8 @@ class FacetSummaryTest {
 	void shouldRecognizeApplicability() {
 		assertTrue(facetSummary().isApplicable());
 		assertTrue(facetSummary(FacetStatisticsDepth.IMPACT).isApplicable());
-		assertTrue(facetSummary(FacetStatisticsDepth.IMPACT, entityFetch(attributeContent())).isApplicable());
-		assertTrue(facetSummary(FacetStatisticsDepth.IMPACT, entityFetch(attributeContent()), entityGroupFetch(attributeContent("code"))).isApplicable());
+		assertTrue(facetSummary(FacetStatisticsDepth.IMPACT, entityFetch(attributeContentAll())).isApplicable());
+		assertTrue(facetSummary(FacetStatisticsDepth.IMPACT, entityFetch(attributeContentAll()), entityGroupFetch(attributeContent("code"))).isApplicable());
 		assertTrue(facetSummary(FacetStatisticsDepth.IMPACT, entityGroupFetch(attributeContent("code"))).isApplicable());
 		assertTrue(
 			facetSummary(
@@ -154,8 +154,8 @@ class FacetSummaryTest {
 		assertNotSame(facetSummary(), facetSummary());
 		assertEquals(facetSummary(), facetSummary());
 		assertNotEquals(facetSummary(), facetSummary(FacetStatisticsDepth.IMPACT));
-		assertEquals(facetSummary(FacetStatisticsDepth.IMPACT, entityFetch(attributeContent()), entityGroupFetch()), facetSummary(FacetStatisticsDepth.IMPACT, entityFetch(attributeContent()), entityGroupFetch()));
-		assertNotEquals(facetSummary(FacetStatisticsDepth.IMPACT, entityFetch(attributeContent()), entityGroupFetch()), facetSummary(FacetStatisticsDepth.IMPACT, entityFetch(attributeContent())));
+		assertEquals(facetSummary(FacetStatisticsDepth.IMPACT, entityFetch(attributeContentAll()), entityGroupFetch()), facetSummary(FacetStatisticsDepth.IMPACT, entityFetch(attributeContentAll()), entityGroupFetch()));
+		assertNotEquals(facetSummary(FacetStatisticsDepth.IMPACT, entityFetch(attributeContentAll()), entityGroupFetch()), facetSummary(FacetStatisticsDepth.IMPACT, entityFetch(attributeContentAll())));
 		assertNotEquals(
 			facetSummary(
 				FacetStatisticsDepth.COUNTS,
@@ -173,7 +173,7 @@ class FacetSummaryTest {
 			)
 		);
 		assertEquals(facetSummary().hashCode(), facetSummary().hashCode());
-		assertEquals(facetSummary(FacetStatisticsDepth.IMPACT, entityFetch(attributeContent()), entityGroupFetch()).hashCode(), facetSummary(FacetStatisticsDepth.IMPACT, entityFetch(attributeContent()), entityGroupFetch()).hashCode());
+		assertEquals(facetSummary(FacetStatisticsDepth.IMPACT, entityFetch(attributeContentAll()), entityGroupFetch()).hashCode(), facetSummary(FacetStatisticsDepth.IMPACT, entityFetch(attributeContent()), entityGroupFetch()).hashCode());
 		assertNotEquals(facetSummary(FacetStatisticsDepth.IMPACT, entityFetch(attributeContent()), entityGroupFetch()).hashCode(), facetSummary(FacetStatisticsDepth.IMPACT, entityFetch(attributeContent())).hashCode());
 		assertNotEquals(
 			facetSummary(

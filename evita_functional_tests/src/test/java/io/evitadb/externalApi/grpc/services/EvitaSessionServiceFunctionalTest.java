@@ -1853,7 +1853,7 @@ class EvitaSessionServiceFunctionalTest {
 		final GrpcEntityRequest entityRequest = GrpcEntityRequest.newBuilder()
 			.setEntityType(Entities.PRODUCT)
 			.setPrimaryKey(Objects.requireNonNull(existingEntity.getPrimaryKey()))
-			.setRequire("associatedDataContentAll(), dataInLocales()")
+			.setRequire("associatedDataContentAll(), dataInLocalesAll()")
 			.build();
 
 		final GrpcEntityResponse originalEntity = evitaSessionBlockingStub.getEntity(entityRequest);

@@ -121,8 +121,8 @@ class FacetSummaryOfReferenceTest {
 	@Test
 	void shouldRecognizeApplicability() {
 		assertTrue(facetSummaryOfReference("parameter").isApplicable());
-		assertTrue(facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, entityFetch(attributeContent())).isApplicable());
-		assertTrue(facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, entityFetch(attributeContent()), entityGroupFetch()).isApplicable());
+		assertTrue(facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, entityFetch(attributeContentAll())).isApplicable());
+		assertTrue(facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, entityFetch(attributeContentAll()), entityGroupFetch()).isApplicable());
 		assertTrue(facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, entityGroupFetch(attributeContent("code"))).isApplicable());
 		assertTrue(
 			facetSummaryOfReference(
@@ -159,8 +159,8 @@ class FacetSummaryOfReferenceTest {
 		assertNotSame(facetSummaryOfReference("parameter"), facetSummaryOfReference("parameter"));
 		assertEquals(facetSummaryOfReference("parameter"), facetSummaryOfReference("parameter"));
 		assertNotEquals(facetSummaryOfReference("parameter"), facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT));
-		assertEquals(facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, entityFetch(attributeContent()), entityGroupFetch()), facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, entityFetch(attributeContent()), entityGroupFetch()));
-		assertNotEquals(facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, entityFetch(attributeContent()), entityGroupFetch()), facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, entityFetch(attributeContent())));
+		assertEquals(facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, entityFetch(attributeContentAll()), entityGroupFetch()), facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, entityFetch(attributeContentAll()), entityGroupFetch()));
+		assertNotEquals(facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, entityFetch(attributeContentAll()), entityGroupFetch()), facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, entityFetch(attributeContentAll())));
 		assertNotEquals(
 			facetSummaryOfReference(
 				"parameter",
@@ -180,8 +180,8 @@ class FacetSummaryOfReferenceTest {
 			)
 		);
 		assertEquals(facetSummaryOfReference("parameter").hashCode(), facetSummaryOfReference("parameter").hashCode());
-		assertEquals(facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, entityFetch(attributeContent()), entityGroupFetch()).hashCode(), facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, entityFetch(attributeContent()), entityGroupFetch()).hashCode());
-		assertNotEquals(facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, entityFetch(attributeContent()), entityGroupFetch()).hashCode(), facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, entityFetch(attributeContent())).hashCode());
+		assertEquals(facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, entityFetch(attributeContentAll()), entityGroupFetch()).hashCode(), facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, entityFetch(attributeContentAll()), entityGroupFetch()).hashCode());
+		assertNotEquals(facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, entityFetch(attributeContentAll()), entityGroupFetch()).hashCode(), facetSummaryOfReference("parameter", FacetStatisticsDepth.IMPACT, entityFetch(attributeContent())).hashCode());
 		assertNotEquals(
 			facetSummaryOfReference(
 				"parameter",
