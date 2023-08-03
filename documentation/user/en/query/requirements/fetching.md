@@ -775,14 +775,14 @@ chapter.
 
 <LanguageSpecific to="graphql">
 
-To access the information about the hierarchical placement of an entity, use either `parentPrimaryKey` or `parents` field (or both).
+To access the information about the hierarchical placement of an entity, use either the `parentPrimaryKey` or the `parents` field (or both).
 
-The `parentPrimaryKey` field returns only primary key of the direct parent of the entity. If the entity has no parent 
+The `parentPrimaryKey` field returns only the primary key of the direct parent of the entity. If the entity has no parent 
 (i.e. it's a root entity), the field returns `null`.
 
-The `parents` fields allows you to access the full chain of parent entities up to the root of a hierarchy tree. Inside
+The `parents` fields allows you to access the entire chain of parent entities up to the root of a hierarchy tree. Inside
 you can use standard entity fields besides the `parents` field for the fetched parent entities. If no additional arguments
-are specified the list will contain a full chain of parent entities up to the root of a hierarchy tree. You can limit the
+are specified the list will contain a entire chain of parent entities up to the root of a hierarchy tree. You can limit the
 size of the chain by using a `stopAt` argument - for example, if you're only interested in a direct parent of each entity
 returned, you can use a `stopAt: { distance: 1 }` argument. The arguments takes special require constraints to specify
 on which node to stop the hierarchy traversal.
