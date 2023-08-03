@@ -68,7 +68,6 @@ import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLField
 import javax.annotation.Nonnull;
 
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
-import static graphql.schema.GraphQLList.list;
 import static graphql.schema.GraphQLNonNull.nonNull;
 import static graphql.schema.GraphQLObjectType.newObject;
 import static graphql.schema.GraphQLTypeReference.typeRef;
@@ -206,9 +205,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 			);
 		}
 
-		schemaObjectBuilder.field(EntitySchemaDescriptor.ALL_ATTRIBUTES
-			.to(fieldBuilderTransformer)
-			.type(nonNull(list(nonNull(typeRef(AttributeSchemaUnionDescriptor.THIS.name()))))));
+		schemaObjectBuilder.field(EntitySchemaDescriptor.ALL_ATTRIBUTES.to(fieldBuilderTransformer));
 		buildingContext.registerDataFetcher(
 			objectName,
 			EntitySchemaDescriptor.ALL_ATTRIBUTES,
@@ -223,9 +220,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 			);
 		}
 
-		schemaObjectBuilder.field(EntitySchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS
-			.to(fieldBuilderTransformer)
-			.type(nonNull(list(nonNull(typeRef(SortableAttributeCompoundSchemaDescriptor.THIS.name()))))));
+		schemaObjectBuilder.field(EntitySchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS.to(fieldBuilderTransformer));
 		buildingContext.registerDataFetcher(
 			objectName,
 			EntitySchemaDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS,
