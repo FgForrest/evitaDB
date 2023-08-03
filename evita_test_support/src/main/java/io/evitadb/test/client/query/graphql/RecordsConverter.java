@@ -31,11 +31,12 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.RecordPageFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.RecordStripFieldHeaderDescriptor;
+import io.evitadb.test.client.query.graphql.GraphQLOutputFieldsBuilder.Argument;
+import io.evitadb.test.client.query.graphql.GraphQLOutputFieldsBuilder.ArgumentSupplier;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Locale;
-import java.util.function.Consumer;
 
 /**
  * Gathers paging and entity fetch constraints into records requirement.
@@ -61,18 +62,18 @@ public class RecordsConverter extends RequireConverter {
 		if (page != null) {
 			requireBuilder.addObjectField(
 				ResponseDescriptor.RECORD_PAGE,
-				getRecordPageArgumentsBuilder(page),
 				recordPageBuilder -> recordPageBuilder
 					.addObjectField(DataChunkDescriptor.DATA, b2 ->
-						entityFetchConverter.convert(b2, entityType, locale, entityFetch))
+						entityFetchConverter.convert(b2, entityType, locale, entityFetch)),
+				getRecordPageArguments(page)
 			);
 		} else if (strip != null) {
 			requireBuilder.addObjectField(
 				ResponseDescriptor.RECORD_STRIP,
-				getRecordStripArgumentsBuilder(strip),
 				recordPageBuilder -> recordPageBuilder
 					.addObjectField(DataChunkDescriptor.DATA, b2 ->
-						entityFetchConverter.convert(b2, entityType, locale, entityFetch))
+						entityFetchConverter.convert(b2, entityType, locale, entityFetch)),
+				getRecordStripArguments(strip)
 			);
 		} else {
 			requireBuilder.addObjectField(
@@ -84,40 +85,40 @@ public class RecordsConverter extends RequireConverter {
 		}
 	}
 
-	@Nullable
-	private Consumer<GraphQLOutputFieldsBuilder> getRecordPageArgumentsBuilder(@Nonnull Page page) {
+	@Nonnull
+	private ArgumentSupplier[] getRecordPageArguments(@Nonnull Page page) {
 		if (page.getPageNumber() == 1 && page.getPageSize() == 20) {
 			// we can ignore defaults, to make the query simpler
-			return null;
+			return new ArgumentSupplier[0];
 		} else {
-			return recordPageArgumentsBuilder -> {
-				recordPageArgumentsBuilder.addFieldArgument(
+			return new ArgumentSupplier[] {
+				__ -> new Argument(
 					RecordPageFieldHeaderDescriptor.NUMBER,
-					__ -> String.valueOf(page.getPageNumber())
-				);
-				recordPageArgumentsBuilder.addFieldArgument(
+					page.getPageNumber()
+				),
+				__ -> new Argument(
 					RecordPageFieldHeaderDescriptor.SIZE,
-					__ -> String.valueOf(page.getPageSize())
-				);
+					page.getPageSize()
+				)
 			};
 		}
 	}
 
-	@Nullable
-	private Consumer<GraphQLOutputFieldsBuilder> getRecordStripArgumentsBuilder(@Nonnull Strip strip) {
+	@Nonnull
+	private ArgumentSupplier[] getRecordStripArguments(@Nonnull Strip strip) {
 		if (strip.getOffset() == 0 && strip.getLimit() == 20) {
 			// we can ignore defaults, to make the query simpler
-			return null;
+			return new ArgumentSupplier[0];
 		} else {
-			return recordPageArgumentsBuilder -> {
-				recordPageArgumentsBuilder.addFieldArgument(
+			return new ArgumentSupplier[] {
+				__ -> new Argument(
 					RecordStripFieldHeaderDescriptor.OFFSET,
-					__ -> String.valueOf(strip.getOffset())
-				);
-				recordPageArgumentsBuilder.addFieldArgument(
+					strip.getOffset()
+				),
+				__ -> new Argument(
 					RecordStripFieldHeaderDescriptor.LIMIT,
-					__ -> String.valueOf(strip.getLimit())
-				);
+					strip.getLimit()
+				)
 			};
 		}
 	}

@@ -65,7 +65,7 @@ abstract class RequireConverter {
 	                                                   @Nonnull FilterConstraint filterConstraint,
 	                                                   int offset) {
 		return filterConstraintToJsonConverter.convert(dataLocator, filterConstraint)
-			.map(it -> inputJsonPrinter.print(offset, it.value()).stripLeading());
+			.map(it -> inputJsonPrinter.print(offset, it.value()));
 	}
 
 	@Nonnull
@@ -73,7 +73,7 @@ abstract class RequireConverter {
 	                                                  @Nonnull OrderConstraint orderConstraint,
 	                                                  int offset) {
 		return orderConstraintToJsonConverter.convert(dataLocator, orderConstraint)
-			.map(it -> inputJsonPrinter.print(offset, it.value()).stripLeading());
+			.map(it -> inputJsonPrinter.print(offset, it.value()));
 	}
 
 	@Nonnull
@@ -81,6 +81,6 @@ abstract class RequireConverter {
 	                                                    @Nonnull RequireConstraint requireConstraint,
 	                                                    int offset) {
 		return requireConstraintToJsonConverter.convert(dataLocator, requireConstraint)
-			.map(it -> inputJsonPrinter.print(offset, it.value()).stripLeading());
+			.map(it -> inputJsonPrinter.print(offset, it.value()));
 	}
 }
