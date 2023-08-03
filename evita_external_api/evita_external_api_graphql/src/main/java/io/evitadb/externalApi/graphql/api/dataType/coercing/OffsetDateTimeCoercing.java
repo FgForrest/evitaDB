@@ -42,7 +42,8 @@ import java.time.format.DateTimeParseException;
  */
 public class OffsetDateTimeCoercing implements Coercing<OffsetDateTime, String> {
 
-    public static final DateTimeFormatter FORMATTER = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
+    private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
+    private static final String EXPECTED_FORMAT = "yyyy-MM-ddTHH:mm:ss+-HH:mm";
 
     @Override
     public String serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
@@ -65,7 +66,7 @@ public class OffsetDateTimeCoercing implements Coercing<OffsetDateTime, String> 
         try {
             return OffsetDateTime.parse((String) input, FORMATTER);
         } catch (DateTimeParseException ex) {
-            throw new CoercingParseValueException(ex.getMessage(), ex);
+            throw new CoercingParseValueException(getParseErrorMessage(ex), ex);
         }
     }
 
@@ -78,7 +79,12 @@ public class OffsetDateTimeCoercing implements Coercing<OffsetDateTime, String> 
         try {
             return OffsetDateTime.parse(((StringValue) input).getValue(), FORMATTER);
         } catch (DateTimeParseException ex) {
-            throw new CoercingParseLiteralException(ex.getMessage(), ex);
+            throw new CoercingParseLiteralException(getParseErrorMessage(ex), ex);
         }
+    }
+
+    @Nonnull
+    private String getParseErrorMessage(@Nonnull DateTimeParseException ex) {
+        return String.format("%s. Expected date time in format `%s`.", ex.getMessage(), EXPECTED_FORMAT);
     }
 }
