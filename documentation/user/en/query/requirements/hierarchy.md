@@ -502,7 +502,7 @@ so that the calculated number remains consistent for the end user.
 ```evitaql-syntax
 parents
     argument:string!,   
-    requireConstraint:(silings|entityFetch|stopAt|statistics)*
+    requireConstraint:(siblings|entityFetch|stopAt|statistics)*
 )
 ```
 
