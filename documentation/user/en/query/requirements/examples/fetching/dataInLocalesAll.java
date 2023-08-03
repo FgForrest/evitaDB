@@ -5,13 +5,12 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 			query(
 				collection("Brand"),
 				filterBy(
-					entityPrimaryKeyInSet(64703),
-					entityLocaleEquals(Locale.forLanguageTag("cs"))
+					entityPrimaryKeyInSet(64703)
 				),
 				require(
 					entityFetch(
 						attributeContent("code", "name"),
-						dataInLocales(Locale.forLanguageTag("cs"), Locale.forLanguageTag("en"))
+						dataInLocalesAll()
 					)
 				)
 			)

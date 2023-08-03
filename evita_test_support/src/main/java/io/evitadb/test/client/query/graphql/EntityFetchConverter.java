@@ -95,7 +95,7 @@ public class EntityFetchConverter extends RequireConverter {
 
 		convertHierarchyContent(fieldsBuilder, locale, entityFetch, entitySchema.get());
 		convertAttributeContent(fieldsBuilder, locale, requiredLocales, entityFetch, entitySchema.get());
-		convertAssociatedDataContent(fieldsBuilder, locale, entityFetch, entitySchema.get());
+		convertAssociatedDataContent(fieldsBuilder, locale, requiredLocales, entityFetch, entitySchema.get());
 		convertPriceContent(fieldsBuilder, locale, entityFetch);
 		convertReferenceContents(fieldsBuilder, entityType, locale, entityFetch, entitySchema.get());
 	}

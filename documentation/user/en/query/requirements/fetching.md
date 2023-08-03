@@ -357,7 +357,7 @@ constraint was not used at all.
 </Note>
 
 To demonstrate the second scenario, let's say you want to filter a brand that has a Czech localization, but you want to
-get Czech, German, and English *name* attribute values. The following query will do the job:
+get Czech and English *name* attribute values. The following query will do the job:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Getting code and name of the brand in multiple locales](/documentation/user/en/query/requirements/examples/fetching/dataInLocalesWithFilter.evitaql)
@@ -388,7 +388,7 @@ The query returns the following localized attributes of the `Brand` entity:
 
 </LanguageSpecific>
 
-As you can see the localized attributes are available for the Czech and English locales but not for the German locale.
+As you can see the localized attributes are available both for the Czech and English locales.
 The entity is still present in the result, because the filter constraint enforces the Czech locale context, which is
 satisfied by the entity.
 
