@@ -79,8 +79,8 @@ type is returned.
 
 ## Entity content
 
-The most simple data you can fetch in an entity is its primary key and type. These are returned from evitaDB with every query no matter how rich
-you requested the entity to be.
+The simplest data you can fetch with an entity is its primary key and type. These are returned by evitaDB with every query,
+no matter how rich you requested the entity to be.
 
 <SourceCodeTabs langSpecificTabOnly>
 [Getting code and name of the brand](/documentation/user/en/query/requirements/examples/fetching/basicEntityContent.graphql)
@@ -99,7 +99,7 @@ The query returns the following basic data of the `Brand` entity:
 
 </Note>
 
-Additionally, you can fetch other entity fields which triggers fetching entire entity body:
+Moreover, you can fetch other fields with entity (which would lead to fetching entire entity body under the hood):
 
 <SourceCodeTabs langSpecificTabOnly>
 [Getting code and name of the brand](/documentation/user/en/query/requirements/examples/fetching/entityContent.graphql)
@@ -186,7 +186,7 @@ the query.
 <LanguageSpecific to="graphql">
 
 To fetch entity or reference [attributes](../../use/data-model.md#attributes-unique-filterable-sortable-localized), 
-simply use `attributes` output field in an entity or reference object with specific attribute names as sub-fields.
+use the `attributes` field within an entity or reference object and specify the required attribute names as sub-fields.
 [Localized attributes](../../use/data-model.md#localized-attributes) need a *locale context* in the query,
 either by using the [`entityLocaleEquals`](../filtering/locale.md#entity-locale-equals) filter constraint or
 by explicitly specifying `locale` argument of the `attributes` field. Using GraphQL aliases, you can fetch the same
@@ -389,7 +389,7 @@ be used to generate a language selection menu for this brand record.
 <LanguageSpecific to="graphql">
 
 To fetch entity [associated data](../../use/data-model.md#associated-data),
-simply use `associatedData` output field in an entity object with specific associated data names as sub-fields.
+use the `associatedData` field within an entity object and specify required associated data names as sub-fields.
 [Localized associated data](../../use/data-model.md#localized-associated-data) need a *locale context* in the query,
 either by using the [`entityLocaleEquals`](../filtering/locale.md#entity-locale-equals) filter constraint or
 by explicitly specifying `locale` argument of the `associatedData` field. Using GraphQL aliases, you can fetch the same
