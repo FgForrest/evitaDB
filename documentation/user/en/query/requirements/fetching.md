@@ -226,7 +226,7 @@ The query returns the following localized attributes of the `Brand` entity:
 
 <MDInclude sourceVariable="data.queryBrand.recordPage">[The result of an entity fetch with localized attributes in multiple locales](/documentation/user/en/query/requirements/examples/fetching/localizedAttributesWithFilter.graphql.json.md)</MDInclude>
 
-<!-- TODO LHO: GQL currently returns error for the missing german locale -->
+<ToDo>LHO: GQL currently returns error for the missing german locale</ToDo>
 
 As you can see the localized attributes are available for the Czech and English locales but not for the German locale.
 The entity is still present in the result, because the filter constraint enforces the Czech locale context, which is
