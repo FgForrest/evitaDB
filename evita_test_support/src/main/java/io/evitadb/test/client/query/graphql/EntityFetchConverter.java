@@ -25,9 +25,8 @@ package io.evitadb.test.client.query.graphql;
 
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.require.*;
+import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -39,6 +38,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AssociatedDataFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AttributesFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ParentsFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceBigDecimalFieldHeaderDescriptor;
@@ -209,37 +209,74 @@ public class EntityFetchConverter extends RequireConverter {
 	}
 
 	private void convertAssociatedDataContent(@Nonnull GraphQLOutputFieldsBuilder entityFieldsBuilder,
-	                                                 @Nullable Locale locale,
-	                                                 @Nonnull EntityFetchRequire entityFetch,
-	                                                 @Nonnull EntitySchemaContract entitySchema) {
+	                                          @Nullable Locale filterLocale,
+	                                          @Nullable Set<Locale> requiredLocales,
+	                                          @Nonnull EntityFetchRequire entityFetch,
+	                                          @Nonnull EntitySchemaContract entitySchema) {
 		final AssociatedDataContent associatedDataContent = QueryUtils.findConstraint(entityFetch, AssociatedDataContent.class, SeparateEntityContentRequireContainer.class);
 		if (associatedDataContent != null) {
-			final String[] associatedDataNames;
-			if (associatedDataContent.getAssociatedDataNames().length > 0) {
-				associatedDataNames = associatedDataContent.getAssociatedDataNames();
+			final List<AssociatedDataSchemaContract> associatedDataToFetch;
+
+			if (!associatedDataContent.isAllRequested()) {
+				final Set<String> requiredAssociatedDataNames = Set.of(associatedDataContent.getAssociatedDataNames());
+				associatedDataToFetch = entitySchema.getAssociatedData()
+					.values()
+					.stream()
+					.filter(it -> requiredAssociatedDataNames.contains(it.getName()))
+					.toList();
 			} else {
-				associatedDataNames = entitySchema.getAssociatedData()
+				associatedDataToFetch = entitySchema.getAssociatedData()
 					.values()
 					.stream()
 					.filter(it -> {
 						if (!it.isLocalized()) {
 							return true;
 						}
-						return locale != null;
+						return filterLocale != null || requiredLocales != null;
 					})
-					.map(it -> it.getNameVariant(ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION))
-					.toArray(String[]::new);
+					.toList();
 			}
 
-			entityFieldsBuilder.addObjectField(
-				EntityDescriptor.ASSOCIATED_DATA,
-				associatedDataBuilder -> {
-					for (String associatedDataName : associatedDataNames) {
-						associatedDataBuilder.addPrimitiveField(StringUtils.toCamelCase(associatedDataName));
-					}
+			if (requiredLocales == null) {
+				// there will be max one locale from filter
+				entityFieldsBuilder.addObjectField(
+					EntityDescriptor.ASSOCIATED_DATA,
+					getAssociatedDataFieldsBuilder(associatedDataToFetch)
+				);
+			} else if (requiredLocales.size() == 1) {
+				entityFieldsBuilder.addObjectField(
+					EntityDescriptor.ASSOCIATED_DATA,
+					getAssociatedDataFieldsBuilder(associatedDataToFetch),
+					__ -> new Argument(AssociatedDataFieldHeaderDescriptor.LOCALE, requiredLocales.iterator().next())
+				);
+			} else {
+				final List<AssociatedDataSchemaContract> globalAssociatedData = associatedDataToFetch.stream().filter(it -> !it.isLocalized()).toList();
+				entityFieldsBuilder.addObjectField(
+					EntityDescriptor.ASSOCIATED_DATA.name() + "Global",
+					EntityDescriptor.ASSOCIATED_DATA,
+					getAssociatedDataFieldsBuilder(globalAssociatedData)
+				);
+
+				final List<AssociatedDataSchemaContract> localizedAssociatedData = associatedDataToFetch.stream().filter(AssociatedDataSchemaContract::isLocalized).toList();
+				for (Locale locale : requiredLocales) {
+					entityFieldsBuilder.addObjectField(
+						EntityDescriptor.ASSOCIATED_DATA.name() + StringUtils.toPascalCase(locale.toString()),
+						EntityDescriptor.ASSOCIATED_DATA,
+						getAssociatedDataFieldsBuilder(localizedAssociatedData),
+						__ -> new Argument(AssociatedDataFieldHeaderDescriptor.LOCALE, locale)
+					);
 				}
-			);
+			}
 		}
+	}
+
+	@Nonnull
+	private Consumer<GraphQLOutputFieldsBuilder> getAssociatedDataFieldsBuilder(@Nonnull List<AssociatedDataSchemaContract> associatedDataSchemas) {
+		return attributesBuilder -> {
+			for (AssociatedDataSchemaContract associatedDataSchema : associatedDataSchemas) {
+				attributesBuilder.addPrimitiveField(associatedDataSchema.getNameVariant(ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION));
+			}
+		};
 	}
 
 	private void convertPriceContent(@Nonnull GraphQLOutputFieldsBuilder entityFieldsBuilder,
