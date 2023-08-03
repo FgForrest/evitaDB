@@ -584,7 +584,6 @@ public class UserDocumentationTest implements EvitaTestSupport {
 				}
 			);
 		}
-
 	}
 
 }

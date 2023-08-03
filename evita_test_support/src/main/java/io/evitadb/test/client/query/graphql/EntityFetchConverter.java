@@ -26,6 +26,8 @@ package io.evitadb.test.client.query.graphql;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
