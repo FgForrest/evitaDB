@@ -69,43 +69,9 @@ We chose to use parameterised string form, where the parameters can be replaced 
 An alternative is to use named parameters with the `@` prefix, which are used with a unique name in the query and are also embedded in the map as keys, where each named parameter has a corresponding value. 
 In this form, the user passes the query to the server, which processes it with the query parser mentioned above, creating an object representing the requested query, ready for execution by the database.
 
-```java
-final List<QueryParam> params = new ArrayList<>();
-params.add(QueryConverter.convertQueryParam("Product"));
-params.add(QueryConverter.convertQueryParam(Currency.getInstance("USD")));
-params.add(QueryConverter.convertQueryParam("vip"));
-params.add(QueryConverter.convertQueryParam("basic"));
-params.add(QueryConverter.convertQueryParam("PARAMETER"));
-params.add(QueryConverter.convertQueryParam(1));
-params.add(QueryConverter.convertQueryParam(1));
-params.add(QueryConverter.convertQueryParam(20));
-params.add(QueryConverter.convertQueryParam(FacetStatisticsDepth.IMPACT));
-params.add(QueryConverter.convertQueryParam("code"));
-
-final String stringQuery = """
-    query(
-        collection(?),
-        filterBy(
-            and(
-                priceInCurrency(?),
-                priceInPriceLists(?, ?),
-                userFilter(
-                    facetHaving(?, entityPrimaryKeyInSet(?))
-                )
-            )
-        ),
-        require(
-            page(?, ?),
-            facetSummary(?,entityFetch(priceContentRespectingFilter(), attributeContent(?)),entityGroupFetch())
-        )
-     )
-     """;
-
-final GrpcQueryResponse response = evitaSessionBlockingStub.query(GrpcQueryRequest.newBuilder()
-    .setQuery(stringQuery)
-    .addAllPositionalQueryParams(params)
-    .build());
-```
+<SourceCodeTabs requires="/documentation/user/en/use/connectors/examples/channel-and-session-creation.java">
+[Example of creating gRPC channel and a service operating upon it and executing a query](/documentation/user/en/use/connectors/examples/grpc-client-query-call.java)
+</SourceCodeTabs>
 
 Executing queries is the main purpose of evitaDB and as you can see from the example above, it is certainly not the most pleasant way to work with the database.
 There is no form of intellisense or query validation available (so far, we don't have any tools for IDEs that would eliminate this drawback), so we recommend and emphasise the fact that for optimal work with the gRPC API it is advisable to either use one of our implemented drivers or to create your own tool, at least to facilitate querying.
