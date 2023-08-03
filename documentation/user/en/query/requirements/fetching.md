@@ -83,14 +83,40 @@ The most simple data you can fetch in an entity is its primary key and type. The
 you requested the entity to be.
 
 <SourceCodeTabs langSpecificTabOnly>
-[Getting code and name of the brand](/documentation/user/en/query/requirements/examples/fetching/basic-entity-content.graphql)
+[Getting code and name of the brand](/documentation/user/en/query/requirements/examples/fetching/basicEntityContent.graphql)
 </SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetch with only basic data
+</NoteTitle>
+
+The query returns the following basic data of the `Brand` entity:
+
+<MDInclude sourceVariable="data.queryBrand.recordPage">[The result of an entity fetch with only basic data](/documentation/user/en/query/requirements/examples/fetching/basicEntityContent.graphql.json.md)</MDInclude>
+
+</Note>
 
 Additionally, you can fetch other entity fields which triggers fetching entire entity body:
 
 <SourceCodeTabs langSpecificTabOnly>
-[Getting code and name of the brand](/documentation/user/en/query/requirements/examples/fetching/entity-content.graphql)
+[Getting code and name of the brand](/documentation/user/en/query/requirements/examples/fetching/entityContent.graphql)
 </SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetch with entity body data
+</NoteTitle>
+
+The query returns the following entity body of the `Brand` entity:
+
+<MDInclude sourceVariable="data.queryBrand.recordPage">[The result of an entity fetch with entity body](/documentation/user/en/query/requirements/examples/fetching/entityContent.graphql.json.md)</MDInclude>
+
+</Note>
 
 </LanguageSpecific>
 
@@ -166,6 +192,16 @@ either by using the [`entityLocaleEquals`](../filtering/locale.md#entity-locale-
 by explicitly specifying `locale` argument of the `attributes` field. Using GraphQL aliases, you can fetch the same
 attributes in multiple locales in a single query.
 
+<Note type="info">
+
+All entity attributes are fetched from disk in bulk, so specifying only a few of them in the `attributes` field
+only reduces the amount of data transferred over the network. It's not bad to fetch all the attributes of
+an entity.
+
+</Note>
+
+To select a `code` and localized `name` attribute for the `Brand` entity, use the following query:
+
 <SourceCodeTabs langSpecificTabOnly>
 [Getting code and name of the brand](/documentation/user/en/query/requirements/examples/fetching/attributeContent.graphql)
 </SourceCodeTabs>
@@ -188,7 +224,9 @@ If the locale filter is missing in the query, but you still want to access the l
 on the `attributes` field as mentioned above:
 
 <SourceCodeTabs langSpecificTabOnly>
+
 [Getting localized name of the brand](/documentation/user/en/query/requirements/examples/fetching/localizedAttributes.graphql)
+
 </SourceCodeTabs>
 
 <Note type="info">
@@ -226,7 +264,7 @@ The query returns the following localized attributes of the `Brand` entity:
 
 <MDInclude sourceVariable="data.queryBrand.recordPage">[The result of an entity fetch with localized attributes in multiple locales](/documentation/user/en/query/requirements/examples/fetching/localizedAttributesWithFilter.graphql.json.md)</MDInclude>
 
-<ToDo>LHO: GQL currently returns error for the missing german locale</ToDo>
+[//]: # (todo lho: GQL currently returns error for the missing german locale)
 
 As you can see the localized attributes are available for the Czech and English locales but not for the German locale.
 The entity is still present in the result, because the filter constraint enforces the Czech locale context, which is
@@ -308,7 +346,7 @@ requirement is used to retrieve one or more entity [associated data](../../use/d
 there is a *locale context* in the query, either by using the [`entityLocaleEquals`](../filtering/locale.md#entity-locale-equals)
 filter constraint or the [`dataInLocales`](#data-in-locale) require constraint.
 
-To select a *allActiveurls* and localized *localization* associated data for the `Brand` entity, use the following query:
+To select an *allActiveUrls* and localized *localization* associated data for the `Brand` entity, use the following query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Getting code and name of the brand](/documentation/user/en/query/requirements/examples/fetching/associatedDataContent.evitaql)
@@ -356,6 +394,8 @@ simply use `associatedData` output field in an entity object with specific assoc
 either by using the [`entityLocaleEquals`](../filtering/locale.md#entity-locale-equals) filter constraint or
 by explicitly specifying `locale` argument of the `associatedData` field. Using GraphQL aliases, you can fetch the same
 associated data in multiple locales in a single query.
+
+To fetch an *allActiveUrls* and localized *localization* associated data for the `Brand` entity, use the following query:
 
 <SourceCodeTabs langSpecificTabOnly>
 [Getting code and name of the brand](/documentation/user/en/query/requirements/examples/fetching/associatedDataContent.graphql)
@@ -416,7 +456,7 @@ The query returns the following localized associated data of the `Brand` entity:
 
 <MDInclude sourceVariable="data.queryBrand.recordPage">[The result of an entity fetch with localized attributes in multiple locales](/documentation/user/en/query/requirements/examples/fetching/localizedAssociatedDataWithFilter.graphql.json.md)</MDInclude>
 
-<ToDo>LHO GQL currently returns error for the missing german locale</ToDo>
+[//]: # (todo LHO GQL currently returns error for the missing german locale)
 
 As you can see the localized associated data are available for the Czech and English locales but not for the German locale.
 The entity is still present in the result, because the filter constraint enforces the Czech locale context, which is
