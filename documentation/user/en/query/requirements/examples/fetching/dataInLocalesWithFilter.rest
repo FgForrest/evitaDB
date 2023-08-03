@@ -15,7 +15,6 @@ POST /rest/evita/brand/query
       ],
       "dataInLocales" : [
         "cs",
-        "de",
         "en"
       ]
     }

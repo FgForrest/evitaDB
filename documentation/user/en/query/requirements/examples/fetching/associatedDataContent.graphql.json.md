@@ -4,6 +4,12 @@
     {
       "primaryKey" : 64703,
       "associatedData" : {
+        "localization" : [
+          {
+            "code" : "name",
+            "label" : "Samsung"
+          }
+        ],
         "allActiveUrls" : [
           {
             "locale" : "cs",
@@ -12,12 +18,6 @@
           {
             "locale" : "en",
             "url" : "/en/samsung"
-          }
-        ],
-        "localization" : [
-          {
-            "code" : "name",
-            "label" : "Samsung"
           }
         ]
       }

@@ -3,16 +3,15 @@
     filterBy: {
       entityPrimaryKeyInSet: [
         64703
-      ],
-      entityLocaleEquals: en
+      ]
     }
   ) {
     recordPage {
       data {
         primaryKey
-        associatedData {
-          localization
-          allActiveUrls
+        attributes(locale: cs) {
+          code
+          name
         }
       }
     }
