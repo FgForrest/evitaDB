@@ -196,7 +196,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					    }
 					}
 					""",
-				serializeStringArrayToRestQueryString(codes))
+				serializeStringArrayToQueryString(codes))
 			.executeAndThen()
 			.statusCode(200)
 			.body(DATA_PATH, equalTo(createEntityDtos(entities)));
@@ -247,7 +247,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					    }
 					}
 					""",
-				serializeStringArrayToRestQueryString(urls)
+				serializeStringArrayToQueryString(urls)
 			)
 			.executeAndThen()
 			.statusCode(200)
@@ -297,7 +297,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					    }
 					}
 					""",
-				serializeStringArrayToRestQueryString(urls)
+				serializeStringArrayToQueryString(urls)
 			)
 			.executeAndThen()
 			.statusCode(200)
@@ -793,7 +793,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 						}
 					}
 					""",
-				serializeIntArrayToRestQueryString(pks)
+				serializeIntArrayToQueryString(pks)
 			)
 			.executeAndThen()
 			.statusCode(200)
@@ -826,7 +826,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 						}
 					}
 					""",
-				serializeIntArrayToRestQueryString(pks)
+				serializeIntArrayToQueryString(pks)
 			)
 			.executeAndThen()
 			.statusCode(200)
@@ -859,7 +859,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 						}
 					}
 					""",
-				serializeIntArrayToRestQueryString(pks)
+				serializeIntArrayToQueryString(pks)
 			)
 			.executeAndThen()
 			.statusCode(400)
@@ -909,7 +909,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 						}
 					}
 					""",
-				serializeIntArrayToRestQueryString(pks))
+				serializeIntArrayToQueryString(pks))
 			.executeAndThen()
 			.statusCode(200)
 			.body(DATA_PATH, equalTo(createEntityDtos(entities)));
@@ -957,7 +957,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 						}
 					}
 					""",
-				serializeIntArrayToRestQueryString(pks)
+				serializeIntArrayToQueryString(pks)
 			)
 			.executeAndThen()
 			.statusCode(200)
@@ -1005,7 +1005,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 						}
 					}
 					""",
-				serializeIntArrayToRestQueryString(pks)
+				serializeIntArrayToQueryString(pks)
 			)
 			.executeAndThen()
 			.statusCode(200)
@@ -1057,7 +1057,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					    }
 					}
 					""",
-				serializeIntArrayToRestQueryString(pks)
+				serializeIntArrayToQueryString(pks)
 			)
 			.executeAndThen()
 			.statusCode(200)
@@ -1109,7 +1109,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					    }
 					}
 					""",
-				serializeIntArrayToRestQueryString(pks)
+				serializeIntArrayToQueryString(pks)
 			)
 			.executeAndThen()
 			.statusCode(200)
@@ -1211,9 +1211,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	                    }
 	                 }
 					""",
-				serializeIntArrayToRestQueryString(productsWithLotsOfStores.keySet().toArray(Integer[]::new)),
+				serializeIntArrayToQueryString(productsWithLotsOfStores.keySet().toArray(Integer[]::new)),
 				Integer.MAX_VALUE,
-				serializeStringArrayToRestQueryString(randomStores)
+				serializeStringArrayToQueryString(randomStores)
 			)
 			.executeAndThen()
 			.statusCode(200)

@@ -157,7 +157,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 					}
 				}
 				""",
-				serializeIntArrayToRestQueryString(pks))
+				serializeIntArrayToQueryString(pks))
 			.executeAndThen()
 			.statusCode(200)
 			.body("", equalTo(createEntityDtos(entities)));
@@ -209,7 +209,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 					}
 				}
 				""",
-				serializeIntArrayToRestQueryString(pks))
+				serializeIntArrayToQueryString(pks))
 			.executeAndThen()
 			.statusCode(200)
 			.body("", equalTo(createEntityDtos(entities, true)));
@@ -264,7 +264,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 					}
 				}
 				""",
-				serializeStringArrayToRestQueryString(urls))
+				serializeStringArrayToQueryString(urls))
 			.executeAndThen()
 			.statusCode(200)
 			.body("", equalTo(createEntityDtos(entities)));

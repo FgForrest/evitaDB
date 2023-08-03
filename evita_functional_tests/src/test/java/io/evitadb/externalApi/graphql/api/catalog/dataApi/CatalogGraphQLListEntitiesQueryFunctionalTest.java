@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
-import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -173,7 +172,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	                    }
 	                }
 					""",
-				serializeIntArrayToRestQueryString(entities.stream().map(SealedEntity::getPrimaryKey).toArray(Integer[]::new))
+				serializeIntArrayToQueryString(entities.stream().map(SealedEntity::getPrimaryKey).toArray(Integer[]::new))
 			)
 			.executeAndThen()
 			.statusCode(200)
