@@ -1,0 +1,32 @@
+{
+  queryProduct(
+    filterBy: {
+      attributeCodeEquals: "amazfit-gtr-3",
+      entityLocaleEquals: en
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        categories {
+          referencedPrimaryKey
+          referencedEntity {
+            primaryKey
+            parentPrimaryKey
+            parents {
+              primaryKey
+              attributes {
+                code
+                name
+              }
+            }
+            attributes {
+              code
+              name
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -76,9 +76,6 @@ public class EntityFetchConverter extends RequireConverter {
 		final Optional<EntitySchemaContract> entitySchema = catalogSchema.getEntitySchema(entityType);
 
 		fieldsBuilder.addPrimitiveField(EntityDescriptor.PRIMARY_KEY);
-		if (entitySchema.map(EntitySchemaContract::isWithHierarchy).orElse(false)) {
-			fieldsBuilder.addPrimitiveField(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY);
-		}
 
 		if (entitySchema.isEmpty() || entityFetch == null || entityFetch.getRequirements().length == 0) {
 			return;

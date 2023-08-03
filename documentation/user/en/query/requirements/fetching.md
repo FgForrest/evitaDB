@@ -673,6 +673,8 @@ associated data are available.
 
 ## Hierarchy content
 
+<LanguageSpecific to="evitaql,java,rest">
+
 ```evitaql-syntax
 hierarchyContent(
     requireConstraint:(entityFetch|stopAt)*
@@ -706,7 +708,7 @@ If you provide a nested [`entityFetch`](#entity-fetch) constraint, the hierarchy
 the parent entities in the required width. The [`attributeContent`](#attribute-content) inside the `entityFetch` allows 
 you to access the attributes of the parent entities, etc.
 
-To fetch n entity with basic hierarchy information, use the following query:
+To fetch an entity with basic hierarchy information, use the following query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Getting localized name of the brand](/documentation/user/en/query/requirements/examples/fetching/hierarchyContent.evitaql)
@@ -724,11 +726,6 @@ The query returns the following hierarchy of the `Category` entity:
 <LanguageSpecific to="evitaql,java">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetch with hierarchy placement](/documentation/user/en/query/requirements/examples/fetching/hierarchyContent.evitaql.json.md)</MDInclude>
-
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
-
-<MDInclude sourceVariable="data.queryBrand.recordPage">[The result of an entity fetch with hierarchy placement](/documentation/user/en/query/requirements/examples/fetching/hierarchyContent.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 <LanguageSpecific to="rest">
@@ -763,11 +760,6 @@ The query returns the following product with the reference to the full `Category
 <MDInclude sourceVariable="recordPage">[The result of an entity fetch with hierarchy placement](/documentation/user/en/query/requirements/examples/fetching/hierarchyContentViaReference.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
-<LanguageSpecific to="graphql">
-
-<MDInclude sourceVariable="data.queryBrand.recordPage">[The result of an entity fetch with hierarchy placement](/documentation/user/en/query/requirements/examples/fetching/hierarchyContentViaReference.graphql.json.md)</MDInclude>
-
-</LanguageSpecific>
 <LanguageSpecific to="rest">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetch with hierarchy placement](/documentation/user/en/query/requirements/examples/fetching/hierarchyContentViaReference.rest.json.md)</MDInclude>
@@ -778,6 +770,72 @@ This quite complex example uses the [`referenceContent`](#reference-content) req
 chapter.
 
 </Note>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+To access the information about the hierarchical placement of an entity, use either `parentPrimaryKey` or `parents` field (or both).
+
+The `parentPrimaryKey` field returns only primary key of the direct parent of the entity. If the entity has no parent 
+(i.e. it's a root entity), the field returns `null`.
+
+The `parents` fields allows you to access the full chain of parent entities up to the root of a hierarchy tree. Inside
+you can use standard entity fields besides the `parents` field for the fetched parent entities. If no additional arguments
+are specified the list will contain a full chain of parent entities up to the root of a hierarchy tree. You can limit the
+size of the chain by using a `stopAt` argument - for example, if you're only interested in a direct parent of each entity
+returned, you can use a `stopAt: { distance: 1 }` argument. The arguments takes special require constraints to specify
+on which node to stop the hierarchy traversal.
+The result is similar to using a [`parents`](hierarchy.md#parents) requirement, but is limited in that it doesn't provide
+information about statistics and the ability to list siblings of the entity parents. On the other hand, it's easier to 
+use - since the hierarchy placement is directly available in the retrieved entity object.
+
+To fetch an entity with basic hierarchy information, use the following query:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+[Getting localized name of the brand](/documentation/user/en/query/requirements/examples/fetching/hierarchyContent.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with its hierarchy placement
+</NoteTitle>
+
+The query returns the following hierarchy of the `Category` entity:
+
+<MDInclude sourceVariable="data.queryCategory.recordPage">[The result of an entity fetch with hierarchy placement](/documentation/user/en/query/requirements/examples/fetching/hierarchyContent.graphql.json.md)</MDInclude>
+
+The `Category` entity is returned with the hierarchy information up to the root of the hierarchy tree.
+
+</Note>
+
+To demonstrate a more complex and useful example let's fetch a product with its category reference and for the category
+fetch its full hierarchy placement up to the root of the hierarchy tree with `code` and `name` attributes of these
+categories. The query looks like this:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+[Getting localized name of the brand](/documentation/user/en/query/requirements/examples/fetching/hierarchyContentViaReference.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with its hierarchy placement
+</NoteTitle>
+
+The query returns the following product with the reference to the full `Category` entity hierarchy chain:
+
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetch with hierarchy placement](/documentation/user/en/query/requirements/examples/fetching/hierarchyContentViaReference.graphql.json.md)</MDInclude>
+
+This quite complex example uses a [category reference field](#reference-content) that is described in a following
+chapter.
+
+</Note>
+
+</LanguageSpecific>
 
 ## Price content
 ## Reference content

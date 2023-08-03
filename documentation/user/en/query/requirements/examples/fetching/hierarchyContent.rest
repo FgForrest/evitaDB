@@ -1,0 +1,12 @@
+POST /rest/evita/category/query
+
+{
+  "filterBy" : {
+    "attributeCodeEquals" : "smartwatches"
+  },
+  "require" : {
+    "entityFetch" : {
+      "hierarchyContent" : { }
+    }
+  }
+}
