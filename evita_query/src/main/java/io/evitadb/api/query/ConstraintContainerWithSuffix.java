@@ -26,11 +26,9 @@ package io.evitadb.api.query;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 
 import javax.annotation.Nonnull;
-import java.io.Serializable;
-import java.util.Optional;
 
 /**
- * Interface must be implemented by all {@link Constraint} implementations that use {@link Creator} annotation with
+ * Interface must be implemented by all {@link ConstraintContainer} implementations that use {@link Creator} annotation with
  * specification of `suffix` attribute. Such constraints require initialization not by {@link Constraint#getName()}
  * but combination of {@link Constraint#getName()} and {@link #getSuffixIfApplied()} in order to be properly parsed.
  *
@@ -39,24 +37,16 @@ import java.util.Optional;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface ConstraintWithSuffix {
+public interface ConstraintContainerWithSuffix extends ConstraintWithSuffix {
 
 	/**
-	 * Returns a suffix to be used for this constraint instance.
-	 *
-	 * @return empty optional in case the suffix should not be applied to this instance of the constraint
-	 */
-	@Nonnull
-	Optional<String> getSuffixIfApplied();
-
-	/**
-	 * This method is used in {@link BaseConstraint#toString()} implementation to exclude the argument that is used
+	 * This method is used in {@link ConstraintContainer#toString()} implementation to exclude the child that is used
 	 * implicitly when this suffix is applied to this constraint.
 	 *
-	 * @param argument to check
-	 * @return true, if this argument should be omitted in {@link BaseConstraint#toString()}
+	 * @param child to check
+	 * @return true, if this child should be omitted in {@link ConstraintContainer#toString()}
 	 */
-	default boolean isArgumentImplicitForSuffix(@Nonnull Serializable argument) {
+	default boolean isChildImplicitForSuffix(@Nonnull Constraint<?> child) {
 		return false;
 	}
 

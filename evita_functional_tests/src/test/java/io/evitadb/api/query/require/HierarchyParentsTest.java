@@ -100,7 +100,7 @@ class HierarchyParentsTest {
 		assertEquals("parents('megaMenu',stopAt(level(2)))", hierarchyParents.toString());
 
 		final HierarchyParents hierarchyParents2 = parents("megaMenu", entityFetchAll());
-		assertEquals("parents('megaMenu',entityFetch(attributeContentAll(),hierarchyContent(),associatedDataContentAll(),priceContentAll(),referenceContentAllWithAttributes(attributeContentAll()),dataInLocalesAll()))", hierarchyParents2.toString());
+		assertEquals("parents('megaMenu',entityFetch(attributeContentAll(),hierarchyContent(),associatedDataContentAll(),priceContentAll(),referenceContentAllWithAttributes(),dataInLocalesAll()))", hierarchyParents2.toString());
 
 		final HierarchyParents hierarchyParents3 = parents("megaMenu", statistics());
 		assertEquals("parents('megaMenu',statistics(WITHOUT_USER_FILTER))", hierarchyParents3.toString());

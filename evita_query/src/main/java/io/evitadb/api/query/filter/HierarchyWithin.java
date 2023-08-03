@@ -24,6 +24,7 @@
 package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintContainerWithSuffix;
 import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
@@ -116,7 +117,7 @@ import static java.util.Optional.ofNullable;
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class HierarchyWithin extends AbstractFilterConstraintContainer
-	implements HierarchyFilterConstraint, SeparateEntityScopeContainer, ConstraintWithSuffix {
+	implements HierarchyFilterConstraint, SeparateEntityScopeContainer, ConstraintContainerWithSuffix {
 	@Serial private static final long serialVersionUID = 5346689836560255185L;
 	private static final String SUFFIX = "self";
 
