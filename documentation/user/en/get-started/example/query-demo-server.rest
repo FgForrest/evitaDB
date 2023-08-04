@@ -5,9 +5,9 @@ POST /rest/evita/brand/list
     "attributeNameStartsWith": "A",
     "entityLocaleEquals": "en"
   },
-  "orderBy": {
+  "orderBy": [{
     "attributeNameNatural": "ASC"
-  },
+  }],
   "require": {
     "entityFetch": {
       "attributeContentAll": true,

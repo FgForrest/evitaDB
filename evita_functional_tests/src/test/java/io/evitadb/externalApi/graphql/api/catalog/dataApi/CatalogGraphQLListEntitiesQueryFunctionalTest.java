@@ -1883,10 +1883,14 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 		                    filterBy: {
 		                        attributePriorityLessThan: "35000"
 		                    }
-		                    orderBy: {
-		                        attributeCreatedNatural: DESC,
-		                        attributeManufacturedNatural: ASC
-		                    }
+		                    orderBy: [
+		                        {
+			                        attributeCreatedNatural: DESC
+			                    },
+		                        {
+		                            attributeManufacturedNatural: ASC
+		                        }
+		                    ]
 		                    limit: 30
 		                ) {
 		                    primaryKey

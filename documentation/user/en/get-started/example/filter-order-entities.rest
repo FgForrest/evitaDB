@@ -4,9 +4,9 @@ POST /rest/test-catalog/brand/list
   "filterBy": {
     "attributeNameStartsWith": "A"
   },
-  "orderBy": {
+  "orderBy": [{
     "attributeNameNatural": "ASC"
-  },
+  }],
   "require": {
     "entityFetch": {
       "attributeContentAll": true,
