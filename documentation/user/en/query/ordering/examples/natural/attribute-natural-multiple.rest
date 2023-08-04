@@ -1,10 +1,14 @@
 POST /rest/evita/product/query
 
 {
-  "orderBy" : {
-    "attributeEanNatural" : "ASC",
-    "attributeCatalogNumberNatural" : "DESC"
-  },
+  "orderBy" : [
+    {
+      "attributeEanNatural" : "ASC"
+    },
+    {
+      "attributeCatalogNumberNatural" : "DESC"
+    }
+  ],
   "require" : {
     "entityFetch" : {
       "attributeContent" : [

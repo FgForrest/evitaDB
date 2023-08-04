@@ -4,9 +4,11 @@ POST /rest/evita/product/query
   "filterBy" : {
     "entityLocaleEquals" : "cs"
   },
-  "orderBy" : {
-    "attributeNameNatural" : "ASC"
-  },
+  "orderBy" : [
+    {
+      "attributeNameNatural" : "ASC"
+    }
+  ],
   "require" : {
     "entityFetch" : {
       "attributeContent" : [

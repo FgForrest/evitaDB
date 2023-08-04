@@ -1172,21 +1172,27 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("{" +
-					"\"filterBy\": {" +
-					"  \"attributePriorityLessThan\": 35000" +
-					"}," +
-					"\"orderBy\": {" +
-					"  \"attributeCreatedNatural\": \"DESC\"," +
-					"  \"attributeManufacturedNatural\": \"ASC\"" +
-					"}," +
-					"\"require\": {" +
-					"  \"page\": {" +
-					"     \"number\": 1," +
-					"     \"size\": 30"+
-					"    }" +
-					"  }" +
-					"}")
+			.requestBody("""
+			    {
+			        "filterBy": {
+			            "attributePriorityLessThan": 35000
+			        },
+			        "orderBy": [
+			            {
+				            "attributeCreatedNatural": "DESC"
+				        },
+				        {
+				            "attributeManufacturedNatural": "ASC"
+				        }
+			        ],
+			        "require": {
+			            "page": {
+			                "number": 1,
+			                "size": 30
+			            }
+			        }
+			    }
+			    """)
 			.executeAndThen()
 			.statusCode(200)
 			.body(EntityDescriptor.PRIMARY_KEY.name(), contains(expectedEntities));

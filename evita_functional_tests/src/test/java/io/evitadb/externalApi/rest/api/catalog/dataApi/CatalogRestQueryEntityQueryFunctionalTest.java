@@ -1201,11 +1201,11 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		                                    "attributeCodeInSet": %s
 		                                }
 		                            },
-		                            "orderBy": {
-		                                "entityProperty": {
+		                            "orderBy": [{
+		                                "entityProperty": [{
 		                                    "attributeNameNatural": "DESC"
-		                                }
-		                            }
+		                                }]
+		                            }]
 		                        }
 	                        }
 	                    }
@@ -1360,10 +1360,14 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					"filterBy": {
 						"attributePriorityLessThan": 35000
 					},
-					"orderBy": {
-						"attributeCreatedNatural": "DESC",
-						"attributeManufacturedNatural": "ASC"
-					},
+					"orderBy": [
+						{
+							"attributeCreatedNatural": "DESC"
+						},
+						{
+							"attributeManufacturedNatural": "ASC"
+						}
+					],
 					"require": {
 						"strip": {
 							"limit": 30
@@ -2608,9 +2612,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 									"size": 0
 								},
 								"hierarchyOfSelf": {
-									"orderBy": {
+									"orderBy": [{
 										"attributeCodeNatural": "DESC"
-									},
+									}],
 									"requirements": [
 										%s
 									]
@@ -2671,9 +2675,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 									"size": 0
 								},
 								"hierarchyCategoryOfReference": {
-									"orderBy": {
+									"orderBy": [{
 										"attributeCodeNatural": "DESC"
-									},
+									}],
 									"emptyHierarchicalEntityBehaviour": "REMOVE_EMPTY",
 									"requirements": [
 										%s

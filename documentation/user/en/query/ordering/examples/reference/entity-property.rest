@@ -15,11 +15,15 @@ POST /rest/evita/product/query
             "code"
           ]
         },
-        "orderBy" : {
-          "entityProperty" : {
-            "attributeCodeNatural" : "DESC"
+        "orderBy" : [
+          {
+            "entityProperty" : [
+              {
+                "attributeCodeNatural" : "DESC"
+              }
+            ]
           }
-        }
+        ]
       }
     }
   }
