@@ -354,22 +354,22 @@ public interface ExternalApiFunctionTestsSupport {
 
 
 	@Nonnull
-	default String serializeStringArrayToRestQueryString(@Nonnull List<String> items) {
+	default String serializeStringArrayToQueryString(@Nonnull List<String> items) {
 		return Arrays.toString(items.stream().map(it -> "\"" + it.toString() + "\"").toArray());
 	}
 
 	@Nonnull
-	default String serializeStringArrayToRestQueryString(@Nonnull String[] items) {
+	default String serializeStringArrayToQueryString(@Nonnull String[] items) {
 		return Arrays.toString(Arrays.stream(items).map(it -> "\"" + it.toString() + "\"").toArray());
 	}
 
 	@Nonnull
-	default String serializeIntArrayToRestQueryString(@Nonnull List<Integer> items) {
+	default String serializeIntArrayToQueryString(@Nonnull List<Integer> items) {
 		return Arrays.toString(items.toArray());
 	}
 
 	@Nonnull
-	default String serializeIntArrayToRestQueryString(@Nonnull Integer[] items) {
+	default String serializeIntArrayToQueryString(@Nonnull Integer[] items) {
 		return Arrays.toString(items);
 	}
 }

@@ -306,8 +306,11 @@ public class EntityFetchRequireResolver {
 		}
 
 		if (selectionSetWrapper.getFields(GraphQLEntityDescriptor.PRICES.name())
-			.stream()
-			.anyMatch(f -> f.getArguments().get(PricesFieldHeaderDescriptor.PRICE_LISTS.name()) == null)) {
+				.stream()
+				.anyMatch(f -> f.getArguments().get(PricesFieldHeaderDescriptor.PRICE_LISTS.name()) == null || f.getArguments().get(PricesFieldHeaderDescriptor.CURRENCY.name()) != null) ||
+			selectionSetWrapper.getFields(GraphQLEntityDescriptor.PRICE.name())
+				.stream()
+				.anyMatch(f -> f.getArguments().get(PriceFieldHeaderDescriptor.CURRENCY.name()) != null)) {
 			return Optional.of(priceContentAll());
 		} else {
 			final Set<String> neededPriceLists = createHashSet(10);

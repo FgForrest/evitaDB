@@ -24,6 +24,7 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintContainerWithSuffix;
 import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
@@ -74,7 +75,7 @@ import static java.util.Optional.ofNullable;
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class ReferenceContent extends AbstractRequireConstraintContainer
-	implements ReferenceConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, EntityContentRequire, ConstraintWithSuffix {
+	implements ReferenceConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, EntityContentRequire, ConstraintContainerWithSuffix {
 	@Serial private static final long serialVersionUID = 3374240925555151814L;
 	private static final String SUFFIX_ALL = "all";
 	private static final String SUFFIX_WITH_ATTRIBUTES = "withAttributes";
@@ -260,6 +261,12 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 			return of(SUFFIX_WITH_ATTRIBUTES);
 		}
 		return empty();
+	}
+
+	@Override
+	public boolean isChildImplicitForSuffix(@Nonnull Constraint<?> child) {
+		return child instanceof AttributeContent attributeContent &&
+			attributeContent.isAllRequested();
 	}
 
 	@Override

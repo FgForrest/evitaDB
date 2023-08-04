@@ -20,9 +20,11 @@ POST /rest/evita/product/list
       "priceBetween": ["600", "1600"]
     }
   },
-  "orderBy": {
-    "attributeCodeNatural": "ASC"
-  },
+  "orderBy": [
+    {
+      "attributeCodeNatural": "ASC"
+    }
+  ],
   "require": {
     "entityFetch": {
       "attributeContent": "code",
