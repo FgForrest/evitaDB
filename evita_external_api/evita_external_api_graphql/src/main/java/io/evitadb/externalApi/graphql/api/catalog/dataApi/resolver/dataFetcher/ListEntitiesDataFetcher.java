@@ -172,8 +172,13 @@ public class ListEntitiesDataFetcher extends ReadDataFetcher<DataFetcherResult<L
         );
         entityFetch.ifPresent(requireConstraints::add);
 
-        if (arguments.limit() != null) {
-            requireConstraints.add(strip(0, arguments.limit()));
+        if (arguments.offset() != null || arguments.limit() != null) {
+            requireConstraints.add(
+                strip(
+                    Optional.ofNullable(arguments.offset()).orElse(0),
+                    Optional.ofNullable(arguments.limit()).orElse(20)
+                )
+            );
         }
 
         return require(
@@ -225,14 +230,16 @@ public class ListEntitiesDataFetcher extends ReadDataFetcher<DataFetcherResult<L
      */
     private record Arguments(@Nullable Object filterBy,
                              @Nullable Object orderBy,
+                             @Nullable Integer offset,
                              @Nullable Integer limit) {
 
         private static Arguments from(@Nonnull DataFetchingEnvironment environment) {
             final Object filterBy = environment.getArgument(ListEntitiesHeaderDescriptor.FILTER_BY.name());
             final Object orderBy = environment.getArgument(ListEntitiesHeaderDescriptor.ORDER_BY.name());
+            final Integer offset = environment.getArgument(ListEntitiesHeaderDescriptor.OFFSET.name());
             final Integer limit = environment.getArgument(ListEntitiesHeaderDescriptor.LIMIT.name());
 
-            return new Arguments(filterBy, orderBy, limit);
+            return new Arguments(filterBy, orderBy, offset, limit);
         }
     }
 
