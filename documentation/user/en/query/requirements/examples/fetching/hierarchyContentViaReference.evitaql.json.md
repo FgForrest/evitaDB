@@ -11,17 +11,29 @@
           {
             "referencedKey" : 66486,
             "referencedEntity" : {
-              "primaryKey" : 66486
+              "primaryKey" : 66486,
+              "parent" : 66481,
+              "parentEntity" : {
+                "primaryKey" : 66481,
+                "attributes" : {
+                  "name:en" : "Smart wearable",
+                  "code" : "smart-wearable"
+                }
+              },
+              "attributes" : {
+                "name:en" : "Smartwatches",
+                "code" : "smartwatches"
+              }
             }
           }
         ]
       }
     }
   ],
-  "lastPageNumber" : 1,
   "first" : true,
   "last" : true,
   "lastPageItemNumber" : 1,
-  "singlePage" : true
+  "singlePage" : true,
+  "lastPageNumber" : 1
 }
 ```

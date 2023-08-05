@@ -16,14 +16,21 @@ message GrpcEntityReference {
   int32 version = 3;
 }
 
+message GrpcEntityReferenceWithParent {
+  string entityType = 1;
+  int32 primaryKey = 2;
+  int32 version = 3;
+  GrpcEntityReferenceWithParent parent = 4;
+}
+
 message GrpcSealedEntity {
   string entityType = 1;
   int32 primaryKey = 2;
   int32 version = 3;
   int32 schemaVersion = 4;
   google.protobuf.Int32Value parent = 5;
-  repeated GrpcEntityReference parentReference = 6;
-  repeated GrpcSealedEntity parentEntity = 7;
+  GrpcEntityReferenceWithParent parentReference = 6;
+  GrpcSealedEntity parentEntity = 7;
   map<string, GrpcEvitaValue> globalAttributes = 8;
   map<string, GrpcLocalizedAttribute> localizedAttributes = 9;
   repeated GrpcPrice prices = 10;

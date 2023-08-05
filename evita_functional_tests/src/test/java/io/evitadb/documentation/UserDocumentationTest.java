@@ -266,7 +266,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * Returns array of files with same name and different extension from the same directory.
 	 */
 	@Nonnull
-	private static List<Path> findRelatedFiles(@Nonnull Path theFile) {
+	private static List<Path> findRelatedFiles(@Nonnull Path theFile, @Nonnull Set<Path> alreadyUsedRelatedResources) {
 		try (final Stream<Path> siblings = Files.list(theFile.getParent())) {
 			final String theFileName = theFile.getFileName().toString();
 			final String theFileExtension = getFileNameExtension(theFile);
@@ -275,9 +275,12 @@ public class UserDocumentationTest implements EvitaTestSupport {
 				final String fileNameExtension = getFileNameExtension(it);
 				return !NOT_TESTED_LANGUAGES.contains(fileNameExtension) &&
 					!theFileExtension.equals(fileNameExtension) &&
+					!alreadyUsedRelatedResources.contains(it) &&
 					fileName.substring(0, fileName.length() - fileNameExtension.length())
 						.equals(theFileName.substring(0, theFileName.length() - theFileExtension.length()));
-			}).toList();
+			})
+				.peek(alreadyUsedRelatedResources::add)
+				.toList();
 		} catch (IOException e) {
 			Assertions.fail(
 				e.getMessage()
@@ -360,6 +363,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		final AtomicInteger index = new AtomicInteger();
 		final List<CodeSnippet> codeSnippets = new LinkedList<>();
 		final TestContextProvider contextAccessor = new TestContextProvider();
+		final Set<Path> alreadyUsedRelatedResources = new HashSet<>();
 
 		final Matcher sourceCodeMatcher = SOURCE_CODE_PATTERN.matcher(fileContent);
 		while (sourceCodeMatcher.find()) {
@@ -427,7 +431,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 					"Example `" + referencedFile.getFileName() + "`",
 					referencedFileExtension,
 					referencedFile.normalize(),
-					findRelatedFiles(referencedFile)
+					findRelatedFiles(referencedFile, alreadyUsedRelatedResources)
 						.stream()
 						.map(relatedFile -> {
 							final String relatedFileExtension = getFileNameExtension(relatedFile);

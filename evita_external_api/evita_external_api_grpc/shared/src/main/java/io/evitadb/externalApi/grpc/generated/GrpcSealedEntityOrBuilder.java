@@ -76,52 +76,34 @@ public interface GrpcSealedEntityOrBuilder extends
   com.google.protobuf.Int32ValueOrBuilder getParentOrBuilder();
 
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parentReference = 6;</code>
+   * @return Whether the parentReference field is set.
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityReference> 
-      getParentReferenceList();
+  boolean hasParentReference();
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parentReference = 6;</code>
+   * @return The parentReference.
    */
-  io.evitadb.externalApi.grpc.generated.GrpcEntityReference getParentReference(int index);
+  io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent getParentReference();
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parentReference = 6;</code>
    */
-  int getParentReferenceCount();
-  /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
-   */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> 
-      getParentReferenceOrBuilderList();
-  /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
-   */
-  io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder getParentReferenceOrBuilder(
-      int index);
+  io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParentOrBuilder getParentReferenceOrBuilder();
 
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+   * @return Whether the parentEntity field is set.
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity> 
-      getParentEntityList();
+  boolean hasParentEntity();
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+   * @return The parentEntity.
    */
-  io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getParentEntity(int index);
+  io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getParentEntity();
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
    */
-  int getParentEntityCount();
-  /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
-   */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
-      getParentEntityOrBuilderList();
-  /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
-   */
-  io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getParentEntityOrBuilder(
-      int index);
+  io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getParentEntityOrBuilder();
 
   /**
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
