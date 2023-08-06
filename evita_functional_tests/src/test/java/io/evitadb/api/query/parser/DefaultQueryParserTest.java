@@ -259,6 +259,48 @@ class DefaultQueryParserTest {
     }
 
     @Test
+    void shouldParseQueryStringWithComments() {
+        assertEquals(
+            query(
+                collection("PRODUCT"),
+                filterBy(
+                    entityPrimaryKeyInSet(1)
+                ),
+                require(
+                    entityFetch(
+                        attributeContent(),
+                        associatedDataContent(),
+                        priceContentAll(),
+                        referenceContentAll(),
+                        dataInLocales()
+                    )
+                )
+            ),
+            parser.parseQuery("""
+                        // this is a comment
+                        query(
+                         	collection(?),
+                         	// this is a inner comment
+                         	filterBy(
+                         		entityPrimaryKeyInSet(?) // this is a inline comment
+                         	),
+                         	require(
+                         		entityFetch(
+                         		    attributeContentAll(),
+                                    associatedDataContentAll(),
+                                    priceContentAll(),
+                                    referenceContentAll(),
+                                    dataInLocales()
+                         		)
+                         	)
+                         )
+                    """,
+                "PRODUCT", 1
+            )
+        );
+    }
+
+    @Test
     void shouldNotParseQueryString() {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseQuery("query(filterBy(attributeEquals('a','b')))"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseQuery("query(collection(?))"));
