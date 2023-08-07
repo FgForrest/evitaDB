@@ -129,3 +129,5 @@ import static io.evitadb.api.query.order.OrderDirection.*;
 import static io.evitadb.api.query.require.PriceContentMode.*;
 import static io.evitadb.api.query.require.FacetStatisticsDepth.*;
 import static io.evitadb.api.query.require.QueryPriceMode.*;
+import static io.evitadb.api.query.require.StatisticsBase.*;
+import static io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour.*;
