@@ -96,7 +96,7 @@ The following code snippet contains a query that lists all (transitive) categori
 returns menu items that contain direct children of the *Audio* category and its direct parent category (which is 
 *Accessories*):
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Hierarchy request association](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-data-structure-association.java)
 </SourceCodeTabs>
 
@@ -280,7 +280,7 @@ requires a computed *megaMenu* data structure that lists the top 2 levels of the
 a computed count of child categories for each menu item and an aggregated count of all filtered products that would 
 fall into the given category.
 
-<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Example of using `hierarchyWithin` and `fromRoot` in a single query](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-from-root.java)
 </SourceCodeTabs>
 
@@ -373,7 +373,7 @@ returns a computed *sideMenu1* and *sideMenu2* data structure that lists the fla
 *Portables* and *Laptops* with a computed count of child categories for each menu item and an aggregated count of all 
 products that would fall into the given category.
 
-<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Example of using `hierarchyWithin` and `fromNode` in a single query](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-from-node.java)
 </SourceCodeTabs>
 
@@ -458,7 +458,7 @@ returns a computed *subcategories* data structure that lists the flat category l
 *Audio* with a computed count of child categories for each menu item and an aggregated count of all products that
 would fall into the given category.
 
-<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Example of using `children` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-children.java)
 </SourceCodeTabs>
 
@@ -545,7 +545,7 @@ also returns a computed *parentAxis* data structure that lists all the parent no
 *True wireless* with a computed count of child categories for each menu item and an aggregated count of all products that
 would fall into the given category.
 
-<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Example of using `children` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parents.java)
 </SourceCodeTabs>
 
@@ -575,7 +575,7 @@ The computed result *parentAxis* looks like this:
 
 You can also list all siblings of the parent node as you move up the tree:
 
-<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Example of using `children` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parents-siblings.java)
 </SourceCodeTabs>
 
@@ -687,7 +687,7 @@ returns a computed *audioSiblings* data structure that lists the flat category l
 *Audio* with a computed count of child categories for each menu item and an aggregated count of all products that
 would fall into the given category.
 
-<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Example of using `siblings` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-siblings.java)
 </SourceCodeTabs>
 
@@ -718,7 +718,7 @@ The computed result *audioSiblings* looks like this:
 If you need to return all siblings and also the level below them (their children), just use `stopAt` constraint and
 extend the default scope of the `siblings` constraint.
 
-<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Example of using `siblings` subtree requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-siblings-with-subtree.java)
 </SourceCodeTabs>
 
@@ -809,7 +809,7 @@ The following query lists products in category *Audio* and its subcategories. Al
 returns a computed *subcategories* data structure that lists the flat category list the currently focused category
 *Audio*.
 
-<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Example of using `distance` with `children` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-direct-children.java)
 </SourceCodeTabs>
 
@@ -837,7 +837,7 @@ The following query lists products in the category *Audio* and its subcategories
 also returns a computed *parent* data structure that lists single direct parent category of the currently focused 
 *Audio* category.
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Example of using `distance` with `parents` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parent.java)
 </SourceCodeTabs>
 
@@ -895,7 +895,7 @@ following figure:
 The following query lists products in *Audio* category and its subcategories. Along with the products returned, it also
 returns a computed *megaMenu* data structure that lists top two levels of the entire hierarchy.
 
-<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Example of using `level` with `fromRoot` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-level.java)
 </SourceCodeTabs>
 
@@ -923,7 +923,7 @@ The following query lists products in the *Audio* category and its subcategories
 also returns a computed *parent* data structure that lists all the parents of the currently focused *True wireless*
 category up to level two.
 
-<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Example of using `level` with `parents` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-level-parent.java)
 </SourceCodeTabs>
 
@@ -981,7 +981,7 @@ a meaningful example of this in the demo dataset, so our example query will be s
 demonstration, let's list the entire *Accessories* hierarchy, but stop traversing at the nodes whose code starts with 
 the letter *w*.
 
-<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Example of using `node` with `children` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-node.java)
 </SourceCodeTabs>
 
