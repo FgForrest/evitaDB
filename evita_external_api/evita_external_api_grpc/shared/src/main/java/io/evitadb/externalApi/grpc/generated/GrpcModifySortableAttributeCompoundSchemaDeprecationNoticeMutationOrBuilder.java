@@ -31,11 +31,19 @@ public interface GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutat
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the sortable attribute compound the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
   java.lang.String getName();
   /**
+   * <pre>
+   * Name of the sortable attribute compound the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -43,16 +51,34 @@ public interface GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutat
       getNameBytes();
 
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this sortable attribute compound from
+   * the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 2;</code>
    * @return Whether the deprecationNotice field is set.
    */
   boolean hasDeprecationNotice();
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this sortable attribute compound from
+   * the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 2;</code>
    * @return The deprecationNotice.
    */
   com.google.protobuf.StringValue getDeprecationNotice();
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this sortable attribute compound from
+   * the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 2;</code>
    */
   com.google.protobuf.StringValueOrBuilder getDeprecationNoticeOrBuilder();

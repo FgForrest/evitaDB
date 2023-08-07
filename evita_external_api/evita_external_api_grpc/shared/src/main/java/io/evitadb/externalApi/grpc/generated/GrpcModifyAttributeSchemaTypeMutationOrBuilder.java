@@ -31,11 +31,19 @@ public interface GrpcModifyAttributeSchemaTypeMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the attribute the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
   java.lang.String getName();
   /**
+   * <pre>
+   * Name of the attribute the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -43,17 +51,29 @@ public interface GrpcModifyAttributeSchemaTypeMutationOrBuilder extends
       getNameBytes();
 
   /**
+   * <pre>
+   * Type of the attribute. Must be one of supported data types or its array.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 2;</code>
    * @return The enum numeric value on the wire for type.
    */
   int getTypeValue();
   /**
+   * <pre>
+   * Type of the attribute. Must be one of supported data types or its array.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 2;</code>
    * @return The type.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType getType();
 
   /**
+   * <pre>
+   * Determines how many fractional places are important when entities are compared during filtering or sorting.
+   * </pre>
+   *
    * <code>int32 indexedDecimalPlaces = 3;</code>
    * @return The indexedDecimalPlaces.
    */

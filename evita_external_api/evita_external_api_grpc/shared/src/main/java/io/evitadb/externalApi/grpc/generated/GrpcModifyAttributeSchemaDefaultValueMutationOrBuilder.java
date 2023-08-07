@@ -31,11 +31,19 @@ public interface GrpcModifyAttributeSchemaDefaultValueMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the attribute the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
   java.lang.String getName();
   /**
+   * <pre>
+   * Name of the attribute the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -43,16 +51,31 @@ public interface GrpcModifyAttributeSchemaDefaultValueMutationOrBuilder extends
       getNameBytes();
 
   /**
+   * <pre>
+   * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+   * non-null checks even if no attributes of such name are specified.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 2;</code>
    * @return Whether the defaultValue field is set.
    */
   boolean hasDefaultValue();
   /**
+   * <pre>
+   * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+   * non-null checks even if no attributes of such name are specified.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 2;</code>
    * @return The defaultValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEvitaValue getDefaultValue();
   /**
+   * <pre>
+   * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+   * non-null checks even if no attributes of such name are specified.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder getDefaultValueOrBuilder();

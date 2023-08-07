@@ -26,6 +26,10 @@ package io.evitadb.externalApi.grpc.generated;
 import static io.grpc.MethodDescriptor.generateFullMethodName;
 
 /**
+ * <pre>
+ * This service contains RPCs that could be called by gRPC clients on evitaDB. Main purpose of this service is to provide
+ * a way to create sessions and catalogs, and to update the catalog.
+ * </pre>
  */
 
 @io.grpc.stub.annotations.GrpcGenerated
@@ -422,10 +426,17 @@ public final class EvitaServiceGrpc {
   }
 
   /**
+   * <pre>
+   * This service contains RPCs that could be called by gRPC clients on evitaDB. Main purpose of this service is to provide
+   * a way to create sessions and catalogs, and to update the catalog.
+   * </pre>
    */
   public static abstract class EvitaServiceImplBase implements io.grpc.BindableService {
 
     /**
+     * <pre>
+     * Procedure used to create read only sessions.
+     * </pre>
      */
     public void createReadOnlySession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> responseObserver) {
@@ -433,6 +444,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to create read write sessions.
+     * </pre>
      */
     public void createReadWriteSession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> responseObserver) {
@@ -440,6 +454,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to create read-only session which will return data in binary format. Part of the Private API.
+     * </pre>
      */
     public void createBinaryReadOnlySession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> responseObserver) {
@@ -447,6 +464,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to create read-write session which will return data in binary format. Part of the Private API.
+     * </pre>
      */
     public void createBinaryReadWriteSession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> responseObserver) {
@@ -454,6 +474,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to terminate existing session.
+     * </pre>
      */
     public void terminateSession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationResponse> responseObserver) {
@@ -461,6 +484,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to get names of all existing catalogs.
+     * </pre>
      */
     public void getCatalogNames(com.google.protobuf.Empty request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCatalogNamesResponse> responseObserver) {
@@ -468,6 +494,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to define a new catalog.
+     * </pre>
      */
     public void defineCatalog(io.evitadb.externalApi.grpc.generated.GrpcDefineCatalogRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDefineCatalogResponse> responseObserver) {
@@ -475,6 +504,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to rename an existing catalog.
+     * </pre>
      */
     public void renameCatalog(io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse> responseObserver) {
@@ -482,6 +514,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to replace an existing catalog.
+     * </pre>
      */
     public void replaceCatalog(io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse> responseObserver) {
@@ -489,6 +524,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to delete an existing catalog.
+     * </pre>
      */
     public void deleteCatalogIfExists(io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsResponse> responseObserver) {
@@ -496,6 +534,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to update the catalog with a set of mutations.
+     * </pre>
      */
     public void update(io.evitadb.externalApi.grpc.generated.GrpcUpdateEvitaRequest request,
         io.grpc.stub.StreamObserver<com.google.protobuf.Empty> responseObserver) {
@@ -586,6 +627,10 @@ public final class EvitaServiceGrpc {
   }
 
   /**
+   * <pre>
+   * This service contains RPCs that could be called by gRPC clients on evitaDB. Main purpose of this service is to provide
+   * a way to create sessions and catalogs, and to update the catalog.
+   * </pre>
    */
   public static final class EvitaServiceStub extends io.grpc.stub.AbstractAsyncStub<EvitaServiceStub> {
     private EvitaServiceStub(
@@ -600,6 +645,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to create read only sessions.
+     * </pre>
      */
     public void createReadOnlySession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> responseObserver) {
@@ -608,6 +656,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to create read write sessions.
+     * </pre>
      */
     public void createReadWriteSession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> responseObserver) {
@@ -616,6 +667,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to create read-only session which will return data in binary format. Part of the Private API.
+     * </pre>
      */
     public void createBinaryReadOnlySession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> responseObserver) {
@@ -624,6 +678,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to create read-write session which will return data in binary format. Part of the Private API.
+     * </pre>
      */
     public void createBinaryReadWriteSession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> responseObserver) {
@@ -632,6 +689,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to terminate existing session.
+     * </pre>
      */
     public void terminateSession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationResponse> responseObserver) {
@@ -640,6 +700,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to get names of all existing catalogs.
+     * </pre>
      */
     public void getCatalogNames(com.google.protobuf.Empty request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCatalogNamesResponse> responseObserver) {
@@ -648,6 +711,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to define a new catalog.
+     * </pre>
      */
     public void defineCatalog(io.evitadb.externalApi.grpc.generated.GrpcDefineCatalogRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDefineCatalogResponse> responseObserver) {
@@ -656,6 +722,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to rename an existing catalog.
+     * </pre>
      */
     public void renameCatalog(io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse> responseObserver) {
@@ -664,6 +733,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to replace an existing catalog.
+     * </pre>
      */
     public void replaceCatalog(io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse> responseObserver) {
@@ -672,6 +744,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to delete an existing catalog.
+     * </pre>
      */
     public void deleteCatalogIfExists(io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsResponse> responseObserver) {
@@ -680,6 +755,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to update the catalog with a set of mutations.
+     * </pre>
      */
     public void update(io.evitadb.externalApi.grpc.generated.GrpcUpdateEvitaRequest request,
         io.grpc.stub.StreamObserver<com.google.protobuf.Empty> responseObserver) {
@@ -689,6 +767,10 @@ public final class EvitaServiceGrpc {
   }
 
   /**
+   * <pre>
+   * This service contains RPCs that could be called by gRPC clients on evitaDB. Main purpose of this service is to provide
+   * a way to create sessions and catalogs, and to update the catalog.
+   * </pre>
    */
   public static final class EvitaServiceBlockingStub extends io.grpc.stub.AbstractBlockingStub<EvitaServiceBlockingStub> {
     private EvitaServiceBlockingStub(
@@ -703,6 +785,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to create read only sessions.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse createReadOnlySession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -710,6 +795,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to create read write sessions.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse createReadWriteSession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -717,6 +805,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to create read-only session which will return data in binary format. Part of the Private API.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse createBinaryReadOnlySession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -724,6 +815,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to create read-write session which will return data in binary format. Part of the Private API.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse createBinaryReadWriteSession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -731,6 +825,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to terminate existing session.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationResponse terminateSession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -738,6 +835,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to get names of all existing catalogs.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCatalogNamesResponse getCatalogNames(com.google.protobuf.Empty request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -745,6 +845,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to define a new catalog.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcDefineCatalogResponse defineCatalog(io.evitadb.externalApi.grpc.generated.GrpcDefineCatalogRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -752,6 +855,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to rename an existing catalog.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse renameCatalog(io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -759,6 +865,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to replace an existing catalog.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse replaceCatalog(io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -766,6 +875,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to delete an existing catalog.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsResponse deleteCatalogIfExists(io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -773,6 +885,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to update the catalog with a set of mutations.
+     * </pre>
      */
     public com.google.protobuf.Empty update(io.evitadb.externalApi.grpc.generated.GrpcUpdateEvitaRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -781,6 +896,10 @@ public final class EvitaServiceGrpc {
   }
 
   /**
+   * <pre>
+   * This service contains RPCs that could be called by gRPC clients on evitaDB. Main purpose of this service is to provide
+   * a way to create sessions and catalogs, and to update the catalog.
+   * </pre>
    */
   public static final class EvitaServiceFutureStub extends io.grpc.stub.AbstractFutureStub<EvitaServiceFutureStub> {
     private EvitaServiceFutureStub(
@@ -795,6 +914,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to create read only sessions.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> createReadOnlySession(
         io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request) {
@@ -803,6 +925,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to create read write sessions.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> createReadWriteSession(
         io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request) {
@@ -811,6 +936,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to create read-only session which will return data in binary format. Part of the Private API.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> createBinaryReadOnlySession(
         io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request) {
@@ -819,6 +947,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to create read-write session which will return data in binary format. Part of the Private API.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> createBinaryReadWriteSession(
         io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request) {
@@ -827,6 +958,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to terminate existing session.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationResponse> terminateSession(
         io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationRequest request) {
@@ -835,6 +969,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to get names of all existing catalogs.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcCatalogNamesResponse> getCatalogNames(
         com.google.protobuf.Empty request) {
@@ -843,6 +980,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to define a new catalog.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcDefineCatalogResponse> defineCatalog(
         io.evitadb.externalApi.grpc.generated.GrpcDefineCatalogRequest request) {
@@ -851,6 +991,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to rename an existing catalog.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse> renameCatalog(
         io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest request) {
@@ -859,6 +1002,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to replace an existing catalog.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse> replaceCatalog(
         io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest request) {
@@ -867,6 +1013,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to delete an existing catalog.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsResponse> deleteCatalogIfExists(
         io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsRequest request) {
@@ -875,6 +1024,9 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure used to update the catalog with a set of mutations.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<com.google.protobuf.Empty> update(
         io.evitadb.externalApi.grpc.generated.GrpcUpdateEvitaRequest request) {

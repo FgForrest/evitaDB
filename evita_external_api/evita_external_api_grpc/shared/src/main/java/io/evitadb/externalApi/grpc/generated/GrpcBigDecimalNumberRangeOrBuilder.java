@@ -31,36 +31,64 @@ public interface GrpcBigDecimalNumberRangeOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The lower bound of the range.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal from = 1;</code>
    * @return Whether the from field is set.
    */
   boolean hasFrom();
   /**
+   * <pre>
+   * The lower bound of the range.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal from = 1;</code>
    * @return The from.
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getFrom();
   /**
+   * <pre>
+   * The lower bound of the range.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal from = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getFromOrBuilder();
 
   /**
+   * <pre>
+   * The upper bound of the range.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal to = 2;</code>
    * @return Whether the to field is set.
    */
   boolean hasTo();
   /**
+   * <pre>
+   * The upper bound of the range.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal to = 2;</code>
    * @return The to.
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getTo();
   /**
+   * <pre>
+   * The upper bound of the range.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal to = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getToOrBuilder();
 
   /**
+   * <pre>
+   * The number of decimal places to compare.
+   * </pre>
+   *
    * <code>int32 decimalPlacesToCompare = 3;</code>
    * @return The decimalPlacesToCompare.
    */

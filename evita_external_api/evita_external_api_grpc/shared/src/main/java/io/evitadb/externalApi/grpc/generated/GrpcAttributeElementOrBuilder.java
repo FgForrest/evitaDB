@@ -31,11 +31,19 @@ public interface GrpcAttributeElementOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the existing attribute in the same schema.
+   * </pre>
+   *
    * <code>string attributeName = 1;</code>
    * @return The attributeName.
    */
   java.lang.String getAttributeName();
   /**
+   * <pre>
+   * Name of the existing attribute in the same schema.
+   * </pre>
+   *
    * <code>string attributeName = 1;</code>
    * @return The bytes for attributeName.
    */
@@ -43,22 +51,38 @@ public interface GrpcAttributeElementOrBuilder extends
       getAttributeNameBytes();
 
   /**
+   * <pre>
+   * Direction of the sorting.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection direction = 2;</code>
    * @return The enum numeric value on the wire for direction.
    */
   int getDirectionValue();
   /**
+   * <pre>
+   * Direction of the sorting.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection direction = 2;</code>
    * @return The direction.
    */
   io.evitadb.externalApi.grpc.generated.GrpcOrderDirection getDirection();
 
   /**
+   * <pre>
+   * Behaviour of the null values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour behaviour = 3;</code>
    * @return The enum numeric value on the wire for behaviour.
    */
   int getBehaviourValue();
   /**
+   * <pre>
+   * Behaviour of the null values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour behaviour = 3;</code>
    * @return The behaviour.
    */

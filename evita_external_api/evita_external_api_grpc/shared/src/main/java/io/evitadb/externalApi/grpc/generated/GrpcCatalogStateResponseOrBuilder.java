@@ -31,11 +31,19 @@ public interface GrpcCatalogStateResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The current state of the catalog.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState state = 1;</code>
    * @return The enum numeric value on the wire for state.
    */
   int getStateValue();
   /**
+   * <pre>
+   * The current state of the catalog.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState state = 1;</code>
    * @return The state.
    */

@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * This DTO represents a wrapper for array of statistics for the single hierarchy level of inner entities.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcLevelInfos}
  */
 public final class GrpcLevelInfos extends
@@ -120,6 +124,10 @@ private static final long serialVersionUID = 0L;
   public static final int LEVELINFOS_FIELD_NUMBER = 1;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo> levelInfos_;
   /**
+   * <pre>
+   * Array of statistics for the single hierarchy level of inner entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
    */
   @java.lang.Override
@@ -127,6 +135,10 @@ private static final long serialVersionUID = 0L;
     return levelInfos_;
   }
   /**
+   * <pre>
+   * Array of statistics for the single hierarchy level of inner entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
    */
   @java.lang.Override
@@ -135,6 +147,10 @@ private static final long serialVersionUID = 0L;
     return levelInfos_;
   }
   /**
+   * <pre>
+   * Array of statistics for the single hierarchy level of inner entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
    */
   @java.lang.Override
@@ -142,6 +158,10 @@ private static final long serialVersionUID = 0L;
     return levelInfos_.size();
   }
   /**
+   * <pre>
+   * Array of statistics for the single hierarchy level of inner entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
    */
   @java.lang.Override
@@ -149,6 +169,10 @@ private static final long serialVersionUID = 0L;
     return levelInfos_.get(index);
   }
   /**
+   * <pre>
+   * Array of statistics for the single hierarchy level of inner entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
    */
   @java.lang.Override
@@ -315,6 +339,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * This DTO represents a wrapper for array of statistics for the single hierarchy level of inner entities.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcLevelInfos}
    */
   public static final class Builder extends
@@ -512,6 +540,10 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcLevelInfo, io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder, io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder> levelInfosBuilder_;
 
     /**
+     * <pre>
+     * Array of statistics for the single hierarchy level of inner entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo> getLevelInfosList() {
@@ -522,6 +554,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Array of statistics for the single hierarchy level of inner entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
     public int getLevelInfosCount() {
@@ -532,6 +568,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Array of statistics for the single hierarchy level of inner entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLevelInfo getLevelInfos(int index) {
@@ -542,6 +582,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Array of statistics for the single hierarchy level of inner entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
     public Builder setLevelInfos(
@@ -559,6 +603,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Array of statistics for the single hierarchy level of inner entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
     public Builder setLevelInfos(
@@ -573,6 +621,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Array of statistics for the single hierarchy level of inner entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
     public Builder addLevelInfos(io.evitadb.externalApi.grpc.generated.GrpcLevelInfo value) {
@@ -589,6 +641,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Array of statistics for the single hierarchy level of inner entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
     public Builder addLevelInfos(
@@ -606,6 +662,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Array of statistics for the single hierarchy level of inner entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
     public Builder addLevelInfos(
@@ -620,6 +680,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Array of statistics for the single hierarchy level of inner entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
     public Builder addLevelInfos(
@@ -634,6 +698,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Array of statistics for the single hierarchy level of inner entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
     public Builder addAllLevelInfos(
@@ -649,6 +717,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Array of statistics for the single hierarchy level of inner entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
     public Builder clearLevelInfos() {
@@ -662,6 +734,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Array of statistics for the single hierarchy level of inner entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
     public Builder removeLevelInfos(int index) {
@@ -675,6 +751,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Array of statistics for the single hierarchy level of inner entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder getLevelInfosBuilder(
@@ -682,6 +762,10 @@ private static final long serialVersionUID = 0L;
       return getLevelInfosFieldBuilder().getBuilder(index);
     }
     /**
+     * <pre>
+     * Array of statistics for the single hierarchy level of inner entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder getLevelInfosOrBuilder(
@@ -692,6 +776,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Array of statistics for the single hierarchy level of inner entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder> 
@@ -703,6 +791,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Array of statistics for the single hierarchy level of inner entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder addLevelInfosBuilder() {
@@ -710,6 +802,10 @@ private static final long serialVersionUID = 0L;
           io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Array of statistics for the single hierarchy level of inner entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder addLevelInfosBuilder(
@@ -718,6 +814,10 @@ private static final long serialVersionUID = 0L;
           index, io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Array of statistics for the single hierarchy level of inner entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder> 

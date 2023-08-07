@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Mutation is responsible for setting a `EntitySchema.withPrice` in `EntitySchema`.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithPriceMutation}
  */
 public final class GrpcSetEntitySchemaWithPriceMutation extends
@@ -116,6 +120,18 @@ private static final long serialVersionUID = 0L;
   public static final int WITHPRICE_FIELD_NUMBER = 1;
   private boolean withPrice_;
   /**
+   * <pre>
+   * Whether entities of this type holds price information.
+   * Prices are specific to a very few entities, but because correct price computation is very complex in e-commerce
+   * systems and highly affects performance of the entities filtering and sorting, they deserve first class support
+   * in entity model. It is pretty common in B2B systems single product has assigned dozens of prices for the different
+   * customers.
+   * Specifying prices on entity allows usage of `priceValidIn`, `priceInCurrency`
+   * `priceBetween`, and `priceInPriceLists` filtering constraints and also price
+   * ordering of the entities. Additional requirements
+   * `priceHistogram` and `priceType` can be used in query as well.
+   * </pre>
+   *
    * <code>bool withPrice = 1;</code>
    * @return The withPrice.
    */
@@ -127,6 +143,13 @@ private static final long serialVersionUID = 0L;
   public static final int INDEXEDPRICEPLACES_FIELD_NUMBER = 2;
   private int indexedPricePlaces_;
   /**
+   * <pre>
+   * Determines how many fractional places are important when entities are compared during filtering or sorting. It is
+   * important to know that all prices will be converted to `Integer`, so any of the price values
+   * (either with or without tax) must not ever exceed maximum limits of `Integer` type when scaling
+   * the number by the power of ten using `indexedPricePlaces` as exponent.
+   * </pre>
+   *
    * <code>int32 indexedPricePlaces = 2;</code>
    * @return The indexedPricePlaces.
    */
@@ -303,6 +326,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Mutation is responsible for setting a `EntitySchema.withPrice` in `EntitySchema`.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithPriceMutation}
    */
   public static final class Builder extends
@@ -457,6 +484,18 @@ private static final long serialVersionUID = 0L;
 
     private boolean withPrice_ ;
     /**
+     * <pre>
+     * Whether entities of this type holds price information.
+     * Prices are specific to a very few entities, but because correct price computation is very complex in e-commerce
+     * systems and highly affects performance of the entities filtering and sorting, they deserve first class support
+     * in entity model. It is pretty common in B2B systems single product has assigned dozens of prices for the different
+     * customers.
+     * Specifying prices on entity allows usage of `priceValidIn`, `priceInCurrency`
+     * `priceBetween`, and `priceInPriceLists` filtering constraints and also price
+     * ordering of the entities. Additional requirements
+     * `priceHistogram` and `priceType` can be used in query as well.
+     * </pre>
+     *
      * <code>bool withPrice = 1;</code>
      * @return The withPrice.
      */
@@ -465,6 +504,18 @@ private static final long serialVersionUID = 0L;
       return withPrice_;
     }
     /**
+     * <pre>
+     * Whether entities of this type holds price information.
+     * Prices are specific to a very few entities, but because correct price computation is very complex in e-commerce
+     * systems and highly affects performance of the entities filtering and sorting, they deserve first class support
+     * in entity model. It is pretty common in B2B systems single product has assigned dozens of prices for the different
+     * customers.
+     * Specifying prices on entity allows usage of `priceValidIn`, `priceInCurrency`
+     * `priceBetween`, and `priceInPriceLists` filtering constraints and also price
+     * ordering of the entities. Additional requirements
+     * `priceHistogram` and `priceType` can be used in query as well.
+     * </pre>
+     *
      * <code>bool withPrice = 1;</code>
      * @param value The withPrice to set.
      * @return This builder for chaining.
@@ -476,6 +527,18 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Whether entities of this type holds price information.
+     * Prices are specific to a very few entities, but because correct price computation is very complex in e-commerce
+     * systems and highly affects performance of the entities filtering and sorting, they deserve first class support
+     * in entity model. It is pretty common in B2B systems single product has assigned dozens of prices for the different
+     * customers.
+     * Specifying prices on entity allows usage of `priceValidIn`, `priceInCurrency`
+     * `priceBetween`, and `priceInPriceLists` filtering constraints and also price
+     * ordering of the entities. Additional requirements
+     * `priceHistogram` and `priceType` can be used in query as well.
+     * </pre>
+     *
      * <code>bool withPrice = 1;</code>
      * @return This builder for chaining.
      */
@@ -488,6 +551,13 @@ private static final long serialVersionUID = 0L;
 
     private int indexedPricePlaces_ ;
     /**
+     * <pre>
+     * Determines how many fractional places are important when entities are compared during filtering or sorting. It is
+     * important to know that all prices will be converted to `Integer`, so any of the price values
+     * (either with or without tax) must not ever exceed maximum limits of `Integer` type when scaling
+     * the number by the power of ten using `indexedPricePlaces` as exponent.
+     * </pre>
+     *
      * <code>int32 indexedPricePlaces = 2;</code>
      * @return The indexedPricePlaces.
      */
@@ -496,6 +566,13 @@ private static final long serialVersionUID = 0L;
       return indexedPricePlaces_;
     }
     /**
+     * <pre>
+     * Determines how many fractional places are important when entities are compared during filtering or sorting. It is
+     * important to know that all prices will be converted to `Integer`, so any of the price values
+     * (either with or without tax) must not ever exceed maximum limits of `Integer` type when scaling
+     * the number by the power of ten using `indexedPricePlaces` as exponent.
+     * </pre>
+     *
      * <code>int32 indexedPricePlaces = 2;</code>
      * @param value The indexedPricePlaces to set.
      * @return This builder for chaining.
@@ -507,6 +584,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Determines how many fractional places are important when entities are compared during filtering or sorting. It is
+     * important to know that all prices will be converted to `Integer`, so any of the price values
+     * (either with or without tax) must not ever exceed maximum limits of `Integer` type when scaling
+     * the number by the power of ten using `indexedPricePlaces` as exponent.
+     * </pre>
+     *
      * <code>int32 indexedPricePlaces = 2;</code>
      * @return This builder for chaining.
      */

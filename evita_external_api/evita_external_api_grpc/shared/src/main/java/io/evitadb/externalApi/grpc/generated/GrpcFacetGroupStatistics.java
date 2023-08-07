@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * This DTO contains information about single facet group and statistics of the facets that relates to it.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics}
  */
 public final class GrpcFacetGroupStatistics extends
@@ -158,6 +162,10 @@ private static final long serialVersionUID = 0L;
   public static final int REFERENCENAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object referenceName_;
   /**
+   * <pre>
+   * Contains name of the facet group.
+   * </pre>
+   *
    * <code>string referenceName = 1;</code>
    * @return The referenceName.
    */
@@ -175,6 +183,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Contains name of the facet group.
+   * </pre>
+   *
    * <code>string referenceName = 1;</code>
    * @return The bytes for referenceName.
    */
@@ -196,6 +208,10 @@ private static final long serialVersionUID = 0L;
   public static final int GROUPENTITYREFERENCE_FIELD_NUMBER = 2;
   private io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupEntityReference_;
   /**
+   * <pre>
+   * Contains referenced entity reference representing this group.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupEntityReference = 2;</code>
    * @return Whether the groupEntityReference field is set.
    */
@@ -204,6 +220,10 @@ private static final long serialVersionUID = 0L;
     return groupEntityReference_ != null;
   }
   /**
+   * <pre>
+   * Contains referenced entity reference representing this group.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupEntityReference = 2;</code>
    * @return The groupEntityReference.
    */
@@ -212,6 +232,10 @@ private static final long serialVersionUID = 0L;
     return groupEntityReference_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance() : groupEntityReference_;
   }
   /**
+   * <pre>
+   * Contains referenced entity reference representing this group.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupEntityReference = 2;</code>
    */
   @java.lang.Override
@@ -222,6 +246,10 @@ private static final long serialVersionUID = 0L;
   public static final int GROUPENTITY_FIELD_NUMBER = 3;
   private io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupEntity_;
   /**
+   * <pre>
+   * Contains referenced entity representing this group.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupEntity = 3;</code>
    * @return Whether the groupEntity field is set.
    */
@@ -230,6 +258,10 @@ private static final long serialVersionUID = 0L;
     return groupEntity_ != null;
   }
   /**
+   * <pre>
+   * Contains referenced entity representing this group.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupEntity = 3;</code>
    * @return The groupEntity.
    */
@@ -238,6 +270,10 @@ private static final long serialVersionUID = 0L;
     return groupEntity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : groupEntity_;
   }
   /**
+   * <pre>
+   * Contains referenced entity representing this group.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupEntity = 3;</code>
    */
   @java.lang.Override
@@ -248,6 +284,10 @@ private static final long serialVersionUID = 0L;
   public static final int COUNT_FIELD_NUMBER = 4;
   private int count_;
   /**
+   * <pre>
+   * Contains number of distinct entities in the response that possess any reference in this group.
+   * </pre>
+   *
    * <code>int32 count = 4;</code>
    * @return The count.
    */
@@ -259,6 +299,10 @@ private static final long serialVersionUID = 0L;
   public static final int FACETSTATISTICS_FIELD_NUMBER = 5;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics> facetStatistics_;
   /**
+   * <pre>
+   * Contains statistics of individual facets.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
    */
   @java.lang.Override
@@ -266,6 +310,10 @@ private static final long serialVersionUID = 0L;
     return facetStatistics_;
   }
   /**
+   * <pre>
+   * Contains statistics of individual facets.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
    */
   @java.lang.Override
@@ -274,6 +322,10 @@ private static final long serialVersionUID = 0L;
     return facetStatistics_;
   }
   /**
+   * <pre>
+   * Contains statistics of individual facets.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
    */
   @java.lang.Override
@@ -281,6 +333,10 @@ private static final long serialVersionUID = 0L;
     return facetStatistics_.size();
   }
   /**
+   * <pre>
+   * Contains statistics of individual facets.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
    */
   @java.lang.Override
@@ -288,6 +344,10 @@ private static final long serialVersionUID = 0L;
     return facetStatistics_.get(index);
   }
   /**
+   * <pre>
+   * Contains statistics of individual facets.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
    */
   @java.lang.Override
@@ -507,6 +567,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * This DTO contains information about single facet group and statistics of the facets that relates to it.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics}
    */
   public static final class Builder extends
@@ -734,6 +798,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object referenceName_ = "";
     /**
+     * <pre>
+     * Contains name of the facet group.
+     * </pre>
+     *
      * <code>string referenceName = 1;</code>
      * @return The referenceName.
      */
@@ -750,6 +818,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains name of the facet group.
+     * </pre>
+     *
      * <code>string referenceName = 1;</code>
      * @return The bytes for referenceName.
      */
@@ -767,6 +839,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains name of the facet group.
+     * </pre>
+     *
      * <code>string referenceName = 1;</code>
      * @param value The referenceName to set.
      * @return This builder for chaining.
@@ -782,6 +858,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains name of the facet group.
+     * </pre>
+     *
      * <code>string referenceName = 1;</code>
      * @return This builder for chaining.
      */
@@ -792,6 +872,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains name of the facet group.
+     * </pre>
+     *
      * <code>string referenceName = 1;</code>
      * @param value The bytes for referenceName to set.
      * @return This builder for chaining.
@@ -812,6 +896,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> groupEntityReferenceBuilder_;
     /**
+     * <pre>
+     * Contains referenced entity reference representing this group.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupEntityReference = 2;</code>
      * @return Whether the groupEntityReference field is set.
      */
@@ -819,6 +907,10 @@ private static final long serialVersionUID = 0L;
       return groupEntityReferenceBuilder_ != null || groupEntityReference_ != null;
     }
     /**
+     * <pre>
+     * Contains referenced entity reference representing this group.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupEntityReference = 2;</code>
      * @return The groupEntityReference.
      */
@@ -830,6 +922,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains referenced entity reference representing this group.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupEntityReference = 2;</code>
      */
     public Builder setGroupEntityReference(io.evitadb.externalApi.grpc.generated.GrpcEntityReference value) {
@@ -846,6 +942,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains referenced entity reference representing this group.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupEntityReference = 2;</code>
      */
     public Builder setGroupEntityReference(
@@ -860,6 +960,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains referenced entity reference representing this group.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupEntityReference = 2;</code>
      */
     public Builder mergeGroupEntityReference(io.evitadb.externalApi.grpc.generated.GrpcEntityReference value) {
@@ -878,6 +982,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains referenced entity reference representing this group.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupEntityReference = 2;</code>
      */
     public Builder clearGroupEntityReference() {
@@ -892,6 +1000,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains referenced entity reference representing this group.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupEntityReference = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder getGroupEntityReferenceBuilder() {
@@ -900,6 +1012,10 @@ private static final long serialVersionUID = 0L;
       return getGroupEntityReferenceFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Contains referenced entity reference representing this group.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupEntityReference = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder getGroupEntityReferenceOrBuilder() {
@@ -911,6 +1027,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains referenced entity reference representing this group.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupEntityReference = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -931,6 +1051,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> groupEntityBuilder_;
     /**
+     * <pre>
+     * Contains referenced entity representing this group.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupEntity = 3;</code>
      * @return Whether the groupEntity field is set.
      */
@@ -938,6 +1062,10 @@ private static final long serialVersionUID = 0L;
       return groupEntityBuilder_ != null || groupEntity_ != null;
     }
     /**
+     * <pre>
+     * Contains referenced entity representing this group.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupEntity = 3;</code>
      * @return The groupEntity.
      */
@@ -949,6 +1077,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains referenced entity representing this group.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupEntity = 3;</code>
      */
     public Builder setGroupEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
@@ -965,6 +1097,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains referenced entity representing this group.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupEntity = 3;</code>
      */
     public Builder setGroupEntity(
@@ -979,6 +1115,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains referenced entity representing this group.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupEntity = 3;</code>
      */
     public Builder mergeGroupEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
@@ -997,6 +1137,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains referenced entity representing this group.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupEntity = 3;</code>
      */
     public Builder clearGroupEntity() {
@@ -1011,6 +1155,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains referenced entity representing this group.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupEntity = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder getGroupEntityBuilder() {
@@ -1019,6 +1167,10 @@ private static final long serialVersionUID = 0L;
       return getGroupEntityFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Contains referenced entity representing this group.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupEntity = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getGroupEntityOrBuilder() {
@@ -1030,6 +1182,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains referenced entity representing this group.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupEntity = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1048,6 +1204,10 @@ private static final long serialVersionUID = 0L;
 
     private int count_ ;
     /**
+     * <pre>
+     * Contains number of distinct entities in the response that possess any reference in this group.
+     * </pre>
+     *
      * <code>int32 count = 4;</code>
      * @return The count.
      */
@@ -1056,6 +1216,10 @@ private static final long serialVersionUID = 0L;
       return count_;
     }
     /**
+     * <pre>
+     * Contains number of distinct entities in the response that possess any reference in this group.
+     * </pre>
+     *
      * <code>int32 count = 4;</code>
      * @param value The count to set.
      * @return This builder for chaining.
@@ -1067,6 +1231,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains number of distinct entities in the response that possess any reference in this group.
+     * </pre>
+     *
      * <code>int32 count = 4;</code>
      * @return This builder for chaining.
      */
@@ -1090,6 +1258,10 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics, io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsOrBuilder> facetStatisticsBuilder_;
 
     /**
+     * <pre>
+     * Contains statistics of individual facets.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics> getFacetStatisticsList() {
@@ -1100,6 +1272,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains statistics of individual facets.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public int getFacetStatisticsCount() {
@@ -1110,6 +1286,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains statistics of individual facets.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics getFacetStatistics(int index) {
@@ -1120,6 +1300,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains statistics of individual facets.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public Builder setFacetStatistics(
@@ -1137,6 +1321,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains statistics of individual facets.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public Builder setFacetStatistics(
@@ -1151,6 +1339,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains statistics of individual facets.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public Builder addFacetStatistics(io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics value) {
@@ -1167,6 +1359,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains statistics of individual facets.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public Builder addFacetStatistics(
@@ -1184,6 +1380,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains statistics of individual facets.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public Builder addFacetStatistics(
@@ -1198,6 +1398,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains statistics of individual facets.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public Builder addFacetStatistics(
@@ -1212,6 +1416,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains statistics of individual facets.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public Builder addAllFacetStatistics(
@@ -1227,6 +1435,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains statistics of individual facets.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public Builder clearFacetStatistics() {
@@ -1240,6 +1452,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains statistics of individual facets.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public Builder removeFacetStatistics(int index) {
@@ -1253,6 +1469,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains statistics of individual facets.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics.Builder getFacetStatisticsBuilder(
@@ -1260,6 +1480,10 @@ private static final long serialVersionUID = 0L;
       return getFacetStatisticsFieldBuilder().getBuilder(index);
     }
     /**
+     * <pre>
+     * Contains statistics of individual facets.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsOrBuilder getFacetStatisticsOrBuilder(
@@ -1270,6 +1494,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains statistics of individual facets.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsOrBuilder> 
@@ -1281,6 +1509,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains statistics of individual facets.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics.Builder addFacetStatisticsBuilder() {
@@ -1288,6 +1520,10 @@ private static final long serialVersionUID = 0L;
           io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Contains statistics of individual facets.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics.Builder addFacetStatisticsBuilder(
@@ -1296,6 +1532,10 @@ private static final long serialVersionUID = 0L;
           index, io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Contains statistics of individual facets.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics.Builder> 

@@ -31,6 +31,16 @@ public interface GrpcSetEntitySchemaWithHierarchyMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Whether entities of this type are organized in a tree like structure (hierarchy) where certain entities
+   * are subordinate of other entities.
+   * Entities may be organized in hierarchical fashion. That means that entity may refer to single parent entity and may be
+   * referred by multiple child entities. Hierarchy is always composed of entities of same type.
+   * Each entity must be part of at most single hierarchy (tree).
+   * Hierarchy can limit returned entities by using filtering constraints `hierarchy_{reference name}_within`. It's also used for
+   * computation of extra data - such as `hierarchyParents`.
+   * </pre>
+   *
    * <code>bool withHierarchy = 1;</code>
    * @return The withHierarchy.
    */

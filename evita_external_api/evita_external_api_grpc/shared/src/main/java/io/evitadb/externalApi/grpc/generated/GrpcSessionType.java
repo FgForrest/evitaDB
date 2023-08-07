@@ -27,23 +27,43 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * This enum is used to identify session type of the created session by gRPC server.
+ * </pre>
+ *
  * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcSessionType}
  */
 public enum GrpcSessionType
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
+   * <pre>
+   * Classic read-only session.
+   * </pre>
+   *
    * <code>READ_ONLY = 0;</code>
    */
   READ_ONLY(0),
   /**
+   * <pre>
+   * Classic read-write session.
+   * </pre>
+   *
    * <code>READ_WRITE = 1;</code>
    */
   READ_WRITE(1),
   /**
+   * <pre>
+   * Read only session that returns all fetched entities in a form of a `BinaryEntity`, which has all of its data represented in a binary form. Should be used only in combination with evitaDB's Java driver.
+   * </pre>
+   *
    * <code>BINARY_READ_ONLY = 2;</code>
    */
   BINARY_READ_ONLY(2),
   /**
+   * <pre>
+   * Read write session that returns all fetched entities in a form of a `BinaryEntity`, which has all of its data represented in a binary form. Should be used only in combination with evitaDB's Java driver.
+   * </pre>
+   *
    * <code>BINARY_READ_WRITE = 3;</code>
    */
   BINARY_READ_WRITE(3),
@@ -51,18 +71,34 @@ public enum GrpcSessionType
   ;
 
   /**
+   * <pre>
+   * Classic read-only session.
+   * </pre>
+   *
    * <code>READ_ONLY = 0;</code>
    */
   public static final int READ_ONLY_VALUE = 0;
   /**
+   * <pre>
+   * Classic read-write session.
+   * </pre>
+   *
    * <code>READ_WRITE = 1;</code>
    */
   public static final int READ_WRITE_VALUE = 1;
   /**
+   * <pre>
+   * Read only session that returns all fetched entities in a form of a `BinaryEntity`, which has all of its data represented in a binary form. Should be used only in combination with evitaDB's Java driver.
+   * </pre>
+   *
    * <code>BINARY_READ_ONLY = 2;</code>
    */
   public static final int BINARY_READ_ONLY_VALUE = 2;
   /**
+   * <pre>
+   * Read write session that returns all fetched entities in a form of a `BinaryEntity`, which has all of its data represented in a binary form. Should be used only in combination with evitaDB's Java driver.
+   * </pre>
+   *
    * <code>BINARY_READ_WRITE = 3;</code>
    */
   public static final int BINARY_READ_WRITE_VALUE = 3;

@@ -131,6 +131,12 @@ private static final long serialVersionUID = 0L;
   public static final int PRICEID_FIELD_NUMBER = 1;
   private int priceId_;
   /**
+   * <pre>
+   * Contains identification of the price in the external systems. This id is expected to be used for the synchronization
+   * of the price in relation with the primary source of the prices.
+   * This id is used to uniquely find a price within same price list and currency and is mandatory.
+   * </pre>
+   *
    * <code>int32 priceId = 1;</code>
    * @return The priceId.
    */
@@ -142,6 +148,15 @@ private static final long serialVersionUID = 0L;
   public static final int PRICELIST_FIELD_NUMBER = 2;
   private volatile java.lang.Object priceList_;
   /**
+   * <pre>
+   * Contains identification of the price list in the external system. Each price must reference a price list. Price list
+   * identification may refer to another Evita entity or may contain any external price list identification
+   * (for example id or unique name of the price list in the external system).
+   * Single entity is expected to have single price for the price list unless there is `validity` specified.
+   * In other words there is no sense to have multiple concurrently valid prices for the same entity that have roots
+   * in the same price list.
+   * </pre>
+   *
    * <code>string priceList = 2;</code>
    * @return The priceList.
    */
@@ -159,6 +174,15 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Contains identification of the price list in the external system. Each price must reference a price list. Price list
+   * identification may refer to another Evita entity or may contain any external price list identification
+   * (for example id or unique name of the price list in the external system).
+   * Single entity is expected to have single price for the price list unless there is `validity` specified.
+   * In other words there is no sense to have multiple concurrently valid prices for the same entity that have roots
+   * in the same price list.
+   * </pre>
+   *
    * <code>string priceList = 2;</code>
    * @return The bytes for priceList.
    */
@@ -180,6 +204,10 @@ private static final long serialVersionUID = 0L;
   public static final int CURRENCY_FIELD_NUMBER = 3;
   private io.evitadb.externalApi.grpc.generated.GrpcCurrency currency_;
   /**
+   * <pre>
+   * Identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
    * @return Whether the currency field is set.
    */
@@ -188,6 +216,10 @@ private static final long serialVersionUID = 0L;
     return currency_ != null;
   }
   /**
+   * <pre>
+   * Identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
    * @return The currency.
    */
@@ -196,6 +228,10 @@ private static final long serialVersionUID = 0L;
     return currency_ == null ? io.evitadb.externalApi.grpc.generated.GrpcCurrency.getDefaultInstance() : currency_;
   }
   /**
+   * <pre>
+   * Identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
    */
   @java.lang.Override
@@ -554,6 +590,12 @@ private static final long serialVersionUID = 0L;
 
     private int priceId_ ;
     /**
+     * <pre>
+     * Contains identification of the price in the external systems. This id is expected to be used for the synchronization
+     * of the price in relation with the primary source of the prices.
+     * This id is used to uniquely find a price within same price list and currency and is mandatory.
+     * </pre>
+     *
      * <code>int32 priceId = 1;</code>
      * @return The priceId.
      */
@@ -562,6 +604,12 @@ private static final long serialVersionUID = 0L;
       return priceId_;
     }
     /**
+     * <pre>
+     * Contains identification of the price in the external systems. This id is expected to be used for the synchronization
+     * of the price in relation with the primary source of the prices.
+     * This id is used to uniquely find a price within same price list and currency and is mandatory.
+     * </pre>
+     *
      * <code>int32 priceId = 1;</code>
      * @param value The priceId to set.
      * @return This builder for chaining.
@@ -573,6 +621,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains identification of the price in the external systems. This id is expected to be used for the synchronization
+     * of the price in relation with the primary source of the prices.
+     * This id is used to uniquely find a price within same price list and currency and is mandatory.
+     * </pre>
+     *
      * <code>int32 priceId = 1;</code>
      * @return This builder for chaining.
      */
@@ -585,6 +639,15 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object priceList_ = "";
     /**
+     * <pre>
+     * Contains identification of the price list in the external system. Each price must reference a price list. Price list
+     * identification may refer to another Evita entity or may contain any external price list identification
+     * (for example id or unique name of the price list in the external system).
+     * Single entity is expected to have single price for the price list unless there is `validity` specified.
+     * In other words there is no sense to have multiple concurrently valid prices for the same entity that have roots
+     * in the same price list.
+     * </pre>
+     *
      * <code>string priceList = 2;</code>
      * @return The priceList.
      */
@@ -601,6 +664,15 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains identification of the price list in the external system. Each price must reference a price list. Price list
+     * identification may refer to another Evita entity or may contain any external price list identification
+     * (for example id or unique name of the price list in the external system).
+     * Single entity is expected to have single price for the price list unless there is `validity` specified.
+     * In other words there is no sense to have multiple concurrently valid prices for the same entity that have roots
+     * in the same price list.
+     * </pre>
+     *
      * <code>string priceList = 2;</code>
      * @return The bytes for priceList.
      */
@@ -618,6 +690,15 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains identification of the price list in the external system. Each price must reference a price list. Price list
+     * identification may refer to another Evita entity or may contain any external price list identification
+     * (for example id or unique name of the price list in the external system).
+     * Single entity is expected to have single price for the price list unless there is `validity` specified.
+     * In other words there is no sense to have multiple concurrently valid prices for the same entity that have roots
+     * in the same price list.
+     * </pre>
+     *
      * <code>string priceList = 2;</code>
      * @param value The priceList to set.
      * @return This builder for chaining.
@@ -633,6 +714,15 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains identification of the price list in the external system. Each price must reference a price list. Price list
+     * identification may refer to another Evita entity or may contain any external price list identification
+     * (for example id or unique name of the price list in the external system).
+     * Single entity is expected to have single price for the price list unless there is `validity` specified.
+     * In other words there is no sense to have multiple concurrently valid prices for the same entity that have roots
+     * in the same price list.
+     * </pre>
+     *
      * <code>string priceList = 2;</code>
      * @return This builder for chaining.
      */
@@ -643,6 +733,15 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains identification of the price list in the external system. Each price must reference a price list. Price list
+     * identification may refer to another Evita entity or may contain any external price list identification
+     * (for example id or unique name of the price list in the external system).
+     * Single entity is expected to have single price for the price list unless there is `validity` specified.
+     * In other words there is no sense to have multiple concurrently valid prices for the same entity that have roots
+     * in the same price list.
+     * </pre>
+     *
      * <code>string priceList = 2;</code>
      * @param value The bytes for priceList to set.
      * @return This builder for chaining.
@@ -663,6 +762,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> currencyBuilder_;
     /**
+     * <pre>
+     * Identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      * @return Whether the currency field is set.
      */
@@ -670,6 +773,10 @@ private static final long serialVersionUID = 0L;
       return currencyBuilder_ != null || currency_ != null;
     }
     /**
+     * <pre>
+     * Identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      * @return The currency.
      */
@@ -681,6 +788,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      */
     public Builder setCurrency(io.evitadb.externalApi.grpc.generated.GrpcCurrency value) {
@@ -697,6 +808,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      */
     public Builder setCurrency(
@@ -711,6 +826,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      */
     public Builder mergeCurrency(io.evitadb.externalApi.grpc.generated.GrpcCurrency value) {
@@ -729,6 +848,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      */
     public Builder clearCurrency() {
@@ -743,6 +866,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder getCurrencyBuilder() {
@@ -751,6 +878,10 @@ private static final long serialVersionUID = 0L;
       return getCurrencyFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder getCurrencyOrBuilder() {
@@ -762,6 +893,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

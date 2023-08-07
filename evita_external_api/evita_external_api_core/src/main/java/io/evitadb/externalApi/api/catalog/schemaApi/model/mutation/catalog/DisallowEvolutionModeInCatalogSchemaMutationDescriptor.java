@@ -53,7 +53,7 @@ public interface DisallowEvolutionModeInCatalogSchemaMutationDescriptor {
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("DisallowEvolutionModeInCatalogSchemaMutation")
 		.description("""
-			Mutation is responsible for adding one or more modes to a `CatalogSchema.evolutionMode`
+			Mutation is responsible for removing one or more modes from a `CatalogSchema.evolutionMode`
 			in `CatalogSchema`.
 			""")
 		.staticFields(List.of(EVOLUTION_MODES))

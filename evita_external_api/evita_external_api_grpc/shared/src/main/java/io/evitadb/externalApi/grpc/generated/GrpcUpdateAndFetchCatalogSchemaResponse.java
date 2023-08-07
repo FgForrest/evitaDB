@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Request for updating the catalog schema and its afterwards fetching.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcUpdateAndFetchCatalogSchemaResponse}
  */
 public final class GrpcUpdateAndFetchCatalogSchemaResponse extends
@@ -119,6 +123,10 @@ private static final long serialVersionUID = 0L;
   public static final int CATALOGSCHEMA_FIELD_NUMBER = 1;
   private io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema_;
   /**
+   * <pre>
+   * Modified catalog schema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
    * @return Whether the catalogSchema field is set.
    */
@@ -127,6 +135,10 @@ private static final long serialVersionUID = 0L;
     return catalogSchema_ != null;
   }
   /**
+   * <pre>
+   * Modified catalog schema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
    * @return The catalogSchema.
    */
@@ -135,6 +147,10 @@ private static final long serialVersionUID = 0L;
     return catalogSchema_ == null ? io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema.getDefaultInstance() : catalogSchema_;
   }
   /**
+   * <pre>
+   * Modified catalog schema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
    */
   @java.lang.Override
@@ -303,6 +319,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Request for updating the catalog schema and its afterwards fetching.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcUpdateAndFetchCatalogSchemaResponse}
    */
   public static final class Builder extends
@@ -461,6 +481,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema, io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema.Builder, io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaOrBuilder> catalogSchemaBuilder_;
     /**
+     * <pre>
+     * Modified catalog schema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
      * @return Whether the catalogSchema field is set.
      */
@@ -468,6 +492,10 @@ private static final long serialVersionUID = 0L;
       return catalogSchemaBuilder_ != null || catalogSchema_ != null;
     }
     /**
+     * <pre>
+     * Modified catalog schema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
      * @return The catalogSchema.
      */
@@ -479,6 +507,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Modified catalog schema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
      */
     public Builder setCatalogSchema(io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema value) {
@@ -495,6 +527,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Modified catalog schema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
      */
     public Builder setCatalogSchema(
@@ -509,6 +545,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Modified catalog schema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
      */
     public Builder mergeCatalogSchema(io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema value) {
@@ -527,6 +567,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Modified catalog schema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
      */
     public Builder clearCatalogSchema() {
@@ -541,6 +585,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Modified catalog schema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema.Builder getCatalogSchemaBuilder() {
@@ -549,6 +597,10 @@ private static final long serialVersionUID = 0L;
       return getCatalogSchemaFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Modified catalog schema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaOrBuilder getCatalogSchemaOrBuilder() {
@@ -560,6 +612,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Modified catalog schema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

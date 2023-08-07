@@ -31,6 +31,10 @@ public interface GrpcCloseTransactionRequestOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * If true, tha changes made by the transaction will be omitted and rollbacked.
+   * </pre>
+   *
    * <code>bool rollback = 1;</code>
    * @return The rollback.
    */

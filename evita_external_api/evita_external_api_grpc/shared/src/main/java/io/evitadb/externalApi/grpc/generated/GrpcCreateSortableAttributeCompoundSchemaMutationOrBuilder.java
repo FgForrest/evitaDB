@@ -31,11 +31,19 @@ public interface GrpcCreateSortableAttributeCompoundSchemaMutationOrBuilder exte
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the sortable attribute compound the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
   java.lang.String getName();
   /**
+   * <pre>
+   * Name of the sortable attribute compound the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -43,54 +51,107 @@ public interface GrpcCreateSortableAttributeCompoundSchemaMutationOrBuilder exte
       getNameBytes();
 
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 2;</code>
    * @return Whether the description field is set.
    */
   boolean hasDescription();
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 2;</code>
    * @return The description.
    */
   com.google.protobuf.StringValue getDescription();
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 2;</code>
    */
   com.google.protobuf.StringValueOrBuilder getDescriptionOrBuilder();
 
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this sortable attribute compound from
+   * the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
    * @return Whether the deprecationNotice field is set.
    */
   boolean hasDeprecationNotice();
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this sortable attribute compound from
+   * the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
    * @return The deprecationNotice.
    */
   com.google.protobuf.StringValue getDeprecationNotice();
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this sortable attribute compound from
+   * the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
    */
   com.google.protobuf.StringValueOrBuilder getDeprecationNoticeOrBuilder();
 
   /**
+   * <pre>
+   * Defines list of individual elements forming this compound.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAttributeElement> 
       getAttributeElementsList();
   /**
+   * <pre>
+   * Defines list of individual elements forming this compound.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcAttributeElement getAttributeElements(int index);
   /**
+   * <pre>
+   * Defines list of individual elements forming this compound.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
    */
   int getAttributeElementsCount();
   /**
+   * <pre>
+   * Defines list of individual elements forming this compound.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder> 
       getAttributeElementsOrBuilderList();
   /**
+   * <pre>
+   * Defines list of individual elements forming this compound.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder getAttributeElementsOrBuilder(

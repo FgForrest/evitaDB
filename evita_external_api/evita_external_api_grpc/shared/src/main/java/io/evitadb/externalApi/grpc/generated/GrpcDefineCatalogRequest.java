@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Request to define a new catalog.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDefineCatalogRequest}
  */
 public final class GrpcDefineCatalogRequest extends
@@ -113,6 +117,10 @@ private static final long serialVersionUID = 0L;
   public static final int CATALOGNAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object catalogName_;
   /**
+   * <pre>
+   * Name of the catalog to be defined.
+   * </pre>
+   *
    * <code>string catalogName = 1;</code>
    * @return The catalogName.
    */
@@ -130,6 +138,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Name of the catalog to be defined.
+   * </pre>
+   *
    * <code>string catalogName = 1;</code>
    * @return The bytes for catalogName.
    */
@@ -303,6 +315,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Request to define a new catalog.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDefineCatalogRequest}
    */
   public static final class Builder extends
@@ -452,6 +468,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object catalogName_ = "";
     /**
+     * <pre>
+     * Name of the catalog to be defined.
+     * </pre>
+     *
      * <code>string catalogName = 1;</code>
      * @return The catalogName.
      */
@@ -468,6 +488,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the catalog to be defined.
+     * </pre>
+     *
      * <code>string catalogName = 1;</code>
      * @return The bytes for catalogName.
      */
@@ -485,6 +509,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the catalog to be defined.
+     * </pre>
+     *
      * <code>string catalogName = 1;</code>
      * @param value The catalogName to set.
      * @return This builder for chaining.
@@ -500,6 +528,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the catalog to be defined.
+     * </pre>
+     *
      * <code>string catalogName = 1;</code>
      * @return This builder for chaining.
      */
@@ -510,6 +542,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the catalog to be defined.
+     * </pre>
+     *
      * <code>string catalogName = 1;</code>
      * @param value The bytes for catalogName to set.
      * @return This builder for chaining.

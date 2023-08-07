@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Structure for representing Locale objects specified by language tag.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcLocale}
  */
 public final class GrpcLocale extends
@@ -113,6 +117,10 @@ private static final long serialVersionUID = 0L;
   public static final int LANGUAGETAG_FIELD_NUMBER = 1;
   private volatile java.lang.Object languageTag_;
   /**
+   * <pre>
+   * The language tag of the locale.
+   * </pre>
+   *
    * <code>string languageTag = 1;</code>
    * @return The languageTag.
    */
@@ -130,6 +138,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * The language tag of the locale.
+   * </pre>
+   *
    * <code>string languageTag = 1;</code>
    * @return The bytes for languageTag.
    */
@@ -303,6 +315,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Structure for representing Locale objects specified by language tag.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcLocale}
    */
   public static final class Builder extends
@@ -452,6 +468,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object languageTag_ = "";
     /**
+     * <pre>
+     * The language tag of the locale.
+     * </pre>
+     *
      * <code>string languageTag = 1;</code>
      * @return The languageTag.
      */
@@ -468,6 +488,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The language tag of the locale.
+     * </pre>
+     *
      * <code>string languageTag = 1;</code>
      * @return The bytes for languageTag.
      */
@@ -485,6 +509,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The language tag of the locale.
+     * </pre>
+     *
      * <code>string languageTag = 1;</code>
      * @param value The languageTag to set.
      * @return This builder for chaining.
@@ -500,6 +528,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The language tag of the locale.
+     * </pre>
+     *
      * <code>string languageTag = 1;</code>
      * @return This builder for chaining.
      */
@@ -510,6 +542,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The language tag of the locale.
+     * </pre>
+     *
      * <code>string languageTag = 1;</code>
      * @param value The bytes for languageTag to set.
      * @return This builder for chaining.

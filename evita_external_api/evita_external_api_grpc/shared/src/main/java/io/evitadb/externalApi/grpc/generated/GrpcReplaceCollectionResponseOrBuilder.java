@@ -31,6 +31,10 @@ public interface GrpcReplaceCollectionResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * True, if the collection was replaced.
+   * </pre>
+   *
    * <code>bool replaced = 1;</code>
    * @return The replaced.
    */

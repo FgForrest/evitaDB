@@ -31,11 +31,19 @@ public interface GrpcDeleteCatalogIfExistsRequestOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the catalog to be deleted.
+   * </pre>
+   *
    * <code>string catalogName = 1;</code>
    * @return The catalogName.
    */
   java.lang.String getCatalogName();
   /**
+   * <pre>
+   * Name of the catalog to be deleted.
+   * </pre>
+   *
    * <code>string catalogName = 1;</code>
    * @return The bytes for catalogName.
    */

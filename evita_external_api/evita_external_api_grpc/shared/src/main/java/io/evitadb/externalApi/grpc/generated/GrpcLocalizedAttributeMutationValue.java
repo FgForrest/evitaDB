@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * This structure is used as a wrapper around the attribute map for the purpose of separation the global attributes from the localized ones.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttributeMutationValue}
  */
 public final class GrpcLocalizedAttributeMutationValue extends
@@ -156,6 +160,10 @@ private static final long serialVersionUID = 0L;
     return internalGetAttributes().getMap().size();
   }
   /**
+   * <pre>
+   * The map, where the key is the name of the attribute and the value is the its value.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; attributes = 1;</code>
    */
 
@@ -174,6 +182,10 @@ private static final long serialVersionUID = 0L;
     return getAttributesMap();
   }
   /**
+   * <pre>
+   * The map, where the key is the name of the attribute and the value is the its value.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; attributes = 1;</code>
    */
   @java.lang.Override
@@ -182,6 +194,10 @@ private static final long serialVersionUID = 0L;
     return internalGetAttributes().getMap();
   }
   /**
+   * <pre>
+   * The map, where the key is the name of the attribute and the value is the its value.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; attributes = 1;</code>
    */
   @java.lang.Override
@@ -195,6 +211,10 @@ private static final long serialVersionUID = 0L;
     return map.containsKey(key) ? map.get(key) : defaultValue;
   }
   /**
+   * <pre>
+   * The map, where the key is the name of the attribute and the value is the its value.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; attributes = 1;</code>
    */
   @java.lang.Override
@@ -377,6 +397,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * This structure is used as a wrapper around the attribute map for the purpose of separation the global attributes from the localized ones.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttributeMutationValue}
    */
   public static final class Builder extends
@@ -573,6 +597,10 @@ private static final long serialVersionUID = 0L;
       return internalGetAttributes().getMap().size();
     }
     /**
+     * <pre>
+     * The map, where the key is the name of the attribute and the value is the its value.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; attributes = 1;</code>
      */
 
@@ -591,6 +619,10 @@ private static final long serialVersionUID = 0L;
       return getAttributesMap();
     }
     /**
+     * <pre>
+     * The map, where the key is the name of the attribute and the value is the its value.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; attributes = 1;</code>
      */
     @java.lang.Override
@@ -599,6 +631,10 @@ private static final long serialVersionUID = 0L;
       return internalGetAttributes().getMap();
     }
     /**
+     * <pre>
+     * The map, where the key is the name of the attribute and the value is the its value.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; attributes = 1;</code>
      */
     @java.lang.Override
@@ -612,6 +648,10 @@ private static final long serialVersionUID = 0L;
       return map.containsKey(key) ? map.get(key) : defaultValue;
     }
     /**
+     * <pre>
+     * The map, where the key is the name of the attribute and the value is the its value.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; attributes = 1;</code>
      */
     @java.lang.Override
@@ -633,6 +673,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The map, where the key is the name of the attribute and the value is the its value.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; attributes = 1;</code>
      */
 
@@ -652,6 +696,10 @@ private static final long serialVersionUID = 0L;
       return internalGetMutableAttributes().getMutableMap();
     }
     /**
+     * <pre>
+     * The map, where the key is the name of the attribute and the value is the its value.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; attributes = 1;</code>
      */
     public Builder putAttributes(
@@ -667,6 +715,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The map, where the key is the name of the attribute and the value is the its value.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; attributes = 1;</code>
      */
 

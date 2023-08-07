@@ -31,24 +31,44 @@ public interface GrpcCurrencyArrayOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Value that supports storing a Currency array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency value = 1;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCurrency> 
       getValueList();
   /**
+   * <pre>
+   * Value that supports storing a Currency array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency value = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcCurrency getValue(int index);
   /**
+   * <pre>
+   * Value that supports storing a Currency array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency value = 1;</code>
    */
   int getValueCount();
   /**
+   * <pre>
+   * Value that supports storing a Currency array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency value = 1;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> 
       getValueOrBuilderList();
   /**
+   * <pre>
+   * Value that supports storing a Currency array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency value = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder getValueOrBuilder(

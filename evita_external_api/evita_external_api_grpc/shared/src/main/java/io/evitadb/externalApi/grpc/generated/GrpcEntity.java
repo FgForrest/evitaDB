@@ -87,11 +87,6 @@ public final class GrpcEntity {
   static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcReference_LocalizedAttributesEntry_fieldAccessorTable;
-  static final com.google.protobuf.Descriptors.Descriptor
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcTypeReferences_descriptor;
-  static final 
-    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
-      internal_static_io_evitadb_externalApi_grpc_generated_GrpcTypeReferences_fieldAccessorTable;
 
   public static com.google.protobuf.Descriptors.FileDescriptor
       getDescriptor() {
@@ -150,11 +145,11 @@ public final class GrpcEntity {
       " \001(\0132B.io.evitadb.externalApi.grpc.gener" +
       "ated.GrpcLocalizedAssociatedData:\0028\001\"\347\001\n" +
       "\020GrpcBinaryEntity\022\022\n\nentityType\030\001 \001(\t\022\022\n" +
-      "\nprimaryKey\030\002 \001(\005\022\025\n\rschemaVersion\030\004 \001(\005" +
-      "\022\031\n\021entityStoragePart\030\005 \001(\014\022\035\n\025attribute" +
-      "StorageParts\030\006 \003(\014\022\"\n\032associatedDataStor" +
-      "ageParts\030\007 \003(\014\022\030\n\020priceStoragePart\030\010 \001(\014" +
-      "\022\034\n\024referenceStoragePart\030\t \001(\014\"\322\007\n\rGrpcR" +
+      "\nprimaryKey\030\002 \001(\005\022\025\n\rschemaVersion\030\003 \001(\005" +
+      "\022\031\n\021entityStoragePart\030\004 \001(\014\022\035\n\025attribute" +
+      "StorageParts\030\005 \003(\014\022\"\n\032associatedDataStor" +
+      "ageParts\030\006 \003(\014\022\030\n\020priceStoragePart\030\007 \001(\014" +
+      "\022\034\n\024referenceStoragePart\030\010 \001(\014\"\322\007\n\rGrpcR" +
       "eference\022\025\n\rreferenceName\030\001 \001(\t\022\017\n\007versi" +
       "on\030\002 \001(\005\022]\n\031referencedEntityReference\030\003 " +
       "\001(\0132:.io.evitadb.externalApi.grpc.genera" +
@@ -179,9 +174,7 @@ public final class GrpcEntity {
       "ttributesEntry\022\013\n\003key\030\001 \001(\t\022L\n\005value\030\002 \001" +
       "(\0132=.io.evitadb.externalApi.grpc.generat" +
       "ed.GrpcLocalizedAttribute:\0028\001B\024\n\022groupRe" +
-      "ferenceType\"^\n\022GrpcTypeReferences\022H\n\nref" +
-      "erences\030\001 \003(\01324.io.evitadb.externalApi.g" +
-      "rpc.generated.GrpcReferenceB\002P\001b\006proto3"
+      "ferenceTypeB\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -253,12 +246,6 @@ public final class GrpcEntity {
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcReference_LocalizedAttributesEntry_descriptor,
         new java.lang.String[] { "Key", "Value", });
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcTypeReferences_descriptor =
-      getDescriptor().getMessageTypes().get(4);
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcTypeReferences_fieldAccessorTable = new
-      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
-        internal_static_io_evitadb_externalApi_grpc_generated_GrpcTypeReferences_descriptor,
-        new java.lang.String[] { "References", });
     io.evitadb.externalApi.grpc.generated.GrpcAttribute.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcPriceOuterClass.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcAssociatedData.getDescriptor();

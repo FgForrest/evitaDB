@@ -31,12 +31,20 @@ public interface GrpcStripListOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The size of the strip.
+   * </pre>
+   *
    * <code>int32 limit = 1;</code>
    * @return The limit.
    */
   int getLimit();
 
   /**
+   * <pre>
+   * The offset of the strip - count of records from the beginning to skip.
+   * </pre>
+   *
    * <code>int32 offset = 2;</code>
    * @return The offset.
    */

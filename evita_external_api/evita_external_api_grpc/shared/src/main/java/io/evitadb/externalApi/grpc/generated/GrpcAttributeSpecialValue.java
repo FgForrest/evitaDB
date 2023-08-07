@@ -27,15 +27,27 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Represents constant or "special" value attribute can have (or has it implicitly, e.g. missing value is represented `null` that is not directly comparable).
+ * </pre>
+ *
  * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue}
  */
 public enum GrpcAttributeSpecialValue
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
+   * <pre>
+   * Represents missing value.
+   * </pre>
+   *
    * <code>NULL = 0;</code>
    */
   NULL(0),
   /**
+   * <pre>
+   * Represents existing (not-null) value.
+   * </pre>
+   *
    * <code>NOT_NULL = 1;</code>
    */
   NOT_NULL(1),
@@ -43,10 +55,18 @@ public enum GrpcAttributeSpecialValue
   ;
 
   /**
+   * <pre>
+   * Represents missing value.
+   * </pre>
+   *
    * <code>NULL = 0;</code>
    */
   public static final int NULL_VALUE = 0;
   /**
+   * <pre>
+   * Represents existing (not-null) value.
+   * </pre>
+   *
    * <code>NOT_NULL = 1;</code>
    */
   public static final int NOT_NULL_VALUE = 1;

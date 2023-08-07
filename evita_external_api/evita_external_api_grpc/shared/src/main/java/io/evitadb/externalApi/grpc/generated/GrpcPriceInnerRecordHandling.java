@@ -27,23 +27,46 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * This enum controls how prices that share same `inner entity id` will behave during filtering and sorting.
+ * </pre>
+ *
  * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling}
  */
 public enum GrpcPriceInnerRecordHandling
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
+   * <pre>
+   * No special strategy set. Inner record id is not taken into account at all.
+   * </pre>
+   *
    * <code>NONE = 0;</code>
    */
   NONE(0),
   /**
+   * <pre>
+   * Prices with same inner entity id will be sorted descending by priority value and first one
+   * (i.e. the one with the biggest priority) will be used (others won't be considered at all)
+   * </pre>
+   *
    * <code>FIRST_OCCURRENCE = 1;</code>
    */
   FIRST_OCCURRENCE(1),
   /**
+   * <pre>
+   * Prices with same inner entity id will be added up to a new computed aggregated price, prices must share same
+   * tax rate percentage, currency and price list id in order to be added up
+   * </pre>
+   *
    * <code>SUM = 2;</code>
    */
   SUM(2),
   /**
+   * <pre>
+   * Price handling mode that is used in cases when the information has not been fetched along with entity, and
+   * is therefore unknown (even if some strategy is associated with the entity in reality).
+   * </pre>
+   *
    * <code>UNKNOWN = 3;</code>
    */
   UNKNOWN(3),
@@ -51,18 +74,37 @@ public enum GrpcPriceInnerRecordHandling
   ;
 
   /**
+   * <pre>
+   * No special strategy set. Inner record id is not taken into account at all.
+   * </pre>
+   *
    * <code>NONE = 0;</code>
    */
   public static final int NONE_VALUE = 0;
   /**
+   * <pre>
+   * Prices with same inner entity id will be sorted descending by priority value and first one
+   * (i.e. the one with the biggest priority) will be used (others won't be considered at all)
+   * </pre>
+   *
    * <code>FIRST_OCCURRENCE = 1;</code>
    */
   public static final int FIRST_OCCURRENCE_VALUE = 1;
   /**
+   * <pre>
+   * Prices with same inner entity id will be added up to a new computed aggregated price, prices must share same
+   * tax rate percentage, currency and price list id in order to be added up
+   * </pre>
+   *
    * <code>SUM = 2;</code>
    */
   public static final int SUM_VALUE = 2;
   /**
+   * <pre>
+   * Price handling mode that is used in cases when the information has not been fetched along with entity, and
+   * is therefore unknown (even if some strategy is associated with the entity in reality).
+   * </pre>
+   *
    * <code>UNKNOWN = 3;</code>
    */
   public static final int UNKNOWN_VALUE = 3;

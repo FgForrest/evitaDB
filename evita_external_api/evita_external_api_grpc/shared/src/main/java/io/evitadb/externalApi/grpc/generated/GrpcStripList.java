@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Structure that represents a strip within a data chunk.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcStripList}
  */
 public final class GrpcStripList extends
@@ -116,6 +120,10 @@ private static final long serialVersionUID = 0L;
   public static final int LIMIT_FIELD_NUMBER = 1;
   private int limit_;
   /**
+   * <pre>
+   * The size of the strip.
+   * </pre>
+   *
    * <code>int32 limit = 1;</code>
    * @return The limit.
    */
@@ -127,6 +135,10 @@ private static final long serialVersionUID = 0L;
   public static final int OFFSET_FIELD_NUMBER = 2;
   private int offset_;
   /**
+   * <pre>
+   * The offset of the strip - count of records from the beginning to skip.
+   * </pre>
+   *
    * <code>int32 offset = 2;</code>
    * @return The offset.
    */
@@ -302,6 +314,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Structure that represents a strip within a data chunk.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcStripList}
    */
   public static final class Builder extends
@@ -456,6 +472,10 @@ private static final long serialVersionUID = 0L;
 
     private int limit_ ;
     /**
+     * <pre>
+     * The size of the strip.
+     * </pre>
+     *
      * <code>int32 limit = 1;</code>
      * @return The limit.
      */
@@ -464,6 +484,10 @@ private static final long serialVersionUID = 0L;
       return limit_;
     }
     /**
+     * <pre>
+     * The size of the strip.
+     * </pre>
+     *
      * <code>int32 limit = 1;</code>
      * @param value The limit to set.
      * @return This builder for chaining.
@@ -475,6 +499,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The size of the strip.
+     * </pre>
+     *
      * <code>int32 limit = 1;</code>
      * @return This builder for chaining.
      */
@@ -487,6 +515,10 @@ private static final long serialVersionUID = 0L;
 
     private int offset_ ;
     /**
+     * <pre>
+     * The offset of the strip - count of records from the beginning to skip.
+     * </pre>
+     *
      * <code>int32 offset = 2;</code>
      * @return The offset.
      */
@@ -495,6 +527,10 @@ private static final long serialVersionUID = 0L;
       return offset_;
     }
     /**
+     * <pre>
+     * The offset of the strip - count of records from the beginning to skip.
+     * </pre>
+     *
      * <code>int32 offset = 2;</code>
      * @param value The offset to set.
      * @return This builder for chaining.
@@ -506,6 +542,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The offset of the strip - count of records from the beginning to skip.
+     * </pre>
+     *
      * <code>int32 offset = 2;</code>
      * @return This builder for chaining.
      */

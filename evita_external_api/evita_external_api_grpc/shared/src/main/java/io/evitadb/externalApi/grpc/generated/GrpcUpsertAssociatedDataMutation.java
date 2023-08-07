@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Upsert associatedData mutation will either update existing associatedData or create new one.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcUpsertAssociatedDataMutation}
  */
 public final class GrpcUpsertAssociatedDataMutation extends
@@ -139,6 +143,11 @@ private static final long serialVersionUID = 0L;
   public static final int ASSOCIATEDDATANAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object associatedDataName_;
   /**
+   * <pre>
+   * Unique name of the associatedData. Case-sensitive. Distinguishes one associated data item from another within
+   * single entity instance.
+   * </pre>
+   *
    * <code>string associatedDataName = 1;</code>
    * @return The associatedDataName.
    */
@@ -156,6 +165,11 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Unique name of the associatedData. Case-sensitive. Distinguishes one associated data item from another within
+   * single entity instance.
+   * </pre>
+   *
    * <code>string associatedDataName = 1;</code>
    * @return The bytes for associatedDataName.
    */
@@ -177,6 +191,10 @@ private static final long serialVersionUID = 0L;
   public static final int ASSOCIATEDDATALOCALE_FIELD_NUMBER = 2;
   private io.evitadb.externalApi.grpc.generated.GrpcLocale associatedDataLocale_;
   /**
+   * <pre>
+   * Contains locale in case the associatedData is locale specific.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale associatedDataLocale = 2;</code>
    * @return Whether the associatedDataLocale field is set.
    */
@@ -185,6 +203,10 @@ private static final long serialVersionUID = 0L;
     return associatedDataLocale_ != null;
   }
   /**
+   * <pre>
+   * Contains locale in case the associatedData is locale specific.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale associatedDataLocale = 2;</code>
    * @return The associatedDataLocale.
    */
@@ -193,6 +215,10 @@ private static final long serialVersionUID = 0L;
     return associatedDataLocale_ == null ? io.evitadb.externalApi.grpc.generated.GrpcLocale.getDefaultInstance() : associatedDataLocale_;
   }
   /**
+   * <pre>
+   * Contains locale in case the associatedData is locale specific.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale associatedDataLocale = 2;</code>
    */
   @java.lang.Override
@@ -203,6 +229,11 @@ private static final long serialVersionUID = 0L;
   public static final int ASSOCIATEDDATAVALUE_FIELD_NUMBER = 3;
   private io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue associatedDataValue_;
   /**
+   * <pre>
+   * New value of this associated data. Data type is expected to be the same as in schema or must be explicitly
+   * set via `valueType`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue associatedDataValue = 3;</code>
    * @return Whether the associatedDataValue field is set.
    */
@@ -211,6 +242,11 @@ private static final long serialVersionUID = 0L;
     return associatedDataValue_ != null;
   }
   /**
+   * <pre>
+   * New value of this associated data. Data type is expected to be the same as in schema or must be explicitly
+   * set via `valueType`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue associatedDataValue = 3;</code>
    * @return The associatedDataValue.
    */
@@ -219,6 +255,11 @@ private static final long serialVersionUID = 0L;
     return associatedDataValue_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.getDefaultInstance() : associatedDataValue_;
   }
   /**
+   * <pre>
+   * New value of this associated data. Data type is expected to be the same as in schema or must be explicitly
+   * set via `valueType`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue associatedDataValue = 3;</code>
    */
   @java.lang.Override
@@ -413,6 +454,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Upsert associatedData mutation will either update existing associatedData or create new one.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcUpsertAssociatedDataMutation}
    */
   public static final class Builder extends
@@ -590,6 +635,11 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object associatedDataName_ = "";
     /**
+     * <pre>
+     * Unique name of the associatedData. Case-sensitive. Distinguishes one associated data item from another within
+     * single entity instance.
+     * </pre>
+     *
      * <code>string associatedDataName = 1;</code>
      * @return The associatedDataName.
      */
@@ -606,6 +656,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Unique name of the associatedData. Case-sensitive. Distinguishes one associated data item from another within
+     * single entity instance.
+     * </pre>
+     *
      * <code>string associatedDataName = 1;</code>
      * @return The bytes for associatedDataName.
      */
@@ -623,6 +678,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Unique name of the associatedData. Case-sensitive. Distinguishes one associated data item from another within
+     * single entity instance.
+     * </pre>
+     *
      * <code>string associatedDataName = 1;</code>
      * @param value The associatedDataName to set.
      * @return This builder for chaining.
@@ -638,6 +698,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Unique name of the associatedData. Case-sensitive. Distinguishes one associated data item from another within
+     * single entity instance.
+     * </pre>
+     *
      * <code>string associatedDataName = 1;</code>
      * @return This builder for chaining.
      */
@@ -648,6 +713,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Unique name of the associatedData. Case-sensitive. Distinguishes one associated data item from another within
+     * single entity instance.
+     * </pre>
+     *
      * <code>string associatedDataName = 1;</code>
      * @param value The bytes for associatedDataName to set.
      * @return This builder for chaining.
@@ -668,6 +738,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> associatedDataLocaleBuilder_;
     /**
+     * <pre>
+     * Contains locale in case the associatedData is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale associatedDataLocale = 2;</code>
      * @return Whether the associatedDataLocale field is set.
      */
@@ -675,6 +749,10 @@ private static final long serialVersionUID = 0L;
       return associatedDataLocaleBuilder_ != null || associatedDataLocale_ != null;
     }
     /**
+     * <pre>
+     * Contains locale in case the associatedData is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale associatedDataLocale = 2;</code>
      * @return The associatedDataLocale.
      */
@@ -686,6 +764,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains locale in case the associatedData is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale associatedDataLocale = 2;</code>
      */
     public Builder setAssociatedDataLocale(io.evitadb.externalApi.grpc.generated.GrpcLocale value) {
@@ -702,6 +784,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains locale in case the associatedData is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale associatedDataLocale = 2;</code>
      */
     public Builder setAssociatedDataLocale(
@@ -716,6 +802,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains locale in case the associatedData is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale associatedDataLocale = 2;</code>
      */
     public Builder mergeAssociatedDataLocale(io.evitadb.externalApi.grpc.generated.GrpcLocale value) {
@@ -734,6 +824,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains locale in case the associatedData is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale associatedDataLocale = 2;</code>
      */
     public Builder clearAssociatedDataLocale() {
@@ -748,6 +842,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains locale in case the associatedData is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale associatedDataLocale = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder getAssociatedDataLocaleBuilder() {
@@ -756,6 +854,10 @@ private static final long serialVersionUID = 0L;
       return getAssociatedDataLocaleFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Contains locale in case the associatedData is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale associatedDataLocale = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder getAssociatedDataLocaleOrBuilder() {
@@ -767,6 +869,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains locale in case the associatedData is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale associatedDataLocale = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -787,6 +893,11 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue, io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.Builder, io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValueOrBuilder> associatedDataValueBuilder_;
     /**
+     * <pre>
+     * New value of this associated data. Data type is expected to be the same as in schema or must be explicitly
+     * set via `valueType`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue associatedDataValue = 3;</code>
      * @return Whether the associatedDataValue field is set.
      */
@@ -794,6 +905,11 @@ private static final long serialVersionUID = 0L;
       return associatedDataValueBuilder_ != null || associatedDataValue_ != null;
     }
     /**
+     * <pre>
+     * New value of this associated data. Data type is expected to be the same as in schema or must be explicitly
+     * set via `valueType`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue associatedDataValue = 3;</code>
      * @return The associatedDataValue.
      */
@@ -805,6 +921,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * New value of this associated data. Data type is expected to be the same as in schema or must be explicitly
+     * set via `valueType`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue associatedDataValue = 3;</code>
      */
     public Builder setAssociatedDataValue(io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue value) {
@@ -821,6 +942,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * New value of this associated data. Data type is expected to be the same as in schema or must be explicitly
+     * set via `valueType`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue associatedDataValue = 3;</code>
      */
     public Builder setAssociatedDataValue(
@@ -835,6 +961,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * New value of this associated data. Data type is expected to be the same as in schema or must be explicitly
+     * set via `valueType`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue associatedDataValue = 3;</code>
      */
     public Builder mergeAssociatedDataValue(io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue value) {
@@ -853,6 +984,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * New value of this associated data. Data type is expected to be the same as in schema or must be explicitly
+     * set via `valueType`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue associatedDataValue = 3;</code>
      */
     public Builder clearAssociatedDataValue() {
@@ -867,6 +1003,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * New value of this associated data. Data type is expected to be the same as in schema or must be explicitly
+     * set via `valueType`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue associatedDataValue = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.Builder getAssociatedDataValueBuilder() {
@@ -875,6 +1016,11 @@ private static final long serialVersionUID = 0L;
       return getAssociatedDataValueFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * New value of this associated data. Data type is expected to be the same as in schema or must be explicitly
+     * set via `valueType`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue associatedDataValue = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValueOrBuilder getAssociatedDataValueOrBuilder() {
@@ -886,6 +1032,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * New value of this associated data. Data type is expected to be the same as in schema or must be explicitly
+     * set via `valueType`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue associatedDataValue = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

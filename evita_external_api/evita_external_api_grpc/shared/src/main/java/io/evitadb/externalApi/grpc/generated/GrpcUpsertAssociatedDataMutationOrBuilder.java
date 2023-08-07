@@ -31,11 +31,21 @@ public interface GrpcUpsertAssociatedDataMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Unique name of the associatedData. Case-sensitive. Distinguishes one associated data item from another within
+   * single entity instance.
+   * </pre>
+   *
    * <code>string associatedDataName = 1;</code>
    * @return The associatedDataName.
    */
   java.lang.String getAssociatedDataName();
   /**
+   * <pre>
+   * Unique name of the associatedData. Case-sensitive. Distinguishes one associated data item from another within
+   * single entity instance.
+   * </pre>
+   *
    * <code>string associatedDataName = 1;</code>
    * @return The bytes for associatedDataName.
    */
@@ -43,31 +53,58 @@ public interface GrpcUpsertAssociatedDataMutationOrBuilder extends
       getAssociatedDataNameBytes();
 
   /**
+   * <pre>
+   * Contains locale in case the associatedData is locale specific.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale associatedDataLocale = 2;</code>
    * @return Whether the associatedDataLocale field is set.
    */
   boolean hasAssociatedDataLocale();
   /**
+   * <pre>
+   * Contains locale in case the associatedData is locale specific.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale associatedDataLocale = 2;</code>
    * @return The associatedDataLocale.
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocale getAssociatedDataLocale();
   /**
+   * <pre>
+   * Contains locale in case the associatedData is locale specific.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale associatedDataLocale = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder getAssociatedDataLocaleOrBuilder();
 
   /**
+   * <pre>
+   * New value of this associated data. Data type is expected to be the same as in schema or must be explicitly
+   * set via `valueType`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue associatedDataValue = 3;</code>
    * @return Whether the associatedDataValue field is set.
    */
   boolean hasAssociatedDataValue();
   /**
+   * <pre>
+   * New value of this associated data. Data type is expected to be the same as in schema or must be explicitly
+   * set via `valueType`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue associatedDataValue = 3;</code>
    * @return The associatedDataValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue getAssociatedDataValue();
   /**
+   * <pre>
+   * New value of this associated data. Data type is expected to be the same as in schema or must be explicitly
+   * set via `valueType`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue associatedDataValue = 3;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValueOrBuilder getAssociatedDataValueOrBuilder();

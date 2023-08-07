@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Represents a mutation to be performed on the evitaDB that relates to an entity.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEntityMutation}
  */
 public final class GrpcEntityMutation extends
@@ -174,6 +178,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int ENTITYUPSERTMUTATION_FIELD_NUMBER = 1;
   /**
+   * <pre>
+   * Represents a terminal mutation that wraps a list of mutation that are to be performed on an entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation entityUpsertMutation = 1;</code>
    * @return Whether the entityUpsertMutation field is set.
    */
@@ -182,6 +190,10 @@ private static final long serialVersionUID = 0L;
     return mutationCase_ == 1;
   }
   /**
+   * <pre>
+   * Represents a terminal mutation that wraps a list of mutation that are to be performed on an entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation entityUpsertMutation = 1;</code>
    * @return The entityUpsertMutation.
    */
@@ -193,6 +205,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Represents a terminal mutation that wraps a list of mutation that are to be performed on an entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation entityUpsertMutation = 1;</code>
    */
   @java.lang.Override
@@ -205,6 +221,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int ENTITYREMOVEMUTATION_FIELD_NUMBER = 2;
   /**
+   * <pre>
+   * Represents a terminal mutation when existing entity is removed in the evitaDB. The entity with all its internal data are deleted.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation entityRemoveMutation = 2;</code>
    * @return Whether the entityRemoveMutation field is set.
    */
@@ -213,6 +233,10 @@ private static final long serialVersionUID = 0L;
     return mutationCase_ == 2;
   }
   /**
+   * <pre>
+   * Represents a terminal mutation when existing entity is removed in the evitaDB. The entity with all its internal data are deleted.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation entityRemoveMutation = 2;</code>
    * @return The entityRemoveMutation.
    */
@@ -224,6 +248,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Represents a terminal mutation when existing entity is removed in the evitaDB. The entity with all its internal data are deleted.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation entityRemoveMutation = 2;</code>
    */
   @java.lang.Override
@@ -418,6 +446,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Represents a mutation to be performed on the evitaDB that relates to an entity.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEntityMutation}
    */
   public static final class Builder extends
@@ -606,6 +638,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation, io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutationOrBuilder> entityUpsertMutationBuilder_;
     /**
+     * <pre>
+     * Represents a terminal mutation that wraps a list of mutation that are to be performed on an entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation entityUpsertMutation = 1;</code>
      * @return Whether the entityUpsertMutation field is set.
      */
@@ -614,6 +650,10 @@ private static final long serialVersionUID = 0L;
       return mutationCase_ == 1;
     }
     /**
+     * <pre>
+     * Represents a terminal mutation that wraps a list of mutation that are to be performed on an entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation entityUpsertMutation = 1;</code>
      * @return The entityUpsertMutation.
      */
@@ -632,6 +672,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Represents a terminal mutation that wraps a list of mutation that are to be performed on an entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation entityUpsertMutation = 1;</code>
      */
     public Builder setEntityUpsertMutation(io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation value) {
@@ -648,6 +692,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Represents a terminal mutation that wraps a list of mutation that are to be performed on an entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation entityUpsertMutation = 1;</code>
      */
     public Builder setEntityUpsertMutation(
@@ -662,6 +710,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Represents a terminal mutation that wraps a list of mutation that are to be performed on an entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation entityUpsertMutation = 1;</code>
      */
     public Builder mergeEntityUpsertMutation(io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation value) {
@@ -684,6 +736,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Represents a terminal mutation that wraps a list of mutation that are to be performed on an entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation entityUpsertMutation = 1;</code>
      */
     public Builder clearEntityUpsertMutation() {
@@ -703,12 +759,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Represents a terminal mutation that wraps a list of mutation that are to be performed on an entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation entityUpsertMutation = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation.Builder getEntityUpsertMutationBuilder() {
       return getEntityUpsertMutationFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Represents a terminal mutation that wraps a list of mutation that are to be performed on an entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation entityUpsertMutation = 1;</code>
      */
     @java.lang.Override
@@ -723,6 +787,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Represents a terminal mutation that wraps a list of mutation that are to be performed on an entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation entityUpsertMutation = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -747,6 +815,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation, io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutationOrBuilder> entityRemoveMutationBuilder_;
     /**
+     * <pre>
+     * Represents a terminal mutation when existing entity is removed in the evitaDB. The entity with all its internal data are deleted.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation entityRemoveMutation = 2;</code>
      * @return Whether the entityRemoveMutation field is set.
      */
@@ -755,6 +827,10 @@ private static final long serialVersionUID = 0L;
       return mutationCase_ == 2;
     }
     /**
+     * <pre>
+     * Represents a terminal mutation when existing entity is removed in the evitaDB. The entity with all its internal data are deleted.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation entityRemoveMutation = 2;</code>
      * @return The entityRemoveMutation.
      */
@@ -773,6 +849,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Represents a terminal mutation when existing entity is removed in the evitaDB. The entity with all its internal data are deleted.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation entityRemoveMutation = 2;</code>
      */
     public Builder setEntityRemoveMutation(io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation value) {
@@ -789,6 +869,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Represents a terminal mutation when existing entity is removed in the evitaDB. The entity with all its internal data are deleted.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation entityRemoveMutation = 2;</code>
      */
     public Builder setEntityRemoveMutation(
@@ -803,6 +887,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Represents a terminal mutation when existing entity is removed in the evitaDB. The entity with all its internal data are deleted.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation entityRemoveMutation = 2;</code>
      */
     public Builder mergeEntityRemoveMutation(io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation value) {
@@ -825,6 +913,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Represents a terminal mutation when existing entity is removed in the evitaDB. The entity with all its internal data are deleted.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation entityRemoveMutation = 2;</code>
      */
     public Builder clearEntityRemoveMutation() {
@@ -844,12 +936,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Represents a terminal mutation when existing entity is removed in the evitaDB. The entity with all its internal data are deleted.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation entityRemoveMutation = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation.Builder getEntityRemoveMutationBuilder() {
       return getEntityRemoveMutationFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Represents a terminal mutation when existing entity is removed in the evitaDB. The entity with all its internal data are deleted.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation entityRemoveMutation = 2;</code>
      */
     @java.lang.Override
@@ -864,6 +964,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Represents a terminal mutation when existing entity is removed in the evitaDB. The entity with all its internal data are deleted.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation entityRemoveMutation = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
