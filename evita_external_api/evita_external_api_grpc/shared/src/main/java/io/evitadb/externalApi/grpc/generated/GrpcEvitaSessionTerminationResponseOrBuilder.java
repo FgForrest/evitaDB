@@ -31,6 +31,10 @@ public interface GrpcEvitaSessionTerminationResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Indicator whether the session was terminated successfully.
+   * </pre>
+   *
    * <code>bool terminated = 1;</code>
    * @return The terminated.
    */

@@ -120,6 +120,10 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITYTYPETOBEREPLACED_FIELD_NUMBER = 1;
   private volatile java.lang.Object entityTypeToBeReplaced_;
   /**
+   * <pre>
+   * Name of the entity collection that will be replaced and dropped (new name)
+   * </pre>
+   *
    * <code>string entityTypeToBeReplaced = 1;</code>
    * @return The entityTypeToBeReplaced.
    */
@@ -137,6 +141,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Name of the entity collection that will be replaced and dropped (new name)
+   * </pre>
+   *
    * <code>string entityTypeToBeReplaced = 1;</code>
    * @return The bytes for entityTypeToBeReplaced.
    */
@@ -158,6 +166,10 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITYTYPETOBEREPLACEDWITH_FIELD_NUMBER = 2;
   private volatile java.lang.Object entityTypeToBeReplacedWith_;
   /**
+   * <pre>
+   * Name of the entity collection that will become the successor of the original collection (old name)
+   * </pre>
+   *
    * <code>string entityTypeToBeReplacedWith = 2;</code>
    * @return The entityTypeToBeReplacedWith.
    */
@@ -175,6 +187,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Name of the entity collection that will become the successor of the original collection (old name)
+   * </pre>
+   *
    * <code>string entityTypeToBeReplacedWith = 2;</code>
    * @return The bytes for entityTypeToBeReplacedWith.
    */
@@ -514,6 +530,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object entityTypeToBeReplaced_ = "";
     /**
+     * <pre>
+     * Name of the entity collection that will be replaced and dropped (new name)
+     * </pre>
+     *
      * <code>string entityTypeToBeReplaced = 1;</code>
      * @return The entityTypeToBeReplaced.
      */
@@ -530,6 +550,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the entity collection that will be replaced and dropped (new name)
+     * </pre>
+     *
      * <code>string entityTypeToBeReplaced = 1;</code>
      * @return The bytes for entityTypeToBeReplaced.
      */
@@ -547,6 +571,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the entity collection that will be replaced and dropped (new name)
+     * </pre>
+     *
      * <code>string entityTypeToBeReplaced = 1;</code>
      * @param value The entityTypeToBeReplaced to set.
      * @return This builder for chaining.
@@ -562,6 +590,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the entity collection that will be replaced and dropped (new name)
+     * </pre>
+     *
      * <code>string entityTypeToBeReplaced = 1;</code>
      * @return This builder for chaining.
      */
@@ -572,6 +604,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the entity collection that will be replaced and dropped (new name)
+     * </pre>
+     *
      * <code>string entityTypeToBeReplaced = 1;</code>
      * @param value The bytes for entityTypeToBeReplaced to set.
      * @return This builder for chaining.
@@ -590,6 +626,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object entityTypeToBeReplacedWith_ = "";
     /**
+     * <pre>
+     * Name of the entity collection that will become the successor of the original collection (old name)
+     * </pre>
+     *
      * <code>string entityTypeToBeReplacedWith = 2;</code>
      * @return The entityTypeToBeReplacedWith.
      */
@@ -606,6 +646,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the entity collection that will become the successor of the original collection (old name)
+     * </pre>
+     *
      * <code>string entityTypeToBeReplacedWith = 2;</code>
      * @return The bytes for entityTypeToBeReplacedWith.
      */
@@ -623,6 +667,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the entity collection that will become the successor of the original collection (old name)
+     * </pre>
+     *
      * <code>string entityTypeToBeReplacedWith = 2;</code>
      * @param value The entityTypeToBeReplacedWith to set.
      * @return This builder for chaining.
@@ -638,6 +686,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the entity collection that will become the successor of the original collection (old name)
+     * </pre>
+     *
      * <code>string entityTypeToBeReplacedWith = 2;</code>
      * @return This builder for chaining.
      */
@@ -648,6 +700,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the entity collection that will become the successor of the original collection (old name)
+     * </pre>
+     *
      * <code>string entityTypeToBeReplacedWith = 2;</code>
      * @param value The bytes for entityTypeToBeReplacedWith to set.
      * @return This builder for chaining.

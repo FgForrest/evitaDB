@@ -53,7 +53,7 @@ public interface DisallowEvolutionModeInEntitySchemaMutationDescriptor {
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("DisallowEvolutionModeInEntitySchemaMutation")
 		.description("""
-			Mutation is responsible for adding one or more modes to a `EntitySchema.evolutionMode`
+			Mutation is responsible for removing one or more modes from a `EntitySchema.evolutionMode`
 			in `EntitySchema`.
 			""")
 		.staticFields(List.of(EVOLUTION_MODES))

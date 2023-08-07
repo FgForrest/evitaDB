@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in `EntitySchema` or `ReferenceSchema`.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation}
  */
 public final class GrpcModifySortableAttributeCompoundSchemaNameMutation extends
@@ -120,6 +124,10 @@ private static final long serialVersionUID = 0L;
   public static final int NAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object name_;
   /**
+   * <pre>
+   * Name of the sortable attribute compound the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
@@ -137,6 +145,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Name of the sortable attribute compound the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -158,6 +170,10 @@ private static final long serialVersionUID = 0L;
   public static final int NEWNAME_FIELD_NUMBER = 2;
   private volatile java.lang.Object newName_;
   /**
+   * <pre>
+   * New name of the sortable attribute compound the mutation is targeting.
+   * </pre>
+   *
    * <code>string newName = 2;</code>
    * @return The newName.
    */
@@ -175,6 +191,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * New name of the sortable attribute compound the mutation is targeting.
+   * </pre>
+   *
    * <code>string newName = 2;</code>
    * @return The bytes for newName.
    */
@@ -358,6 +378,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in `EntitySchema` or `ReferenceSchema`.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation}
    */
   public static final class Builder extends
@@ -514,6 +538,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object name_ = "";
     /**
+     * <pre>
+     * Name of the sortable attribute compound the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The name.
      */
@@ -530,6 +558,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the sortable attribute compound the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The bytes for name.
      */
@@ -547,6 +579,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the sortable attribute compound the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The name to set.
      * @return This builder for chaining.
@@ -562,6 +598,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the sortable attribute compound the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return This builder for chaining.
      */
@@ -572,6 +612,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the sortable attribute compound the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The bytes for name to set.
      * @return This builder for chaining.
@@ -590,6 +634,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object newName_ = "";
     /**
+     * <pre>
+     * New name of the sortable attribute compound the mutation is targeting.
+     * </pre>
+     *
      * <code>string newName = 2;</code>
      * @return The newName.
      */
@@ -606,6 +654,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * New name of the sortable attribute compound the mutation is targeting.
+     * </pre>
+     *
      * <code>string newName = 2;</code>
      * @return The bytes for newName.
      */
@@ -623,6 +675,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * New name of the sortable attribute compound the mutation is targeting.
+     * </pre>
+     *
      * <code>string newName = 2;</code>
      * @param value The newName to set.
      * @return This builder for chaining.
@@ -638,6 +694,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * New name of the sortable attribute compound the mutation is targeting.
+     * </pre>
+     *
      * <code>string newName = 2;</code>
      * @return This builder for chaining.
      */
@@ -648,6 +708,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * New name of the sortable attribute compound the mutation is targeting.
+     * </pre>
+     *
      * <code>string newName = 2;</code>
      * @param value The bytes for newName to set.
      * @return This builder for chaining.

@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Mutation is responsible for setting a `EntitySchema.withGeneratedPrimaryKey` in `EntitySchema`.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithGeneratedPrimaryKeyMutation}
  */
 public final class GrpcSetEntitySchemaWithGeneratedPrimaryKeyMutation extends
@@ -111,6 +115,13 @@ private static final long serialVersionUID = 0L;
   public static final int WITHGENERATEDPRIMARYKEY_FIELD_NUMBER = 1;
   private boolean withGeneratedPrimaryKey_;
   /**
+   * <pre>
+   * Whether primary keys of entities of this type will not be provided by the external systems and Evita
+   * is responsible for generating unique primary keys for the entity on insertion.
+   * Generated key is guaranteed to be unique, but may not represent continuous ascending series. Generated key
+   * will be always greater than zero.
+   * </pre>
+   *
    * <code>bool withGeneratedPrimaryKey = 1;</code>
    * @return The withGeneratedPrimaryKey.
    */
@@ -276,6 +287,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Mutation is responsible for setting a `EntitySchema.withGeneratedPrimaryKey` in `EntitySchema`.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithGeneratedPrimaryKeyMutation}
    */
   public static final class Builder extends
@@ -424,6 +439,13 @@ private static final long serialVersionUID = 0L;
 
     private boolean withGeneratedPrimaryKey_ ;
     /**
+     * <pre>
+     * Whether primary keys of entities of this type will not be provided by the external systems and Evita
+     * is responsible for generating unique primary keys for the entity on insertion.
+     * Generated key is guaranteed to be unique, but may not represent continuous ascending series. Generated key
+     * will be always greater than zero.
+     * </pre>
+     *
      * <code>bool withGeneratedPrimaryKey = 1;</code>
      * @return The withGeneratedPrimaryKey.
      */
@@ -432,6 +454,13 @@ private static final long serialVersionUID = 0L;
       return withGeneratedPrimaryKey_;
     }
     /**
+     * <pre>
+     * Whether primary keys of entities of this type will not be provided by the external systems and Evita
+     * is responsible for generating unique primary keys for the entity on insertion.
+     * Generated key is guaranteed to be unique, but may not represent continuous ascending series. Generated key
+     * will be always greater than zero.
+     * </pre>
+     *
      * <code>bool withGeneratedPrimaryKey = 1;</code>
      * @param value The withGeneratedPrimaryKey to set.
      * @return This builder for chaining.
@@ -443,6 +472,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Whether primary keys of entities of this type will not be provided by the external systems and Evita
+     * is responsible for generating unique primary keys for the entity on insertion.
+     * Generated key is guaranteed to be unique, but may not represent continuous ascending series. Generated key
+     * will be always greater than zero.
+     * </pre>
+     *
      * <code>bool withGeneratedPrimaryKey = 1;</code>
      * @return This builder for chaining.
      */

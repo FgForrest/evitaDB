@@ -28,7 +28,6 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
-import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -36,7 +35,6 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.test.client.query.FilterConstraintToJsonConverter;
 import io.evitadb.test.client.query.JsonConstraint;
 import io.evitadb.test.client.query.OrderConstraintToJsonConverter;
@@ -129,10 +127,6 @@ public class GraphQLQueryConverter {
 			requireConstraintToJsonConverter.convert(new GenericDataLocator(entityType), query.getRequire())
 				.ifPresent(rootConstraints::add);
 		}
-		Assert.isPremiseValid(
-			!rootConstraints.isEmpty(),
-			"There are no root constraints, this is strange!"
-		);
 
 		return rootConstraints.stream()
 			.filter(Objects::nonNull)
@@ -147,6 +141,7 @@ public class GraphQLQueryConverter {
 	private String convertOutputFields(@Nonnull CatalogSchemaContract catalogSchema,
 	                                   @Nonnull EntityFetchConverter entityFetchConverter,
 	                                   @Nonnull Query query) {
+		final RecordsConverter recordsConverter = new RecordsConverter(catalogSchema, inputJsonPrinter);
 		final FacetSummaryConverter facetSummaryConverter = new FacetSummaryConverter(catalogSchema, inputJsonPrinter);
 		final HierarchyOfConverter hierarchyOfConverter = new HierarchyOfConverter(catalogSchema, inputJsonPrinter);
 		final AttributeHistogramConverter attributeHistogramConverter = new AttributeHistogramConverter(catalogSchema, inputJsonPrinter);
@@ -167,23 +162,14 @@ public class GraphQLQueryConverter {
 					.addObjectField(DataChunkDescriptor.DATA, b2 ->
 						entityFetchConverter.convert(b2, entityType, locale, null)));
 		} else {
-			// build main entity fields
+			// builds records
 			final EntityFetch entityFetch = QueryUtils.findConstraint(require, EntityFetch.class, SeparateEntityContentRequireContainer.class);
-			final List<Constraint<?>> extraResultConstraints = QueryUtils.findConstraints(require, c -> c instanceof ExtraResultRequireConstraint);
-
-			if (entityFetch != null) {
-				fieldsBuilder
-					.addObjectField(ResponseDescriptor.RECORD_PAGE, b1 -> b1
-						.addObjectField(DataChunkDescriptor.DATA, b2 ->
-							entityFetchConverter.convert(b2, entityType, locale, entityFetch)));
-			} else if (extraResultConstraints.isEmpty()) {
-				fieldsBuilder
-					.addObjectField(ResponseDescriptor.RECORD_PAGE, b1 -> b1
-						.addObjectField(DataChunkDescriptor.DATA, b2 ->
-							entityFetchConverter.convert(b2, entityType, locale, null)));
-			}
+			final Page page = QueryUtils.findConstraint(require, Page.class, SeparateEntityContentRequireContainer.class);
+			final Strip strip = QueryUtils.findConstraint(require, Strip.class, SeparateEntityContentRequireContainer.class);
+			recordsConverter.convert(fieldsBuilder, entityType, locale, entityFetch, page, strip);
 
 			// build extra results
+			final List<Constraint<?>> extraResultConstraints = QueryUtils.findConstraints(require, c -> c instanceof ExtraResultRequireConstraint);
 			if (!extraResultConstraints.isEmpty()) {
 				fieldsBuilder.addObjectField(ResponseDescriptor.EXTRA_RESULTS, extraResultsBuilder -> {
 					facetSummaryConverter.convert(
@@ -223,10 +209,9 @@ public class GraphQLQueryConverter {
 
 	@Nonnull
 	private String constructQuery(@Nonnull String collection, @Nonnull String header, @Nonnull String outputFields) {
+		final String arguments = header.isEmpty() ? "" : "(\n" + header + "\n  )";
 		return "{\n" +
-			"  query" + StringUtils.toPascalCase(collection) + "(\n" +
-			header + "\n" +
-			"  ) {\n" +
+			"  query" + StringUtils.toPascalCase(collection) + arguments + " {\n" +
 			outputFields + "\n" +
 			"  }\n" +
 			"}";

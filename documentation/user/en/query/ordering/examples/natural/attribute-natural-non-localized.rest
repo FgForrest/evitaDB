@@ -1,9 +1,11 @@
 POST /rest/evita/product/query
 
 {
-  "orderBy" : {
-    "attributeOrderedQuantityNatural" : "DESC"
-  },
+  "orderBy" : [
+    {
+      "attributeOrderedQuantityNatural" : "DESC"
+    }
+  ],
   "require" : {
     "entityFetch" : {
       "attributeContent" : [

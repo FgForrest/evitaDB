@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Response to a session creation request.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse}
  */
 public final class GrpcEvitaSessionResponse extends
@@ -127,6 +131,10 @@ private static final long serialVersionUID = 0L;
   public static final int SESSIONID_FIELD_NUMBER = 1;
   private volatile java.lang.Object sessionId_;
   /**
+   * <pre>
+   * UUID of the created session.
+   * </pre>
+   *
    * <code>string sessionId = 1;</code>
    * @return The sessionId.
    */
@@ -144,6 +152,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * UUID of the created session.
+   * </pre>
+   *
    * <code>string sessionId = 1;</code>
    * @return The bytes for sessionId.
    */
@@ -165,6 +177,10 @@ private static final long serialVersionUID = 0L;
   public static final int SESSIONTYPE_FIELD_NUMBER = 2;
   private int sessionType_;
   /**
+   * <pre>
+   * Type of the created session.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSessionType sessionType = 2;</code>
    * @return The enum numeric value on the wire for sessionType.
    */
@@ -172,6 +188,10 @@ private static final long serialVersionUID = 0L;
     return sessionType_;
   }
   /**
+   * <pre>
+   * Type of the created session.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSessionType sessionType = 2;</code>
    * @return The sessionType.
    */
@@ -184,6 +204,10 @@ private static final long serialVersionUID = 0L;
   public static final int CATALOGSTATE_FIELD_NUMBER = 3;
   private int catalogState_;
   /**
+   * <pre>
+   * State of the catalog after the session was created.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 3;</code>
    * @return The enum numeric value on the wire for catalogState.
    */
@@ -191,6 +215,10 @@ private static final long serialVersionUID = 0L;
     return catalogState_;
   }
   /**
+   * <pre>
+   * State of the catalog after the session was created.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 3;</code>
    * @return The catalogState.
    */
@@ -375,6 +403,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Response to a session creation request.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse}
    */
   public static final class Builder extends
@@ -536,6 +568,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object sessionId_ = "";
     /**
+     * <pre>
+     * UUID of the created session.
+     * </pre>
+     *
      * <code>string sessionId = 1;</code>
      * @return The sessionId.
      */
@@ -552,6 +588,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * UUID of the created session.
+     * </pre>
+     *
      * <code>string sessionId = 1;</code>
      * @return The bytes for sessionId.
      */
@@ -569,6 +609,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * UUID of the created session.
+     * </pre>
+     *
      * <code>string sessionId = 1;</code>
      * @param value The sessionId to set.
      * @return This builder for chaining.
@@ -584,6 +628,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * UUID of the created session.
+     * </pre>
+     *
      * <code>string sessionId = 1;</code>
      * @return This builder for chaining.
      */
@@ -594,6 +642,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * UUID of the created session.
+     * </pre>
+     *
      * <code>string sessionId = 1;</code>
      * @param value The bytes for sessionId to set.
      * @return This builder for chaining.
@@ -612,6 +664,10 @@ private static final long serialVersionUID = 0L;
 
     private int sessionType_ = 0;
     /**
+     * <pre>
+     * Type of the created session.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSessionType sessionType = 2;</code>
      * @return The enum numeric value on the wire for sessionType.
      */
@@ -619,6 +675,10 @@ private static final long serialVersionUID = 0L;
       return sessionType_;
     }
     /**
+     * <pre>
+     * Type of the created session.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSessionType sessionType = 2;</code>
      * @param value The enum numeric value on the wire for sessionType to set.
      * @return This builder for chaining.
@@ -630,6 +690,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Type of the created session.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSessionType sessionType = 2;</code>
      * @return The sessionType.
      */
@@ -640,6 +704,10 @@ private static final long serialVersionUID = 0L;
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcSessionType.UNRECOGNIZED : result;
     }
     /**
+     * <pre>
+     * Type of the created session.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSessionType sessionType = 2;</code>
      * @param value The sessionType to set.
      * @return This builder for chaining.
@@ -654,6 +722,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Type of the created session.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSessionType sessionType = 2;</code>
      * @return This builder for chaining.
      */
@@ -666,6 +738,10 @@ private static final long serialVersionUID = 0L;
 
     private int catalogState_ = 0;
     /**
+     * <pre>
+     * State of the catalog after the session was created.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 3;</code>
      * @return The enum numeric value on the wire for catalogState.
      */
@@ -673,6 +749,10 @@ private static final long serialVersionUID = 0L;
       return catalogState_;
     }
     /**
+     * <pre>
+     * State of the catalog after the session was created.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 3;</code>
      * @param value The enum numeric value on the wire for catalogState to set.
      * @return This builder for chaining.
@@ -684,6 +764,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * State of the catalog after the session was created.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 3;</code>
      * @return The catalogState.
      */
@@ -694,6 +778,10 @@ private static final long serialVersionUID = 0L;
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCatalogState.UNRECOGNIZED : result;
     }
     /**
+     * <pre>
+     * State of the catalog after the session was created.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 3;</code>
      * @param value The catalogState to set.
      * @return This builder for chaining.
@@ -708,6 +796,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * State of the catalog after the session was created.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 3;</code>
      * @return This builder for chaining.
      */

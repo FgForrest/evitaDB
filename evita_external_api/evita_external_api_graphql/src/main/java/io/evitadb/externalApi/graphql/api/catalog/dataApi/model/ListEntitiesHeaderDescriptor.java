@@ -50,6 +50,13 @@ public interface ListEntitiesHeaderDescriptor {
 			""")
 		// type is expected to be tree of order constraints
 		.build();
+	PropertyDescriptor OFFSET = PropertyDescriptor.builder()
+		.name("offset")
+		.description("""
+			Argument for adjusting default offset of returned results. It is shortcut for full paging.
+			""")
+		.type(nullable(Integer.class))
+		.build();
 	PropertyDescriptor LIMIT = PropertyDescriptor.builder()
 		.name("limit")
 		.description("""

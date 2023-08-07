@@ -71,7 +71,7 @@ class HierarchySiblingsTest {
 	@Test
 	void shouldToStringReturnExpectedFormat() {
 		final HierarchySiblings hierarchySiblings1 = siblings("megaMenu", entityFetchAll());
-		assertEquals("siblings('megaMenu',entityFetch(attributeContentAll(),hierarchyContent(),associatedDataContentAll(),priceContentAll(),referenceContentAllWithAttributes(attributeContentAll()),dataInLocales()))", hierarchySiblings1.toString());
+		assertEquals("siblings('megaMenu',entityFetch(attributeContentAll(),hierarchyContent(),associatedDataContentAll(),priceContentAll(),referenceContentAllWithAttributes(),dataInLocalesAll()))", hierarchySiblings1.toString());
 
 		final HierarchySiblings hierarchySiblings2 = siblings("megaMenu", statistics());
 		assertEquals("siblings('megaMenu',statistics(WITHOUT_USER_FILTER))", hierarchySiblings2.toString());

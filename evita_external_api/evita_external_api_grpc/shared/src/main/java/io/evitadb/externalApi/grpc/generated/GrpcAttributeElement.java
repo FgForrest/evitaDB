@@ -27,6 +27,12 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Attribute element is a part of the sortable compound. It defines the attribute name, the direction of the
+ * sorting and the behaviour of the null values. The attribute name refers to the existing attribute defined in the
+ * schema.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcAttributeElement}
  */
 public final class GrpcAttributeElement extends
@@ -127,6 +133,10 @@ private static final long serialVersionUID = 0L;
   public static final int ATTRIBUTENAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object attributeName_;
   /**
+   * <pre>
+   * Name of the existing attribute in the same schema.
+   * </pre>
+   *
    * <code>string attributeName = 1;</code>
    * @return The attributeName.
    */
@@ -144,6 +154,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Name of the existing attribute in the same schema.
+   * </pre>
+   *
    * <code>string attributeName = 1;</code>
    * @return The bytes for attributeName.
    */
@@ -165,6 +179,10 @@ private static final long serialVersionUID = 0L;
   public static final int DIRECTION_FIELD_NUMBER = 2;
   private int direction_;
   /**
+   * <pre>
+   * Direction of the sorting.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection direction = 2;</code>
    * @return The enum numeric value on the wire for direction.
    */
@@ -172,6 +190,10 @@ private static final long serialVersionUID = 0L;
     return direction_;
   }
   /**
+   * <pre>
+   * Direction of the sorting.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection direction = 2;</code>
    * @return The direction.
    */
@@ -184,6 +206,10 @@ private static final long serialVersionUID = 0L;
   public static final int BEHAVIOUR_FIELD_NUMBER = 3;
   private int behaviour_;
   /**
+   * <pre>
+   * Behaviour of the null values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour behaviour = 3;</code>
    * @return The enum numeric value on the wire for behaviour.
    */
@@ -191,6 +217,10 @@ private static final long serialVersionUID = 0L;
     return behaviour_;
   }
   /**
+   * <pre>
+   * Behaviour of the null values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour behaviour = 3;</code>
    * @return The behaviour.
    */
@@ -375,6 +405,12 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Attribute element is a part of the sortable compound. It defines the attribute name, the direction of the
+   * sorting and the behaviour of the null values. The attribute name refers to the existing attribute defined in the
+   * schema.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcAttributeElement}
    */
   public static final class Builder extends
@@ -536,6 +572,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object attributeName_ = "";
     /**
+     * <pre>
+     * Name of the existing attribute in the same schema.
+     * </pre>
+     *
      * <code>string attributeName = 1;</code>
      * @return The attributeName.
      */
@@ -552,6 +592,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the existing attribute in the same schema.
+     * </pre>
+     *
      * <code>string attributeName = 1;</code>
      * @return The bytes for attributeName.
      */
@@ -569,6 +613,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the existing attribute in the same schema.
+     * </pre>
+     *
      * <code>string attributeName = 1;</code>
      * @param value The attributeName to set.
      * @return This builder for chaining.
@@ -584,6 +632,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the existing attribute in the same schema.
+     * </pre>
+     *
      * <code>string attributeName = 1;</code>
      * @return This builder for chaining.
      */
@@ -594,6 +646,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the existing attribute in the same schema.
+     * </pre>
+     *
      * <code>string attributeName = 1;</code>
      * @param value The bytes for attributeName to set.
      * @return This builder for chaining.
@@ -612,6 +668,10 @@ private static final long serialVersionUID = 0L;
 
     private int direction_ = 0;
     /**
+     * <pre>
+     * Direction of the sorting.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection direction = 2;</code>
      * @return The enum numeric value on the wire for direction.
      */
@@ -619,6 +679,10 @@ private static final long serialVersionUID = 0L;
       return direction_;
     }
     /**
+     * <pre>
+     * Direction of the sorting.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection direction = 2;</code>
      * @param value The enum numeric value on the wire for direction to set.
      * @return This builder for chaining.
@@ -630,6 +694,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Direction of the sorting.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection direction = 2;</code>
      * @return The direction.
      */
@@ -640,6 +708,10 @@ private static final long serialVersionUID = 0L;
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcOrderDirection.UNRECOGNIZED : result;
     }
     /**
+     * <pre>
+     * Direction of the sorting.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection direction = 2;</code>
      * @param value The direction to set.
      * @return This builder for chaining.
@@ -654,6 +726,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Direction of the sorting.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection direction = 2;</code>
      * @return This builder for chaining.
      */
@@ -666,6 +742,10 @@ private static final long serialVersionUID = 0L;
 
     private int behaviour_ = 0;
     /**
+     * <pre>
+     * Behaviour of the null values.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour behaviour = 3;</code>
      * @return The enum numeric value on the wire for behaviour.
      */
@@ -673,6 +753,10 @@ private static final long serialVersionUID = 0L;
       return behaviour_;
     }
     /**
+     * <pre>
+     * Behaviour of the null values.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour behaviour = 3;</code>
      * @param value The enum numeric value on the wire for behaviour to set.
      * @return This builder for chaining.
@@ -684,6 +768,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Behaviour of the null values.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour behaviour = 3;</code>
      * @return The behaviour.
      */
@@ -694,6 +782,10 @@ private static final long serialVersionUID = 0L;
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour.UNRECOGNIZED : result;
     }
     /**
+     * <pre>
+     * Behaviour of the null values.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour behaviour = 3;</code>
      * @param value The behaviour to set.
      * @return This builder for chaining.
@@ -708,6 +800,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Behaviour of the null values.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour behaviour = 3;</code>
      * @return This builder for chaining.
      */

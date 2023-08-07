@@ -31,6 +31,10 @@ public interface GrpcEntityCollectionSizeResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The size of the collection.
+   * </pre>
+   *
    * <code>int32 size = 1;</code>
    * @return The size.
    */

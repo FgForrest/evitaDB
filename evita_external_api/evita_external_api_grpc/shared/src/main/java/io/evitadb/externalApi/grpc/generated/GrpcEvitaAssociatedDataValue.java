@@ -27,6 +27,11 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Structure that holds AssociatedData value. Might be one of the supported data types or a JSON string that will be
+ * internally converted into ComplexDataObject.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue}
  */
 public final class GrpcEvitaAssociatedDataValue extends
@@ -179,6 +184,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int PRIMITIVEVALUE_FIELD_NUMBER = 1;
   /**
+   * <pre>
+   * Primitive value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
    * @return Whether the primitiveValue field is set.
    */
@@ -187,6 +196,10 @@ private static final long serialVersionUID = 0L;
     return valueCase_ == 1;
   }
   /**
+   * <pre>
+   * Primitive value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
    * @return The primitiveValue.
    */
@@ -198,6 +211,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Primitive value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
    */
   @java.lang.Override
@@ -210,6 +227,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int JSONVALUE_FIELD_NUMBER = 2;
   /**
+   * <pre>
+   * JSON string value.
+   * </pre>
+   *
    * <code>string jsonValue = 2;</code>
    * @return Whether the jsonValue field is set.
    */
@@ -217,6 +238,10 @@ private static final long serialVersionUID = 0L;
     return valueCase_ == 2;
   }
   /**
+   * <pre>
+   * JSON string value.
+   * </pre>
+   *
    * <code>string jsonValue = 2;</code>
    * @return The jsonValue.
    */
@@ -238,6 +263,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * JSON string value.
+   * </pre>
+   *
    * <code>string jsonValue = 2;</code>
    * @return The bytes for jsonValue.
    */
@@ -263,6 +292,11 @@ private static final long serialVersionUID = 0L;
   public static final int VERSION_FIELD_NUMBER = 3;
   private com.google.protobuf.Int32Value version_;
   /**
+   * <pre>
+   * Contains version of this value and gets increased with any entity type update. Allows to execute
+   *			optimistic locking i.e. avoiding parallel modifications.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value version = 3;</code>
    * @return Whether the version field is set.
    */
@@ -271,6 +305,11 @@ private static final long serialVersionUID = 0L;
     return version_ != null;
   }
   /**
+   * <pre>
+   * Contains version of this value and gets increased with any entity type update. Allows to execute
+   *			optimistic locking i.e. avoiding parallel modifications.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value version = 3;</code>
    * @return The version.
    */
@@ -279,6 +318,11 @@ private static final long serialVersionUID = 0L;
     return version_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : version_;
   }
   /**
+   * <pre>
+   * Contains version of this value and gets increased with any entity type update. Allows to execute
+   *			optimistic locking i.e. avoiding parallel modifications.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value version = 3;</code>
    */
   @java.lang.Override
@@ -485,6 +529,11 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Structure that holds AssociatedData value. Might be one of the supported data types or a JSON string that will be
+   * internally converted into ComplexDataObject.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue}
    */
   public static final class Builder extends
@@ -685,6 +734,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcEvitaValue, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder, io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder> primitiveValueBuilder_;
     /**
+     * <pre>
+     * Primitive value.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
      * @return Whether the primitiveValue field is set.
      */
@@ -693,6 +746,10 @@ private static final long serialVersionUID = 0L;
       return valueCase_ == 1;
     }
     /**
+     * <pre>
+     * Primitive value.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
      * @return The primitiveValue.
      */
@@ -711,6 +768,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Primitive value.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
      */
     public Builder setPrimitiveValue(io.evitadb.externalApi.grpc.generated.GrpcEvitaValue value) {
@@ -727,6 +788,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Primitive value.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
      */
     public Builder setPrimitiveValue(
@@ -741,6 +806,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Primitive value.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
      */
     public Builder mergePrimitiveValue(io.evitadb.externalApi.grpc.generated.GrpcEvitaValue value) {
@@ -763,6 +832,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Primitive value.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
      */
     public Builder clearPrimitiveValue() {
@@ -782,12 +855,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Primitive value.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder getPrimitiveValueBuilder() {
       return getPrimitiveValueFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Primitive value.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
      */
     @java.lang.Override
@@ -802,6 +883,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Primitive value.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -824,6 +909,10 @@ private static final long serialVersionUID = 0L;
     }
 
     /**
+     * <pre>
+     * JSON string value.
+     * </pre>
+     *
      * <code>string jsonValue = 2;</code>
      * @return Whether the jsonValue field is set.
      */
@@ -832,6 +921,10 @@ private static final long serialVersionUID = 0L;
       return valueCase_ == 2;
     }
     /**
+     * <pre>
+     * JSON string value.
+     * </pre>
+     *
      * <code>string jsonValue = 2;</code>
      * @return The jsonValue.
      */
@@ -854,6 +947,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * JSON string value.
+     * </pre>
+     *
      * <code>string jsonValue = 2;</code>
      * @return The bytes for jsonValue.
      */
@@ -877,6 +974,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * JSON string value.
+     * </pre>
+     *
      * <code>string jsonValue = 2;</code>
      * @param value The jsonValue to set.
      * @return This builder for chaining.
@@ -892,6 +993,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * JSON string value.
+     * </pre>
+     *
      * <code>string jsonValue = 2;</code>
      * @return This builder for chaining.
      */
@@ -904,6 +1009,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * JSON string value.
+     * </pre>
+     *
      * <code>string jsonValue = 2;</code>
      * @param value The bytes for jsonValue to set.
      * @return This builder for chaining.
@@ -924,6 +1033,11 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> versionBuilder_;
     /**
+     * <pre>
+     * Contains version of this value and gets increased with any entity type update. Allows to execute
+     *			optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value version = 3;</code>
      * @return Whether the version field is set.
      */
@@ -931,6 +1045,11 @@ private static final long serialVersionUID = 0L;
       return versionBuilder_ != null || version_ != null;
     }
     /**
+     * <pre>
+     * Contains version of this value and gets increased with any entity type update. Allows to execute
+     *			optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value version = 3;</code>
      * @return The version.
      */
@@ -942,6 +1061,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains version of this value and gets increased with any entity type update. Allows to execute
+     *			optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value version = 3;</code>
      */
     public Builder setVersion(com.google.protobuf.Int32Value value) {
@@ -958,6 +1082,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains version of this value and gets increased with any entity type update. Allows to execute
+     *			optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value version = 3;</code>
      */
     public Builder setVersion(
@@ -972,6 +1101,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains version of this value and gets increased with any entity type update. Allows to execute
+     *			optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value version = 3;</code>
      */
     public Builder mergeVersion(com.google.protobuf.Int32Value value) {
@@ -990,6 +1124,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains version of this value and gets increased with any entity type update. Allows to execute
+     *			optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value version = 3;</code>
      */
     public Builder clearVersion() {
@@ -1004,6 +1143,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains version of this value and gets increased with any entity type update. Allows to execute
+     *			optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value version = 3;</code>
      */
     public com.google.protobuf.Int32Value.Builder getVersionBuilder() {
@@ -1012,6 +1156,11 @@ private static final long serialVersionUID = 0L;
       return getVersionFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Contains version of this value and gets increased with any entity type update. Allows to execute
+     *			optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value version = 3;</code>
      */
     public com.google.protobuf.Int32ValueOrBuilder getVersionOrBuilder() {
@@ -1023,6 +1172,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains version of this value and gets increased with any entity type update. Allows to execute
+     *			optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value version = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

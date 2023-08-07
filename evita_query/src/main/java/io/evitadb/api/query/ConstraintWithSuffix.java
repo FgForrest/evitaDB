@@ -31,7 +31,7 @@ import java.util.Optional;
 
 /**
  * Interface must be implemented by all {@link Constraint} implementations that use {@link Creator} annotation with
- * specification of `suffix` attribute. Such constraints requires initialization not by {@link Constraint#getName()}
+ * specification of `suffix` attribute. Such constraints require initialization not by {@link Constraint#getName()}
  * but combination of {@link Constraint#getName()} and {@link #getSuffixIfApplied()} in order to be properly parsed.
  *
  * The {@link QueryConstraints} method that creates instance of this constraint should respect the suffix as well, so
@@ -54,7 +54,7 @@ public interface ConstraintWithSuffix {
 	 * implicitly when this suffix is applied to this constraint.
 	 *
 	 * @param argument to check
-	 * @return true, if this argument should be ommitted in {@link BaseConstraint#toString()}
+	 * @return true, if this argument should be omitted in {@link BaseConstraint#toString()}
 	 */
 	default boolean isArgumentImplicitForSuffix(@Nonnull Serializable argument) {
 		return false;

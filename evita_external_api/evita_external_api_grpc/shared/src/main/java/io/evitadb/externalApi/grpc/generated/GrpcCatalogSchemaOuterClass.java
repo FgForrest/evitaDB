@@ -85,8 +85,8 @@ public final class GrpcCatalogSchemaOuterClass {
       "erated.GrpcEvitaDataType\022K\n\014defaultValue" +
       "\030\n \001(\01325.io.evitadb.externalApi.grpc.gen" +
       "erated.GrpcEvitaValue\022\034\n\024indexedDecimalP" +
-      "laces\030\013 \001(\005\022\026\n\016uniqueGlobally\030\014 \001(\010B\002P\001b" +
-      "\006proto3"
+      "laces\030\013 \001(\005\022\026\n\016uniqueGlobally\030\014 \001(\010B\014P\001\252" +
+      "\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

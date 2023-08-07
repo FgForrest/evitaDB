@@ -184,6 +184,11 @@ private static final long serialVersionUID = 0L;
   public static final int NAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object name_;
   /**
+   * <pre>
+   * Contains unique name of the catalog. Case-sensitive. Distinguishes one catalog item from another
+   * within single entity instance.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
@@ -201,6 +206,11 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Contains unique name of the catalog. Case-sensitive. Distinguishes one catalog item from another
+   * within single entity instance.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -222,6 +232,11 @@ private static final long serialVersionUID = 0L;
   public static final int VERSION_FIELD_NUMBER = 2;
   private int version_;
   /**
+   * <pre>
+   * Contains version of this catalog schema and gets increased with any entity type update. Allows to execute
+   * optimistic locking i.e. avoiding parallel modifications.
+   * </pre>
+   *
    * <code>int32 version = 2;</code>
    * @return The version.
    */
@@ -233,6 +248,11 @@ private static final long serialVersionUID = 0L;
   public static final int DESCRIPTION_FIELD_NUMBER = 3;
   private com.google.protobuf.StringValue description_;
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 3;</code>
    * @return Whether the description field is set.
    */
@@ -241,6 +261,11 @@ private static final long serialVersionUID = 0L;
     return description_ != null;
   }
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 3;</code>
    * @return The description.
    */
@@ -249,6 +274,11 @@ private static final long serialVersionUID = 0L;
     return description_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : description_;
   }
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 3;</code>
    */
   @java.lang.Override
@@ -341,6 +371,17 @@ private static final long serialVersionUID = 0L;
     return internalGetAttributes().getMap().size();
   }
   /**
+   * <pre>
+   * Contains index of generally (catalog-wide) shared `AttributeSchema` that could be used as attributes of any
+   * entity type that refers them. These attributes cannot be changed from within the entity schema. Entity schemas
+   * will not be able to define their own attribute of same name that would clash with the global one (they may only
+   * reference the attributes with the same name from the catalog schema).
+   * There may be entities that won't take advantage of certain global attributes (i.e. it's not guaranteed that all
+   * entity types in catalog have all global attributes).
+   * The "catalog-wide" unique attributes allows Evita to fetch entity of any (and up-front unknown) entity type by
+   * some unique attribute value - usually URL.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
    */
 
@@ -359,6 +400,17 @@ private static final long serialVersionUID = 0L;
     return getAttributesMap();
   }
   /**
+   * <pre>
+   * Contains index of generally (catalog-wide) shared `AttributeSchema` that could be used as attributes of any
+   * entity type that refers them. These attributes cannot be changed from within the entity schema. Entity schemas
+   * will not be able to define their own attribute of same name that would clash with the global one (they may only
+   * reference the attributes with the same name from the catalog schema).
+   * There may be entities that won't take advantage of certain global attributes (i.e. it's not guaranteed that all
+   * entity types in catalog have all global attributes).
+   * The "catalog-wide" unique attributes allows Evita to fetch entity of any (and up-front unknown) entity type by
+   * some unique attribute value - usually URL.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
    */
   @java.lang.Override
@@ -367,6 +419,17 @@ private static final long serialVersionUID = 0L;
     return internalGetAttributes().getMap();
   }
   /**
+   * <pre>
+   * Contains index of generally (catalog-wide) shared `AttributeSchema` that could be used as attributes of any
+   * entity type that refers them. These attributes cannot be changed from within the entity schema. Entity schemas
+   * will not be able to define their own attribute of same name that would clash with the global one (they may only
+   * reference the attributes with the same name from the catalog schema).
+   * There may be entities that won't take advantage of certain global attributes (i.e. it's not guaranteed that all
+   * entity types in catalog have all global attributes).
+   * The "catalog-wide" unique attributes allows Evita to fetch entity of any (and up-front unknown) entity type by
+   * some unique attribute value - usually URL.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
    */
   @java.lang.Override
@@ -380,6 +443,17 @@ private static final long serialVersionUID = 0L;
     return map.containsKey(key) ? map.get(key) : defaultValue;
   }
   /**
+   * <pre>
+   * Contains index of generally (catalog-wide) shared `AttributeSchema` that could be used as attributes of any
+   * entity type that refers them. These attributes cannot be changed from within the entity schema. Entity schemas
+   * will not be able to define their own attribute of same name that would clash with the global one (they may only
+   * reference the attributes with the same name from the catalog schema).
+   * There may be entities that won't take advantage of certain global attributes (i.e. it's not guaranteed that all
+   * entity types in catalog have all global attributes).
+   * The "catalog-wide" unique attributes allows Evita to fetch entity of any (and up-front unknown) entity type by
+   * some unique attribute value - usually URL.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
    */
   @java.lang.Override
@@ -839,6 +913,11 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object name_ = "";
     /**
+     * <pre>
+     * Contains unique name of the catalog. Case-sensitive. Distinguishes one catalog item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The name.
      */
@@ -855,6 +934,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains unique name of the catalog. Case-sensitive. Distinguishes one catalog item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The bytes for name.
      */
@@ -872,6 +956,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains unique name of the catalog. Case-sensitive. Distinguishes one catalog item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The name to set.
      * @return This builder for chaining.
@@ -887,6 +976,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains unique name of the catalog. Case-sensitive. Distinguishes one catalog item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return This builder for chaining.
      */
@@ -897,6 +991,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains unique name of the catalog. Case-sensitive. Distinguishes one catalog item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The bytes for name to set.
      * @return This builder for chaining.
@@ -915,6 +1014,11 @@ private static final long serialVersionUID = 0L;
 
     private int version_ ;
     /**
+     * <pre>
+     * Contains version of this catalog schema and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
      * <code>int32 version = 2;</code>
      * @return The version.
      */
@@ -923,6 +1027,11 @@ private static final long serialVersionUID = 0L;
       return version_;
     }
     /**
+     * <pre>
+     * Contains version of this catalog schema and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
      * <code>int32 version = 2;</code>
      * @param value The version to set.
      * @return This builder for chaining.
@@ -934,6 +1043,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains version of this catalog schema and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
      * <code>int32 version = 2;</code>
      * @return This builder for chaining.
      */
@@ -948,6 +1062,11 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> descriptionBuilder_;
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 3;</code>
      * @return Whether the description field is set.
      */
@@ -955,6 +1074,11 @@ private static final long serialVersionUID = 0L;
       return descriptionBuilder_ != null || description_ != null;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 3;</code>
      * @return The description.
      */
@@ -966,6 +1090,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 3;</code>
      */
     public Builder setDescription(com.google.protobuf.StringValue value) {
@@ -982,6 +1111,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 3;</code>
      */
     public Builder setDescription(
@@ -996,6 +1130,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 3;</code>
      */
     public Builder mergeDescription(com.google.protobuf.StringValue value) {
@@ -1014,6 +1153,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 3;</code>
      */
     public Builder clearDescription() {
@@ -1028,6 +1172,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 3;</code>
      */
     public com.google.protobuf.StringValue.Builder getDescriptionBuilder() {
@@ -1036,6 +1185,11 @@ private static final long serialVersionUID = 0L;
       return getDescriptionFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 3;</code>
      */
     public com.google.protobuf.StringValueOrBuilder getDescriptionOrBuilder() {
@@ -1047,6 +1201,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1230,6 +1389,17 @@ private static final long serialVersionUID = 0L;
       return internalGetAttributes().getMap().size();
     }
     /**
+     * <pre>
+     * Contains index of generally (catalog-wide) shared `AttributeSchema` that could be used as attributes of any
+     * entity type that refers them. These attributes cannot be changed from within the entity schema. Entity schemas
+     * will not be able to define their own attribute of same name that would clash with the global one (they may only
+     * reference the attributes with the same name from the catalog schema).
+     * There may be entities that won't take advantage of certain global attributes (i.e. it's not guaranteed that all
+     * entity types in catalog have all global attributes).
+     * The "catalog-wide" unique attributes allows Evita to fetch entity of any (and up-front unknown) entity type by
+     * some unique attribute value - usually URL.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
      */
 
@@ -1248,6 +1418,17 @@ private static final long serialVersionUID = 0L;
       return getAttributesMap();
     }
     /**
+     * <pre>
+     * Contains index of generally (catalog-wide) shared `AttributeSchema` that could be used as attributes of any
+     * entity type that refers them. These attributes cannot be changed from within the entity schema. Entity schemas
+     * will not be able to define their own attribute of same name that would clash with the global one (they may only
+     * reference the attributes with the same name from the catalog schema).
+     * There may be entities that won't take advantage of certain global attributes (i.e. it's not guaranteed that all
+     * entity types in catalog have all global attributes).
+     * The "catalog-wide" unique attributes allows Evita to fetch entity of any (and up-front unknown) entity type by
+     * some unique attribute value - usually URL.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
      */
     @java.lang.Override
@@ -1256,6 +1437,17 @@ private static final long serialVersionUID = 0L;
       return internalGetAttributes().getMap();
     }
     /**
+     * <pre>
+     * Contains index of generally (catalog-wide) shared `AttributeSchema` that could be used as attributes of any
+     * entity type that refers them. These attributes cannot be changed from within the entity schema. Entity schemas
+     * will not be able to define their own attribute of same name that would clash with the global one (they may only
+     * reference the attributes with the same name from the catalog schema).
+     * There may be entities that won't take advantage of certain global attributes (i.e. it's not guaranteed that all
+     * entity types in catalog have all global attributes).
+     * The "catalog-wide" unique attributes allows Evita to fetch entity of any (and up-front unknown) entity type by
+     * some unique attribute value - usually URL.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
      */
     @java.lang.Override
@@ -1269,6 +1461,17 @@ private static final long serialVersionUID = 0L;
       return map.containsKey(key) ? map.get(key) : defaultValue;
     }
     /**
+     * <pre>
+     * Contains index of generally (catalog-wide) shared `AttributeSchema` that could be used as attributes of any
+     * entity type that refers them. These attributes cannot be changed from within the entity schema. Entity schemas
+     * will not be able to define their own attribute of same name that would clash with the global one (they may only
+     * reference the attributes with the same name from the catalog schema).
+     * There may be entities that won't take advantage of certain global attributes (i.e. it's not guaranteed that all
+     * entity types in catalog have all global attributes).
+     * The "catalog-wide" unique attributes allows Evita to fetch entity of any (and up-front unknown) entity type by
+     * some unique attribute value - usually URL.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
      */
     @java.lang.Override
@@ -1290,6 +1493,17 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains index of generally (catalog-wide) shared `AttributeSchema` that could be used as attributes of any
+     * entity type that refers them. These attributes cannot be changed from within the entity schema. Entity schemas
+     * will not be able to define their own attribute of same name that would clash with the global one (they may only
+     * reference the attributes with the same name from the catalog schema).
+     * There may be entities that won't take advantage of certain global attributes (i.e. it's not guaranteed that all
+     * entity types in catalog have all global attributes).
+     * The "catalog-wide" unique attributes allows Evita to fetch entity of any (and up-front unknown) entity type by
+     * some unique attribute value - usually URL.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
      */
 
@@ -1309,6 +1523,17 @@ private static final long serialVersionUID = 0L;
       return internalGetMutableAttributes().getMutableMap();
     }
     /**
+     * <pre>
+     * Contains index of generally (catalog-wide) shared `AttributeSchema` that could be used as attributes of any
+     * entity type that refers them. These attributes cannot be changed from within the entity schema. Entity schemas
+     * will not be able to define their own attribute of same name that would clash with the global one (they may only
+     * reference the attributes with the same name from the catalog schema).
+     * There may be entities that won't take advantage of certain global attributes (i.e. it's not guaranteed that all
+     * entity types in catalog have all global attributes).
+     * The "catalog-wide" unique attributes allows Evita to fetch entity of any (and up-front unknown) entity type by
+     * some unique attribute value - usually URL.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
      */
     public Builder putAttributes(
@@ -1324,6 +1549,17 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains index of generally (catalog-wide) shared `AttributeSchema` that could be used as attributes of any
+     * entity type that refers them. These attributes cannot be changed from within the entity schema. Entity schemas
+     * will not be able to define their own attribute of same name that would clash with the global one (they may only
+     * reference the attributes with the same name from the catalog schema).
+     * There may be entities that won't take advantage of certain global attributes (i.e. it's not guaranteed that all
+     * entity types in catalog have all global attributes).
+     * The "catalog-wide" unique attributes allows Evita to fetch entity of any (and up-front unknown) entity type by
+     * some unique attribute value - usually URL.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
      */
 

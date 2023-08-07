@@ -27,7 +27,6 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.EntityConstraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 
@@ -56,7 +55,7 @@ public class EntityHaving extends AbstractFilterConstraintContainer implements E
 	private EntityHaving() {}
 
 	@Creator
-	public EntityHaving(@Nonnull @Child FilterConstraint child) {
+	public EntityHaving(@Nonnull FilterConstraint child) {
 		super(child);
 	}
 

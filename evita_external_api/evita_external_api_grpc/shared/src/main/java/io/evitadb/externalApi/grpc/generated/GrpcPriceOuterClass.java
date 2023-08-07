@@ -38,11 +38,6 @@ public final class GrpcPriceOuterClass {
         (com.google.protobuf.ExtensionRegistryLite) registry);
   }
   static final com.google.protobuf.Descriptors.Descriptor
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcPricesInPriceList_descriptor;
-  static final 
-    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
-      internal_static_io_evitadb_externalApi_grpc_generated_GrpcPricesInPriceList_fieldAccessorTable;
-  static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcPrice_descriptor;
   static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
@@ -58,23 +53,21 @@ public final class GrpcPriceOuterClass {
     java.lang.String[] descriptorData = {
       "\n\017GrpcPrice.proto\022%io.evitadb.externalAp" +
       "i.grpc.generated\032\036google/protobuf/wrappe" +
-      "rs.proto\032\030GrpcEvitaDataTypes.proto\"Y\n\025Gr" +
-      "pcPricesInPriceList\022@\n\006prices\030\001 \003(\01320.io" +
-      ".evitadb.externalApi.grpc.generated.Grpc" +
-      "Price\"\376\003\n\tGrpcPrice\022\017\n\007priceId\030\001 \001(\005\022\021\n\t" +
-      "priceList\030\002 \001(\t\022E\n\010currency\030\003 \001(\01323.io.e" +
-      "vitadb.externalApi.grpc.generated.GrpcCu" +
-      "rrency\0222\n\rinnerRecordId\030\004 \001(\0132\033.google.p" +
-      "rotobuf.Int32Value\022N\n\017priceWithoutTax\030\005 " +
-      "\001(\01325.io.evitadb.externalApi.grpc.genera" +
-      "ted.GrpcBigDecimal\022F\n\007taxRate\030\006 \001(\01325.io" +
-      ".evitadb.externalApi.grpc.generated.Grpc" +
-      "BigDecimal\022K\n\014priceWithTax\030\007 \001(\01325.io.ev" +
+      "rs.proto\032\030GrpcEvitaDataTypes.proto\"\376\003\n\tG" +
+      "rpcPrice\022\017\n\007priceId\030\001 \001(\005\022\021\n\tpriceList\030\002" +
+      " \001(\t\022E\n\010currency\030\003 \001(\01323.io.evitadb.exte" +
+      "rnalApi.grpc.generated.GrpcCurrency\0222\n\ri" +
+      "nnerRecordId\030\004 \001(\0132\033.google.protobuf.Int" +
+      "32Value\022N\n\017priceWithoutTax\030\005 \001(\01325.io.ev" +
       "itadb.externalApi.grpc.generated.GrpcBig" +
-      "Decimal\022J\n\010validity\030\010 \001(\01328.io.evitadb.e" +
-      "xternalApi.grpc.generated.GrpcDateTimeRa" +
-      "nge\022\020\n\010sellable\030\t \001(\010\022\017\n\007version\030\n \001(\005B\002" +
-      "P\001b\006proto3"
+      "Decimal\022F\n\007taxRate\030\006 \001(\01325.io.evitadb.ex" +
+      "ternalApi.grpc.generated.GrpcBigDecimal\022" +
+      "K\n\014priceWithTax\030\007 \001(\01325.io.evitadb.exter" +
+      "nalApi.grpc.generated.GrpcBigDecimal\022J\n\010" +
+      "validity\030\010 \001(\01328.io.evitadb.externalApi." +
+      "grpc.generated.GrpcDateTimeRange\022\020\n\010sell" +
+      "able\030\t \001(\010\022\017\n\007version\030\n \001(\005B\014P\001\252\002\007EvitaD" +
+      "Bb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -82,14 +75,8 @@ public final class GrpcPriceOuterClass {
           com.google.protobuf.WrappersProto.getDescriptor(),
           io.evitadb.externalApi.grpc.generated.GrpcEvitaDataTypes.getDescriptor(),
         });
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcPricesInPriceList_descriptor =
-      getDescriptor().getMessageTypes().get(0);
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcPricesInPriceList_fieldAccessorTable = new
-      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
-        internal_static_io_evitadb_externalApi_grpc_generated_GrpcPricesInPriceList_descriptor,
-        new java.lang.String[] { "Prices", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcPrice_descriptor =
-      getDescriptor().getMessageTypes().get(1);
+      getDescriptor().getMessageTypes().get(0);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcPrice_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcPrice_descriptor,

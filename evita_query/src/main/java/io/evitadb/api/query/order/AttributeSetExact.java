@@ -30,7 +30,6 @@ import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
@@ -78,7 +77,7 @@ public class AttributeSetExact extends AbstractOrderConstraintLeaf implements At
 	@Creator()
 	public AttributeSetExact(
 		@Nonnull @Classifier String attributeName,
-		@Nonnull @Value Serializable... attributeValues
+		@Nonnull Serializable... attributeValues
 	) {
 		super(
 			ArrayUtils.mergeArrays(

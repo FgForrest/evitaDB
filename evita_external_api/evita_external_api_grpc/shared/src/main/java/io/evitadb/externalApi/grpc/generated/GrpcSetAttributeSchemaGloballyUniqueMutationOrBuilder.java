@@ -31,11 +31,19 @@ public interface GrpcSetAttributeSchemaGloballyUniqueMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the attribute the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
   java.lang.String getName();
   /**
+   * <pre>
+   * Name of the attribute the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -43,6 +51,11 @@ public interface GrpcSetAttributeSchemaGloballyUniqueMutationOrBuilder extends
       getNameBytes();
 
   /**
+   * <pre>
+   * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+   * entity having certain value of this attribute in entire catalog.
+   * </pre>
+   *
    * <code>bool uniqueGlobally = 2;</code>
    * @return The uniqueGlobally.
    */

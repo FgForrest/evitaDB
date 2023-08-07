@@ -326,7 +326,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
-			getRootDirectory().resolve("documentation/user/en/use/api/query-data.md")
+			getRootDirectory().resolve("documentation/user/en/query/requirements/hierarchy.md")
 		).stream();
 	}
 
@@ -341,8 +341,8 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
 		return this.createTests(
-			getRootDirectory().resolve("documentation/user/en/query/ordering/price.md"),
-			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.GRAPHQL, CreateSnippets.REST
+			getRootDirectory().resolve("documentation/user/en/query/requirements/fetching.md"),
+			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.REST
 		).stream();
 	}
 
@@ -584,7 +584,6 @@ public class UserDocumentationTest implements EvitaTestSupport {
 				}
 			);
 		}
-
 	}
 
 }

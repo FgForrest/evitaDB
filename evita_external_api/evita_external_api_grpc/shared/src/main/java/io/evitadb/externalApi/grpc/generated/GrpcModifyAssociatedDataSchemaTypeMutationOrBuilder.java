@@ -31,11 +31,21 @@ public interface GrpcModifyAssociatedDataSchemaTypeMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+   * within single entity instance.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
   java.lang.String getName();
   /**
+   * <pre>
+   * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+   * within single entity instance.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -43,11 +53,23 @@ public interface GrpcModifyAssociatedDataSchemaTypeMutationOrBuilder extends
       getNameBytes();
 
   /**
+   * <pre>
+   * Contains the data type of the entity. Must be one of supported types or may
+   * represent complex type - which is JSON object that can be automatically converted
+   * to the set of basic types.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 2;</code>
    * @return The enum numeric value on the wire for type.
    */
   int getTypeValue();
   /**
+   * <pre>
+   * Contains the data type of the entity. Must be one of supported types or may
+   * represent complex type - which is JSON object that can be automatically converted
+   * to the set of basic types.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 2;</code>
    * @return The type.
    */

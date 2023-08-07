@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Structure that represents a pagination within a data chunk.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcPaginatedList}
  */
 public final class GrpcPaginatedList extends
@@ -116,6 +120,10 @@ private static final long serialVersionUID = 0L;
   public static final int PAGESIZE_FIELD_NUMBER = 1;
   private int pageSize_;
   /**
+   * <pre>
+   * The size of the page.
+   * </pre>
+   *
    * <code>int32 pageSize = 1;</code>
    * @return The pageSize.
    */
@@ -127,6 +135,10 @@ private static final long serialVersionUID = 0L;
   public static final int PAGENUMBER_FIELD_NUMBER = 2;
   private int pageNumber_;
   /**
+   * <pre>
+   * The number of the page.
+   * </pre>
+   *
    * <code>int32 pageNumber = 2;</code>
    * @return The pageNumber.
    */
@@ -302,6 +314,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Structure that represents a pagination within a data chunk.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcPaginatedList}
    */
   public static final class Builder extends
@@ -456,6 +472,10 @@ private static final long serialVersionUID = 0L;
 
     private int pageSize_ ;
     /**
+     * <pre>
+     * The size of the page.
+     * </pre>
+     *
      * <code>int32 pageSize = 1;</code>
      * @return The pageSize.
      */
@@ -464,6 +484,10 @@ private static final long serialVersionUID = 0L;
       return pageSize_;
     }
     /**
+     * <pre>
+     * The size of the page.
+     * </pre>
+     *
      * <code>int32 pageSize = 1;</code>
      * @param value The pageSize to set.
      * @return This builder for chaining.
@@ -475,6 +499,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The size of the page.
+     * </pre>
+     *
      * <code>int32 pageSize = 1;</code>
      * @return This builder for chaining.
      */
@@ -487,6 +515,10 @@ private static final long serialVersionUID = 0L;
 
     private int pageNumber_ ;
     /**
+     * <pre>
+     * The number of the page.
+     * </pre>
+     *
      * <code>int32 pageNumber = 2;</code>
      * @return The pageNumber.
      */
@@ -495,6 +527,10 @@ private static final long serialVersionUID = 0L;
       return pageNumber_;
     }
     /**
+     * <pre>
+     * The number of the page.
+     * </pre>
+     *
      * <code>int32 pageNumber = 2;</code>
      * @param value The pageNumber to set.
      * @return This builder for chaining.
@@ -506,6 +542,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The number of the page.
+     * </pre>
+     *
      * <code>int32 pageNumber = 2;</code>
      * @return This builder for chaining.
      */

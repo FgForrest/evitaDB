@@ -31,11 +31,19 @@ public interface GrpcCurrencyOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The currency code of the currency.
+   * </pre>
+   *
    * <code>string code = 1;</code>
    * @return The code.
    */
   java.lang.String getCode();
   /**
+   * <pre>
+   * The currency code of the currency.
+   * </pre>
+   *
    * <code>string code = 1;</code>
    * @return The bytes for code.
    */

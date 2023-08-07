@@ -31,26 +31,70 @@ public interface GrpcOffsetDateTimeOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The date and time of the object internally represented by unix timestamp.
+   * </pre>
+   *
    * <code>.google.protobuf.Timestamp timestamp = 1;</code>
    * @return Whether the timestamp field is set.
    */
   boolean hasTimestamp();
   /**
+   * <pre>
+   * The date and time of the object internally represented by unix timestamp.
+   * </pre>
+   *
    * <code>.google.protobuf.Timestamp timestamp = 1;</code>
    * @return The timestamp.
    */
   com.google.protobuf.Timestamp getTimestamp();
   /**
+   * <pre>
+   * The date and time of the object internally represented by unix timestamp.
+   * </pre>
+   *
    * <code>.google.protobuf.Timestamp timestamp = 1;</code>
    */
   com.google.protobuf.TimestampOrBuilder getTimestampOrBuilder();
 
   /**
+   * <pre>
+   * The offset of the object in seconds.
+   * Templates for offset:
+   *   Z - for UTC
+   *  +h
+   *  +hh
+   *  +hh:mm
+   *  -hh:mm
+   *  +hhmm
+   *  -hhmm
+   *  +hh:mm:ss
+   *  -hh:mm:ss
+   *  +hhmmss
+   *  -hhmms
+   * </pre>
+   *
    * <code>string offset = 2;</code>
    * @return The offset.
    */
   java.lang.String getOffset();
   /**
+   * <pre>
+   * The offset of the object in seconds.
+   * Templates for offset:
+   *   Z - for UTC
+   *  +h
+   *  +hh
+   *  +hh:mm
+   *  -hh:mm
+   *  +hhmm
+   *  -hhmm
+   *  +hh:mm:ss
+   *  -hh:mm:ss
+   *  +hhmmss
+   *  -hhmms
+   * </pre>
+   *
    * <code>string offset = 2;</code>
    * @return The bytes for offset.
    */

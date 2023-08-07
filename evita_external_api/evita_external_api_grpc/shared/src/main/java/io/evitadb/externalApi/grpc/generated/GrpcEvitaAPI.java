@@ -187,7 +187,7 @@ public final class GrpcEvitaAPI {
       "CatalogIfExistsResponse\022_\n\006Update\022=.io.e" +
       "vitadb.externalApi.grpc.generated.GrpcUp" +
       "dateEvitaRequest\032\026.google.protobuf.Empty" +
-      "B\002P\001b\006proto3"
+      "B\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * This mutation allows to create a reference in the entity.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcInsertReferenceMutation}
  */
 public final class GrpcInsertReferenceMutation extends
@@ -138,6 +142,10 @@ private static final long serialVersionUID = 0L;
   public static final int REFERENCENAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object referenceName_;
   /**
+   * <pre>
+   * Unique identifier of the reference.
+   * </pre>
+   *
    * <code>string referenceName = 1;</code>
    * @return The referenceName.
    */
@@ -155,6 +163,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Unique identifier of the reference.
+   * </pre>
+   *
    * <code>string referenceName = 1;</code>
    * @return The bytes for referenceName.
    */
@@ -176,6 +188,11 @@ private static final long serialVersionUID = 0L;
   public static final int REFERENCEPRIMARYKEY_FIELD_NUMBER = 2;
   private int referencePrimaryKey_;
   /**
+   * <pre>
+   * Primary key of the referenced entity. Might be also any integer that uniquely identifies some external
+   * resource not maintained by Evita.
+   * </pre>
+   *
    * <code>int32 referencePrimaryKey = 2;</code>
    * @return The referencePrimaryKey.
    */
@@ -187,6 +204,11 @@ private static final long serialVersionUID = 0L;
   public static final int REFERENCECARDINALITY_FIELD_NUMBER = 3;
   private int referenceCardinality_;
   /**
+   * <pre>
+   * Contains information about reference cardinality. This value is usually NULL except the case when the reference
+   * is created for the first time and `EvolutionMode.ADDING_REFERENCES` is allowed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality referenceCardinality = 3;</code>
    * @return The enum numeric value on the wire for referenceCardinality.
    */
@@ -194,6 +216,11 @@ private static final long serialVersionUID = 0L;
     return referenceCardinality_;
   }
   /**
+   * <pre>
+   * Contains information about reference cardinality. This value is usually NULL except the case when the reference
+   * is created for the first time and `EvolutionMode.ADDING_REFERENCES` is allowed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality referenceCardinality = 3;</code>
    * @return The referenceCardinality.
    */
@@ -206,6 +233,11 @@ private static final long serialVersionUID = 0L;
   public static final int REFERENCEDENTITYTYPE_FIELD_NUMBER = 4;
   private com.google.protobuf.StringValue referencedEntityType_;
   /**
+   * <pre>
+   * Contains information about target entity type. This value is usually NULL except the case when the reference
+   * is created for the first time and `EvolutionMode.ADDING_REFERENCES` is allowed.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue referencedEntityType = 4;</code>
    * @return Whether the referencedEntityType field is set.
    */
@@ -214,6 +246,11 @@ private static final long serialVersionUID = 0L;
     return referencedEntityType_ != null;
   }
   /**
+   * <pre>
+   * Contains information about target entity type. This value is usually NULL except the case when the reference
+   * is created for the first time and `EvolutionMode.ADDING_REFERENCES` is allowed.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue referencedEntityType = 4;</code>
    * @return The referencedEntityType.
    */
@@ -222,6 +259,11 @@ private static final long serialVersionUID = 0L;
     return referencedEntityType_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : referencedEntityType_;
   }
   /**
+   * <pre>
+   * Contains information about target entity type. This value is usually NULL except the case when the reference
+   * is created for the first time and `EvolutionMode.ADDING_REFERENCES` is allowed.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue referencedEntityType = 4;</code>
    */
   @java.lang.Override
@@ -421,6 +463,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * This mutation allows to create a reference in the entity.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcInsertReferenceMutation}
    */
   public static final class Builder extends
@@ -596,6 +642,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object referenceName_ = "";
     /**
+     * <pre>
+     * Unique identifier of the reference.
+     * </pre>
+     *
      * <code>string referenceName = 1;</code>
      * @return The referenceName.
      */
@@ -612,6 +662,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Unique identifier of the reference.
+     * </pre>
+     *
      * <code>string referenceName = 1;</code>
      * @return The bytes for referenceName.
      */
@@ -629,6 +683,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Unique identifier of the reference.
+     * </pre>
+     *
      * <code>string referenceName = 1;</code>
      * @param value The referenceName to set.
      * @return This builder for chaining.
@@ -644,6 +702,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Unique identifier of the reference.
+     * </pre>
+     *
      * <code>string referenceName = 1;</code>
      * @return This builder for chaining.
      */
@@ -654,6 +716,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Unique identifier of the reference.
+     * </pre>
+     *
      * <code>string referenceName = 1;</code>
      * @param value The bytes for referenceName to set.
      * @return This builder for chaining.
@@ -672,6 +738,11 @@ private static final long serialVersionUID = 0L;
 
     private int referencePrimaryKey_ ;
     /**
+     * <pre>
+     * Primary key of the referenced entity. Might be also any integer that uniquely identifies some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>int32 referencePrimaryKey = 2;</code>
      * @return The referencePrimaryKey.
      */
@@ -680,6 +751,11 @@ private static final long serialVersionUID = 0L;
       return referencePrimaryKey_;
     }
     /**
+     * <pre>
+     * Primary key of the referenced entity. Might be also any integer that uniquely identifies some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>int32 referencePrimaryKey = 2;</code>
      * @param value The referencePrimaryKey to set.
      * @return This builder for chaining.
@@ -691,6 +767,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Primary key of the referenced entity. Might be also any integer that uniquely identifies some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>int32 referencePrimaryKey = 2;</code>
      * @return This builder for chaining.
      */
@@ -703,6 +784,11 @@ private static final long serialVersionUID = 0L;
 
     private int referenceCardinality_ = 0;
     /**
+     * <pre>
+     * Contains information about reference cardinality. This value is usually NULL except the case when the reference
+     * is created for the first time and `EvolutionMode.ADDING_REFERENCES` is allowed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality referenceCardinality = 3;</code>
      * @return The enum numeric value on the wire for referenceCardinality.
      */
@@ -710,6 +796,11 @@ private static final long serialVersionUID = 0L;
       return referenceCardinality_;
     }
     /**
+     * <pre>
+     * Contains information about reference cardinality. This value is usually NULL except the case when the reference
+     * is created for the first time and `EvolutionMode.ADDING_REFERENCES` is allowed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality referenceCardinality = 3;</code>
      * @param value The enum numeric value on the wire for referenceCardinality to set.
      * @return This builder for chaining.
@@ -721,6 +812,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains information about reference cardinality. This value is usually NULL except the case when the reference
+     * is created for the first time and `EvolutionMode.ADDING_REFERENCES` is allowed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality referenceCardinality = 3;</code>
      * @return The referenceCardinality.
      */
@@ -731,6 +827,11 @@ private static final long serialVersionUID = 0L;
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCardinality.UNRECOGNIZED : result;
     }
     /**
+     * <pre>
+     * Contains information about reference cardinality. This value is usually NULL except the case when the reference
+     * is created for the first time and `EvolutionMode.ADDING_REFERENCES` is allowed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality referenceCardinality = 3;</code>
      * @param value The referenceCardinality to set.
      * @return This builder for chaining.
@@ -745,6 +846,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains information about reference cardinality. This value is usually NULL except the case when the reference
+     * is created for the first time and `EvolutionMode.ADDING_REFERENCES` is allowed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality referenceCardinality = 3;</code>
      * @return This builder for chaining.
      */
@@ -759,6 +865,11 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> referencedEntityTypeBuilder_;
     /**
+     * <pre>
+     * Contains information about target entity type. This value is usually NULL except the case when the reference
+     * is created for the first time and `EvolutionMode.ADDING_REFERENCES` is allowed.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue referencedEntityType = 4;</code>
      * @return Whether the referencedEntityType field is set.
      */
@@ -766,6 +877,11 @@ private static final long serialVersionUID = 0L;
       return referencedEntityTypeBuilder_ != null || referencedEntityType_ != null;
     }
     /**
+     * <pre>
+     * Contains information about target entity type. This value is usually NULL except the case when the reference
+     * is created for the first time and `EvolutionMode.ADDING_REFERENCES` is allowed.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue referencedEntityType = 4;</code>
      * @return The referencedEntityType.
      */
@@ -777,6 +893,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains information about target entity type. This value is usually NULL except the case when the reference
+     * is created for the first time and `EvolutionMode.ADDING_REFERENCES` is allowed.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue referencedEntityType = 4;</code>
      */
     public Builder setReferencedEntityType(com.google.protobuf.StringValue value) {
@@ -793,6 +914,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains information about target entity type. This value is usually NULL except the case when the reference
+     * is created for the first time and `EvolutionMode.ADDING_REFERENCES` is allowed.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue referencedEntityType = 4;</code>
      */
     public Builder setReferencedEntityType(
@@ -807,6 +933,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains information about target entity type. This value is usually NULL except the case when the reference
+     * is created for the first time and `EvolutionMode.ADDING_REFERENCES` is allowed.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue referencedEntityType = 4;</code>
      */
     public Builder mergeReferencedEntityType(com.google.protobuf.StringValue value) {
@@ -825,6 +956,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains information about target entity type. This value is usually NULL except the case when the reference
+     * is created for the first time and `EvolutionMode.ADDING_REFERENCES` is allowed.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue referencedEntityType = 4;</code>
      */
     public Builder clearReferencedEntityType() {
@@ -839,6 +975,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains information about target entity type. This value is usually NULL except the case when the reference
+     * is created for the first time and `EvolutionMode.ADDING_REFERENCES` is allowed.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue referencedEntityType = 4;</code>
      */
     public com.google.protobuf.StringValue.Builder getReferencedEntityTypeBuilder() {
@@ -847,6 +988,11 @@ private static final long serialVersionUID = 0L;
       return getReferencedEntityTypeFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Contains information about target entity type. This value is usually NULL except the case when the reference
+     * is created for the first time and `EvolutionMode.ADDING_REFERENCES` is allowed.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue referencedEntityType = 4;</code>
      */
     public com.google.protobuf.StringValueOrBuilder getReferencedEntityTypeOrBuilder() {
@@ -858,6 +1004,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains information about target entity type. This value is usually NULL except the case when the reference
+     * is created for the first time and `EvolutionMode.ADDING_REFERENCES` is allowed.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue referencedEntityType = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

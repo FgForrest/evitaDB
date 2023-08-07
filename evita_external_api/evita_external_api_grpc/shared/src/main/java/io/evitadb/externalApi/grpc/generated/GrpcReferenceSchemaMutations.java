@@ -155,7 +155,7 @@ public final class GrpcReferenceSchemaMutations {
       "chemaFacetedMutation\022\014\n\004name\030\001 \001(\t\022\017\n\007fa" +
       "ceted\030\002 \001(\010\"L\n(GrpcSetReferenceSchemaFil" +
       "terableMutation\022\014\n\004name\030\001 \001(\t\022\022\n\nfiltera" +
-      "ble\030\002 \001(\010B\002P\001b\006proto3"
+      "ble\030\002 \001(\010B\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

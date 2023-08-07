@@ -30,7 +30,6 @@ import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.api.query.filter.HierarchyExcluding;
 import io.evitadb.api.query.filter.HierarchyHaving;
 import io.evitadb.api.query.filter.HierarchyWithin;
@@ -135,8 +134,8 @@ public class HierarchyFromRoot extends AbstractRequireConstraintContainer implem
 	}
 
 	@Creator
-	public HierarchyFromRoot(@Nonnull @Value String outputName,
-	                         @Nullable @Child EntityFetch entityFetch,
+	public HierarchyFromRoot(@Nonnull String outputName,
+	                         @Nullable EntityFetch entityFetch,
 	                         @Nonnull @Child(uniqueChildren = true) HierarchyOutputRequireConstraint... requirements) {
 		super(
 			CONSTRAINT_NAME,

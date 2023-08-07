@@ -2,39 +2,74 @@ syntax = "proto3";
 
 package io.evitadb.externalApi.grpc.generated;
 option java_multiple_files = true;
+option csharp_namespace = "EvitaDB";
 
 import "GrpcEvitaDataTypes.proto";
 
+// Increments or decrements existing numeric value by specified delta (negative number produces decremental of
+// existing number, positive one incrementation).
+//
+// Allows to specify the number range that is tolerated for the value after delta application has been finished to
+// verify for example that number of items on stock doesn't go below zero.
 message GrpcApplyDeltaAttributeMutation {
+  // Unique name of the attribute. Case-sensitive. Distinguishes one associated data item from another within
+  // single entity instance.
   string attributeName = 1;
+  // Contains locale in case the attribute is locale specific.
   GrpcLocale attributeLocale = 2;
+  // Delta to change existing value by of this attribute (negative number produces decremental of
+  // existing number, positive one incrementation).
   oneof delta {
+    // Integer delta to apply to existing value of this attribute.
     int32 integerDelta = 3;
+    // Long delta to apply to existing value of this attribute.
     int64 longDelta = 4;
+    // BigDecimal delta to apply to existing value of this attribute.
     GrpcBigDecimal bigDecimalDelta = 5;
   }
+  // Number range that is tolerated for the value after delta application has been finished to
+  // verify for example that number of items on stock doesn't go below zero.
   oneof requiredRangeAfterApplication {
+    // Integer number range within which the value after delta application has to be.
     GrpcIntegerNumberRange integerRequiredRangeAfterApplication = 6;
+    // Long number range within which the value after delta application has to be.
     GrpcLongNumberRange longRequiredRangeAfterApplication = 7;
+    // BigDecimal number range within which the value after delta application has to be.
     GrpcBigDecimalNumberRange bigDecimalRequiredRangeAfterApplication = 8;
   }
 }
 
+// Upsert attribute mutation will either update existing attribute or create new one.
 message GrpcUpsertAttributeMutation {
+  // Unique name of the attribute. Case-sensitive. Distinguishes one associated data item from another within
+  // single entity instance.
   string attributeName = 1;
+  // Contains locale in case the attribute is locale specific.
   GrpcLocale attributeLocale = 2;
+  // New value of this attribute. Data type is expected to be the same as in schema or must be explicitly
+  // set via `valueType`.
   GrpcEvitaValue attributeValue = 3;
 }
 
+// Remove attribute mutation will drop existing attribute - ie.generates new version of the attribute with tombstone
+// on it.
 message GrpcRemoveAttributeMutation {
+  // Unique name of the attribute. Case-sensitive. Distinguishes one associated data item from another within
+  // single entity instance.
   string attributeName = 1;
+  // Contains locale in case the attribute is locale specific.
   GrpcLocale attributeLocale = 2;
 }
 
+// Mutation of a single attribute.
 message GrpcAttributeMutation {
+  // The mutation to apply.
   oneof mutation {
+      // Increments or decrements existing numeric value by specified delta (negative number produces decremental of existing number, positive one incrementation).
       GrpcApplyDeltaAttributeMutation applyDeltaAttributeMutation = 1;
+      // Upsert attribute mutation will either update existing attribute or create new one.
       GrpcUpsertAttributeMutation upsertAttributeMutation = 2;
+      // Remove attribute mutation will drop existing attribute - ie.generates new version of the attribute with tombstone on it.
       GrpcRemoveAttributeMutation removeAttributeMutation = 3;
   }
 }

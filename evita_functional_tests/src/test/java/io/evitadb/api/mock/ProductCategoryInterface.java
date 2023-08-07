@@ -23,7 +23,7 @@
 
 package io.evitadb.api.mock;
 
-import io.evitadb.api.AbstractFiftyProductsFunctionalTest;
+import io.evitadb.api.AbstractHundredProductsFunctionalTest;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -51,10 +51,10 @@ public interface ProductCategoryInterface {
 	@AttributeRef(DataGenerator.ATTRIBUTE_CATEGORY_PRIORITY)
 	OptionalLong getOrderInCategoryIfPresent();
 
-	@AttributeRef(AbstractFiftyProductsFunctionalTest.ATTRIBUTE_CATEGORY_LABEL)
+	@AttributeRef(AbstractHundredProductsFunctionalTest.ATTRIBUTE_CATEGORY_LABEL)
 	String getLabel();
 
-	@AttributeRef(AbstractFiftyProductsFunctionalTest.ATTRIBUTE_CATEGORY_LABEL)
+	@AttributeRef(AbstractHundredProductsFunctionalTest.ATTRIBUTE_CATEGORY_LABEL)
 	String getLabel(@Nonnull Locale locale);
 
 	@ReferencedEntity

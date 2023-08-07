@@ -27,6 +27,22 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * This is the definition object for attributes that are stored along with
+ * entity. Definition objects allow to describe the structure of the entity type so that
+ * in any time everyone can consult complete structure of the entity type. Definition object is similar to Java reflection
+ * process where you can also at any moment see which fields and methods are available for the class.
+ * Entity attributes allows defining set of data that are fetched in bulk along with the entity body.
+ * Attributes may be indexed for fast filtering (`AttributeSchema.filterable`) or can be used to sort along
+ * (`AttributeSchema.sortable`). Attributes are not automatically indexed in order not to waste precious
+ * memory space for data that will never be used in search queries.
+ * Filtering in attributes is executed by using constraints like `and`,
+ * `not`, `attributeEquals`, `attributeContains`
+ * and many others. Sorting can be achieved with `attributeNatural` or others.
+ * Attributes are not recommended for bigger data as they are all loaded at once requested.
+ * Large data that are occasionally used store in `associatedData`.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema}
  */
 public final class GrpcAttributeSchema extends
@@ -199,6 +215,11 @@ private static final long serialVersionUID = 0L;
   public static final int NAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object name_;
   /**
+   * <pre>
+   * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+   * within single entity instance.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
@@ -216,6 +237,11 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+   * within single entity instance.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -237,6 +263,10 @@ private static final long serialVersionUID = 0L;
   public static final int GLOBAL_FIELD_NUMBER = 2;
   private boolean global_;
   /**
+   * <pre>
+   * When this attribute schema belongs to a catalog - it is global and can have globally unique attributes enforced across whole catalog.
+   * </pre>
+   *
    * <code>bool global = 2;</code>
    * @return The global.
    */
@@ -248,6 +278,11 @@ private static final long serialVersionUID = 0L;
   public static final int DESCRIPTION_FIELD_NUMBER = 3;
   private com.google.protobuf.StringValue description_;
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 3;</code>
    * @return Whether the description field is set.
    */
@@ -256,6 +291,11 @@ private static final long serialVersionUID = 0L;
     return description_ != null;
   }
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 3;</code>
    * @return The description.
    */
@@ -264,6 +304,11 @@ private static final long serialVersionUID = 0L;
     return description_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : description_;
   }
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 3;</code>
    */
   @java.lang.Override
@@ -274,6 +319,12 @@ private static final long serialVersionUID = 0L;
   public static final int DEPRECATIONNOTICE_FIELD_NUMBER = 4;
   private com.google.protobuf.StringValue deprecationNotice_;
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this entity from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * If notice is `null`, this schema is considered not deprecated.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 4;</code>
    * @return Whether the deprecationNotice field is set.
    */
@@ -282,6 +333,12 @@ private static final long serialVersionUID = 0L;
     return deprecationNotice_ != null;
   }
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this entity from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * If notice is `null`, this schema is considered not deprecated.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 4;</code>
    * @return The deprecationNotice.
    */
@@ -290,6 +347,12 @@ private static final long serialVersionUID = 0L;
     return deprecationNotice_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : deprecationNotice_;
   }
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this entity from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * If notice is `null`, this schema is considered not deprecated.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 4;</code>
    */
   @java.lang.Override
@@ -300,6 +363,13 @@ private static final long serialVersionUID = 0L;
   public static final int UNIQUE_FIELD_NUMBER = 5;
   private boolean unique_;
   /**
+   * <pre>
+   * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+   * having certain value of this attribute among other entities in the same collection.
+   * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+   * better to have this ensured by the database engine.
+   * </pre>
+   *
    * <code>bool unique = 5;</code>
    * @return The unique.
    */
@@ -322,6 +392,14 @@ private static final long serialVersionUID = 0L;
   public static final int FILTERABLE_FIELD_NUMBER = 7;
   private boolean filterable_;
   /**
+   * <pre>
+   * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+   * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+   * (memory/disk) space in the form of index.
+   * When attribute is filterable, extra result `attributeHistogram`
+   * can be requested for this attribute.
+   * </pre>
+   *
    * <code>bool filterable = 7;</code>
    * @return The filterable.
    */
@@ -333,6 +411,12 @@ private static final long serialVersionUID = 0L;
   public static final int SORTABLE_FIELD_NUMBER = 8;
   private boolean sortable_;
   /**
+   * <pre>
+   * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+   * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+   * (memory/disk) space in the form of index.
+   * </pre>
+   *
    * <code>bool sortable = 8;</code>
    * @return The sortable.
    */
@@ -344,6 +428,10 @@ private static final long serialVersionUID = 0L;
   public static final int LOCALIZED_FIELD_NUMBER = 9;
   private boolean localized_;
   /**
+   * <pre>
+   * When attribute is localized, it has to be ALWAYS used in connection with specific `Locale`.
+   * </pre>
+   *
    * <code>bool localized = 9;</code>
    * @return The localized.
    */
@@ -355,6 +443,11 @@ private static final long serialVersionUID = 0L;
   public static final int NULLABLE_FIELD_NUMBER = 10;
   private boolean nullable_;
   /**
+   * <pre>
+   * When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+   * non-null checks upon upserting of the entity.
+   * </pre>
+   *
    * <code>bool nullable = 10;</code>
    * @return The nullable.
    */
@@ -366,6 +459,11 @@ private static final long serialVersionUID = 0L;
   public static final int TYPE_FIELD_NUMBER = 11;
   private int type_;
   /**
+   * <pre>
+   * Data type of the attribute. Must be one of Evita-supported values.
+   * Internally the scalar is converted into Java-corresponding data type.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 11;</code>
    * @return The enum numeric value on the wire for type.
    */
@@ -373,6 +471,11 @@ private static final long serialVersionUID = 0L;
     return type_;
   }
   /**
+   * <pre>
+   * Data type of the attribute. Must be one of Evita-supported values.
+   * Internally the scalar is converted into Java-corresponding data type.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 11;</code>
    * @return The type.
    */
@@ -385,6 +488,11 @@ private static final long serialVersionUID = 0L;
   public static final int DEFAULTVALUE_FIELD_NUMBER = 12;
   private io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue_;
   /**
+   * <pre>
+   * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+   * non-null checks even if no attributes of such name are specified.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
    * @return Whether the defaultValue field is set.
    */
@@ -393,6 +501,11 @@ private static final long serialVersionUID = 0L;
     return defaultValue_ != null;
   }
   /**
+   * <pre>
+   * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+   * non-null checks even if no attributes of such name are specified.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
    * @return The defaultValue.
    */
@@ -401,6 +514,11 @@ private static final long serialVersionUID = 0L;
     return defaultValue_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.getDefaultInstance() : defaultValue_;
   }
   /**
+   * <pre>
+   * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+   * non-null checks even if no attributes of such name are specified.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
    */
   @java.lang.Override
@@ -411,6 +529,13 @@ private static final long serialVersionUID = 0L;
   public static final int INDEXEDDECIMALPLACES_FIELD_NUMBER = 13;
   private int indexedDecimalPlaces_;
   /**
+   * <pre>
+   * Determines how many fractional places are important when entities are compared during filtering or sorting. It is
+   * significant to know that all values of this attribute will be converted to `Int`, so the attribute
+   * number must not ever exceed maximum limits of `Int` type when scaling the number by the power
+   * of ten using `indexedDecimalPlaces` as exponent.
+   * </pre>
+   *
    * <code>int32 indexedDecimalPlaces = 13;</code>
    * @return The indexedDecimalPlaces.
    */
@@ -727,6 +852,22 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * This is the definition object for attributes that are stored along with
+   * entity. Definition objects allow to describe the structure of the entity type so that
+   * in any time everyone can consult complete structure of the entity type. Definition object is similar to Java reflection
+   * process where you can also at any moment see which fields and methods are available for the class.
+   * Entity attributes allows defining set of data that are fetched in bulk along with the entity body.
+   * Attributes may be indexed for fast filtering (`AttributeSchema.filterable`) or can be used to sort along
+   * (`AttributeSchema.sortable`). Attributes are not automatically indexed in order not to waste precious
+   * memory space for data that will never be used in search queries.
+   * Filtering in attributes is executed by using constraints like `and`,
+   * `not`, `attributeEquals`, `attributeContains`
+   * and many others. Sorting can be achieved with `attributeNatural` or others.
+   * Attributes are not recommended for bigger data as they are all loaded at once requested.
+   * Large data that are occasionally used store in `associatedData`.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema}
    */
   public static final class Builder extends
@@ -972,6 +1113,11 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object name_ = "";
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The name.
      */
@@ -988,6 +1134,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The bytes for name.
      */
@@ -1005,6 +1156,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The name to set.
      * @return This builder for chaining.
@@ -1020,6 +1176,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return This builder for chaining.
      */
@@ -1030,6 +1191,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The bytes for name to set.
      * @return This builder for chaining.
@@ -1048,6 +1214,10 @@ private static final long serialVersionUID = 0L;
 
     private boolean global_ ;
     /**
+     * <pre>
+     * When this attribute schema belongs to a catalog - it is global and can have globally unique attributes enforced across whole catalog.
+     * </pre>
+     *
      * <code>bool global = 2;</code>
      * @return The global.
      */
@@ -1056,6 +1226,10 @@ private static final long serialVersionUID = 0L;
       return global_;
     }
     /**
+     * <pre>
+     * When this attribute schema belongs to a catalog - it is global and can have globally unique attributes enforced across whole catalog.
+     * </pre>
+     *
      * <code>bool global = 2;</code>
      * @param value The global to set.
      * @return This builder for chaining.
@@ -1067,6 +1241,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * When this attribute schema belongs to a catalog - it is global and can have globally unique attributes enforced across whole catalog.
+     * </pre>
+     *
      * <code>bool global = 2;</code>
      * @return This builder for chaining.
      */
@@ -1081,6 +1259,11 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> descriptionBuilder_;
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 3;</code>
      * @return Whether the description field is set.
      */
@@ -1088,6 +1271,11 @@ private static final long serialVersionUID = 0L;
       return descriptionBuilder_ != null || description_ != null;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 3;</code>
      * @return The description.
      */
@@ -1099,6 +1287,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 3;</code>
      */
     public Builder setDescription(com.google.protobuf.StringValue value) {
@@ -1115,6 +1308,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 3;</code>
      */
     public Builder setDescription(
@@ -1129,6 +1327,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 3;</code>
      */
     public Builder mergeDescription(com.google.protobuf.StringValue value) {
@@ -1147,6 +1350,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 3;</code>
      */
     public Builder clearDescription() {
@@ -1161,6 +1369,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 3;</code>
      */
     public com.google.protobuf.StringValue.Builder getDescriptionBuilder() {
@@ -1169,6 +1382,11 @@ private static final long serialVersionUID = 0L;
       return getDescriptionFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 3;</code>
      */
     public com.google.protobuf.StringValueOrBuilder getDescriptionOrBuilder() {
@@ -1180,6 +1398,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1200,6 +1423,12 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> deprecationNoticeBuilder_;
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 4;</code>
      * @return Whether the deprecationNotice field is set.
      */
@@ -1207,6 +1436,12 @@ private static final long serialVersionUID = 0L;
       return deprecationNoticeBuilder_ != null || deprecationNotice_ != null;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 4;</code>
      * @return The deprecationNotice.
      */
@@ -1218,6 +1453,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 4;</code>
      */
     public Builder setDeprecationNotice(com.google.protobuf.StringValue value) {
@@ -1234,6 +1475,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 4;</code>
      */
     public Builder setDeprecationNotice(
@@ -1248,6 +1495,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 4;</code>
      */
     public Builder mergeDeprecationNotice(com.google.protobuf.StringValue value) {
@@ -1266,6 +1519,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 4;</code>
      */
     public Builder clearDeprecationNotice() {
@@ -1280,6 +1539,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 4;</code>
      */
     public com.google.protobuf.StringValue.Builder getDeprecationNoticeBuilder() {
@@ -1288,6 +1553,12 @@ private static final long serialVersionUID = 0L;
       return getDeprecationNoticeFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 4;</code>
      */
     public com.google.protobuf.StringValueOrBuilder getDeprecationNoticeOrBuilder() {
@@ -1299,6 +1570,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1317,6 +1594,13 @@ private static final long serialVersionUID = 0L;
 
     private boolean unique_ ;
     /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+     * better to have this ensured by the database engine.
+     * </pre>
+     *
      * <code>bool unique = 5;</code>
      * @return The unique.
      */
@@ -1325,6 +1609,13 @@ private static final long serialVersionUID = 0L;
       return unique_;
     }
     /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+     * better to have this ensured by the database engine.
+     * </pre>
+     *
      * <code>bool unique = 5;</code>
      * @param value The unique to set.
      * @return This builder for chaining.
@@ -1336,6 +1627,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+     * better to have this ensured by the database engine.
+     * </pre>
+     *
      * <code>bool unique = 5;</code>
      * @return This builder for chaining.
      */
@@ -1379,6 +1677,14 @@ private static final long serialVersionUID = 0L;
 
     private boolean filterable_ ;
     /**
+     * <pre>
+     * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+     * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+     * (memory/disk) space in the form of index.
+     * When attribute is filterable, extra result `attributeHistogram`
+     * can be requested for this attribute.
+     * </pre>
+     *
      * <code>bool filterable = 7;</code>
      * @return The filterable.
      */
@@ -1387,6 +1693,14 @@ private static final long serialVersionUID = 0L;
       return filterable_;
     }
     /**
+     * <pre>
+     * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+     * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+     * (memory/disk) space in the form of index.
+     * When attribute is filterable, extra result `attributeHistogram`
+     * can be requested for this attribute.
+     * </pre>
+     *
      * <code>bool filterable = 7;</code>
      * @param value The filterable to set.
      * @return This builder for chaining.
@@ -1398,6 +1712,14 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+     * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+     * (memory/disk) space in the form of index.
+     * When attribute is filterable, extra result `attributeHistogram`
+     * can be requested for this attribute.
+     * </pre>
+     *
      * <code>bool filterable = 7;</code>
      * @return This builder for chaining.
      */
@@ -1410,6 +1732,12 @@ private static final long serialVersionUID = 0L;
 
     private boolean sortable_ ;
     /**
+     * <pre>
+     * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+     * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+     * (memory/disk) space in the form of index.
+     * </pre>
+     *
      * <code>bool sortable = 8;</code>
      * @return The sortable.
      */
@@ -1418,6 +1746,12 @@ private static final long serialVersionUID = 0L;
       return sortable_;
     }
     /**
+     * <pre>
+     * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+     * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+     * (memory/disk) space in the form of index.
+     * </pre>
+     *
      * <code>bool sortable = 8;</code>
      * @param value The sortable to set.
      * @return This builder for chaining.
@@ -1429,6 +1763,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+     * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+     * (memory/disk) space in the form of index.
+     * </pre>
+     *
      * <code>bool sortable = 8;</code>
      * @return This builder for chaining.
      */
@@ -1441,6 +1781,10 @@ private static final long serialVersionUID = 0L;
 
     private boolean localized_ ;
     /**
+     * <pre>
+     * When attribute is localized, it has to be ALWAYS used in connection with specific `Locale`.
+     * </pre>
+     *
      * <code>bool localized = 9;</code>
      * @return The localized.
      */
@@ -1449,6 +1793,10 @@ private static final long serialVersionUID = 0L;
       return localized_;
     }
     /**
+     * <pre>
+     * When attribute is localized, it has to be ALWAYS used in connection with specific `Locale`.
+     * </pre>
+     *
      * <code>bool localized = 9;</code>
      * @param value The localized to set.
      * @return This builder for chaining.
@@ -1460,6 +1808,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * When attribute is localized, it has to be ALWAYS used in connection with specific `Locale`.
+     * </pre>
+     *
      * <code>bool localized = 9;</code>
      * @return This builder for chaining.
      */
@@ -1472,6 +1824,11 @@ private static final long serialVersionUID = 0L;
 
     private boolean nullable_ ;
     /**
+     * <pre>
+     * When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+     * non-null checks upon upserting of the entity.
+     * </pre>
+     *
      * <code>bool nullable = 10;</code>
      * @return The nullable.
      */
@@ -1480,6 +1837,11 @@ private static final long serialVersionUID = 0L;
       return nullable_;
     }
     /**
+     * <pre>
+     * When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+     * non-null checks upon upserting of the entity.
+     * </pre>
+     *
      * <code>bool nullable = 10;</code>
      * @param value The nullable to set.
      * @return This builder for chaining.
@@ -1491,6 +1853,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+     * non-null checks upon upserting of the entity.
+     * </pre>
+     *
      * <code>bool nullable = 10;</code>
      * @return This builder for chaining.
      */
@@ -1503,6 +1870,11 @@ private static final long serialVersionUID = 0L;
 
     private int type_ = 0;
     /**
+     * <pre>
+     * Data type of the attribute. Must be one of Evita-supported values.
+     * Internally the scalar is converted into Java-corresponding data type.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 11;</code>
      * @return The enum numeric value on the wire for type.
      */
@@ -1510,6 +1882,11 @@ private static final long serialVersionUID = 0L;
       return type_;
     }
     /**
+     * <pre>
+     * Data type of the attribute. Must be one of Evita-supported values.
+     * Internally the scalar is converted into Java-corresponding data type.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 11;</code>
      * @param value The enum numeric value on the wire for type to set.
      * @return This builder for chaining.
@@ -1521,6 +1898,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Data type of the attribute. Must be one of Evita-supported values.
+     * Internally the scalar is converted into Java-corresponding data type.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 11;</code>
      * @return The type.
      */
@@ -1531,6 +1913,11 @@ private static final long serialVersionUID = 0L;
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType.UNRECOGNIZED : result;
     }
     /**
+     * <pre>
+     * Data type of the attribute. Must be one of Evita-supported values.
+     * Internally the scalar is converted into Java-corresponding data type.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 11;</code>
      * @param value The type to set.
      * @return This builder for chaining.
@@ -1545,6 +1932,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Data type of the attribute. Must be one of Evita-supported values.
+     * Internally the scalar is converted into Java-corresponding data type.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 11;</code>
      * @return This builder for chaining.
      */
@@ -1559,6 +1951,11 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcEvitaValue, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder, io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder> defaultValueBuilder_;
     /**
+     * <pre>
+     * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+     * non-null checks even if no attributes of such name are specified.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
      * @return Whether the defaultValue field is set.
      */
@@ -1566,6 +1963,11 @@ private static final long serialVersionUID = 0L;
       return defaultValueBuilder_ != null || defaultValue_ != null;
     }
     /**
+     * <pre>
+     * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+     * non-null checks even if no attributes of such name are specified.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
      * @return The defaultValue.
      */
@@ -1577,6 +1979,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+     * non-null checks even if no attributes of such name are specified.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
      */
     public Builder setDefaultValue(io.evitadb.externalApi.grpc.generated.GrpcEvitaValue value) {
@@ -1593,6 +2000,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+     * non-null checks even if no attributes of such name are specified.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
      */
     public Builder setDefaultValue(
@@ -1607,6 +2019,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+     * non-null checks even if no attributes of such name are specified.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
      */
     public Builder mergeDefaultValue(io.evitadb.externalApi.grpc.generated.GrpcEvitaValue value) {
@@ -1625,6 +2042,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+     * non-null checks even if no attributes of such name are specified.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
      */
     public Builder clearDefaultValue() {
@@ -1639,6 +2061,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+     * non-null checks even if no attributes of such name are specified.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder getDefaultValueBuilder() {
@@ -1647,6 +2074,11 @@ private static final long serialVersionUID = 0L;
       return getDefaultValueFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+     * non-null checks even if no attributes of such name are specified.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder getDefaultValueOrBuilder() {
@@ -1658,6 +2090,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+     * non-null checks even if no attributes of such name are specified.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1676,6 +2113,13 @@ private static final long serialVersionUID = 0L;
 
     private int indexedDecimalPlaces_ ;
     /**
+     * <pre>
+     * Determines how many fractional places are important when entities are compared during filtering or sorting. It is
+     * significant to know that all values of this attribute will be converted to `Int`, so the attribute
+     * number must not ever exceed maximum limits of `Int` type when scaling the number by the power
+     * of ten using `indexedDecimalPlaces` as exponent.
+     * </pre>
+     *
      * <code>int32 indexedDecimalPlaces = 13;</code>
      * @return The indexedDecimalPlaces.
      */
@@ -1684,6 +2128,13 @@ private static final long serialVersionUID = 0L;
       return indexedDecimalPlaces_;
     }
     /**
+     * <pre>
+     * Determines how many fractional places are important when entities are compared during filtering or sorting. It is
+     * significant to know that all values of this attribute will be converted to `Int`, so the attribute
+     * number must not ever exceed maximum limits of `Int` type when scaling the number by the power
+     * of ten using `indexedDecimalPlaces` as exponent.
+     * </pre>
+     *
      * <code>int32 indexedDecimalPlaces = 13;</code>
      * @param value The indexedDecimalPlaces to set.
      * @return This builder for chaining.
@@ -1695,6 +2146,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Determines how many fractional places are important when entities are compared during filtering or sorting. It is
+     * significant to know that all values of this attribute will be converted to `Int`, so the attribute
+     * number must not ever exceed maximum limits of `Int` type when scaling the number by the power
+     * of ten using `indexedDecimalPlaces` as exponent.
+     * </pre>
+     *
      * <code>int32 indexedDecimalPlaces = 13;</code>
      * @return This builder for chaining.
      */

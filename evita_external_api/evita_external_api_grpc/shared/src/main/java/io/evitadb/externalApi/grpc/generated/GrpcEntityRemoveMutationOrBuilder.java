@@ -31,11 +31,19 @@ public interface GrpcEntityRemoveMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The type of the entity to be removed.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The entityType.
    */
   java.lang.String getEntityType();
   /**
+   * <pre>
+   * The type of the entity to be removed.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The bytes for entityType.
    */
@@ -43,6 +51,10 @@ public interface GrpcEntityRemoveMutationOrBuilder extends
       getEntityTypeBytes();
 
   /**
+   * <pre>
+   * The primary key of the entity to be removed.
+   * </pre>
+   *
    * <code>int32 entityPrimaryKey = 2;</code>
    * @return The entityPrimaryKey.
    */

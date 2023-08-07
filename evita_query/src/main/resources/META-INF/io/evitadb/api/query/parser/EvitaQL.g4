@@ -139,7 +139,8 @@ requireConstraint
     | 'hierarchyContent'                    args = singleRequireHierarchyContentArgs                        # singleRequireHierarchyContentConstraint
     | 'hierarchyContent'                    args = allRequiresHierarchyContentArgs                          # allRequiresHierarchyContentConstraint
     | 'priceType'                           args = valueArgs                                                # priceTypeConstraint
-    | 'dataInLocales'                       (emptyArgs | args = valueListArgs)                              # dataInLocalesConstraint
+    | 'dataInLocalesAll'                    emptyArgs                                                       # dataInLocalesAllConstraint
+    | 'dataInLocales'                       args = valueListArgs                                            # dataInLocalesConstraint
     | 'facetSummary'                        (emptyArgs | args = facetSummary1Args)                          # facetSummary1Constraint
     | 'facetSummary'                        args = facetSummary2Args                                        # facetSummary2Constraint
     | 'facetSummaryOfReference'             args = facetSummaryOfReference1Args                             # facetSummaryOfReference1Constraint

@@ -31,31 +31,55 @@ public interface GrpcDateTimeRangeOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The lower bound of the range.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime from = 1;</code>
    * @return Whether the from field is set.
    */
   boolean hasFrom();
   /**
+   * <pre>
+   * The lower bound of the range.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime from = 1;</code>
    * @return The from.
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getFrom();
   /**
+   * <pre>
+   * The lower bound of the range.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime from = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getFromOrBuilder();
 
   /**
+   * <pre>
+   * The upper bound of the range.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime to = 2;</code>
    * @return Whether the to field is set.
    */
   boolean hasTo();
   /**
+   * <pre>
+   * The upper bound of the range.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime to = 2;</code>
    * @return The to.
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getTo();
   /**
+   * <pre>
+   * The upper bound of the range.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime to = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getToOrBuilder();

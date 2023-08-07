@@ -224,10 +224,10 @@ class ReferenceContentTest {
 		assertEquals("referenceContent('a',orderBy(attributeNatural('code',ASC)))", referenceContent9.toString());
 
 		final ReferenceContent referenceContentWithAttributes1 = referenceContentWithAttributes("a", entityFetch(attributeContentAll()));
-		assertEquals("referenceContentWithAttributes('a',attributeContentAll(),entityFetch(attributeContentAll()))", referenceContentWithAttributes1.toString());
+		assertEquals("referenceContentWithAttributes('a',entityFetch(attributeContentAll()))", referenceContentWithAttributes1.toString());
 
 		final ReferenceContent referenceContentWithAttributes2 = referenceContentAllWithAttributes();
-		assertEquals("referenceContentAllWithAttributes(attributeContentAll())", referenceContentWithAttributes2.toString());
+		assertEquals("referenceContentAllWithAttributes()", referenceContentWithAttributes2.toString());
 
 		final ReferenceContent referenceContentWithAttributes3 = referenceContentAllWithAttributes(attributeContent("a"));
 		assertEquals("referenceContentAllWithAttributes(attributeContent('a'))", referenceContentWithAttributes3.toString());

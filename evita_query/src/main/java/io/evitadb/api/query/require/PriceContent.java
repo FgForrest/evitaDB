@@ -30,7 +30,6 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -82,8 +81,8 @@ public class PriceContent extends AbstractRequireConstraintLeaf
 	}
 
 	@Creator
-	public PriceContent(@Nonnull @Value PriceContentMode contentMode,
-	                    @Nonnull @Value String... priceLists) {
+	public PriceContent(@Nonnull PriceContentMode contentMode,
+	                    @Nonnull String... priceLists) {
 		super(ArrayUtils.mergeArrays(new Serializable[] {contentMode}, priceLists));
 	}
 
@@ -93,7 +92,7 @@ public class PriceContent extends AbstractRequireConstraintLeaf
 	}
 
 	@Creator(suffix = SUFFIX_FILTERED)
-	public static PriceContent respectingFilter(@Nullable @Value String... priceLists) {
+	public static PriceContent respectingFilter(@Nullable String... priceLists) {
 		return new PriceContent(PriceContentMode.RESPECTING_FILTER, priceLists);
 	}
 

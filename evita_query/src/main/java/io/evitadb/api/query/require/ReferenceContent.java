@@ -24,15 +24,14 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintContainerWithSuffix;
 import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.ReferenceConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
 import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
-import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
@@ -76,7 +75,7 @@ import static java.util.Optional.ofNullable;
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class ReferenceContent extends AbstractRequireConstraintContainer
-	implements ReferenceConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, EntityContentRequire, ConstraintWithSuffix {
+	implements ReferenceConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, EntityContentRequire, ConstraintContainerWithSuffix {
 	@Serial private static final long serialVersionUID = 3374240925555151814L;
 	private static final String SUFFIX_ALL = "all";
 	private static final String SUFFIX_WITH_ATTRIBUTES = "withAttributes";
@@ -106,7 +105,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	}
 
 	@Creator(suffix = SUFFIX_ALL_WITH_ATTRIBUTES)
-	public ReferenceContent(@Nullable @Child AttributeContent attributeContent) {
+	public ReferenceContent(@Nullable AttributeContent attributeContent) {
 		super(
 			ofNullable(attributeContent).orElse(new AttributeContent())
 		);
@@ -123,10 +122,10 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	@Creator
 	public ReferenceContent(
 		@Nonnull @Classifier String referenceName,
-		@Nullable @AdditionalChild FilterBy filterBy,
-		@Nullable @AdditionalChild OrderBy orderBy,
-		@Nullable @Child EntityFetch entityFetch,
-		@Nullable @Child EntityGroupFetch entityGroupFetch
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityFetch entityFetch,
+		@Nullable EntityGroupFetch entityGroupFetch
 	) {
 		super(
 			ofNullable(referenceName).map(it -> (Serializable[]) new String[]{it}).orElse(NO_ARGS),
@@ -137,11 +136,11 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	@Creator(suffix = SUFFIX_WITH_ATTRIBUTES)
 	public ReferenceContent(
 		@Nonnull @Classifier String referenceName,
-		@Nullable @AdditionalChild FilterBy filterBy,
-		@Nullable @AdditionalChild OrderBy orderBy,
-		@Nullable @Child AttributeContent attributeContent,
-		@Nullable @Child EntityFetch entityFetch,
-		@Nullable @Child EntityGroupFetch entityGroupFetch
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityFetch,
+		@Nullable EntityGroupFetch entityGroupFetch
 	) {
 		super(
 			ofNullable(referenceName).map(it -> (Serializable[])new String[] { it }).orElse(NO_ARGS),
@@ -262,6 +261,12 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 			return of(SUFFIX_WITH_ATTRIBUTES);
 		}
 		return empty();
+	}
+
+	@Override
+	public boolean isChildImplicitForSuffix(@Nonnull Constraint<?> child) {
+		return child instanceof AttributeContent attributeContent &&
+			attributeContent.isAllRequested();
 	}
 
 	@Override

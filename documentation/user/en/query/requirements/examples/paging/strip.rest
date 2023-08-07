@@ -1,0 +1,10 @@
+POST /rest/evita/product/query
+
+{
+  "require" : {
+    "strip" : {
+      "offset" : 76,
+      "limit" : 19
+    }
+  }
+}

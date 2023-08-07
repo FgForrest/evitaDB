@@ -31,73 +31,132 @@ public interface GrpcFacetStatisticsOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Contains referenced entity reference representing.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference = 1;</code>
    * @return Whether the facetEntityReference field is set.
    */
   boolean hasFacetEntityReference();
   /**
+   * <pre>
+   * Contains referenced entity reference representing.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference = 1;</code>
    * @return The facetEntityReference.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityReference getFacetEntityReference();
   /**
+   * <pre>
+   * Contains referenced entity reference representing.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder getFacetEntityReferenceOrBuilder();
 
   /**
+   * <pre>
+   * Contains referenced entity representing.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity = 2;</code>
    * @return Whether the facetEntity field is set.
    */
   boolean hasFacetEntity();
   /**
+   * <pre>
+   * Contains referenced entity representing.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity = 2;</code>
    * @return The facetEntity.
    */
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getFacetEntity();
   /**
+   * <pre>
+   * Contains referenced entity representing.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getFacetEntityOrBuilder();
 
   /**
+   * <pre>
+   * Contains TRUE if the facet was part of the query filtering constraints.
+   * </pre>
+   *
    * <code>bool requested = 3;</code>
    * @return The requested.
    */
   boolean getRequested();
 
   /**
+   * <pre>
+   * Contains number of distinct entities in the response that possess of this reference.
+   * </pre>
+   *
    * <code>int32 count = 4;</code>
    * @return The count.
    */
   int getCount();
 
   /**
+   * <pre>
+   * This field is not null only when this facet is not requested.
+   * Contains projected impact on the current response if this facet is also requested in filtering constraints.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value impact = 5;</code>
    * @return Whether the impact field is set.
    */
   boolean hasImpact();
   /**
+   * <pre>
+   * This field is not null only when this facet is not requested.
+   * Contains projected impact on the current response if this facet is also requested in filtering constraints.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value impact = 5;</code>
    * @return The impact.
    */
   com.google.protobuf.Int32Value getImpact();
   /**
+   * <pre>
+   * This field is not null only when this facet is not requested.
+   * Contains projected impact on the current response if this facet is also requested in filtering constraints.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value impact = 5;</code>
    */
   com.google.protobuf.Int32ValueOrBuilder getImpactOrBuilder();
 
   /**
+   * <pre>
+   * Projected number of filtered entities if the query is altered by adding this facet to filtering constraint.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value matchCount = 6;</code>
    * @return Whether the matchCount field is set.
    */
   boolean hasMatchCount();
   /**
+   * <pre>
+   * Projected number of filtered entities if the query is altered by adding this facet to filtering constraint.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value matchCount = 6;</code>
    * @return The matchCount.
    */
   com.google.protobuf.Int32Value getMatchCount();
   /**
+   * <pre>
+   * Projected number of filtered entities if the query is altered by adding this facet to filtering constraint.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value matchCount = 6;</code>
    */
   com.google.protobuf.Int32ValueOrBuilder getMatchCountOrBuilder();

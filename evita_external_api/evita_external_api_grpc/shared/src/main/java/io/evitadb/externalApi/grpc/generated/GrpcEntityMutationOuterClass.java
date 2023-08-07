@@ -78,7 +78,8 @@ public final class GrpcEntityMutationOuterClass {
       "pc.generated.GrpcEntityUpsertMutationH\000\022" +
       "_\n\024entityRemoveMutation\030\002 \001(\0132?.io.evita" +
       "db.externalApi.grpc.generated.GrpcEntity" +
-      "RemoveMutationH\000B\n\n\010mutationB\002P\001b\006proto3"
+      "RemoveMutationH\000B\n\n\010mutationB\014P\001\252\002\007Evita" +
+      "DBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

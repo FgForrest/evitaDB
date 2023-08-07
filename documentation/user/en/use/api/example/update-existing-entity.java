@@ -1,7 +1,7 @@
 evita.updateCatalog(
 	"testCatalog",
 	session -> {
-		session.getEntity("Product", 1, attributeContent(), dataInLocales())
+		session.getEntity("Product", 1, attributeContentAll(), dataInLocalesAll())
 			.orElseThrow(
 				() -> new IllegalArgumentException("Product `1` not found!")
 			)

@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Locale;
 
 import static io.evitadb.api.query.QueryConstraints.dataInLocales;
+import static io.evitadb.api.query.QueryConstraints.dataInLocalesAll;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -39,7 +40,7 @@ class DataInLocalesTest {
 
 	@Test
 	void shouldCreateViaFactoryClassWorkAsExpected() {
-		final DataInLocales dataInLocales1 = dataInLocales();
+		final DataInLocales dataInLocales1 = dataInLocalesAll();
 		assertArrayEquals(new Locale[0], dataInLocales1.getLocales());
 
 		final DataInLocales dataInLocales2 = dataInLocales(Locale.ENGLISH, Locale.FRENCH);
@@ -48,7 +49,7 @@ class DataInLocalesTest {
 
 	@Test
 	void shouldRecognizeApplicability() {
-		assertTrue(dataInLocales().isApplicable());
+		assertTrue(dataInLocalesAll().isApplicable());
 		assertTrue(dataInLocales(Locale.ENGLISH).isApplicable());
 		assertTrue(dataInLocales(Locale.ENGLISH, Locale.GERMAN).isApplicable());
 	}
@@ -72,8 +73,8 @@ class DataInLocalesTest {
 
 	@Test
 	void shouldCombineWithAnotherConstraint() {
-		assertEquals(dataInLocales(), dataInLocales().combineWith(dataInLocales(Locale.ENGLISH)));
-		assertEquals(dataInLocales(), dataInLocales(Locale.ENGLISH).combineWith(dataInLocales()));
+		assertEquals(dataInLocalesAll(), dataInLocalesAll().combineWith(dataInLocales(Locale.ENGLISH)));
+		assertEquals(dataInLocalesAll(), dataInLocales(Locale.ENGLISH).combineWith(dataInLocalesAll()));
 		assertEquals(dataInLocales(Locale.ENGLISH), dataInLocales(Locale.ENGLISH).combineWith(dataInLocales(Locale.ENGLISH)));
 		assertEquals(dataInLocales(Locale.ENGLISH, Locale.FRENCH), dataInLocales(Locale.ENGLISH).combineWith(dataInLocales(Locale.FRENCH)));
 	}

@@ -27,6 +27,11 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Mutation is responsible for setting value to a `ReferenceSchema.referencedEntityType` in `EntitySchema`.
+ * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaRelatedEntityMutation}
  */
 public final class GrpcModifyReferenceSchemaRelatedEntityMutation extends
@@ -125,6 +130,10 @@ private static final long serialVersionUID = 0L;
   public static final int NAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object name_;
   /**
+   * <pre>
+   * Name of the reference the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
@@ -142,6 +151,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Name of the reference the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -163,6 +176,11 @@ private static final long serialVersionUID = 0L;
   public static final int REFERENCEDENTITYTYPE_FIELD_NUMBER = 2;
   private volatile java.lang.Object referencedEntityType_;
   /**
+   * <pre>
+   * Reference to `EntitySchema.name` of the referenced entity. Might be also any `String`
+   * that identifies type some external resource not maintained by Evita.
+   * </pre>
+   *
    * <code>string referencedEntityType = 2;</code>
    * @return The referencedEntityType.
    */
@@ -180,6 +198,11 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Reference to `EntitySchema.name` of the referenced entity. Might be also any `String`
+   * that identifies type some external resource not maintained by Evita.
+   * </pre>
+   *
    * <code>string referencedEntityType = 2;</code>
    * @return The bytes for referencedEntityType.
    */
@@ -201,6 +224,10 @@ private static final long serialVersionUID = 0L;
   public static final int REFERENCEDENTITYTYPEMANAGED_FIELD_NUMBER = 3;
   private boolean referencedEntityTypeManaged_;
   /**
+   * <pre>
+   * Whether `referencedEntityType` refers to any existing `EntitySchema.name` that is maintained by Evita.
+   * </pre>
+   *
    * <code>bool referencedEntityTypeManaged = 3;</code>
    * @return The referencedEntityTypeManaged.
    */
@@ -386,6 +413,11 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.referencedEntityType` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaRelatedEntityMutation}
    */
   public static final class Builder extends
@@ -548,6 +580,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object name_ = "";
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The name.
      */
@@ -564,6 +600,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The bytes for name.
      */
@@ -581,6 +621,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The name to set.
      * @return This builder for chaining.
@@ -596,6 +640,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return This builder for chaining.
      */
@@ -606,6 +654,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The bytes for name to set.
      * @return This builder for chaining.
@@ -624,6 +676,11 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object referencedEntityType_ = "";
     /**
+     * <pre>
+     * Reference to `EntitySchema.name` of the referenced entity. Might be also any `String`
+     * that identifies type some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>string referencedEntityType = 2;</code>
      * @return The referencedEntityType.
      */
@@ -640,6 +697,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Reference to `EntitySchema.name` of the referenced entity. Might be also any `String`
+     * that identifies type some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>string referencedEntityType = 2;</code>
      * @return The bytes for referencedEntityType.
      */
@@ -657,6 +719,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Reference to `EntitySchema.name` of the referenced entity. Might be also any `String`
+     * that identifies type some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>string referencedEntityType = 2;</code>
      * @param value The referencedEntityType to set.
      * @return This builder for chaining.
@@ -672,6 +739,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Reference to `EntitySchema.name` of the referenced entity. Might be also any `String`
+     * that identifies type some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>string referencedEntityType = 2;</code>
      * @return This builder for chaining.
      */
@@ -682,6 +754,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Reference to `EntitySchema.name` of the referenced entity. Might be also any `String`
+     * that identifies type some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>string referencedEntityType = 2;</code>
      * @param value The bytes for referencedEntityType to set.
      * @return This builder for chaining.
@@ -700,6 +777,10 @@ private static final long serialVersionUID = 0L;
 
     private boolean referencedEntityTypeManaged_ ;
     /**
+     * <pre>
+     * Whether `referencedEntityType` refers to any existing `EntitySchema.name` that is maintained by Evita.
+     * </pre>
+     *
      * <code>bool referencedEntityTypeManaged = 3;</code>
      * @return The referencedEntityTypeManaged.
      */
@@ -708,6 +789,10 @@ private static final long serialVersionUID = 0L;
       return referencedEntityTypeManaged_;
     }
     /**
+     * <pre>
+     * Whether `referencedEntityType` refers to any existing `EntitySchema.name` that is maintained by Evita.
+     * </pre>
+     *
      * <code>bool referencedEntityTypeManaged = 3;</code>
      * @param value The referencedEntityTypeManaged to set.
      * @return This builder for chaining.
@@ -719,6 +804,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Whether `referencedEntityType` refers to any existing `EntitySchema.name` that is maintained by Evita.
+     * </pre>
+     *
      * <code>bool referencedEntityTypeManaged = 3;</code>
      * @return This builder for chaining.
      */

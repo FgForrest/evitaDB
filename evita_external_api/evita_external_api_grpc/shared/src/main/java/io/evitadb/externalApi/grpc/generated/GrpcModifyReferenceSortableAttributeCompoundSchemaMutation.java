@@ -27,6 +27,11 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Mutation is a holder for a single `SortableAttributeCompoundSchema` that affect any of
+ * `ReferenceSchema.sortableAttributeCompound` in the `EntitySchema`.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation}
  */
 public final class GrpcModifyReferenceSortableAttributeCompoundSchemaMutation extends
@@ -126,6 +131,10 @@ private static final long serialVersionUID = 0L;
   public static final int NAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object name_;
   /**
+   * <pre>
+   * Name of the reference the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
@@ -143,6 +152,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Name of the reference the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -164,6 +177,10 @@ private static final long serialVersionUID = 0L;
   public static final int SORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION_FIELD_NUMBER = 2;
   private io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation sortableAttributeCompoundSchemaMutation_;
   /**
+   * <pre>
+   * Nested sortable attribute compound schema mutation that mutates reference sortable attribute compounds of targeted reference.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation sortableAttributeCompoundSchemaMutation = 2;</code>
    * @return Whether the sortableAttributeCompoundSchemaMutation field is set.
    */
@@ -172,6 +189,10 @@ private static final long serialVersionUID = 0L;
     return sortableAttributeCompoundSchemaMutation_ != null;
   }
   /**
+   * <pre>
+   * Nested sortable attribute compound schema mutation that mutates reference sortable attribute compounds of targeted reference.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation sortableAttributeCompoundSchemaMutation = 2;</code>
    * @return The sortableAttributeCompoundSchemaMutation.
    */
@@ -180,6 +201,10 @@ private static final long serialVersionUID = 0L;
     return sortableAttributeCompoundSchemaMutation_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation.getDefaultInstance() : sortableAttributeCompoundSchemaMutation_;
   }
   /**
+   * <pre>
+   * Nested sortable attribute compound schema mutation that mutates reference sortable attribute compounds of targeted reference.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation sortableAttributeCompoundSchemaMutation = 2;</code>
    */
   @java.lang.Override
@@ -358,6 +383,11 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Mutation is a holder for a single `SortableAttributeCompoundSchema` that affect any of
+   * `ReferenceSchema.sortableAttributeCompound` in the `EntitySchema`.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation}
    */
   public static final class Builder extends
@@ -521,6 +551,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object name_ = "";
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The name.
      */
@@ -537,6 +571,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The bytes for name.
      */
@@ -554,6 +592,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The name to set.
      * @return This builder for chaining.
@@ -569,6 +611,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return This builder for chaining.
      */
@@ -579,6 +625,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The bytes for name to set.
      * @return This builder for chaining.
@@ -599,6 +649,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutationOrBuilder> sortableAttributeCompoundSchemaMutationBuilder_;
     /**
+     * <pre>
+     * Nested sortable attribute compound schema mutation that mutates reference sortable attribute compounds of targeted reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation sortableAttributeCompoundSchemaMutation = 2;</code>
      * @return Whether the sortableAttributeCompoundSchemaMutation field is set.
      */
@@ -606,6 +660,10 @@ private static final long serialVersionUID = 0L;
       return sortableAttributeCompoundSchemaMutationBuilder_ != null || sortableAttributeCompoundSchemaMutation_ != null;
     }
     /**
+     * <pre>
+     * Nested sortable attribute compound schema mutation that mutates reference sortable attribute compounds of targeted reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation sortableAttributeCompoundSchemaMutation = 2;</code>
      * @return The sortableAttributeCompoundSchemaMutation.
      */
@@ -617,6 +675,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Nested sortable attribute compound schema mutation that mutates reference sortable attribute compounds of targeted reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation sortableAttributeCompoundSchemaMutation = 2;</code>
      */
     public Builder setSortableAttributeCompoundSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation value) {
@@ -633,6 +695,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Nested sortable attribute compound schema mutation that mutates reference sortable attribute compounds of targeted reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation sortableAttributeCompoundSchemaMutation = 2;</code>
      */
     public Builder setSortableAttributeCompoundSchemaMutation(
@@ -647,6 +713,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Nested sortable attribute compound schema mutation that mutates reference sortable attribute compounds of targeted reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation sortableAttributeCompoundSchemaMutation = 2;</code>
      */
     public Builder mergeSortableAttributeCompoundSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation value) {
@@ -665,6 +735,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Nested sortable attribute compound schema mutation that mutates reference sortable attribute compounds of targeted reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation sortableAttributeCompoundSchemaMutation = 2;</code>
      */
     public Builder clearSortableAttributeCompoundSchemaMutation() {
@@ -679,6 +753,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Nested sortable attribute compound schema mutation that mutates reference sortable attribute compounds of targeted reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation sortableAttributeCompoundSchemaMutation = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation.Builder getSortableAttributeCompoundSchemaMutationBuilder() {
@@ -687,6 +765,10 @@ private static final long serialVersionUID = 0L;
       return getSortableAttributeCompoundSchemaMutationFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Nested sortable attribute compound schema mutation that mutates reference sortable attribute compounds of targeted reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation sortableAttributeCompoundSchemaMutation = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutationOrBuilder getSortableAttributeCompoundSchemaMutationOrBuilder() {
@@ -698,6 +780,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Nested sortable attribute compound schema mutation that mutates reference sortable attribute compounds of targeted reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation sortableAttributeCompoundSchemaMutation = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

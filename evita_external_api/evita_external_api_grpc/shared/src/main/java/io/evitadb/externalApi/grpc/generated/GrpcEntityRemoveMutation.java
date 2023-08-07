@@ -27,6 +27,11 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Represents a terminal mutation when existing entity is removed in the evitaDB. The entity is
+ * and all its internal data are deleted.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation}
  */
 public final class GrpcEntityRemoveMutation extends
@@ -118,6 +123,10 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITYTYPE_FIELD_NUMBER = 1;
   private volatile java.lang.Object entityType_;
   /**
+   * <pre>
+   * The type of the entity to be removed.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The entityType.
    */
@@ -135,6 +144,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * The type of the entity to be removed.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The bytes for entityType.
    */
@@ -156,6 +169,10 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITYPRIMARYKEY_FIELD_NUMBER = 2;
   private int entityPrimaryKey_;
   /**
+   * <pre>
+   * The primary key of the entity to be removed.
+   * </pre>
+   *
    * <code>int32 entityPrimaryKey = 2;</code>
    * @return The entityPrimaryKey.
    */
@@ -330,6 +347,11 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Represents a terminal mutation when existing entity is removed in the evitaDB. The entity is
+   * and all its internal data are deleted.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation}
    */
   public static final class Builder extends
@@ -485,6 +507,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object entityType_ = "";
     /**
+     * <pre>
+     * The type of the entity to be removed.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @return The entityType.
      */
@@ -501,6 +527,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The type of the entity to be removed.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @return The bytes for entityType.
      */
@@ -518,6 +548,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The type of the entity to be removed.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @param value The entityType to set.
      * @return This builder for chaining.
@@ -533,6 +567,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The type of the entity to be removed.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @return This builder for chaining.
      */
@@ -543,6 +581,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The type of the entity to be removed.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @param value The bytes for entityType to set.
      * @return This builder for chaining.
@@ -561,6 +603,10 @@ private static final long serialVersionUID = 0L;
 
     private int entityPrimaryKey_ ;
     /**
+     * <pre>
+     * The primary key of the entity to be removed.
+     * </pre>
+     *
      * <code>int32 entityPrimaryKey = 2;</code>
      * @return The entityPrimaryKey.
      */
@@ -569,6 +615,10 @@ private static final long serialVersionUID = 0L;
       return entityPrimaryKey_;
     }
     /**
+     * <pre>
+     * The primary key of the entity to be removed.
+     * </pre>
+     *
      * <code>int32 entityPrimaryKey = 2;</code>
      * @param value The entityPrimaryKey to set.
      * @return This builder for chaining.
@@ -580,6 +630,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The primary key of the entity to be removed.
+     * </pre>
+     *
      * <code>int32 entityPrimaryKey = 2;</code>
      * @return This builder for chaining.
      */

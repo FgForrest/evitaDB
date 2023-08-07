@@ -23,6 +23,7 @@
 
 package io.evitadb.api.proxy.impl.entity;
 
+import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
@@ -31,19 +32,31 @@ import io.evitadb.api.requestResponse.data.annotation.AssociatedDataRef;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassUtils;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.ReflectionLookup;
+import one.edee.oss.proxycian.CurriedMethodContextInvocationHandler;
 import one.edee.oss.proxycian.DirectMethodClassification;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.lang.reflect.Array;
 import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.OptionalInt;
+import java.util.OptionalLong;
+import java.util.Set;
 import java.util.function.UnaryOperator;
 
-import static io.evitadb.api.proxy.impl.ProxyUtils.getWrappedGenericType;
+import static io.evitadb.api.proxy.impl.ProxyUtils.getResolvedTypes;
 
 /**
  * Identifies methods that are used to get associated data from an entity and provides their implementation.
@@ -60,7 +73,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 	 * Provides default value (according to a schema or implicit rules) instead of null.
 	 */
 	@Nonnull
-	public static UnaryOperator<Serializable> createDefaultValueProvider(Class<? extends Serializable> returnType) {
+	public static UnaryOperator<Serializable> createDefaultValueProvider(@Nonnull Class<? extends Serializable> returnType) {
 		final UnaryOperator<Serializable> defaultValueProvider;
 		if (boolean.class.equals(returnType)) {
 			defaultValueProvider = o -> o == null ? false : o;
@@ -100,6 +113,205 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		}
 	}
 
+	/**
+	 * Creates an implementation of the method returning an associated data as a requested type.
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> singleLocalizedResult(
+		@Nonnull String cleanAssociatedDataName,
+		@Nonnull Method method,
+		@Nonnull Class<Serializable> itemType,
+		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
+		@Nonnull UnaryOperator<Object> resultWrapper
+	) {
+		return method.getParameterCount() == 0 ?
+			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
+				theState.getSealedEntity().getAssociatedDataValue(cleanAssociatedDataName)
+					.map(AssociatedDataValue::value)
+					.map(defaultValueProvider)
+					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
+					.orElse(null)
+			) :
+			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
+				theState.getSealedEntity().getAssociatedDataValue(cleanAssociatedDataName, (Locale) args[0])
+					.map(AssociatedDataValue::value)
+					.map(defaultValueProvider)
+					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
+					.orElse(null)
+			);
+	}
+
+	/**
+	 * Creates an implementation of the method returning an associated data of an array type wrapped into a set.
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setOfLocalizedResults(
+		@Nonnull String cleanAssociatedDataName,
+		@Nonnull Method method,
+		@Nonnull Class<Serializable> itemType,
+		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
+		@Nonnull UnaryOperator<Object> resultWrapper
+	) {
+		Assert.isTrue(
+			itemType.isArray(),
+			() -> new EntityClassInvalidException(
+				method.getDeclaringClass(),
+				"Method " + method + " is annotated with @AssociatedData related to `" + cleanAssociatedDataName + "` " +
+					"of non-array associated data, but returns a collection!"
+			)
+		);
+		return method.getParameterCount() == 0 ?
+			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
+				theState.getSealedEntity().getAssociatedDataValue(cleanAssociatedDataName)
+					.map(AssociatedDataValue::value)
+					.map(defaultValueProvider)
+					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
+					.map(Object[].class::cast)
+					.map(it -> {
+						final Set<Object> result = CollectionUtils.createHashSet(it.length);
+						result.addAll(Arrays.asList(it));
+						return result;
+					})
+					.orElse(Collections.emptySet())
+			) :
+			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
+				theState.getSealedEntity().getAssociatedDataValue(cleanAssociatedDataName, (Locale) args[0])
+					.map(AssociatedDataValue::value)
+					.map(defaultValueProvider)
+					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
+					.map(Object[].class::cast)
+					.map(it -> {
+						final Set<Object> result = CollectionUtils.createHashSet(it.length);
+						result.addAll(Arrays.asList(it));
+						return result;
+					})
+					.orElse(Collections.emptySet())
+			);
+	}
+
+	/**
+	 * Creates an implementation of the method returning an associated data of an array type wrapped into a list.
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> listOfLocalizedResults(
+		@Nonnull String cleanAssociatedDataName,
+		@Nonnull Method method,
+		@Nonnull Class<Serializable> itemType,
+		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
+		@Nonnull UnaryOperator<Object> resultWrapper
+	) {
+		Assert.isTrue(
+			itemType.isArray(),
+			() -> new EntityClassInvalidException(
+				method.getDeclaringClass(),
+				"Method " + method + " is annotated with @AssociatedData related to `" + cleanAssociatedDataName + "` " +
+					"of non-array associated data, but returns a collection!"
+			)
+		);
+		return method.getParameterCount() == 0 ?
+			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
+				theState.getSealedEntity().getAssociatedDataValue(cleanAssociatedDataName)
+					.map(AssociatedDataValue::value)
+					.map(defaultValueProvider)
+					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
+					.map(Object[].class::cast)
+					.map(List::of)
+					.orElse(Collections.emptyList())
+			) :
+			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
+				theState.getSealedEntity().getAssociatedDataValue(cleanAssociatedDataName, (Locale) args[0])
+					.map(AssociatedDataValue::value)
+					.map(defaultValueProvider)
+					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
+					.map(Object[].class::cast)
+					.map(List::of)
+					.orElse(Collections.emptyList())
+			);
+	}
+
+	/**
+	 * Creates an implementation of the method returning an associated data as a requested type.
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> singleResult(
+		@Nonnull String cleanAssociatedDataName,
+		@Nonnull Class<Serializable> itemType,
+		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
+		@Nonnull UnaryOperator<Object> resultWrapper
+	) {
+		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
+				theState.getSealedEntity().getAssociatedDataValue(cleanAssociatedDataName)
+					.map(AssociatedDataValue::value)
+					.map(defaultValueProvider)
+					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
+					.orElse(null)
+			);
+	}
+
+	/**
+	 * Creates an implementation of the method returning an associated data of an array type wrapped into a set.
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setOfResults(
+		@Nonnull String cleanAssociatedDataName,
+		@Nonnull Method method,
+		@Nonnull Class<Serializable> itemType,
+		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
+		@Nonnull UnaryOperator<Object> resultWrapper
+	) {
+		Assert.isTrue(
+			itemType.isArray(),
+			() -> new EntityClassInvalidException(
+				method.getDeclaringClass(),
+				"Method " + method + " is annotated with @AssociatedData related to `" + cleanAssociatedDataName + "` " +
+					"of non-array associated data, but returns a collection!"
+			)
+		);
+		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
+				theState.getSealedEntity().getAssociatedDataValue(cleanAssociatedDataName)
+					.map(AssociatedDataValue::value)
+					.map(defaultValueProvider)
+					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
+					.map(Object[].class::cast)
+					.map(it -> {
+						final Set<Object> result = CollectionUtils.createHashSet(it.length);
+						result.addAll(Arrays.asList(it));
+						return result;
+					})
+					.orElse(Collections.emptySet())
+			);
+	}
+
+	/**
+	 * Creates an implementation of the method returning an associated data of an array type wrapped into a list.
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> listOfResults(
+		@Nonnull String cleanAssociatedDataName,
+		@Nonnull Method method,
+		@Nonnull Class<Serializable> itemType,
+		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
+		@Nonnull UnaryOperator<Object> resultWrapper
+	) {
+		Assert.isTrue(
+			itemType.isArray(),
+			() -> new EntityClassInvalidException(
+				method.getDeclaringClass(),
+				"Method " + method + " is annotated with @AssociatedData related to `" + cleanAssociatedDataName + "` " +
+					"of non-array associated data, but returns a collection!"
+			)
+		);
+		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
+				theState.getSealedEntity().getAssociatedDataValue(cleanAssociatedDataName)
+					.map(AssociatedDataValue::value)
+					.map(defaultValueProvider)
+					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
+					.map(Object[].class::cast)
+					.map(List::of)
+					.orElse(Collections.emptyList())
+			);
+	}
+
 	public GetAssociatedDataMethodClassifier() {
 		super(
 			"getAssociatedData",
@@ -121,28 +333,86 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 				} else {
 					// finally provide implementation that will retrieve the associated data from the entity
 					final String cleanAssociatedDataName = associatedDataSchema.getName();
-					@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
-					@SuppressWarnings("unchecked") final UnaryOperator<Serializable> defaultValueProvider = createDefaultValueProvider(returnType);
-					@SuppressWarnings("rawtypes") final Class wrappedGenericType = getWrappedGenericType(method, proxyState.getProxyClass());
-					final UnaryOperator<Object> resultWrapper = ProxyUtils.createOptionalWrapper(wrappedGenericType);
-					@SuppressWarnings("rawtypes") final Class valueType = wrappedGenericType == null ? returnType : wrappedGenericType;
 
-					//noinspection unchecked
-					return method.getParameterCount() == 0 ?
-						(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-							theState.getSealedEntity().getAssociatedDataValue(cleanAssociatedDataName)
-								.map(AssociatedDataValue::value)
-								.map(defaultValueProvider)
-								.map(it -> ComplexDataObjectConverter.getOriginalForm(it, valueType, theState.getReflectionLookup()))
-								.orElse(null)
-						) :
-						(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-							theState.getSealedEntity().getAssociatedDataValue(cleanAssociatedDataName, (Locale) args[0])
-								.map(AssociatedDataValue::value)
-								.map(defaultValueProvider)
-								.map(it -> ComplexDataObjectConverter.getOriginalForm(it, valueType, theState.getReflectionLookup()))
-								.orElse(null)
+					// now we need to identify the return type
+					@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
+					final Class<?>[] resolvedTypes = getResolvedTypes(method, proxyState.getProxyClass());
+					@SuppressWarnings("unchecked") final UnaryOperator<Serializable> defaultValueProvider = createDefaultValueProvider(returnType);
+					final UnaryOperator<Object> resultWrapper;
+					final int index = Optional.class.isAssignableFrom(resolvedTypes[0]) ? 1 : 0;
+
+					@SuppressWarnings("rawtypes") final Class collectionType;
+					@SuppressWarnings("rawtypes") final Class itemType;
+					if (Collection.class.equals(resolvedTypes[index]) || List.class.isAssignableFrom(resolvedTypes[index]) || Set.class.isAssignableFrom(resolvedTypes[index])) {
+						collectionType = resolvedTypes[index];
+						itemType = Array.newInstance(resolvedTypes.length > index + 1 ? resolvedTypes[index + 1] : Object.class, 0).getClass();
+						resultWrapper = ProxyUtils.createOptionalWrapper(Optional.class.isAssignableFrom(resolvedTypes[0]) ? Optional.class : null);
+					} else if (resolvedTypes[index].isArray()) {
+						collectionType = null;
+						itemType = resolvedTypes[index];
+						resultWrapper = ProxyUtils.createOptionalWrapper(Optional.class.isAssignableFrom(resolvedTypes[0]) ? Optional.class : null);
+					} else {
+						collectionType = null;
+						if (OptionalInt.class.isAssignableFrom(resolvedTypes[0])) {
+							itemType = int.class;
+							resultWrapper = ProxyUtils.createOptionalWrapper(itemType);
+						} else if (OptionalLong.class.isAssignableFrom(resolvedTypes[0])) {
+							itemType = long.class;
+							resultWrapper = ProxyUtils.createOptionalWrapper(itemType);
+						} else if (Optional.class.isAssignableFrom(resolvedTypes[0])) {
+							itemType = resolvedTypes[index];
+							resultWrapper = ProxyUtils.createOptionalWrapper(itemType);
+						} else {
+							itemType = resolvedTypes[index];
+							resultWrapper = ProxyUtils.createOptionalWrapper(null);
+						}
+					}
+
+					if (associatedDataSchema.isLocalized()) {
+						if (collectionType != null && Set.class.isAssignableFrom(collectionType)) {
+							//noinspection unchecked
+							return setOfLocalizedResults(
+								cleanAssociatedDataName, method, itemType,
+								defaultValueProvider, resultWrapper
+							);
+						} else if (collectionType != null) {
+							//noinspection unchecked
+							return listOfLocalizedResults(
+								cleanAssociatedDataName, method, itemType,
+								defaultValueProvider, resultWrapper
+							);
+						} else {
+							//noinspection unchecked
+							return singleLocalizedResult(
+								cleanAssociatedDataName, method, itemType,
+								defaultValueProvider, resultWrapper
+							);
+						}
+					} else {
+						Assert.isTrue(
+							method.getParameterCount() == 0,
+							"Non-localized associated data `" + associatedDataSchema.getName() + "` must not have a locale parameter!"
 						);
+						if (collectionType != null && Set.class.isAssignableFrom(collectionType)) {
+							//noinspection unchecked
+							return setOfResults(
+								cleanAssociatedDataName, method, itemType,
+								defaultValueProvider, resultWrapper
+							);
+						} else if (collectionType != null) {
+							//noinspection unchecked
+							return listOfResults(
+								cleanAssociatedDataName, method, itemType,
+								defaultValueProvider, resultWrapper
+							);
+						} else {
+							//noinspection unchecked
+							return singleResult(
+								cleanAssociatedDataName, itemType,
+								defaultValueProvider, resultWrapper
+							);
+						}
+					}
 				}
 			}
 		);

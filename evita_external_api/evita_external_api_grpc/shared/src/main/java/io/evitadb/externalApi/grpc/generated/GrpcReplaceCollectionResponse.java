@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Response to ReplaceCollection request.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionResponse}
  */
 public final class GrpcReplaceCollectionResponse extends
@@ -111,6 +115,10 @@ private static final long serialVersionUID = 0L;
   public static final int REPLACED_FIELD_NUMBER = 1;
   private boolean replaced_;
   /**
+   * <pre>
+   * True, if the collection was replaced.
+   * </pre>
+   *
    * <code>bool replaced = 1;</code>
    * @return The replaced.
    */
@@ -276,6 +284,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Response to ReplaceCollection request.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionResponse}
    */
   public static final class Builder extends
@@ -424,6 +436,10 @@ private static final long serialVersionUID = 0L;
 
     private boolean replaced_ ;
     /**
+     * <pre>
+     * True, if the collection was replaced.
+     * </pre>
+     *
      * <code>bool replaced = 1;</code>
      * @return The replaced.
      */
@@ -432,6 +448,10 @@ private static final long serialVersionUID = 0L;
       return replaced_;
     }
     /**
+     * <pre>
+     * True, if the collection was replaced.
+     * </pre>
+     *
      * <code>bool replaced = 1;</code>
      * @param value The replaced to set.
      * @return This builder for chaining.
@@ -443,6 +463,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * True, if the collection was replaced.
+     * </pre>
+     *
      * <code>bool replaced = 1;</code>
      * @return This builder for chaining.
      */

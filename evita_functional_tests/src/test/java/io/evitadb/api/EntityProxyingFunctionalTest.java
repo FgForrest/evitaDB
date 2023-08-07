@@ -23,7 +23,6 @@
 
 package io.evitadb.api;
 
-import io.evitadb.api.EvitaSessionContract.DeletedHierarchy;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.mock.CategoryInterface;
 import io.evitadb.api.mock.ProductCategoryInterface;
@@ -32,12 +31,14 @@ import io.evitadb.api.mock.TestEntity;
 import io.evitadb.api.proxy.SealedEntityReferenceProxy;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
+import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.annotation.DataSet;
@@ -45,13 +46,16 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
+import io.evitadb.test.generator.DataGenerator.Labels;
 import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -78,10 +82,12 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("Evita entity proxying functionality")
 @Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
+@TestMethodOrder(MethodOrderer.MethodName.class)
 @Slf4j
-public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctionalTest implements EvitaTestSupport {
-	private static final String FIFTY_PRODUCTS = "FiftyProxyProducts";
+public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctionalTest implements EvitaTestSupport {
+	private static final String HUNDRED_PRODUCTS = "HundredProxyProducts";
 	private static final Locale CZECH_LOCALE = new Locale("cs", "CZ");
+	private static final ReflectionLookup REFLECTION_LOOKUP = new ReflectionLookup(ReflectionCachingBehaviour.CACHE);
 
 	private static void assertCategoryEntityReferences(
 		@Nonnull Stream<EntityReference> categoryReferences,
@@ -285,6 +291,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 	) {
 		assertProductBasicData(originalProduct, product);
 		assertProductAttributes(originalProduct, product, locale);
+		assertProductAssociatedData(originalProduct, product, locale);
 
 		final Optional<ReferencedFileSet> referenceFileSetOptional = ofNullable(originalProduct.getAssociatedData(ASSOCIATED_DATA_REFERENCED_FILES, ReferencedFileSet.class, ReflectionLookup.NO_CACHE_INSTANCE));
 		referenceFileSetOptional
@@ -421,12 +428,51 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantity());
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantityAsDifferentProperty());
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_ALIAS), product.isAlias());
+		assertEquals(TestEnum.valueOf(originalProduct.getAttribute(ATTRIBUTE_ENUM, String.class)), product.getEnum());
+
 		final Optional<Object> optionallyAvailable = ofNullable(originalProduct.getAttribute(ATTRIBUTE_OPTIONAL_AVAILABILITY));
 		assertEquals(optionallyAvailable.orElse(false), product.isOptionallyAvailable());
 		assertEquals(optionallyAvailable, product.getOptionallyAvailable());
+
+		assertArrayEquals(
+			originalProduct.getAttribute(ATTRIBUTE_MARKETS, String[].class),
+			product.getMarketsAttribute()
+		);
+
+		assertArrayEquals(
+			originalProduct.getAttribute(ATTRIBUTE_MARKETS, String[].class),
+			product.getMarketsAttributeAsList().toArray(new String[0])
+		);
+
+		assertArrayEquals(
+			Arrays.stream(originalProduct.getAttribute(ATTRIBUTE_MARKETS, String[].class)).sorted().distinct().toArray(String[]::new),
+			product.getMarketsAttributeAsSet().stream().sorted().toArray(String[]::new)
+		);
 	}
 
-	@DataSet(value = FIFTY_PRODUCTS, destroyAfterClass = true, readOnly = false)
+	private static void assertProductAssociatedData(@Nonnull SealedEntity originalProduct, @Nonnull ProductInterface product, @Nullable Locale locale) {
+		assertEquals(
+			originalProduct.getAssociatedData(DataGenerator.ASSOCIATED_DATA_LABELS, locale, Labels.class, REFLECTION_LOOKUP),
+			product.getLabels()
+		);
+
+		assertArrayEquals(
+			originalProduct.getAssociatedData(ASSOCIATED_DATA_MARKETS, String[].class, REFLECTION_LOOKUP),
+			product.getMarkets()
+		);
+
+		assertArrayEquals(
+			originalProduct.getAssociatedData(ASSOCIATED_DATA_MARKETS, String[].class, REFLECTION_LOOKUP),
+			product.getMarketsAsList().toArray(new String[0])
+		);
+
+		assertArrayEquals(
+			Arrays.stream(originalProduct.getAssociatedData(ASSOCIATED_DATA_MARKETS, String[].class, REFLECTION_LOOKUP)).distinct().sorted().toArray(String[]::new),
+			product.getMarketsAsSet().stream().sorted().toArray(String[]::new)
+		);
+	}
+
+	@DataSet(value = HUNDRED_PRODUCTS, destroyAfterClass = true, readOnly = false)
 	@Override
 	DataCarrier setUp(Evita evita) {
 		return super.setUp(evita);
@@ -434,7 +480,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should return entity schema directly or via model class")
 	@Test
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	void shouldReturnEntitySchema(EvitaSessionContract evitaSession) {
 		assertNotNull(evitaSession.getEntitySchema(Entities.PRODUCT));
 		assertNotNull(evitaSession.getEntitySchema(ProductInterface.class));
@@ -453,7 +499,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should get sealed entity")
 	@Test
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	void getSealedEntity(EvitaSessionContract evitaSession, List<SealedEntity> originalProducts) {
 		final SealedEntity theProduct = originalProducts
 			.stream()
@@ -465,7 +511,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should get custom entity model instance")
 	@Test
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	void getCustomEntity(
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts,
@@ -487,7 +533,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should enrich custom entity model instance")
 	@Test
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	void enrichCustomEntity(
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts,
@@ -515,7 +561,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should limit custom entity model instance")
 	@Test
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	void limitCustomEntity(
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts
@@ -544,7 +590,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should return entity reference")
 	@Test
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	void queryOneEntityReference(EvitaSessionContract evitaSession) {
 		final Query query = query(
 			collection(Entities.PRODUCT),
@@ -558,7 +604,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should return sealed entity")
 	@Test
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	void queryOneSealedEntity(EvitaSessionContract evitaSession, List<SealedEntity> originalProducts) {
 		final Query query = query(
 			collection(Entities.PRODUCT),
@@ -576,7 +622,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 	}
 
 	@DisplayName("Should return custom entity model instance")
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	@ParameterizedTest
 	@MethodSource("returnRandomSeed")
 	void queryOneRandomizedEntity(
@@ -587,17 +633,21 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 	) {
 		final Random rnd = new Random(seed);
 		final int primaryKey = rnd.nextInt(49) + 1;
-		final Query query = query(
-			collection(Entities.PRODUCT),
-			filterBy(entityPrimaryKeyInSet(primaryKey)),
-			require(entityFetchAll())
-		);
 
 		final SealedEntity theProduct = originalProducts
 			.stream()
 			.filter(it -> it.getPrimaryKey() == primaryKey)
 			.findFirst()
 			.orElseThrow();
+
+		final Query query = query(
+			collection(Entities.PRODUCT),
+			filterBy(
+				entityPrimaryKeyInSet(primaryKey),
+				attributeEquals(ATTRIBUTE_ENUM, TestEnum.valueOf(theProduct.getAttribute(ATTRIBUTE_ENUM, String.class)))
+			),
+			require(entityFetchAll())
+		);
 
 		System.out.println("PK: " + primaryKey);
 		assertProduct(
@@ -610,7 +660,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should return custom entity model instance")
 	@Test
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	void queryOneCustomEntity(
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts,
@@ -636,9 +686,45 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 		);
 	}
 
+	@DisplayName("Should return same proxy instances for repeated calls")
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldReturnSameInstancesForRepeatedCalls(EvitaSessionContract evitaSession) {
+		final Query query = query(
+			collection(Entities.PRODUCT),
+			filterBy(entityPrimaryKeyInSet(1)),
+			require(entityFetchAll())
+		);
+
+		final ProductInterface product = evitaSession.queryOne(query, ProductInterface.class)
+			.orElseThrow();
+
+		for(int i = 0; i < 2; i++) {
+			final ProductCategoryInterface[] array1 = product.getProductCategoriesAsArray();
+			final ProductCategoryInterface[] array2 = product.getProductCategoriesAsArray();
+			for (int j = 0; j < array1.length; j++) {
+				final ProductCategoryInterface productCategory1 = array1[j];
+				final ProductCategoryInterface productCategory2 = array2[j];
+
+				assertSame(productCategory1, productCategory2);
+				assertSame(productCategory1.getCategory(), productCategory2.getCategory());
+			}
+
+			final CategoryInterface[] catArray1 = product.getCategoriesAsArray();
+			final CategoryInterface[] catArray2 = product.getCategoriesAsArray();
+			for (int j = 0; j < catArray1.length; j++) {
+				final CategoryInterface category1 = catArray1[j];
+				final CategoryInterface category2 = catArray2[j];
+
+				assertSame(category1, category2);
+			}
+		}
+
+	}
+
 	@DisplayName("Should return list of entity references")
 	@Test
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	void queryListOfEntityReference(EvitaSessionContract evitaSession) {
 		final Query query = query(
 			collection(Entities.PRODUCT),
@@ -664,7 +750,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should return list of sealed entities")
 	@Test
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	void queryListOfSealedEntities(EvitaSessionContract evitaSession, List<SealedEntity> originalProducts) {
 		final Query query = query(
 			collection(Entities.PRODUCT),
@@ -682,7 +768,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should return list of custom entity model instances")
 	@Test
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	void queryListOfCustomEntities(
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts,
@@ -714,7 +800,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should query entity references")
 	@Test
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	void queryEntityReferences(EvitaSessionContract evitaSession) {
 		final Query query = query(
 			collection(Entities.PRODUCT),
@@ -740,7 +826,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should query sealed entities")
 	@Test
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	void querySealedEntities(EvitaSessionContract evitaSession, List<SealedEntity> originalProducts) {
 		final Query query = query(
 			collection(Entities.PRODUCT),
@@ -758,7 +844,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should query custom entity model instances")
 	@Test
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	void queryCustomEntities(
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts,
@@ -790,7 +876,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should wrap an interface and load data in single localization")
 	@Test
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	void shouldProxyToInterfaceWithCzechLocalization(
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts,
@@ -812,20 +898,20 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 				),
 				require(
 					entityFetch(
-						attributeContent(),
-						associatedDataContent(),
+						attributeContentAll(),
+						associatedDataContentAll(),
 						priceContentAll(),
 						referenceContentAllWithAttributes(
 							entityFetch(
 								hierarchyContent(
 									entityFetchAll()
 								),
-								attributeContent(),
-								associatedDataContent()
+								attributeContentAll(),
+								associatedDataContentAll()
 							),
 							entityGroupFetch(
-								attributeContent(),
-								associatedDataContent()
+								attributeContentAll(),
+								associatedDataContentAll()
 							)
 						)
 					)
@@ -845,7 +931,7 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should wrap an interface and load all data")
 	@Test
-	@UseDataSet(FIFTY_PRODUCTS)
+	@UseDataSet(HUNDRED_PRODUCTS)
 	void shouldProxyToInterface(
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts,
@@ -861,20 +947,20 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 		final Optional<ProductInterface> productRef = evitaSession.getEntity(
 			ProductInterface.class,
 			theProduct.getPrimaryKey(),
-			attributeContent(),
-			associatedDataContent(),
+			attributeContentAll(),
+			associatedDataContentAll(),
 			priceContentAll(),
 			referenceContentAllWithAttributes(
 				entityFetch(
 					hierarchyContent(
 						entityFetchAll()
 					),
-					attributeContent(),
-					associatedDataContent()
+					attributeContentAll(),
+					associatedDataContentAll()
 				),
 				entityGroupFetchAll()
 			),
-			dataInLocales()
+			dataInLocalesAll()
 		);
 
 		assertProduct(
@@ -887,8 +973,8 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should delete entity")
 	@Test
-	@UseDataSet(FIFTY_PRODUCTS)
-	void deleteEntity(
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void x_deleteEntity(
 		EvitaContract evita,
 		List<SealedEntity> originalProducts
 	) {
@@ -928,8 +1014,8 @@ public class EntityProxyingFunctionalTest extends AbstractFiftyProductsFunctiona
 
 	@DisplayName("Should delete entity with hierarchy")
 	@Test
-	@UseDataSet(FIFTY_PRODUCTS)
-	void deleteEntityWithHierarchy(
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void x_deleteEntityWithHierarchy(
 		EvitaContract evita,
 		Map<Integer, SealedEntity> originalCategories
 	) {

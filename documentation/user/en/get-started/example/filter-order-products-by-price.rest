@@ -7,9 +7,9 @@ POST /rest/test-catalog/product/list
     "priceBetween": ["300", null],
     "entityLocaleEquals": "en"
   },
-  "orderBy": {
+  "orderBy": [{
     "priceNatural": "ASC"
-  },
+  }],
   "require": {
     "entityFetch": {
       "attributeContentAll": true,

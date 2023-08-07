@@ -27,15 +27,28 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * The enumeration controls HierarchyOfReference behaviour whether the hierarchical nodes that are not referred
+ * by any of the queried entities should be part of the result hierarchy statistics tree.
+ * </pre>
+ *
  * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour}
  */
 public enum GrpcEmptyHierarchicalEntityBehaviour
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
+   * <pre>
+   * The hierarchy nodes that are not referred by any of the queried entities will be part of the result hierarchy
+   * </pre>
+   *
    * <code>LEAVE_EMPTY = 0;</code>
    */
   LEAVE_EMPTY(0),
   /**
+   * <pre>
+   * The hierarchy nodes that are not referred by any of the queried entities will be removed from the result hierarchy
+   * </pre>
+   *
    * <code>REMOVE_EMPTY = 1;</code>
    */
   REMOVE_EMPTY(1),
@@ -43,10 +56,18 @@ public enum GrpcEmptyHierarchicalEntityBehaviour
   ;
 
   /**
+   * <pre>
+   * The hierarchy nodes that are not referred by any of the queried entities will be part of the result hierarchy
+   * </pre>
+   *
    * <code>LEAVE_EMPTY = 0;</code>
    */
   public static final int LEAVE_EMPTY_VALUE = 0;
   /**
+   * <pre>
+   * The hierarchy nodes that are not referred by any of the queried entities will be removed from the result hierarchy
+   * </pre>
+   *
    * <code>REMOVE_EMPTY = 1;</code>
    */
   public static final int REMOVE_EMPTY_VALUE = 1;

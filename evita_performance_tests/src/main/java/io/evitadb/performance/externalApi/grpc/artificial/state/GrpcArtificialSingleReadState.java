@@ -62,7 +62,7 @@ public class GrpcArtificialSingleReadState extends AbstractGrpcArtificialState {
 		final Set<EntityContentRequire> requirements = new HashSet<>();
 		/* 75% times fetch attributes */
 		if (benchmarkState.getRandom().nextInt(4) != 0) {
-			requirements.add(attributeContent());
+			requirements.add(attributeContentAll());
 		}
 		/* 75% times fetch associated data */
 		if (benchmarkState.getRandom().nextInt(4) != 0) {

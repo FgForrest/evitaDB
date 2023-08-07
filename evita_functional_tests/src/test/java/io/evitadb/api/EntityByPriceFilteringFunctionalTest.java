@@ -114,7 +114,7 @@ public class EntityByPriceFilteringFunctionalTest {
 				.toList();
 
 			return storedProducts.stream()
-				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContent(), priceContentRespectingFilter()).orElseThrow())
+				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContentAll(), priceContentRespectingFilter()).orElseThrow())
 				.collect(Collectors.toList());
 		});
 	}

@@ -31,12 +31,20 @@ public interface GrpcPaginatedListOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The size of the page.
+   * </pre>
+   *
    * <code>int32 pageSize = 1;</code>
    * @return The pageSize.
    */
   int getPageSize();
 
   /**
+   * <pre>
+   * The number of the page.
+   * </pre>
+   *
    * <code>int32 pageNumber = 2;</code>
    * @return The pageNumber.
    */

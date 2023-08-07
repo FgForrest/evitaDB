@@ -1,18 +1,23 @@
 ---
 title: REST
-perex:
+perex: |
+  The Representational State Transfer (REST) API protocol is a standardized approach to building web services that 
+  employ HTTP methods to create, read, update, and delete data. The protocol is designed around resources, which are any 
+  kind of object, data, or service that can be accessed by the client. Its simplicity, scalability, and performance
+  make REST the most popular protocol for APIs, used extensively in cloud services, mobile services, and social networks.
 date: '24.3.2023'
 author: 'Lukáš Hornych'
 ---
 
-The [REST](https://restfulapi.net/) API with an [OpenAPI schema](https://swagger.io/specification/v3/) has been developed 
-to allow users to easily query domain-specific data from evitaDB via universal well-known API standard that REST APIs provide.
+The [REST](https://restfulapi.net/) API with an [OpenAPI schema](https://swagger.io/specification/v3/) in evitaDB has
+been developed to allow users and developers to easily query domain-specific data from evitaDB via universal well-known 
+API standard that REST APIs provide.
 
 The main idea behind our REST API implementation is that the [OpenAPI schema](https://swagger.io/specification/v3/) is dynamically generated based on
 evitaDB's [internal schemas](/documentation/user/en/use/schema.md). This means that users only see the data they
-can actually retrieve. For example, if you have defined in evitaDB an
-entity called `product` with attributes `code` and `name`, the OpenAPI schema will contain only these to attributes in the
-`product` entity model with data types equivalent to the ones specified in evitaDB instead of some generic ones.
+can actually retrieve. For example, if you have defined in evitaDB an entity called `product` with attributes `code` and
+`name`, the OpenAPI schema will contain only these to attributes in the `Product` entity model with data types
+equivalent to the ones specified in evitaDB instead of some generic ones.
 
 ## REST API instances
 

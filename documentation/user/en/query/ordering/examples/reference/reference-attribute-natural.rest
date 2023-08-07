@@ -10,11 +10,15 @@ POST /rest/evita/product/query
       }
     ]
   },
-  "orderBy" : {
-    "referenceBrandProperty" : {
-      "attributeOrderInBrandNatural" : "ASC"
+  "orderBy" : [
+    {
+      "referenceBrandProperty" : [
+        {
+          "attributeOrderInBrandNatural" : "ASC"
+        }
+      ]
     }
-  },
+  ],
   "require" : {
     "entityFetch" : {
       "attributeContent" : [

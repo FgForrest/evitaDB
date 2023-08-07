@@ -23,10 +23,13 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.dataType.SupportedEnum;
+
 /**
  * The enum specifies whether the {@link HierarchyStatistics} should produce the hierarchy children count or referenced
  * entity count.
  */
+@SupportedEnum
 public enum StatisticsType {
 
 	CHILDREN_COUNT,

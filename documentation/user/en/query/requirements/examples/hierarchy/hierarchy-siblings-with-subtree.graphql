@@ -16,7 +16,6 @@
               distance: 1
             }
           ) {
-            parentPrimaryKey
             level
             entity {
               primaryKey
@@ -27,7 +26,6 @@
             }
             queriedEntityCount
             childrenCount
-            hasChildren
           }
         }
       }

@@ -171,9 +171,15 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 		return getName() +
 			ARG_OPENING +
 			Stream.of(
-					Arrays.stream(getArguments()).map(BaseConstraint::convertToString),
-					Arrays.stream(additionalChildren).map(Constraint::toString),
-					Arrays.stream(children).map(Constraint::toString)
+					Arrays.stream(getArguments())
+						.filter(it -> !(this instanceof ConstraintWithSuffix cws) || !cws.isArgumentImplicitForSuffix(it))
+						.map(BaseConstraint::convertToString),
+					Arrays.stream(additionalChildren)
+						.filter(it -> !(this instanceof ConstraintContainerWithSuffix ccws) || !ccws.isChildImplicitForSuffix(it))
+						.map(Constraint::toString),
+					Arrays.stream(children)
+						.filter(it -> !(this instanceof ConstraintContainerWithSuffix ccws) || !ccws.isChildImplicitForSuffix(it))
+						.map(Constraint::toString)
 				)
 				.flatMap(it -> it)
 				.collect(Collectors.joining(",")) +

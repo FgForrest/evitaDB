@@ -31,6 +31,10 @@ public interface GrpcDeleteCollectionResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * True, if the collection was deleted.
+   * </pre>
+   *
    * <code>bool deleted = 1;</code>
    * @return The deleted.
    */

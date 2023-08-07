@@ -45,6 +45,8 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
+import one.edee.oss.proxycian.utils.GenericsUtils;
+import one.edee.oss.proxycian.utils.GenericsUtils.GenericBundle;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -53,21 +55,15 @@ import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles.Lookup;
+import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.lang.reflect.RecordComponent;
 import java.math.BigDecimal;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Currency;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -90,7 +86,7 @@ import static java.util.Optional.ofNullable;
  * @see PrimaryKey
  * @see Attribute
  * @see AssociatedData
- * @see Parent
+ * @see ParentEntity
  * @see Reference
  * @see PriceForSale
  */
@@ -222,7 +218,7 @@ public class ClassSchemaAnalyzer {
 
 			attributeSchemaEditor.withAttribute(
 				attributeName,
-				(Class<? extends Serializable>) EvitaDataTypes.toWrappedForm(attributeType),
+				EvitaDataTypes.toWrappedForm(attributeType),
 				attributeBuilder::accept
 			);
 		}
@@ -236,7 +232,7 @@ public class ClassSchemaAnalyzer {
 			final Attribute attributeAnnotation = recordComponent.getAnnotation(Attribute.class);
 			if (attributeAnnotation != null) {
 				final String attributeName = getNameOrElse(attributeAnnotation.name(), recordComponent::getName);
-				final Class<?> recordComponentType = verifyDataType(getRecordComponentType(recordComponent));
+				final Class<?> recordComponentType = verifyDataType(extractRecordComponentType(referenceType, recordComponent));
 				@SuppressWarnings("unchecked") final Class<? extends Serializable> attributeType = (Class<? extends Serializable>) recordComponentType;
 				defineAttribute(
 					catalogBuilder, whichIs, attributeAnnotation, attributeName,
@@ -247,58 +243,111 @@ public class ClassSchemaAnalyzer {
 	}
 
 	/**
+	 * Method resolves the proper type from the method return type unwrapping the optional and collection types.
+	 *
+	 * @param modelClass
+	 * @param getter
+	 * @return
+	 */
+	@Nonnull
+	static Class<?> extractReturnType(@Nonnull Class<?> modelClass, @Nonnull Method getter) {
+		final Class<?> theType;
+		if (Optional.class.isAssignableFrom(getter.getReturnType())) {
+			final List<GenericBundle> genericTypes = GenericsUtils.getNestedMethodReturnTypes(modelClass, getter);
+			final Class<?> secondType = genericTypes.size() > 1 ? genericTypes.get(1).getResolvedType() : genericTypes.get(0).getResolvedType();
+			if (Collection.class.isAssignableFrom(secondType) && genericTypes.size() > 2) {
+				theType = Array.newInstance(genericTypes.get(2).getResolvedType(), 0).getClass();
+			} else {
+				theType = secondType;
+			}
+		} else if (OptionalInt.class.isAssignableFrom(getter.getReturnType())) {
+			theType = int.class;
+		} else if (OptionalLong.class.isAssignableFrom(getter.getReturnType())) {
+			theType = long.class;
+		} else if (Collection.class.isAssignableFrom(getter.getReturnType())) {
+			return Array.newInstance(GenericsUtils.getGenericTypeFromCollection(modelClass, getter.getGenericReturnType()), 0)
+				.getClass();
+		} else {
+			theType = getter.getReturnType();
+		}
+		return theType;
+	}
+
+	/**
+	 * Method resolves the proper type from the field return type unwrapping the optional and collection types.
+	 *
+	 * @param modelClass
+	 * @param field
+	 * @return
+	 */
+	@Nonnull
+	static Class<?> extractFieldType(@Nonnull Class<?> modelClass, @Nonnull Field field) {
+		final Class<?> theType;
+		if (Optional.class.isAssignableFrom(field.getType())) {
+			final List<GenericBundle> genericTypes = GenericsUtils.getNestedFieldTypes(modelClass, field);
+			final Class<?> secondType = genericTypes.size() > 1 ? genericTypes.get(1).getResolvedType() : genericTypes.get(0).getResolvedType();
+			if (Collection.class.isAssignableFrom(secondType) && genericTypes.size() > 2) {
+				theType = Array.newInstance(genericTypes.get(2).getResolvedType(), 0).getClass();
+			} else {
+				theType = secondType;
+			}
+		} else if (OptionalInt.class.isAssignableFrom(field.getType())) {
+			theType = int.class;
+		} else if (OptionalLong.class.isAssignableFrom(field.getType())) {
+			theType = long.class;
+		} else if (Collection.class.isAssignableFrom(field.getType())) {
+			return Array.newInstance(GenericsUtils.getGenericTypeFromCollection(modelClass, field.getType()), 0)
+				.getClass();
+		} else {
+			theType = field.getType();
+		}
+		return theType;
+	}
+
+	/**
+	 * Method resolves the proper type from the recordComponent return type unwrapping the optional and collection types.
+	 *
+	 * @param modelClass
+	 * @param recordComponent
+	 * @return
+	 */
+	@Nonnull
+	static Class<?> extractRecordComponentType(@Nonnull Class<?> modelClass, @Nonnull RecordComponent recordComponent) {
+		final Class<?> theType;
+		if (Optional.class.isAssignableFrom(recordComponent.getType())) {
+			final List<GenericBundle> genericTypes = GenericsUtils.getNestedRecordComponentType(modelClass, recordComponent);
+			final Class<?> secondType = genericTypes.size() > 1 ? genericTypes.get(1).getResolvedType() : genericTypes.get(0).getResolvedType();
+			if (Collection.class.isAssignableFrom(secondType) && genericTypes.size() > 2) {
+				theType = Array.newInstance(genericTypes.get(2).getResolvedType(), 0).getClass();
+			} else {
+				theType = secondType;
+			}
+		} else if (OptionalInt.class.isAssignableFrom(recordComponent.getType())) {
+			theType = int.class;
+		} else if (OptionalLong.class.isAssignableFrom(recordComponent.getType())) {
+			theType = long.class;
+		} else if (Collection.class.isAssignableFrom(recordComponent.getType())) {
+			return Array.newInstance(GenericsUtils.getGenericTypeFromCollection(modelClass, recordComponent.getType()), 0)
+				.getClass();
+		} else {
+			theType = recordComponent.getType();
+		}
+		return theType;
+	}
+
+	/**
 	 * Method returns the return type of the passed getter but only if it matches any of the supported Evita data types.
 	 */
 	@Nonnull
-	private static Class<?> getReturnedType(@Nonnull Method getter) {
-		final Class<?> theType = getter.getReturnType();
+	private static Class<?> getReturnedType(@Nonnull Class<?> modelClass, @Nonnull Method getter) {
+		final Class<?> theType = extractReturnType(modelClass, getter);
 		if (theType.isEnum()) {
 			// the enums are represented by their full name
 			// TOBEDONE JNO - this could be changed to compressed key to save space
 			return String.class;
 		} else {
-			Assert.isTrue(
-				EvitaDataTypes.isSupportedTypeOrItsArray(theType),
-				() -> new InvalidSchemaMutationException(
-					"Method `" + getter.toGenericString() + "` returns `" + theType +
-						"` which is not supported evitaDB data type!"
-				)
-			);
 			return theType;
 		}
-	}
-
-	/**
-	 * Method returns the return type of the passed record component but only if it matches any of the supported Evita
-	 * data types.
-	 */
-	@Nonnull
-	private static Class<?> getRecordComponentType(@Nonnull RecordComponent recordComponent) {
-		final Class<?> theType = recordComponent.getType();
-		Assert.isTrue(
-			EvitaDataTypes.isSupportedTypeOrItsArray(theType),
-			() -> new InvalidSchemaMutationException(
-				"Method `" + recordComponent + "` returns `" + theType +
-					"` which is not supported evitaDB data type!"
-			)
-		);
-		return theType;
-	}
-
-	/**
-	 * Method returns the return type of the passed field but only if it matches any of the supported Evita data types.
-	 */
-	@Nonnull
-	private static Class<?> getFieldType(@Nonnull Field field) {
-		final Class<?> theType = field.getType();
-		Assert.isTrue(
-			EvitaDataTypes.isSupportedTypeOrItsArray(theType),
-			() -> new InvalidSchemaMutationException(
-				"Field `" + field.toGenericString() + "` is of type `" + theType +
-					"` which is not supported evitaDB data type!"
-			)
-		);
-		return theType;
 	}
 
 	/**
@@ -482,7 +531,7 @@ public class ClassSchemaAnalyzer {
 					attributeAnnotation.name(),
 					() -> ReflectionLookup.getPropertyNameFromMethodName(getter.getName())
 				);
-				final Class<?> returnedType = verifyDataType(getReturnedType(getter));
+				final Class<?> returnedType = verifyDataType(getReturnedType(modelClass, getter));
 				@SuppressWarnings("unchecked") final Class<? extends Serializable> attributeType = (Class<? extends Serializable>) returnedType;
 				final Serializable defaultValue = getter.isDefault() ? extractDefaultValue(modelClass, getter) : null;
 				defineAttribute(catalogBuilder, entityBuilder, attributeAnnotation, attributeName, getter.toGenericString(), attributeType, defaultValue, attributesDefined);
@@ -493,7 +542,7 @@ public class ClassSchemaAnalyzer {
 					associatedDataAnnotation.name(),
 					() -> ReflectionLookup.getPropertyNameFromMethodName(getter.getName())
 				);
-				final Class<?> associatedDataType = getter.getReturnType();
+				final Class<?> associatedDataType = extractReturnType(modelClass, getter);
 				//noinspection unchecked
 				defineAssociatedData(
 					entityBuilder, associatedDataAnnotation, associatedDataName,
@@ -506,7 +555,7 @@ public class ClassSchemaAnalyzer {
 					referenceAnnotation.name(),
 					() -> ReflectionLookup.getPropertyNameFromMethodName(getter.getName())
 				);
-				final Class<?> referenceType = getter.getReturnType();
+				final Class<?> referenceType = extractReturnType(modelClass, getter);
 				defineReference(
 					catalogBuilder, entityBuilder, referenceAnnotation, referenceName, getter.toGenericString(),
 					referenceType
@@ -533,7 +582,7 @@ public class ClassSchemaAnalyzer {
 			final Attribute attributeAnnotation = recordComponent.getAnnotation(Attribute.class);
 			if (attributeAnnotation != null) {
 				final String attributeName = getNameOrElse(attributeAnnotation.name(), recordComponent::getName);
-				final Class<?> recordComponentType = verifyDataType(getRecordComponentType(recordComponent));
+				final Class<?> recordComponentType = verifyDataType(extractRecordComponentType(modelClass, recordComponent));
 				@SuppressWarnings("unchecked") final Class<? extends Serializable> attributeType = (Class<? extends Serializable>) recordComponentType;
 				defineAttribute(
 					catalogBuilder, entityBuilder, attributeAnnotation, attributeName,
@@ -546,7 +595,7 @@ public class ClassSchemaAnalyzer {
 					associatedDataAnnotation.name(),
 					recordComponent::getName
 				);
-				final Class<?> associatedDataType = recordComponent.getType();
+				final Class<?> associatedDataType = extractRecordComponentType(modelClass, recordComponent);
 				//noinspection unchecked
 				defineAssociatedData(
 					entityBuilder, associatedDataAnnotation, associatedDataName,
@@ -556,7 +605,7 @@ public class ClassSchemaAnalyzer {
 			final Reference referenceAnnotation = recordComponent.getAnnotation(Reference.class);
 			if (referenceAnnotation != null) {
 				final String referenceName = getNameOrElse(referenceAnnotation.name(), recordComponent::getName);
-				final Class<?> referenceType = recordComponent.getType();
+				final Class<?> referenceType = extractRecordComponentType(modelClass, recordComponent);
 				defineReference(
 					catalogBuilder, entityBuilder, referenceAnnotation, referenceName,
 					recordComponent.toString(),
@@ -587,7 +636,7 @@ public class ClassSchemaAnalyzer {
 						attributeAnnotation.name(),
 						() -> fieldEntry.getKey().getName()
 					);
-					final Class<?> fieldType = verifyDataType(getFieldType(fieldEntry.getKey()));
+					final Class<?> fieldType = verifyDataType(extractFieldType(modelClass, fieldEntry.getKey()));
 					@SuppressWarnings("unchecked") final Class<? extends Serializable> attributeType = (Class<? extends Serializable>) fieldType;
 					final Serializable defaultValue = extractValueFromField(modelClass, fieldEntry.getKey());
 					defineAttribute(
@@ -600,7 +649,7 @@ public class ClassSchemaAnalyzer {
 						associatedDataAnnotation.name(),
 						() -> fieldEntry.getKey().getName()
 					);
-					final Class<?> associatedDataType = fieldEntry.getKey().getType();
+					final Class<?> associatedDataType = extractFieldType(modelClass, fieldEntry.getKey());
 					//noinspection unchecked
 					defineAssociatedData(
 						entityBuilder, associatedDataAnnotation, attributeName,
@@ -612,7 +661,7 @@ public class ClassSchemaAnalyzer {
 						referenceAnnotation.name(),
 						() -> fieldEntry.getKey().getName()
 					);
-					final Class<?> referenceType = fieldEntry.getKey().getType();
+					final Class<?> referenceType = extractFieldType(modelClass, fieldEntry.getKey());
 					defineReference(
 						catalogBuilder, entityBuilder,
 						referenceAnnotation, referenceName,
@@ -651,14 +700,9 @@ public class ClassSchemaAnalyzer {
 	}
 
 	/**
-	 * Method defines that entity represents hierarchical structure according to {@link Parent} annotation.
+	 * Method defines that entity represents hierarchical structure according to {@link ParentEntity} annotation.
 	 */
 	private void defineHierarchy(@Nonnull EntitySchemaBuilder entityBuilder) {
-		Assert.isTrue(
-			!hierarchyDefined,
-			"Class `" + modelClass + "` contains multiple methods marked with `@Parent` annotation," +
-				" which is not allowed!"
-		);
 		entityBuilder.withHierarchy();
 		hierarchyDefined = true;
 	}
@@ -833,7 +877,7 @@ public class ClassSchemaAnalyzer {
 					attributeAnnotation.name(),
 					() -> ReflectionLookup.getPropertyNameFromMethodName(getter.getName())
 				);
-				final Class<?> returnedType = verifyDataType(getReturnedType(getter));
+				final Class<?> returnedType = verifyDataType(getReturnedType(modelClass, getter));
 				@SuppressWarnings("unchecked") final Class<? extends Serializable> attributeType = (Class<? extends Serializable>) returnedType;
 				final Serializable defaultValue = getter.isDefault() ? extractDefaultValue(referenceType, getter) : null;
 				defineAttribute(
@@ -856,7 +900,7 @@ public class ClassSchemaAnalyzer {
 						attributeAnnotation.name(),
 						() -> fieldEntry.getKey().getName()
 					);
-					final Class<?> fieldType = verifyDataType(getFieldType(fieldEntry.getKey()));
+					final Class<?> fieldType = verifyDataType(extractFieldType(modelClass, fieldEntry.getKey()));
 					@SuppressWarnings("unchecked") final Class<? extends Serializable> attributeType = (Class<? extends Serializable>) fieldType;
 					final Serializable defaultValue = extractValueFromField(referenceType, fieldEntry.getKey());
 					defineAttribute(
@@ -923,7 +967,7 @@ public class ClassSchemaAnalyzer {
 				final List<Method> getters = reflectionLookup.findAllGettersHavingAnnotation(targetType, lookedUpAnnotation);
 				final List<Method> nonPrimaryKeyGetters = getters
 					.stream()
-					.filter(it -> !EvitaDataTypes.isSupportedTypeOrItsArray(it.getReturnType()))
+					.filter(it -> !EvitaDataTypes.isSupportedTypeOrItsArray(extractReturnType(modelClass, it)))
 					.toList();
 				if (getters.isEmpty()) {
 					final Map<Field, ? extends List<? extends Annotation>> fields = reflectionLookup.getFields(targetType, lookedUpAnnotation);
@@ -960,13 +1004,13 @@ public class ClassSchemaAnalyzer {
 								"We need to select one in order to infer target entity type, but we don't know which one."
 						);
 					}
-				} else if (nonPrimaryKeyGetters.size() == 1) {
+				} else if (nonPrimaryKeyGetters.size() == 1 || nonPrimaryKeyGetters.stream().map(it -> extractReturnType(modelClass, it)).distinct().count() == 1L) {
 					final Method getter = nonPrimaryKeyGetters.get(0);
-					final Class<?> targetEntityType = getter.getReturnType();
+					final Class<?> targetEntityType = extractReturnType(modelClass, getter);
 					targetEntity = getTargetEntity(targetEntityType, caller, lookedUpAnnotation, referenceType);
-				} else if (getters.size() == 1) {
+				} else if (getters.size() == 1 || nonPrimaryKeyGetters.stream().map(it -> extractReturnType(modelClass, it)).distinct().count() == 1L) {
 					final Method getter = getters.get(0);
-					final Class<?> targetEntityType = getter.getReturnType();
+					final Class<?> targetEntityType = extractReturnType(modelClass, getter);
 					if (int.class.isAssignableFrom(targetEntityType) || Integer.class.isAssignableFrom(targetEntityType)) {
 						targetEntity = new TargetEntity(
 							ReflectionLookup.getPropertyNameFromMethodName(getter.getName()), false
@@ -979,7 +1023,7 @@ public class ClassSchemaAnalyzer {
 					}
 				} else {
 					throw new InvalidSchemaMutationException(
-						"Multiple (" + getters.stream().map(Method::toGenericString).collect(Collectors.joining(", ")) + ") getters have annotation `@" + lookedUpAnnotation.getSimpleName() + "` specified. " +
+						"Multiple (" + getters.stream().map(Method::toGenericString).collect(Collectors.joining(", ")) + ") getters have annotation `@" + lookedUpAnnotation.getSimpleName() + "` specified and have different cardinality. " +
 							"We need to select one in order to infer target entity type, but we don't know which one."
 					);
 				}

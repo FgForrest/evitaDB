@@ -31,11 +31,19 @@ public interface GrpcEvitaSessionTerminationRequestOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the catalog for which the session is to be terminated.
+   * </pre>
+   *
    * <code>string catalogName = 1;</code>
    * @return The catalogName.
    */
   java.lang.String getCatalogName();
   /**
+   * <pre>
+   * Name of the catalog for which the session is to be terminated.
+   * </pre>
+   *
    * <code>string catalogName = 1;</code>
    * @return The bytes for catalogName.
    */
@@ -43,11 +51,19 @@ public interface GrpcEvitaSessionTerminationRequestOrBuilder extends
       getCatalogNameBytes();
 
   /**
+   * <pre>
+   * UUID of the session to be terminated.
+   * </pre>
+   *
    * <code>string sessionId = 2;</code>
    * @return The sessionId.
    */
   java.lang.String getSessionId();
   /**
+   * <pre>
+   * UUID of the session to be terminated.
+   * </pre>
+   *
    * <code>string sessionId = 2;</code>
    * @return The bytes for sessionId.
    */

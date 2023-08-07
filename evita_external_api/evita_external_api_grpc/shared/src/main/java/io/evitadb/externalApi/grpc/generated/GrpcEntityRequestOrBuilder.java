@@ -31,17 +31,29 @@ public interface GrpcEntityRequestOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The primary key of the entity.
+   * </pre>
+   *
    * <code>int32 primaryKey = 1;</code>
    * @return The primaryKey.
    */
   int getPrimaryKey();
 
   /**
+   * <pre>
+   * The entity type of the entity.
+   * </pre>
+   *
    * <code>string entityType = 2;</code>
    * @return The entityType.
    */
   java.lang.String getEntityType();
   /**
+   * <pre>
+   * The entity type of the entity.
+   * </pre>
+   *
    * <code>string entityType = 2;</code>
    * @return The bytes for entityType.
    */
@@ -49,11 +61,19 @@ public interface GrpcEntityRequestOrBuilder extends
       getEntityTypeBytes();
 
   /**
+   * <pre>
+   * The string part of the parametrised query require part.
+   * </pre>
+   *
    * <code>string require = 3;</code>
    * @return The require.
    */
   java.lang.String getRequire();
   /**
+   * <pre>
+   * The string part of the parametrised query require part.
+   * </pre>
+   *
    * <code>string require = 3;</code>
    * @return The bytes for require.
    */
@@ -61,34 +81,62 @@ public interface GrpcEntityRequestOrBuilder extends
       getRequireBytes();
 
   /**
+   * <pre>
+   * The positional query parameters.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 4;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.QueryParam> 
       getPositionalQueryParamsList();
   /**
+   * <pre>
+   * The positional query parameters.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 4;</code>
    */
   io.evitadb.externalApi.grpc.generated.QueryParam getPositionalQueryParams(int index);
   /**
+   * <pre>
+   * The positional query parameters.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 4;</code>
    */
   int getPositionalQueryParamsCount();
   /**
+   * <pre>
+   * The positional query parameters.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 4;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.QueryParamOrBuilder> 
       getPositionalQueryParamsOrBuilderList();
   /**
+   * <pre>
+   * The positional query parameters.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 4;</code>
    */
   io.evitadb.externalApi.grpc.generated.QueryParamOrBuilder getPositionalQueryParamsOrBuilder(
       int index);
 
   /**
+   * <pre>
+   * The named query parameters.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 5;</code>
    */
   int getNamedQueryParamsCount();
   /**
+   * <pre>
+   * The named query parameters.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 5;</code>
    */
   boolean containsNamedQueryParams(
@@ -100,11 +148,19 @@ public interface GrpcEntityRequestOrBuilder extends
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.QueryParam>
   getNamedQueryParams();
   /**
+   * <pre>
+   * The named query parameters.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 5;</code>
    */
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.QueryParam>
   getNamedQueryParamsMap();
   /**
+   * <pre>
+   * The named query parameters.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 5;</code>
    */
 
@@ -112,6 +168,10 @@ public interface GrpcEntityRequestOrBuilder extends
       java.lang.String key,
       io.evitadb.externalApi.grpc.generated.QueryParam defaultValue);
   /**
+   * <pre>
+   * The named query parameters.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 5;</code>
    */
 

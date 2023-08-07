@@ -1,7 +1,6 @@
 ```json
 [
   {
-    "parentPrimaryKey" : null,
     "level" : 1,
     "entity" : {
       "primaryKey" : 66468,
@@ -11,11 +10,9 @@
       }
     },
     "queriedEntityCount" : 501,
-    "childrenCount" : 6,
-    "hasChildren" : true
+    "childrenCount" : 6
   },
   {
-    "parentPrimaryKey" : 66468,
     "level" : 2,
     "entity" : {
       "primaryKey" : 66482,
@@ -25,8 +22,7 @@
       }
     },
     "queriedEntityCount" : 116,
-    "childrenCount" : 4,
-    "hasChildren" : false
+    "childrenCount" : 4
   }
 ]
 ```

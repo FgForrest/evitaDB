@@ -31,28 +31,48 @@ public interface GrpcStatisticsBaseArrayOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Value that supports storing a StatisticsBase array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase value = 1;</code>
    * @return A list containing the value.
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase> getValueList();
   /**
+   * <pre>
+   * Value that supports storing a StatisticsBase array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase value = 1;</code>
    * @return The count of value.
    */
   int getValueCount();
   /**
+   * <pre>
+   * Value that supports storing a StatisticsBase array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase value = 1;</code>
    * @param index The index of the element to return.
    * @return The value at the given index.
    */
   io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase getValue(int index);
   /**
+   * <pre>
+   * Value that supports storing a StatisticsBase array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase value = 1;</code>
    * @return A list containing the enum numeric values on the wire for value.
    */
   java.util.List<java.lang.Integer>
   getValueValueList();
   /**
+   * <pre>
+   * Value that supports storing a StatisticsBase array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase value = 1;</code>
    * @param index The index of the value to return.
    * @return The enum numeric value on the wire of value at the given index.

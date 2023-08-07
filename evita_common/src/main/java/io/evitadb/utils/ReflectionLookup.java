@@ -412,7 +412,7 @@ public class ReflectionLookup {
 		return samePackageAnnotation.computeIfAbsent(
 			new MethodAndPackage(method, annotation.getPackage()),
 			tuple -> Arrays.stream(tuple.method().getAnnotations())
-				.anyMatch(it -> Objects.equals(it.getClass().getPackage(), tuple.annotationPackage()))
+				.anyMatch(it -> Objects.equals(it.annotationType().getPackage(), tuple.annotationPackage()))
 		);
 	}
 

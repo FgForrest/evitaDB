@@ -27,19 +27,35 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Contains set of all possible expected states for the entity.
+ * </pre>
+ *
  * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcEntityExistence}
  */
 public enum GrpcEntityExistence
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
+   * <pre>
+   * Entity may or may not exist.
+   * </pre>
+   *
    * <code>MAY_EXIST = 0;</code>
    */
   MAY_EXIST(0),
   /**
+   * <pre>
+   * Entity must not exist.
+   * </pre>
+   *
    * <code>MUST_NOT_EXIST = 1;</code>
    */
   MUST_NOT_EXIST(1),
   /**
+   * <pre>
+   * Entity must exist.
+   * </pre>
+   *
    * <code>MUST_EXIST = 2;</code>
    */
   MUST_EXIST(2),
@@ -47,14 +63,26 @@ public enum GrpcEntityExistence
   ;
 
   /**
+   * <pre>
+   * Entity may or may not exist.
+   * </pre>
+   *
    * <code>MAY_EXIST = 0;</code>
    */
   public static final int MAY_EXIST_VALUE = 0;
   /**
+   * <pre>
+   * Entity must not exist.
+   * </pre>
+   *
    * <code>MUST_NOT_EXIST = 1;</code>
    */
   public static final int MUST_NOT_EXIST_VALUE = 1;
   /**
+   * <pre>
+   * Entity must exist.
+   * </pre>
+   *
    * <code>MUST_EXIST = 2;</code>
    */
   public static final int MUST_EXIST_VALUE = 2;

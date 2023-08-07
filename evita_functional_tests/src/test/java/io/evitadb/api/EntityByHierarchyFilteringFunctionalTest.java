@@ -117,7 +117,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 				.toList();
 
 			final List<SealedEntity> categoriesAvailable = storedCategories.stream()
-				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), hierarchyContent(), attributeContent(), referenceContentAll(), dataInLocales()).orElseThrow())
+				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), hierarchyContent(), attributeContentAll(), referenceContentAll(), dataInLocalesAll()).orElseThrow())
 				.collect(Collectors.toList());
 			return new DataCarrier(
 				tuple("originalCategoryEntities", categoriesAvailable),
@@ -581,7 +581,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							hierarchyOfSelf(
 								fromRoot(
 									"megaMenu",
-									entityFetch(attributeContent(), dataInLocales(CZECH_LOCALE))
+									entityFetch(attributeContentAll(), dataInLocales(CZECH_LOCALE))
 								)
 							)
 						)
@@ -638,7 +638,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							hierarchyOfSelf(
 								fromRoot(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
@@ -694,7 +694,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 								fromNode(
 									"megaMenu",
 									node(filterBy(entityPrimaryKeyInSet(1))),
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
@@ -752,7 +752,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							hierarchyOfSelf(
 								parents(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
@@ -814,7 +814,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							hierarchyOfSelf(
 								parents(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									siblings(),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
@@ -889,7 +889,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							hierarchyOfSelf(
 								parents(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									siblings(),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
@@ -959,7 +959,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							hierarchyOfSelf(
 								parents(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									siblings(stopAt(distance(1))),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
@@ -1025,7 +1025,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							hierarchyOfSelf(
 								siblings(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
@@ -1086,7 +1086,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							hierarchyOfSelf(
 								children(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
@@ -1155,7 +1155,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							hierarchyOfSelf(
 								siblings(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
@@ -1218,7 +1218,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 								fromNode(
 									"megaMenu",
 									node(filterBy(entityPrimaryKeyInSet(2))),
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
@@ -1287,7 +1287,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							hierarchyOfSelf(
 								fromRoot(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									stopAt(distance(1)),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
@@ -1351,7 +1351,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							hierarchyOfSelf(
 								children(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									stopAt(distance(1)),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
@@ -1421,7 +1421,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							hierarchyOfSelf(
 								siblings(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									stopAt(distance(1)),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
@@ -1491,7 +1491,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 								fromNode(
 									"megaMenu",
 									node(filterBy(entityPrimaryKeyInSet(1))),
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									stopAt(distance(1)),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
@@ -1559,7 +1559,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							hierarchyOfSelf(
 								children(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									stopAt(distance(1)),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)

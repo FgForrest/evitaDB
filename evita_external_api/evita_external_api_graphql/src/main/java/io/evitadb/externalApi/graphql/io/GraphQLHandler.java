@@ -28,6 +28,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import graphql.ExecutionResult;
 import graphql.GraphQL;
 import graphql.GraphQLException;
+import graphql.execution.InputMapDefinesTooManyFieldsException;
+import graphql.execution.NonNullableValueCoercedAsNullException;
+import graphql.execution.UnknownOperationException;
+import graphql.schema.CoercingParseValueException;
+import graphql.schema.CoercingSerializeException;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -68,6 +73,14 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
 @Slf4j
 @RequiredArgsConstructor
 public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange, GraphQLResponse<?>> {
+
+    private static final Set<Class<? extends GraphQLException>> GRAPHQL_USER_ERRORS = Set.of(
+        CoercingSerializeException.class,
+        CoercingParseValueException.class,
+        NonNullableValueCoercedAsNullException.class,
+        InputMapDefinesTooManyFieldsException.class,
+        UnknownOperationException.class
+    );
 
     @Nonnull
     private final ObjectMapper objectMapper;
@@ -161,16 +174,25 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange, Gra
 
             return GraphQLResponse.fromExecutionResult(result);
         } catch (CompletionException e) {
-            if (e.getCause() instanceof TimeoutException) {
+            final Throwable cause = e.getCause();
+            if (cause instanceof TimeoutException) {
                 throw new HttpExchangeException(StatusCodes.GATEWAY_TIME_OUT, "Could not complete GraphQL request. Process timed out.");
-            }
-            // borrowed from graphql.GraphQL.execute(graphql.ExecutionInput)
-            if (e.getCause() instanceof RuntimeException) {
-                throw (RuntimeException) e.getCause();
+            } else if (GRAPHQL_USER_ERRORS.contains(cause.getClass())) {
+                throw new GraphQLInvalidUsageException("Invalid GraphQL API request: " + cause.getMessage());
+            } else if (cause instanceof GraphQLException graphQLException) {
+                throw new GraphQLInternalError(
+                    "Internal GraphQL API error: " + graphQLException.getMessage(),
+                    "Internal GraphQL API error.",
+                    graphQLException
+                );
+            } else if (cause instanceof RuntimeException) {
+                // borrowed from graphql.GraphQL.execute(graphql.ExecutionInput)
+                throw (RuntimeException) cause;
             } else {
                 throw e;
             }
-        } catch (GraphQLException e) {
+        } catch (RuntimeException e) {
+            // if there is something weird going on, at least wrap it into our own exception
             throw new GraphQLInternalError(
                 "Internal GraphQL API error: " + e.getMessage(),
                 "Internal GraphQL API error.",

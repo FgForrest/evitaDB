@@ -68,7 +68,7 @@ class FinderVisitorTest {
 				filterBy(
 					attributeEqualsTrue("xev")
 				),
-				entityFetch(attributeContent())
+				entityFetch(attributeContentAll())
 			)
 		);
 	}

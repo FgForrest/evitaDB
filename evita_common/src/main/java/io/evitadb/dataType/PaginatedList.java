@@ -157,11 +157,6 @@ public final class PaginatedList<T extends Serializable> implements DataChunk<T>
 	}
 
 	@Override
-	public boolean isFullyInitialized() {
-		return data != null;
-	}
-
-	@Override
 	public boolean isFirst() {
 		return pageNumber == 1;
 	}

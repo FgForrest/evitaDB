@@ -31,17 +31,41 @@ public interface GrpcRemovePriceMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Contains identification of the price in the external systems. This id is expected to be used for the synchronization
+   * of the price in relation with the primary source of the prices.
+   * This id is used to uniquely find a price within same price list and currency and is mandatory.
+   * </pre>
+   *
    * <code>int32 priceId = 1;</code>
    * @return The priceId.
    */
   int getPriceId();
 
   /**
+   * <pre>
+   * Contains identification of the price list in the external system. Each price must reference a price list. Price list
+   * identification may refer to another Evita entity or may contain any external price list identification
+   * (for example id or unique name of the price list in the external system).
+   * Single entity is expected to have single price for the price list unless there is `validity` specified.
+   * In other words there is no sense to have multiple concurrently valid prices for the same entity that have roots
+   * in the same price list.
+   * </pre>
+   *
    * <code>string priceList = 2;</code>
    * @return The priceList.
    */
   java.lang.String getPriceList();
   /**
+   * <pre>
+   * Contains identification of the price list in the external system. Each price must reference a price list. Price list
+   * identification may refer to another Evita entity or may contain any external price list identification
+   * (for example id or unique name of the price list in the external system).
+   * Single entity is expected to have single price for the price list unless there is `validity` specified.
+   * In other words there is no sense to have multiple concurrently valid prices for the same entity that have roots
+   * in the same price list.
+   * </pre>
+   *
    * <code>string priceList = 2;</code>
    * @return The bytes for priceList.
    */
@@ -49,16 +73,28 @@ public interface GrpcRemovePriceMutationOrBuilder extends
       getPriceListBytes();
 
   /**
+   * <pre>
+   * Identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
    * @return Whether the currency field is set.
    */
   boolean hasCurrency();
   /**
+   * <pre>
+   * Identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
    * @return The currency.
    */
   io.evitadb.externalApi.grpc.generated.GrpcCurrency getCurrency();
   /**
+   * <pre>
+   * Identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder getCurrencyOrBuilder();

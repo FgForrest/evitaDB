@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Response to DefineEntitySchema request.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDefineEntitySchemaResponse}
  */
 public final class GrpcDefineEntitySchemaResponse extends
@@ -119,6 +123,10 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITYSCHEMA_FIELD_NUMBER = 1;
   private io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema_;
   /**
+   * <pre>
+   * Newly created entity schema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
    * @return Whether the entitySchema field is set.
    */
@@ -127,6 +135,10 @@ private static final long serialVersionUID = 0L;
     return entitySchema_ != null;
   }
   /**
+   * <pre>
+   * Newly created entity schema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
    * @return The entitySchema.
    */
@@ -135,6 +147,10 @@ private static final long serialVersionUID = 0L;
     return entitySchema_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEntitySchema.getDefaultInstance() : entitySchema_;
   }
   /**
+   * <pre>
+   * Newly created entity schema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
    */
   @java.lang.Override
@@ -303,6 +319,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Response to DefineEntitySchema request.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDefineEntitySchemaResponse}
    */
   public static final class Builder extends
@@ -461,6 +481,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcEntitySchema, io.evitadb.externalApi.grpc.generated.GrpcEntitySchema.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOrBuilder> entitySchemaBuilder_;
     /**
+     * <pre>
+     * Newly created entity schema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
      * @return Whether the entitySchema field is set.
      */
@@ -468,6 +492,10 @@ private static final long serialVersionUID = 0L;
       return entitySchemaBuilder_ != null || entitySchema_ != null;
     }
     /**
+     * <pre>
+     * Newly created entity schema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
      * @return The entitySchema.
      */
@@ -479,6 +507,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Newly created entity schema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
      */
     public Builder setEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcEntitySchema value) {
@@ -495,6 +527,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Newly created entity schema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
      */
     public Builder setEntitySchema(
@@ -509,6 +545,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Newly created entity schema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
      */
     public Builder mergeEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcEntitySchema value) {
@@ -527,6 +567,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Newly created entity schema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
      */
     public Builder clearEntitySchema() {
@@ -541,6 +585,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Newly created entity schema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntitySchema.Builder getEntitySchemaBuilder() {
@@ -549,6 +597,10 @@ private static final long serialVersionUID = 0L;
       return getEntitySchemaFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Newly created entity schema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOrBuilder getEntitySchemaOrBuilder() {
@@ -560,6 +612,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Newly created entity schema.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

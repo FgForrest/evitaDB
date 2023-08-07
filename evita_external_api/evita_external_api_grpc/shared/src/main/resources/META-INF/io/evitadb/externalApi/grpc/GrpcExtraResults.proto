@@ -2,74 +2,164 @@ syntax = "proto3";
 
 package io.evitadb.externalApi.grpc.generated;
 option java_multiple_files = true;
+option csharp_namespace = "EvitaDB";
 
 import "google/protobuf/wrappers.proto";
 import "GrpcEntity.proto";
 import "GrpcEvitaDataTypes.proto";
 import "GrpcEnums.proto";
 
+// A histogram is an approximate representation of the distribution of numerical data. For detailed description please
+// see [Wikipedia](https://en.wikipedia.org/wiki/Histogram).
+
+// Histogram can be computed only for numeric based properties. It visualises which property values are more common
+// in the returned data set and which are rare. Bucket count will never exceed requested bucket count but there
+// may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so tha
+// there are as few "empty buckets" as possible.
+//
+// - buckets are defined by their lower bounds (inclusive)
+// - the upper bound is the lower bound of the next bucket
 message GrpcHistogram {
+  // Returns left bound of the first bucket. It represents the smallest value encountered in the returned set.
   GrpcBigDecimal min = 1;
+  // Returns right bound of the last bucket of the histogram. Each bucket contains only left bound threshold, so this
+  // value is necessary so that first histogram buckets makes any sense. This value is exceptional in the sense that
+  // it represents the biggest value encountered in the returned set and represents inclusive right bound for the
+  // last bucket.
   GrpcBigDecimal max = 2;
+  // Returns count of all entities that are covered by this histogram. It's plain sum of occurrences of all buckets
+  // in the histogram.
   int32 overallCount = 3;
+  // Data object that carries out threshold in histogram (or bucket if you will) along with number of occurrences in it.
   message GrpcBucket {
+    // Contains index (starting with zero) of the bucket in the histogram. First bucket / column of the histogram
+    // will have index zero, second bucket / column one and so forth.
     int32 index = 1;
+    // Contains threshold (left bound - inclusive) of the bucket.
     GrpcBigDecimal threshold = 2;
+    // Contains number of entity occurrences in this bucket - e.g. number of entities that has monitored property value
+    // between previous bucket threshold (exclusive) and this bucket threshold (inclusive)
     int32 occurrences = 3;
   }
+  // Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+  // values.
   repeated GrpcBucket buckets = 4;
 }
 
-message GrpcFacetGroupStatisticsType {
-  map<int32, GrpcFacetGroupStatistics> facetGroupStatistics = 1;
-}
-
+// This DTO contains information about single facet group and statistics of the facets that relates to it.
 message GrpcFacetGroupStatistics {
+  // Contains name of the facet group.
   string referenceName = 1;
+  // Contains referenced entity reference representing this group.
   GrpcEntityReference groupEntityReference = 2;
+  // Contains referenced entity representing this group.
   GrpcSealedEntity groupEntity = 3;
+  // Contains number of distinct entities in the response that possess any reference in this group.
   int32 count = 4;
+  // Contains statistics of individual facets.
   repeated GrpcFacetStatistics facetStatistics = 5;
 }
 
+// This DTO contains information about single facet statistics of the entities that are present in the response.
 message GrpcFacetStatistics {
+  // Contains referenced entity reference representing.
   GrpcEntityReference facetEntityReference = 1;
+  // Contains referenced entity representing.
   GrpcSealedEntity facetEntity = 2;
+  // Contains TRUE if the facet was part of the query filtering constraints.
   bool requested = 3;
+  // Contains number of distinct entities in the response that possess of this reference.
   int32 count = 4;
+  // This field is not null only when this facet is not requested.
+  // Contains projected impact on the current response if this facet is also requested in filtering constraints.
   google.protobuf.Int32Value impact = 5;
+  // Projected number of filtered entities if the query is altered by adding this facet to filtering constraint.
   google.protobuf.Int32Value matchCount = 6;
 }
 
+// Contains list of statistics for the single level (probably root or whatever is filtered by the query) of
+// the queried hierarchy entity.
 message GrpcHierarchy {
+  // Map holds the statistics represented by user-specified output name of requested hierarchy.
   map<string, GrpcLevelInfos> hierarchy = 1;
 }
 
+// This DTO represents a wrapper for array of statistics for the single hierarchy level of inner entities.
 message GrpcLevelInfos {
+  // Array of statistics for the single hierarchy level of inner entities.
   repeated GrpcLevelInfo levelInfos = 1;
 }
 
+// This DTO represents single hierarchical entity in the statistics tree. It contains identification of the entity,
+// the cardinality of queried entities that refer to it and information about children level.
 message GrpcLevelInfo {
+  // Hierarchical entity reference at position in tree represented by this object.
   GrpcEntityReference entityReference = 1;
+  // Hierarchical entity at position in tree represented by this object.
   GrpcSealedEntity entity = 2;
+  // Contains the number of queried entities that refer directly to this `entity` or to any of its children
+  // entities.
   google.protobuf.Int32Value queriedEntityCount = 3;
+  // Contains number of hierarchical entities that are referring to this `entity` as its parent.
+  // The count will respect behaviour settings and will not count empty children in case `REMOVE_EMPTY` is
+  // used for computation.
   google.protobuf.Int32Value childrenCount = 4;
+  // Contains hierarchy info of the entities that are subordinate (children) of this `entity`.
   repeated GrpcLevelInfo items = 5;
 }
 
+// This DTO contains detailed information about query processing time and its decomposition to single operations.
 message GrpcQueryTelemetry {
+  // Phase of the query processing.
   GrpcQueryPhase operation = 1;
+  // Date and time of the start of this step in nanoseconds.
   int64 start = 2;
+  // Internal steps of this telemetry step (operation decomposition).
   repeated GrpcQueryTelemetry steps = 3;
+  // Arguments of the processing phase.
   repeated string arguments = 4;
+  // Duration in nanoseconds.
   int64 spentTime = 5;
 }
 
+// This DTO contains extra results that are computed based on the query results.
 message GrpcExtraResults {
-  map<string, GrpcHistogram> attributeHistogram = 2;
-  GrpcHistogram priceHistogram = 3;
-  repeated GrpcFacetGroupStatistics facetGroupStatistics = 4;
-  GrpcHierarchy selfHierarchy = 5;
-  map<string, GrpcHierarchy> hierarchy = 6;
-  GrpcQueryTelemetry queryTelemetry = 7;
+  // Returns computed histograms for specific attributes based on filter constraints.
+  //
+  // A histogram is an approximate representation of the distribution of numerical data. For detailed description please
+  // see [WikiPedia](https://en.wikipedia.org/wiki/Histogram).
+  // Histogram can be computed only for numeric based properties. It visualises which property values are more common
+  // in the returned data set and which are rare. Bucket count will never exceed requested bucket count specified in
+  // `requestedCount` but there
+  // may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so that
+  // there are as few "empty buckets" as possible.
+  //
+  // - buckets are defined by their lower bounds (inclusive)
+  // - the upper bound is the lower bound of the next bucket
+  map<string, GrpcHistogram> attributeHistogram = 1;
+  // Returns computed histogram for prices satisfactory to filter constraints.
+  //
+  // A histogram is an approximate representation of the distribution of numerical data. For detailed description please
+  // see [WikiPedia](https://en.wikipedia.org/wiki/Histogram).
+  // Histogram can be computed only for numeric based properties. It visualises which property values are more common
+  // in the returned data set and which are rare. Bucket count will never exceed requested bucket count specified in
+  // `requestedCount` but there
+  // may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so that
+  // there are as few "empty buckets" as possible.
+  //
+  // - buckets are defined by their lower bounds (inclusive)
+  // - the upper bound is the lower bound of the next bucket
+  GrpcHistogram priceHistogram = 2;
+  // Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
+  // (if they belong in one) and statistics of the facets that relates to it.
+  repeated GrpcFacetGroupStatistics facetGroupStatistics = 3;
+  // Contains list of statistics for the single level (probably root or whatever is filtered by the query) of
+  // the queried hierarchy entity.
+  GrpcHierarchy selfHierarchy = 4;
+  // Index holds the statistics for particular references that target hierarchy entity types.
+  // Key is the identification of the reference name, value contains list of statistics for the single level (probably
+  // root or whatever is filtered by the query) of the hierarchy entity.
+  map<string, GrpcHierarchy> hierarchy = 5;
+  // This DTO contains detailed information about query processing time and its decomposition to single operations.
+  GrpcQueryTelemetry queryTelemetry = 6;
 }

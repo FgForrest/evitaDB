@@ -31,11 +31,21 @@ public interface GrpcCatalogSchemaOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Contains unique name of the catalog. Case-sensitive. Distinguishes one catalog item from another
+   * within single entity instance.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
   java.lang.String getName();
   /**
+   * <pre>
+   * Contains unique name of the catalog. Case-sensitive. Distinguishes one catalog item from another
+   * within single entity instance.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -43,22 +53,42 @@ public interface GrpcCatalogSchemaOrBuilder extends
       getNameBytes();
 
   /**
+   * <pre>
+   * Contains version of this catalog schema and gets increased with any entity type update. Allows to execute
+   * optimistic locking i.e. avoiding parallel modifications.
+   * </pre>
+   *
    * <code>int32 version = 2;</code>
    * @return The version.
    */
   int getVersion();
 
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 3;</code>
    * @return Whether the description field is set.
    */
   boolean hasDescription();
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 3;</code>
    * @return The description.
    */
   com.google.protobuf.StringValue getDescription();
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 3;</code>
    */
   com.google.protobuf.StringValueOrBuilder getDescriptionOrBuilder();
@@ -93,10 +123,32 @@ public interface GrpcCatalogSchemaOrBuilder extends
   int getCatalogEvolutionModeValue(int index);
 
   /**
+   * <pre>
+   * Contains index of generally (catalog-wide) shared `AttributeSchema` that could be used as attributes of any
+   * entity type that refers them. These attributes cannot be changed from within the entity schema. Entity schemas
+   * will not be able to define their own attribute of same name that would clash with the global one (they may only
+   * reference the attributes with the same name from the catalog schema).
+   * There may be entities that won't take advantage of certain global attributes (i.e. it's not guaranteed that all
+   * entity types in catalog have all global attributes).
+   * The "catalog-wide" unique attributes allows Evita to fetch entity of any (and up-front unknown) entity type by
+   * some unique attribute value - usually URL.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
    */
   int getAttributesCount();
   /**
+   * <pre>
+   * Contains index of generally (catalog-wide) shared `AttributeSchema` that could be used as attributes of any
+   * entity type that refers them. These attributes cannot be changed from within the entity schema. Entity schemas
+   * will not be able to define their own attribute of same name that would clash with the global one (they may only
+   * reference the attributes with the same name from the catalog schema).
+   * There may be entities that won't take advantage of certain global attributes (i.e. it's not guaranteed that all
+   * entity types in catalog have all global attributes).
+   * The "catalog-wide" unique attributes allows Evita to fetch entity of any (and up-front unknown) entity type by
+   * some unique attribute value - usually URL.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
    */
   boolean containsAttributes(
@@ -108,11 +160,33 @@ public interface GrpcCatalogSchemaOrBuilder extends
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema>
   getAttributes();
   /**
+   * <pre>
+   * Contains index of generally (catalog-wide) shared `AttributeSchema` that could be used as attributes of any
+   * entity type that refers them. These attributes cannot be changed from within the entity schema. Entity schemas
+   * will not be able to define their own attribute of same name that would clash with the global one (they may only
+   * reference the attributes with the same name from the catalog schema).
+   * There may be entities that won't take advantage of certain global attributes (i.e. it's not guaranteed that all
+   * entity types in catalog have all global attributes).
+   * The "catalog-wide" unique attributes allows Evita to fetch entity of any (and up-front unknown) entity type by
+   * some unique attribute value - usually URL.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
    */
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema>
   getAttributesMap();
   /**
+   * <pre>
+   * Contains index of generally (catalog-wide) shared `AttributeSchema` that could be used as attributes of any
+   * entity type that refers them. These attributes cannot be changed from within the entity schema. Entity schemas
+   * will not be able to define their own attribute of same name that would clash with the global one (they may only
+   * reference the attributes with the same name from the catalog schema).
+   * There may be entities that won't take advantage of certain global attributes (i.e. it's not guaranteed that all
+   * entity types in catalog have all global attributes).
+   * The "catalog-wide" unique attributes allows Evita to fetch entity of any (and up-front unknown) entity type by
+   * some unique attribute value - usually URL.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
    */
 
@@ -120,6 +194,17 @@ public interface GrpcCatalogSchemaOrBuilder extends
       java.lang.String key,
       io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema defaultValue);
   /**
+   * <pre>
+   * Contains index of generally (catalog-wide) shared `AttributeSchema` that could be used as attributes of any
+   * entity type that refers them. These attributes cannot be changed from within the entity schema. Entity schemas
+   * will not be able to define their own attribute of same name that would clash with the global one (they may only
+   * reference the attributes with the same name from the catalog schema).
+   * There may be entities that won't take advantage of certain global attributes (i.e. it's not guaranteed that all
+   * entity types in catalog have all global attributes).
+   * The "catalog-wide" unique attributes allows Evita to fetch entity of any (and up-front unknown) entity type by
+   * some unique attribute value - usually URL.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
    */
 

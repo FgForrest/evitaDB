@@ -31,11 +31,19 @@ public interface GrpcLocaleOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The language tag of the locale.
+   * </pre>
+   *
    * <code>string languageTag = 1;</code>
    * @return The languageTag.
    */
   java.lang.String getLanguageTag();
   /**
+   * <pre>
+   * The language tag of the locale.
+   * </pre>
+   *
    * <code>string languageTag = 1;</code>
    * @return The bytes for languageTag.
    */

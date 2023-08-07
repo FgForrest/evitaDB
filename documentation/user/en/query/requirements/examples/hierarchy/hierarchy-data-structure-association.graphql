@@ -16,7 +16,6 @@
               distance: 1
             }
           ) {
-            parentPrimaryKey
             level
             entity {
               primaryKey
@@ -25,14 +24,12 @@
                 code
               }
             }
-            hasChildren
           }
           directParent: parents(
             stopAt: {
               distance: 1
             }
           ) {
-            parentPrimaryKey
             level
             entity {
               primaryKey
@@ -41,7 +38,6 @@
                 code
               }
             }
-            hasChildren
           }
         }
       }

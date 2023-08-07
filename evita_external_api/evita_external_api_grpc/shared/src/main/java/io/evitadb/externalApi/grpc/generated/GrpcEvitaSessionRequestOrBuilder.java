@@ -31,11 +31,19 @@ public interface GrpcEvitaSessionRequestOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The name of the catalog for which the session is to be created.
+   * </pre>
+   *
    * <code>string catalogName = 1;</code>
    * @return The catalogName.
    */
   java.lang.String getCatalogName();
   /**
+   * <pre>
+   * The name of the catalog for which the session is to be created.
+   * </pre>
+   *
    * <code>string catalogName = 1;</code>
    * @return The bytes for catalogName.
    */
@@ -43,6 +51,10 @@ public interface GrpcEvitaSessionRequestOrBuilder extends
       getCatalogNameBytes();
 
   /**
+   * <pre>
+   * For testing purposes. Flag indicating that all changes by the session should be rollbacked after the session is closed.
+   * </pre>
+   *
    * <code>bool dryRun = 2;</code>
    * @return The dryRun.
    */

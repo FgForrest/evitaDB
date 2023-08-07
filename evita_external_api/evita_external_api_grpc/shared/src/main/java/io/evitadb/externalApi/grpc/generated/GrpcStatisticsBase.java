@@ -27,15 +27,28 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * The enum specifies whether the hierarchy statistics cardinality will be based on a complete query filter by
+ *  constraint or only the part without user defined filter.
+ * </pre>
+ *
  * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase}
  */
 public enum GrpcStatisticsBase
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
+   * <pre>
+   * The statistics will be based on a complete query filter by constraint.
+   * </pre>
+   *
    * <code>COMPLETE_FILTER = 0;</code>
    */
   COMPLETE_FILTER(0),
   /**
+   * <pre>
+   * The statistics will be based only on a query without user defined filter.
+   * </pre>
+   *
    * <code>WITHOUT_USER_FILTER = 1;</code>
    */
   WITHOUT_USER_FILTER(1),
@@ -43,10 +56,18 @@ public enum GrpcStatisticsBase
   ;
 
   /**
+   * <pre>
+   * The statistics will be based on a complete query filter by constraint.
+   * </pre>
+   *
    * <code>COMPLETE_FILTER = 0;</code>
    */
   public static final int COMPLETE_FILTER_VALUE = 0;
   /**
+   * <pre>
+   * The statistics will be based only on a query without user defined filter.
+   * </pre>
+   *
    * <code>WITHOUT_USER_FILTER = 1;</code>
    */
   public static final int WITHOUT_USER_FILTER_VALUE = 1;
