@@ -66,7 +66,10 @@ public class GrpcArtificialFullDatabaseBenchmarkState extends GrpcArtificialBenc
 	 * Method also prepares 100.000 products in the database.
 	 */
 	@Setup(Level.Trial)
+	@Override
 	public void setUp() {
+		super.setUp();
+
 		final ReadyReadEvita readyReadEvita = generateReadTestDataset(
 			dataGenerator,
 			PRODUCT_COUNT,
