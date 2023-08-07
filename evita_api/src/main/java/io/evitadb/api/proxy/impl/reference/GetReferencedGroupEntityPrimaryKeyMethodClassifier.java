@@ -69,6 +69,7 @@ public class GetReferencedGroupEntityPrimaryKeyMethodClassifier extends DirectMe
 				final Optional<String> propertyName = ReflectionLookup.getPropertyNameFromMethodNameIfPossible(method.getName());
 				if (Number.class.isAssignableFrom(toWrappedForm(valueType)) && referencedEntityGroup != null || (
 					!reflectionLookup.hasAnnotationInSamePackage(method, ReferencedEntityGroup.class) &&
+						ClassUtils.isAbstract(method) &&
 						propertyName
 							.map(ReferencedEntityGroup.POSSIBLE_ARGUMENT_NAMES::contains)
 							.orElse(false)

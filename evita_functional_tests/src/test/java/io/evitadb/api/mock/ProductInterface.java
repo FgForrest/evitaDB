@@ -69,6 +69,15 @@ public interface ProductInterface extends EntityClassifier {
 	@Nonnull
 	String getName(@Nonnull Locale locale);
 
+	@Nonnull
+	default String getEan() {
+		return "computed EAN";
+	}
+
+	@AttributeRef(DataGenerator.ATTRIBUTE_EAN)
+	@Nonnull
+	String getEanAsDifferentProperty();
+
 	@Attribute(name = DataGenerator.ATTRIBUTE_QUANTITY)
 	@Nonnull
 	BigDecimal getQuantity();

@@ -430,6 +430,11 @@ public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctio
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_ALIAS), product.isAlias());
 		assertEquals(TestEnum.valueOf(originalProduct.getAttribute(ATTRIBUTE_ENUM, String.class)), product.getEnum());
 
+		// methods with implementation not directly annotated by @Attribute annotation are not intercepted
+		assertEquals("computed EAN", product.getEan());
+		// methods with different name are intercepted based on @Attribute annotation
+		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_EAN),  product.getEanAsDifferentProperty());
+
 		final Optional<Object> optionallyAvailable = ofNullable(originalProduct.getAttribute(ATTRIBUTE_OPTIONAL_AVAILABILITY));
 		assertEquals(optionallyAvailable.orElse(false), product.isOptionallyAvailable());
 		assertEquals(optionallyAvailable, product.getOptionallyAvailable());
