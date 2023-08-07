@@ -31,6 +31,10 @@ public interface GrpcUpdateCatalogSchemaResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The new version of the catalog schema.
+   * </pre>
+   *
    * <code>int32 version = 1;</code>
    * @return The version.
    */

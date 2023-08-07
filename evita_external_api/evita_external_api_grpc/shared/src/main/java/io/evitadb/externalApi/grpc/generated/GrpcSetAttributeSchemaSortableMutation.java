@@ -27,6 +27,11 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Mutation is responsible for setting value to a `AttributeSchema.sortable` in `EntitySchema`.
+ * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation}
  */
 public final class GrpcSetAttributeSchemaSortableMutation extends
@@ -118,6 +123,10 @@ private static final long serialVersionUID = 0L;
   public static final int NAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object name_;
   /**
+   * <pre>
+   * Name of the attribute the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
@@ -135,6 +144,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Name of the attribute the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -156,6 +169,12 @@ private static final long serialVersionUID = 0L;
   public static final int SORTABLE_FIELD_NUMBER = 2;
   private boolean sortable_;
   /**
+   * <pre>
+   * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+   * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+   * (memory/disk) space in the form of index.
+   * </pre>
+   *
    * <code>bool sortable = 2;</code>
    * @return The sortable.
    */
@@ -331,6 +350,11 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.sortable` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation}
    */
   public static final class Builder extends
@@ -486,6 +510,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object name_ = "";
     /**
+     * <pre>
+     * Name of the attribute the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The name.
      */
@@ -502,6 +530,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the attribute the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The bytes for name.
      */
@@ -519,6 +551,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the attribute the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The name to set.
      * @return This builder for chaining.
@@ -534,6 +570,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the attribute the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return This builder for chaining.
      */
@@ -544,6 +584,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the attribute the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The bytes for name to set.
      * @return This builder for chaining.
@@ -562,6 +606,12 @@ private static final long serialVersionUID = 0L;
 
     private boolean sortable_ ;
     /**
+     * <pre>
+     * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+     * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+     * (memory/disk) space in the form of index.
+     * </pre>
+     *
      * <code>bool sortable = 2;</code>
      * @return The sortable.
      */
@@ -570,6 +620,12 @@ private static final long serialVersionUID = 0L;
       return sortable_;
     }
     /**
+     * <pre>
+     * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+     * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+     * (memory/disk) space in the form of index.
+     * </pre>
+     *
      * <code>bool sortable = 2;</code>
      * @param value The sortable to set.
      * @return This builder for chaining.
@@ -581,6 +637,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+     * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+     * (memory/disk) space in the form of index.
+     * </pre>
+     *
      * <code>bool sortable = 2;</code>
      * @return This builder for chaining.
      */

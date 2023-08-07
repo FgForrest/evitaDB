@@ -26,6 +26,14 @@ package io.evitadb.externalApi.grpc.generated;
 import static io.grpc.MethodDescriptor.generateFullMethodName;
 
 /**
+ * <pre>
+ * This service contains RPCs that could be called by gRPC clients on evitaDB's catalog by usage of a before created session.
+ * By specifying its UUID and the name of a catalog to which it corresponds to it's possible to execute methods that in
+ * evitaDB's implementation a called on an instance of EvitaSessionContract.
+ * Main purpose of this service is to provide a way to manipulate with stored entity collections and their schemas. That
+ * includes their creating, updating and deleting. Same operations could be done with entities, which in addition could
+ * be fetched by specifying a complex queries.
+ * </pre>
  */
 
 @io.grpc.stub.annotations.GrpcGenerated
@@ -856,10 +864,21 @@ public final class EvitaSessionServiceGrpc {
   }
 
   /**
+   * <pre>
+   * This service contains RPCs that could be called by gRPC clients on evitaDB's catalog by usage of a before created session.
+   * By specifying its UUID and the name of a catalog to which it corresponds to it's possible to execute methods that in
+   * evitaDB's implementation a called on an instance of EvitaSessionContract.
+   * Main purpose of this service is to provide a way to manipulate with stored entity collections and their schemas. That
+   * includes their creating, updating and deleting. Same operations could be done with entities, which in addition could
+   * be fetched by specifying a complex queries.
+   * </pre>
    */
   public static abstract class EvitaSessionServiceImplBase implements io.grpc.BindableService {
 
     /**
+     * <pre>
+     * Procedure that returns the current (the one on which the used session operates) catalog schema.
+     * </pre>
      */
     public void getCatalogSchema(com.google.protobuf.Empty request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse> responseObserver) {
@@ -867,6 +886,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that returns the current state of the catalog.
+     * </pre>
      */
     public void getCatalogState(com.google.protobuf.Empty request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCatalogStateResponse> responseObserver) {
@@ -874,6 +896,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that returns the schema of a specific entity type.
+     * </pre>
      */
     public void getEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaResponse> responseObserver) {
@@ -881,6 +906,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that returns the list of all entity types.
+     * </pre>
      */
     public void getAllEntityTypes(com.google.protobuf.Empty request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEntityTypesResponse> responseObserver) {
@@ -888,6 +916,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that changes the state of the catalog to ALIVE and closes the session.
+     * </pre>
      */
     public void goLiveAndClose(com.google.protobuf.Empty request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse> responseObserver) {
@@ -895,6 +926,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that closes the session.
+     * </pre>
      */
     public void close(com.google.protobuf.Empty request,
         io.grpc.stub.StreamObserver<com.google.protobuf.Empty> responseObserver) {
@@ -902,6 +936,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that executes passed parametrised query and returns zero or one entity.
+     * </pre>
      */
     public void queryOne(io.evitadb.externalApi.grpc.generated.GrpcQueryRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse> responseObserver) {
@@ -909,6 +946,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that executes passed parametrised query and returns a list of entities.
+     * </pre>
      */
     public void queryList(io.evitadb.externalApi.grpc.generated.GrpcQueryRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse> responseObserver) {
@@ -916,6 +956,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that executes passed parametrised query and returns a data chunk with computed extra results.
+     * </pre>
      */
     public void query(io.evitadb.externalApi.grpc.generated.GrpcQueryRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryResponse> responseObserver) {
@@ -923,6 +966,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that find entity by passed entity type and primary key and return it by specified richness by passed parametrised require query part.
+     * </pre>
      */
     public void getEntity(io.evitadb.externalApi.grpc.generated.GrpcEntityRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEntityResponse> responseObserver) {
@@ -930,6 +976,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that updates the catalog schema and return its updated version.
+     * </pre>
      */
     public void updateCatalogSchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaResponse> responseObserver) {
@@ -937,6 +986,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that updates the catalog schema and returns it.
+     * </pre>
      */
     public void updateAndFetchCatalogSchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcUpdateAndFetchCatalogSchemaResponse> responseObserver) {
@@ -944,6 +996,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that defines the schema of a new entity type and return it.
+     * </pre>
      */
     public void defineEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcDefineEntitySchemaRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDefineEntitySchemaResponse> responseObserver) {
@@ -951,6 +1006,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that updates the schema of an existing entity type and return its updated version.
+     * </pre>
      */
     public void updateEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaResponse> responseObserver) {
@@ -958,6 +1016,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that updates the schema of an existing entity type and returns it.
+     * </pre>
      */
     public void updateAndFetchEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcUpdateAndFetchEntitySchemaResponse> responseObserver) {
@@ -965,6 +1026,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that deletes an entity collection.
+     * </pre>
      */
     public void deleteCollection(io.evitadb.externalApi.grpc.generated.GrpcDeleteCollectionRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteCollectionResponse> responseObserver) {
@@ -972,6 +1036,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that renames an entity collection.
+     * </pre>
      */
     public void renameCollection(io.evitadb.externalApi.grpc.generated.GrpcRenameCollectionRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRenameCollectionResponse> responseObserver) {
@@ -979,6 +1046,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that replaces an entity collection.
+     * </pre>
      */
     public void replaceCollection(io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionResponse> responseObserver) {
@@ -986,6 +1056,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that returns the size of an entity collection.
+     * </pre>
      */
     public void getEntityCollectionSize(io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionSizeRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionSizeResponse> responseObserver) {
@@ -993,6 +1066,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that upserts (inserts/updates) an entity and returns it with required richness.
+     * </pre>
      */
     public void upsertEntity(io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityResponse> responseObserver) {
@@ -1000,6 +1076,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that deletes an entity and returns it with required richness.
+     * </pre>
      */
     public void deleteEntity(io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityResponse> responseObserver) {
@@ -1007,6 +1086,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that deletes an entity and its hierarchy and returns the root entity with required richness.
+     * </pre>
      */
     public void deleteEntityAndItsHierarchy(io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityAndItsHierarchyResponse> responseObserver) {
@@ -1014,6 +1096,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that deletes all entities that match the sent query and returns their bodies.
+     * </pre>
      */
     public void deleteEntities(io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesResponse> responseObserver) {
@@ -1021,6 +1106,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that opens a transaction.
+     * </pre>
      */
     public void openTransaction(com.google.protobuf.Empty request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse> responseObserver) {
@@ -1028,6 +1116,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that closes a transaction.
+     * </pre>
      */
     public void closeTransaction(io.evitadb.externalApi.grpc.generated.GrpcCloseTransactionRequest request,
         io.grpc.stub.StreamObserver<com.google.protobuf.Empty> responseObserver) {
@@ -1216,6 +1307,14 @@ public final class EvitaSessionServiceGrpc {
   }
 
   /**
+   * <pre>
+   * This service contains RPCs that could be called by gRPC clients on evitaDB's catalog by usage of a before created session.
+   * By specifying its UUID and the name of a catalog to which it corresponds to it's possible to execute methods that in
+   * evitaDB's implementation a called on an instance of EvitaSessionContract.
+   * Main purpose of this service is to provide a way to manipulate with stored entity collections and their schemas. That
+   * includes their creating, updating and deleting. Same operations could be done with entities, which in addition could
+   * be fetched by specifying a complex queries.
+   * </pre>
    */
   public static final class EvitaSessionServiceStub extends io.grpc.stub.AbstractAsyncStub<EvitaSessionServiceStub> {
     private EvitaSessionServiceStub(
@@ -1230,6 +1329,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that returns the current (the one on which the used session operates) catalog schema.
+     * </pre>
      */
     public void getCatalogSchema(com.google.protobuf.Empty request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse> responseObserver) {
@@ -1238,6 +1340,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that returns the current state of the catalog.
+     * </pre>
      */
     public void getCatalogState(com.google.protobuf.Empty request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCatalogStateResponse> responseObserver) {
@@ -1246,6 +1351,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that returns the schema of a specific entity type.
+     * </pre>
      */
     public void getEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaResponse> responseObserver) {
@@ -1254,6 +1362,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that returns the list of all entity types.
+     * </pre>
      */
     public void getAllEntityTypes(com.google.protobuf.Empty request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEntityTypesResponse> responseObserver) {
@@ -1262,6 +1373,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that changes the state of the catalog to ALIVE and closes the session.
+     * </pre>
      */
     public void goLiveAndClose(com.google.protobuf.Empty request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse> responseObserver) {
@@ -1270,6 +1384,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that closes the session.
+     * </pre>
      */
     public void close(com.google.protobuf.Empty request,
         io.grpc.stub.StreamObserver<com.google.protobuf.Empty> responseObserver) {
@@ -1278,6 +1395,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that executes passed parametrised query and returns zero or one entity.
+     * </pre>
      */
     public void queryOne(io.evitadb.externalApi.grpc.generated.GrpcQueryRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse> responseObserver) {
@@ -1286,6 +1406,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that executes passed parametrised query and returns a list of entities.
+     * </pre>
      */
     public void queryList(io.evitadb.externalApi.grpc.generated.GrpcQueryRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse> responseObserver) {
@@ -1294,6 +1417,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that executes passed parametrised query and returns a data chunk with computed extra results.
+     * </pre>
      */
     public void query(io.evitadb.externalApi.grpc.generated.GrpcQueryRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryResponse> responseObserver) {
@@ -1302,6 +1428,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that find entity by passed entity type and primary key and return it by specified richness by passed parametrised require query part.
+     * </pre>
      */
     public void getEntity(io.evitadb.externalApi.grpc.generated.GrpcEntityRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEntityResponse> responseObserver) {
@@ -1310,6 +1439,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that updates the catalog schema and return its updated version.
+     * </pre>
      */
     public void updateCatalogSchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaResponse> responseObserver) {
@@ -1318,6 +1450,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that updates the catalog schema and returns it.
+     * </pre>
      */
     public void updateAndFetchCatalogSchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcUpdateAndFetchCatalogSchemaResponse> responseObserver) {
@@ -1326,6 +1461,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that defines the schema of a new entity type and return it.
+     * </pre>
      */
     public void defineEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcDefineEntitySchemaRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDefineEntitySchemaResponse> responseObserver) {
@@ -1334,6 +1472,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that updates the schema of an existing entity type and return its updated version.
+     * </pre>
      */
     public void updateEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaResponse> responseObserver) {
@@ -1342,6 +1483,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that updates the schema of an existing entity type and returns it.
+     * </pre>
      */
     public void updateAndFetchEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcUpdateAndFetchEntitySchemaResponse> responseObserver) {
@@ -1350,6 +1494,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that deletes an entity collection.
+     * </pre>
      */
     public void deleteCollection(io.evitadb.externalApi.grpc.generated.GrpcDeleteCollectionRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteCollectionResponse> responseObserver) {
@@ -1358,6 +1505,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that renames an entity collection.
+     * </pre>
      */
     public void renameCollection(io.evitadb.externalApi.grpc.generated.GrpcRenameCollectionRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRenameCollectionResponse> responseObserver) {
@@ -1366,6 +1516,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that replaces an entity collection.
+     * </pre>
      */
     public void replaceCollection(io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionResponse> responseObserver) {
@@ -1374,6 +1527,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that returns the size of an entity collection.
+     * </pre>
      */
     public void getEntityCollectionSize(io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionSizeRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionSizeResponse> responseObserver) {
@@ -1382,6 +1538,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that upserts (inserts/updates) an entity and returns it with required richness.
+     * </pre>
      */
     public void upsertEntity(io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityResponse> responseObserver) {
@@ -1390,6 +1549,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that deletes an entity and returns it with required richness.
+     * </pre>
      */
     public void deleteEntity(io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityResponse> responseObserver) {
@@ -1398,6 +1560,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that deletes an entity and its hierarchy and returns the root entity with required richness.
+     * </pre>
      */
     public void deleteEntityAndItsHierarchy(io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityAndItsHierarchyResponse> responseObserver) {
@@ -1406,6 +1571,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that deletes all entities that match the sent query and returns their bodies.
+     * </pre>
      */
     public void deleteEntities(io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesResponse> responseObserver) {
@@ -1414,6 +1582,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that opens a transaction.
+     * </pre>
      */
     public void openTransaction(com.google.protobuf.Empty request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse> responseObserver) {
@@ -1422,6 +1593,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that closes a transaction.
+     * </pre>
      */
     public void closeTransaction(io.evitadb.externalApi.grpc.generated.GrpcCloseTransactionRequest request,
         io.grpc.stub.StreamObserver<com.google.protobuf.Empty> responseObserver) {
@@ -1431,6 +1605,14 @@ public final class EvitaSessionServiceGrpc {
   }
 
   /**
+   * <pre>
+   * This service contains RPCs that could be called by gRPC clients on evitaDB's catalog by usage of a before created session.
+   * By specifying its UUID and the name of a catalog to which it corresponds to it's possible to execute methods that in
+   * evitaDB's implementation a called on an instance of EvitaSessionContract.
+   * Main purpose of this service is to provide a way to manipulate with stored entity collections and their schemas. That
+   * includes their creating, updating and deleting. Same operations could be done with entities, which in addition could
+   * be fetched by specifying a complex queries.
+   * </pre>
    */
   public static final class EvitaSessionServiceBlockingStub extends io.grpc.stub.AbstractBlockingStub<EvitaSessionServiceBlockingStub> {
     private EvitaSessionServiceBlockingStub(
@@ -1445,6 +1627,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that returns the current (the one on which the used session operates) catalog schema.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse getCatalogSchema(com.google.protobuf.Empty request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -1452,6 +1637,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that returns the current state of the catalog.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCatalogStateResponse getCatalogState(com.google.protobuf.Empty request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -1459,6 +1647,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that returns the schema of a specific entity type.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaResponse getEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -1466,6 +1657,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that returns the list of all entity types.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityTypesResponse getAllEntityTypes(com.google.protobuf.Empty request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -1473,6 +1667,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that changes the state of the catalog to ALIVE and closes the session.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse goLiveAndClose(com.google.protobuf.Empty request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -1480,6 +1677,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that closes the session.
+     * </pre>
      */
     public com.google.protobuf.Empty close(com.google.protobuf.Empty request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -1487,6 +1687,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that executes passed parametrised query and returns zero or one entity.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse queryOne(io.evitadb.externalApi.grpc.generated.GrpcQueryRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -1494,6 +1697,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that executes passed parametrised query and returns a list of entities.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse queryList(io.evitadb.externalApi.grpc.generated.GrpcQueryRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -1501,6 +1707,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that executes passed parametrised query and returns a data chunk with computed extra results.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcQueryResponse query(io.evitadb.externalApi.grpc.generated.GrpcQueryRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -1508,6 +1717,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that find entity by passed entity type and primary key and return it by specified richness by passed parametrised require query part.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityResponse getEntity(io.evitadb.externalApi.grpc.generated.GrpcEntityRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -1515,6 +1727,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that updates the catalog schema and return its updated version.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaResponse updateCatalogSchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -1522,6 +1737,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that updates the catalog schema and returns it.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcUpdateAndFetchCatalogSchemaResponse updateAndFetchCatalogSchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -1529,6 +1747,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that defines the schema of a new entity type and return it.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcDefineEntitySchemaResponse defineEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcDefineEntitySchemaRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -1536,6 +1757,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that updates the schema of an existing entity type and return its updated version.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaResponse updateEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -1543,6 +1767,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that updates the schema of an existing entity type and returns it.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcUpdateAndFetchEntitySchemaResponse updateAndFetchEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -1550,6 +1777,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that deletes an entity collection.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcDeleteCollectionResponse deleteCollection(io.evitadb.externalApi.grpc.generated.GrpcDeleteCollectionRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -1557,6 +1787,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that renames an entity collection.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcRenameCollectionResponse renameCollection(io.evitadb.externalApi.grpc.generated.GrpcRenameCollectionRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -1564,6 +1797,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that replaces an entity collection.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionResponse replaceCollection(io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -1571,6 +1807,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that returns the size of an entity collection.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionSizeResponse getEntityCollectionSize(io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionSizeRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -1578,6 +1817,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that upserts (inserts/updates) an entity and returns it with required richness.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityResponse upsertEntity(io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -1585,6 +1827,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that deletes an entity and returns it with required richness.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityResponse deleteEntity(io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -1592,6 +1837,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that deletes an entity and its hierarchy and returns the root entity with required richness.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityAndItsHierarchyResponse deleteEntityAndItsHierarchy(io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -1599,6 +1847,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that deletes all entities that match the sent query and returns their bodies.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesResponse deleteEntities(io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -1606,6 +1857,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that opens a transaction.
+     * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse openTransaction(com.google.protobuf.Empty request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -1613,6 +1867,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that closes a transaction.
+     * </pre>
      */
     public com.google.protobuf.Empty closeTransaction(io.evitadb.externalApi.grpc.generated.GrpcCloseTransactionRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
@@ -1621,6 +1878,14 @@ public final class EvitaSessionServiceGrpc {
   }
 
   /**
+   * <pre>
+   * This service contains RPCs that could be called by gRPC clients on evitaDB's catalog by usage of a before created session.
+   * By specifying its UUID and the name of a catalog to which it corresponds to it's possible to execute methods that in
+   * evitaDB's implementation a called on an instance of EvitaSessionContract.
+   * Main purpose of this service is to provide a way to manipulate with stored entity collections and their schemas. That
+   * includes their creating, updating and deleting. Same operations could be done with entities, which in addition could
+   * be fetched by specifying a complex queries.
+   * </pre>
    */
   public static final class EvitaSessionServiceFutureStub extends io.grpc.stub.AbstractFutureStub<EvitaSessionServiceFutureStub> {
     private EvitaSessionServiceFutureStub(
@@ -1635,6 +1900,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that returns the current (the one on which the used session operates) catalog schema.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse> getCatalogSchema(
         com.google.protobuf.Empty request) {
@@ -1643,6 +1911,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that returns the current state of the catalog.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcCatalogStateResponse> getCatalogState(
         com.google.protobuf.Empty request) {
@@ -1651,6 +1922,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that returns the schema of a specific entity type.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaResponse> getEntitySchema(
         io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest request) {
@@ -1659,6 +1933,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that returns the list of all entity types.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcEntityTypesResponse> getAllEntityTypes(
         com.google.protobuf.Empty request) {
@@ -1667,6 +1944,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that changes the state of the catalog to ALIVE and closes the session.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse> goLiveAndClose(
         com.google.protobuf.Empty request) {
@@ -1675,6 +1955,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that closes the session.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<com.google.protobuf.Empty> close(
         com.google.protobuf.Empty request) {
@@ -1683,6 +1966,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that executes passed parametrised query and returns zero or one entity.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse> queryOne(
         io.evitadb.externalApi.grpc.generated.GrpcQueryRequest request) {
@@ -1691,6 +1977,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that executes passed parametrised query and returns a list of entities.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse> queryList(
         io.evitadb.externalApi.grpc.generated.GrpcQueryRequest request) {
@@ -1699,6 +1988,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that executes passed parametrised query and returns a data chunk with computed extra results.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcQueryResponse> query(
         io.evitadb.externalApi.grpc.generated.GrpcQueryRequest request) {
@@ -1707,6 +1999,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that find entity by passed entity type and primary key and return it by specified richness by passed parametrised require query part.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcEntityResponse> getEntity(
         io.evitadb.externalApi.grpc.generated.GrpcEntityRequest request) {
@@ -1715,6 +2010,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that updates the catalog schema and return its updated version.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaResponse> updateCatalogSchema(
         io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest request) {
@@ -1723,6 +2021,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that updates the catalog schema and returns it.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcUpdateAndFetchCatalogSchemaResponse> updateAndFetchCatalogSchema(
         io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest request) {
@@ -1731,6 +2032,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that defines the schema of a new entity type and return it.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcDefineEntitySchemaResponse> defineEntitySchema(
         io.evitadb.externalApi.grpc.generated.GrpcDefineEntitySchemaRequest request) {
@@ -1739,6 +2043,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that updates the schema of an existing entity type and return its updated version.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaResponse> updateEntitySchema(
         io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaRequest request) {
@@ -1747,6 +2054,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that updates the schema of an existing entity type and returns it.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcUpdateAndFetchEntitySchemaResponse> updateAndFetchEntitySchema(
         io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaRequest request) {
@@ -1755,6 +2065,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that deletes an entity collection.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcDeleteCollectionResponse> deleteCollection(
         io.evitadb.externalApi.grpc.generated.GrpcDeleteCollectionRequest request) {
@@ -1763,6 +2076,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that renames an entity collection.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcRenameCollectionResponse> renameCollection(
         io.evitadb.externalApi.grpc.generated.GrpcRenameCollectionRequest request) {
@@ -1771,6 +2087,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that replaces an entity collection.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionResponse> replaceCollection(
         io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionRequest request) {
@@ -1779,6 +2098,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that returns the size of an entity collection.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionSizeResponse> getEntityCollectionSize(
         io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionSizeRequest request) {
@@ -1787,6 +2109,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that upserts (inserts/updates) an entity and returns it with required richness.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityResponse> upsertEntity(
         io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityRequest request) {
@@ -1795,6 +2120,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that deletes an entity and returns it with required richness.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityResponse> deleteEntity(
         io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityRequest request) {
@@ -1803,6 +2131,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that deletes an entity and its hierarchy and returns the root entity with required richness.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityAndItsHierarchyResponse> deleteEntityAndItsHierarchy(
         io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityRequest request) {
@@ -1811,6 +2142,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that deletes all entities that match the sent query and returns their bodies.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesResponse> deleteEntities(
         io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesRequest request) {
@@ -1819,6 +2153,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that opens a transaction.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse> openTransaction(
         com.google.protobuf.Empty request) {
@@ -1827,6 +2164,9 @@ public final class EvitaSessionServiceGrpc {
     }
 
     /**
+     * <pre>
+     * Procedure that closes a transaction.
+     * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<com.google.protobuf.Empty> closeTransaction(
         io.evitadb.externalApi.grpc.generated.GrpcCloseTransactionRequest request) {

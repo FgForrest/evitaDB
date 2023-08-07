@@ -27,6 +27,11 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * This type represents a reference to any Evita entity and that ne returned by default for all
+ * queries that don't require loading additional data.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEntityReference}
  */
 public final class GrpcEntityReference extends
@@ -123,6 +128,12 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITYTYPE_FIELD_NUMBER = 1;
   private volatile java.lang.Object entityType_;
   /**
+   * <pre>
+   * Type of entity.
+   * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+   * entity type entity is uniquely represented by primary key.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The entityType.
    */
@@ -140,6 +151,12 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Type of entity.
+   * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+   * entity type entity is uniquely represented by primary key.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The bytes for entityType.
    */
@@ -161,6 +178,11 @@ private static final long serialVersionUID = 0L;
   public static final int PRIMARYKEY_FIELD_NUMBER = 2;
   private int primaryKey_;
   /**
+   * <pre>
+   * Unique Integer positive number representing the entity. Can be used for fast lookup for
+   * entity (entities). Primary key must be unique within the same entity type.
+   * </pre>
+   *
    * <code>int32 primaryKey = 2;</code>
    * @return The primaryKey.
    */
@@ -172,6 +194,11 @@ private static final long serialVersionUID = 0L;
   public static final int VERSION_FIELD_NUMBER = 3;
   private int version_;
   /**
+   * <pre>
+   * Contains version of this entity and gets increased with any entity type update. Allows to execute
+   * optimistic locking i.e. avoiding parallel modifications.
+   * </pre>
+   *
    * <code>int32 version = 3;</code>
    * @return The version.
    */
@@ -357,6 +384,11 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * This type represents a reference to any Evita entity and that ne returned by default for all
+   * queries that don't require loading additional data.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEntityReference}
    */
   public static final class Builder extends
@@ -518,6 +550,12 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object entityType_ = "";
     /**
+     * <pre>
+     * Type of entity.
+     * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+     * entity type entity is uniquely represented by primary key.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @return The entityType.
      */
@@ -534,6 +572,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Type of entity.
+     * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+     * entity type entity is uniquely represented by primary key.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @return The bytes for entityType.
      */
@@ -551,6 +595,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Type of entity.
+     * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+     * entity type entity is uniquely represented by primary key.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @param value The entityType to set.
      * @return This builder for chaining.
@@ -566,6 +616,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Type of entity.
+     * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+     * entity type entity is uniquely represented by primary key.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @return This builder for chaining.
      */
@@ -576,6 +632,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Type of entity.
+     * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+     * entity type entity is uniquely represented by primary key.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @param value The bytes for entityType to set.
      * @return This builder for chaining.
@@ -594,6 +656,11 @@ private static final long serialVersionUID = 0L;
 
     private int primaryKey_ ;
     /**
+     * <pre>
+     * Unique Integer positive number representing the entity. Can be used for fast lookup for
+     * entity (entities). Primary key must be unique within the same entity type.
+     * </pre>
+     *
      * <code>int32 primaryKey = 2;</code>
      * @return The primaryKey.
      */
@@ -602,6 +669,11 @@ private static final long serialVersionUID = 0L;
       return primaryKey_;
     }
     /**
+     * <pre>
+     * Unique Integer positive number representing the entity. Can be used for fast lookup for
+     * entity (entities). Primary key must be unique within the same entity type.
+     * </pre>
+     *
      * <code>int32 primaryKey = 2;</code>
      * @param value The primaryKey to set.
      * @return This builder for chaining.
@@ -613,6 +685,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Unique Integer positive number representing the entity. Can be used for fast lookup for
+     * entity (entities). Primary key must be unique within the same entity type.
+     * </pre>
+     *
      * <code>int32 primaryKey = 2;</code>
      * @return This builder for chaining.
      */
@@ -625,6 +702,11 @@ private static final long serialVersionUID = 0L;
 
     private int version_ ;
     /**
+     * <pre>
+     * Contains version of this entity and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
      * <code>int32 version = 3;</code>
      * @return The version.
      */
@@ -633,6 +715,11 @@ private static final long serialVersionUID = 0L;
       return version_;
     }
     /**
+     * <pre>
+     * Contains version of this entity and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
      * <code>int32 version = 3;</code>
      * @param value The version to set.
      * @return This builder for chaining.
@@ -644,6 +731,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains version of this entity and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
      * <code>int32 version = 3;</code>
      * @return This builder for chaining.
      */

@@ -31,11 +31,19 @@ public interface GrpcCreateReferenceSchemaMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the reference the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
   java.lang.String getName();
   /**
+   * <pre>
+   * Name of the reference the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -43,52 +51,108 @@ public interface GrpcCreateReferenceSchemaMutationOrBuilder extends
       getNameBytes();
 
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 2;</code>
    * @return Whether the description field is set.
    */
   boolean hasDescription();
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 2;</code>
    * @return The description.
    */
   com.google.protobuf.StringValue getDescription();
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 2;</code>
    */
   com.google.protobuf.StringValueOrBuilder getDescriptionOrBuilder();
 
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this schema from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
    * @return Whether the deprecationNotice field is set.
    */
   boolean hasDeprecationNotice();
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this schema from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
    * @return The deprecationNotice.
    */
   com.google.protobuf.StringValue getDeprecationNotice();
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this schema from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
    */
   com.google.protobuf.StringValueOrBuilder getDeprecationNoticeOrBuilder();
 
   /**
+   * <pre>
+   * Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+   * relationship from the perspective of the entity. We stick to the ERD modelling
+   * [standards](https://www.gleek.io/blog/crows-foot-notation.html) here. Cardinality affect the design
+   * of the client API (returning only single reference or collections) and also help us to protect the consistency
+   * of the data so that conforms to the creator mental model.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality cardinality = 4;</code>
    * @return The enum numeric value on the wire for cardinality.
    */
   int getCardinalityValue();
   /**
+   * <pre>
+   * Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+   * relationship from the perspective of the entity. We stick to the ERD modelling
+   * [standards](https://www.gleek.io/blog/crows-foot-notation.html) here. Cardinality affect the design
+   * of the client API (returning only single reference or collections) and also help us to protect the consistency
+   * of the data so that conforms to the creator mental model.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality cardinality = 4;</code>
    * @return The cardinality.
    */
   io.evitadb.externalApi.grpc.generated.GrpcCardinality getCardinality();
 
   /**
+   * <pre>
+   * Reference to `EntitySchema.name` of the referenced entity. Might be also any `String`
+   * that identifies type some external resource not maintained by Evita.
+   * </pre>
+   *
    * <code>string referencedEntityType = 5;</code>
    * @return The referencedEntityType.
    */
   java.lang.String getReferencedEntityType();
   /**
+   * <pre>
+   * Reference to `EntitySchema.name` of the referenced entity. Might be also any `String`
+   * that identifies type some external resource not maintained by Evita.
+   * </pre>
+   *
    * <code>string referencedEntityType = 5;</code>
    * @return The bytes for referencedEntityType.
    */
@@ -96,39 +160,83 @@ public interface GrpcCreateReferenceSchemaMutationOrBuilder extends
       getReferencedEntityTypeBytes();
 
   /**
+   * <pre>
+   * Whether `referencedEntityType` refers to any existing `EntitySchema.name` that is
+   * maintained by Evita.
+   * </pre>
+   *
    * <code>bool referencedEntityTypeManaged = 6;</code>
    * @return The referencedEntityTypeManaged.
    */
   boolean getReferencedEntityTypeManaged();
 
   /**
+   * <pre>
+   * Reference to `EntitySchema.name` of the referenced group entity. Might be also any `String`
+   * that identifies type some external resource not maintained by Evita.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue referencedGroupType = 7;</code>
    * @return Whether the referencedGroupType field is set.
    */
   boolean hasReferencedGroupType();
   /**
+   * <pre>
+   * Reference to `EntitySchema.name` of the referenced group entity. Might be also any `String`
+   * that identifies type some external resource not maintained by Evita.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue referencedGroupType = 7;</code>
    * @return The referencedGroupType.
    */
   com.google.protobuf.StringValue getReferencedGroupType();
   /**
+   * <pre>
+   * Reference to `EntitySchema.name` of the referenced group entity. Might be also any `String`
+   * that identifies type some external resource not maintained by Evita.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue referencedGroupType = 7;</code>
    */
   com.google.protobuf.StringValueOrBuilder getReferencedGroupTypeOrBuilder();
 
   /**
+   * <pre>
+   * Whether `referencedGroupType` refers to any existing `EntitySchema.name` that is
+   * maintained by Evita.
+   * </pre>
+   *
    * <code>bool referencedGroupTypeManaged = 8;</code>
    * @return The referencedGroupTypeManaged.
    */
   boolean getReferencedGroupTypeManaged();
 
   /**
+   * <pre>
+   * Whether the index for this reference should be created and maintained allowing to filter by
+   * `referenceHaving` filtering constraints. Index is also required when reference is
+   * `faceted`.
+   * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+   * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+   * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+   * alongside other references if requested.
+   * </pre>
+   *
    * <code>bool filterable = 9;</code>
    * @return The filterable.
    */
   boolean getFilterable();
 
   /**
+   * <pre>
+   * Whether the statistics data for this reference should be maintained and this allowing to get
+   * `facetSummary` for this reference or use `facetInSet`
+   * filtering query.
+   * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+   * occupies (memory/disk) space in the form of index.
+   * Reference that was marked as faceted is called Facet.
+   * </pre>
+   *
    * <code>bool faceted = 10;</code>
    * @return The faceted.
    */

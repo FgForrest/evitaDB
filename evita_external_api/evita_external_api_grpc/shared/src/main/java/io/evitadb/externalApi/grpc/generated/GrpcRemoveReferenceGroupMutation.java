@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * This mutation allows to remove group in the reference.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceGroupMutation}
  */
 public final class GrpcRemoveReferenceGroupMutation extends
@@ -118,6 +122,10 @@ private static final long serialVersionUID = 0L;
   public static final int REFERENCENAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object referenceName_;
   /**
+   * <pre>
+   * Unique identifier of the reference.
+   * </pre>
+   *
    * <code>string referenceName = 1;</code>
    * @return The referenceName.
    */
@@ -135,6 +143,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Unique identifier of the reference.
+   * </pre>
+   *
    * <code>string referenceName = 1;</code>
    * @return The bytes for referenceName.
    */
@@ -156,6 +168,11 @@ private static final long serialVersionUID = 0L;
   public static final int REFERENCEPRIMARYKEY_FIELD_NUMBER = 2;
   private int referencePrimaryKey_;
   /**
+   * <pre>
+   * Primary key of the referenced entity. Might be also any integer that uniquely identifies some external
+   * resource not maintained by Evita.
+   * </pre>
+   *
    * <code>int32 referencePrimaryKey = 2;</code>
    * @return The referencePrimaryKey.
    */
@@ -330,6 +347,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * This mutation allows to remove group in the reference.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceGroupMutation}
    */
   public static final class Builder extends
@@ -485,6 +506,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object referenceName_ = "";
     /**
+     * <pre>
+     * Unique identifier of the reference.
+     * </pre>
+     *
      * <code>string referenceName = 1;</code>
      * @return The referenceName.
      */
@@ -501,6 +526,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Unique identifier of the reference.
+     * </pre>
+     *
      * <code>string referenceName = 1;</code>
      * @return The bytes for referenceName.
      */
@@ -518,6 +547,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Unique identifier of the reference.
+     * </pre>
+     *
      * <code>string referenceName = 1;</code>
      * @param value The referenceName to set.
      * @return This builder for chaining.
@@ -533,6 +566,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Unique identifier of the reference.
+     * </pre>
+     *
      * <code>string referenceName = 1;</code>
      * @return This builder for chaining.
      */
@@ -543,6 +580,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Unique identifier of the reference.
+     * </pre>
+     *
      * <code>string referenceName = 1;</code>
      * @param value The bytes for referenceName to set.
      * @return This builder for chaining.
@@ -561,6 +602,11 @@ private static final long serialVersionUID = 0L;
 
     private int referencePrimaryKey_ ;
     /**
+     * <pre>
+     * Primary key of the referenced entity. Might be also any integer that uniquely identifies some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>int32 referencePrimaryKey = 2;</code>
      * @return The referencePrimaryKey.
      */
@@ -569,6 +615,11 @@ private static final long serialVersionUID = 0L;
       return referencePrimaryKey_;
     }
     /**
+     * <pre>
+     * Primary key of the referenced entity. Might be also any integer that uniquely identifies some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>int32 referencePrimaryKey = 2;</code>
      * @param value The referencePrimaryKey to set.
      * @return This builder for chaining.
@@ -580,6 +631,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Primary key of the referenced entity. Might be also any integer that uniquely identifies some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>int32 referencePrimaryKey = 2;</code>
      * @return This builder for chaining.
      */

@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Mutation is responsible for removing one or more modes from a `EntitySchema.evolutionMode` in `EntitySchema`.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDisallowEvolutionModeInEntitySchemaMutation}
  */
 public final class GrpcDisallowEvolutionModeInEntitySchemaMutation extends
@@ -144,6 +148,12 @@ private static final long serialVersionUID = 0L;
             }
           };
   /**
+   * <pre>
+   * Set of forbidden evolution modes. These allow to specify how strict is evitaDB when unknown information is
+   * presented to her for the first time. When no evolution mode is set, each violation of the `EntitySchema` is
+   * reported by an error. This behaviour can be changed by this evolution mode, however.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode evolutionModes = 1;</code>
    * @return A list containing the evolutionModes.
    */
@@ -153,6 +163,12 @@ private static final long serialVersionUID = 0L;
         java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode>(evolutionModes_, evolutionModes_converter_);
   }
   /**
+   * <pre>
+   * Set of forbidden evolution modes. These allow to specify how strict is evitaDB when unknown information is
+   * presented to her for the first time. When no evolution mode is set, each violation of the `EntitySchema` is
+   * reported by an error. This behaviour can be changed by this evolution mode, however.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode evolutionModes = 1;</code>
    * @return The count of evolutionModes.
    */
@@ -161,6 +177,12 @@ private static final long serialVersionUID = 0L;
     return evolutionModes_.size();
   }
   /**
+   * <pre>
+   * Set of forbidden evolution modes. These allow to specify how strict is evitaDB when unknown information is
+   * presented to her for the first time. When no evolution mode is set, each violation of the `EntitySchema` is
+   * reported by an error. This behaviour can be changed by this evolution mode, however.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode evolutionModes = 1;</code>
    * @param index The index of the element to return.
    * @return The evolutionModes at the given index.
@@ -170,6 +192,12 @@ private static final long serialVersionUID = 0L;
     return evolutionModes_converter_.convert(evolutionModes_.get(index));
   }
   /**
+   * <pre>
+   * Set of forbidden evolution modes. These allow to specify how strict is evitaDB when unknown information is
+   * presented to her for the first time. When no evolution mode is set, each violation of the `EntitySchema` is
+   * reported by an error. This behaviour can be changed by this evolution mode, however.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode evolutionModes = 1;</code>
    * @return A list containing the enum numeric values on the wire for evolutionModes.
    */
@@ -179,6 +207,12 @@ private static final long serialVersionUID = 0L;
     return evolutionModes_;
   }
   /**
+   * <pre>
+   * Set of forbidden evolution modes. These allow to specify how strict is evitaDB when unknown information is
+   * presented to her for the first time. When no evolution mode is set, each violation of the `EntitySchema` is
+   * reported by an error. This behaviour can be changed by this evolution mode, however.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode evolutionModes = 1;</code>
    * @param index The index of the value to return.
    * @return The enum numeric value on the wire of evolutionModes at the given index.
@@ -359,6 +393,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Mutation is responsible for removing one or more modes from a `EntitySchema.evolutionMode` in `EntitySchema`.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDisallowEvolutionModeInEntitySchemaMutation}
    */
   public static final class Builder extends
@@ -527,6 +565,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Set of forbidden evolution modes. These allow to specify how strict is evitaDB when unknown information is
+     * presented to her for the first time. When no evolution mode is set, each violation of the `EntitySchema` is
+     * reported by an error. This behaviour can be changed by this evolution mode, however.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode evolutionModes = 1;</code>
      * @return A list containing the evolutionModes.
      */
@@ -535,6 +579,12 @@ private static final long serialVersionUID = 0L;
           java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode>(evolutionModes_, evolutionModes_converter_);
     }
     /**
+     * <pre>
+     * Set of forbidden evolution modes. These allow to specify how strict is evitaDB when unknown information is
+     * presented to her for the first time. When no evolution mode is set, each violation of the `EntitySchema` is
+     * reported by an error. This behaviour can be changed by this evolution mode, however.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode evolutionModes = 1;</code>
      * @return The count of evolutionModes.
      */
@@ -542,6 +592,12 @@ private static final long serialVersionUID = 0L;
       return evolutionModes_.size();
     }
     /**
+     * <pre>
+     * Set of forbidden evolution modes. These allow to specify how strict is evitaDB when unknown information is
+     * presented to her for the first time. When no evolution mode is set, each violation of the `EntitySchema` is
+     * reported by an error. This behaviour can be changed by this evolution mode, however.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode evolutionModes = 1;</code>
      * @param index The index of the element to return.
      * @return The evolutionModes at the given index.
@@ -550,6 +606,12 @@ private static final long serialVersionUID = 0L;
       return evolutionModes_converter_.convert(evolutionModes_.get(index));
     }
     /**
+     * <pre>
+     * Set of forbidden evolution modes. These allow to specify how strict is evitaDB when unknown information is
+     * presented to her for the first time. When no evolution mode is set, each violation of the `EntitySchema` is
+     * reported by an error. This behaviour can be changed by this evolution mode, however.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode evolutionModes = 1;</code>
      * @param index The index to set the value at.
      * @param value The evolutionModes to set.
@@ -566,6 +628,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set of forbidden evolution modes. These allow to specify how strict is evitaDB when unknown information is
+     * presented to her for the first time. When no evolution mode is set, each violation of the `EntitySchema` is
+     * reported by an error. This behaviour can be changed by this evolution mode, however.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode evolutionModes = 1;</code>
      * @param value The evolutionModes to add.
      * @return This builder for chaining.
@@ -580,6 +648,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set of forbidden evolution modes. These allow to specify how strict is evitaDB when unknown information is
+     * presented to her for the first time. When no evolution mode is set, each violation of the `EntitySchema` is
+     * reported by an error. This behaviour can be changed by this evolution mode, however.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode evolutionModes = 1;</code>
      * @param values The evolutionModes to add.
      * @return This builder for chaining.
@@ -594,6 +668,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set of forbidden evolution modes. These allow to specify how strict is evitaDB when unknown information is
+     * presented to her for the first time. When no evolution mode is set, each violation of the `EntitySchema` is
+     * reported by an error. This behaviour can be changed by this evolution mode, however.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode evolutionModes = 1;</code>
      * @return This builder for chaining.
      */
@@ -604,6 +684,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set of forbidden evolution modes. These allow to specify how strict is evitaDB when unknown information is
+     * presented to her for the first time. When no evolution mode is set, each violation of the `EntitySchema` is
+     * reported by an error. This behaviour can be changed by this evolution mode, however.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode evolutionModes = 1;</code>
      * @return A list containing the enum numeric values on the wire for evolutionModes.
      */
@@ -612,6 +698,12 @@ private static final long serialVersionUID = 0L;
       return java.util.Collections.unmodifiableList(evolutionModes_);
     }
     /**
+     * <pre>
+     * Set of forbidden evolution modes. These allow to specify how strict is evitaDB when unknown information is
+     * presented to her for the first time. When no evolution mode is set, each violation of the `EntitySchema` is
+     * reported by an error. This behaviour can be changed by this evolution mode, however.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode evolutionModes = 1;</code>
      * @param index The index of the value to return.
      * @return The enum numeric value on the wire of evolutionModes at the given index.
@@ -620,6 +712,12 @@ private static final long serialVersionUID = 0L;
       return evolutionModes_.get(index);
     }
     /**
+     * <pre>
+     * Set of forbidden evolution modes. These allow to specify how strict is evitaDB when unknown information is
+     * presented to her for the first time. When no evolution mode is set, each violation of the `EntitySchema` is
+     * reported by an error. This behaviour can be changed by this evolution mode, however.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode evolutionModes = 1;</code>
      * @param index The index of the value to return.
      * @return The enum numeric value on the wire of evolutionModes at the given index.
@@ -633,6 +731,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set of forbidden evolution modes. These allow to specify how strict is evitaDB when unknown information is
+     * presented to her for the first time. When no evolution mode is set, each violation of the `EntitySchema` is
+     * reported by an error. This behaviour can be changed by this evolution mode, however.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode evolutionModes = 1;</code>
      * @param value The enum numeric value on the wire for evolutionModes to add.
      * @return This builder for chaining.
@@ -644,6 +748,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set of forbidden evolution modes. These allow to specify how strict is evitaDB when unknown information is
+     * presented to her for the first time. When no evolution mode is set, each violation of the `EntitySchema` is
+     * reported by an error. This behaviour can be changed by this evolution mode, however.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode evolutionModes = 1;</code>
      * @param values The enum numeric values on the wire for evolutionModes to add.
      * @return This builder for chaining.

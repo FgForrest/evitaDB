@@ -27,15 +27,27 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Used in order constraints to specify ordering direction.
+ * </pre>
+ *
  * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcOrderDirection}
  */
 public enum GrpcOrderDirection
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
+   * <pre>
+   * Ascending order.
+   * </pre>
+   *
    * <code>ASC = 0;</code>
    */
   ASC(0),
   /**
+   * <pre>
+   * Descending order.
+   * </pre>
+   *
    * <code>DESC = 1;</code>
    */
   DESC(1),
@@ -43,10 +55,18 @@ public enum GrpcOrderDirection
   ;
 
   /**
+   * <pre>
+   * Ascending order.
+   * </pre>
+   *
    * <code>ASC = 0;</code>
    */
   public static final int ASC_VALUE = 0;
   /**
+   * <pre>
+   * Descending order.
+   * </pre>
+   *
    * <code>DESC = 1;</code>
    */
   public static final int DESC_VALUE = 1;

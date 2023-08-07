@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * This DTO contains information about single facet statistics of the entities that are present in the response.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics}
  */
 public final class GrpcFacetStatistics extends
@@ -168,6 +172,10 @@ private static final long serialVersionUID = 0L;
   public static final int FACETENTITYREFERENCE_FIELD_NUMBER = 1;
   private io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference_;
   /**
+   * <pre>
+   * Contains referenced entity reference representing.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference = 1;</code>
    * @return Whether the facetEntityReference field is set.
    */
@@ -176,6 +184,10 @@ private static final long serialVersionUID = 0L;
     return facetEntityReference_ != null;
   }
   /**
+   * <pre>
+   * Contains referenced entity reference representing.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference = 1;</code>
    * @return The facetEntityReference.
    */
@@ -184,6 +196,10 @@ private static final long serialVersionUID = 0L;
     return facetEntityReference_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance() : facetEntityReference_;
   }
   /**
+   * <pre>
+   * Contains referenced entity reference representing.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference = 1;</code>
    */
   @java.lang.Override
@@ -194,6 +210,10 @@ private static final long serialVersionUID = 0L;
   public static final int FACETENTITY_FIELD_NUMBER = 2;
   private io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity_;
   /**
+   * <pre>
+   * Contains referenced entity representing.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity = 2;</code>
    * @return Whether the facetEntity field is set.
    */
@@ -202,6 +222,10 @@ private static final long serialVersionUID = 0L;
     return facetEntity_ != null;
   }
   /**
+   * <pre>
+   * Contains referenced entity representing.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity = 2;</code>
    * @return The facetEntity.
    */
@@ -210,6 +234,10 @@ private static final long serialVersionUID = 0L;
     return facetEntity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : facetEntity_;
   }
   /**
+   * <pre>
+   * Contains referenced entity representing.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity = 2;</code>
    */
   @java.lang.Override
@@ -220,6 +248,10 @@ private static final long serialVersionUID = 0L;
   public static final int REQUESTED_FIELD_NUMBER = 3;
   private boolean requested_;
   /**
+   * <pre>
+   * Contains TRUE if the facet was part of the query filtering constraints.
+   * </pre>
+   *
    * <code>bool requested = 3;</code>
    * @return The requested.
    */
@@ -231,6 +263,10 @@ private static final long serialVersionUID = 0L;
   public static final int COUNT_FIELD_NUMBER = 4;
   private int count_;
   /**
+   * <pre>
+   * Contains number of distinct entities in the response that possess of this reference.
+   * </pre>
+   *
    * <code>int32 count = 4;</code>
    * @return The count.
    */
@@ -242,6 +278,11 @@ private static final long serialVersionUID = 0L;
   public static final int IMPACT_FIELD_NUMBER = 5;
   private com.google.protobuf.Int32Value impact_;
   /**
+   * <pre>
+   * This field is not null only when this facet is not requested.
+   * Contains projected impact on the current response if this facet is also requested in filtering constraints.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value impact = 5;</code>
    * @return Whether the impact field is set.
    */
@@ -250,6 +291,11 @@ private static final long serialVersionUID = 0L;
     return impact_ != null;
   }
   /**
+   * <pre>
+   * This field is not null only when this facet is not requested.
+   * Contains projected impact on the current response if this facet is also requested in filtering constraints.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value impact = 5;</code>
    * @return The impact.
    */
@@ -258,6 +304,11 @@ private static final long serialVersionUID = 0L;
     return impact_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : impact_;
   }
   /**
+   * <pre>
+   * This field is not null only when this facet is not requested.
+   * Contains projected impact on the current response if this facet is also requested in filtering constraints.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value impact = 5;</code>
    */
   @java.lang.Override
@@ -268,6 +319,10 @@ private static final long serialVersionUID = 0L;
   public static final int MATCHCOUNT_FIELD_NUMBER = 6;
   private com.google.protobuf.Int32Value matchCount_;
   /**
+   * <pre>
+   * Projected number of filtered entities if the query is altered by adding this facet to filtering constraint.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value matchCount = 6;</code>
    * @return Whether the matchCount field is set.
    */
@@ -276,6 +331,10 @@ private static final long serialVersionUID = 0L;
     return matchCount_ != null;
   }
   /**
+   * <pre>
+   * Projected number of filtered entities if the query is altered by adding this facet to filtering constraint.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value matchCount = 6;</code>
    * @return The matchCount.
    */
@@ -284,6 +343,10 @@ private static final long serialVersionUID = 0L;
     return matchCount_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : matchCount_;
   }
   /**
+   * <pre>
+   * Projected number of filtered entities if the query is altered by adding this facet to filtering constraint.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value matchCount = 6;</code>
    */
   @java.lang.Override
@@ -523,6 +586,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * This DTO contains information about single facet statistics of the entities that are present in the response.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics}
    */
   public static final class Builder extends
@@ -735,6 +802,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> facetEntityReferenceBuilder_;
     /**
+     * <pre>
+     * Contains referenced entity reference representing.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference = 1;</code>
      * @return Whether the facetEntityReference field is set.
      */
@@ -742,6 +813,10 @@ private static final long serialVersionUID = 0L;
       return facetEntityReferenceBuilder_ != null || facetEntityReference_ != null;
     }
     /**
+     * <pre>
+     * Contains referenced entity reference representing.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference = 1;</code>
      * @return The facetEntityReference.
      */
@@ -753,6 +828,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains referenced entity reference representing.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference = 1;</code>
      */
     public Builder setFacetEntityReference(io.evitadb.externalApi.grpc.generated.GrpcEntityReference value) {
@@ -769,6 +848,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains referenced entity reference representing.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference = 1;</code>
      */
     public Builder setFacetEntityReference(
@@ -783,6 +866,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains referenced entity reference representing.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference = 1;</code>
      */
     public Builder mergeFacetEntityReference(io.evitadb.externalApi.grpc.generated.GrpcEntityReference value) {
@@ -801,6 +888,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains referenced entity reference representing.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference = 1;</code>
      */
     public Builder clearFacetEntityReference() {
@@ -815,6 +906,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains referenced entity reference representing.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder getFacetEntityReferenceBuilder() {
@@ -823,6 +918,10 @@ private static final long serialVersionUID = 0L;
       return getFacetEntityReferenceFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Contains referenced entity reference representing.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder getFacetEntityReferenceOrBuilder() {
@@ -834,6 +933,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains referenced entity reference representing.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -854,6 +957,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> facetEntityBuilder_;
     /**
+     * <pre>
+     * Contains referenced entity representing.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity = 2;</code>
      * @return Whether the facetEntity field is set.
      */
@@ -861,6 +968,10 @@ private static final long serialVersionUID = 0L;
       return facetEntityBuilder_ != null || facetEntity_ != null;
     }
     /**
+     * <pre>
+     * Contains referenced entity representing.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity = 2;</code>
      * @return The facetEntity.
      */
@@ -872,6 +983,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains referenced entity representing.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity = 2;</code>
      */
     public Builder setFacetEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
@@ -888,6 +1003,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains referenced entity representing.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity = 2;</code>
      */
     public Builder setFacetEntity(
@@ -902,6 +1021,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains referenced entity representing.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity = 2;</code>
      */
     public Builder mergeFacetEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
@@ -920,6 +1043,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains referenced entity representing.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity = 2;</code>
      */
     public Builder clearFacetEntity() {
@@ -934,6 +1061,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains referenced entity representing.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder getFacetEntityBuilder() {
@@ -942,6 +1073,10 @@ private static final long serialVersionUID = 0L;
       return getFacetEntityFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Contains referenced entity representing.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getFacetEntityOrBuilder() {
@@ -953,6 +1088,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains referenced entity representing.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -971,6 +1110,10 @@ private static final long serialVersionUID = 0L;
 
     private boolean requested_ ;
     /**
+     * <pre>
+     * Contains TRUE if the facet was part of the query filtering constraints.
+     * </pre>
+     *
      * <code>bool requested = 3;</code>
      * @return The requested.
      */
@@ -979,6 +1122,10 @@ private static final long serialVersionUID = 0L;
       return requested_;
     }
     /**
+     * <pre>
+     * Contains TRUE if the facet was part of the query filtering constraints.
+     * </pre>
+     *
      * <code>bool requested = 3;</code>
      * @param value The requested to set.
      * @return This builder for chaining.
@@ -990,6 +1137,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains TRUE if the facet was part of the query filtering constraints.
+     * </pre>
+     *
      * <code>bool requested = 3;</code>
      * @return This builder for chaining.
      */
@@ -1002,6 +1153,10 @@ private static final long serialVersionUID = 0L;
 
     private int count_ ;
     /**
+     * <pre>
+     * Contains number of distinct entities in the response that possess of this reference.
+     * </pre>
+     *
      * <code>int32 count = 4;</code>
      * @return The count.
      */
@@ -1010,6 +1165,10 @@ private static final long serialVersionUID = 0L;
       return count_;
     }
     /**
+     * <pre>
+     * Contains number of distinct entities in the response that possess of this reference.
+     * </pre>
+     *
      * <code>int32 count = 4;</code>
      * @param value The count to set.
      * @return This builder for chaining.
@@ -1021,6 +1180,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains number of distinct entities in the response that possess of this reference.
+     * </pre>
+     *
      * <code>int32 count = 4;</code>
      * @return This builder for chaining.
      */
@@ -1035,6 +1198,11 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> impactBuilder_;
     /**
+     * <pre>
+     * This field is not null only when this facet is not requested.
+     * Contains projected impact on the current response if this facet is also requested in filtering constraints.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value impact = 5;</code>
      * @return Whether the impact field is set.
      */
@@ -1042,6 +1210,11 @@ private static final long serialVersionUID = 0L;
       return impactBuilder_ != null || impact_ != null;
     }
     /**
+     * <pre>
+     * This field is not null only when this facet is not requested.
+     * Contains projected impact on the current response if this facet is also requested in filtering constraints.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value impact = 5;</code>
      * @return The impact.
      */
@@ -1053,6 +1226,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * This field is not null only when this facet is not requested.
+     * Contains projected impact on the current response if this facet is also requested in filtering constraints.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value impact = 5;</code>
      */
     public Builder setImpact(com.google.protobuf.Int32Value value) {
@@ -1069,6 +1247,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * This field is not null only when this facet is not requested.
+     * Contains projected impact on the current response if this facet is also requested in filtering constraints.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value impact = 5;</code>
      */
     public Builder setImpact(
@@ -1083,6 +1266,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * This field is not null only when this facet is not requested.
+     * Contains projected impact on the current response if this facet is also requested in filtering constraints.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value impact = 5;</code>
      */
     public Builder mergeImpact(com.google.protobuf.Int32Value value) {
@@ -1101,6 +1289,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * This field is not null only when this facet is not requested.
+     * Contains projected impact on the current response if this facet is also requested in filtering constraints.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value impact = 5;</code>
      */
     public Builder clearImpact() {
@@ -1115,6 +1308,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * This field is not null only when this facet is not requested.
+     * Contains projected impact on the current response if this facet is also requested in filtering constraints.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value impact = 5;</code>
      */
     public com.google.protobuf.Int32Value.Builder getImpactBuilder() {
@@ -1123,6 +1321,11 @@ private static final long serialVersionUID = 0L;
       return getImpactFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * This field is not null only when this facet is not requested.
+     * Contains projected impact on the current response if this facet is also requested in filtering constraints.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value impact = 5;</code>
      */
     public com.google.protobuf.Int32ValueOrBuilder getImpactOrBuilder() {
@@ -1134,6 +1337,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * This field is not null only when this facet is not requested.
+     * Contains projected impact on the current response if this facet is also requested in filtering constraints.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value impact = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1154,6 +1362,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> matchCountBuilder_;
     /**
+     * <pre>
+     * Projected number of filtered entities if the query is altered by adding this facet to filtering constraint.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value matchCount = 6;</code>
      * @return Whether the matchCount field is set.
      */
@@ -1161,6 +1373,10 @@ private static final long serialVersionUID = 0L;
       return matchCountBuilder_ != null || matchCount_ != null;
     }
     /**
+     * <pre>
+     * Projected number of filtered entities if the query is altered by adding this facet to filtering constraint.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value matchCount = 6;</code>
      * @return The matchCount.
      */
@@ -1172,6 +1388,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Projected number of filtered entities if the query is altered by adding this facet to filtering constraint.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value matchCount = 6;</code>
      */
     public Builder setMatchCount(com.google.protobuf.Int32Value value) {
@@ -1188,6 +1408,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Projected number of filtered entities if the query is altered by adding this facet to filtering constraint.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value matchCount = 6;</code>
      */
     public Builder setMatchCount(
@@ -1202,6 +1426,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Projected number of filtered entities if the query is altered by adding this facet to filtering constraint.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value matchCount = 6;</code>
      */
     public Builder mergeMatchCount(com.google.protobuf.Int32Value value) {
@@ -1220,6 +1448,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Projected number of filtered entities if the query is altered by adding this facet to filtering constraint.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value matchCount = 6;</code>
      */
     public Builder clearMatchCount() {
@@ -1234,6 +1466,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Projected number of filtered entities if the query is altered by adding this facet to filtering constraint.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value matchCount = 6;</code>
      */
     public com.google.protobuf.Int32Value.Builder getMatchCountBuilder() {
@@ -1242,6 +1478,10 @@ private static final long serialVersionUID = 0L;
       return getMatchCountFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Projected number of filtered entities if the query is altered by adding this facet to filtering constraint.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value matchCount = 6;</code>
      */
     public com.google.protobuf.Int32ValueOrBuilder getMatchCountOrBuilder() {
@@ -1253,6 +1493,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Projected number of filtered entities if the query is altered by adding this facet to filtering constraint.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value matchCount = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

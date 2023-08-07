@@ -31,11 +31,19 @@ public interface GrpcModifyReferenceSchemaRelatedEntityMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the reference the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
   java.lang.String getName();
   /**
+   * <pre>
+   * Name of the reference the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -43,11 +51,21 @@ public interface GrpcModifyReferenceSchemaRelatedEntityMutationOrBuilder extends
       getNameBytes();
 
   /**
+   * <pre>
+   * Reference to `EntitySchema.name` of the referenced entity. Might be also any `String`
+   * that identifies type some external resource not maintained by Evita.
+   * </pre>
+   *
    * <code>string referencedEntityType = 2;</code>
    * @return The referencedEntityType.
    */
   java.lang.String getReferencedEntityType();
   /**
+   * <pre>
+   * Reference to `EntitySchema.name` of the referenced entity. Might be also any `String`
+   * that identifies type some external resource not maintained by Evita.
+   * </pre>
+   *
    * <code>string referencedEntityType = 2;</code>
    * @return The bytes for referencedEntityType.
    */
@@ -55,6 +73,10 @@ public interface GrpcModifyReferenceSchemaRelatedEntityMutationOrBuilder extends
       getReferencedEntityTypeBytes();
 
   /**
+   * <pre>
+   * Whether `referencedEntityType` refers to any existing `EntitySchema.name` that is maintained by Evita.
+   * </pre>
+   *
    * <code>bool referencedEntityTypeManaged = 3;</code>
    * @return The referencedEntityTypeManaged.
    */

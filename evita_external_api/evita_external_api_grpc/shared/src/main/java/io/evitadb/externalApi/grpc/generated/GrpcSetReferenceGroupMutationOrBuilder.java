@@ -31,11 +31,19 @@ public interface GrpcSetReferenceGroupMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Unique identifier of the reference.
+   * </pre>
+   *
    * <code>string referenceName = 1;</code>
    * @return The referenceName.
    */
   java.lang.String getReferenceName();
   /**
+   * <pre>
+   * Unique identifier of the reference.
+   * </pre>
+   *
    * <code>string referenceName = 1;</code>
    * @return The bytes for referenceName.
    */
@@ -43,27 +51,52 @@ public interface GrpcSetReferenceGroupMutationOrBuilder extends
       getReferenceNameBytes();
 
   /**
+   * <pre>
+   * Primary key of the referenced entity. Might be also any integer that uniquely identifies some external
+   * resource not maintained by Evita.
+   * </pre>
+   *
    * <code>int32 referencePrimaryKey = 2;</code>
    * @return The referencePrimaryKey.
    */
   int getReferencePrimaryKey();
 
   /**
+   * <pre>
+   * Type of the referenced entity representing group. Might be also any `String` that identifies type in some external
+   * resource not maintained by Evita.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue groupType = 3;</code>
    * @return Whether the groupType field is set.
    */
   boolean hasGroupType();
   /**
+   * <pre>
+   * Type of the referenced entity representing group. Might be also any `String` that identifies type in some external
+   * resource not maintained by Evita.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue groupType = 3;</code>
    * @return The groupType.
    */
   com.google.protobuf.StringValue getGroupType();
   /**
+   * <pre>
+   * Type of the referenced entity representing group. Might be also any `String` that identifies type in some external
+   * resource not maintained by Evita.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue groupType = 3;</code>
    */
   com.google.protobuf.StringValueOrBuilder getGroupTypeOrBuilder();
 
   /**
+   * <pre>
+   * Primary key of the referenced entity representing group. Might be also any integer that uniquely identifies
+   * some external resource not maintained by Evita.
+   * </pre>
+   *
    * <code>int32 groupPrimaryKey = 4;</code>
    * @return The groupPrimaryKey.
    */

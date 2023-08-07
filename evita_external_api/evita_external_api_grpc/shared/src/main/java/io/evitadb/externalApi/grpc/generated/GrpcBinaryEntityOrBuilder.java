@@ -31,11 +31,23 @@ public interface GrpcBinaryEntityOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Type of entity.
+   * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+   * entity type entity is uniquely represented by primary key.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The entityType.
    */
   java.lang.String getEntityType();
   /**
+   * <pre>
+   * Type of entity.
+   * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+   * entity type entity is uniquely represented by primary key.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The bytes for entityType.
    */
@@ -43,65 +55,111 @@ public interface GrpcBinaryEntityOrBuilder extends
       getEntityTypeBytes();
 
   /**
+   * <pre>
+   * Unique Integer positive number representing the entity. Can be used for fast lookup for
+   * entity (entities). Primary key must be unique within the same entity type.
+   * </pre>
+   *
    * <code>int32 primaryKey = 2;</code>
    * @return The primaryKey.
    */
   int getPrimaryKey();
 
   /**
-   * <code>int32 schemaVersion = 4;</code>
+   * <pre>
+   * Contains version of this entity schema and gets increased with any entity type update. Allows to execute
+   * optimistic locking i.e. avoiding parallel modifications.
+   * </pre>
+   *
+   * <code>int32 schemaVersion = 3;</code>
    * @return The schemaVersion.
    */
   int getSchemaVersion();
 
   /**
-   * <code>bytes entityStoragePart = 5;</code>
+   * <pre>
+   * Serialized representation of the entity body.
+   * </pre>
+   *
+   * <code>bytes entityStoragePart = 4;</code>
    * @return The entityStoragePart.
    */
   com.google.protobuf.ByteString getEntityStoragePart();
 
   /**
-   * <code>repeated bytes attributeStorageParts = 6;</code>
+   * <pre>
+   * Serialized representation of entity attributes.
+   * </pre>
+   *
+   * <code>repeated bytes attributeStorageParts = 5;</code>
    * @return A list containing the attributeStorageParts.
    */
   java.util.List<com.google.protobuf.ByteString> getAttributeStoragePartsList();
   /**
-   * <code>repeated bytes attributeStorageParts = 6;</code>
+   * <pre>
+   * Serialized representation of entity attributes.
+   * </pre>
+   *
+   * <code>repeated bytes attributeStorageParts = 5;</code>
    * @return The count of attributeStorageParts.
    */
   int getAttributeStoragePartsCount();
   /**
-   * <code>repeated bytes attributeStorageParts = 6;</code>
+   * <pre>
+   * Serialized representation of entity attributes.
+   * </pre>
+   *
+   * <code>repeated bytes attributeStorageParts = 5;</code>
    * @param index The index of the element to return.
    * @return The attributeStorageParts at the given index.
    */
   com.google.protobuf.ByteString getAttributeStorageParts(int index);
 
   /**
-   * <code>repeated bytes associatedDataStorageParts = 7;</code>
+   * <pre>
+   * Serialized representation of entity associated data.
+   * </pre>
+   *
+   * <code>repeated bytes associatedDataStorageParts = 6;</code>
    * @return A list containing the associatedDataStorageParts.
    */
   java.util.List<com.google.protobuf.ByteString> getAssociatedDataStoragePartsList();
   /**
-   * <code>repeated bytes associatedDataStorageParts = 7;</code>
+   * <pre>
+   * Serialized representation of entity associated data.
+   * </pre>
+   *
+   * <code>repeated bytes associatedDataStorageParts = 6;</code>
    * @return The count of associatedDataStorageParts.
    */
   int getAssociatedDataStoragePartsCount();
   /**
-   * <code>repeated bytes associatedDataStorageParts = 7;</code>
+   * <pre>
+   * Serialized representation of entity associated data.
+   * </pre>
+   *
+   * <code>repeated bytes associatedDataStorageParts = 6;</code>
    * @param index The index of the element to return.
    * @return The associatedDataStorageParts at the given index.
    */
   com.google.protobuf.ByteString getAssociatedDataStorageParts(int index);
 
   /**
-   * <code>bytes priceStoragePart = 8;</code>
+   * <pre>
+   * Serialized representation of entity prices.
+   * </pre>
+   *
+   * <code>bytes priceStoragePart = 7;</code>
    * @return The priceStoragePart.
    */
   com.google.protobuf.ByteString getPriceStoragePart();
 
   /**
-   * <code>bytes referenceStoragePart = 9;</code>
+   * <pre>
+   * Serialized representation of entity references.
+   * </pre>
+   *
+   * <code>bytes referenceStoragePart = 8;</code>
    * @return The referenceStoragePart.
    */
   com.google.protobuf.ByteString getReferenceStoragePart();

@@ -2,30 +2,86 @@ syntax = "proto3";
 
 package io.evitadb.externalApi.grpc.generated;
 option java_multiple_files = true;
+option csharp_namespace = "EvitaDB";
 
 import "GrpcEnums.proto";
 import "GrpcEvitaDataTypes.proto";
 import "google/protobuf/wrappers.proto";
 
 message GrpcCatalogSchema {
+  // Contains unique name of the catalog. Case-sensitive. Distinguishes one catalog item from another
+  // within single entity instance.
   string name = 1;
+  // Contains version of this catalog schema and gets increased with any entity type update. Allows to execute
+  // optimistic locking i.e. avoiding parallel modifications.
   int32 version = 2;
+  // Contains description of the model is optional but helps authors of the schema / client API to better
+  // explain the original purpose of the model to the consumers.
   google.protobuf.StringValue description = 3;
   repeated GrpcCatalogEvolutionMode catalogEvolutionMode = 4;
+  // Contains index of generally (catalog-wide) shared `AttributeSchema` that could be used as attributes of any
+  // entity type that refers them. These attributes cannot be changed from within the entity schema. Entity schemas
+  // will not be able to define their own attribute of same name that would clash with the global one (they may only
+  // reference the attributes with the same name from the catalog schema).
+  //
+  // There may be entities that won't take advantage of certain global attributes (i.e. it's not guaranteed that all
+  // entity types in catalog have all global attributes).
+  //
+  // The "catalog-wide" unique attributes allows Evita to fetch entity of any (and up-front unknown) entity type by
+  // some unique attribute value - usually URL.
   map<string, GrpcGlobalAttributeSchema> attributes = 5;
 }
 
+// This is the definition object for attributes that are stored along with
+// catalog. Definition objects allow to describe the structure of the catalog so that
+// in any time everyone can consult complete structure of the catalog. Definition object is similar to Java reflection
+// process where you can also at any moment see which fields and methods are available for the class.
+//
+// Catalog attributes allows defining set of data that are fetched in bulk along with the catalog body.
+// Attributes may be indexed for fast filtering or can be used to sort along. Attributes are not automatically indexed
+// in order not to waste precious memory space for data that will never be used in search queries.
+//
+// Filtering in attributes is executed by using constraints like `and`, `or`, `not`. Sorting can be achieved with
+// `attributeNatural` or others.
+//
+// Attributes are not recommended for bigger data as they are all loaded at once when requested.
 message GrpcGlobalAttributeSchema {
   string name = 1;
   google.protobuf.StringValue description = 2;
   google.protobuf.StringValue deprecationNotice = 3;
+  // When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+  // having certain value of this attribute among other entities in the same collection.
+  //
+  // As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+  // better to have this ensured by the database engine.
   bool unique = 4;
+  // When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+  // as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+  // (memory/disk) space in the form of index.
+  //
+  // When attribute is filterable, extra result `attributeHistogram`
+  // can be requested for this attribute.
   bool filterable = 5;
+  // When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+  // as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+  // (memory/disk) space in the form of index..
   bool sortable = 6;
+  // When attribute is localized, it has to be ALWAYS used in connection with specific `Locale`.
   bool localized = 7;
+  // When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+  // non-null checks upon upserting of the entity.
   bool nullable = 8;
+  // Data type of the attribute. Must be one of Evita-supported values.
+  // Internally the scalar is converted into Java-corresponding data type.
   GrpcEvitaDataType type = 9;
+  // Default value is used when the entity is created without this attribute specified. Default values allow to pass
+  // non-null checks even if no attributes of such name are specified.
   GrpcEvitaValue defaultValue = 10;
   int32 indexedDecimalPlaces = 11;
+  // When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+  // entity having certain value of this attribute in entire catalog.
+  //
+  // As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
+  // better to have this ensured by the database engine.
   bool uniqueGlobally = 12;
 }

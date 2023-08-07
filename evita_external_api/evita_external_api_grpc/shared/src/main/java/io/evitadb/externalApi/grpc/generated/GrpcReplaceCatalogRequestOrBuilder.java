@@ -31,11 +31,19 @@ public interface GrpcReplaceCatalogRequestOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the catalog that will become the successor of the original catalog (old name)
+   * </pre>
+   *
    * <code>string catalogNameToBeReplacedWith = 1;</code>
    * @return The catalogNameToBeReplacedWith.
    */
   java.lang.String getCatalogNameToBeReplacedWith();
   /**
+   * <pre>
+   * Name of the catalog that will become the successor of the original catalog (old name)
+   * </pre>
+   *
    * <code>string catalogNameToBeReplacedWith = 1;</code>
    * @return The bytes for catalogNameToBeReplacedWith.
    */
@@ -43,11 +51,19 @@ public interface GrpcReplaceCatalogRequestOrBuilder extends
       getCatalogNameToBeReplacedWithBytes();
 
   /**
+   * <pre>
+   * Name of the catalog that will be replaced and dropped (new name)
+   * </pre>
+   *
    * <code>string catalogNameToBeReplaced = 2;</code>
    * @return The catalogNameToBeReplaced.
    */
   java.lang.String getCatalogNameToBeReplaced();
   /**
+   * <pre>
+   * Name of the catalog that will be replaced and dropped (new name)
+   * </pre>
+   *
    * <code>string catalogNameToBeReplaced = 2;</code>
    * @return The bytes for catalogNameToBeReplaced.
    */

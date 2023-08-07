@@ -31,10 +31,22 @@ public interface GrpcLocalizedAttributeOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The map, where the key is the name of the attribute and the value is its value.
+   * The localization is held on the entity or the reference level respectively - specific language tag is used as a key
+   * of the outer map on the SealedEntity level.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; attributes = 1;</code>
    */
   int getAttributesCount();
   /**
+   * <pre>
+   * The map, where the key is the name of the attribute and the value is its value.
+   * The localization is held on the entity or the reference level respectively - specific language tag is used as a key
+   * of the outer map on the SealedEntity level.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; attributes = 1;</code>
    */
   boolean containsAttributes(
@@ -46,11 +58,23 @@ public interface GrpcLocalizedAttributeOrBuilder extends
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue>
   getAttributes();
   /**
+   * <pre>
+   * The map, where the key is the name of the attribute and the value is its value.
+   * The localization is held on the entity or the reference level respectively - specific language tag is used as a key
+   * of the outer map on the SealedEntity level.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; attributes = 1;</code>
    */
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue>
   getAttributesMap();
   /**
+   * <pre>
+   * The map, where the key is the name of the attribute and the value is its value.
+   * The localization is held on the entity or the reference level respectively - specific language tag is used as a key
+   * of the outer map on the SealedEntity level.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; attributes = 1;</code>
    */
 
@@ -58,6 +82,12 @@ public interface GrpcLocalizedAttributeOrBuilder extends
       java.lang.String key,
       io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue);
   /**
+   * <pre>
+   * The map, where the key is the name of the attribute and the value is its value.
+   * The localization is held on the entity or the reference level respectively - specific language tag is used as a key
+   * of the outer map on the SealedEntity level.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; attributes = 1;</code>
    */
 

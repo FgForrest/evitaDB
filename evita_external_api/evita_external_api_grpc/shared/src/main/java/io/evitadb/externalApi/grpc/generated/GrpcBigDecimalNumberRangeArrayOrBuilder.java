@@ -31,24 +31,44 @@ public interface GrpcBigDecimalNumberRangeArrayOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Value that supports storing a BigDecimalNumberRange array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange value = 1;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange> 
       getValueList();
   /**
+   * <pre>
+   * Value that supports storing a BigDecimalNumberRange array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange value = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange getValue(int index);
   /**
+   * <pre>
+   * Value that supports storing a BigDecimalNumberRange array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange value = 1;</code>
    */
   int getValueCount();
   /**
+   * <pre>
+   * Value that supports storing a BigDecimalNumberRange array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange value = 1;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeOrBuilder> 
       getValueOrBuilderList();
   /**
+   * <pre>
+   * Value that supports storing a BigDecimalNumberRange array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange value = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeOrBuilder getValueOrBuilder(

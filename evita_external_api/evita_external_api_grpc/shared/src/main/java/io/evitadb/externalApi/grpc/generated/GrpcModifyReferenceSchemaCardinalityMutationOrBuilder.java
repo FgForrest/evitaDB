@@ -31,11 +31,19 @@ public interface GrpcModifyReferenceSchemaCardinalityMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the reference the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
   java.lang.String getName();
   /**
+   * <pre>
+   * Name of the reference the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -43,11 +51,27 @@ public interface GrpcModifyReferenceSchemaCardinalityMutationOrBuilder extends
       getNameBytes();
 
   /**
+   * <pre>
+   * Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+   * relationship from the perspective of the entity. We stick to the ERD modelling
+   * [standards](https://www.gleek.io/blog/crows-foot-notation.html) here. Cardinality affect the design
+   * of the client API (returning only single reference or collections) and also help us to protect the consistency
+   * of the data so that conforms to the creator mental model.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality cardinality = 2;</code>
    * @return The enum numeric value on the wire for cardinality.
    */
   int getCardinalityValue();
   /**
+   * <pre>
+   * Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+   * relationship from the perspective of the entity. We stick to the ERD modelling
+   * [standards](https://www.gleek.io/blog/crows-foot-notation.html) here. Cardinality affect the design
+   * of the client API (returning only single reference or collections) and also help us to protect the consistency
+   * of the data so that conforms to the creator mental model.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality cardinality = 2;</code>
    * @return The cardinality.
    */

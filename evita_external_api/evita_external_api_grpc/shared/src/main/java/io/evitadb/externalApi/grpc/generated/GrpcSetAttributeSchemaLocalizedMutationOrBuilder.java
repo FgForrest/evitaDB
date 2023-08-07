@@ -31,11 +31,19 @@ public interface GrpcSetAttributeSchemaLocalizedMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the attribute the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
   java.lang.String getName();
   /**
+   * <pre>
+   * Name of the attribute the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -43,6 +51,11 @@ public interface GrpcSetAttributeSchemaLocalizedMutationOrBuilder extends
       getNameBytes();
 
   /**
+   * <pre>
+   * Localized attribute has to be ALWAYS used in connection with specific `locale`. In other
+   * words - it cannot be stored unless associated locale is also provided.
+   * </pre>
+   *
    * <code>bool localized = 2;</code>
    * @return The localized.
    */

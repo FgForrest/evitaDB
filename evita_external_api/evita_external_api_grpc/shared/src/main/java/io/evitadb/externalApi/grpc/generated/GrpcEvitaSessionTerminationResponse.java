@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Response to a session termination request.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationResponse}
  */
 public final class GrpcEvitaSessionTerminationResponse extends
@@ -111,6 +115,10 @@ private static final long serialVersionUID = 0L;
   public static final int TERMINATED_FIELD_NUMBER = 1;
   private boolean terminated_;
   /**
+   * <pre>
+   * Indicator whether the session was terminated successfully.
+   * </pre>
+   *
    * <code>bool terminated = 1;</code>
    * @return The terminated.
    */
@@ -276,6 +284,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Response to a session termination request.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationResponse}
    */
   public static final class Builder extends
@@ -424,6 +436,10 @@ private static final long serialVersionUID = 0L;
 
     private boolean terminated_ ;
     /**
+     * <pre>
+     * Indicator whether the session was terminated successfully.
+     * </pre>
+     *
      * <code>bool terminated = 1;</code>
      * @return The terminated.
      */
@@ -432,6 +448,10 @@ private static final long serialVersionUID = 0L;
       return terminated_;
     }
     /**
+     * <pre>
+     * Indicator whether the session was terminated successfully.
+     * </pre>
+     *
      * <code>bool terminated = 1;</code>
      * @param value The terminated to set.
      * @return This builder for chaining.
@@ -443,6 +463,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Indicator whether the session was terminated successfully.
+     * </pre>
+     *
      * <code>bool terminated = 1;</code>
      * @return This builder for chaining.
      */

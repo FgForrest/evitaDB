@@ -31,24 +31,44 @@ public interface GrpcAllowLocaleInEntitySchemaMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale> 
       getLocalesList();
   /**
+   * <pre>
+   * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocale getLocales(int index);
   /**
+   * <pre>
+   * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
    */
   int getLocalesCount();
   /**
+   * <pre>
+   * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
       getLocalesOrBuilderList();
   /**
+   * <pre>
+   * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder getLocalesOrBuilder(

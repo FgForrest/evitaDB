@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * This structure is used as a wrapper around the associated data map for the purpose of separation the global associated data from the localized.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData}
  */
 public final class GrpcLocalizedAssociatedData extends
@@ -156,6 +160,12 @@ private static final long serialVersionUID = 0L;
     return internalGetAssociatedData().getMap().size();
   }
   /**
+   * <pre>
+   * The map, where the key is the name of the associated data and the value is the associated data value.
+   * The localization is held on the entity level - specific language tag is used as a key of the outer map on the
+   * SealedEntity level.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; associatedData = 1;</code>
    */
 
@@ -174,6 +184,12 @@ private static final long serialVersionUID = 0L;
     return getAssociatedDataMap();
   }
   /**
+   * <pre>
+   * The map, where the key is the name of the associated data and the value is the associated data value.
+   * The localization is held on the entity level - specific language tag is used as a key of the outer map on the
+   * SealedEntity level.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; associatedData = 1;</code>
    */
   @java.lang.Override
@@ -182,6 +198,12 @@ private static final long serialVersionUID = 0L;
     return internalGetAssociatedData().getMap();
   }
   /**
+   * <pre>
+   * The map, where the key is the name of the associated data and the value is the associated data value.
+   * The localization is held on the entity level - specific language tag is used as a key of the outer map on the
+   * SealedEntity level.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; associatedData = 1;</code>
    */
   @java.lang.Override
@@ -195,6 +217,12 @@ private static final long serialVersionUID = 0L;
     return map.containsKey(key) ? map.get(key) : defaultValue;
   }
   /**
+   * <pre>
+   * The map, where the key is the name of the associated data and the value is the associated data value.
+   * The localization is held on the entity level - specific language tag is used as a key of the outer map on the
+   * SealedEntity level.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; associatedData = 1;</code>
    */
   @java.lang.Override
@@ -377,6 +405,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * This structure is used as a wrapper around the associated data map for the purpose of separation the global associated data from the localized.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData}
    */
   public static final class Builder extends
@@ -573,6 +605,12 @@ private static final long serialVersionUID = 0L;
       return internalGetAssociatedData().getMap().size();
     }
     /**
+     * <pre>
+     * The map, where the key is the name of the associated data and the value is the associated data value.
+     * The localization is held on the entity level - specific language tag is used as a key of the outer map on the
+     * SealedEntity level.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; associatedData = 1;</code>
      */
 
@@ -591,6 +629,12 @@ private static final long serialVersionUID = 0L;
       return getAssociatedDataMap();
     }
     /**
+     * <pre>
+     * The map, where the key is the name of the associated data and the value is the associated data value.
+     * The localization is held on the entity level - specific language tag is used as a key of the outer map on the
+     * SealedEntity level.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; associatedData = 1;</code>
      */
     @java.lang.Override
@@ -599,6 +643,12 @@ private static final long serialVersionUID = 0L;
       return internalGetAssociatedData().getMap();
     }
     /**
+     * <pre>
+     * The map, where the key is the name of the associated data and the value is the associated data value.
+     * The localization is held on the entity level - specific language tag is used as a key of the outer map on the
+     * SealedEntity level.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; associatedData = 1;</code>
      */
     @java.lang.Override
@@ -612,6 +662,12 @@ private static final long serialVersionUID = 0L;
       return map.containsKey(key) ? map.get(key) : defaultValue;
     }
     /**
+     * <pre>
+     * The map, where the key is the name of the associated data and the value is the associated data value.
+     * The localization is held on the entity level - specific language tag is used as a key of the outer map on the
+     * SealedEntity level.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; associatedData = 1;</code>
      */
     @java.lang.Override
@@ -633,6 +689,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The map, where the key is the name of the associated data and the value is the associated data value.
+     * The localization is held on the entity level - specific language tag is used as a key of the outer map on the
+     * SealedEntity level.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; associatedData = 1;</code>
      */
 
@@ -652,6 +714,12 @@ private static final long serialVersionUID = 0L;
       return internalGetMutableAssociatedData().getMutableMap();
     }
     /**
+     * <pre>
+     * The map, where the key is the name of the associated data and the value is the associated data value.
+     * The localization is held on the entity level - specific language tag is used as a key of the outer map on the
+     * SealedEntity level.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; associatedData = 1;</code>
      */
     public Builder putAssociatedData(
@@ -667,6 +735,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The map, where the key is the name of the associated data and the value is the associated data value.
+     * The localization is held on the entity level - specific language tag is used as a key of the outer map on the
+     * SealedEntity level.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; associatedData = 1;</code>
      */
 

@@ -27,6 +27,19 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * This is the definition object for attributes that are stored along with
+ * catalog. Definition objects allow to describe the structure of the catalog so that
+ * in any time everyone can consult complete structure of the catalog. Definition object is similar to Java reflection
+ * process where you can also at any moment see which fields and methods are available for the class.
+ * Catalog attributes allows defining set of data that are fetched in bulk along with the catalog body.
+ * Attributes may be indexed for fast filtering or can be used to sort along. Attributes are not automatically indexed
+ * in order not to waste precious memory space for data that will never be used in search queries.
+ * Filtering in attributes is executed by using constraints like `and`, `or`, `not`. Sorting can be achieved with
+ * `attributeNatural` or others.
+ * Attributes are not recommended for bigger data as they are all loaded at once when requested.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema}
  */
 public final class GrpcGlobalAttributeSchema extends
@@ -284,6 +297,13 @@ private static final long serialVersionUID = 0L;
   public static final int UNIQUE_FIELD_NUMBER = 4;
   private boolean unique_;
   /**
+   * <pre>
+   * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+   * having certain value of this attribute among other entities in the same collection.
+   * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+   * better to have this ensured by the database engine.
+   * </pre>
+   *
    * <code>bool unique = 4;</code>
    * @return The unique.
    */
@@ -295,6 +315,14 @@ private static final long serialVersionUID = 0L;
   public static final int FILTERABLE_FIELD_NUMBER = 5;
   private boolean filterable_;
   /**
+   * <pre>
+   * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+   * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+   * (memory/disk) space in the form of index.
+   * When attribute is filterable, extra result `attributeHistogram`
+   * can be requested for this attribute.
+   * </pre>
+   *
    * <code>bool filterable = 5;</code>
    * @return The filterable.
    */
@@ -306,6 +334,12 @@ private static final long serialVersionUID = 0L;
   public static final int SORTABLE_FIELD_NUMBER = 6;
   private boolean sortable_;
   /**
+   * <pre>
+   * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+   * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+   * (memory/disk) space in the form of index..
+   * </pre>
+   *
    * <code>bool sortable = 6;</code>
    * @return The sortable.
    */
@@ -317,6 +351,10 @@ private static final long serialVersionUID = 0L;
   public static final int LOCALIZED_FIELD_NUMBER = 7;
   private boolean localized_;
   /**
+   * <pre>
+   * When attribute is localized, it has to be ALWAYS used in connection with specific `Locale`.
+   * </pre>
+   *
    * <code>bool localized = 7;</code>
    * @return The localized.
    */
@@ -328,6 +366,11 @@ private static final long serialVersionUID = 0L;
   public static final int NULLABLE_FIELD_NUMBER = 8;
   private boolean nullable_;
   /**
+   * <pre>
+   * When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+   * non-null checks upon upserting of the entity.
+   * </pre>
+   *
    * <code>bool nullable = 8;</code>
    * @return The nullable.
    */
@@ -339,6 +382,11 @@ private static final long serialVersionUID = 0L;
   public static final int TYPE_FIELD_NUMBER = 9;
   private int type_;
   /**
+   * <pre>
+   * Data type of the attribute. Must be one of Evita-supported values.
+   * Internally the scalar is converted into Java-corresponding data type.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 9;</code>
    * @return The enum numeric value on the wire for type.
    */
@@ -346,6 +394,11 @@ private static final long serialVersionUID = 0L;
     return type_;
   }
   /**
+   * <pre>
+   * Data type of the attribute. Must be one of Evita-supported values.
+   * Internally the scalar is converted into Java-corresponding data type.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 9;</code>
    * @return The type.
    */
@@ -358,6 +411,11 @@ private static final long serialVersionUID = 0L;
   public static final int DEFAULTVALUE_FIELD_NUMBER = 10;
   private io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue_;
   /**
+   * <pre>
+   * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+   * non-null checks even if no attributes of such name are specified.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 10;</code>
    * @return Whether the defaultValue field is set.
    */
@@ -366,6 +424,11 @@ private static final long serialVersionUID = 0L;
     return defaultValue_ != null;
   }
   /**
+   * <pre>
+   * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+   * non-null checks even if no attributes of such name are specified.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 10;</code>
    * @return The defaultValue.
    */
@@ -374,6 +437,11 @@ private static final long serialVersionUID = 0L;
     return defaultValue_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.getDefaultInstance() : defaultValue_;
   }
   /**
+   * <pre>
+   * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+   * non-null checks even if no attributes of such name are specified.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 10;</code>
    */
   @java.lang.Override
@@ -395,6 +463,13 @@ private static final long serialVersionUID = 0L;
   public static final int UNIQUEGLOBALLY_FIELD_NUMBER = 12;
   private boolean uniqueGlobally_;
   /**
+   * <pre>
+   * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+   * entity having certain value of this attribute in entire catalog.
+   * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
+   * better to have this ensured by the database engine.
+   * </pre>
+   *
    * <code>bool uniqueGlobally = 12;</code>
    * @return The uniqueGlobally.
    */
@@ -699,6 +774,19 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * This is the definition object for attributes that are stored along with
+   * catalog. Definition objects allow to describe the structure of the catalog so that
+   * in any time everyone can consult complete structure of the catalog. Definition object is similar to Java reflection
+   * process where you can also at any moment see which fields and methods are available for the class.
+   * Catalog attributes allows defining set of data that are fetched in bulk along with the catalog body.
+   * Attributes may be indexed for fast filtering or can be used to sort along. Attributes are not automatically indexed
+   * in order not to waste precious memory space for data that will never be used in search queries.
+   * Filtering in attributes is executed by using constraints like `and`, `or`, `not`. Sorting can be achieved with
+   * `attributeNatural` or others.
+   * Attributes are not recommended for bigger data as they are all loaded at once when requested.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema}
    */
   public static final class Builder extends
@@ -1252,6 +1340,13 @@ private static final long serialVersionUID = 0L;
 
     private boolean unique_ ;
     /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+     * better to have this ensured by the database engine.
+     * </pre>
+     *
      * <code>bool unique = 4;</code>
      * @return The unique.
      */
@@ -1260,6 +1355,13 @@ private static final long serialVersionUID = 0L;
       return unique_;
     }
     /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+     * better to have this ensured by the database engine.
+     * </pre>
+     *
      * <code>bool unique = 4;</code>
      * @param value The unique to set.
      * @return This builder for chaining.
@@ -1271,6 +1373,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+     * better to have this ensured by the database engine.
+     * </pre>
+     *
      * <code>bool unique = 4;</code>
      * @return This builder for chaining.
      */
@@ -1283,6 +1392,14 @@ private static final long serialVersionUID = 0L;
 
     private boolean filterable_ ;
     /**
+     * <pre>
+     * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+     * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+     * (memory/disk) space in the form of index.
+     * When attribute is filterable, extra result `attributeHistogram`
+     * can be requested for this attribute.
+     * </pre>
+     *
      * <code>bool filterable = 5;</code>
      * @return The filterable.
      */
@@ -1291,6 +1408,14 @@ private static final long serialVersionUID = 0L;
       return filterable_;
     }
     /**
+     * <pre>
+     * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+     * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+     * (memory/disk) space in the form of index.
+     * When attribute is filterable, extra result `attributeHistogram`
+     * can be requested for this attribute.
+     * </pre>
+     *
      * <code>bool filterable = 5;</code>
      * @param value The filterable to set.
      * @return This builder for chaining.
@@ -1302,6 +1427,14 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+     * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+     * (memory/disk) space in the form of index.
+     * When attribute is filterable, extra result `attributeHistogram`
+     * can be requested for this attribute.
+     * </pre>
+     *
      * <code>bool filterable = 5;</code>
      * @return This builder for chaining.
      */
@@ -1314,6 +1447,12 @@ private static final long serialVersionUID = 0L;
 
     private boolean sortable_ ;
     /**
+     * <pre>
+     * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+     * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+     * (memory/disk) space in the form of index..
+     * </pre>
+     *
      * <code>bool sortable = 6;</code>
      * @return The sortable.
      */
@@ -1322,6 +1461,12 @@ private static final long serialVersionUID = 0L;
       return sortable_;
     }
     /**
+     * <pre>
+     * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+     * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+     * (memory/disk) space in the form of index..
+     * </pre>
+     *
      * <code>bool sortable = 6;</code>
      * @param value The sortable to set.
      * @return This builder for chaining.
@@ -1333,6 +1478,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+     * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+     * (memory/disk) space in the form of index..
+     * </pre>
+     *
      * <code>bool sortable = 6;</code>
      * @return This builder for chaining.
      */
@@ -1345,6 +1496,10 @@ private static final long serialVersionUID = 0L;
 
     private boolean localized_ ;
     /**
+     * <pre>
+     * When attribute is localized, it has to be ALWAYS used in connection with specific `Locale`.
+     * </pre>
+     *
      * <code>bool localized = 7;</code>
      * @return The localized.
      */
@@ -1353,6 +1508,10 @@ private static final long serialVersionUID = 0L;
       return localized_;
     }
     /**
+     * <pre>
+     * When attribute is localized, it has to be ALWAYS used in connection with specific `Locale`.
+     * </pre>
+     *
      * <code>bool localized = 7;</code>
      * @param value The localized to set.
      * @return This builder for chaining.
@@ -1364,6 +1523,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * When attribute is localized, it has to be ALWAYS used in connection with specific `Locale`.
+     * </pre>
+     *
      * <code>bool localized = 7;</code>
      * @return This builder for chaining.
      */
@@ -1376,6 +1539,11 @@ private static final long serialVersionUID = 0L;
 
     private boolean nullable_ ;
     /**
+     * <pre>
+     * When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+     * non-null checks upon upserting of the entity.
+     * </pre>
+     *
      * <code>bool nullable = 8;</code>
      * @return The nullable.
      */
@@ -1384,6 +1552,11 @@ private static final long serialVersionUID = 0L;
       return nullable_;
     }
     /**
+     * <pre>
+     * When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+     * non-null checks upon upserting of the entity.
+     * </pre>
+     *
      * <code>bool nullable = 8;</code>
      * @param value The nullable to set.
      * @return This builder for chaining.
@@ -1395,6 +1568,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+     * non-null checks upon upserting of the entity.
+     * </pre>
+     *
      * <code>bool nullable = 8;</code>
      * @return This builder for chaining.
      */
@@ -1407,6 +1585,11 @@ private static final long serialVersionUID = 0L;
 
     private int type_ = 0;
     /**
+     * <pre>
+     * Data type of the attribute. Must be one of Evita-supported values.
+     * Internally the scalar is converted into Java-corresponding data type.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 9;</code>
      * @return The enum numeric value on the wire for type.
      */
@@ -1414,6 +1597,11 @@ private static final long serialVersionUID = 0L;
       return type_;
     }
     /**
+     * <pre>
+     * Data type of the attribute. Must be one of Evita-supported values.
+     * Internally the scalar is converted into Java-corresponding data type.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 9;</code>
      * @param value The enum numeric value on the wire for type to set.
      * @return This builder for chaining.
@@ -1425,6 +1613,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Data type of the attribute. Must be one of Evita-supported values.
+     * Internally the scalar is converted into Java-corresponding data type.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 9;</code>
      * @return The type.
      */
@@ -1435,6 +1628,11 @@ private static final long serialVersionUID = 0L;
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType.UNRECOGNIZED : result;
     }
     /**
+     * <pre>
+     * Data type of the attribute. Must be one of Evita-supported values.
+     * Internally the scalar is converted into Java-corresponding data type.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 9;</code>
      * @param value The type to set.
      * @return This builder for chaining.
@@ -1449,6 +1647,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Data type of the attribute. Must be one of Evita-supported values.
+     * Internally the scalar is converted into Java-corresponding data type.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 9;</code>
      * @return This builder for chaining.
      */
@@ -1463,6 +1666,11 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcEvitaValue, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder, io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder> defaultValueBuilder_;
     /**
+     * <pre>
+     * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+     * non-null checks even if no attributes of such name are specified.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 10;</code>
      * @return Whether the defaultValue field is set.
      */
@@ -1470,6 +1678,11 @@ private static final long serialVersionUID = 0L;
       return defaultValueBuilder_ != null || defaultValue_ != null;
     }
     /**
+     * <pre>
+     * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+     * non-null checks even if no attributes of such name are specified.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 10;</code>
      * @return The defaultValue.
      */
@@ -1481,6 +1694,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+     * non-null checks even if no attributes of such name are specified.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 10;</code>
      */
     public Builder setDefaultValue(io.evitadb.externalApi.grpc.generated.GrpcEvitaValue value) {
@@ -1497,6 +1715,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+     * non-null checks even if no attributes of such name are specified.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 10;</code>
      */
     public Builder setDefaultValue(
@@ -1511,6 +1734,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+     * non-null checks even if no attributes of such name are specified.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 10;</code>
      */
     public Builder mergeDefaultValue(io.evitadb.externalApi.grpc.generated.GrpcEvitaValue value) {
@@ -1529,6 +1757,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+     * non-null checks even if no attributes of such name are specified.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 10;</code>
      */
     public Builder clearDefaultValue() {
@@ -1543,6 +1776,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+     * non-null checks even if no attributes of such name are specified.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 10;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder getDefaultValueBuilder() {
@@ -1551,6 +1789,11 @@ private static final long serialVersionUID = 0L;
       return getDefaultValueFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+     * non-null checks even if no attributes of such name are specified.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 10;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder getDefaultValueOrBuilder() {
@@ -1562,6 +1805,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+     * non-null checks even if no attributes of such name are specified.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 10;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1611,6 +1859,13 @@ private static final long serialVersionUID = 0L;
 
     private boolean uniqueGlobally_ ;
     /**
+     * <pre>
+     * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+     * entity having certain value of this attribute in entire catalog.
+     * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
+     * better to have this ensured by the database engine.
+     * </pre>
+     *
      * <code>bool uniqueGlobally = 12;</code>
      * @return The uniqueGlobally.
      */
@@ -1619,6 +1874,13 @@ private static final long serialVersionUID = 0L;
       return uniqueGlobally_;
     }
     /**
+     * <pre>
+     * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+     * entity having certain value of this attribute in entire catalog.
+     * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
+     * better to have this ensured by the database engine.
+     * </pre>
+     *
      * <code>bool uniqueGlobally = 12;</code>
      * @param value The uniqueGlobally to set.
      * @return This builder for chaining.
@@ -1630,6 +1892,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+     * entity having certain value of this attribute in entire catalog.
+     * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
+     * better to have this ensured by the database engine.
+     * </pre>
+     *
      * <code>bool uniqueGlobally = 12;</code>
      * @return This builder for chaining.
      */

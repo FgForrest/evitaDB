@@ -31,11 +31,19 @@ public interface GrpcSetReferenceSchemaFacetedMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the reference the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
   java.lang.String getName();
   /**
+   * <pre>
+   * Name of the reference the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -43,6 +51,15 @@ public interface GrpcSetReferenceSchemaFacetedMutationOrBuilder extends
       getNameBytes();
 
   /**
+   * <pre>
+   * Whether the statistics data for this reference should be maintained and this allowing to get
+   * `facetSummary` for this reference or use `facet_{reference name}_inSet`
+   * filtering query.
+   * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+   * occupies (memory/disk) space in the form of index.
+   * Reference that was marked as faceted is called Facet.
+   * </pre>
+   *
    * <code>bool faceted = 2;</code>
    * @return The faceted.
    */

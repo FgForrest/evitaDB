@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Mutation is responsible for setting value to a `ReferenceSchema.cardinality` in `EntitySchema`.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaCardinalityMutation}
  */
 public final class GrpcModifyReferenceSchemaCardinalityMutation extends
@@ -120,6 +124,10 @@ private static final long serialVersionUID = 0L;
   public static final int NAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object name_;
   /**
+   * <pre>
+   * Name of the reference the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
@@ -137,6 +145,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Name of the reference the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -158,6 +170,14 @@ private static final long serialVersionUID = 0L;
   public static final int CARDINALITY_FIELD_NUMBER = 2;
   private int cardinality_;
   /**
+   * <pre>
+   * Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+   * relationship from the perspective of the entity. We stick to the ERD modelling
+   * [standards](https://www.gleek.io/blog/crows-foot-notation.html) here. Cardinality affect the design
+   * of the client API (returning only single reference or collections) and also help us to protect the consistency
+   * of the data so that conforms to the creator mental model.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality cardinality = 2;</code>
    * @return The enum numeric value on the wire for cardinality.
    */
@@ -165,6 +185,14 @@ private static final long serialVersionUID = 0L;
     return cardinality_;
   }
   /**
+   * <pre>
+   * Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+   * relationship from the perspective of the entity. We stick to the ERD modelling
+   * [standards](https://www.gleek.io/blog/crows-foot-notation.html) here. Cardinality affect the design
+   * of the client API (returning only single reference or collections) and also help us to protect the consistency
+   * of the data so that conforms to the creator mental model.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality cardinality = 2;</code>
    * @return The cardinality.
    */
@@ -339,6 +367,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.cardinality` in `EntitySchema`.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaCardinalityMutation}
    */
   public static final class Builder extends
@@ -494,6 +526,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object name_ = "";
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The name.
      */
@@ -510,6 +546,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The bytes for name.
      */
@@ -527,6 +567,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The name to set.
      * @return This builder for chaining.
@@ -542,6 +586,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return This builder for chaining.
      */
@@ -552,6 +600,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The bytes for name to set.
      * @return This builder for chaining.
@@ -570,6 +622,14 @@ private static final long serialVersionUID = 0L;
 
     private int cardinality_ = 0;
     /**
+     * <pre>
+     * Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+     * relationship from the perspective of the entity. We stick to the ERD modelling
+     * [standards](https://www.gleek.io/blog/crows-foot-notation.html) here. Cardinality affect the design
+     * of the client API (returning only single reference or collections) and also help us to protect the consistency
+     * of the data so that conforms to the creator mental model.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality cardinality = 2;</code>
      * @return The enum numeric value on the wire for cardinality.
      */
@@ -577,6 +637,14 @@ private static final long serialVersionUID = 0L;
       return cardinality_;
     }
     /**
+     * <pre>
+     * Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+     * relationship from the perspective of the entity. We stick to the ERD modelling
+     * [standards](https://www.gleek.io/blog/crows-foot-notation.html) here. Cardinality affect the design
+     * of the client API (returning only single reference or collections) and also help us to protect the consistency
+     * of the data so that conforms to the creator mental model.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality cardinality = 2;</code>
      * @param value The enum numeric value on the wire for cardinality to set.
      * @return This builder for chaining.
@@ -588,6 +656,14 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+     * relationship from the perspective of the entity. We stick to the ERD modelling
+     * [standards](https://www.gleek.io/blog/crows-foot-notation.html) here. Cardinality affect the design
+     * of the client API (returning only single reference or collections) and also help us to protect the consistency
+     * of the data so that conforms to the creator mental model.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality cardinality = 2;</code>
      * @return The cardinality.
      */
@@ -598,6 +674,14 @@ private static final long serialVersionUID = 0L;
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCardinality.UNRECOGNIZED : result;
     }
     /**
+     * <pre>
+     * Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+     * relationship from the perspective of the entity. We stick to the ERD modelling
+     * [standards](https://www.gleek.io/blog/crows-foot-notation.html) here. Cardinality affect the design
+     * of the client API (returning only single reference or collections) and also help us to protect the consistency
+     * of the data so that conforms to the creator mental model.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality cardinality = 2;</code>
      * @param value The cardinality to set.
      * @return This builder for chaining.
@@ -612,6 +696,14 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+     * relationship from the perspective of the entity. We stick to the ERD modelling
+     * [standards](https://www.gleek.io/blog/crows-foot-notation.html) here. Cardinality affect the design
+     * of the client API (returning only single reference or collections) and also help us to protect the consistency
+     * of the data so that conforms to the creator mental model.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality cardinality = 2;</code>
      * @return This builder for chaining.
      */

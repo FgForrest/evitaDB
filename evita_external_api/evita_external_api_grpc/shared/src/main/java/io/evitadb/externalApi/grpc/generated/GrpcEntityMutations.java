@@ -60,7 +60,7 @@ public final class GrpcEntityMutations {
       "externalApi.grpc.generated\032\036google/proto" +
       "buf/wrappers.proto\"+\n\025GrpcSetParentMutat" +
       "ion\022\022\n\nprimaryKey\030\001 \001(\005\"\032\n\030GrpcRemovePar" +
-      "entMutationB\002P\001b\006proto3"
+      "entMutationB\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

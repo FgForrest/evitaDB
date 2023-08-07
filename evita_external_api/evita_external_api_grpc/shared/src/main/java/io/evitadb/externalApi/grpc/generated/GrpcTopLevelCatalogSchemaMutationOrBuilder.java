@@ -31,46 +31,82 @@ public interface GrpcTopLevelCatalogSchemaMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Mutation is responsible for setting up a new CatalogSchema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation createCatalogSchemaMutation = 1;</code>
    * @return Whether the createCatalogSchemaMutation field is set.
    */
   boolean hasCreateCatalogSchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting up a new CatalogSchema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation createCatalogSchemaMutation = 1;</code>
    * @return The createCatalogSchemaMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation getCreateCatalogSchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting up a new CatalogSchema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation createCatalogSchemaMutation = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutationOrBuilder getCreateCatalogSchemaMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for renaming an existing CatalogSchema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation modifyCatalogSchemaNameMutation = 2;</code>
    * @return Whether the modifyCatalogSchemaNameMutation field is set.
    */
   boolean hasModifyCatalogSchemaNameMutation();
   /**
+   * <pre>
+   * Mutation is responsible for renaming an existing CatalogSchema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation modifyCatalogSchemaNameMutation = 2;</code>
    * @return The modifyCatalogSchemaNameMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation getModifyCatalogSchemaNameMutation();
   /**
+   * <pre>
+   * Mutation is responsible for renaming an existing CatalogSchema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation modifyCatalogSchemaNameMutation = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutationOrBuilder getModifyCatalogSchemaNameMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for removing an existing CatalogSchema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation removeCatalogSchemaMutation = 3;</code>
    * @return Whether the removeCatalogSchemaMutation field is set.
    */
   boolean hasRemoveCatalogSchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for removing an existing CatalogSchema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation removeCatalogSchemaMutation = 3;</code>
    * @return The removeCatalogSchemaMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation getRemoveCatalogSchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for removing an existing CatalogSchema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation removeCatalogSchemaMutation = 3;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutationOrBuilder getRemoveCatalogSchemaMutationOrBuilder();

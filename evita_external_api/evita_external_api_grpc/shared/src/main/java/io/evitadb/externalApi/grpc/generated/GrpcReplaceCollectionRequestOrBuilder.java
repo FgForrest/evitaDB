@@ -31,11 +31,19 @@ public interface GrpcReplaceCollectionRequestOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the entity collection that will be replaced and dropped (new name)
+   * </pre>
+   *
    * <code>string entityTypeToBeReplaced = 1;</code>
    * @return The entityTypeToBeReplaced.
    */
   java.lang.String getEntityTypeToBeReplaced();
   /**
+   * <pre>
+   * Name of the entity collection that will be replaced and dropped (new name)
+   * </pre>
+   *
    * <code>string entityTypeToBeReplaced = 1;</code>
    * @return The bytes for entityTypeToBeReplaced.
    */
@@ -43,11 +51,19 @@ public interface GrpcReplaceCollectionRequestOrBuilder extends
       getEntityTypeToBeReplacedBytes();
 
   /**
+   * <pre>
+   * Name of the entity collection that will become the successor of the original collection (old name)
+   * </pre>
+   *
    * <code>string entityTypeToBeReplacedWith = 2;</code>
    * @return The entityTypeToBeReplacedWith.
    */
   java.lang.String getEntityTypeToBeReplacedWith();
   /**
+   * <pre>
+   * Name of the entity collection that will become the successor of the original collection (old name)
+   * </pre>
+   *
    * <code>string entityTypeToBeReplacedWith = 2;</code>
    * @return The bytes for entityTypeToBeReplacedWith.
    */

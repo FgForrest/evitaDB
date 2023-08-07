@@ -31,24 +31,44 @@ public interface GrpcAllowCurrencyInEntitySchemaMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Set of all currencies that could be used for prices in entities of this type.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCurrency> 
       getCurrenciesList();
   /**
+   * <pre>
+   * Set of all currencies that could be used for prices in entities of this type.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcCurrency getCurrencies(int index);
   /**
+   * <pre>
+   * Set of all currencies that could be used for prices in entities of this type.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
    */
   int getCurrenciesCount();
   /**
+   * <pre>
+   * Set of all currencies that could be used for prices in entities of this type.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> 
       getCurrenciesOrBuilderList();
   /**
+   * <pre>
+   * Set of all currencies that could be used for prices in entities of this type.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder getCurrenciesOrBuilder(

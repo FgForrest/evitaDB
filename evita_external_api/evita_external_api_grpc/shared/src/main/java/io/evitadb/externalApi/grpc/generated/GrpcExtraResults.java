@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * This DTO contains extra results that are computed based on the query results.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcExtraResults}
  */
 public final class GrpcExtraResults extends
@@ -73,7 +77,7 @@ private static final long serialVersionUID = 0L;
           case 0:
             done = true;
             break;
-          case 18: {
+          case 10: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
               attributeHistogram_ = com.google.protobuf.MapField.newMapField(
                   AttributeHistogramDefaultEntryHolder.defaultEntry);
@@ -86,7 +90,7 @@ private static final long serialVersionUID = 0L;
                 attributeHistogram__.getKey(), attributeHistogram__.getValue());
             break;
           }
-          case 26: {
+          case 18: {
             io.evitadb.externalApi.grpc.generated.GrpcHistogram.Builder subBuilder = null;
             if (priceHistogram_ != null) {
               subBuilder = priceHistogram_.toBuilder();
@@ -99,7 +103,7 @@ private static final long serialVersionUID = 0L;
 
             break;
           }
-          case 34: {
+          case 26: {
             if (!((mutable_bitField0_ & 0x00000002) != 0)) {
               facetGroupStatistics_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics>();
               mutable_bitField0_ |= 0x00000002;
@@ -108,7 +112,7 @@ private static final long serialVersionUID = 0L;
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.parser(), extensionRegistry));
             break;
           }
-          case 42: {
+          case 34: {
             io.evitadb.externalApi.grpc.generated.GrpcHierarchy.Builder subBuilder = null;
             if (selfHierarchy_ != null) {
               subBuilder = selfHierarchy_.toBuilder();
@@ -121,7 +125,7 @@ private static final long serialVersionUID = 0L;
 
             break;
           }
-          case 50: {
+          case 42: {
             if (!((mutable_bitField0_ & 0x00000004) != 0)) {
               hierarchy_ = com.google.protobuf.MapField.newMapField(
                   HierarchyDefaultEntryHolder.defaultEntry);
@@ -134,7 +138,7 @@ private static final long serialVersionUID = 0L;
                 hierarchy__.getKey(), hierarchy__.getValue());
             break;
           }
-          case 58: {
+          case 50: {
             io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.Builder subBuilder = null;
             if (queryTelemetry_ != null) {
               subBuilder = queryTelemetry_.toBuilder();
@@ -179,9 +183,9 @@ private static final long serialVersionUID = 0L;
   protected com.google.protobuf.MapField internalGetMapField(
       int number) {
     switch (number) {
-      case 2:
+      case 1:
         return internalGetAttributeHistogram();
-      case 6:
+      case 5:
         return internalGetHierarchy();
       default:
         throw new RuntimeException(
@@ -196,7 +200,7 @@ private static final long serialVersionUID = 0L;
             io.evitadb.externalApi.grpc.generated.GrpcExtraResults.class, io.evitadb.externalApi.grpc.generated.GrpcExtraResults.Builder.class);
   }
 
-  public static final int ATTRIBUTEHISTOGRAM_FIELD_NUMBER = 2;
+  public static final int ATTRIBUTEHISTOGRAM_FIELD_NUMBER = 1;
   private static final class AttributeHistogramDefaultEntryHolder {
     static final com.google.protobuf.MapEntry<
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram> defaultEntry =
@@ -223,7 +227,20 @@ private static final long serialVersionUID = 0L;
     return internalGetAttributeHistogram().getMap().size();
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; attributeHistogram = 2;</code>
+   * <pre>
+   * Returns computed histograms for specific attributes based on filter constraints.
+   * A histogram is an approximate representation of the distribution of numerical data. For detailed description please
+   * see [WikiPedia](https://en.wikipedia.org/wiki/Histogram).
+   * Histogram can be computed only for numeric based properties. It visualises which property values are more common
+   * in the returned data set and which are rare. Bucket count will never exceed requested bucket count specified in
+   * `requestedCount` but there
+   * may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so that
+   * there are as few "empty buckets" as possible.
+   * - buckets are defined by their lower bounds (inclusive)
+   * - the upper bound is the lower bound of the next bucket
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; attributeHistogram = 1;</code>
    */
 
   @java.lang.Override
@@ -241,7 +258,20 @@ private static final long serialVersionUID = 0L;
     return getAttributeHistogramMap();
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; attributeHistogram = 2;</code>
+   * <pre>
+   * Returns computed histograms for specific attributes based on filter constraints.
+   * A histogram is an approximate representation of the distribution of numerical data. For detailed description please
+   * see [WikiPedia](https://en.wikipedia.org/wiki/Histogram).
+   * Histogram can be computed only for numeric based properties. It visualises which property values are more common
+   * in the returned data set and which are rare. Bucket count will never exceed requested bucket count specified in
+   * `requestedCount` but there
+   * may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so that
+   * there are as few "empty buckets" as possible.
+   * - buckets are defined by their lower bounds (inclusive)
+   * - the upper bound is the lower bound of the next bucket
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; attributeHistogram = 1;</code>
    */
   @java.lang.Override
 
@@ -249,7 +279,20 @@ private static final long serialVersionUID = 0L;
     return internalGetAttributeHistogram().getMap();
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; attributeHistogram = 2;</code>
+   * <pre>
+   * Returns computed histograms for specific attributes based on filter constraints.
+   * A histogram is an approximate representation of the distribution of numerical data. For detailed description please
+   * see [WikiPedia](https://en.wikipedia.org/wiki/Histogram).
+   * Histogram can be computed only for numeric based properties. It visualises which property values are more common
+   * in the returned data set and which are rare. Bucket count will never exceed requested bucket count specified in
+   * `requestedCount` but there
+   * may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so that
+   * there are as few "empty buckets" as possible.
+   * - buckets are defined by their lower bounds (inclusive)
+   * - the upper bound is the lower bound of the next bucket
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; attributeHistogram = 1;</code>
    */
   @java.lang.Override
 
@@ -262,7 +305,20 @@ private static final long serialVersionUID = 0L;
     return map.containsKey(key) ? map.get(key) : defaultValue;
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; attributeHistogram = 2;</code>
+   * <pre>
+   * Returns computed histograms for specific attributes based on filter constraints.
+   * A histogram is an approximate representation of the distribution of numerical data. For detailed description please
+   * see [WikiPedia](https://en.wikipedia.org/wiki/Histogram).
+   * Histogram can be computed only for numeric based properties. It visualises which property values are more common
+   * in the returned data set and which are rare. Bucket count will never exceed requested bucket count specified in
+   * `requestedCount` but there
+   * may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so that
+   * there are as few "empty buckets" as possible.
+   * - buckets are defined by their lower bounds (inclusive)
+   * - the upper bound is the lower bound of the next bucket
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; attributeHistogram = 1;</code>
    */
   @java.lang.Override
 
@@ -277,10 +333,23 @@ private static final long serialVersionUID = 0L;
     return map.get(key);
   }
 
-  public static final int PRICEHISTOGRAM_FIELD_NUMBER = 3;
+  public static final int PRICEHISTOGRAM_FIELD_NUMBER = 2;
   private io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram_;
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram = 3;</code>
+   * <pre>
+   * Returns computed histogram for prices satisfactory to filter constraints.
+   * A histogram is an approximate representation of the distribution of numerical data. For detailed description please
+   * see [WikiPedia](https://en.wikipedia.org/wiki/Histogram).
+   * Histogram can be computed only for numeric based properties. It visualises which property values are more common
+   * in the returned data set and which are rare. Bucket count will never exceed requested bucket count specified in
+   * `requestedCount` but there
+   * may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so that
+   * there are as few "empty buckets" as possible.
+   * - buckets are defined by their lower bounds (inclusive)
+   * - the upper bound is the lower bound of the next bucket
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram = 2;</code>
    * @return Whether the priceHistogram field is set.
    */
   @java.lang.Override
@@ -288,7 +357,20 @@ private static final long serialVersionUID = 0L;
     return priceHistogram_ != null;
   }
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram = 3;</code>
+   * <pre>
+   * Returns computed histogram for prices satisfactory to filter constraints.
+   * A histogram is an approximate representation of the distribution of numerical data. For detailed description please
+   * see [WikiPedia](https://en.wikipedia.org/wiki/Histogram).
+   * Histogram can be computed only for numeric based properties. It visualises which property values are more common
+   * in the returned data set and which are rare. Bucket count will never exceed requested bucket count specified in
+   * `requestedCount` but there
+   * may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so that
+   * there are as few "empty buckets" as possible.
+   * - buckets are defined by their lower bounds (inclusive)
+   * - the upper bound is the lower bound of the next bucket
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram = 2;</code>
    * @return The priceHistogram.
    */
   @java.lang.Override
@@ -296,24 +378,47 @@ private static final long serialVersionUID = 0L;
     return priceHistogram_ == null ? io.evitadb.externalApi.grpc.generated.GrpcHistogram.getDefaultInstance() : priceHistogram_;
   }
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram = 3;</code>
+   * <pre>
+   * Returns computed histogram for prices satisfactory to filter constraints.
+   * A histogram is an approximate representation of the distribution of numerical data. For detailed description please
+   * see [WikiPedia](https://en.wikipedia.org/wiki/Histogram).
+   * Histogram can be computed only for numeric based properties. It visualises which property values are more common
+   * in the returned data set and which are rare. Bucket count will never exceed requested bucket count specified in
+   * `requestedCount` but there
+   * may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so that
+   * there are as few "empty buckets" as possible.
+   * - buckets are defined by their lower bounds (inclusive)
+   * - the upper bound is the lower bound of the next bucket
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram = 2;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcHistogramOrBuilder getPriceHistogramOrBuilder() {
     return getPriceHistogram();
   }
 
-  public static final int FACETGROUPSTATISTICS_FIELD_NUMBER = 4;
+  public static final int FACETGROUPSTATISTICS_FIELD_NUMBER = 3;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics> facetGroupStatistics_;
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 4;</code>
+   * <pre>
+   * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
+   * (if they belong in one) and statistics of the facets that relates to it.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics> getFacetGroupStatisticsList() {
     return facetGroupStatistics_;
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 4;</code>
+   * <pre>
+   * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
+   * (if they belong in one) and statistics of the facets that relates to it.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
    */
   @java.lang.Override
   public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder> 
@@ -321,21 +426,36 @@ private static final long serialVersionUID = 0L;
     return facetGroupStatistics_;
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 4;</code>
+   * <pre>
+   * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
+   * (if they belong in one) and statistics of the facets that relates to it.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
    */
   @java.lang.Override
   public int getFacetGroupStatisticsCount() {
     return facetGroupStatistics_.size();
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 4;</code>
+   * <pre>
+   * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
+   * (if they belong in one) and statistics of the facets that relates to it.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics getFacetGroupStatistics(int index) {
     return facetGroupStatistics_.get(index);
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 4;</code>
+   * <pre>
+   * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
+   * (if they belong in one) and statistics of the facets that relates to it.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder getFacetGroupStatisticsOrBuilder(
@@ -343,10 +463,15 @@ private static final long serialVersionUID = 0L;
     return facetGroupStatistics_.get(index);
   }
 
-  public static final int SELFHIERARCHY_FIELD_NUMBER = 5;
+  public static final int SELFHIERARCHY_FIELD_NUMBER = 4;
   private io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy_;
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 5;</code>
+   * <pre>
+   * Contains list of statistics for the single level (probably root or whatever is filtered by the query) of
+   * the queried hierarchy entity.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 4;</code>
    * @return Whether the selfHierarchy field is set.
    */
   @java.lang.Override
@@ -354,7 +479,12 @@ private static final long serialVersionUID = 0L;
     return selfHierarchy_ != null;
   }
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 5;</code>
+   * <pre>
+   * Contains list of statistics for the single level (probably root or whatever is filtered by the query) of
+   * the queried hierarchy entity.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 4;</code>
    * @return The selfHierarchy.
    */
   @java.lang.Override
@@ -362,14 +492,19 @@ private static final long serialVersionUID = 0L;
     return selfHierarchy_ == null ? io.evitadb.externalApi.grpc.generated.GrpcHierarchy.getDefaultInstance() : selfHierarchy_;
   }
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 5;</code>
+   * <pre>
+   * Contains list of statistics for the single level (probably root or whatever is filtered by the query) of
+   * the queried hierarchy entity.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 4;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcHierarchyOrBuilder getSelfHierarchyOrBuilder() {
     return getSelfHierarchy();
   }
 
-  public static final int HIERARCHY_FIELD_NUMBER = 6;
+  public static final int HIERARCHY_FIELD_NUMBER = 5;
   private static final class HierarchyDefaultEntryHolder {
     static final com.google.protobuf.MapEntry<
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy> defaultEntry =
@@ -396,7 +531,13 @@ private static final long serialVersionUID = 0L;
     return internalGetHierarchy().getMap().size();
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 6;</code>
+   * <pre>
+   * Index holds the statistics for particular references that target hierarchy entity types.
+   * Key is the identification of the reference name, value contains list of statistics for the single level (probably
+   * root or whatever is filtered by the query) of the hierarchy entity.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 5;</code>
    */
 
   @java.lang.Override
@@ -414,7 +555,13 @@ private static final long serialVersionUID = 0L;
     return getHierarchyMap();
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 6;</code>
+   * <pre>
+   * Index holds the statistics for particular references that target hierarchy entity types.
+   * Key is the identification of the reference name, value contains list of statistics for the single level (probably
+   * root or whatever is filtered by the query) of the hierarchy entity.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 5;</code>
    */
   @java.lang.Override
 
@@ -422,7 +569,13 @@ private static final long serialVersionUID = 0L;
     return internalGetHierarchy().getMap();
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 6;</code>
+   * <pre>
+   * Index holds the statistics for particular references that target hierarchy entity types.
+   * Key is the identification of the reference name, value contains list of statistics for the single level (probably
+   * root or whatever is filtered by the query) of the hierarchy entity.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 5;</code>
    */
   @java.lang.Override
 
@@ -435,7 +588,13 @@ private static final long serialVersionUID = 0L;
     return map.containsKey(key) ? map.get(key) : defaultValue;
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 6;</code>
+   * <pre>
+   * Index holds the statistics for particular references that target hierarchy entity types.
+   * Key is the identification of the reference name, value contains list of statistics for the single level (probably
+   * root or whatever is filtered by the query) of the hierarchy entity.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 5;</code>
    */
   @java.lang.Override
 
@@ -450,10 +609,14 @@ private static final long serialVersionUID = 0L;
     return map.get(key);
   }
 
-  public static final int QUERYTELEMETRY_FIELD_NUMBER = 7;
+  public static final int QUERYTELEMETRY_FIELD_NUMBER = 6;
   private io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry_;
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 7;</code>
+   * <pre>
+   * This DTO contains detailed information about query processing time and its decomposition to single operations.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 6;</code>
    * @return Whether the queryTelemetry field is set.
    */
   @java.lang.Override
@@ -461,7 +624,11 @@ private static final long serialVersionUID = 0L;
     return queryTelemetry_ != null;
   }
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 7;</code>
+   * <pre>
+   * This DTO contains detailed information about query processing time and its decomposition to single operations.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 6;</code>
    * @return The queryTelemetry.
    */
   @java.lang.Override
@@ -469,7 +636,11 @@ private static final long serialVersionUID = 0L;
     return queryTelemetry_ == null ? io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.getDefaultInstance() : queryTelemetry_;
   }
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 7;</code>
+   * <pre>
+   * This DTO contains detailed information about query processing time and its decomposition to single operations.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 6;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder getQueryTelemetryOrBuilder() {
@@ -495,24 +666,24 @@ private static final long serialVersionUID = 0L;
         output,
         internalGetAttributeHistogram(),
         AttributeHistogramDefaultEntryHolder.defaultEntry,
-        2);
+        1);
     if (priceHistogram_ != null) {
-      output.writeMessage(3, getPriceHistogram());
+      output.writeMessage(2, getPriceHistogram());
     }
     for (int i = 0; i < facetGroupStatistics_.size(); i++) {
-      output.writeMessage(4, facetGroupStatistics_.get(i));
+      output.writeMessage(3, facetGroupStatistics_.get(i));
     }
     if (selfHierarchy_ != null) {
-      output.writeMessage(5, getSelfHierarchy());
+      output.writeMessage(4, getSelfHierarchy());
     }
     com.google.protobuf.GeneratedMessageV3
       .serializeStringMapTo(
         output,
         internalGetHierarchy(),
         HierarchyDefaultEntryHolder.defaultEntry,
-        6);
+        5);
     if (queryTelemetry_ != null) {
-      output.writeMessage(7, getQueryTelemetry());
+      output.writeMessage(6, getQueryTelemetry());
     }
     unknownFields.writeTo(output);
   }
@@ -531,19 +702,19 @@ private static final long serialVersionUID = 0L;
           .setValue(entry.getValue())
           .build();
       size += com.google.protobuf.CodedOutputStream
-          .computeMessageSize(2, attributeHistogram__);
+          .computeMessageSize(1, attributeHistogram__);
     }
     if (priceHistogram_ != null) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(3, getPriceHistogram());
+        .computeMessageSize(2, getPriceHistogram());
     }
     for (int i = 0; i < facetGroupStatistics_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(4, facetGroupStatistics_.get(i));
+        .computeMessageSize(3, facetGroupStatistics_.get(i));
     }
     if (selfHierarchy_ != null) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(5, getSelfHierarchy());
+        .computeMessageSize(4, getSelfHierarchy());
     }
     for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy> entry
          : internalGetHierarchy().getMap().entrySet()) {
@@ -553,11 +724,11 @@ private static final long serialVersionUID = 0L;
           .setValue(entry.getValue())
           .build();
       size += com.google.protobuf.CodedOutputStream
-          .computeMessageSize(6, hierarchy__);
+          .computeMessageSize(5, hierarchy__);
     }
     if (queryTelemetry_ != null) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(7, getQueryTelemetry());
+        .computeMessageSize(6, getQueryTelemetry());
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -726,6 +897,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * This DTO contains extra results that are computed based on the query results.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcExtraResults}
    */
   public static final class Builder extends
@@ -741,9 +916,9 @@ private static final long serialVersionUID = 0L;
     protected com.google.protobuf.MapField internalGetMapField(
         int number) {
       switch (number) {
-        case 2:
+        case 1:
           return internalGetAttributeHistogram();
-        case 6:
+        case 5:
           return internalGetHierarchy();
         default:
           throw new RuntimeException(
@@ -754,9 +929,9 @@ private static final long serialVersionUID = 0L;
     protected com.google.protobuf.MapField internalGetMutableMapField(
         int number) {
       switch (number) {
-        case 2:
+        case 1:
           return internalGetMutableAttributeHistogram();
-        case 6:
+        case 5:
           return internalGetMutableHierarchy();
         default:
           throw new RuntimeException(
@@ -1015,7 +1190,20 @@ private static final long serialVersionUID = 0L;
       return internalGetAttributeHistogram().getMap().size();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; attributeHistogram = 2;</code>
+     * <pre>
+     * Returns computed histograms for specific attributes based on filter constraints.
+     * A histogram is an approximate representation of the distribution of numerical data. For detailed description please
+     * see [WikiPedia](https://en.wikipedia.org/wiki/Histogram).
+     * Histogram can be computed only for numeric based properties. It visualises which property values are more common
+     * in the returned data set and which are rare. Bucket count will never exceed requested bucket count specified in
+     * `requestedCount` but there
+     * may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so that
+     * there are as few "empty buckets" as possible.
+     * - buckets are defined by their lower bounds (inclusive)
+     * - the upper bound is the lower bound of the next bucket
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; attributeHistogram = 1;</code>
      */
 
     @java.lang.Override
@@ -1033,7 +1221,20 @@ private static final long serialVersionUID = 0L;
       return getAttributeHistogramMap();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; attributeHistogram = 2;</code>
+     * <pre>
+     * Returns computed histograms for specific attributes based on filter constraints.
+     * A histogram is an approximate representation of the distribution of numerical data. For detailed description please
+     * see [WikiPedia](https://en.wikipedia.org/wiki/Histogram).
+     * Histogram can be computed only for numeric based properties. It visualises which property values are more common
+     * in the returned data set and which are rare. Bucket count will never exceed requested bucket count specified in
+     * `requestedCount` but there
+     * may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so that
+     * there are as few "empty buckets" as possible.
+     * - buckets are defined by their lower bounds (inclusive)
+     * - the upper bound is the lower bound of the next bucket
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; attributeHistogram = 1;</code>
      */
     @java.lang.Override
 
@@ -1041,7 +1242,20 @@ private static final long serialVersionUID = 0L;
       return internalGetAttributeHistogram().getMap();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; attributeHistogram = 2;</code>
+     * <pre>
+     * Returns computed histograms for specific attributes based on filter constraints.
+     * A histogram is an approximate representation of the distribution of numerical data. For detailed description please
+     * see [WikiPedia](https://en.wikipedia.org/wiki/Histogram).
+     * Histogram can be computed only for numeric based properties. It visualises which property values are more common
+     * in the returned data set and which are rare. Bucket count will never exceed requested bucket count specified in
+     * `requestedCount` but there
+     * may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so that
+     * there are as few "empty buckets" as possible.
+     * - buckets are defined by their lower bounds (inclusive)
+     * - the upper bound is the lower bound of the next bucket
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; attributeHistogram = 1;</code>
      */
     @java.lang.Override
 
@@ -1054,7 +1268,20 @@ private static final long serialVersionUID = 0L;
       return map.containsKey(key) ? map.get(key) : defaultValue;
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; attributeHistogram = 2;</code>
+     * <pre>
+     * Returns computed histograms for specific attributes based on filter constraints.
+     * A histogram is an approximate representation of the distribution of numerical data. For detailed description please
+     * see [WikiPedia](https://en.wikipedia.org/wiki/Histogram).
+     * Histogram can be computed only for numeric based properties. It visualises which property values are more common
+     * in the returned data set and which are rare. Bucket count will never exceed requested bucket count specified in
+     * `requestedCount` but there
+     * may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so that
+     * there are as few "empty buckets" as possible.
+     * - buckets are defined by their lower bounds (inclusive)
+     * - the upper bound is the lower bound of the next bucket
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; attributeHistogram = 1;</code>
      */
     @java.lang.Override
 
@@ -1075,7 +1302,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; attributeHistogram = 2;</code>
+     * <pre>
+     * Returns computed histograms for specific attributes based on filter constraints.
+     * A histogram is an approximate representation of the distribution of numerical data. For detailed description please
+     * see [WikiPedia](https://en.wikipedia.org/wiki/Histogram).
+     * Histogram can be computed only for numeric based properties. It visualises which property values are more common
+     * in the returned data set and which are rare. Bucket count will never exceed requested bucket count specified in
+     * `requestedCount` but there
+     * may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so that
+     * there are as few "empty buckets" as possible.
+     * - buckets are defined by their lower bounds (inclusive)
+     * - the upper bound is the lower bound of the next bucket
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; attributeHistogram = 1;</code>
      */
 
     public Builder removeAttributeHistogram(
@@ -1094,7 +1334,20 @@ private static final long serialVersionUID = 0L;
       return internalGetMutableAttributeHistogram().getMutableMap();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; attributeHistogram = 2;</code>
+     * <pre>
+     * Returns computed histograms for specific attributes based on filter constraints.
+     * A histogram is an approximate representation of the distribution of numerical data. For detailed description please
+     * see [WikiPedia](https://en.wikipedia.org/wiki/Histogram).
+     * Histogram can be computed only for numeric based properties. It visualises which property values are more common
+     * in the returned data set and which are rare. Bucket count will never exceed requested bucket count specified in
+     * `requestedCount` but there
+     * may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so that
+     * there are as few "empty buckets" as possible.
+     * - buckets are defined by their lower bounds (inclusive)
+     * - the upper bound is the lower bound of the next bucket
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; attributeHistogram = 1;</code>
      */
     public Builder putAttributeHistogram(
         java.lang.String key,
@@ -1109,7 +1362,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; attributeHistogram = 2;</code>
+     * <pre>
+     * Returns computed histograms for specific attributes based on filter constraints.
+     * A histogram is an approximate representation of the distribution of numerical data. For detailed description please
+     * see [WikiPedia](https://en.wikipedia.org/wiki/Histogram).
+     * Histogram can be computed only for numeric based properties. It visualises which property values are more common
+     * in the returned data set and which are rare. Bucket count will never exceed requested bucket count specified in
+     * `requestedCount` but there
+     * may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so that
+     * there are as few "empty buckets" as possible.
+     * - buckets are defined by their lower bounds (inclusive)
+     * - the upper bound is the lower bound of the next bucket
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; attributeHistogram = 1;</code>
      */
 
     public Builder putAllAttributeHistogram(
@@ -1123,14 +1389,40 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcHistogram, io.evitadb.externalApi.grpc.generated.GrpcHistogram.Builder, io.evitadb.externalApi.grpc.generated.GrpcHistogramOrBuilder> priceHistogramBuilder_;
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram = 3;</code>
+     * <pre>
+     * Returns computed histogram for prices satisfactory to filter constraints.
+     * A histogram is an approximate representation of the distribution of numerical data. For detailed description please
+     * see [WikiPedia](https://en.wikipedia.org/wiki/Histogram).
+     * Histogram can be computed only for numeric based properties. It visualises which property values are more common
+     * in the returned data set and which are rare. Bucket count will never exceed requested bucket count specified in
+     * `requestedCount` but there
+     * may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so that
+     * there are as few "empty buckets" as possible.
+     * - buckets are defined by their lower bounds (inclusive)
+     * - the upper bound is the lower bound of the next bucket
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram = 2;</code>
      * @return Whether the priceHistogram field is set.
      */
     public boolean hasPriceHistogram() {
       return priceHistogramBuilder_ != null || priceHistogram_ != null;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram = 3;</code>
+     * <pre>
+     * Returns computed histogram for prices satisfactory to filter constraints.
+     * A histogram is an approximate representation of the distribution of numerical data. For detailed description please
+     * see [WikiPedia](https://en.wikipedia.org/wiki/Histogram).
+     * Histogram can be computed only for numeric based properties. It visualises which property values are more common
+     * in the returned data set and which are rare. Bucket count will never exceed requested bucket count specified in
+     * `requestedCount` but there
+     * may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so that
+     * there are as few "empty buckets" as possible.
+     * - buckets are defined by their lower bounds (inclusive)
+     * - the upper bound is the lower bound of the next bucket
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram = 2;</code>
      * @return The priceHistogram.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcHistogram getPriceHistogram() {
@@ -1141,7 +1433,20 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram = 3;</code>
+     * <pre>
+     * Returns computed histogram for prices satisfactory to filter constraints.
+     * A histogram is an approximate representation of the distribution of numerical data. For detailed description please
+     * see [WikiPedia](https://en.wikipedia.org/wiki/Histogram).
+     * Histogram can be computed only for numeric based properties. It visualises which property values are more common
+     * in the returned data set and which are rare. Bucket count will never exceed requested bucket count specified in
+     * `requestedCount` but there
+     * may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so that
+     * there are as few "empty buckets" as possible.
+     * - buckets are defined by their lower bounds (inclusive)
+     * - the upper bound is the lower bound of the next bucket
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram = 2;</code>
      */
     public Builder setPriceHistogram(io.evitadb.externalApi.grpc.generated.GrpcHistogram value) {
       if (priceHistogramBuilder_ == null) {
@@ -1157,7 +1462,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram = 3;</code>
+     * <pre>
+     * Returns computed histogram for prices satisfactory to filter constraints.
+     * A histogram is an approximate representation of the distribution of numerical data. For detailed description please
+     * see [WikiPedia](https://en.wikipedia.org/wiki/Histogram).
+     * Histogram can be computed only for numeric based properties. It visualises which property values are more common
+     * in the returned data set and which are rare. Bucket count will never exceed requested bucket count specified in
+     * `requestedCount` but there
+     * may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so that
+     * there are as few "empty buckets" as possible.
+     * - buckets are defined by their lower bounds (inclusive)
+     * - the upper bound is the lower bound of the next bucket
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram = 2;</code>
      */
     public Builder setPriceHistogram(
         io.evitadb.externalApi.grpc.generated.GrpcHistogram.Builder builderForValue) {
@@ -1171,7 +1489,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram = 3;</code>
+     * <pre>
+     * Returns computed histogram for prices satisfactory to filter constraints.
+     * A histogram is an approximate representation of the distribution of numerical data. For detailed description please
+     * see [WikiPedia](https://en.wikipedia.org/wiki/Histogram).
+     * Histogram can be computed only for numeric based properties. It visualises which property values are more common
+     * in the returned data set and which are rare. Bucket count will never exceed requested bucket count specified in
+     * `requestedCount` but there
+     * may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so that
+     * there are as few "empty buckets" as possible.
+     * - buckets are defined by their lower bounds (inclusive)
+     * - the upper bound is the lower bound of the next bucket
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram = 2;</code>
      */
     public Builder mergePriceHistogram(io.evitadb.externalApi.grpc.generated.GrpcHistogram value) {
       if (priceHistogramBuilder_ == null) {
@@ -1189,7 +1520,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram = 3;</code>
+     * <pre>
+     * Returns computed histogram for prices satisfactory to filter constraints.
+     * A histogram is an approximate representation of the distribution of numerical data. For detailed description please
+     * see [WikiPedia](https://en.wikipedia.org/wiki/Histogram).
+     * Histogram can be computed only for numeric based properties. It visualises which property values are more common
+     * in the returned data set and which are rare. Bucket count will never exceed requested bucket count specified in
+     * `requestedCount` but there
+     * may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so that
+     * there are as few "empty buckets" as possible.
+     * - buckets are defined by their lower bounds (inclusive)
+     * - the upper bound is the lower bound of the next bucket
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram = 2;</code>
      */
     public Builder clearPriceHistogram() {
       if (priceHistogramBuilder_ == null) {
@@ -1203,7 +1547,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram = 3;</code>
+     * <pre>
+     * Returns computed histogram for prices satisfactory to filter constraints.
+     * A histogram is an approximate representation of the distribution of numerical data. For detailed description please
+     * see [WikiPedia](https://en.wikipedia.org/wiki/Histogram).
+     * Histogram can be computed only for numeric based properties. It visualises which property values are more common
+     * in the returned data set and which are rare. Bucket count will never exceed requested bucket count specified in
+     * `requestedCount` but there
+     * may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so that
+     * there are as few "empty buckets" as possible.
+     * - buckets are defined by their lower bounds (inclusive)
+     * - the upper bound is the lower bound of the next bucket
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcHistogram.Builder getPriceHistogramBuilder() {
       
@@ -1211,7 +1568,20 @@ private static final long serialVersionUID = 0L;
       return getPriceHistogramFieldBuilder().getBuilder();
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram = 3;</code>
+     * <pre>
+     * Returns computed histogram for prices satisfactory to filter constraints.
+     * A histogram is an approximate representation of the distribution of numerical data. For detailed description please
+     * see [WikiPedia](https://en.wikipedia.org/wiki/Histogram).
+     * Histogram can be computed only for numeric based properties. It visualises which property values are more common
+     * in the returned data set and which are rare. Bucket count will never exceed requested bucket count specified in
+     * `requestedCount` but there
+     * may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so that
+     * there are as few "empty buckets" as possible.
+     * - buckets are defined by their lower bounds (inclusive)
+     * - the upper bound is the lower bound of the next bucket
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcHistogramOrBuilder getPriceHistogramOrBuilder() {
       if (priceHistogramBuilder_ != null) {
@@ -1222,7 +1592,20 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram = 3;</code>
+     * <pre>
+     * Returns computed histogram for prices satisfactory to filter constraints.
+     * A histogram is an approximate representation of the distribution of numerical data. For detailed description please
+     * see [WikiPedia](https://en.wikipedia.org/wiki/Histogram).
+     * Histogram can be computed only for numeric based properties. It visualises which property values are more common
+     * in the returned data set and which are rare. Bucket count will never exceed requested bucket count specified in
+     * `requestedCount` but there
+     * may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so that
+     * there are as few "empty buckets" as possible.
+     * - buckets are defined by their lower bounds (inclusive)
+     * - the upper bound is the lower bound of the next bucket
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcHistogram, io.evitadb.externalApi.grpc.generated.GrpcHistogram.Builder, io.evitadb.externalApi.grpc.generated.GrpcHistogramOrBuilder> 
@@ -1251,7 +1634,12 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder> facetGroupStatisticsBuilder_;
 
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 4;</code>
+     * <pre>
+     * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
+     * (if they belong in one) and statistics of the facets that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics> getFacetGroupStatisticsList() {
       if (facetGroupStatisticsBuilder_ == null) {
@@ -1261,7 +1649,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 4;</code>
+     * <pre>
+     * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
+     * (if they belong in one) and statistics of the facets that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
      */
     public int getFacetGroupStatisticsCount() {
       if (facetGroupStatisticsBuilder_ == null) {
@@ -1271,7 +1664,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 4;</code>
+     * <pre>
+     * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
+     * (if they belong in one) and statistics of the facets that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics getFacetGroupStatistics(int index) {
       if (facetGroupStatisticsBuilder_ == null) {
@@ -1281,7 +1679,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 4;</code>
+     * <pre>
+     * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
+     * (if they belong in one) and statistics of the facets that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
      */
     public Builder setFacetGroupStatistics(
         int index, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics value) {
@@ -1298,7 +1701,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 4;</code>
+     * <pre>
+     * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
+     * (if they belong in one) and statistics of the facets that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
      */
     public Builder setFacetGroupStatistics(
         int index, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder builderForValue) {
@@ -1312,7 +1720,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 4;</code>
+     * <pre>
+     * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
+     * (if they belong in one) and statistics of the facets that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
      */
     public Builder addFacetGroupStatistics(io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics value) {
       if (facetGroupStatisticsBuilder_ == null) {
@@ -1328,7 +1741,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 4;</code>
+     * <pre>
+     * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
+     * (if they belong in one) and statistics of the facets that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
      */
     public Builder addFacetGroupStatistics(
         int index, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics value) {
@@ -1345,7 +1763,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 4;</code>
+     * <pre>
+     * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
+     * (if they belong in one) and statistics of the facets that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
      */
     public Builder addFacetGroupStatistics(
         io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder builderForValue) {
@@ -1359,7 +1782,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 4;</code>
+     * <pre>
+     * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
+     * (if they belong in one) and statistics of the facets that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
      */
     public Builder addFacetGroupStatistics(
         int index, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder builderForValue) {
@@ -1373,7 +1801,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 4;</code>
+     * <pre>
+     * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
+     * (if they belong in one) and statistics of the facets that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
      */
     public Builder addAllFacetGroupStatistics(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics> values) {
@@ -1388,7 +1821,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 4;</code>
+     * <pre>
+     * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
+     * (if they belong in one) and statistics of the facets that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
      */
     public Builder clearFacetGroupStatistics() {
       if (facetGroupStatisticsBuilder_ == null) {
@@ -1401,7 +1839,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 4;</code>
+     * <pre>
+     * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
+     * (if they belong in one) and statistics of the facets that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
      */
     public Builder removeFacetGroupStatistics(int index) {
       if (facetGroupStatisticsBuilder_ == null) {
@@ -1414,14 +1857,24 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 4;</code>
+     * <pre>
+     * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
+     * (if they belong in one) and statistics of the facets that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder getFacetGroupStatisticsBuilder(
         int index) {
       return getFacetGroupStatisticsFieldBuilder().getBuilder(index);
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 4;</code>
+     * <pre>
+     * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
+     * (if they belong in one) and statistics of the facets that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder getFacetGroupStatisticsOrBuilder(
         int index) {
@@ -1431,7 +1884,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 4;</code>
+     * <pre>
+     * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
+     * (if they belong in one) and statistics of the facets that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder> 
          getFacetGroupStatisticsOrBuilderList() {
@@ -1442,14 +1900,24 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 4;</code>
+     * <pre>
+     * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
+     * (if they belong in one) and statistics of the facets that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder addFacetGroupStatisticsBuilder() {
       return getFacetGroupStatisticsFieldBuilder().addBuilder(
           io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.getDefaultInstance());
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 4;</code>
+     * <pre>
+     * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
+     * (if they belong in one) and statistics of the facets that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder addFacetGroupStatisticsBuilder(
         int index) {
@@ -1457,7 +1925,12 @@ private static final long serialVersionUID = 0L;
           index, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.getDefaultInstance());
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 4;</code>
+     * <pre>
+     * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
+     * (if they belong in one) and statistics of the facets that relates to it.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder> 
          getFacetGroupStatisticsBuilderList() {
@@ -1482,14 +1955,24 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcHierarchy, io.evitadb.externalApi.grpc.generated.GrpcHierarchy.Builder, io.evitadb.externalApi.grpc.generated.GrpcHierarchyOrBuilder> selfHierarchyBuilder_;
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 5;</code>
+     * <pre>
+     * Contains list of statistics for the single level (probably root or whatever is filtered by the query) of
+     * the queried hierarchy entity.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 4;</code>
      * @return Whether the selfHierarchy field is set.
      */
     public boolean hasSelfHierarchy() {
       return selfHierarchyBuilder_ != null || selfHierarchy_ != null;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 5;</code>
+     * <pre>
+     * Contains list of statistics for the single level (probably root or whatever is filtered by the query) of
+     * the queried hierarchy entity.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 4;</code>
      * @return The selfHierarchy.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcHierarchy getSelfHierarchy() {
@@ -1500,7 +1983,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 5;</code>
+     * <pre>
+     * Contains list of statistics for the single level (probably root or whatever is filtered by the query) of
+     * the queried hierarchy entity.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 4;</code>
      */
     public Builder setSelfHierarchy(io.evitadb.externalApi.grpc.generated.GrpcHierarchy value) {
       if (selfHierarchyBuilder_ == null) {
@@ -1516,7 +2004,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 5;</code>
+     * <pre>
+     * Contains list of statistics for the single level (probably root or whatever is filtered by the query) of
+     * the queried hierarchy entity.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 4;</code>
      */
     public Builder setSelfHierarchy(
         io.evitadb.externalApi.grpc.generated.GrpcHierarchy.Builder builderForValue) {
@@ -1530,7 +2023,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 5;</code>
+     * <pre>
+     * Contains list of statistics for the single level (probably root or whatever is filtered by the query) of
+     * the queried hierarchy entity.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 4;</code>
      */
     public Builder mergeSelfHierarchy(io.evitadb.externalApi.grpc.generated.GrpcHierarchy value) {
       if (selfHierarchyBuilder_ == null) {
@@ -1548,7 +2046,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 5;</code>
+     * <pre>
+     * Contains list of statistics for the single level (probably root or whatever is filtered by the query) of
+     * the queried hierarchy entity.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 4;</code>
      */
     public Builder clearSelfHierarchy() {
       if (selfHierarchyBuilder_ == null) {
@@ -1562,7 +2065,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 5;</code>
+     * <pre>
+     * Contains list of statistics for the single level (probably root or whatever is filtered by the query) of
+     * the queried hierarchy entity.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcHierarchy.Builder getSelfHierarchyBuilder() {
       
@@ -1570,7 +2078,12 @@ private static final long serialVersionUID = 0L;
       return getSelfHierarchyFieldBuilder().getBuilder();
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 5;</code>
+     * <pre>
+     * Contains list of statistics for the single level (probably root or whatever is filtered by the query) of
+     * the queried hierarchy entity.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcHierarchyOrBuilder getSelfHierarchyOrBuilder() {
       if (selfHierarchyBuilder_ != null) {
@@ -1581,7 +2094,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 5;</code>
+     * <pre>
+     * Contains list of statistics for the single level (probably root or whatever is filtered by the query) of
+     * the queried hierarchy entity.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcHierarchy, io.evitadb.externalApi.grpc.generated.GrpcHierarchy.Builder, io.evitadb.externalApi.grpc.generated.GrpcHierarchyOrBuilder> 
@@ -1624,7 +2142,13 @@ private static final long serialVersionUID = 0L;
       return internalGetHierarchy().getMap().size();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 6;</code>
+     * <pre>
+     * Index holds the statistics for particular references that target hierarchy entity types.
+     * Key is the identification of the reference name, value contains list of statistics for the single level (probably
+     * root or whatever is filtered by the query) of the hierarchy entity.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 5;</code>
      */
 
     @java.lang.Override
@@ -1642,7 +2166,13 @@ private static final long serialVersionUID = 0L;
       return getHierarchyMap();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 6;</code>
+     * <pre>
+     * Index holds the statistics for particular references that target hierarchy entity types.
+     * Key is the identification of the reference name, value contains list of statistics for the single level (probably
+     * root or whatever is filtered by the query) of the hierarchy entity.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 5;</code>
      */
     @java.lang.Override
 
@@ -1650,7 +2180,13 @@ private static final long serialVersionUID = 0L;
       return internalGetHierarchy().getMap();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 6;</code>
+     * <pre>
+     * Index holds the statistics for particular references that target hierarchy entity types.
+     * Key is the identification of the reference name, value contains list of statistics for the single level (probably
+     * root or whatever is filtered by the query) of the hierarchy entity.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 5;</code>
      */
     @java.lang.Override
 
@@ -1663,7 +2199,13 @@ private static final long serialVersionUID = 0L;
       return map.containsKey(key) ? map.get(key) : defaultValue;
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 6;</code>
+     * <pre>
+     * Index holds the statistics for particular references that target hierarchy entity types.
+     * Key is the identification of the reference name, value contains list of statistics for the single level (probably
+     * root or whatever is filtered by the query) of the hierarchy entity.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 5;</code>
      */
     @java.lang.Override
 
@@ -1684,7 +2226,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 6;</code>
+     * <pre>
+     * Index holds the statistics for particular references that target hierarchy entity types.
+     * Key is the identification of the reference name, value contains list of statistics for the single level (probably
+     * root or whatever is filtered by the query) of the hierarchy entity.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 5;</code>
      */
 
     public Builder removeHierarchy(
@@ -1703,7 +2251,13 @@ private static final long serialVersionUID = 0L;
       return internalGetMutableHierarchy().getMutableMap();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 6;</code>
+     * <pre>
+     * Index holds the statistics for particular references that target hierarchy entity types.
+     * Key is the identification of the reference name, value contains list of statistics for the single level (probably
+     * root or whatever is filtered by the query) of the hierarchy entity.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 5;</code>
      */
     public Builder putHierarchy(
         java.lang.String key,
@@ -1718,7 +2272,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 6;</code>
+     * <pre>
+     * Index holds the statistics for particular references that target hierarchy entity types.
+     * Key is the identification of the reference name, value contains list of statistics for the single level (probably
+     * root or whatever is filtered by the query) of the hierarchy entity.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 5;</code>
      */
 
     public Builder putAllHierarchy(
@@ -1732,14 +2292,22 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder> queryTelemetryBuilder_;
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 7;</code>
+     * <pre>
+     * This DTO contains detailed information about query processing time and its decomposition to single operations.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 6;</code>
      * @return Whether the queryTelemetry field is set.
      */
     public boolean hasQueryTelemetry() {
       return queryTelemetryBuilder_ != null || queryTelemetry_ != null;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 7;</code>
+     * <pre>
+     * This DTO contains detailed information about query processing time and its decomposition to single operations.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 6;</code>
      * @return The queryTelemetry.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry getQueryTelemetry() {
@@ -1750,7 +2318,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 7;</code>
+     * <pre>
+     * This DTO contains detailed information about query processing time and its decomposition to single operations.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 6;</code>
      */
     public Builder setQueryTelemetry(io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry value) {
       if (queryTelemetryBuilder_ == null) {
@@ -1766,7 +2338,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 7;</code>
+     * <pre>
+     * This DTO contains detailed information about query processing time and its decomposition to single operations.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 6;</code>
      */
     public Builder setQueryTelemetry(
         io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.Builder builderForValue) {
@@ -1780,7 +2356,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 7;</code>
+     * <pre>
+     * This DTO contains detailed information about query processing time and its decomposition to single operations.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 6;</code>
      */
     public Builder mergeQueryTelemetry(io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry value) {
       if (queryTelemetryBuilder_ == null) {
@@ -1798,7 +2378,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 7;</code>
+     * <pre>
+     * This DTO contains detailed information about query processing time and its decomposition to single operations.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 6;</code>
      */
     public Builder clearQueryTelemetry() {
       if (queryTelemetryBuilder_ == null) {
@@ -1812,7 +2396,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 7;</code>
+     * <pre>
+     * This DTO contains detailed information about query processing time and its decomposition to single operations.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 6;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.Builder getQueryTelemetryBuilder() {
       
@@ -1820,7 +2408,11 @@ private static final long serialVersionUID = 0L;
       return getQueryTelemetryFieldBuilder().getBuilder();
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 7;</code>
+     * <pre>
+     * This DTO contains detailed information about query processing time and its decomposition to single operations.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 6;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder getQueryTelemetryOrBuilder() {
       if (queryTelemetryBuilder_ != null) {
@@ -1831,7 +2423,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 7;</code>
+     * <pre>
+     * This DTO contains detailed information about query processing time and its decomposition to single operations.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder> 

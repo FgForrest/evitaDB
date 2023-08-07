@@ -31,11 +31,21 @@ public interface GrpcSetAssociatedDataSchemaLocalizedMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+   * within single entity instance.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
   java.lang.String getName();
   /**
+   * <pre>
+   * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+   * within single entity instance.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -43,6 +53,11 @@ public interface GrpcSetAssociatedDataSchemaLocalizedMutationOrBuilder extends
       getNameBytes();
 
   /**
+   * <pre>
+   * Localized associated data has to be ALWAYS used in connection with specific `locale`. In other
+   * words - it cannot be stored unless associated locale is also provided.
+   * </pre>
+   *
    * <code>bool localized = 2;</code>
    * @return The localized.
    */

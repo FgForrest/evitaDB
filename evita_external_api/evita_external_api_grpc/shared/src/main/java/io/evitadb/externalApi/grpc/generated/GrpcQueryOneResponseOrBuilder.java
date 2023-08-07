@@ -31,46 +31,82 @@ public interface GrpcQueryOneResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Entity reference of the found entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
    * @return Whether the entityReference field is set.
    */
   boolean hasEntityReference();
   /**
+   * <pre>
+   * Entity reference of the found entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
    * @return The entityReference.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityReference getEntityReference();
   /**
+   * <pre>
+   * Entity reference of the found entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder getEntityReferenceOrBuilder();
 
   /**
+   * <pre>
+   * Sealed entity of the found entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntity = 2;</code>
    * @return Whether the sealedEntity field is set.
    */
   boolean hasSealedEntity();
   /**
+   * <pre>
+   * Sealed entity of the found entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntity = 2;</code>
    * @return The sealedEntity.
    */
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getSealedEntity();
   /**
+   * <pre>
+   * Sealed entity of the found entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntity = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getSealedEntityOrBuilder();
 
   /**
+   * <pre>
+   * Binary entity of the found entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntity = 3;</code>
    * @return Whether the binaryEntity field is set.
    */
   boolean hasBinaryEntity();
   /**
+   * <pre>
+   * Binary entity of the found entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntity = 3;</code>
    * @return The binaryEntity.
    */
   io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity getBinaryEntity();
   /**
+   * <pre>
+   * Binary entity of the found entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntity = 3;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder getBinaryEntityOrBuilder();

@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Mutation is a holder for a single `AttributeSchema` that affect any of `ReferenceSchema.attributes` in the `EntitySchema`.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceAttributeSchemaMutation}
  */
 public final class GrpcModifyReferenceAttributeSchemaMutation extends
@@ -126,6 +130,10 @@ private static final long serialVersionUID = 0L;
   public static final int NAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object name_;
   /**
+   * <pre>
+   * Name of the reference the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
@@ -143,6 +151,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Name of the reference the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -164,6 +176,10 @@ private static final long serialVersionUID = 0L;
   public static final int ATTRIBUTESCHEMAMUTATION_FIELD_NUMBER = 2;
   private io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutation attributeSchemaMutation_;
   /**
+   * <pre>
+   * Nested attribute schema mutation that mutates reference attributes of targeted reference.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutation attributeSchemaMutation = 2;</code>
    * @return Whether the attributeSchemaMutation field is set.
    */
@@ -172,6 +188,10 @@ private static final long serialVersionUID = 0L;
     return attributeSchemaMutation_ != null;
   }
   /**
+   * <pre>
+   * Nested attribute schema mutation that mutates reference attributes of targeted reference.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutation attributeSchemaMutation = 2;</code>
    * @return The attributeSchemaMutation.
    */
@@ -180,6 +200,10 @@ private static final long serialVersionUID = 0L;
     return attributeSchemaMutation_ == null ? io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutation.getDefaultInstance() : attributeSchemaMutation_;
   }
   /**
+   * <pre>
+   * Nested attribute schema mutation that mutates reference attributes of targeted reference.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutation attributeSchemaMutation = 2;</code>
    */
   @java.lang.Override
@@ -358,6 +382,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Mutation is a holder for a single `AttributeSchema` that affect any of `ReferenceSchema.attributes` in the `EntitySchema`.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceAttributeSchemaMutation}
    */
   public static final class Builder extends
@@ -521,6 +549,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object name_ = "";
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The name.
      */
@@ -537,6 +569,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The bytes for name.
      */
@@ -554,6 +590,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The name to set.
      * @return This builder for chaining.
@@ -569,6 +609,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return This builder for chaining.
      */
@@ -579,6 +623,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The bytes for name to set.
      * @return This builder for chaining.
@@ -599,6 +647,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutationOrBuilder> attributeSchemaMutationBuilder_;
     /**
+     * <pre>
+     * Nested attribute schema mutation that mutates reference attributes of targeted reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutation attributeSchemaMutation = 2;</code>
      * @return Whether the attributeSchemaMutation field is set.
      */
@@ -606,6 +658,10 @@ private static final long serialVersionUID = 0L;
       return attributeSchemaMutationBuilder_ != null || attributeSchemaMutation_ != null;
     }
     /**
+     * <pre>
+     * Nested attribute schema mutation that mutates reference attributes of targeted reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutation attributeSchemaMutation = 2;</code>
      * @return The attributeSchemaMutation.
      */
@@ -617,6 +673,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Nested attribute schema mutation that mutates reference attributes of targeted reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutation attributeSchemaMutation = 2;</code>
      */
     public Builder setAttributeSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutation value) {
@@ -633,6 +693,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Nested attribute schema mutation that mutates reference attributes of targeted reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutation attributeSchemaMutation = 2;</code>
      */
     public Builder setAttributeSchemaMutation(
@@ -647,6 +711,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Nested attribute schema mutation that mutates reference attributes of targeted reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutation attributeSchemaMutation = 2;</code>
      */
     public Builder mergeAttributeSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutation value) {
@@ -665,6 +733,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Nested attribute schema mutation that mutates reference attributes of targeted reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutation attributeSchemaMutation = 2;</code>
      */
     public Builder clearAttributeSchemaMutation() {
@@ -679,6 +751,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Nested attribute schema mutation that mutates reference attributes of targeted reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutation attributeSchemaMutation = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutation.Builder getAttributeSchemaMutationBuilder() {
@@ -687,6 +763,10 @@ private static final long serialVersionUID = 0L;
       return getAttributeSchemaMutationFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Nested attribute schema mutation that mutates reference attributes of targeted reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutation attributeSchemaMutation = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutationOrBuilder getAttributeSchemaMutationOrBuilder() {
@@ -698,6 +778,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Nested attribute schema mutation that mutates reference attributes of targeted reference.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutation attributeSchemaMutation = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

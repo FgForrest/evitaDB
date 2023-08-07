@@ -31,11 +31,19 @@ public interface GrpcRenameCatalogRequestOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the catalog to be renamed.
+   * </pre>
+   *
    * <code>string catalogName = 1;</code>
    * @return The catalogName.
    */
   java.lang.String getCatalogName();
   /**
+   * <pre>
+   * Name of the catalog to be renamed.
+   * </pre>
+   *
    * <code>string catalogName = 1;</code>
    * @return The bytes for catalogName.
    */
@@ -43,11 +51,19 @@ public interface GrpcRenameCatalogRequestOrBuilder extends
       getCatalogNameBytes();
 
   /**
+   * <pre>
+   * New name of the catalog.
+   * </pre>
+   *
    * <code>string newCatalogName = 2;</code>
    * @return The newCatalogName.
    */
   java.lang.String getNewCatalogName();
   /**
+   * <pre>
+   * New name of the catalog.
+   * </pre>
+   *
    * <code>string newCatalogName = 2;</code>
    * @return The bytes for newCatalogName.
    */

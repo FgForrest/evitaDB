@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Request to terminate a session.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationRequest}
  */
 public final class GrpcEvitaSessionTerminationRequest extends
@@ -120,6 +124,10 @@ private static final long serialVersionUID = 0L;
   public static final int CATALOGNAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object catalogName_;
   /**
+   * <pre>
+   * Name of the catalog for which the session is to be terminated.
+   * </pre>
+   *
    * <code>string catalogName = 1;</code>
    * @return The catalogName.
    */
@@ -137,6 +145,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Name of the catalog for which the session is to be terminated.
+   * </pre>
+   *
    * <code>string catalogName = 1;</code>
    * @return The bytes for catalogName.
    */
@@ -158,6 +170,10 @@ private static final long serialVersionUID = 0L;
   public static final int SESSIONID_FIELD_NUMBER = 2;
   private volatile java.lang.Object sessionId_;
   /**
+   * <pre>
+   * UUID of the session to be terminated.
+   * </pre>
+   *
    * <code>string sessionId = 2;</code>
    * @return The sessionId.
    */
@@ -175,6 +191,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * UUID of the session to be terminated.
+   * </pre>
+   *
    * <code>string sessionId = 2;</code>
    * @return The bytes for sessionId.
    */
@@ -358,6 +378,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Request to terminate a session.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationRequest}
    */
   public static final class Builder extends
@@ -514,6 +538,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object catalogName_ = "";
     /**
+     * <pre>
+     * Name of the catalog for which the session is to be terminated.
+     * </pre>
+     *
      * <code>string catalogName = 1;</code>
      * @return The catalogName.
      */
@@ -530,6 +558,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the catalog for which the session is to be terminated.
+     * </pre>
+     *
      * <code>string catalogName = 1;</code>
      * @return The bytes for catalogName.
      */
@@ -547,6 +579,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the catalog for which the session is to be terminated.
+     * </pre>
+     *
      * <code>string catalogName = 1;</code>
      * @param value The catalogName to set.
      * @return This builder for chaining.
@@ -562,6 +598,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the catalog for which the session is to be terminated.
+     * </pre>
+     *
      * <code>string catalogName = 1;</code>
      * @return This builder for chaining.
      */
@@ -572,6 +612,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the catalog for which the session is to be terminated.
+     * </pre>
+     *
      * <code>string catalogName = 1;</code>
      * @param value The bytes for catalogName to set.
      * @return This builder for chaining.
@@ -590,6 +634,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object sessionId_ = "";
     /**
+     * <pre>
+     * UUID of the session to be terminated.
+     * </pre>
+     *
      * <code>string sessionId = 2;</code>
      * @return The sessionId.
      */
@@ -606,6 +654,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * UUID of the session to be terminated.
+     * </pre>
+     *
      * <code>string sessionId = 2;</code>
      * @return The bytes for sessionId.
      */
@@ -623,6 +675,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * UUID of the session to be terminated.
+     * </pre>
+     *
      * <code>string sessionId = 2;</code>
      * @param value The sessionId to set.
      * @return This builder for chaining.
@@ -638,6 +694,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * UUID of the session to be terminated.
+     * </pre>
+     *
      * <code>string sessionId = 2;</code>
      * @return This builder for chaining.
      */
@@ -648,6 +708,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * UUID of the session to be terminated.
+     * </pre>
+     *
      * <code>string sessionId = 2;</code>
      * @param value The bytes for sessionId to set.
      * @return This builder for chaining.

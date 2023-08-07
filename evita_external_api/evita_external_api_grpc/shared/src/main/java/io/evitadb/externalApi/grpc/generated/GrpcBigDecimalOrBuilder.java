@@ -31,29 +31,49 @@ public interface GrpcBigDecimalOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The unscaled value of the BigDecimal.
+   * </pre>
+   *
    * <code>uint32 scale = 1;</code>
    * @return The scale.
    */
   int getScale();
 
   /**
+   * <pre>
+   * The precision of the BigDecimal.
+   * </pre>
+   *
    * <code>uint32 precision = 2;</code>
    * @return The precision.
    */
   int getPrecision();
 
   /**
+   * <pre>
+   * The byte serialized value in integer form.
+   * </pre>
+   *
    * <code>bytes value = 3;</code>
    * @return The value.
    */
   com.google.protobuf.ByteString getValue();
 
   /**
+   * <pre>
+   * The string serialized value.
+   * </pre>
+   *
    * <code>string valueString = 4;</code>
    * @return The valueString.
    */
   java.lang.String getValueString();
   /**
+   * <pre>
+   * The string serialized value.
+   * </pre>
+   *
    * <code>string valueString = 4;</code>
    * @return The bytes for valueString.
    */

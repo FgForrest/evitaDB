@@ -27,6 +27,11 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Mutation is responsible for setting up a new `ReferenceSchema` in the `EntitySchema`.
+ * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCreateReferenceSchemaMutation}
  */
 public final class GrpcCreateReferenceSchemaMutation extends
@@ -186,6 +191,10 @@ private static final long serialVersionUID = 0L;
   public static final int NAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object name_;
   /**
+   * <pre>
+   * Name of the reference the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
@@ -203,6 +212,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Name of the reference the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -224,6 +237,11 @@ private static final long serialVersionUID = 0L;
   public static final int DESCRIPTION_FIELD_NUMBER = 2;
   private com.google.protobuf.StringValue description_;
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 2;</code>
    * @return Whether the description field is set.
    */
@@ -232,6 +250,11 @@ private static final long serialVersionUID = 0L;
     return description_ != null;
   }
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 2;</code>
    * @return The description.
    */
@@ -240,6 +263,11 @@ private static final long serialVersionUID = 0L;
     return description_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : description_;
   }
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 2;</code>
    */
   @java.lang.Override
@@ -250,6 +278,11 @@ private static final long serialVersionUID = 0L;
   public static final int DEPRECATIONNOTICE_FIELD_NUMBER = 3;
   private com.google.protobuf.StringValue deprecationNotice_;
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this schema from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
    * @return Whether the deprecationNotice field is set.
    */
@@ -258,6 +291,11 @@ private static final long serialVersionUID = 0L;
     return deprecationNotice_ != null;
   }
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this schema from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
    * @return The deprecationNotice.
    */
@@ -266,6 +304,11 @@ private static final long serialVersionUID = 0L;
     return deprecationNotice_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : deprecationNotice_;
   }
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this schema from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
    */
   @java.lang.Override
@@ -276,6 +319,14 @@ private static final long serialVersionUID = 0L;
   public static final int CARDINALITY_FIELD_NUMBER = 4;
   private int cardinality_;
   /**
+   * <pre>
+   * Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+   * relationship from the perspective of the entity. We stick to the ERD modelling
+   * [standards](https://www.gleek.io/blog/crows-foot-notation.html) here. Cardinality affect the design
+   * of the client API (returning only single reference or collections) and also help us to protect the consistency
+   * of the data so that conforms to the creator mental model.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality cardinality = 4;</code>
    * @return The enum numeric value on the wire for cardinality.
    */
@@ -283,6 +334,14 @@ private static final long serialVersionUID = 0L;
     return cardinality_;
   }
   /**
+   * <pre>
+   * Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+   * relationship from the perspective of the entity. We stick to the ERD modelling
+   * [standards](https://www.gleek.io/blog/crows-foot-notation.html) here. Cardinality affect the design
+   * of the client API (returning only single reference or collections) and also help us to protect the consistency
+   * of the data so that conforms to the creator mental model.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality cardinality = 4;</code>
    * @return The cardinality.
    */
@@ -295,6 +354,11 @@ private static final long serialVersionUID = 0L;
   public static final int REFERENCEDENTITYTYPE_FIELD_NUMBER = 5;
   private volatile java.lang.Object referencedEntityType_;
   /**
+   * <pre>
+   * Reference to `EntitySchema.name` of the referenced entity. Might be also any `String`
+   * that identifies type some external resource not maintained by Evita.
+   * </pre>
+   *
    * <code>string referencedEntityType = 5;</code>
    * @return The referencedEntityType.
    */
@@ -312,6 +376,11 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Reference to `EntitySchema.name` of the referenced entity. Might be also any `String`
+   * that identifies type some external resource not maintained by Evita.
+   * </pre>
+   *
    * <code>string referencedEntityType = 5;</code>
    * @return The bytes for referencedEntityType.
    */
@@ -333,6 +402,11 @@ private static final long serialVersionUID = 0L;
   public static final int REFERENCEDENTITYTYPEMANAGED_FIELD_NUMBER = 6;
   private boolean referencedEntityTypeManaged_;
   /**
+   * <pre>
+   * Whether `referencedEntityType` refers to any existing `EntitySchema.name` that is
+   * maintained by Evita.
+   * </pre>
+   *
    * <code>bool referencedEntityTypeManaged = 6;</code>
    * @return The referencedEntityTypeManaged.
    */
@@ -344,6 +418,11 @@ private static final long serialVersionUID = 0L;
   public static final int REFERENCEDGROUPTYPE_FIELD_NUMBER = 7;
   private com.google.protobuf.StringValue referencedGroupType_;
   /**
+   * <pre>
+   * Reference to `EntitySchema.name` of the referenced group entity. Might be also any `String`
+   * that identifies type some external resource not maintained by Evita.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue referencedGroupType = 7;</code>
    * @return Whether the referencedGroupType field is set.
    */
@@ -352,6 +431,11 @@ private static final long serialVersionUID = 0L;
     return referencedGroupType_ != null;
   }
   /**
+   * <pre>
+   * Reference to `EntitySchema.name` of the referenced group entity. Might be also any `String`
+   * that identifies type some external resource not maintained by Evita.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue referencedGroupType = 7;</code>
    * @return The referencedGroupType.
    */
@@ -360,6 +444,11 @@ private static final long serialVersionUID = 0L;
     return referencedGroupType_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : referencedGroupType_;
   }
   /**
+   * <pre>
+   * Reference to `EntitySchema.name` of the referenced group entity. Might be also any `String`
+   * that identifies type some external resource not maintained by Evita.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue referencedGroupType = 7;</code>
    */
   @java.lang.Override
@@ -370,6 +459,11 @@ private static final long serialVersionUID = 0L;
   public static final int REFERENCEDGROUPTYPEMANAGED_FIELD_NUMBER = 8;
   private boolean referencedGroupTypeManaged_;
   /**
+   * <pre>
+   * Whether `referencedGroupType` refers to any existing `EntitySchema.name` that is
+   * maintained by Evita.
+   * </pre>
+   *
    * <code>bool referencedGroupTypeManaged = 8;</code>
    * @return The referencedGroupTypeManaged.
    */
@@ -381,6 +475,16 @@ private static final long serialVersionUID = 0L;
   public static final int FILTERABLE_FIELD_NUMBER = 9;
   private boolean filterable_;
   /**
+   * <pre>
+   * Whether the index for this reference should be created and maintained allowing to filter by
+   * `referenceHaving` filtering constraints. Index is also required when reference is
+   * `faceted`.
+   * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+   * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+   * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+   * alongside other references if requested.
+   * </pre>
+   *
    * <code>bool filterable = 9;</code>
    * @return The filterable.
    */
@@ -392,6 +496,15 @@ private static final long serialVersionUID = 0L;
   public static final int FACETED_FIELD_NUMBER = 10;
   private boolean faceted_;
   /**
+   * <pre>
+   * Whether the statistics data for this reference should be maintained and this allowing to get
+   * `facetSummary` for this reference or use `facetInSet`
+   * filtering query.
+   * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+   * occupies (memory/disk) space in the form of index.
+   * Reference that was marked as faceted is called Facet.
+   * </pre>
+   *
    * <code>bool faceted = 10;</code>
    * @return The faceted.
    */
@@ -671,6 +784,11 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Mutation is responsible for setting up a new `ReferenceSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCreateReferenceSchemaMutation}
    */
   public static final class Builder extends
@@ -899,6 +1017,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object name_ = "";
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The name.
      */
@@ -915,6 +1037,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The bytes for name.
      */
@@ -932,6 +1058,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The name to set.
      * @return This builder for chaining.
@@ -947,6 +1077,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return This builder for chaining.
      */
@@ -957,6 +1091,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The bytes for name to set.
      * @return This builder for chaining.
@@ -977,6 +1115,11 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> descriptionBuilder_;
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      * @return Whether the description field is set.
      */
@@ -984,6 +1127,11 @@ private static final long serialVersionUID = 0L;
       return descriptionBuilder_ != null || description_ != null;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      * @return The description.
      */
@@ -995,6 +1143,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public Builder setDescription(com.google.protobuf.StringValue value) {
@@ -1011,6 +1164,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public Builder setDescription(
@@ -1025,6 +1183,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public Builder mergeDescription(com.google.protobuf.StringValue value) {
@@ -1043,6 +1206,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public Builder clearDescription() {
@@ -1057,6 +1225,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public com.google.protobuf.StringValue.Builder getDescriptionBuilder() {
@@ -1065,6 +1238,11 @@ private static final long serialVersionUID = 0L;
       return getDescriptionFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public com.google.protobuf.StringValueOrBuilder getDescriptionOrBuilder() {
@@ -1076,6 +1254,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1096,6 +1279,11 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> deprecationNoticeBuilder_;
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this schema from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      * @return Whether the deprecationNotice field is set.
      */
@@ -1103,6 +1291,11 @@ private static final long serialVersionUID = 0L;
       return deprecationNoticeBuilder_ != null || deprecationNotice_ != null;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this schema from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      * @return The deprecationNotice.
      */
@@ -1114,6 +1307,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this schema from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public Builder setDeprecationNotice(com.google.protobuf.StringValue value) {
@@ -1130,6 +1328,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this schema from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public Builder setDeprecationNotice(
@@ -1144,6 +1347,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this schema from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public Builder mergeDeprecationNotice(com.google.protobuf.StringValue value) {
@@ -1162,6 +1370,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this schema from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public Builder clearDeprecationNotice() {
@@ -1176,6 +1389,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this schema from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public com.google.protobuf.StringValue.Builder getDeprecationNoticeBuilder() {
@@ -1184,6 +1402,11 @@ private static final long serialVersionUID = 0L;
       return getDeprecationNoticeFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this schema from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public com.google.protobuf.StringValueOrBuilder getDeprecationNoticeOrBuilder() {
@@ -1195,6 +1418,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this schema from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1213,6 +1441,14 @@ private static final long serialVersionUID = 0L;
 
     private int cardinality_ = 0;
     /**
+     * <pre>
+     * Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+     * relationship from the perspective of the entity. We stick to the ERD modelling
+     * [standards](https://www.gleek.io/blog/crows-foot-notation.html) here. Cardinality affect the design
+     * of the client API (returning only single reference or collections) and also help us to protect the consistency
+     * of the data so that conforms to the creator mental model.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality cardinality = 4;</code>
      * @return The enum numeric value on the wire for cardinality.
      */
@@ -1220,6 +1456,14 @@ private static final long serialVersionUID = 0L;
       return cardinality_;
     }
     /**
+     * <pre>
+     * Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+     * relationship from the perspective of the entity. We stick to the ERD modelling
+     * [standards](https://www.gleek.io/blog/crows-foot-notation.html) here. Cardinality affect the design
+     * of the client API (returning only single reference or collections) and also help us to protect the consistency
+     * of the data so that conforms to the creator mental model.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality cardinality = 4;</code>
      * @param value The enum numeric value on the wire for cardinality to set.
      * @return This builder for chaining.
@@ -1231,6 +1475,14 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+     * relationship from the perspective of the entity. We stick to the ERD modelling
+     * [standards](https://www.gleek.io/blog/crows-foot-notation.html) here. Cardinality affect the design
+     * of the client API (returning only single reference or collections) and also help us to protect the consistency
+     * of the data so that conforms to the creator mental model.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality cardinality = 4;</code>
      * @return The cardinality.
      */
@@ -1241,6 +1493,14 @@ private static final long serialVersionUID = 0L;
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCardinality.UNRECOGNIZED : result;
     }
     /**
+     * <pre>
+     * Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+     * relationship from the perspective of the entity. We stick to the ERD modelling
+     * [standards](https://www.gleek.io/blog/crows-foot-notation.html) here. Cardinality affect the design
+     * of the client API (returning only single reference or collections) and also help us to protect the consistency
+     * of the data so that conforms to the creator mental model.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality cardinality = 4;</code>
      * @param value The cardinality to set.
      * @return This builder for chaining.
@@ -1255,6 +1515,14 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+     * relationship from the perspective of the entity. We stick to the ERD modelling
+     * [standards](https://www.gleek.io/blog/crows-foot-notation.html) here. Cardinality affect the design
+     * of the client API (returning only single reference or collections) and also help us to protect the consistency
+     * of the data so that conforms to the creator mental model.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality cardinality = 4;</code>
      * @return This builder for chaining.
      */
@@ -1267,6 +1535,11 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object referencedEntityType_ = "";
     /**
+     * <pre>
+     * Reference to `EntitySchema.name` of the referenced entity. Might be also any `String`
+     * that identifies type some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>string referencedEntityType = 5;</code>
      * @return The referencedEntityType.
      */
@@ -1283,6 +1556,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Reference to `EntitySchema.name` of the referenced entity. Might be also any `String`
+     * that identifies type some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>string referencedEntityType = 5;</code>
      * @return The bytes for referencedEntityType.
      */
@@ -1300,6 +1578,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Reference to `EntitySchema.name` of the referenced entity. Might be also any `String`
+     * that identifies type some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>string referencedEntityType = 5;</code>
      * @param value The referencedEntityType to set.
      * @return This builder for chaining.
@@ -1315,6 +1598,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Reference to `EntitySchema.name` of the referenced entity. Might be also any `String`
+     * that identifies type some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>string referencedEntityType = 5;</code>
      * @return This builder for chaining.
      */
@@ -1325,6 +1613,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Reference to `EntitySchema.name` of the referenced entity. Might be also any `String`
+     * that identifies type some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>string referencedEntityType = 5;</code>
      * @param value The bytes for referencedEntityType to set.
      * @return This builder for chaining.
@@ -1343,6 +1636,11 @@ private static final long serialVersionUID = 0L;
 
     private boolean referencedEntityTypeManaged_ ;
     /**
+     * <pre>
+     * Whether `referencedEntityType` refers to any existing `EntitySchema.name` that is
+     * maintained by Evita.
+     * </pre>
+     *
      * <code>bool referencedEntityTypeManaged = 6;</code>
      * @return The referencedEntityTypeManaged.
      */
@@ -1351,6 +1649,11 @@ private static final long serialVersionUID = 0L;
       return referencedEntityTypeManaged_;
     }
     /**
+     * <pre>
+     * Whether `referencedEntityType` refers to any existing `EntitySchema.name` that is
+     * maintained by Evita.
+     * </pre>
+     *
      * <code>bool referencedEntityTypeManaged = 6;</code>
      * @param value The referencedEntityTypeManaged to set.
      * @return This builder for chaining.
@@ -1362,6 +1665,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Whether `referencedEntityType` refers to any existing `EntitySchema.name` that is
+     * maintained by Evita.
+     * </pre>
+     *
      * <code>bool referencedEntityTypeManaged = 6;</code>
      * @return This builder for chaining.
      */
@@ -1376,6 +1684,11 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> referencedGroupTypeBuilder_;
     /**
+     * <pre>
+     * Reference to `EntitySchema.name` of the referenced group entity. Might be also any `String`
+     * that identifies type some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue referencedGroupType = 7;</code>
      * @return Whether the referencedGroupType field is set.
      */
@@ -1383,6 +1696,11 @@ private static final long serialVersionUID = 0L;
       return referencedGroupTypeBuilder_ != null || referencedGroupType_ != null;
     }
     /**
+     * <pre>
+     * Reference to `EntitySchema.name` of the referenced group entity. Might be also any `String`
+     * that identifies type some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue referencedGroupType = 7;</code>
      * @return The referencedGroupType.
      */
@@ -1394,6 +1712,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Reference to `EntitySchema.name` of the referenced group entity. Might be also any `String`
+     * that identifies type some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue referencedGroupType = 7;</code>
      */
     public Builder setReferencedGroupType(com.google.protobuf.StringValue value) {
@@ -1410,6 +1733,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Reference to `EntitySchema.name` of the referenced group entity. Might be also any `String`
+     * that identifies type some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue referencedGroupType = 7;</code>
      */
     public Builder setReferencedGroupType(
@@ -1424,6 +1752,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Reference to `EntitySchema.name` of the referenced group entity. Might be also any `String`
+     * that identifies type some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue referencedGroupType = 7;</code>
      */
     public Builder mergeReferencedGroupType(com.google.protobuf.StringValue value) {
@@ -1442,6 +1775,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Reference to `EntitySchema.name` of the referenced group entity. Might be also any `String`
+     * that identifies type some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue referencedGroupType = 7;</code>
      */
     public Builder clearReferencedGroupType() {
@@ -1456,6 +1794,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Reference to `EntitySchema.name` of the referenced group entity. Might be also any `String`
+     * that identifies type some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue referencedGroupType = 7;</code>
      */
     public com.google.protobuf.StringValue.Builder getReferencedGroupTypeBuilder() {
@@ -1464,6 +1807,11 @@ private static final long serialVersionUID = 0L;
       return getReferencedGroupTypeFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Reference to `EntitySchema.name` of the referenced group entity. Might be also any `String`
+     * that identifies type some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue referencedGroupType = 7;</code>
      */
     public com.google.protobuf.StringValueOrBuilder getReferencedGroupTypeOrBuilder() {
@@ -1475,6 +1823,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Reference to `EntitySchema.name` of the referenced group entity. Might be also any `String`
+     * that identifies type some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue referencedGroupType = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1493,6 +1846,11 @@ private static final long serialVersionUID = 0L;
 
     private boolean referencedGroupTypeManaged_ ;
     /**
+     * <pre>
+     * Whether `referencedGroupType` refers to any existing `EntitySchema.name` that is
+     * maintained by Evita.
+     * </pre>
+     *
      * <code>bool referencedGroupTypeManaged = 8;</code>
      * @return The referencedGroupTypeManaged.
      */
@@ -1501,6 +1859,11 @@ private static final long serialVersionUID = 0L;
       return referencedGroupTypeManaged_;
     }
     /**
+     * <pre>
+     * Whether `referencedGroupType` refers to any existing `EntitySchema.name` that is
+     * maintained by Evita.
+     * </pre>
+     *
      * <code>bool referencedGroupTypeManaged = 8;</code>
      * @param value The referencedGroupTypeManaged to set.
      * @return This builder for chaining.
@@ -1512,6 +1875,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Whether `referencedGroupType` refers to any existing `EntitySchema.name` that is
+     * maintained by Evita.
+     * </pre>
+     *
      * <code>bool referencedGroupTypeManaged = 8;</code>
      * @return This builder for chaining.
      */
@@ -1524,6 +1892,16 @@ private static final long serialVersionUID = 0L;
 
     private boolean filterable_ ;
     /**
+     * <pre>
+     * Whether the index for this reference should be created and maintained allowing to filter by
+     * `referenceHaving` filtering constraints. Index is also required when reference is
+     * `faceted`.
+     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+     * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+     * alongside other references if requested.
+     * </pre>
+     *
      * <code>bool filterable = 9;</code>
      * @return The filterable.
      */
@@ -1532,6 +1910,16 @@ private static final long serialVersionUID = 0L;
       return filterable_;
     }
     /**
+     * <pre>
+     * Whether the index for this reference should be created and maintained allowing to filter by
+     * `referenceHaving` filtering constraints. Index is also required when reference is
+     * `faceted`.
+     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+     * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+     * alongside other references if requested.
+     * </pre>
+     *
      * <code>bool filterable = 9;</code>
      * @param value The filterable to set.
      * @return This builder for chaining.
@@ -1543,6 +1931,16 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Whether the index for this reference should be created and maintained allowing to filter by
+     * `referenceHaving` filtering constraints. Index is also required when reference is
+     * `faceted`.
+     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+     * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+     * alongside other references if requested.
+     * </pre>
+     *
      * <code>bool filterable = 9;</code>
      * @return This builder for chaining.
      */
@@ -1555,6 +1953,15 @@ private static final long serialVersionUID = 0L;
 
     private boolean faceted_ ;
     /**
+     * <pre>
+     * Whether the statistics data for this reference should be maintained and this allowing to get
+     * `facetSummary` for this reference or use `facetInSet`
+     * filtering query.
+     * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+     * occupies (memory/disk) space in the form of index.
+     * Reference that was marked as faceted is called Facet.
+     * </pre>
+     *
      * <code>bool faceted = 10;</code>
      * @return The faceted.
      */
@@ -1563,6 +1970,15 @@ private static final long serialVersionUID = 0L;
       return faceted_;
     }
     /**
+     * <pre>
+     * Whether the statistics data for this reference should be maintained and this allowing to get
+     * `facetSummary` for this reference or use `facetInSet`
+     * filtering query.
+     * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+     * occupies (memory/disk) space in the form of index.
+     * Reference that was marked as faceted is called Facet.
+     * </pre>
+     *
      * <code>bool faceted = 10;</code>
      * @param value The faceted to set.
      * @return This builder for chaining.
@@ -1574,6 +1990,15 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Whether the statistics data for this reference should be maintained and this allowing to get
+     * `facetSummary` for this reference or use `facetInSet`
+     * filtering query.
+     * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+     * occupies (memory/disk) space in the form of index.
+     * Reference that was marked as faceted is called Facet.
+     * </pre>
+     *
      * <code>bool faceted = 10;</code>
      * @return This builder for chaining.
      */

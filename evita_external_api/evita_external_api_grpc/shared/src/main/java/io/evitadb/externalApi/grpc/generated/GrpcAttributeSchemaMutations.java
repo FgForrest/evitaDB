@@ -223,7 +223,8 @@ public final class GrpcAttributeSchemaMutations {
       "niqueMutationH\000\022w\n useGlobalAttributeSch" +
       "emaMutation\030\017 \001(\0132K.io.evitadb.externalA" +
       "pi.grpc.generated.GrpcUseGlobalAttribute" +
-      "SchemaMutationH\000B\n\n\010mutationB\002P\001b\006proto3"
+      "SchemaMutationH\000B\n\n\010mutationB\014P\001\252\002\007Evita" +
+      "DBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

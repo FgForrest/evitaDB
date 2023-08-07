@@ -31,16 +31,28 @@ public interface GrpcEvitaValueOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * String value.
+   * </pre>
+   *
    * <code>string stringValue = 1;</code>
    * @return Whether the stringValue field is set.
    */
   boolean hasStringValue();
   /**
+   * <pre>
+   * String value.
+   * </pre>
+   *
    * <code>string stringValue = 1;</code>
    * @return The stringValue.
    */
   java.lang.String getStringValue();
   /**
+   * <pre>
+   * String value.
+   * </pre>
+   *
    * <code>string stringValue = 1;</code>
    * @return The bytes for stringValue.
    */
@@ -48,360 +60,647 @@ public interface GrpcEvitaValueOrBuilder extends
       getStringValueBytes();
 
   /**
+   * <pre>
+   * Integer value.
+   * </pre>
+   *
    * <code>int32 integerValue = 2;</code>
    * @return Whether the integerValue field is set.
    */
   boolean hasIntegerValue();
   /**
+   * <pre>
+   * Integer value.
+   * </pre>
+   *
    * <code>int32 integerValue = 2;</code>
    * @return The integerValue.
    */
   int getIntegerValue();
 
   /**
+   * <pre>
+   * Long value.
+   * </pre>
+   *
    * <code>int64 longValue = 3;</code>
    * @return Whether the longValue field is set.
    */
   boolean hasLongValue();
   /**
+   * <pre>
+   * Long value.
+   * </pre>
+   *
    * <code>int64 longValue = 3;</code>
    * @return The longValue.
    */
   long getLongValue();
 
   /**
+   * <pre>
+   * Boolean value.
+   * </pre>
+   *
    * <code>bool booleanValue = 4;</code>
    * @return Whether the booleanValue field is set.
    */
   boolean hasBooleanValue();
   /**
+   * <pre>
+   * Boolean value.
+   * </pre>
+   *
    * <code>bool booleanValue = 4;</code>
    * @return The booleanValue.
    */
   boolean getBooleanValue();
 
   /**
+   * <pre>
+   * BigDecimal value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
    * @return Whether the bigDecimalValue field is set.
    */
   boolean hasBigDecimalValue();
   /**
+   * <pre>
+   * BigDecimal value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
    * @return The bigDecimalValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getBigDecimalValue();
   /**
+   * <pre>
+   * BigDecimal value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getBigDecimalValueOrBuilder();
 
   /**
+   * <pre>
+   * DateTimeRange value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
    * @return Whether the dateTimeRangeValue field is set.
    */
   boolean hasDateTimeRangeValue();
   /**
+   * <pre>
+   * DateTimeRange value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
    * @return The dateTimeRangeValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange getDateTimeRangeValue();
   /**
+   * <pre>
+   * DateTimeRange value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeOrBuilder getDateTimeRangeValueOrBuilder();
 
   /**
+   * <pre>
+   * IntegerNumberRange value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
    * @return Whether the integerNumberRangeValue field is set.
    */
   boolean hasIntegerNumberRangeValue();
   /**
+   * <pre>
+   * IntegerNumberRange value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
    * @return The integerNumberRangeValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange getIntegerNumberRangeValue();
   /**
+   * <pre>
+   * IntegerNumberRange value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder getIntegerNumberRangeValueOrBuilder();
 
   /**
+   * <pre>
+   * LongNumberRange value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
    * @return Whether the longNumberRangeValue field is set.
    */
   boolean hasLongNumberRangeValue();
   /**
+   * <pre>
+   * LongNumberRange value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
    * @return The longNumberRangeValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange getLongNumberRangeValue();
   /**
+   * <pre>
+   * LongNumberRange value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeOrBuilder getLongNumberRangeValueOrBuilder();
 
   /**
+   * <pre>
+   * BigDecimalNumberRange value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
    * @return Whether the bigDecimalNumberRangeValue field is set.
    */
   boolean hasBigDecimalNumberRangeValue();
   /**
+   * <pre>
+   * BigDecimalNumberRange value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
    * @return The bigDecimalNumberRangeValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange getBigDecimalNumberRangeValue();
   /**
+   * <pre>
+   * BigDecimalNumberRange value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeOrBuilder getBigDecimalNumberRangeValueOrBuilder();
 
   /**
+   * <pre>
+   * OffsetDateTime value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
    * @return Whether the offsetDateTimeValue field is set.
    */
   boolean hasOffsetDateTimeValue();
   /**
+   * <pre>
+   * OffsetDateTime value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
    * @return The offsetDateTimeValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getOffsetDateTimeValue();
   /**
+   * <pre>
+   * OffsetDateTime value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getOffsetDateTimeValueOrBuilder();
 
   /**
+   * <pre>
+   * Locale value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
    * @return Whether the localeValue field is set.
    */
   boolean hasLocaleValue();
   /**
+   * <pre>
+   * Locale value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
    * @return The localeValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocale getLocaleValue();
   /**
+   * <pre>
+   * Locale value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder getLocaleValueOrBuilder();
 
   /**
+   * <pre>
+   * Currency value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
    * @return Whether the currencyValue field is set.
    */
   boolean hasCurrencyValue();
   /**
+   * <pre>
+   * Currency value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
    * @return The currencyValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcCurrency getCurrencyValue();
   /**
+   * <pre>
+   * Currency value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder getCurrencyValueOrBuilder();
 
   /**
+   * <pre>
+   * Array of string values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 13;</code>
    * @return Whether the stringArrayValue field is set.
    */
   boolean hasStringArrayValue();
   /**
+   * <pre>
+   * Array of string values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 13;</code>
    * @return The stringArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcStringArray getStringArrayValue();
   /**
+   * <pre>
+   * Array of string values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 13;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcStringArrayOrBuilder getStringArrayValueOrBuilder();
 
   /**
+   * <pre>
+   * Array of integer values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 14;</code>
    * @return Whether the integerArrayValue field is set.
    */
   boolean hasIntegerArrayValue();
   /**
+   * <pre>
+   * Array of integer values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 14;</code>
    * @return The integerArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcIntegerArray getIntegerArrayValue();
   /**
+   * <pre>
+   * Array of integer values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 14;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcIntegerArrayOrBuilder getIntegerArrayValueOrBuilder();
 
   /**
+   * <pre>
+   * Array of long values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 15;</code>
    * @return Whether the longArrayValue field is set.
    */
   boolean hasLongArrayValue();
   /**
+   * <pre>
+   * Array of long values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 15;</code>
    * @return The longArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcLongArray getLongArrayValue();
   /**
+   * <pre>
+   * Array of long values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 15;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcLongArrayOrBuilder getLongArrayValueOrBuilder();
 
   /**
+   * <pre>
+   * Array of boolean values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 16;</code>
    * @return Whether the booleanArrayValue field is set.
    */
   boolean hasBooleanArrayValue();
   /**
+   * <pre>
+   * Array of boolean values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 16;</code>
    * @return The booleanArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcBooleanArray getBooleanArrayValue();
   /**
+   * <pre>
+   * Array of boolean values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 16;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcBooleanArrayOrBuilder getBooleanArrayValueOrBuilder();
 
   /**
+   * <pre>
+   * Array of BigDecimal values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 17;</code>
    * @return Whether the bigDecimalArrayValue field is set.
    */
   boolean hasBigDecimalArrayValue();
   /**
+   * <pre>
+   * Array of BigDecimal values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 17;</code>
    * @return The bigDecimalArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray getBigDecimalArrayValue();
   /**
+   * <pre>
+   * Array of BigDecimal values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 17;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArrayOrBuilder getBigDecimalArrayValueOrBuilder();
 
   /**
+   * <pre>
+   * Array of DateTimeRange values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 18;</code>
    * @return Whether the dateTimeRangeArrayValue field is set.
    */
   boolean hasDateTimeRangeArrayValue();
   /**
+   * <pre>
+   * Array of DateTimeRange values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 18;</code>
    * @return The dateTimeRangeArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray getDateTimeRangeArrayValue();
   /**
+   * <pre>
+   * Array of DateTimeRange values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 18;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArrayOrBuilder getDateTimeRangeArrayValueOrBuilder();
 
   /**
+   * <pre>
+   * Array of IntegerNumberRange values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 19;</code>
    * @return Whether the integerNumberRangeArrayValue field is set.
    */
   boolean hasIntegerNumberRangeArrayValue();
   /**
+   * <pre>
+   * Array of IntegerNumberRange values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 19;</code>
    * @return The integerNumberRangeArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray getIntegerNumberRangeArrayValue();
   /**
+   * <pre>
+   * Array of IntegerNumberRange values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 19;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArrayOrBuilder getIntegerNumberRangeArrayValueOrBuilder();
 
   /**
+   * <pre>
+   * Array of LongNumberRange values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 20;</code>
    * @return Whether the longNumberRangeArrayValue field is set.
    */
   boolean hasLongNumberRangeArrayValue();
   /**
+   * <pre>
+   * Array of LongNumberRange values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 20;</code>
    * @return The longNumberRangeArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray getLongNumberRangeArrayValue();
   /**
+   * <pre>
+   * Array of LongNumberRange values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 20;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArrayOrBuilder getLongNumberRangeArrayValueOrBuilder();
 
   /**
+   * <pre>
+   * Array of BigDecimalNumberRange values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 21;</code>
    * @return Whether the bigDecimalNumberRangeArrayValue field is set.
    */
   boolean hasBigDecimalNumberRangeArrayValue();
   /**
+   * <pre>
+   * Array of BigDecimalNumberRange values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 21;</code>
    * @return The bigDecimalNumberRangeArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray getBigDecimalNumberRangeArrayValue();
   /**
+   * <pre>
+   * Array of BigDecimalNumberRange values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 21;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArrayOrBuilder getBigDecimalNumberRangeArrayValueOrBuilder();
 
   /**
+   * <pre>
+   * Array of OffsetDateTime values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 22;</code>
    * @return Whether the offsetDateTimeArrayValue field is set.
    */
   boolean hasOffsetDateTimeArrayValue();
   /**
+   * <pre>
+   * Array of OffsetDateTime values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 22;</code>
    * @return The offsetDateTimeArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray getOffsetDateTimeArrayValue();
   /**
+   * <pre>
+   * Array of OffsetDateTime values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 22;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArrayOrBuilder getOffsetDateTimeArrayValueOrBuilder();
 
   /**
+   * <pre>
+   * Array of Locale values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 23;</code>
    * @return Whether the localeArrayValue field is set.
    */
   boolean hasLocaleArrayValue();
   /**
+   * <pre>
+   * Array of Locale values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 23;</code>
    * @return The localeArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocaleArray getLocaleArrayValue();
   /**
+   * <pre>
+   * Array of Locale values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 23;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocaleArrayOrBuilder getLocaleArrayValueOrBuilder();
 
   /**
+   * <pre>
+   * Array of Currency values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 24;</code>
    * @return Whether the currencyArrayValue field is set.
    */
   boolean hasCurrencyArrayValue();
   /**
+   * <pre>
+   * Array of Currency values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 24;</code>
    * @return The currencyArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray getCurrencyArrayValue();
   /**
+   * <pre>
+   * Array of Currency values.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 24;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcCurrencyArrayOrBuilder getCurrencyArrayValueOrBuilder();
 
   /**
+   * <pre>
+   * The type of the stored value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 30;</code>
    * @return The enum numeric value on the wire for type.
    */
   int getTypeValue();
   /**
+   * <pre>
+   * The type of the stored value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 30;</code>
    * @return The type.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType getType();
 
   /**
+   * <pre>
+   * Contains version of this value and gets increased with any entity type update. Allows to execute
+   *			optimistic locking i.e. avoiding parallel modifications.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value version = 31;</code>
    * @return Whether the version field is set.
    */
   boolean hasVersion();
   /**
+   * <pre>
+   * Contains version of this value and gets increased with any entity type update. Allows to execute
+   *			optimistic locking i.e. avoiding parallel modifications.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value version = 31;</code>
    * @return The version.
    */
   com.google.protobuf.Int32Value getVersion();
   /**
+   * <pre>
+   * Contains version of this value and gets increased with any entity type update. Allows to execute
+   *			optimistic locking i.e. avoiding parallel modifications.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value version = 31;</code>
    */
   com.google.protobuf.Int32ValueOrBuilder getVersionOrBuilder();

@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Request to create a session inside of a catalog.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest}
  */
 public final class GrpcEvitaSessionRequest extends
@@ -118,6 +122,10 @@ private static final long serialVersionUID = 0L;
   public static final int CATALOGNAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object catalogName_;
   /**
+   * <pre>
+   * The name of the catalog for which the session is to be created.
+   * </pre>
+   *
    * <code>string catalogName = 1;</code>
    * @return The catalogName.
    */
@@ -135,6 +143,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * The name of the catalog for which the session is to be created.
+   * </pre>
+   *
    * <code>string catalogName = 1;</code>
    * @return The bytes for catalogName.
    */
@@ -156,6 +168,10 @@ private static final long serialVersionUID = 0L;
   public static final int DRYRUN_FIELD_NUMBER = 2;
   private boolean dryRun_;
   /**
+   * <pre>
+   * For testing purposes. Flag indicating that all changes by the session should be rollbacked after the session is closed.
+   * </pre>
+   *
    * <code>bool dryRun = 2;</code>
    * @return The dryRun.
    */
@@ -331,6 +347,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Request to create a session inside of a catalog.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest}
    */
   public static final class Builder extends
@@ -486,6 +506,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object catalogName_ = "";
     /**
+     * <pre>
+     * The name of the catalog for which the session is to be created.
+     * </pre>
+     *
      * <code>string catalogName = 1;</code>
      * @return The catalogName.
      */
@@ -502,6 +526,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The name of the catalog for which the session is to be created.
+     * </pre>
+     *
      * <code>string catalogName = 1;</code>
      * @return The bytes for catalogName.
      */
@@ -519,6 +547,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The name of the catalog for which the session is to be created.
+     * </pre>
+     *
      * <code>string catalogName = 1;</code>
      * @param value The catalogName to set.
      * @return This builder for chaining.
@@ -534,6 +566,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The name of the catalog for which the session is to be created.
+     * </pre>
+     *
      * <code>string catalogName = 1;</code>
      * @return This builder for chaining.
      */
@@ -544,6 +580,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The name of the catalog for which the session is to be created.
+     * </pre>
+     *
      * <code>string catalogName = 1;</code>
      * @param value The bytes for catalogName to set.
      * @return This builder for chaining.
@@ -562,6 +602,10 @@ private static final long serialVersionUID = 0L;
 
     private boolean dryRun_ ;
     /**
+     * <pre>
+     * For testing purposes. Flag indicating that all changes by the session should be rollbacked after the session is closed.
+     * </pre>
+     *
      * <code>bool dryRun = 2;</code>
      * @return The dryRun.
      */
@@ -570,6 +614,10 @@ private static final long serialVersionUID = 0L;
       return dryRun_;
     }
     /**
+     * <pre>
+     * For testing purposes. Flag indicating that all changes by the session should be rollbacked after the session is closed.
+     * </pre>
+     *
      * <code>bool dryRun = 2;</code>
      * @param value The dryRun to set.
      * @return This builder for chaining.
@@ -581,6 +629,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * For testing purposes. Flag indicating that all changes by the session should be rollbacked after the session is closed.
+     * </pre>
+     *
      * <code>bool dryRun = 2;</code>
      * @return This builder for chaining.
      */
