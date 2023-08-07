@@ -56,8 +56,8 @@ public class RecordsConverter extends RequireConverter {
 						@Nullable Locale locale,
 						@Nullable EntityFetch entityFetch,
 	                    @Nullable Page page,
-	                    @Nullable Strip strip) {
-
+	                    @Nullable Strip strip,
+	                    boolean hasExtraResults) {
 		if (page != null) {
 			requireBuilder.addObjectField(
 				ResponseDescriptor.RECORD_PAGE,
@@ -74,7 +74,7 @@ public class RecordsConverter extends RequireConverter {
 					.addObjectField(DataChunkDescriptor.DATA, b2 ->
 						entityFetchConverter.convert(b2, entityType, locale, entityFetch))
 			);
-		} else {
+		} else if (entityFetch != null || !hasExtraResults) {
 			requireBuilder.addObjectField(
 				ResponseDescriptor.RECORD_PAGE,
 				recordPageBuilder -> recordPageBuilder
