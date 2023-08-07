@@ -132,7 +132,7 @@ public class ClassSchemaAnalyzer {
 	private static <T> Class<T> verifyDataType(@Nonnull Class<T> theType) {
 		Assert.isTrue(
 			EvitaDataTypes.isSupportedTypeOrItsArray(theType),
-			"Default value must implement Serializable!"
+			"Default value type `" + theType + "` must implement Serializable!"
 		);
 		return theType;
 	}

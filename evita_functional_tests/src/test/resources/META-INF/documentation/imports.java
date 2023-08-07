@@ -119,6 +119,7 @@ import io.netty.handler.ssl.ApplicationProtocolNames;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import java.util.concurrent.atomic.AtomicReference;
+import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
 
 import static io.evitadb.api.query.filter.AttributeSpecialValue.*;
 import static io.evitadb.api.query.require.StatisticsType.*;

@@ -8,15 +8,11 @@ POST /rest/evita/product/query
       }
     }
   },
-  "orderBy" : [
-    {
-      "referenceCategoriesProperty" : [
-        {
-          "attributeOrderInCategoryNatural" : "ASC"
-        }
-      ]
+  "orderBy" : {
+    "referenceCategoriesProperty" : {
+      "attributeOrderInCategoryNatural" : "ASC"
     }
-  ],
+  },
   "require" : {
     "entityFetch" : {
       "attributeContent" : [
