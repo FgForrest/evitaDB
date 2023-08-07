@@ -31,11 +31,19 @@ public interface GrpcDefineEntitySchemaRequestOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The schema of the new entity type.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The entityType.
    */
   java.lang.String getEntityType();
   /**
+   * <pre>
+   * The schema of the new entity type.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The bytes for entityType.
    */

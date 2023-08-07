@@ -27,15 +27,27 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Defines the behaviour of null values in an attribute element of the sortable attribute compound.
+ * </pre>
+ *
  * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour}
  */
 public enum GrpcOrderBehaviour
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
+   * <pre>
+   * Null values are sorted before non-null values.
+   * </pre>
+   *
    * <code>NULLS_FIRST = 0;</code>
    */
   NULLS_FIRST(0),
   /**
+   * <pre>
+   * Null values are sorted after non-null values.
+   * </pre>
+   *
    * <code>NULLS_LAST = 1;</code>
    */
   NULLS_LAST(1),
@@ -43,10 +55,18 @@ public enum GrpcOrderBehaviour
   ;
 
   /**
+   * <pre>
+   * Null values are sorted before non-null values.
+   * </pre>
+   *
    * <code>NULLS_FIRST = 0;</code>
    */
   public static final int NULLS_FIRST_VALUE = 0;
   /**
+   * <pre>
+   * Null values are sorted after non-null values.
+   * </pre>
+   *
    * <code>NULLS_LAST = 1;</code>
    */
   public static final int NULLS_LAST_VALUE = 1;

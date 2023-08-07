@@ -119,7 +119,8 @@ public final class GrpcSortableAttributeCompoundSchemaMutations {
       "bleAttributeCompoundSchemaMutation\030\005 \001(\013" +
       "2X.io.evitadb.externalApi.grpc.generated" +
       ".GrpcRemoveSortableAttributeCompoundSche" +
-      "maMutationH\000B\n\n\010mutationB\002P\001b\006proto3"
+      "maMutationH\000B\n\n\010mutationB\014P\001\252\002\007EvitaDBb\006" +
+      "proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

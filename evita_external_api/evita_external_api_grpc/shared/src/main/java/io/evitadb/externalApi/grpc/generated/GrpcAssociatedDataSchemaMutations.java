@@ -114,7 +114,8 @@ public final class GrpcAssociatedDataSchemaMutations {
       "tedDataSchemaLocalizedMutation\022\014\n\004name\030\001" +
       " \001(\t\022\021\n\tlocalized\030\002 \001(\010\"M\n+GrpcSetAssoci" +
       "atedDataSchemaNullableMutation\022\014\n\004name\030\001" +
-      " \001(\t\022\020\n\010nullable\030\002 \001(\010B\002P\001b\006proto3"
+      " \001(\t\022\020\n\010nullable\030\002 \001(\010B\014P\001\252\002\007EvitaDBb\006pr" +
+      "oto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

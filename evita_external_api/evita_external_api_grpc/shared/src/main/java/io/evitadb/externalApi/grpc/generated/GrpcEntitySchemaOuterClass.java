@@ -195,8 +195,8 @@ public final class GrpcEntitySchemaOuterClass {
       "\t\022L\n\tdirection\030\002 \001(\01629.io.evitadb.extern" +
       "alApi.grpc.generated.GrpcOrderDirection\022" +
       "L\n\tbehaviour\030\003 \001(\01629.io.evitadb.external" +
-      "Api.grpc.generated.GrpcOrderBehaviourB\002P" +
-      "\001b\006proto3"
+      "Api.grpc.generated.GrpcOrderBehaviourB\014P" +
+      "\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

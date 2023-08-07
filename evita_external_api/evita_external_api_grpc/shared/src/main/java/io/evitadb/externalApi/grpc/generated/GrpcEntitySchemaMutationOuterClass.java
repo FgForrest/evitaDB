@@ -199,7 +199,7 @@ public final class GrpcEntitySchemaMutationOuterClass {
       "|\n!setReferenceSchemaIndexedMutation\030+ \001" +
       "(\0132O.io.evitadb.externalApi.grpc.generat" +
       "ed.GrpcSetReferenceSchemaFilterableMutat" +
-      "ionH\000B\n\n\010mutationB\002P\001b\006proto3"
+      "ionH\000B\n\n\010mutationB\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

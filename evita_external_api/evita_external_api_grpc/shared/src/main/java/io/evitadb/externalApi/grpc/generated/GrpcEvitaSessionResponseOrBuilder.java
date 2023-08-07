@@ -31,11 +31,19 @@ public interface GrpcEvitaSessionResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * UUID of the created session.
+   * </pre>
+   *
    * <code>string sessionId = 1;</code>
    * @return The sessionId.
    */
   java.lang.String getSessionId();
   /**
+   * <pre>
+   * UUID of the created session.
+   * </pre>
+   *
    * <code>string sessionId = 1;</code>
    * @return The bytes for sessionId.
    */
@@ -43,22 +51,38 @@ public interface GrpcEvitaSessionResponseOrBuilder extends
       getSessionIdBytes();
 
   /**
+   * <pre>
+   * Type of the created session.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSessionType sessionType = 2;</code>
    * @return The enum numeric value on the wire for sessionType.
    */
   int getSessionTypeValue();
   /**
+   * <pre>
+   * Type of the created session.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSessionType sessionType = 2;</code>
    * @return The sessionType.
    */
   io.evitadb.externalApi.grpc.generated.GrpcSessionType getSessionType();
 
   /**
+   * <pre>
+   * State of the catalog after the session was created.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 3;</code>
    * @return The enum numeric value on the wire for catalogState.
    */
   int getCatalogStateValue();
   /**
+   * <pre>
+   * State of the catalog after the session was created.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 3;</code>
    * @return The catalogState.
    */

@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Structure for universal representation of DateTime objects with an offset.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime}
  */
 public final class GrpcOffsetDateTime extends
@@ -126,6 +130,10 @@ private static final long serialVersionUID = 0L;
   public static final int TIMESTAMP_FIELD_NUMBER = 1;
   private com.google.protobuf.Timestamp timestamp_;
   /**
+   * <pre>
+   * The date and time of the object internally represented by unix timestamp.
+   * </pre>
+   *
    * <code>.google.protobuf.Timestamp timestamp = 1;</code>
    * @return Whether the timestamp field is set.
    */
@@ -134,6 +142,10 @@ private static final long serialVersionUID = 0L;
     return timestamp_ != null;
   }
   /**
+   * <pre>
+   * The date and time of the object internally represented by unix timestamp.
+   * </pre>
+   *
    * <code>.google.protobuf.Timestamp timestamp = 1;</code>
    * @return The timestamp.
    */
@@ -142,6 +154,10 @@ private static final long serialVersionUID = 0L;
     return timestamp_ == null ? com.google.protobuf.Timestamp.getDefaultInstance() : timestamp_;
   }
   /**
+   * <pre>
+   * The date and time of the object internally represented by unix timestamp.
+   * </pre>
+   *
    * <code>.google.protobuf.Timestamp timestamp = 1;</code>
    */
   @java.lang.Override
@@ -152,6 +168,22 @@ private static final long serialVersionUID = 0L;
   public static final int OFFSET_FIELD_NUMBER = 2;
   private volatile java.lang.Object offset_;
   /**
+   * <pre>
+   * The offset of the object in seconds.
+   * Templates for offset:
+   *   Z - for UTC
+   *  +h
+   *  +hh
+   *  +hh:mm
+   *  -hh:mm
+   *  +hhmm
+   *  -hhmm
+   *  +hh:mm:ss
+   *  -hh:mm:ss
+   *  +hhmmss
+   *  -hhmms
+   * </pre>
+   *
    * <code>string offset = 2;</code>
    * @return The offset.
    */
@@ -169,6 +201,22 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * The offset of the object in seconds.
+   * Templates for offset:
+   *   Z - for UTC
+   *  +h
+   *  +hh
+   *  +hh:mm
+   *  -hh:mm
+   *  +hhmm
+   *  -hhmm
+   *  +hh:mm:ss
+   *  -hh:mm:ss
+   *  +hhmmss
+   *  -hhmms
+   * </pre>
+   *
    * <code>string offset = 2;</code>
    * @return The bytes for offset.
    */
@@ -358,6 +406,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Structure for universal representation of DateTime objects with an offset.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime}
    */
   public static final class Builder extends
@@ -523,6 +575,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.Timestamp, com.google.protobuf.Timestamp.Builder, com.google.protobuf.TimestampOrBuilder> timestampBuilder_;
     /**
+     * <pre>
+     * The date and time of the object internally represented by unix timestamp.
+     * </pre>
+     *
      * <code>.google.protobuf.Timestamp timestamp = 1;</code>
      * @return Whether the timestamp field is set.
      */
@@ -530,6 +586,10 @@ private static final long serialVersionUID = 0L;
       return timestampBuilder_ != null || timestamp_ != null;
     }
     /**
+     * <pre>
+     * The date and time of the object internally represented by unix timestamp.
+     * </pre>
+     *
      * <code>.google.protobuf.Timestamp timestamp = 1;</code>
      * @return The timestamp.
      */
@@ -541,6 +601,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The date and time of the object internally represented by unix timestamp.
+     * </pre>
+     *
      * <code>.google.protobuf.Timestamp timestamp = 1;</code>
      */
     public Builder setTimestamp(com.google.protobuf.Timestamp value) {
@@ -557,6 +621,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The date and time of the object internally represented by unix timestamp.
+     * </pre>
+     *
      * <code>.google.protobuf.Timestamp timestamp = 1;</code>
      */
     public Builder setTimestamp(
@@ -571,6 +639,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The date and time of the object internally represented by unix timestamp.
+     * </pre>
+     *
      * <code>.google.protobuf.Timestamp timestamp = 1;</code>
      */
     public Builder mergeTimestamp(com.google.protobuf.Timestamp value) {
@@ -589,6 +661,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The date and time of the object internally represented by unix timestamp.
+     * </pre>
+     *
      * <code>.google.protobuf.Timestamp timestamp = 1;</code>
      */
     public Builder clearTimestamp() {
@@ -603,6 +679,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The date and time of the object internally represented by unix timestamp.
+     * </pre>
+     *
      * <code>.google.protobuf.Timestamp timestamp = 1;</code>
      */
     public com.google.protobuf.Timestamp.Builder getTimestampBuilder() {
@@ -611,6 +691,10 @@ private static final long serialVersionUID = 0L;
       return getTimestampFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * The date and time of the object internally represented by unix timestamp.
+     * </pre>
+     *
      * <code>.google.protobuf.Timestamp timestamp = 1;</code>
      */
     public com.google.protobuf.TimestampOrBuilder getTimestampOrBuilder() {
@@ -622,6 +706,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The date and time of the object internally represented by unix timestamp.
+     * </pre>
+     *
      * <code>.google.protobuf.Timestamp timestamp = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -640,6 +728,22 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object offset_ = "";
     /**
+     * <pre>
+     * The offset of the object in seconds.
+     * Templates for offset:
+     *   Z - for UTC
+     *  +h
+     *  +hh
+     *  +hh:mm
+     *  -hh:mm
+     *  +hhmm
+     *  -hhmm
+     *  +hh:mm:ss
+     *  -hh:mm:ss
+     *  +hhmmss
+     *  -hhmms
+     * </pre>
+     *
      * <code>string offset = 2;</code>
      * @return The offset.
      */
@@ -656,6 +760,22 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The offset of the object in seconds.
+     * Templates for offset:
+     *   Z - for UTC
+     *  +h
+     *  +hh
+     *  +hh:mm
+     *  -hh:mm
+     *  +hhmm
+     *  -hhmm
+     *  +hh:mm:ss
+     *  -hh:mm:ss
+     *  +hhmmss
+     *  -hhmms
+     * </pre>
+     *
      * <code>string offset = 2;</code>
      * @return The bytes for offset.
      */
@@ -673,6 +793,22 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The offset of the object in seconds.
+     * Templates for offset:
+     *   Z - for UTC
+     *  +h
+     *  +hh
+     *  +hh:mm
+     *  -hh:mm
+     *  +hhmm
+     *  -hhmm
+     *  +hh:mm:ss
+     *  -hh:mm:ss
+     *  +hhmmss
+     *  -hhmms
+     * </pre>
+     *
      * <code>string offset = 2;</code>
      * @param value The offset to set.
      * @return This builder for chaining.
@@ -688,6 +824,22 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The offset of the object in seconds.
+     * Templates for offset:
+     *   Z - for UTC
+     *  +h
+     *  +hh
+     *  +hh:mm
+     *  -hh:mm
+     *  +hhmm
+     *  -hhmm
+     *  +hh:mm:ss
+     *  -hh:mm:ss
+     *  +hhmmss
+     *  -hhmms
+     * </pre>
+     *
      * <code>string offset = 2;</code>
      * @return This builder for chaining.
      */
@@ -698,6 +850,22 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The offset of the object in seconds.
+     * Templates for offset:
+     *   Z - for UTC
+     *  +h
+     *  +hh
+     *  +hh:mm
+     *  -hh:mm
+     *  +hhmm
+     *  -hhmm
+     *  +hh:mm:ss
+     *  -hh:mm:ss
+     *  +hhmmss
+     *  -hhmms
+     * </pre>
+     *
      * <code>string offset = 2;</code>
      * @param value The bytes for offset to set.
      * @return This builder for chaining.

@@ -31,11 +31,19 @@ public interface GrpcFacetGroupStatisticsOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Contains name of the facet group.
+   * </pre>
+   *
    * <code>string referenceName = 1;</code>
    * @return The referenceName.
    */
   java.lang.String getReferenceName();
   /**
+   * <pre>
+   * Contains name of the facet group.
+   * </pre>
+   *
    * <code>string referenceName = 1;</code>
    * @return The bytes for referenceName.
    */
@@ -43,60 +51,108 @@ public interface GrpcFacetGroupStatisticsOrBuilder extends
       getReferenceNameBytes();
 
   /**
+   * <pre>
+   * Contains referenced entity reference representing this group.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupEntityReference = 2;</code>
    * @return Whether the groupEntityReference field is set.
    */
   boolean hasGroupEntityReference();
   /**
+   * <pre>
+   * Contains referenced entity reference representing this group.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupEntityReference = 2;</code>
    * @return The groupEntityReference.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityReference getGroupEntityReference();
   /**
+   * <pre>
+   * Contains referenced entity reference representing this group.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupEntityReference = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder getGroupEntityReferenceOrBuilder();
 
   /**
+   * <pre>
+   * Contains referenced entity representing this group.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupEntity = 3;</code>
    * @return Whether the groupEntity field is set.
    */
   boolean hasGroupEntity();
   /**
+   * <pre>
+   * Contains referenced entity representing this group.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupEntity = 3;</code>
    * @return The groupEntity.
    */
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getGroupEntity();
   /**
+   * <pre>
+   * Contains referenced entity representing this group.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupEntity = 3;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getGroupEntityOrBuilder();
 
   /**
+   * <pre>
+   * Contains number of distinct entities in the response that possess any reference in this group.
+   * </pre>
+   *
    * <code>int32 count = 4;</code>
    * @return The count.
    */
   int getCount();
 
   /**
+   * <pre>
+   * Contains statistics of individual facets.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics> 
       getFacetStatisticsList();
   /**
+   * <pre>
+   * Contains statistics of individual facets.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics getFacetStatistics(int index);
   /**
+   * <pre>
+   * Contains statistics of individual facets.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
    */
   int getFacetStatisticsCount();
   /**
+   * <pre>
+   * Contains statistics of individual facets.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsOrBuilder> 
       getFacetStatisticsOrBuilderList();
   /**
+   * <pre>
+   * Contains statistics of individual facets.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsOrBuilder getFacetStatisticsOrBuilder(

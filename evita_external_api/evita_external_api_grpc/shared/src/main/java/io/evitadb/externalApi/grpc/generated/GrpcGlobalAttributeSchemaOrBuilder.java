@@ -73,57 +73,112 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
   com.google.protobuf.StringValueOrBuilder getDeprecationNoticeOrBuilder();
 
   /**
+   * <pre>
+   * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+   * having certain value of this attribute among other entities in the same collection.
+   * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+   * better to have this ensured by the database engine.
+   * </pre>
+   *
    * <code>bool unique = 4;</code>
    * @return The unique.
    */
   boolean getUnique();
 
   /**
+   * <pre>
+   * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+   * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+   * (memory/disk) space in the form of index.
+   * When attribute is filterable, extra result `attributeHistogram`
+   * can be requested for this attribute.
+   * </pre>
+   *
    * <code>bool filterable = 5;</code>
    * @return The filterable.
    */
   boolean getFilterable();
 
   /**
+   * <pre>
+   * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+   * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+   * (memory/disk) space in the form of index..
+   * </pre>
+   *
    * <code>bool sortable = 6;</code>
    * @return The sortable.
    */
   boolean getSortable();
 
   /**
+   * <pre>
+   * When attribute is localized, it has to be ALWAYS used in connection with specific `Locale`.
+   * </pre>
+   *
    * <code>bool localized = 7;</code>
    * @return The localized.
    */
   boolean getLocalized();
 
   /**
+   * <pre>
+   * When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+   * non-null checks upon upserting of the entity.
+   * </pre>
+   *
    * <code>bool nullable = 8;</code>
    * @return The nullable.
    */
   boolean getNullable();
 
   /**
+   * <pre>
+   * Data type of the attribute. Must be one of Evita-supported values.
+   * Internally the scalar is converted into Java-corresponding data type.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 9;</code>
    * @return The enum numeric value on the wire for type.
    */
   int getTypeValue();
   /**
+   * <pre>
+   * Data type of the attribute. Must be one of Evita-supported values.
+   * Internally the scalar is converted into Java-corresponding data type.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 9;</code>
    * @return The type.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType getType();
 
   /**
+   * <pre>
+   * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+   * non-null checks even if no attributes of such name are specified.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 10;</code>
    * @return Whether the defaultValue field is set.
    */
   boolean hasDefaultValue();
   /**
+   * <pre>
+   * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+   * non-null checks even if no attributes of such name are specified.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 10;</code>
    * @return The defaultValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEvitaValue getDefaultValue();
   /**
+   * <pre>
+   * Default value is used when the entity is created without this attribute specified. Default values allow to pass
+   * non-null checks even if no attributes of such name are specified.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 10;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder getDefaultValueOrBuilder();
@@ -135,6 +190,13 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
   int getIndexedDecimalPlaces();
 
   /**
+   * <pre>
+   * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+   * entity having certain value of this attribute in entire catalog.
+   * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
+   * better to have this ensured by the database engine.
+   * </pre>
+   *
    * <code>bool uniqueGlobally = 12;</code>
    * @return The uniqueGlobally.
    */

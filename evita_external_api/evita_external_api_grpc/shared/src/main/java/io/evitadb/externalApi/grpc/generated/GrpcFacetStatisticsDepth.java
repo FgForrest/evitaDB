@@ -27,15 +27,28 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * This enum controls whether FacetSummary should contain only basic statistics about facets - e.g. count only,
+ * or whether the selection impact should be computed as well.
+ * </pre>
+ *
  * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth}
  */
 public enum GrpcFacetStatisticsDepth
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
+   * <pre>
+   * Only counts of facets will be computed.
+   * </pre>
+   *
    * <code>COUNTS = 0;</code>
    */
   COUNTS(0),
   /**
+   * <pre>
+   * Counts and selection impact for non-selected facets will be computed.
+   * </pre>
+   *
    * <code>IMPACT = 1;</code>
    */
   IMPACT(1),
@@ -43,10 +56,18 @@ public enum GrpcFacetStatisticsDepth
   ;
 
   /**
+   * <pre>
+   * Only counts of facets will be computed.
+   * </pre>
+   *
    * <code>COUNTS = 0;</code>
    */
   public static final int COUNTS_VALUE = 0;
   /**
+   * <pre>
+   * Counts and selection impact for non-selected facets will be computed.
+   * </pre>
+   *
    * <code>IMPACT = 1;</code>
    */
   public static final int IMPACT_VALUE = 1;

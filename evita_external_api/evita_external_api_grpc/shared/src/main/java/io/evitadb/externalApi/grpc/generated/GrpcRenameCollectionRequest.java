@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Request for renaming an entity collection.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRenameCollectionRequest}
  */
 public final class GrpcRenameCollectionRequest extends
@@ -120,6 +124,10 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITYTYPE_FIELD_NUMBER = 1;
   private volatile java.lang.Object entityType_;
   /**
+   * <pre>
+   * The entity type of the collection to be renamed.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The entityType.
    */
@@ -137,6 +145,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * The entity type of the collection to be renamed.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The bytes for entityType.
    */
@@ -158,6 +170,10 @@ private static final long serialVersionUID = 0L;
   public static final int NEWNAME_FIELD_NUMBER = 2;
   private volatile java.lang.Object newName_;
   /**
+   * <pre>
+   * The new name of the collection.
+   * </pre>
+   *
    * <code>string newName = 2;</code>
    * @return The newName.
    */
@@ -175,6 +191,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * The new name of the collection.
+   * </pre>
+   *
    * <code>string newName = 2;</code>
    * @return The bytes for newName.
    */
@@ -358,6 +378,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Request for renaming an entity collection.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRenameCollectionRequest}
    */
   public static final class Builder extends
@@ -514,6 +538,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object entityType_ = "";
     /**
+     * <pre>
+     * The entity type of the collection to be renamed.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @return The entityType.
      */
@@ -530,6 +558,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The entity type of the collection to be renamed.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @return The bytes for entityType.
      */
@@ -547,6 +579,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The entity type of the collection to be renamed.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @param value The entityType to set.
      * @return This builder for chaining.
@@ -562,6 +598,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The entity type of the collection to be renamed.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @return This builder for chaining.
      */
@@ -572,6 +612,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The entity type of the collection to be renamed.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @param value The bytes for entityType to set.
      * @return This builder for chaining.
@@ -590,6 +634,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object newName_ = "";
     /**
+     * <pre>
+     * The new name of the collection.
+     * </pre>
+     *
      * <code>string newName = 2;</code>
      * @return The newName.
      */
@@ -606,6 +654,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The new name of the collection.
+     * </pre>
+     *
      * <code>string newName = 2;</code>
      * @return The bytes for newName.
      */
@@ -623,6 +675,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The new name of the collection.
+     * </pre>
+     *
      * <code>string newName = 2;</code>
      * @param value The newName to set.
      * @return This builder for chaining.
@@ -638,6 +694,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The new name of the collection.
+     * </pre>
+     *
      * <code>string newName = 2;</code>
      * @return This builder for chaining.
      */
@@ -648,6 +708,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The new name of the collection.
+     * </pre>
+     *
      * <code>string newName = 2;</code>
      * @param value The bytes for newName to set.
      * @return This builder for chaining.

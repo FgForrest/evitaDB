@@ -31,11 +31,19 @@ public interface GrpcCreateCatalogSchemaMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of newly created catalog schema.
+   * </pre>
+   *
    * <code>string catalogName = 1;</code>
    * @return The catalogName.
    */
   java.lang.String getCatalogName();
   /**
+   * <pre>
+   * Name of newly created catalog schema.
+   * </pre>
+   *
    * <code>string catalogName = 1;</code>
    * @return The bytes for catalogName.
    */

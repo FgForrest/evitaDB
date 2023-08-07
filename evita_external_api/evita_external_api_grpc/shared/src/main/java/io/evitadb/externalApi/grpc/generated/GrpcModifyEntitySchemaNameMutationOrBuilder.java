@@ -31,11 +31,19 @@ public interface GrpcModifyEntitySchemaNameMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the entity schema the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
   java.lang.String getName();
   /**
+   * <pre>
+   * Name of the entity schema the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -43,11 +51,19 @@ public interface GrpcModifyEntitySchemaNameMutationOrBuilder extends
       getNameBytes();
 
   /**
+   * <pre>
+   * New name of the entity schema the mutation is targeting.
+   * </pre>
+   *
    * <code>string newName = 2;</code>
    * @return The newName.
    */
   java.lang.String getNewName();
   /**
+   * <pre>
+   * New name of the entity schema the mutation is targeting.
+   * </pre>
+   *
    * <code>string newName = 2;</code>
    * @return The bytes for newName.
    */
@@ -55,6 +71,10 @@ public interface GrpcModifyEntitySchemaNameMutationOrBuilder extends
       getNewNameBytes();
 
   /**
+   * <pre>
+   * Whether to overwrite entity collection with same name as the `newName` if found.
+   * </pre>
+   *
    * <code>bool overwriteTarget = 3;</code>
    * @return The overwriteTarget.
    */

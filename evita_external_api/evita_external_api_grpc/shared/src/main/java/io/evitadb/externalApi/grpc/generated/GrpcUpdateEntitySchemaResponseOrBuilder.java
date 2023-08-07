@@ -31,6 +31,10 @@ public interface GrpcUpdateEntitySchemaResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The new version of the entity schema.
+   * </pre>
+   *
    * <code>int32 version = 1;</code>
    * @return The version.
    */

@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Mutation of a single attribute.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation}
  */
 public final class GrpcAttributeMutation extends
@@ -190,6 +194,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int APPLYDELTAATTRIBUTEMUTATION_FIELD_NUMBER = 1;
   /**
+   * <pre>
+   * Increments or decrements existing numeric value by specified delta (negative number produces decremental of existing number, positive one incrementation).
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation applyDeltaAttributeMutation = 1;</code>
    * @return Whether the applyDeltaAttributeMutation field is set.
    */
@@ -198,6 +206,10 @@ private static final long serialVersionUID = 0L;
     return mutationCase_ == 1;
   }
   /**
+   * <pre>
+   * Increments or decrements existing numeric value by specified delta (negative number produces decremental of existing number, positive one incrementation).
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation applyDeltaAttributeMutation = 1;</code>
    * @return The applyDeltaAttributeMutation.
    */
@@ -209,6 +221,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Increments or decrements existing numeric value by specified delta (negative number produces decremental of existing number, positive one incrementation).
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation applyDeltaAttributeMutation = 1;</code>
    */
   @java.lang.Override
@@ -221,6 +237,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int UPSERTATTRIBUTEMUTATION_FIELD_NUMBER = 2;
   /**
+   * <pre>
+   * Upsert attribute mutation will either update existing attribute or create new one.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation upsertAttributeMutation = 2;</code>
    * @return Whether the upsertAttributeMutation field is set.
    */
@@ -229,6 +249,10 @@ private static final long serialVersionUID = 0L;
     return mutationCase_ == 2;
   }
   /**
+   * <pre>
+   * Upsert attribute mutation will either update existing attribute or create new one.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation upsertAttributeMutation = 2;</code>
    * @return The upsertAttributeMutation.
    */
@@ -240,6 +264,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Upsert attribute mutation will either update existing attribute or create new one.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation upsertAttributeMutation = 2;</code>
    */
   @java.lang.Override
@@ -252,6 +280,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int REMOVEATTRIBUTEMUTATION_FIELD_NUMBER = 3;
   /**
+   * <pre>
+   * Remove attribute mutation will drop existing attribute - ie.generates new version of the attribute with tombstone on it.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation removeAttributeMutation = 3;</code>
    * @return Whether the removeAttributeMutation field is set.
    */
@@ -260,6 +292,10 @@ private static final long serialVersionUID = 0L;
     return mutationCase_ == 3;
   }
   /**
+   * <pre>
+   * Remove attribute mutation will drop existing attribute - ie.generates new version of the attribute with tombstone on it.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation removeAttributeMutation = 3;</code>
    * @return The removeAttributeMutation.
    */
@@ -271,6 +307,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Remove attribute mutation will drop existing attribute - ie.generates new version of the attribute with tombstone on it.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation removeAttributeMutation = 3;</code>
    */
   @java.lang.Override
@@ -480,6 +520,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Mutation of a single attribute.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcAttributeMutation}
    */
   public static final class Builder extends
@@ -679,6 +723,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutationOrBuilder> applyDeltaAttributeMutationBuilder_;
     /**
+     * <pre>
+     * Increments or decrements existing numeric value by specified delta (negative number produces decremental of existing number, positive one incrementation).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation applyDeltaAttributeMutation = 1;</code>
      * @return Whether the applyDeltaAttributeMutation field is set.
      */
@@ -687,6 +735,10 @@ private static final long serialVersionUID = 0L;
       return mutationCase_ == 1;
     }
     /**
+     * <pre>
+     * Increments or decrements existing numeric value by specified delta (negative number produces decremental of existing number, positive one incrementation).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation applyDeltaAttributeMutation = 1;</code>
      * @return The applyDeltaAttributeMutation.
      */
@@ -705,6 +757,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Increments or decrements existing numeric value by specified delta (negative number produces decremental of existing number, positive one incrementation).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation applyDeltaAttributeMutation = 1;</code>
      */
     public Builder setApplyDeltaAttributeMutation(io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation value) {
@@ -721,6 +777,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Increments or decrements existing numeric value by specified delta (negative number produces decremental of existing number, positive one incrementation).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation applyDeltaAttributeMutation = 1;</code>
      */
     public Builder setApplyDeltaAttributeMutation(
@@ -735,6 +795,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Increments or decrements existing numeric value by specified delta (negative number produces decremental of existing number, positive one incrementation).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation applyDeltaAttributeMutation = 1;</code>
      */
     public Builder mergeApplyDeltaAttributeMutation(io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation value) {
@@ -757,6 +821,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Increments or decrements existing numeric value by specified delta (negative number produces decremental of existing number, positive one incrementation).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation applyDeltaAttributeMutation = 1;</code>
      */
     public Builder clearApplyDeltaAttributeMutation() {
@@ -776,12 +844,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Increments or decrements existing numeric value by specified delta (negative number produces decremental of existing number, positive one incrementation).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation applyDeltaAttributeMutation = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation.Builder getApplyDeltaAttributeMutationBuilder() {
       return getApplyDeltaAttributeMutationFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Increments or decrements existing numeric value by specified delta (negative number produces decremental of existing number, positive one incrementation).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation applyDeltaAttributeMutation = 1;</code>
      */
     @java.lang.Override
@@ -796,6 +872,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Increments or decrements existing numeric value by specified delta (negative number produces decremental of existing number, positive one incrementation).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation applyDeltaAttributeMutation = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -820,6 +900,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutationOrBuilder> upsertAttributeMutationBuilder_;
     /**
+     * <pre>
+     * Upsert attribute mutation will either update existing attribute or create new one.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation upsertAttributeMutation = 2;</code>
      * @return Whether the upsertAttributeMutation field is set.
      */
@@ -828,6 +912,10 @@ private static final long serialVersionUID = 0L;
       return mutationCase_ == 2;
     }
     /**
+     * <pre>
+     * Upsert attribute mutation will either update existing attribute or create new one.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation upsertAttributeMutation = 2;</code>
      * @return The upsertAttributeMutation.
      */
@@ -846,6 +934,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Upsert attribute mutation will either update existing attribute or create new one.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation upsertAttributeMutation = 2;</code>
      */
     public Builder setUpsertAttributeMutation(io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation value) {
@@ -862,6 +954,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Upsert attribute mutation will either update existing attribute or create new one.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation upsertAttributeMutation = 2;</code>
      */
     public Builder setUpsertAttributeMutation(
@@ -876,6 +972,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Upsert attribute mutation will either update existing attribute or create new one.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation upsertAttributeMutation = 2;</code>
      */
     public Builder mergeUpsertAttributeMutation(io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation value) {
@@ -898,6 +998,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Upsert attribute mutation will either update existing attribute or create new one.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation upsertAttributeMutation = 2;</code>
      */
     public Builder clearUpsertAttributeMutation() {
@@ -917,12 +1021,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Upsert attribute mutation will either update existing attribute or create new one.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation upsertAttributeMutation = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation.Builder getUpsertAttributeMutationBuilder() {
       return getUpsertAttributeMutationFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Upsert attribute mutation will either update existing attribute or create new one.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation upsertAttributeMutation = 2;</code>
      */
     @java.lang.Override
@@ -937,6 +1049,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Upsert attribute mutation will either update existing attribute or create new one.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation upsertAttributeMutation = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -961,6 +1077,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutationOrBuilder> removeAttributeMutationBuilder_;
     /**
+     * <pre>
+     * Remove attribute mutation will drop existing attribute - ie.generates new version of the attribute with tombstone on it.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation removeAttributeMutation = 3;</code>
      * @return Whether the removeAttributeMutation field is set.
      */
@@ -969,6 +1089,10 @@ private static final long serialVersionUID = 0L;
       return mutationCase_ == 3;
     }
     /**
+     * <pre>
+     * Remove attribute mutation will drop existing attribute - ie.generates new version of the attribute with tombstone on it.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation removeAttributeMutation = 3;</code>
      * @return The removeAttributeMutation.
      */
@@ -987,6 +1111,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Remove attribute mutation will drop existing attribute - ie.generates new version of the attribute with tombstone on it.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation removeAttributeMutation = 3;</code>
      */
     public Builder setRemoveAttributeMutation(io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation value) {
@@ -1003,6 +1131,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Remove attribute mutation will drop existing attribute - ie.generates new version of the attribute with tombstone on it.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation removeAttributeMutation = 3;</code>
      */
     public Builder setRemoveAttributeMutation(
@@ -1017,6 +1149,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Remove attribute mutation will drop existing attribute - ie.generates new version of the attribute with tombstone on it.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation removeAttributeMutation = 3;</code>
      */
     public Builder mergeRemoveAttributeMutation(io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation value) {
@@ -1039,6 +1175,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Remove attribute mutation will drop existing attribute - ie.generates new version of the attribute with tombstone on it.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation removeAttributeMutation = 3;</code>
      */
     public Builder clearRemoveAttributeMutation() {
@@ -1058,12 +1198,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Remove attribute mutation will drop existing attribute - ie.generates new version of the attribute with tombstone on it.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation removeAttributeMutation = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation.Builder getRemoveAttributeMutationBuilder() {
       return getRemoveAttributeMutationFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Remove attribute mutation will drop existing attribute - ie.generates new version of the attribute with tombstone on it.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation removeAttributeMutation = 3;</code>
      */
     @java.lang.Override
@@ -1078,6 +1226,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Remove attribute mutation will drop existing attribute - ie.generates new version of the attribute with tombstone on it.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation removeAttributeMutation = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

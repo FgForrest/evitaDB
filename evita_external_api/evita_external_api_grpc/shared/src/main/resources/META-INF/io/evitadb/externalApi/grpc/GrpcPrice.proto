@@ -2,24 +2,48 @@ syntax = "proto3";
 
 package io.evitadb.externalApi.grpc.generated;
 option java_multiple_files = true;
+option csharp_namespace = "EvitaDB";
 
 import "google/protobuf/wrappers.proto";
 import "GrpcEvitaDataTypes.proto";
 
-message GrpcPricesInPriceList {
-  repeated GrpcPrice prices = 1;
-}
-
+// Prices are specific to a very few entities, but because correct price computation is very complex in e-commerce systems
+// and highly affects performance of the entities filtering and sorting, they deserve first class support in entity model.
+// It is pretty common in B2B systems single product has assigned dozens of prices for the different customers.
 message GrpcPrice {
+  // Contains identification of the price in the external systems. This id is expected to be used for the synchronization
+  // of the price in relation with the primary source of the prices.
+  // This id is used to uniquely find a price within same price list and currency and is mandatory.
   int32 priceId = 1;
+  // Contains identification of the price list in the external system. Each price must reference a price list. Price list
+  // identification may refer to another Evita entity or may contain any external price list identification
+  // (for example id or unique name of the price list in the external system).
+  // Single entity is expected to have single price for the price list unless there is validity specified.
+  // In other words there is no sense to have multiple concurrently valid prices for the same entity that have roots
+  // in the same price list.
   string priceList = 2;
+  // Identification of the currency.
   GrpcCurrency currency = 3;
+  // Some special products (such as master products, or product sets) may contain prices of all "subordinate" products
+  // so that the aggregating product can represent them in certain views on the product. In that case there is need
+  // to distinguish the projected prices of the subordinate product in the one that represents them.
+  // Inner record id must contain positive value.
   google.protobuf.Int32Value innerRecordId = 4;
+  // Price without tax.
   GrpcBigDecimal priceWithoutTax = 5;
+  // Price with tax.
   GrpcBigDecimal taxRate = 6;
+  // Tax rate percentage (i.e. for 19% it'll be 19.00)
   GrpcBigDecimal priceWithTax = 7;
+  // Date and time interval for which the price is valid (inclusive).
   GrpcDateTimeRange validity = 8;
+  // Controls whether price is subject to filtering / sorting logic, non-sellable prices will be fetched along with
+  // entity but won't be considered when evaluating search. These prices may be
+  // used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
+  // as "usual price") but are not considered as the "selling" price.
   bool sellable = 9;
+  // Contains version of this price and gets increased with any entity type update. Allows to execute
+  // optimistic locking i.e. avoiding parallel modifications.
   int32 version = 10;
 }
 

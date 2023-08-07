@@ -27,6 +27,11 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Structure that represents a data chunk of entities. Only one of the entity fields should be set in one response.
+ * That is decided by require block in a query, so as the pagination method used.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDataChunk}
  */
 public final class GrpcDataChunk extends
@@ -250,6 +255,10 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITYREFERENCES_FIELD_NUMBER = 1;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityReference> entityReferences_;
   /**
+   * <pre>
+   * Collection of entity references.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
    */
   @java.lang.Override
@@ -257,6 +266,10 @@ private static final long serialVersionUID = 0L;
     return entityReferences_;
   }
   /**
+   * <pre>
+   * Collection of entity references.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
    */
   @java.lang.Override
@@ -265,6 +278,10 @@ private static final long serialVersionUID = 0L;
     return entityReferences_;
   }
   /**
+   * <pre>
+   * Collection of entity references.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
    */
   @java.lang.Override
@@ -272,6 +289,10 @@ private static final long serialVersionUID = 0L;
     return entityReferences_.size();
   }
   /**
+   * <pre>
+   * Collection of entity references.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
    */
   @java.lang.Override
@@ -279,6 +300,10 @@ private static final long serialVersionUID = 0L;
     return entityReferences_.get(index);
   }
   /**
+   * <pre>
+   * Collection of entity references.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
    */
   @java.lang.Override
@@ -290,6 +315,10 @@ private static final long serialVersionUID = 0L;
   public static final int SEALEDENTITIES_FIELD_NUMBER = 2;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity> sealedEntities_;
   /**
+   * <pre>
+   * Collection of sealed entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
    */
   @java.lang.Override
@@ -297,6 +326,10 @@ private static final long serialVersionUID = 0L;
     return sealedEntities_;
   }
   /**
+   * <pre>
+   * Collection of sealed entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
    */
   @java.lang.Override
@@ -305,6 +338,10 @@ private static final long serialVersionUID = 0L;
     return sealedEntities_;
   }
   /**
+   * <pre>
+   * Collection of sealed entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
    */
   @java.lang.Override
@@ -312,6 +349,10 @@ private static final long serialVersionUID = 0L;
     return sealedEntities_.size();
   }
   /**
+   * <pre>
+   * Collection of sealed entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
    */
   @java.lang.Override
@@ -319,6 +360,10 @@ private static final long serialVersionUID = 0L;
     return sealedEntities_.get(index);
   }
   /**
+   * <pre>
+   * Collection of sealed entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
    */
   @java.lang.Override
@@ -330,6 +375,10 @@ private static final long serialVersionUID = 0L;
   public static final int BINARYENTITIES_FIELD_NUMBER = 3;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity> binaryEntities_;
   /**
+   * <pre>
+   * Collection of binary entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
    */
   @java.lang.Override
@@ -337,6 +386,10 @@ private static final long serialVersionUID = 0L;
     return binaryEntities_;
   }
   /**
+   * <pre>
+   * Collection of binary entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
    */
   @java.lang.Override
@@ -345,6 +398,10 @@ private static final long serialVersionUID = 0L;
     return binaryEntities_;
   }
   /**
+   * <pre>
+   * Collection of binary entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
    */
   @java.lang.Override
@@ -352,6 +409,10 @@ private static final long serialVersionUID = 0L;
     return binaryEntities_.size();
   }
   /**
+   * <pre>
+   * Collection of binary entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
    */
   @java.lang.Override
@@ -359,6 +420,10 @@ private static final long serialVersionUID = 0L;
     return binaryEntities_.get(index);
   }
   /**
+   * <pre>
+   * Collection of binary entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
    */
   @java.lang.Override
@@ -369,6 +434,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int PAGINATEDLIST_FIELD_NUMBER = 4;
   /**
+   * <pre>
+   * The paginated list.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
    * @return Whether the paginatedList field is set.
    */
@@ -377,6 +446,10 @@ private static final long serialVersionUID = 0L;
     return chunkCase_ == 4;
   }
   /**
+   * <pre>
+   * The paginated list.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
    * @return The paginatedList.
    */
@@ -388,6 +461,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcPaginatedList.getDefaultInstance();
   }
   /**
+   * <pre>
+   * The paginated list.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
    */
   @java.lang.Override
@@ -400,6 +477,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int STRIPLIST_FIELD_NUMBER = 5;
   /**
+   * <pre>
+   * The strip list.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
    * @return Whether the stripList field is set.
    */
@@ -408,6 +489,10 @@ private static final long serialVersionUID = 0L;
     return chunkCase_ == 5;
   }
   /**
+   * <pre>
+   * The strip list.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
    * @return The stripList.
    */
@@ -419,6 +504,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcStripList.getDefaultInstance();
   }
   /**
+   * <pre>
+   * The strip list.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
    */
   @java.lang.Override
@@ -432,6 +521,10 @@ private static final long serialVersionUID = 0L;
   public static final int TOTALRECORDCOUNT_FIELD_NUMBER = 6;
   private int totalRecordCount_;
   /**
+   * <pre>
+   * The total number of records.
+   * </pre>
+   *
    * <code>int32 totalRecordCount = 6;</code>
    * @return The totalRecordCount.
    */
@@ -443,6 +536,10 @@ private static final long serialVersionUID = 0L;
   public static final int ISFIRST_FIELD_NUMBER = 7;
   private boolean isFirst_;
   /**
+   * <pre>
+   * True, if this is the first page.
+   * </pre>
+   *
    * <code>bool isFirst = 7;</code>
    * @return The isFirst.
    */
@@ -454,6 +551,10 @@ private static final long serialVersionUID = 0L;
   public static final int ISLAST_FIELD_NUMBER = 8;
   private boolean isLast_;
   /**
+   * <pre>
+   * True, if this is the last page.
+   * </pre>
+   *
    * <code>bool isLast = 8;</code>
    * @return The isLast.
    */
@@ -465,6 +566,10 @@ private static final long serialVersionUID = 0L;
   public static final int HASPREVIOUS_FIELD_NUMBER = 9;
   private boolean hasPrevious_;
   /**
+   * <pre>
+   * True, if there is a previous page.
+   * </pre>
+   *
    * <code>bool hasPrevious = 9;</code>
    * @return The hasPrevious.
    */
@@ -476,6 +581,10 @@ private static final long serialVersionUID = 0L;
   public static final int HASNEXT_FIELD_NUMBER = 10;
   private boolean hasNext_;
   /**
+   * <pre>
+   * True, if there is a next page.
+   * </pre>
+   *
    * <code>bool hasNext = 10;</code>
    * @return The hasNext.
    */
@@ -487,6 +596,10 @@ private static final long serialVersionUID = 0L;
   public static final int ISSINGLEPAGE_FIELD_NUMBER = 11;
   private boolean isSinglePage_;
   /**
+   * <pre>
+   * True, if this is a single page.
+   * </pre>
+   *
    * <code>bool isSinglePage = 11;</code>
    * @return The isSinglePage.
    */
@@ -498,6 +611,10 @@ private static final long serialVersionUID = 0L;
   public static final int ISEMPTY_FIELD_NUMBER = 12;
   private boolean isEmpty_;
   /**
+   * <pre>
+   * True, if this is an empty page.
+   * </pre>
+   *
    * <code>bool isEmpty = 12;</code>
    * @return The isEmpty.
    */
@@ -812,6 +929,11 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Structure that represents a data chunk of entities. Only one of the entity fields should be set in one response.
+   * That is decided by require block in a query, so as the pagination method used.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDataChunk}
    */
   public static final class Builder extends
@@ -1180,6 +1302,10 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> entityReferencesBuilder_;
 
     /**
+     * <pre>
+     * Collection of entity references.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityReference> getEntityReferencesList() {
@@ -1190,6 +1316,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Collection of entity references.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
      */
     public int getEntityReferencesCount() {
@@ -1200,6 +1330,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Collection of entity references.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReference getEntityReferences(int index) {
@@ -1210,6 +1344,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Collection of entity references.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
      */
     public Builder setEntityReferences(
@@ -1227,6 +1365,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of entity references.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
      */
     public Builder setEntityReferences(
@@ -1241,6 +1383,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of entity references.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
      */
     public Builder addEntityReferences(io.evitadb.externalApi.grpc.generated.GrpcEntityReference value) {
@@ -1257,6 +1403,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of entity references.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
      */
     public Builder addEntityReferences(
@@ -1274,6 +1424,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of entity references.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
      */
     public Builder addEntityReferences(
@@ -1288,6 +1442,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of entity references.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
      */
     public Builder addEntityReferences(
@@ -1302,6 +1460,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of entity references.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
      */
     public Builder addAllEntityReferences(
@@ -1317,6 +1479,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of entity references.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
      */
     public Builder clearEntityReferences() {
@@ -1330,6 +1496,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of entity references.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
      */
     public Builder removeEntityReferences(int index) {
@@ -1343,6 +1513,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of entity references.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder getEntityReferencesBuilder(
@@ -1350,6 +1524,10 @@ private static final long serialVersionUID = 0L;
       return getEntityReferencesFieldBuilder().getBuilder(index);
     }
     /**
+     * <pre>
+     * Collection of entity references.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder getEntityReferencesOrBuilder(
@@ -1360,6 +1538,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Collection of entity references.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> 
@@ -1371,6 +1553,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Collection of entity references.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder addEntityReferencesBuilder() {
@@ -1378,6 +1564,10 @@ private static final long serialVersionUID = 0L;
           io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Collection of entity references.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder addEntityReferencesBuilder(
@@ -1386,6 +1576,10 @@ private static final long serialVersionUID = 0L;
           index, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Collection of entity references.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder> 
@@ -1420,6 +1614,10 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> sealedEntitiesBuilder_;
 
     /**
+     * <pre>
+     * Collection of sealed entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity> getSealedEntitiesList() {
@@ -1430,6 +1628,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Collection of sealed entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
      */
     public int getSealedEntitiesCount() {
@@ -1440,6 +1642,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Collection of sealed entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getSealedEntities(int index) {
@@ -1450,6 +1656,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Collection of sealed entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
      */
     public Builder setSealedEntities(
@@ -1467,6 +1677,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of sealed entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
      */
     public Builder setSealedEntities(
@@ -1481,6 +1695,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of sealed entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
      */
     public Builder addSealedEntities(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
@@ -1497,6 +1715,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of sealed entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
      */
     public Builder addSealedEntities(
@@ -1514,6 +1736,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of sealed entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
      */
     public Builder addSealedEntities(
@@ -1528,6 +1754,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of sealed entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
      */
     public Builder addSealedEntities(
@@ -1542,6 +1772,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of sealed entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
      */
     public Builder addAllSealedEntities(
@@ -1557,6 +1791,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of sealed entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
      */
     public Builder clearSealedEntities() {
@@ -1570,6 +1808,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of sealed entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
      */
     public Builder removeSealedEntities(int index) {
@@ -1583,6 +1825,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of sealed entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder getSealedEntitiesBuilder(
@@ -1590,6 +1836,10 @@ private static final long serialVersionUID = 0L;
       return getSealedEntitiesFieldBuilder().getBuilder(index);
     }
     /**
+     * <pre>
+     * Collection of sealed entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getSealedEntitiesOrBuilder(
@@ -1600,6 +1850,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Collection of sealed entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
@@ -1611,6 +1865,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Collection of sealed entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder addSealedEntitiesBuilder() {
@@ -1618,6 +1876,10 @@ private static final long serialVersionUID = 0L;
           io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Collection of sealed entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder addSealedEntitiesBuilder(
@@ -1626,6 +1888,10 @@ private static final long serialVersionUID = 0L;
           index, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Collection of sealed entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder> 
@@ -1660,6 +1926,10 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder> binaryEntitiesBuilder_;
 
     /**
+     * <pre>
+     * Collection of binary entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity> getBinaryEntitiesList() {
@@ -1670,6 +1940,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Collection of binary entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
      */
     public int getBinaryEntitiesCount() {
@@ -1680,6 +1954,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Collection of binary entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity getBinaryEntities(int index) {
@@ -1690,6 +1968,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Collection of binary entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
      */
     public Builder setBinaryEntities(
@@ -1707,6 +1989,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of binary entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
      */
     public Builder setBinaryEntities(
@@ -1721,6 +2007,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of binary entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
      */
     public Builder addBinaryEntities(io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity value) {
@@ -1737,6 +2027,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of binary entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
      */
     public Builder addBinaryEntities(
@@ -1754,6 +2048,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of binary entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
      */
     public Builder addBinaryEntities(
@@ -1768,6 +2066,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of binary entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
      */
     public Builder addBinaryEntities(
@@ -1782,6 +2084,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of binary entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
      */
     public Builder addAllBinaryEntities(
@@ -1797,6 +2103,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of binary entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
      */
     public Builder clearBinaryEntities() {
@@ -1810,6 +2120,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of binary entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
      */
     public Builder removeBinaryEntities(int index) {
@@ -1823,6 +2137,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of binary entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder getBinaryEntitiesBuilder(
@@ -1830,6 +2148,10 @@ private static final long serialVersionUID = 0L;
       return getBinaryEntitiesFieldBuilder().getBuilder(index);
     }
     /**
+     * <pre>
+     * Collection of binary entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder getBinaryEntitiesOrBuilder(
@@ -1840,6 +2162,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Collection of binary entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder> 
@@ -1851,6 +2177,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Collection of binary entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder addBinaryEntitiesBuilder() {
@@ -1858,6 +2188,10 @@ private static final long serialVersionUID = 0L;
           io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Collection of binary entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder addBinaryEntitiesBuilder(
@@ -1866,6 +2200,10 @@ private static final long serialVersionUID = 0L;
           index, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Collection of binary entities.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder> 
@@ -1890,6 +2228,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcPaginatedList, io.evitadb.externalApi.grpc.generated.GrpcPaginatedList.Builder, io.evitadb.externalApi.grpc.generated.GrpcPaginatedListOrBuilder> paginatedListBuilder_;
     /**
+     * <pre>
+     * The paginated list.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
      * @return Whether the paginatedList field is set.
      */
@@ -1898,6 +2240,10 @@ private static final long serialVersionUID = 0L;
       return chunkCase_ == 4;
     }
     /**
+     * <pre>
+     * The paginated list.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
      * @return The paginatedList.
      */
@@ -1916,6 +2262,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The paginated list.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
      */
     public Builder setPaginatedList(io.evitadb.externalApi.grpc.generated.GrpcPaginatedList value) {
@@ -1932,6 +2282,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The paginated list.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
      */
     public Builder setPaginatedList(
@@ -1946,6 +2300,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The paginated list.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
      */
     public Builder mergePaginatedList(io.evitadb.externalApi.grpc.generated.GrpcPaginatedList value) {
@@ -1968,6 +2326,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The paginated list.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
      */
     public Builder clearPaginatedList() {
@@ -1987,12 +2349,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The paginated list.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcPaginatedList.Builder getPaginatedListBuilder() {
       return getPaginatedListFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * The paginated list.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
      */
     @java.lang.Override
@@ -2007,6 +2377,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The paginated list.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -2031,6 +2405,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcStripList, io.evitadb.externalApi.grpc.generated.GrpcStripList.Builder, io.evitadb.externalApi.grpc.generated.GrpcStripListOrBuilder> stripListBuilder_;
     /**
+     * <pre>
+     * The strip list.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
      * @return Whether the stripList field is set.
      */
@@ -2039,6 +2417,10 @@ private static final long serialVersionUID = 0L;
       return chunkCase_ == 5;
     }
     /**
+     * <pre>
+     * The strip list.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
      * @return The stripList.
      */
@@ -2057,6 +2439,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The strip list.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
      */
     public Builder setStripList(io.evitadb.externalApi.grpc.generated.GrpcStripList value) {
@@ -2073,6 +2459,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The strip list.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
      */
     public Builder setStripList(
@@ -2087,6 +2477,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The strip list.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
      */
     public Builder mergeStripList(io.evitadb.externalApi.grpc.generated.GrpcStripList value) {
@@ -2109,6 +2503,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The strip list.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
      */
     public Builder clearStripList() {
@@ -2128,12 +2526,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The strip list.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcStripList.Builder getStripListBuilder() {
       return getStripListFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * The strip list.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
      */
     @java.lang.Override
@@ -2148,6 +2554,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The strip list.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -2171,6 +2581,10 @@ private static final long serialVersionUID = 0L;
 
     private int totalRecordCount_ ;
     /**
+     * <pre>
+     * The total number of records.
+     * </pre>
+     *
      * <code>int32 totalRecordCount = 6;</code>
      * @return The totalRecordCount.
      */
@@ -2179,6 +2593,10 @@ private static final long serialVersionUID = 0L;
       return totalRecordCount_;
     }
     /**
+     * <pre>
+     * The total number of records.
+     * </pre>
+     *
      * <code>int32 totalRecordCount = 6;</code>
      * @param value The totalRecordCount to set.
      * @return This builder for chaining.
@@ -2190,6 +2608,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The total number of records.
+     * </pre>
+     *
      * <code>int32 totalRecordCount = 6;</code>
      * @return This builder for chaining.
      */
@@ -2202,6 +2624,10 @@ private static final long serialVersionUID = 0L;
 
     private boolean isFirst_ ;
     /**
+     * <pre>
+     * True, if this is the first page.
+     * </pre>
+     *
      * <code>bool isFirst = 7;</code>
      * @return The isFirst.
      */
@@ -2210,6 +2636,10 @@ private static final long serialVersionUID = 0L;
       return isFirst_;
     }
     /**
+     * <pre>
+     * True, if this is the first page.
+     * </pre>
+     *
      * <code>bool isFirst = 7;</code>
      * @param value The isFirst to set.
      * @return This builder for chaining.
@@ -2221,6 +2651,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * True, if this is the first page.
+     * </pre>
+     *
      * <code>bool isFirst = 7;</code>
      * @return This builder for chaining.
      */
@@ -2233,6 +2667,10 @@ private static final long serialVersionUID = 0L;
 
     private boolean isLast_ ;
     /**
+     * <pre>
+     * True, if this is the last page.
+     * </pre>
+     *
      * <code>bool isLast = 8;</code>
      * @return The isLast.
      */
@@ -2241,6 +2679,10 @@ private static final long serialVersionUID = 0L;
       return isLast_;
     }
     /**
+     * <pre>
+     * True, if this is the last page.
+     * </pre>
+     *
      * <code>bool isLast = 8;</code>
      * @param value The isLast to set.
      * @return This builder for chaining.
@@ -2252,6 +2694,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * True, if this is the last page.
+     * </pre>
+     *
      * <code>bool isLast = 8;</code>
      * @return This builder for chaining.
      */
@@ -2264,6 +2710,10 @@ private static final long serialVersionUID = 0L;
 
     private boolean hasPrevious_ ;
     /**
+     * <pre>
+     * True, if there is a previous page.
+     * </pre>
+     *
      * <code>bool hasPrevious = 9;</code>
      * @return The hasPrevious.
      */
@@ -2272,6 +2722,10 @@ private static final long serialVersionUID = 0L;
       return hasPrevious_;
     }
     /**
+     * <pre>
+     * True, if there is a previous page.
+     * </pre>
+     *
      * <code>bool hasPrevious = 9;</code>
      * @param value The hasPrevious to set.
      * @return This builder for chaining.
@@ -2283,6 +2737,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * True, if there is a previous page.
+     * </pre>
+     *
      * <code>bool hasPrevious = 9;</code>
      * @return This builder for chaining.
      */
@@ -2295,6 +2753,10 @@ private static final long serialVersionUID = 0L;
 
     private boolean hasNext_ ;
     /**
+     * <pre>
+     * True, if there is a next page.
+     * </pre>
+     *
      * <code>bool hasNext = 10;</code>
      * @return The hasNext.
      */
@@ -2303,6 +2765,10 @@ private static final long serialVersionUID = 0L;
       return hasNext_;
     }
     /**
+     * <pre>
+     * True, if there is a next page.
+     * </pre>
+     *
      * <code>bool hasNext = 10;</code>
      * @param value The hasNext to set.
      * @return This builder for chaining.
@@ -2314,6 +2780,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * True, if there is a next page.
+     * </pre>
+     *
      * <code>bool hasNext = 10;</code>
      * @return This builder for chaining.
      */
@@ -2326,6 +2796,10 @@ private static final long serialVersionUID = 0L;
 
     private boolean isSinglePage_ ;
     /**
+     * <pre>
+     * True, if this is a single page.
+     * </pre>
+     *
      * <code>bool isSinglePage = 11;</code>
      * @return The isSinglePage.
      */
@@ -2334,6 +2808,10 @@ private static final long serialVersionUID = 0L;
       return isSinglePage_;
     }
     /**
+     * <pre>
+     * True, if this is a single page.
+     * </pre>
+     *
      * <code>bool isSinglePage = 11;</code>
      * @param value The isSinglePage to set.
      * @return This builder for chaining.
@@ -2345,6 +2823,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * True, if this is a single page.
+     * </pre>
+     *
      * <code>bool isSinglePage = 11;</code>
      * @return This builder for chaining.
      */
@@ -2357,6 +2839,10 @@ private static final long serialVersionUID = 0L;
 
     private boolean isEmpty_ ;
     /**
+     * <pre>
+     * True, if this is an empty page.
+     * </pre>
+     *
      * <code>bool isEmpty = 12;</code>
      * @return The isEmpty.
      */
@@ -2365,6 +2851,10 @@ private static final long serialVersionUID = 0L;
       return isEmpty_;
     }
     /**
+     * <pre>
+     * True, if this is an empty page.
+     * </pre>
+     *
      * <code>bool isEmpty = 12;</code>
      * @param value The isEmpty to set.
      * @return This builder for chaining.
@@ -2376,6 +2866,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * True, if this is an empty page.
+     * </pre>
+     *
      * <code>bool isEmpty = 12;</code>
      * @return This builder for chaining.
      */

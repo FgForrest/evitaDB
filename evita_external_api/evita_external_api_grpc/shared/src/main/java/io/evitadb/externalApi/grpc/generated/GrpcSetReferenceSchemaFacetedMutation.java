@@ -27,6 +27,11 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Mutation is responsible for setting value to a `ReferenceSchema.faceted in `EntitySchema`.
+ * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation}
  */
 public final class GrpcSetReferenceSchemaFacetedMutation extends
@@ -118,6 +123,10 @@ private static final long serialVersionUID = 0L;
   public static final int NAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object name_;
   /**
+   * <pre>
+   * Name of the reference the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
@@ -135,6 +144,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Name of the reference the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -156,6 +169,15 @@ private static final long serialVersionUID = 0L;
   public static final int FACETED_FIELD_NUMBER = 2;
   private boolean faceted_;
   /**
+   * <pre>
+   * Whether the statistics data for this reference should be maintained and this allowing to get
+   * `facetSummary` for this reference or use `facet_{reference name}_inSet`
+   * filtering query.
+   * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+   * occupies (memory/disk) space in the form of index.
+   * Reference that was marked as faceted is called Facet.
+   * </pre>
+   *
    * <code>bool faceted = 2;</code>
    * @return The faceted.
    */
@@ -331,6 +353,11 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReferenceSchema.faceted in `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation}
    */
   public static final class Builder extends
@@ -486,6 +513,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object name_ = "";
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The name.
      */
@@ -502,6 +533,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The bytes for name.
      */
@@ -519,6 +554,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The name to set.
      * @return This builder for chaining.
@@ -534,6 +573,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return This builder for chaining.
      */
@@ -544,6 +587,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the reference the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The bytes for name to set.
      * @return This builder for chaining.
@@ -562,6 +609,15 @@ private static final long serialVersionUID = 0L;
 
     private boolean faceted_ ;
     /**
+     * <pre>
+     * Whether the statistics data for this reference should be maintained and this allowing to get
+     * `facetSummary` for this reference or use `facet_{reference name}_inSet`
+     * filtering query.
+     * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+     * occupies (memory/disk) space in the form of index.
+     * Reference that was marked as faceted is called Facet.
+     * </pre>
+     *
      * <code>bool faceted = 2;</code>
      * @return The faceted.
      */
@@ -570,6 +626,15 @@ private static final long serialVersionUID = 0L;
       return faceted_;
     }
     /**
+     * <pre>
+     * Whether the statistics data for this reference should be maintained and this allowing to get
+     * `facetSummary` for this reference or use `facet_{reference name}_inSet`
+     * filtering query.
+     * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+     * occupies (memory/disk) space in the form of index.
+     * Reference that was marked as faceted is called Facet.
+     * </pre>
+     *
      * <code>bool faceted = 2;</code>
      * @param value The faceted to set.
      * @return This builder for chaining.
@@ -581,6 +646,15 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Whether the statistics data for this reference should be maintained and this allowing to get
+     * `facetSummary` for this reference or use `facet_{reference name}_inSet`
+     * filtering query.
+     * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+     * occupies (memory/disk) space in the form of index.
+     * Reference that was marked as faceted is called Facet.
+     * </pre>
+     *
      * <code>bool faceted = 2;</code>
      * @return This builder for chaining.
      */

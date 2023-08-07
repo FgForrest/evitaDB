@@ -27,6 +27,11 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Mutation is responsible for setting value to a `AssociatedDataSchema.nullable` in `EntitySchema`.
+ * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaNullableMutation}
  */
 public final class GrpcSetAssociatedDataSchemaNullableMutation extends
@@ -118,6 +123,11 @@ private static final long serialVersionUID = 0L;
   public static final int NAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object name_;
   /**
+   * <pre>
+   * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+   * within single entity instance.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
@@ -135,6 +145,11 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+   * within single entity instance.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -156,6 +171,11 @@ private static final long serialVersionUID = 0L;
   public static final int NULLABLE_FIELD_NUMBER = 2;
   private boolean nullable_;
   /**
+   * <pre>
+   * When associated data is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+   * non-null checks upon upserting of the entity.
+   * </pre>
+   *
    * <code>bool nullable = 2;</code>
    * @return The nullable.
    */
@@ -331,6 +351,11 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AssociatedDataSchema.nullable` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaNullableMutation}
    */
   public static final class Builder extends
@@ -486,6 +511,11 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object name_ = "";
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The name.
      */
@@ -502,6 +532,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The bytes for name.
      */
@@ -519,6 +554,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The name to set.
      * @return This builder for chaining.
@@ -534,6 +574,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return This builder for chaining.
      */
@@ -544,6 +589,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The bytes for name to set.
      * @return This builder for chaining.
@@ -562,6 +612,11 @@ private static final long serialVersionUID = 0L;
 
     private boolean nullable_ ;
     /**
+     * <pre>
+     * When associated data is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+     * non-null checks upon upserting of the entity.
+     * </pre>
+     *
      * <code>bool nullable = 2;</code>
      * @return The nullable.
      */
@@ -570,6 +625,11 @@ private static final long serialVersionUID = 0L;
       return nullable_;
     }
     /**
+     * <pre>
+     * When associated data is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+     * non-null checks upon upserting of the entity.
+     * </pre>
+     *
      * <code>bool nullable = 2;</code>
      * @param value The nullable to set.
      * @return This builder for chaining.
@@ -581,6 +641,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * When associated data is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+     * non-null checks upon upserting of the entity.
+     * </pre>
+     *
      * <code>bool nullable = 2;</code>
      * @return This builder for chaining.
      */

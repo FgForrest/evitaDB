@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Represents a terminal mutation that wraps a list of mutation that are to be performed on an entity.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation}
  */
 public final class GrpcEntityUpsertMutation extends
@@ -147,6 +151,10 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITYTYPE_FIELD_NUMBER = 1;
   private volatile java.lang.Object entityType_;
   /**
+   * <pre>
+   * The type of the entity to be mutated.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The entityType.
    */
@@ -164,6 +172,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * The type of the entity to be mutated.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The bytes for entityType.
    */
@@ -185,6 +197,10 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITYPRIMARYKEY_FIELD_NUMBER = 2;
   private com.google.protobuf.Int32Value entityPrimaryKey_;
   /**
+   * <pre>
+   * The primary key of the entity to be mutated.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
    * @return Whether the entityPrimaryKey field is set.
    */
@@ -193,6 +209,10 @@ private static final long serialVersionUID = 0L;
     return entityPrimaryKey_ != null;
   }
   /**
+   * <pre>
+   * The primary key of the entity to be mutated.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
    * @return The entityPrimaryKey.
    */
@@ -201,6 +221,10 @@ private static final long serialVersionUID = 0L;
     return entityPrimaryKey_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : entityPrimaryKey_;
   }
   /**
+   * <pre>
+   * The primary key of the entity to be mutated.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
    */
   @java.lang.Override
@@ -211,6 +235,13 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITYEXISTENCE_FIELD_NUMBER = 3;
   private int entityExistence_;
   /**
+   * <pre>
+   * Controls behaviour of the upsert operation.
+   * - MUST_NOT_EXIST: use when you know you'll be inserting a new value
+   * - MUST_EXIST: use when you know you'll be updating an existing value
+   * - MAY_EXIST: use when you're not sure
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityExistence entityExistence = 3;</code>
    * @return The enum numeric value on the wire for entityExistence.
    */
@@ -218,6 +249,13 @@ private static final long serialVersionUID = 0L;
     return entityExistence_;
   }
   /**
+   * <pre>
+   * Controls behaviour of the upsert operation.
+   * - MUST_NOT_EXIST: use when you know you'll be inserting a new value
+   * - MUST_EXIST: use when you know you'll be updating an existing value
+   * - MAY_EXIST: use when you're not sure
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityExistence entityExistence = 3;</code>
    * @return The entityExistence.
    */
@@ -230,6 +268,10 @@ private static final long serialVersionUID = 0L;
   public static final int MUTATIONS_FIELD_NUMBER = 4;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocalMutation> mutations_;
   /**
+   * <pre>
+   * List of all local mutations that modify internal data of the entity.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
    */
   @java.lang.Override
@@ -237,6 +279,10 @@ private static final long serialVersionUID = 0L;
     return mutations_;
   }
   /**
+   * <pre>
+   * List of all local mutations that modify internal data of the entity.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
    */
   @java.lang.Override
@@ -245,6 +291,10 @@ private static final long serialVersionUID = 0L;
     return mutations_;
   }
   /**
+   * <pre>
+   * List of all local mutations that modify internal data of the entity.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
    */
   @java.lang.Override
@@ -252,6 +302,10 @@ private static final long serialVersionUID = 0L;
     return mutations_.size();
   }
   /**
+   * <pre>
+   * List of all local mutations that modify internal data of the entity.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
    */
   @java.lang.Override
@@ -259,6 +313,10 @@ private static final long serialVersionUID = 0L;
     return mutations_.get(index);
   }
   /**
+   * <pre>
+   * List of all local mutations that modify internal data of the entity.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
    */
   @java.lang.Override
@@ -461,6 +519,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Represents a terminal mutation that wraps a list of mutation that are to be performed on an entity.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation}
    */
   public static final class Builder extends
@@ -674,6 +736,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object entityType_ = "";
     /**
+     * <pre>
+     * The type of the entity to be mutated.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @return The entityType.
      */
@@ -690,6 +756,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The type of the entity to be mutated.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @return The bytes for entityType.
      */
@@ -707,6 +777,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The type of the entity to be mutated.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @param value The entityType to set.
      * @return This builder for chaining.
@@ -722,6 +796,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The type of the entity to be mutated.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @return This builder for chaining.
      */
@@ -732,6 +810,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The type of the entity to be mutated.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @param value The bytes for entityType to set.
      * @return This builder for chaining.
@@ -752,6 +834,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> entityPrimaryKeyBuilder_;
     /**
+     * <pre>
+     * The primary key of the entity to be mutated.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
      * @return Whether the entityPrimaryKey field is set.
      */
@@ -759,6 +845,10 @@ private static final long serialVersionUID = 0L;
       return entityPrimaryKeyBuilder_ != null || entityPrimaryKey_ != null;
     }
     /**
+     * <pre>
+     * The primary key of the entity to be mutated.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
      * @return The entityPrimaryKey.
      */
@@ -770,6 +860,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The primary key of the entity to be mutated.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
      */
     public Builder setEntityPrimaryKey(com.google.protobuf.Int32Value value) {
@@ -786,6 +880,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The primary key of the entity to be mutated.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
      */
     public Builder setEntityPrimaryKey(
@@ -800,6 +898,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The primary key of the entity to be mutated.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
      */
     public Builder mergeEntityPrimaryKey(com.google.protobuf.Int32Value value) {
@@ -818,6 +920,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The primary key of the entity to be mutated.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
      */
     public Builder clearEntityPrimaryKey() {
@@ -832,6 +938,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The primary key of the entity to be mutated.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
      */
     public com.google.protobuf.Int32Value.Builder getEntityPrimaryKeyBuilder() {
@@ -840,6 +950,10 @@ private static final long serialVersionUID = 0L;
       return getEntityPrimaryKeyFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * The primary key of the entity to be mutated.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
      */
     public com.google.protobuf.Int32ValueOrBuilder getEntityPrimaryKeyOrBuilder() {
@@ -851,6 +965,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The primary key of the entity to be mutated.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -869,6 +987,13 @@ private static final long serialVersionUID = 0L;
 
     private int entityExistence_ = 0;
     /**
+     * <pre>
+     * Controls behaviour of the upsert operation.
+     * - MUST_NOT_EXIST: use when you know you'll be inserting a new value
+     * - MUST_EXIST: use when you know you'll be updating an existing value
+     * - MAY_EXIST: use when you're not sure
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityExistence entityExistence = 3;</code>
      * @return The enum numeric value on the wire for entityExistence.
      */
@@ -876,6 +1001,13 @@ private static final long serialVersionUID = 0L;
       return entityExistence_;
     }
     /**
+     * <pre>
+     * Controls behaviour of the upsert operation.
+     * - MUST_NOT_EXIST: use when you know you'll be inserting a new value
+     * - MUST_EXIST: use when you know you'll be updating an existing value
+     * - MAY_EXIST: use when you're not sure
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityExistence entityExistence = 3;</code>
      * @param value The enum numeric value on the wire for entityExistence to set.
      * @return This builder for chaining.
@@ -887,6 +1019,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Controls behaviour of the upsert operation.
+     * - MUST_NOT_EXIST: use when you know you'll be inserting a new value
+     * - MUST_EXIST: use when you know you'll be updating an existing value
+     * - MAY_EXIST: use when you're not sure
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityExistence entityExistence = 3;</code>
      * @return The entityExistence.
      */
@@ -897,6 +1036,13 @@ private static final long serialVersionUID = 0L;
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityExistence.UNRECOGNIZED : result;
     }
     /**
+     * <pre>
+     * Controls behaviour of the upsert operation.
+     * - MUST_NOT_EXIST: use when you know you'll be inserting a new value
+     * - MUST_EXIST: use when you know you'll be updating an existing value
+     * - MAY_EXIST: use when you're not sure
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityExistence entityExistence = 3;</code>
      * @param value The entityExistence to set.
      * @return This builder for chaining.
@@ -911,6 +1057,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Controls behaviour of the upsert operation.
+     * - MUST_NOT_EXIST: use when you know you'll be inserting a new value
+     * - MUST_EXIST: use when you know you'll be updating an existing value
+     * - MAY_EXIST: use when you're not sure
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityExistence entityExistence = 3;</code>
      * @return This builder for chaining.
      */
@@ -934,6 +1087,10 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcLocalMutation, io.evitadb.externalApi.grpc.generated.GrpcLocalMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocalMutationOrBuilder> mutationsBuilder_;
 
     /**
+     * <pre>
+     * List of all local mutations that modify internal data of the entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocalMutation> getMutationsList() {
@@ -944,6 +1101,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * List of all local mutations that modify internal data of the entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
      */
     public int getMutationsCount() {
@@ -954,6 +1115,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * List of all local mutations that modify internal data of the entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocalMutation getMutations(int index) {
@@ -964,6 +1129,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * List of all local mutations that modify internal data of the entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
      */
     public Builder setMutations(
@@ -981,6 +1150,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * List of all local mutations that modify internal data of the entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
      */
     public Builder setMutations(
@@ -995,6 +1168,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * List of all local mutations that modify internal data of the entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
      */
     public Builder addMutations(io.evitadb.externalApi.grpc.generated.GrpcLocalMutation value) {
@@ -1011,6 +1188,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * List of all local mutations that modify internal data of the entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
      */
     public Builder addMutations(
@@ -1028,6 +1209,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * List of all local mutations that modify internal data of the entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
      */
     public Builder addMutations(
@@ -1042,6 +1227,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * List of all local mutations that modify internal data of the entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
      */
     public Builder addMutations(
@@ -1056,6 +1245,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * List of all local mutations that modify internal data of the entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
      */
     public Builder addAllMutations(
@@ -1071,6 +1264,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * List of all local mutations that modify internal data of the entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
      */
     public Builder clearMutations() {
@@ -1084,6 +1281,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * List of all local mutations that modify internal data of the entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
      */
     public Builder removeMutations(int index) {
@@ -1097,6 +1298,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * List of all local mutations that modify internal data of the entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocalMutation.Builder getMutationsBuilder(
@@ -1104,6 +1309,10 @@ private static final long serialVersionUID = 0L;
       return getMutationsFieldBuilder().getBuilder(index);
     }
     /**
+     * <pre>
+     * List of all local mutations that modify internal data of the entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocalMutationOrBuilder getMutationsOrBuilder(
@@ -1114,6 +1323,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * List of all local mutations that modify internal data of the entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocalMutationOrBuilder> 
@@ -1125,6 +1338,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * List of all local mutations that modify internal data of the entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocalMutation.Builder addMutationsBuilder() {
@@ -1132,6 +1349,10 @@ private static final long serialVersionUID = 0L;
           io.evitadb.externalApi.grpc.generated.GrpcLocalMutation.getDefaultInstance());
     }
     /**
+     * <pre>
+     * List of all local mutations that modify internal data of the entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocalMutation.Builder addMutationsBuilder(
@@ -1140,6 +1361,10 @@ private static final long serialVersionUID = 0L;
           index, io.evitadb.externalApi.grpc.generated.GrpcLocalMutation.getDefaultInstance());
     }
     /**
+     * <pre>
+     * List of all local mutations that modify internal data of the entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalMutation mutations = 4;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocalMutation.Builder> 

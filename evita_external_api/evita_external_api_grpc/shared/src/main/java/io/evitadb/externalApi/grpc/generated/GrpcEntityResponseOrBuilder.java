@@ -31,16 +31,28 @@ public interface GrpcEntityResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The found entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 1;</code>
    * @return Whether the entity field is set.
    */
   boolean hasEntity();
   /**
+   * <pre>
+   * The found entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 1;</code>
    * @return The entity.
    */
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getEntity();
   /**
+   * <pre>
+   * The found entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getEntityOrBuilder();

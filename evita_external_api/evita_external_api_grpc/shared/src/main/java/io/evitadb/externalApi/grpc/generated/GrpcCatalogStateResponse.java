@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Response to GetCatalogState request.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCatalogStateResponse}
  */
 public final class GrpcCatalogStateResponse extends
@@ -113,6 +117,10 @@ private static final long serialVersionUID = 0L;
   public static final int STATE_FIELD_NUMBER = 1;
   private int state_;
   /**
+   * <pre>
+   * The current state of the catalog.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState state = 1;</code>
    * @return The enum numeric value on the wire for state.
    */
@@ -120,6 +128,10 @@ private static final long serialVersionUID = 0L;
     return state_;
   }
   /**
+   * <pre>
+   * The current state of the catalog.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState state = 1;</code>
    * @return The state.
    */
@@ -284,6 +296,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Response to GetCatalogState request.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCatalogStateResponse}
    */
   public static final class Builder extends
@@ -432,6 +448,10 @@ private static final long serialVersionUID = 0L;
 
     private int state_ = 0;
     /**
+     * <pre>
+     * The current state of the catalog.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState state = 1;</code>
      * @return The enum numeric value on the wire for state.
      */
@@ -439,6 +459,10 @@ private static final long serialVersionUID = 0L;
       return state_;
     }
     /**
+     * <pre>
+     * The current state of the catalog.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState state = 1;</code>
      * @param value The enum numeric value on the wire for state to set.
      * @return This builder for chaining.
@@ -450,6 +474,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The current state of the catalog.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState state = 1;</code>
      * @return The state.
      */
@@ -460,6 +488,10 @@ private static final long serialVersionUID = 0L;
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCatalogState.UNRECOGNIZED : result;
     }
     /**
+     * <pre>
+     * The current state of the catalog.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState state = 1;</code>
      * @param value The state to set.
      * @return This builder for chaining.
@@ -474,6 +506,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The current state of the catalog.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState state = 1;</code>
      * @return This builder for chaining.
      */

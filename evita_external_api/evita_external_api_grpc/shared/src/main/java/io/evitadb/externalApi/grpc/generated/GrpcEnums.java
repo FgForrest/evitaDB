@@ -137,7 +137,7 @@ public final class GrpcEnums {
       "\021\022\014\n\010FETCHING\020\022\022\027\n\023FETCHING_REFERENCES\020\023" +
       "\022\024\n\020FETCHING_PARENTS\020\024*H\n\023GrpcEntityExis" +
       "tence\022\r\n\tMAY_EXIST\020\000\022\022\n\016MUST_NOT_EXIST\020\001" +
-      "\022\016\n\nMUST_EXIST\020\002B\002P\001b\006proto3"
+      "\022\016\n\nMUST_EXIST\020\002B\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

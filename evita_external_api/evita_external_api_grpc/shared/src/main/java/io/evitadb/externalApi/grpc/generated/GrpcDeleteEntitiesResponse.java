@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Response to DeleteEntities request that deletes all entities that match the sent query..
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesResponse}
  */
 public final class GrpcDeleteEntitiesResponse extends
@@ -125,6 +129,10 @@ private static final long serialVersionUID = 0L;
   public static final int DELETEDENTITIES_FIELD_NUMBER = 1;
   private int deletedEntities_;
   /**
+   * <pre>
+   * Count of deleted entities.
+   * </pre>
+   *
    * <code>int32 deletedEntities = 1;</code>
    * @return The deletedEntities.
    */
@@ -136,6 +144,10 @@ private static final long serialVersionUID = 0L;
   public static final int DELETEDENTITYBODIES_FIELD_NUMBER = 2;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity> deletedEntityBodies_;
   /**
+   * <pre>
+   * The deleted entity bodies.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
    */
   @java.lang.Override
@@ -143,6 +155,10 @@ private static final long serialVersionUID = 0L;
     return deletedEntityBodies_;
   }
   /**
+   * <pre>
+   * The deleted entity bodies.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
    */
   @java.lang.Override
@@ -151,6 +167,10 @@ private static final long serialVersionUID = 0L;
     return deletedEntityBodies_;
   }
   /**
+   * <pre>
+   * The deleted entity bodies.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
    */
   @java.lang.Override
@@ -158,6 +178,10 @@ private static final long serialVersionUID = 0L;
     return deletedEntityBodies_.size();
   }
   /**
+   * <pre>
+   * The deleted entity bodies.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
    */
   @java.lang.Override
@@ -165,6 +189,10 @@ private static final long serialVersionUID = 0L;
     return deletedEntityBodies_.get(index);
   }
   /**
+   * <pre>
+   * The deleted entity bodies.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
    */
   @java.lang.Override
@@ -342,6 +370,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Response to DeleteEntities request that deletes all entities that match the sent query..
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesResponse}
    */
   public static final class Builder extends
@@ -534,6 +566,10 @@ private static final long serialVersionUID = 0L;
 
     private int deletedEntities_ ;
     /**
+     * <pre>
+     * Count of deleted entities.
+     * </pre>
+     *
      * <code>int32 deletedEntities = 1;</code>
      * @return The deletedEntities.
      */
@@ -542,6 +578,10 @@ private static final long serialVersionUID = 0L;
       return deletedEntities_;
     }
     /**
+     * <pre>
+     * Count of deleted entities.
+     * </pre>
+     *
      * <code>int32 deletedEntities = 1;</code>
      * @param value The deletedEntities to set.
      * @return This builder for chaining.
@@ -553,6 +593,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Count of deleted entities.
+     * </pre>
+     *
      * <code>int32 deletedEntities = 1;</code>
      * @return This builder for chaining.
      */
@@ -576,6 +620,10 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> deletedEntityBodiesBuilder_;
 
     /**
+     * <pre>
+     * The deleted entity bodies.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity> getDeletedEntityBodiesList() {
@@ -586,6 +634,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The deleted entity bodies.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
     public int getDeletedEntityBodiesCount() {
@@ -596,6 +648,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The deleted entity bodies.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getDeletedEntityBodies(int index) {
@@ -606,6 +662,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The deleted entity bodies.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
     public Builder setDeletedEntityBodies(
@@ -623,6 +683,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The deleted entity bodies.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
     public Builder setDeletedEntityBodies(
@@ -637,6 +701,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The deleted entity bodies.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
     public Builder addDeletedEntityBodies(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
@@ -653,6 +721,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The deleted entity bodies.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
     public Builder addDeletedEntityBodies(
@@ -670,6 +742,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The deleted entity bodies.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
     public Builder addDeletedEntityBodies(
@@ -684,6 +760,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The deleted entity bodies.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
     public Builder addDeletedEntityBodies(
@@ -698,6 +778,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The deleted entity bodies.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
     public Builder addAllDeletedEntityBodies(
@@ -713,6 +797,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The deleted entity bodies.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
     public Builder clearDeletedEntityBodies() {
@@ -726,6 +814,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The deleted entity bodies.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
     public Builder removeDeletedEntityBodies(int index) {
@@ -739,6 +831,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The deleted entity bodies.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder getDeletedEntityBodiesBuilder(
@@ -746,6 +842,10 @@ private static final long serialVersionUID = 0L;
       return getDeletedEntityBodiesFieldBuilder().getBuilder(index);
     }
     /**
+     * <pre>
+     * The deleted entity bodies.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getDeletedEntityBodiesOrBuilder(
@@ -756,6 +856,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The deleted entity bodies.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
@@ -767,6 +871,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The deleted entity bodies.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder addDeletedEntityBodiesBuilder() {
@@ -774,6 +882,10 @@ private static final long serialVersionUID = 0L;
           io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance());
     }
     /**
+     * <pre>
+     * The deleted entity bodies.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder addDeletedEntityBodiesBuilder(
@@ -782,6 +894,10 @@ private static final long serialVersionUID = 0L;
           index, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance());
     }
     /**
+     * <pre>
+     * The deleted entity bodies.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder> 

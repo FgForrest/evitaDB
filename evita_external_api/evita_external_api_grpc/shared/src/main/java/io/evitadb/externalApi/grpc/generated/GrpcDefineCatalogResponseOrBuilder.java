@@ -31,6 +31,10 @@ public interface GrpcDefineCatalogResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Indicator whether the catalog was defined successfully.
+   * </pre>
+   *
    * <code>bool success = 1;</code>
    * @return The success.
    */

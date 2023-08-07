@@ -68,7 +68,7 @@ public final class GrpcAssociatedDataMutations {
       "ssociatedDataMutation\022\032\n\022associatedDataN" +
       "ame\030\001 \001(\t\022O\n\024associatedDataLocale\030\002 \001(\0132" +
       "1.io.evitadb.externalApi.grpc.generated." +
-      "GrpcLocaleB\002P\001b\006proto3"
+      "GrpcLocaleB\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

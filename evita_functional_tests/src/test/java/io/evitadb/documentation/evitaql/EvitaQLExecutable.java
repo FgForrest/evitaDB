@@ -27,6 +27,8 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.util.DefaultIndenter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
+import com.fasterxml.jackson.core.util.Separators;
+import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.module.SimpleModule;
@@ -77,6 +79,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.Serial;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -174,13 +177,11 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 				.addSerializer(EntityContract.class, new EntityDocumentationJsonSerializer()));
 
 		OBJECT_MAPPER.setSerializationInclusion(Include.NON_DEFAULT);
-		OBJECT_MAPPER.enable(SerializationFeature.INDENT_OUTPUT);
 		OBJECT_MAPPER.enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
 		OBJECT_MAPPER.enable(SerializationFeature.WRITE_DATE_KEYS_AS_TIMESTAMPS);
+		OBJECT_MAPPER.setConfig(OBJECT_MAPPER.getSerializationConfig().with(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY));
 
-		DEFAULT_PRETTY_PRINTER = new DefaultPrettyPrinter();
-		DEFAULT_PRETTY_PRINTER.indentArraysWith(DefaultIndenter.SYSTEM_LINEFEED_INSTANCE);
-		DEFAULT_PRETTY_PRINTER.indentObjectsWith(DefaultIndenter.SYSTEM_LINEFEED_INSTANCE);
+		DEFAULT_PRETTY_PRINTER = new CustomPrettyPrinter();
 
 		try (final InputStream is = EvitaQLExecutable.class.getClassLoader().getResourceAsStream("META-INF/documentation/evitaql.java");) {
 			JAVA_CODE_TEMPLATE = IOUtils.readLines(is, StandardCharsets.UTF_8);
@@ -631,6 +632,37 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 					System.out.println("Markdown snippet `" + relativePath + "` contents verified OK. \uD83D\uDE0A");
 				}
 			);
+		}
+	}
+
+	/**
+	 * Custom pretty printer that leaves space before colon and properly indents arrays and objects.
+	 */
+	private static class CustomPrettyPrinter extends DefaultPrettyPrinter {
+		@Serial private static final long serialVersionUID = 5382128008653605263L;
+
+		public CustomPrettyPrinter() {
+			this.indentArraysWith(DefaultIndenter.SYSTEM_LINEFEED_INSTANCE);
+			this.indentObjectsWith(DefaultIndenter.SYSTEM_LINEFEED_INSTANCE);
+		}
+
+		public CustomPrettyPrinter(CustomPrettyPrinter basePrettyPrinter) {
+			super(basePrettyPrinter);
+			this.indentArraysWith(DefaultIndenter.SYSTEM_LINEFEED_INSTANCE);
+			this.indentObjectsWith(DefaultIndenter.SYSTEM_LINEFEED_INSTANCE);
+		}
+
+
+		@Override
+		public DefaultPrettyPrinter createInstance() {
+			return new CustomPrettyPrinter(this);
+		}
+
+		@Override
+		public DefaultPrettyPrinter withSeparators(Separators separators) {
+			final DefaultPrettyPrinter instance = super.withSeparators(separators);
+			_objectFieldValueSeparatorWithSpaces = separators.getObjectFieldValueSeparator() + " ";
+			return instance;
 		}
 	}
 }

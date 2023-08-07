@@ -31,11 +31,19 @@ public interface GrpcRemoveEntitySchemaMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of entity schema to remove.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
   java.lang.String getName();
   /**
+   * <pre>
+   * Name of entity schema to remove.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */

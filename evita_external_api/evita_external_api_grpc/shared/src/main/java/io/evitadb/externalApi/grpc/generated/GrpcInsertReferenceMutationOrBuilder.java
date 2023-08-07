@@ -31,11 +31,19 @@ public interface GrpcInsertReferenceMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Unique identifier of the reference.
+   * </pre>
+   *
    * <code>string referenceName = 1;</code>
    * @return The referenceName.
    */
   java.lang.String getReferenceName();
   /**
+   * <pre>
+   * Unique identifier of the reference.
+   * </pre>
+   *
    * <code>string referenceName = 1;</code>
    * @return The bytes for referenceName.
    */
@@ -43,33 +51,63 @@ public interface GrpcInsertReferenceMutationOrBuilder extends
       getReferenceNameBytes();
 
   /**
+   * <pre>
+   * Primary key of the referenced entity. Might be also any integer that uniquely identifies some external
+   * resource not maintained by Evita.
+   * </pre>
+   *
    * <code>int32 referencePrimaryKey = 2;</code>
    * @return The referencePrimaryKey.
    */
   int getReferencePrimaryKey();
 
   /**
+   * <pre>
+   * Contains information about reference cardinality. This value is usually NULL except the case when the reference
+   * is created for the first time and `EvolutionMode.ADDING_REFERENCES` is allowed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality referenceCardinality = 3;</code>
    * @return The enum numeric value on the wire for referenceCardinality.
    */
   int getReferenceCardinalityValue();
   /**
+   * <pre>
+   * Contains information about reference cardinality. This value is usually NULL except the case when the reference
+   * is created for the first time and `EvolutionMode.ADDING_REFERENCES` is allowed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality referenceCardinality = 3;</code>
    * @return The referenceCardinality.
    */
   io.evitadb.externalApi.grpc.generated.GrpcCardinality getReferenceCardinality();
 
   /**
+   * <pre>
+   * Contains information about target entity type. This value is usually NULL except the case when the reference
+   * is created for the first time and `EvolutionMode.ADDING_REFERENCES` is allowed.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue referencedEntityType = 4;</code>
    * @return Whether the referencedEntityType field is set.
    */
   boolean hasReferencedEntityType();
   /**
+   * <pre>
+   * Contains information about target entity type. This value is usually NULL except the case when the reference
+   * is created for the first time and `EvolutionMode.ADDING_REFERENCES` is allowed.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue referencedEntityType = 4;</code>
    * @return The referencedEntityType.
    */
   com.google.protobuf.StringValue getReferencedEntityType();
   /**
+   * <pre>
+   * Contains information about target entity type. This value is usually NULL except the case when the reference
+   * is created for the first time and `EvolutionMode.ADDING_REFERENCES` is allowed.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue referencedEntityType = 4;</code>
    */
   com.google.protobuf.StringValueOrBuilder getReferencedEntityTypeOrBuilder();

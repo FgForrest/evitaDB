@@ -27,6 +27,15 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Histogram can be computed only for numeric based properties. It visualises which property values are more common
+ * in the returned data set and which are rare. Bucket count will never exceed requested bucket count but there
+ * may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so tha
+ * there are as few "empty buckets" as possible.
+ * - buckets are defined by their lower bounds (inclusive)
+ * - the upper bound is the lower bound of the next bucket
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcHistogram}
  */
 public final class GrpcHistogram extends
@@ -153,33 +162,59 @@ private static final long serialVersionUID = 0L;
       com.google.protobuf.MessageOrBuilder {
 
     /**
+     * <pre>
+     * Contains index (starting with zero) of the bucket in the histogram. First bucket / column of the histogram
+     * will have index zero, second bucket / column one and so forth.
+     * </pre>
+     *
      * <code>int32 index = 1;</code>
      * @return The index.
      */
     int getIndex();
 
     /**
+     * <pre>
+     * Contains threshold (left bound - inclusive) of the bucket.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal threshold = 2;</code>
      * @return Whether the threshold field is set.
      */
     boolean hasThreshold();
     /**
+     * <pre>
+     * Contains threshold (left bound - inclusive) of the bucket.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal threshold = 2;</code>
      * @return The threshold.
      */
     io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getThreshold();
     /**
+     * <pre>
+     * Contains threshold (left bound - inclusive) of the bucket.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal threshold = 2;</code>
      */
     io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getThresholdOrBuilder();
 
     /**
+     * <pre>
+     * Contains number of entity occurrences in this bucket - e.g. number of entities that has monitored property value
+     * between previous bucket threshold (exclusive) and this bucket threshold (inclusive)
+     * </pre>
+     *
      * <code>int32 occurrences = 3;</code>
      * @return The occurrences.
      */
     int getOccurrences();
   }
   /**
+   * <pre>
+   * Data object that carries out threshold in histogram (or bucket if you will) along with number of occurrences in it.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket}
    */
   public static final class GrpcBucket extends
@@ -282,6 +317,11 @@ private static final long serialVersionUID = 0L;
     public static final int INDEX_FIELD_NUMBER = 1;
     private int index_;
     /**
+     * <pre>
+     * Contains index (starting with zero) of the bucket in the histogram. First bucket / column of the histogram
+     * will have index zero, second bucket / column one and so forth.
+     * </pre>
+     *
      * <code>int32 index = 1;</code>
      * @return The index.
      */
@@ -293,6 +333,10 @@ private static final long serialVersionUID = 0L;
     public static final int THRESHOLD_FIELD_NUMBER = 2;
     private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal threshold_;
     /**
+     * <pre>
+     * Contains threshold (left bound - inclusive) of the bucket.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal threshold = 2;</code>
      * @return Whether the threshold field is set.
      */
@@ -301,6 +345,10 @@ private static final long serialVersionUID = 0L;
       return threshold_ != null;
     }
     /**
+     * <pre>
+     * Contains threshold (left bound - inclusive) of the bucket.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal threshold = 2;</code>
      * @return The threshold.
      */
@@ -309,6 +357,10 @@ private static final long serialVersionUID = 0L;
       return threshold_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : threshold_;
     }
     /**
+     * <pre>
+     * Contains threshold (left bound - inclusive) of the bucket.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal threshold = 2;</code>
      */
     @java.lang.Override
@@ -319,6 +371,11 @@ private static final long serialVersionUID = 0L;
     public static final int OCCURRENCES_FIELD_NUMBER = 3;
     private int occurrences_;
     /**
+     * <pre>
+     * Contains number of entity occurrences in this bucket - e.g. number of entities that has monitored property value
+     * between previous bucket threshold (exclusive) and this bucket threshold (inclusive)
+     * </pre>
+     *
      * <code>int32 occurrences = 3;</code>
      * @return The occurrences.
      */
@@ -510,6 +567,10 @@ private static final long serialVersionUID = 0L;
       return builder;
     }
     /**
+     * <pre>
+     * Data object that carries out threshold in histogram (or bucket if you will) along with number of occurrences in it.
+     * </pre>
+     *
      * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket}
      */
     public static final class Builder extends
@@ -678,6 +739,11 @@ private static final long serialVersionUID = 0L;
 
       private int index_ ;
       /**
+       * <pre>
+       * Contains index (starting with zero) of the bucket in the histogram. First bucket / column of the histogram
+       * will have index zero, second bucket / column one and so forth.
+       * </pre>
+       *
        * <code>int32 index = 1;</code>
        * @return The index.
        */
@@ -686,6 +752,11 @@ private static final long serialVersionUID = 0L;
         return index_;
       }
       /**
+       * <pre>
+       * Contains index (starting with zero) of the bucket in the histogram. First bucket / column of the histogram
+       * will have index zero, second bucket / column one and so forth.
+       * </pre>
+       *
        * <code>int32 index = 1;</code>
        * @param value The index to set.
        * @return This builder for chaining.
@@ -697,6 +768,11 @@ private static final long serialVersionUID = 0L;
         return this;
       }
       /**
+       * <pre>
+       * Contains index (starting with zero) of the bucket in the histogram. First bucket / column of the histogram
+       * will have index zero, second bucket / column one and so forth.
+       * </pre>
+       *
        * <code>int32 index = 1;</code>
        * @return This builder for chaining.
        */
@@ -711,6 +787,10 @@ private static final long serialVersionUID = 0L;
       private com.google.protobuf.SingleFieldBuilderV3<
           io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> thresholdBuilder_;
       /**
+       * <pre>
+       * Contains threshold (left bound - inclusive) of the bucket.
+       * </pre>
+       *
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal threshold = 2;</code>
        * @return Whether the threshold field is set.
        */
@@ -718,6 +798,10 @@ private static final long serialVersionUID = 0L;
         return thresholdBuilder_ != null || threshold_ != null;
       }
       /**
+       * <pre>
+       * Contains threshold (left bound - inclusive) of the bucket.
+       * </pre>
+       *
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal threshold = 2;</code>
        * @return The threshold.
        */
@@ -729,6 +813,10 @@ private static final long serialVersionUID = 0L;
         }
       }
       /**
+       * <pre>
+       * Contains threshold (left bound - inclusive) of the bucket.
+       * </pre>
+       *
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal threshold = 2;</code>
        */
       public Builder setThreshold(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
@@ -745,6 +833,10 @@ private static final long serialVersionUID = 0L;
         return this;
       }
       /**
+       * <pre>
+       * Contains threshold (left bound - inclusive) of the bucket.
+       * </pre>
+       *
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal threshold = 2;</code>
        */
       public Builder setThreshold(
@@ -759,6 +851,10 @@ private static final long serialVersionUID = 0L;
         return this;
       }
       /**
+       * <pre>
+       * Contains threshold (left bound - inclusive) of the bucket.
+       * </pre>
+       *
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal threshold = 2;</code>
        */
       public Builder mergeThreshold(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
@@ -777,6 +873,10 @@ private static final long serialVersionUID = 0L;
         return this;
       }
       /**
+       * <pre>
+       * Contains threshold (left bound - inclusive) of the bucket.
+       * </pre>
+       *
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal threshold = 2;</code>
        */
       public Builder clearThreshold() {
@@ -791,6 +891,10 @@ private static final long serialVersionUID = 0L;
         return this;
       }
       /**
+       * <pre>
+       * Contains threshold (left bound - inclusive) of the bucket.
+       * </pre>
+       *
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal threshold = 2;</code>
        */
       public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder getThresholdBuilder() {
@@ -799,6 +903,10 @@ private static final long serialVersionUID = 0L;
         return getThresholdFieldBuilder().getBuilder();
       }
       /**
+       * <pre>
+       * Contains threshold (left bound - inclusive) of the bucket.
+       * </pre>
+       *
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal threshold = 2;</code>
        */
       public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getThresholdOrBuilder() {
@@ -810,6 +918,10 @@ private static final long serialVersionUID = 0L;
         }
       }
       /**
+       * <pre>
+       * Contains threshold (left bound - inclusive) of the bucket.
+       * </pre>
+       *
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal threshold = 2;</code>
        */
       private com.google.protobuf.SingleFieldBuilderV3<
@@ -828,6 +940,11 @@ private static final long serialVersionUID = 0L;
 
       private int occurrences_ ;
       /**
+       * <pre>
+       * Contains number of entity occurrences in this bucket - e.g. number of entities that has monitored property value
+       * between previous bucket threshold (exclusive) and this bucket threshold (inclusive)
+       * </pre>
+       *
        * <code>int32 occurrences = 3;</code>
        * @return The occurrences.
        */
@@ -836,6 +953,11 @@ private static final long serialVersionUID = 0L;
         return occurrences_;
       }
       /**
+       * <pre>
+       * Contains number of entity occurrences in this bucket - e.g. number of entities that has monitored property value
+       * between previous bucket threshold (exclusive) and this bucket threshold (inclusive)
+       * </pre>
+       *
        * <code>int32 occurrences = 3;</code>
        * @param value The occurrences to set.
        * @return This builder for chaining.
@@ -847,6 +969,11 @@ private static final long serialVersionUID = 0L;
         return this;
       }
       /**
+       * <pre>
+       * Contains number of entity occurrences in this bucket - e.g. number of entities that has monitored property value
+       * between previous bucket threshold (exclusive) and this bucket threshold (inclusive)
+       * </pre>
+       *
        * <code>int32 occurrences = 3;</code>
        * @return This builder for chaining.
        */
@@ -912,6 +1039,10 @@ private static final long serialVersionUID = 0L;
   public static final int MIN_FIELD_NUMBER = 1;
   private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal min_;
   /**
+   * <pre>
+   * Returns left bound of the first bucket. It represents the smallest value encountered in the returned set.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal min = 1;</code>
    * @return Whether the min field is set.
    */
@@ -920,6 +1051,10 @@ private static final long serialVersionUID = 0L;
     return min_ != null;
   }
   /**
+   * <pre>
+   * Returns left bound of the first bucket. It represents the smallest value encountered in the returned set.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal min = 1;</code>
    * @return The min.
    */
@@ -928,6 +1063,10 @@ private static final long serialVersionUID = 0L;
     return min_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : min_;
   }
   /**
+   * <pre>
+   * Returns left bound of the first bucket. It represents the smallest value encountered in the returned set.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal min = 1;</code>
    */
   @java.lang.Override
@@ -938,6 +1077,13 @@ private static final long serialVersionUID = 0L;
   public static final int MAX_FIELD_NUMBER = 2;
   private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max_;
   /**
+   * <pre>
+   * Returns right bound of the last bucket of the histogram. Each bucket contains only left bound threshold, so this
+   * value is necessary so that first histogram buckets makes any sense. This value is exceptional in the sense that
+   * it represents the biggest value encountered in the returned set and represents inclusive right bound for the
+   * last bucket.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max = 2;</code>
    * @return Whether the max field is set.
    */
@@ -946,6 +1092,13 @@ private static final long serialVersionUID = 0L;
     return max_ != null;
   }
   /**
+   * <pre>
+   * Returns right bound of the last bucket of the histogram. Each bucket contains only left bound threshold, so this
+   * value is necessary so that first histogram buckets makes any sense. This value is exceptional in the sense that
+   * it represents the biggest value encountered in the returned set and represents inclusive right bound for the
+   * last bucket.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max = 2;</code>
    * @return The max.
    */
@@ -954,6 +1107,13 @@ private static final long serialVersionUID = 0L;
     return max_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : max_;
   }
   /**
+   * <pre>
+   * Returns right bound of the last bucket of the histogram. Each bucket contains only left bound threshold, so this
+   * value is necessary so that first histogram buckets makes any sense. This value is exceptional in the sense that
+   * it represents the biggest value encountered in the returned set and represents inclusive right bound for the
+   * last bucket.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max = 2;</code>
    */
   @java.lang.Override
@@ -964,6 +1124,11 @@ private static final long serialVersionUID = 0L;
   public static final int OVERALLCOUNT_FIELD_NUMBER = 3;
   private int overallCount_;
   /**
+   * <pre>
+   * Returns count of all entities that are covered by this histogram. It's plain sum of occurrences of all buckets
+   * in the histogram.
+   * </pre>
+   *
    * <code>int32 overallCount = 3;</code>
    * @return The overallCount.
    */
@@ -975,6 +1140,11 @@ private static final long serialVersionUID = 0L;
   public static final int BUCKETS_FIELD_NUMBER = 4;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket> buckets_;
   /**
+   * <pre>
+   * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+   * values.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
    */
   @java.lang.Override
@@ -982,6 +1152,11 @@ private static final long serialVersionUID = 0L;
     return buckets_;
   }
   /**
+   * <pre>
+   * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+   * values.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
    */
   @java.lang.Override
@@ -990,6 +1165,11 @@ private static final long serialVersionUID = 0L;
     return buckets_;
   }
   /**
+   * <pre>
+   * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+   * values.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
    */
   @java.lang.Override
@@ -997,6 +1177,11 @@ private static final long serialVersionUID = 0L;
     return buckets_.size();
   }
   /**
+   * <pre>
+   * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+   * values.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
    */
   @java.lang.Override
@@ -1004,6 +1189,11 @@ private static final long serialVersionUID = 0L;
     return buckets_.get(index);
   }
   /**
+   * <pre>
+   * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+   * values.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
    */
   @java.lang.Override
@@ -1213,6 +1403,15 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Histogram can be computed only for numeric based properties. It visualises which property values are more common
+   * in the returned data set and which are rare. Bucket count will never exceed requested bucket count but there
+   * may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so tha
+   * there are as few "empty buckets" as possible.
+   * - buckets are defined by their lower bounds (inclusive)
+   * - the upper bound is the lower bound of the next bucket
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcHistogram}
    */
   public static final class Builder extends
@@ -1435,6 +1634,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> minBuilder_;
     /**
+     * <pre>
+     * Returns left bound of the first bucket. It represents the smallest value encountered in the returned set.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal min = 1;</code>
      * @return Whether the min field is set.
      */
@@ -1442,6 +1645,10 @@ private static final long serialVersionUID = 0L;
       return minBuilder_ != null || min_ != null;
     }
     /**
+     * <pre>
+     * Returns left bound of the first bucket. It represents the smallest value encountered in the returned set.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal min = 1;</code>
      * @return The min.
      */
@@ -1453,6 +1660,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Returns left bound of the first bucket. It represents the smallest value encountered in the returned set.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal min = 1;</code>
      */
     public Builder setMin(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
@@ -1469,6 +1680,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns left bound of the first bucket. It represents the smallest value encountered in the returned set.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal min = 1;</code>
      */
     public Builder setMin(
@@ -1483,6 +1698,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns left bound of the first bucket. It represents the smallest value encountered in the returned set.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal min = 1;</code>
      */
     public Builder mergeMin(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
@@ -1501,6 +1720,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns left bound of the first bucket. It represents the smallest value encountered in the returned set.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal min = 1;</code>
      */
     public Builder clearMin() {
@@ -1515,6 +1738,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns left bound of the first bucket. It represents the smallest value encountered in the returned set.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal min = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder getMinBuilder() {
@@ -1523,6 +1750,10 @@ private static final long serialVersionUID = 0L;
       return getMinFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Returns left bound of the first bucket. It represents the smallest value encountered in the returned set.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal min = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getMinOrBuilder() {
@@ -1534,6 +1765,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Returns left bound of the first bucket. It represents the smallest value encountered in the returned set.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal min = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1554,6 +1789,13 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> maxBuilder_;
     /**
+     * <pre>
+     * Returns right bound of the last bucket of the histogram. Each bucket contains only left bound threshold, so this
+     * value is necessary so that first histogram buckets makes any sense. This value is exceptional in the sense that
+     * it represents the biggest value encountered in the returned set and represents inclusive right bound for the
+     * last bucket.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max = 2;</code>
      * @return Whether the max field is set.
      */
@@ -1561,6 +1803,13 @@ private static final long serialVersionUID = 0L;
       return maxBuilder_ != null || max_ != null;
     }
     /**
+     * <pre>
+     * Returns right bound of the last bucket of the histogram. Each bucket contains only left bound threshold, so this
+     * value is necessary so that first histogram buckets makes any sense. This value is exceptional in the sense that
+     * it represents the biggest value encountered in the returned set and represents inclusive right bound for the
+     * last bucket.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max = 2;</code>
      * @return The max.
      */
@@ -1572,6 +1821,13 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Returns right bound of the last bucket of the histogram. Each bucket contains only left bound threshold, so this
+     * value is necessary so that first histogram buckets makes any sense. This value is exceptional in the sense that
+     * it represents the biggest value encountered in the returned set and represents inclusive right bound for the
+     * last bucket.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max = 2;</code>
      */
     public Builder setMax(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
@@ -1588,6 +1844,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns right bound of the last bucket of the histogram. Each bucket contains only left bound threshold, so this
+     * value is necessary so that first histogram buckets makes any sense. This value is exceptional in the sense that
+     * it represents the biggest value encountered in the returned set and represents inclusive right bound for the
+     * last bucket.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max = 2;</code>
      */
     public Builder setMax(
@@ -1602,6 +1865,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns right bound of the last bucket of the histogram. Each bucket contains only left bound threshold, so this
+     * value is necessary so that first histogram buckets makes any sense. This value is exceptional in the sense that
+     * it represents the biggest value encountered in the returned set and represents inclusive right bound for the
+     * last bucket.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max = 2;</code>
      */
     public Builder mergeMax(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
@@ -1620,6 +1890,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns right bound of the last bucket of the histogram. Each bucket contains only left bound threshold, so this
+     * value is necessary so that first histogram buckets makes any sense. This value is exceptional in the sense that
+     * it represents the biggest value encountered in the returned set and represents inclusive right bound for the
+     * last bucket.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max = 2;</code>
      */
     public Builder clearMax() {
@@ -1634,6 +1911,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns right bound of the last bucket of the histogram. Each bucket contains only left bound threshold, so this
+     * value is necessary so that first histogram buckets makes any sense. This value is exceptional in the sense that
+     * it represents the biggest value encountered in the returned set and represents inclusive right bound for the
+     * last bucket.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder getMaxBuilder() {
@@ -1642,6 +1926,13 @@ private static final long serialVersionUID = 0L;
       return getMaxFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Returns right bound of the last bucket of the histogram. Each bucket contains only left bound threshold, so this
+     * value is necessary so that first histogram buckets makes any sense. This value is exceptional in the sense that
+     * it represents the biggest value encountered in the returned set and represents inclusive right bound for the
+     * last bucket.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getMaxOrBuilder() {
@@ -1653,6 +1944,13 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Returns right bound of the last bucket of the histogram. Each bucket contains only left bound threshold, so this
+     * value is necessary so that first histogram buckets makes any sense. This value is exceptional in the sense that
+     * it represents the biggest value encountered in the returned set and represents inclusive right bound for the
+     * last bucket.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1671,6 +1969,11 @@ private static final long serialVersionUID = 0L;
 
     private int overallCount_ ;
     /**
+     * <pre>
+     * Returns count of all entities that are covered by this histogram. It's plain sum of occurrences of all buckets
+     * in the histogram.
+     * </pre>
+     *
      * <code>int32 overallCount = 3;</code>
      * @return The overallCount.
      */
@@ -1679,6 +1982,11 @@ private static final long serialVersionUID = 0L;
       return overallCount_;
     }
     /**
+     * <pre>
+     * Returns count of all entities that are covered by this histogram. It's plain sum of occurrences of all buckets
+     * in the histogram.
+     * </pre>
+     *
      * <code>int32 overallCount = 3;</code>
      * @param value The overallCount to set.
      * @return This builder for chaining.
@@ -1690,6 +1998,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns count of all entities that are covered by this histogram. It's plain sum of occurrences of all buckets
+     * in the histogram.
+     * </pre>
+     *
      * <code>int32 overallCount = 3;</code>
      * @return This builder for chaining.
      */
@@ -1713,6 +2026,11 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder> bucketsBuilder_;
 
     /**
+     * <pre>
+     * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+     * values.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket> getBucketsList() {
@@ -1723,6 +2041,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+     * values.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public int getBucketsCount() {
@@ -1733,6 +2056,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+     * values.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket getBuckets(int index) {
@@ -1743,6 +2071,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+     * values.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public Builder setBuckets(
@@ -1760,6 +2093,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+     * values.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public Builder setBuckets(
@@ -1774,6 +2112,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+     * values.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public Builder addBuckets(io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket value) {
@@ -1790,6 +2133,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+     * values.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public Builder addBuckets(
@@ -1807,6 +2155,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+     * values.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public Builder addBuckets(
@@ -1821,6 +2174,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+     * values.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public Builder addBuckets(
@@ -1835,6 +2193,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+     * values.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public Builder addAllBuckets(
@@ -1850,6 +2213,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+     * values.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public Builder clearBuckets() {
@@ -1863,6 +2231,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+     * values.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public Builder removeBuckets(int index) {
@@ -1876,6 +2249,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+     * values.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder getBucketsBuilder(
@@ -1883,6 +2261,11 @@ private static final long serialVersionUID = 0L;
       return getBucketsFieldBuilder().getBuilder(index);
     }
     /**
+     * <pre>
+     * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+     * values.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder getBucketsOrBuilder(
@@ -1893,6 +2276,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+     * values.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder> 
@@ -1904,6 +2292,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+     * values.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder addBucketsBuilder() {
@@ -1911,6 +2304,11 @@ private static final long serialVersionUID = 0L;
           io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+     * values.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder addBucketsBuilder(
@@ -1919,6 +2317,11 @@ private static final long serialVersionUID = 0L;
           index, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
+     * values.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder> 

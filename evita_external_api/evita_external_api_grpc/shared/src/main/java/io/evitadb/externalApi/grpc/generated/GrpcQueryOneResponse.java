@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Response for query request executed when searched for exactly one entity. The used field is decided by the require block in the query.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse}
  */
 public final class GrpcQueryOneResponse extends
@@ -145,6 +149,10 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITYREFERENCE_FIELD_NUMBER = 1;
   private io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference_;
   /**
+   * <pre>
+   * Entity reference of the found entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
    * @return Whether the entityReference field is set.
    */
@@ -153,6 +161,10 @@ private static final long serialVersionUID = 0L;
     return entityReference_ != null;
   }
   /**
+   * <pre>
+   * Entity reference of the found entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
    * @return The entityReference.
    */
@@ -161,6 +173,10 @@ private static final long serialVersionUID = 0L;
     return entityReference_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance() : entityReference_;
   }
   /**
+   * <pre>
+   * Entity reference of the found entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
    */
   @java.lang.Override
@@ -171,6 +187,10 @@ private static final long serialVersionUID = 0L;
   public static final int SEALEDENTITY_FIELD_NUMBER = 2;
   private io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntity_;
   /**
+   * <pre>
+   * Sealed entity of the found entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntity = 2;</code>
    * @return Whether the sealedEntity field is set.
    */
@@ -179,6 +199,10 @@ private static final long serialVersionUID = 0L;
     return sealedEntity_ != null;
   }
   /**
+   * <pre>
+   * Sealed entity of the found entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntity = 2;</code>
    * @return The sealedEntity.
    */
@@ -187,6 +211,10 @@ private static final long serialVersionUID = 0L;
     return sealedEntity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : sealedEntity_;
   }
   /**
+   * <pre>
+   * Sealed entity of the found entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntity = 2;</code>
    */
   @java.lang.Override
@@ -197,6 +225,10 @@ private static final long serialVersionUID = 0L;
   public static final int BINARYENTITY_FIELD_NUMBER = 3;
   private io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntity_;
   /**
+   * <pre>
+   * Binary entity of the found entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntity = 3;</code>
    * @return Whether the binaryEntity field is set.
    */
@@ -205,6 +237,10 @@ private static final long serialVersionUID = 0L;
     return binaryEntity_ != null;
   }
   /**
+   * <pre>
+   * Binary entity of the found entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntity = 3;</code>
    * @return The binaryEntity.
    */
@@ -213,6 +249,10 @@ private static final long serialVersionUID = 0L;
     return binaryEntity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.getDefaultInstance() : binaryEntity_;
   }
   /**
+   * <pre>
+   * Binary entity of the found entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntity = 3;</code>
    */
   @java.lang.Override
@@ -413,6 +453,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Response for query request executed when searched for exactly one entity. The used field is decided by the require block in the query.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse}
    */
   public static final class Builder extends
@@ -599,6 +643,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> entityReferenceBuilder_;
     /**
+     * <pre>
+     * Entity reference of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      * @return Whether the entityReference field is set.
      */
@@ -606,6 +654,10 @@ private static final long serialVersionUID = 0L;
       return entityReferenceBuilder_ != null || entityReference_ != null;
     }
     /**
+     * <pre>
+     * Entity reference of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      * @return The entityReference.
      */
@@ -617,6 +669,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Entity reference of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      */
     public Builder setEntityReference(io.evitadb.externalApi.grpc.generated.GrpcEntityReference value) {
@@ -633,6 +689,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Entity reference of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      */
     public Builder setEntityReference(
@@ -647,6 +707,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Entity reference of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      */
     public Builder mergeEntityReference(io.evitadb.externalApi.grpc.generated.GrpcEntityReference value) {
@@ -665,6 +729,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Entity reference of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      */
     public Builder clearEntityReference() {
@@ -679,6 +747,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Entity reference of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder getEntityReferenceBuilder() {
@@ -687,6 +759,10 @@ private static final long serialVersionUID = 0L;
       return getEntityReferenceFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Entity reference of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder getEntityReferenceOrBuilder() {
@@ -698,6 +774,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Entity reference of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -718,6 +798,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> sealedEntityBuilder_;
     /**
+     * <pre>
+     * Sealed entity of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntity = 2;</code>
      * @return Whether the sealedEntity field is set.
      */
@@ -725,6 +809,10 @@ private static final long serialVersionUID = 0L;
       return sealedEntityBuilder_ != null || sealedEntity_ != null;
     }
     /**
+     * <pre>
+     * Sealed entity of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntity = 2;</code>
      * @return The sealedEntity.
      */
@@ -736,6 +824,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Sealed entity of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntity = 2;</code>
      */
     public Builder setSealedEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
@@ -752,6 +844,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Sealed entity of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntity = 2;</code>
      */
     public Builder setSealedEntity(
@@ -766,6 +862,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Sealed entity of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntity = 2;</code>
      */
     public Builder mergeSealedEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
@@ -784,6 +884,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Sealed entity of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntity = 2;</code>
      */
     public Builder clearSealedEntity() {
@@ -798,6 +902,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Sealed entity of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntity = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder getSealedEntityBuilder() {
@@ -806,6 +914,10 @@ private static final long serialVersionUID = 0L;
       return getSealedEntityFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Sealed entity of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntity = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getSealedEntityOrBuilder() {
@@ -817,6 +929,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Sealed entity of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntity = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -837,6 +953,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder> binaryEntityBuilder_;
     /**
+     * <pre>
+     * Binary entity of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntity = 3;</code>
      * @return Whether the binaryEntity field is set.
      */
@@ -844,6 +964,10 @@ private static final long serialVersionUID = 0L;
       return binaryEntityBuilder_ != null || binaryEntity_ != null;
     }
     /**
+     * <pre>
+     * Binary entity of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntity = 3;</code>
      * @return The binaryEntity.
      */
@@ -855,6 +979,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Binary entity of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntity = 3;</code>
      */
     public Builder setBinaryEntity(io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity value) {
@@ -871,6 +999,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Binary entity of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntity = 3;</code>
      */
     public Builder setBinaryEntity(
@@ -885,6 +1017,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Binary entity of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntity = 3;</code>
      */
     public Builder mergeBinaryEntity(io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity value) {
@@ -903,6 +1039,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Binary entity of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntity = 3;</code>
      */
     public Builder clearBinaryEntity() {
@@ -917,6 +1057,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Binary entity of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntity = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder getBinaryEntityBuilder() {
@@ -925,6 +1069,10 @@ private static final long serialVersionUID = 0L;
       return getBinaryEntityFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Binary entity of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntity = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder getBinaryEntityOrBuilder() {
@@ -936,6 +1084,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Binary entity of the found entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntity = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

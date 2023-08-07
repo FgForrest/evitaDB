@@ -27,6 +27,13 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Increments or decrements existing numeric value by specified delta (negative number produces decremental of
+ * existing number, positive one incrementation).
+ * Allows to specify the number range that is tolerated for the value after delta application has been finished to
+ * verify for example that number of items on stock doesn't go below zero.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation}
  */
 public final class GrpcApplyDeltaAttributeMutation extends
@@ -278,6 +285,11 @@ private static final long serialVersionUID = 0L;
   public static final int ATTRIBUTENAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object attributeName_;
   /**
+   * <pre>
+   * Unique name of the attribute. Case-sensitive. Distinguishes one associated data item from another within
+   * single entity instance.
+   * </pre>
+   *
    * <code>string attributeName = 1;</code>
    * @return The attributeName.
    */
@@ -295,6 +307,11 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Unique name of the attribute. Case-sensitive. Distinguishes one associated data item from another within
+   * single entity instance.
+   * </pre>
+   *
    * <code>string attributeName = 1;</code>
    * @return The bytes for attributeName.
    */
@@ -316,6 +333,10 @@ private static final long serialVersionUID = 0L;
   public static final int ATTRIBUTELOCALE_FIELD_NUMBER = 2;
   private io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale_;
   /**
+   * <pre>
+   * Contains locale in case the attribute is locale specific.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
    * @return Whether the attributeLocale field is set.
    */
@@ -324,6 +345,10 @@ private static final long serialVersionUID = 0L;
     return attributeLocale_ != null;
   }
   /**
+   * <pre>
+   * Contains locale in case the attribute is locale specific.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
    * @return The attributeLocale.
    */
@@ -332,6 +357,10 @@ private static final long serialVersionUID = 0L;
     return attributeLocale_ == null ? io.evitadb.externalApi.grpc.generated.GrpcLocale.getDefaultInstance() : attributeLocale_;
   }
   /**
+   * <pre>
+   * Contains locale in case the attribute is locale specific.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
    */
   @java.lang.Override
@@ -341,6 +370,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int INTEGERDELTA_FIELD_NUMBER = 3;
   /**
+   * <pre>
+   * Integer delta to apply to existing value of this attribute.
+   * </pre>
+   *
    * <code>int32 integerDelta = 3;</code>
    * @return Whether the integerDelta field is set.
    */
@@ -349,6 +382,10 @@ private static final long serialVersionUID = 0L;
     return deltaCase_ == 3;
   }
   /**
+   * <pre>
+   * Integer delta to apply to existing value of this attribute.
+   * </pre>
+   *
    * <code>int32 integerDelta = 3;</code>
    * @return The integerDelta.
    */
@@ -362,6 +399,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int LONGDELTA_FIELD_NUMBER = 4;
   /**
+   * <pre>
+   * Long delta to apply to existing value of this attribute.
+   * </pre>
+   *
    * <code>int64 longDelta = 4;</code>
    * @return Whether the longDelta field is set.
    */
@@ -370,6 +411,10 @@ private static final long serialVersionUID = 0L;
     return deltaCase_ == 4;
   }
   /**
+   * <pre>
+   * Long delta to apply to existing value of this attribute.
+   * </pre>
+   *
    * <code>int64 longDelta = 4;</code>
    * @return The longDelta.
    */
@@ -383,6 +428,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int BIGDECIMALDELTA_FIELD_NUMBER = 5;
   /**
+   * <pre>
+   * BigDecimal delta to apply to existing value of this attribute.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalDelta = 5;</code>
    * @return Whether the bigDecimalDelta field is set.
    */
@@ -391,6 +440,10 @@ private static final long serialVersionUID = 0L;
     return deltaCase_ == 5;
   }
   /**
+   * <pre>
+   * BigDecimal delta to apply to existing value of this attribute.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalDelta = 5;</code>
    * @return The bigDecimalDelta.
    */
@@ -402,6 +455,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance();
   }
   /**
+   * <pre>
+   * BigDecimal delta to apply to existing value of this attribute.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalDelta = 5;</code>
    */
   @java.lang.Override
@@ -414,6 +471,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int INTEGERREQUIREDRANGEAFTERAPPLICATION_FIELD_NUMBER = 6;
   /**
+   * <pre>
+   * Integer number range within which the value after delta application has to be.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerRequiredRangeAfterApplication = 6;</code>
    * @return Whether the integerRequiredRangeAfterApplication field is set.
    */
@@ -422,6 +483,10 @@ private static final long serialVersionUID = 0L;
     return requiredRangeAfterApplicationCase_ == 6;
   }
   /**
+   * <pre>
+   * Integer number range within which the value after delta application has to be.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerRequiredRangeAfterApplication = 6;</code>
    * @return The integerRequiredRangeAfterApplication.
    */
@@ -433,6 +498,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Integer number range within which the value after delta application has to be.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerRequiredRangeAfterApplication = 6;</code>
    */
   @java.lang.Override
@@ -445,6 +514,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int LONGREQUIREDRANGEAFTERAPPLICATION_FIELD_NUMBER = 7;
   /**
+   * <pre>
+   * Long number range within which the value after delta application has to be.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longRequiredRangeAfterApplication = 7;</code>
    * @return Whether the longRequiredRangeAfterApplication field is set.
    */
@@ -453,6 +526,10 @@ private static final long serialVersionUID = 0L;
     return requiredRangeAfterApplicationCase_ == 7;
   }
   /**
+   * <pre>
+   * Long number range within which the value after delta application has to be.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longRequiredRangeAfterApplication = 7;</code>
    * @return The longRequiredRangeAfterApplication.
    */
@@ -464,6 +541,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Long number range within which the value after delta application has to be.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longRequiredRangeAfterApplication = 7;</code>
    */
   @java.lang.Override
@@ -476,6 +557,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int BIGDECIMALREQUIREDRANGEAFTERAPPLICATION_FIELD_NUMBER = 8;
   /**
+   * <pre>
+   * BigDecimal number range within which the value after delta application has to be.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalRequiredRangeAfterApplication = 8;</code>
    * @return Whether the bigDecimalRequiredRangeAfterApplication field is set.
    */
@@ -484,6 +569,10 @@ private static final long serialVersionUID = 0L;
     return requiredRangeAfterApplicationCase_ == 8;
   }
   /**
+   * <pre>
+   * BigDecimal number range within which the value after delta application has to be.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalRequiredRangeAfterApplication = 8;</code>
    * @return The bigDecimalRequiredRangeAfterApplication.
    */
@@ -495,6 +584,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.getDefaultInstance();
   }
   /**
+   * <pre>
+   * BigDecimal number range within which the value after delta application has to be.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalRequiredRangeAfterApplication = 8;</code>
    */
   @java.lang.Override
@@ -789,6 +882,13 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Increments or decrements existing numeric value by specified delta (negative number produces decremental of
+   * existing number, positive one incrementation).
+   * Allows to specify the number range that is tolerated for the value after delta application has been finished to
+   * verify for example that number of items on stock doesn't go below zero.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation}
    */
   public static final class Builder extends
@@ -1056,6 +1156,11 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object attributeName_ = "";
     /**
+     * <pre>
+     * Unique name of the attribute. Case-sensitive. Distinguishes one associated data item from another within
+     * single entity instance.
+     * </pre>
+     *
      * <code>string attributeName = 1;</code>
      * @return The attributeName.
      */
@@ -1072,6 +1177,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Unique name of the attribute. Case-sensitive. Distinguishes one associated data item from another within
+     * single entity instance.
+     * </pre>
+     *
      * <code>string attributeName = 1;</code>
      * @return The bytes for attributeName.
      */
@@ -1089,6 +1199,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Unique name of the attribute. Case-sensitive. Distinguishes one associated data item from another within
+     * single entity instance.
+     * </pre>
+     *
      * <code>string attributeName = 1;</code>
      * @param value The attributeName to set.
      * @return This builder for chaining.
@@ -1104,6 +1219,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Unique name of the attribute. Case-sensitive. Distinguishes one associated data item from another within
+     * single entity instance.
+     * </pre>
+     *
      * <code>string attributeName = 1;</code>
      * @return This builder for chaining.
      */
@@ -1114,6 +1234,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Unique name of the attribute. Case-sensitive. Distinguishes one associated data item from another within
+     * single entity instance.
+     * </pre>
+     *
      * <code>string attributeName = 1;</code>
      * @param value The bytes for attributeName to set.
      * @return This builder for chaining.
@@ -1134,6 +1259,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> attributeLocaleBuilder_;
     /**
+     * <pre>
+     * Contains locale in case the attribute is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
      * @return Whether the attributeLocale field is set.
      */
@@ -1141,6 +1270,10 @@ private static final long serialVersionUID = 0L;
       return attributeLocaleBuilder_ != null || attributeLocale_ != null;
     }
     /**
+     * <pre>
+     * Contains locale in case the attribute is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
      * @return The attributeLocale.
      */
@@ -1152,6 +1285,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains locale in case the attribute is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
      */
     public Builder setAttributeLocale(io.evitadb.externalApi.grpc.generated.GrpcLocale value) {
@@ -1168,6 +1305,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains locale in case the attribute is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
      */
     public Builder setAttributeLocale(
@@ -1182,6 +1323,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains locale in case the attribute is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
      */
     public Builder mergeAttributeLocale(io.evitadb.externalApi.grpc.generated.GrpcLocale value) {
@@ -1200,6 +1345,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains locale in case the attribute is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
      */
     public Builder clearAttributeLocale() {
@@ -1214,6 +1363,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains locale in case the attribute is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder getAttributeLocaleBuilder() {
@@ -1222,6 +1375,10 @@ private static final long serialVersionUID = 0L;
       return getAttributeLocaleFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Contains locale in case the attribute is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder getAttributeLocaleOrBuilder() {
@@ -1233,6 +1390,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains locale in case the attribute is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1250,6 +1411,10 @@ private static final long serialVersionUID = 0L;
     }
 
     /**
+     * <pre>
+     * Integer delta to apply to existing value of this attribute.
+     * </pre>
+     *
      * <code>int32 integerDelta = 3;</code>
      * @return Whether the integerDelta field is set.
      */
@@ -1257,6 +1422,10 @@ private static final long serialVersionUID = 0L;
       return deltaCase_ == 3;
     }
     /**
+     * <pre>
+     * Integer delta to apply to existing value of this attribute.
+     * </pre>
+     *
      * <code>int32 integerDelta = 3;</code>
      * @return The integerDelta.
      */
@@ -1267,6 +1436,10 @@ private static final long serialVersionUID = 0L;
       return 0;
     }
     /**
+     * <pre>
+     * Integer delta to apply to existing value of this attribute.
+     * </pre>
+     *
      * <code>int32 integerDelta = 3;</code>
      * @param value The integerDelta to set.
      * @return This builder for chaining.
@@ -1278,6 +1451,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Integer delta to apply to existing value of this attribute.
+     * </pre>
+     *
      * <code>int32 integerDelta = 3;</code>
      * @return This builder for chaining.
      */
@@ -1291,6 +1468,10 @@ private static final long serialVersionUID = 0L;
     }
 
     /**
+     * <pre>
+     * Long delta to apply to existing value of this attribute.
+     * </pre>
+     *
      * <code>int64 longDelta = 4;</code>
      * @return Whether the longDelta field is set.
      */
@@ -1298,6 +1479,10 @@ private static final long serialVersionUID = 0L;
       return deltaCase_ == 4;
     }
     /**
+     * <pre>
+     * Long delta to apply to existing value of this attribute.
+     * </pre>
+     *
      * <code>int64 longDelta = 4;</code>
      * @return The longDelta.
      */
@@ -1308,6 +1493,10 @@ private static final long serialVersionUID = 0L;
       return 0L;
     }
     /**
+     * <pre>
+     * Long delta to apply to existing value of this attribute.
+     * </pre>
+     *
      * <code>int64 longDelta = 4;</code>
      * @param value The longDelta to set.
      * @return This builder for chaining.
@@ -1319,6 +1508,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Long delta to apply to existing value of this attribute.
+     * </pre>
+     *
      * <code>int64 longDelta = 4;</code>
      * @return This builder for chaining.
      */
@@ -1334,6 +1527,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> bigDecimalDeltaBuilder_;
     /**
+     * <pre>
+     * BigDecimal delta to apply to existing value of this attribute.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalDelta = 5;</code>
      * @return Whether the bigDecimalDelta field is set.
      */
@@ -1342,6 +1539,10 @@ private static final long serialVersionUID = 0L;
       return deltaCase_ == 5;
     }
     /**
+     * <pre>
+     * BigDecimal delta to apply to existing value of this attribute.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalDelta = 5;</code>
      * @return The bigDecimalDelta.
      */
@@ -1360,6 +1561,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * BigDecimal delta to apply to existing value of this attribute.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalDelta = 5;</code>
      */
     public Builder setBigDecimalDelta(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
@@ -1376,6 +1581,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * BigDecimal delta to apply to existing value of this attribute.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalDelta = 5;</code>
      */
     public Builder setBigDecimalDelta(
@@ -1390,6 +1599,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * BigDecimal delta to apply to existing value of this attribute.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalDelta = 5;</code>
      */
     public Builder mergeBigDecimalDelta(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
@@ -1412,6 +1625,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * BigDecimal delta to apply to existing value of this attribute.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalDelta = 5;</code>
      */
     public Builder clearBigDecimalDelta() {
@@ -1431,12 +1648,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * BigDecimal delta to apply to existing value of this attribute.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalDelta = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder getBigDecimalDeltaBuilder() {
       return getBigDecimalDeltaFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * BigDecimal delta to apply to existing value of this attribute.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalDelta = 5;</code>
      */
     @java.lang.Override
@@ -1451,6 +1676,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * BigDecimal delta to apply to existing value of this attribute.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalDelta = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1475,6 +1704,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder> integerRequiredRangeAfterApplicationBuilder_;
     /**
+     * <pre>
+     * Integer number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerRequiredRangeAfterApplication = 6;</code>
      * @return Whether the integerRequiredRangeAfterApplication field is set.
      */
@@ -1483,6 +1716,10 @@ private static final long serialVersionUID = 0L;
       return requiredRangeAfterApplicationCase_ == 6;
     }
     /**
+     * <pre>
+     * Integer number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerRequiredRangeAfterApplication = 6;</code>
      * @return The integerRequiredRangeAfterApplication.
      */
@@ -1501,6 +1738,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Integer number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerRequiredRangeAfterApplication = 6;</code>
      */
     public Builder setIntegerRequiredRangeAfterApplication(io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value) {
@@ -1517,6 +1758,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Integer number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerRequiredRangeAfterApplication = 6;</code>
      */
     public Builder setIntegerRequiredRangeAfterApplication(
@@ -1531,6 +1776,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Integer number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerRequiredRangeAfterApplication = 6;</code>
      */
     public Builder mergeIntegerRequiredRangeAfterApplication(io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value) {
@@ -1553,6 +1802,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Integer number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerRequiredRangeAfterApplication = 6;</code>
      */
     public Builder clearIntegerRequiredRangeAfterApplication() {
@@ -1572,12 +1825,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Integer number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerRequiredRangeAfterApplication = 6;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder getIntegerRequiredRangeAfterApplicationBuilder() {
       return getIntegerRequiredRangeAfterApplicationFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Integer number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerRequiredRangeAfterApplication = 6;</code>
      */
     @java.lang.Override
@@ -1592,6 +1853,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Integer number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerRequiredRangeAfterApplication = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1616,6 +1881,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeOrBuilder> longRequiredRangeAfterApplicationBuilder_;
     /**
+     * <pre>
+     * Long number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longRequiredRangeAfterApplication = 7;</code>
      * @return Whether the longRequiredRangeAfterApplication field is set.
      */
@@ -1624,6 +1893,10 @@ private static final long serialVersionUID = 0L;
       return requiredRangeAfterApplicationCase_ == 7;
     }
     /**
+     * <pre>
+     * Long number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longRequiredRangeAfterApplication = 7;</code>
      * @return The longRequiredRangeAfterApplication.
      */
@@ -1642,6 +1915,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Long number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longRequiredRangeAfterApplication = 7;</code>
      */
     public Builder setLongRequiredRangeAfterApplication(io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value) {
@@ -1658,6 +1935,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Long number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longRequiredRangeAfterApplication = 7;</code>
      */
     public Builder setLongRequiredRangeAfterApplication(
@@ -1672,6 +1953,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Long number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longRequiredRangeAfterApplication = 7;</code>
      */
     public Builder mergeLongRequiredRangeAfterApplication(io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value) {
@@ -1694,6 +1979,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Long number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longRequiredRangeAfterApplication = 7;</code>
      */
     public Builder clearLongRequiredRangeAfterApplication() {
@@ -1713,12 +2002,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Long number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longRequiredRangeAfterApplication = 7;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.Builder getLongRequiredRangeAfterApplicationBuilder() {
       return getLongRequiredRangeAfterApplicationFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Long number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longRequiredRangeAfterApplication = 7;</code>
      */
     @java.lang.Override
@@ -1733,6 +2030,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Long number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longRequiredRangeAfterApplication = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1757,6 +2058,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeOrBuilder> bigDecimalRequiredRangeAfterApplicationBuilder_;
     /**
+     * <pre>
+     * BigDecimal number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalRequiredRangeAfterApplication = 8;</code>
      * @return Whether the bigDecimalRequiredRangeAfterApplication field is set.
      */
@@ -1765,6 +2070,10 @@ private static final long serialVersionUID = 0L;
       return requiredRangeAfterApplicationCase_ == 8;
     }
     /**
+     * <pre>
+     * BigDecimal number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalRequiredRangeAfterApplication = 8;</code>
      * @return The bigDecimalRequiredRangeAfterApplication.
      */
@@ -1783,6 +2092,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * BigDecimal number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalRequiredRangeAfterApplication = 8;</code>
      */
     public Builder setBigDecimalRequiredRangeAfterApplication(io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange value) {
@@ -1799,6 +2112,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * BigDecimal number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalRequiredRangeAfterApplication = 8;</code>
      */
     public Builder setBigDecimalRequiredRangeAfterApplication(
@@ -1813,6 +2130,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * BigDecimal number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalRequiredRangeAfterApplication = 8;</code>
      */
     public Builder mergeBigDecimalRequiredRangeAfterApplication(io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange value) {
@@ -1835,6 +2156,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * BigDecimal number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalRequiredRangeAfterApplication = 8;</code>
      */
     public Builder clearBigDecimalRequiredRangeAfterApplication() {
@@ -1854,12 +2179,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * BigDecimal number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalRequiredRangeAfterApplication = 8;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.Builder getBigDecimalRequiredRangeAfterApplicationBuilder() {
       return getBigDecimalRequiredRangeAfterApplicationFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * BigDecimal number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalRequiredRangeAfterApplication = 8;</code>
      */
     @java.lang.Override
@@ -1874,6 +2207,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * BigDecimal number range within which the value after delta application has to be.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalRequiredRangeAfterApplication = 8;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

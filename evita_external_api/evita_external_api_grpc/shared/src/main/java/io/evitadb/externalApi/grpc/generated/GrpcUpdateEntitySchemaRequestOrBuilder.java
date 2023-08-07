@@ -31,16 +31,28 @@ public interface GrpcUpdateEntitySchemaRequestOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Wrapper that holds the entity type and the collection of EntitySchemaMutations to be applied.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation schemaMutation = 1;</code>
    * @return Whether the schemaMutation field is set.
    */
   boolean hasSchemaMutation();
   /**
+   * <pre>
+   * Wrapper that holds the entity type and the collection of EntitySchemaMutations to be applied.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation schemaMutation = 1;</code>
    * @return The schemaMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation getSchemaMutation();
   /**
+   * <pre>
+   * Wrapper that holds the entity type and the collection of EntitySchemaMutations to be applied.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation schemaMutation = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutationOrBuilder getSchemaMutationOrBuilder();

@@ -36,6 +36,8 @@ import io.evitadb.performance.artificial.AbstractArtificialBenchmarkState;
 import io.grpc.ManagedChannel;
 import io.grpc.netty.NettyChannelBuilder;
 import io.netty.handler.ssl.SslContext;
+import org.openjdk.jmh.annotations.Level;
+import org.openjdk.jmh.annotations.Setup;
 
 import java.util.concurrent.Executors;
 import java.util.function.Supplier;
@@ -47,17 +49,24 @@ import java.util.function.Supplier;
  */
 public abstract class GrpcArtificialBenchmarkState extends AbstractArtificialBenchmarkState<EvitaSessionServiceBlockingStub> {
 
+	private static final String HOST = AbstractApiConfiguration.LOCALHOST;
+	private static final int PORT = GrpcConfig.DEFAULT_GRPC_PORT;
+
+	private final ClientCertificateManager clientCertificateManager = new ClientCertificateManager.Builder().build();
+	private SslContext sslContext;
+
+	@Setup(Level.Trial)
+	public void setUp() {
+		clientCertificateManager.getCertificatesFromServer(HOST, SystemConfig.DEFAULT_SYSTEM_PORT);
+		sslContext = clientCertificateManager.buildClientSslContext();
+	}
+
 	/**
 	 * Returns an existing session unique for the thread or creates new one.
 	 */
 	public EvitaSessionServiceBlockingStub getSession() {
-		final String host = AbstractApiConfiguration.LOCALHOST;
-		final int port = GrpcConfig.DEFAULT_GRPC_PORT;
-		final ClientCertificateManager clientCertificateManager = new ClientCertificateManager.Builder().build();
-		clientCertificateManager.getCertificatesFromServer(host, SystemConfig.DEFAULT_SYSTEM_PORT);
 		return getSession(() -> {
-			final SslContext sslContext = clientCertificateManager.buildClientSslContext();
-			final ManagedChannel grpcEvitaChannel = NettyChannelBuilder.forAddress(host, port)
+			final ManagedChannel grpcEvitaChannel = NettyChannelBuilder.forAddress(HOST, PORT)
 				.sslContext(sslContext)
 				.build();
 
@@ -67,7 +76,7 @@ public abstract class GrpcArtificialBenchmarkState extends AbstractArtificialBen
 				.build());
 			grpcEvitaChannel.shutdown();
 
-			final ManagedChannel channel = NettyChannelBuilder.forAddress(host, port)
+			final ManagedChannel channel = NettyChannelBuilder.forAddress(HOST, PORT)
 				.sslContext(sslContext)
 				.intercept(new JmhClientSessionInterceptor(response.getSessionId()))
 				.executor(Executors.newCachedThreadPool())

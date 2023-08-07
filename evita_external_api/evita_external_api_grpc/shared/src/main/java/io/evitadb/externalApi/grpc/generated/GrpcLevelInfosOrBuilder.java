@@ -31,24 +31,44 @@ public interface GrpcLevelInfosOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Array of statistics for the single hierarchy level of inner entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo> 
       getLevelInfosList();
   /**
+   * <pre>
+   * Array of statistics for the single hierarchy level of inner entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcLevelInfo getLevelInfos(int index);
   /**
+   * <pre>
+   * Array of statistics for the single hierarchy level of inner entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
    */
   int getLevelInfosCount();
   /**
+   * <pre>
+   * Array of statistics for the single hierarchy level of inner entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder> 
       getLevelInfosOrBuilderList();
   /**
+   * <pre>
+   * Array of statistics for the single hierarchy level of inner entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder getLevelInfosOrBuilder(

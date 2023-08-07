@@ -31,24 +31,44 @@ public interface GrpcUpdateEvitaRequestOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Collection of top level catalog schema mutations to be applied.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation schemaMutations = 1;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation> 
       getSchemaMutationsList();
   /**
+   * <pre>
+   * Collection of top level catalog schema mutations to be applied.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation schemaMutations = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation getSchemaMutations(int index);
   /**
+   * <pre>
+   * Collection of top level catalog schema mutations to be applied.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation schemaMutations = 1;</code>
    */
   int getSchemaMutationsCount();
   /**
+   * <pre>
+   * Collection of top level catalog schema mutations to be applied.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation schemaMutations = 1;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutationOrBuilder> 
       getSchemaMutationsOrBuilderList();
   /**
+   * <pre>
+   * Collection of top level catalog schema mutations to be applied.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation schemaMutations = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutationOrBuilder getSchemaMutationsOrBuilder(

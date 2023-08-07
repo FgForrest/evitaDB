@@ -31,6 +31,10 @@ public interface GrpcReplaceCatalogResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Indicator whether the catalog was replaced successfully.
+   * </pre>
+   *
    * <code>bool success = 1;</code>
    * @return The success.
    */

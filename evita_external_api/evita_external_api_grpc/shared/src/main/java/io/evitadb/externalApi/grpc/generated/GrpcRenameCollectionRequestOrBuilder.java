@@ -31,11 +31,19 @@ public interface GrpcRenameCollectionRequestOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The entity type of the collection to be renamed.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The entityType.
    */
   java.lang.String getEntityType();
   /**
+   * <pre>
+   * The entity type of the collection to be renamed.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The bytes for entityType.
    */
@@ -43,11 +51,19 @@ public interface GrpcRenameCollectionRequestOrBuilder extends
       getEntityTypeBytes();
 
   /**
+   * <pre>
+   * The new name of the collection.
+   * </pre>
+   *
    * <code>string newName = 2;</code>
    * @return The newName.
    */
   java.lang.String getNewName();
   /**
+   * <pre>
+   * The new name of the collection.
+   * </pre>
+   *
    * <code>string newName = 2;</code>
    * @return The bytes for newName.
    */

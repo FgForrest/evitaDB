@@ -31,11 +31,19 @@ public interface GrpcModifyEntitySchemaMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Entity type of entity schema that will be affected by passed mutations.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The entityType.
    */
   java.lang.String getEntityType();
   /**
+   * <pre>
+   * Entity type of entity schema that will be affected by passed mutations.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The bytes for entityType.
    */
@@ -43,24 +51,44 @@ public interface GrpcModifyEntitySchemaMutationOrBuilder extends
       getEntityTypeBytes();
 
   /**
+   * <pre>
+   * Collection of mutations that should be applied on current version of the schema.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation> 
       getEntitySchemaMutationsList();
   /**
+   * <pre>
+   * Collection of mutations that should be applied on current version of the schema.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation getEntitySchemaMutations(int index);
   /**
+   * <pre>
+   * Collection of mutations that should be applied on current version of the schema.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
    */
   int getEntitySchemaMutationsCount();
   /**
+   * <pre>
+   * Collection of mutations that should be applied on current version of the schema.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutationOrBuilder> 
       getEntitySchemaMutationsOrBuilderList();
   /**
+   * <pre>
+   * Collection of mutations that should be applied on current version of the schema.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutationOrBuilder getEntitySchemaMutationsOrBuilder(

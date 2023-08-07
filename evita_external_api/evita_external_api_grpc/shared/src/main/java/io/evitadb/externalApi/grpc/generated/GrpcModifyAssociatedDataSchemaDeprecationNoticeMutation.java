@@ -27,6 +27,12 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Mutation is responsible for setting value to a `AssociatedDataSchemaContract.deprecationNotice`
+ * in `EntitySchema`.
+ * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaDeprecationNoticeMutation}
  */
 public final class GrpcModifyAssociatedDataSchemaDeprecationNoticeMutation extends
@@ -126,6 +132,11 @@ private static final long serialVersionUID = 0L;
   public static final int NAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object name_;
   /**
+   * <pre>
+   * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+   * within single entity instance.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
@@ -143,6 +154,11 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+   * within single entity instance.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -164,6 +180,11 @@ private static final long serialVersionUID = 0L;
   public static final int DEPRECATIONNOTICE_FIELD_NUMBER = 2;
   private com.google.protobuf.StringValue deprecationNotice_;
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this associated data from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 2;</code>
    * @return Whether the deprecationNotice field is set.
    */
@@ -172,6 +193,11 @@ private static final long serialVersionUID = 0L;
     return deprecationNotice_ != null;
   }
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this associated data from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 2;</code>
    * @return The deprecationNotice.
    */
@@ -180,6 +206,11 @@ private static final long serialVersionUID = 0L;
     return deprecationNotice_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : deprecationNotice_;
   }
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this associated data from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 2;</code>
    */
   @java.lang.Override
@@ -358,6 +389,12 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AssociatedDataSchemaContract.deprecationNotice`
+   * in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaDeprecationNoticeMutation}
    */
   public static final class Builder extends
@@ -521,6 +558,11 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object name_ = "";
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The name.
      */
@@ -537,6 +579,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The bytes for name.
      */
@@ -554,6 +601,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The name to set.
      * @return This builder for chaining.
@@ -569,6 +621,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return This builder for chaining.
      */
@@ -579,6 +636,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The bytes for name to set.
      * @return This builder for chaining.
@@ -599,6 +661,11 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> deprecationNoticeBuilder_;
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this associated data from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 2;</code>
      * @return Whether the deprecationNotice field is set.
      */
@@ -606,6 +673,11 @@ private static final long serialVersionUID = 0L;
       return deprecationNoticeBuilder_ != null || deprecationNotice_ != null;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this associated data from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 2;</code>
      * @return The deprecationNotice.
      */
@@ -617,6 +689,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this associated data from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 2;</code>
      */
     public Builder setDeprecationNotice(com.google.protobuf.StringValue value) {
@@ -633,6 +710,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this associated data from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 2;</code>
      */
     public Builder setDeprecationNotice(
@@ -647,6 +729,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this associated data from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 2;</code>
      */
     public Builder mergeDeprecationNotice(com.google.protobuf.StringValue value) {
@@ -665,6 +752,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this associated data from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 2;</code>
      */
     public Builder clearDeprecationNotice() {
@@ -679,6 +771,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this associated data from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 2;</code>
      */
     public com.google.protobuf.StringValue.Builder getDeprecationNoticeBuilder() {
@@ -687,6 +784,11 @@ private static final long serialVersionUID = 0L;
       return getDeprecationNoticeFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this associated data from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 2;</code>
      */
     public com.google.protobuf.StringValueOrBuilder getDeprecationNoticeOrBuilder() {
@@ -698,6 +800,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this associated data from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

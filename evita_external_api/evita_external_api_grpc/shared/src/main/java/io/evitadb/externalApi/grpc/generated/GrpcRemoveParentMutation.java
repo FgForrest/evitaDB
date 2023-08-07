@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * This mutation allows to remove `parent` from the `entity`.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation}
  */
 public final class GrpcRemoveParentMutation extends
@@ -248,6 +252,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * This mutation allows to remove `parent` from the `entity`.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation}
    */
   public static final class Builder extends

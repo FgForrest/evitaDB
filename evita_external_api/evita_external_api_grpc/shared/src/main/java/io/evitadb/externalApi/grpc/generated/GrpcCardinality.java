@@ -27,27 +27,52 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * In EvitaDB we define only one-way relationship from the perspective of the entity. We stick to the ERD modelling
+ * &lt;a href="https://www.gleek.io/blog/crows-foot-notation.html"&gt;standards&lt;/a&gt; here.
+ * </pre>
+ *
  * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcCardinality}
  */
 public enum GrpcCardinality
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
+   * <pre>
+   * No cardinality specified.
+   * </pre>
+   *
    * <code>NOT_SPECIFIED = 0;</code>
    */
   NOT_SPECIFIED(0),
   /**
+   * <pre>
+   * Relation may be missing completely, but if it exists - there is never more than single relation of this type.
+   * </pre>
+   *
    * <code>ZERO_OR_ONE = 1;</code>
    */
   ZERO_OR_ONE(1),
   /**
+   * <pre>
+   * There is always single relation of this type.
+   * </pre>
+   *
    * <code>EXACTLY_ONE = 2;</code>
    */
   EXACTLY_ONE(2),
   /**
+   * <pre>
+   * Relation may be missing completely, but there may be also one or more relations of this type.
+   * </pre>
+   *
    * <code>ZERO_OR_MORE = 3;</code>
    */
   ZERO_OR_MORE(3),
   /**
+   * <pre>
+   * There is always at least one relation of this type, but there may be also more than one.
+   * </pre>
+   *
    * <code>ONE_OR_MORE = 4;</code>
    */
   ONE_OR_MORE(4),
@@ -55,22 +80,42 @@ public enum GrpcCardinality
   ;
 
   /**
+   * <pre>
+   * No cardinality specified.
+   * </pre>
+   *
    * <code>NOT_SPECIFIED = 0;</code>
    */
   public static final int NOT_SPECIFIED_VALUE = 0;
   /**
+   * <pre>
+   * Relation may be missing completely, but if it exists - there is never more than single relation of this type.
+   * </pre>
+   *
    * <code>ZERO_OR_ONE = 1;</code>
    */
   public static final int ZERO_OR_ONE_VALUE = 1;
   /**
+   * <pre>
+   * There is always single relation of this type.
+   * </pre>
+   *
    * <code>EXACTLY_ONE = 2;</code>
    */
   public static final int EXACTLY_ONE_VALUE = 2;
   /**
+   * <pre>
+   * Relation may be missing completely, but there may be also one or more relations of this type.
+   * </pre>
+   *
    * <code>ZERO_OR_MORE = 3;</code>
    */
   public static final int ZERO_OR_MORE_VALUE = 3;
   /**
+   * <pre>
+   * There is always at least one relation of this type, but there may be also more than one.
+   * </pre>
+   *
    * <code>ONE_OR_MORE = 4;</code>
    */
   public static final int ONE_OR_MORE_VALUE = 4;

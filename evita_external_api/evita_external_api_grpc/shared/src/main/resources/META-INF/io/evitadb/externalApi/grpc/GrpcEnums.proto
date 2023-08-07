@@ -2,208 +2,407 @@ syntax = "proto3";
 
 package io.evitadb.externalApi.grpc.generated;
 option java_multiple_files = true;
+option csharp_namespace = "EvitaDB";
 
+// Indicates actual state in which Evita operates. See detailed information for each state.
 enum GrpcCatalogState {
+  // Initial state of the Evita catalog.
+  // This state has several limitations but also advantages.
+  // This state requires single threaded access - this means only single thread can read/write data to the catalog
+  // in this state. No transactions are allowed in this state and there are no guarantees on consistency of the catalog
+  // if any of the WRITE operations fails. If any error is encountered while writing to the catalog in this state it is
+  // strongly recommended discarding entire catalog contents and starts filling it from the scratch.
+  // Writing to the catalog in this phase is much faster than with transactional access. Operations are executed in bulk,
+  // transactional logic is disabled and doesn't slow down the writing process.
+  // This phase is meant to quickly fill initial state of the catalog from the external primary data store. This state
+  // is also planned to be used when new replica is created and needs to quickly catch up with the master.
   WARMING_UP = 0;
+  // Standard "serving" state of the Evita catalog.
+  // All operations are executed transactionally and leave the date in consistent state even if any error occurs.
+  // Multiple readers and writers can work with the catalog simultaneously.
   ALIVE = 1;
 }
 
+// Determines which price will be used for filtering.
 enum GrpcQueryPriceMode {
+  // Price computation operations will use actual price with tax added for filtering.
   WITH_TAX = 0;
+  // Price computation operations will use actual price without tax added for filtering.
   WITHOUT_TAX = 1;
 }
 
+// Determines which prices will be fetched along with entity.
 enum GrpcPriceContentMode {
+  // No prices will be fetched.
   FETCH_NONE = 0;
+  // Only prices respecting filter constraints in query will be fetched.
   RESPECTING_FILTER = 1;
+  // All prices will be fetched.
   ALL = 2;
 }
 
+// Used in order constraints to specify ordering direction.
 enum GrpcOrderDirection {
+  // Ascending order.
   ASC = 0;
+  // Descending order.
   DESC = 1;
 }
 
+// Defines the behaviour of null values in an attribute element of the sortable attribute compound.
 enum GrpcOrderBehaviour {
-    NULLS_FIRST = 0;
-    NULLS_LAST = 1;
+  // Null values are sorted before non-null values.
+  NULLS_FIRST = 0;
+  // Null values are sorted after non-null values.
+  NULLS_LAST = 1;
 }
 
+// Represents constant or "special" value attribute can have (or has it implicitly, e.g. missing value is represented `null` that is not directly comparable).
 enum GrpcAttributeSpecialValue {
+  // Represents missing value.
   NULL = 0;
+  // Represents existing (not-null) value.
   NOT_NULL = 1;
 }
 
+// This enum controls whether FacetSummary should contain only basic statistics about facets - e.g. count only,
+// or whether the selection impact should be computed as well.
 enum GrpcFacetStatisticsDepth {
+  // Only counts of facets will be computed.
   COUNTS = 0;
+  // Counts and selection impact for non-selected facets will be computed.
   IMPACT = 1;
 }
 
+// The enumeration controls HierarchyOfReference behaviour whether the hierarchical nodes that are not referred
+// by any of the queried entities should be part of the result hierarchy statistics tree.
 enum GrpcEmptyHierarchicalEntityBehaviour {
+  // The hierarchy nodes that are not referred by any of the queried entities will be part of the result hierarchy
   LEAVE_EMPTY = 0;
+  // The hierarchy nodes that are not referred by any of the queried entities will be removed from the result hierarchy
   REMOVE_EMPTY = 1;
 }
 
+// The enum specifies whether the hierarchy statistics cardinality will be based on a complete query filter by
+//  constraint or only the part without user defined filter.
 enum GrpcStatisticsBase {
+  // The statistics will be based on a complete query filter by constraint.
   COMPLETE_FILTER = 0;
+  // The statistics will be based only on a query without user defined filter.
   WITHOUT_USER_FILTER = 1;
 }
 
+// The enum specifies whether the HierarchyStatistics should produce the hierarchy children count or referenced
+// entity count.
 enum GrpcStatisticsType {
+  // The statistics will be produce a hierarchy children count.
   CHILDREN_COUNT = 0;
+  // The statistics will be produce a reference entity count.
   QUERIED_ENTITY_COUNT = 1;
 }
 
+// This enum controls how prices that share same `inner entity id` will behave during filtering and sorting.
 enum GrpcPriceInnerRecordHandling {
+  // No special strategy set. Inner record id is not taken into account at all.
   NONE = 0;
+  // Prices with same inner entity id will be sorted descending by priority value and first one
+  // (i.e. the one with the biggest priority) will be used (others won't be considered at all)
   FIRST_OCCURRENCE = 1;
+  // Prices with same inner entity id will be added up to a new computed aggregated price, prices must share same
+  // tax rate percentage, currency and price list id in order to be added up
   SUM = 2;
+  // Price handling mode that is used in cases when the information has not been fetched along with entity, and
+  // is therefore unknown (even if some strategy is associated with the entity in reality).
   UNKNOWN = 3;
 }
 
+// This enum is used to identify session type of the created session by gRPC server.
 enum GrpcSessionType {
+  // Classic read-only session.
   READ_ONLY = 0;
+  // Classic read-write session.
   READ_WRITE = 1;
+  // Read only session that returns all fetched entities in a form of a `BinaryEntity`, which has all of its data represented in a binary form. Should be used only in combination with evitaDB's Java driver.
   BINARY_READ_ONLY = 2;
+  // Read write session that returns all fetched entities in a form of a `BinaryEntity`, which has all of its data represented in a binary form. Should be used only in combination with evitaDB's Java driver.
   BINARY_READ_WRITE = 3;
 }
 
+// In EvitaDB we define only one-way relationship from the perspective of the entity. We stick to the ERD modelling
+// <a href="https://www.gleek.io/blog/crows-foot-notation.html">standards</a> here.
 enum GrpcCardinality {
+  // No cardinality specified.
   NOT_SPECIFIED = 0;
+  // Relation may be missing completely, but if it exists - there is never more than single relation of this type.
   ZERO_OR_ONE = 1;
+  // There is always single relation of this type.
   EXACTLY_ONE = 2;
+  // Relation may be missing completely, but there may be also one or more relations of this type.
   ZERO_OR_MORE = 3;
+  // There is always at least one relation of this type, but there may be also more than one.
   ONE_OR_MORE = 4;
 }
 
+// Evolution mode allows to specify how strict is evitaDB when unknown information is presented to her for the first
+// time. When no evolution mode is set, each violation of the EntitySchema is
+// reported by an exception. However, this behaviour can be changed by this evolution mode.
 enum GrpcEvolutionMode {
+  // When first entity is inserted in the collection - primary key generation will automatically adapt whether
+  // this first entity has the primary key already present or not. If it is present all other entities are expected
+  // to have also primary key provided from external systems, if not primary keys will be always automatically
+  // generated by Evita and may never be provided from outside.
   ADAPT_PRIMARY_KEY_GENERATION = 0;
+  // When new attribute is encountered, it is silently added to a collection schema as non-filterable, non-sortable,
+  // non-unique attribute of the type that was used for the first value. Localizability of the attribute is determined
+  // by the fact whether the first value encountered was associated with any localization.
   ADDING_ATTRIBUTES = 1;
+  // When new associated data is encountered, it is silently added to a collection schema. Localizability of
+  // the associated data is determined by the fact whether the first value encountered was associated with any
+  // localization.
   ADDING_ASSOCIATED_DATA = 2;
+  // When new reference type is encountered, it is silently added. It's linked to other evitaDB entity when
+  // the entity type of a reference or its group respectively matches by
+  // a type of a different entity reference any existing entity collection. Reference is not indexed, nor
+  // hierarchy indexed by default and this must be changed by updating the schema.
   ADDING_REFERENCES = 3;
+  // When entity has no prices and new price is encountered, it is silently added. That means that entity type
+  // starts supporting prices when first price has been added.
   ADDING_PRICES = 4;
+  // When new localization is encountered, it is silently added.
   ADDING_LOCALES = 5;
+  // When new currency is encountered in prices, it is silently added.
   ADDING_CURRENCIES = 6;
+  // When hierarchy placement for the entity is encountered, it is silently added.
   ADDING_HIERARCHY = 7;
 }
 
+// Evolution mode allows to specify how strict is evitaDB when unknown information is presented to her for the first
+// time. When no evolution mode is set, each violation of the EntitySchema is
+// reported by an exception. However, this behaviour can be changed by this evolution mode.
 enum GrpcCatalogEvolutionMode {
+  // When new entity is inserted and no collection of its entity type exists, it is silently
+  // created with empty schema and with all Evolution modes allowed.
   ADDING_ENTITY_TYPES = 0;
 }
 
+// This enum contains all supported types in evitaDB query context.
 enum GrpcEvitaDataType {
+  // Represents string data type.
   STRING = 0;
+  // Represents byte data type.
   BYTE = 1;
+  // Represents short data type.
   SHORT = 2;
+  // Represents integer data type.
   INTEGER = 3;
+  // Represents long data type.
   LONG = 4;
+  // Represents boolean data type.
   BOOLEAN = 5;
+  // Represents character data type.
   CHARACTER = 6;
+  // Represents BigDecimal data type.
   BIG_DECIMAL = 7;
+  // Represents OffsetDateTime data type.
   OFFSET_DATE_TIME = 8;
+  // Represents LocalDateTime data type.
   LOCAL_DATE_TIME = 9;
+  // Represents LocalDate data type.
   LOCAL_DATE = 10;
+  // Represents LocalTime data type.
   LOCAL_TIME = 11;
+  // Represents DateTimeRange data type.
   DATE_TIME_RANGE = 12;
+  // Represents BigDecimalNumberRange data type.
   BIG_DECIMAL_NUMBER_RANGE = 13;
+  // Represents LongNumberRange data type.
   LONG_NUMBER_RANGE = 14;
+  // Represents IntegerNumberRange data type.
   INTEGER_NUMBER_RANGE = 15;
+  // Represents ShortNumberRange data type.
   SHORT_NUMBER_RANGE = 16;
+  // Represents ByteNumberRange data type.
   BYTE_NUMBER_RANGE = 17;
+  // Represents Locale data type.
   LOCALE = 18;
+  // Represents Currency data type.
   CURRENCY = 19;
 
+  // Represents string array data type.
   STRING_ARRAY = 20;
+  // Represents byte array data type.
   BYTE_ARRAY = 21;
+  // Represents short array data type.
   SHORT_ARRAY = 22;
+  // Represents integer array data type.
   INTEGER_ARRAY = 23;
+  // Represents long array data type.
   LONG_ARRAY = 24;
+  // Represents boolean array data type.
   BOOLEAN_ARRAY = 25;
+  // Represents character array data type.
   CHARACTER_ARRAY = 26;
+  // Represents BigDecimal array data type.
   BIG_DECIMAL_ARRAY = 27;
+  // Represents OffsetDateTime array data type.
   OFFSET_DATE_TIME_ARRAY = 28;
+  // Represents LocalDateTime array data type.
   LOCAL_DATE_TIME_ARRAY = 29;
+  // Represents LocalDate array data type.
   LOCAL_DATE_ARRAY = 30;
+  // Represents LocalTime array data type.
   LOCAL_TIME_ARRAY = 31;
+  // Represents DateTimeRange array data type.
   DATE_TIME_RANGE_ARRAY = 32;
+  // Represents BigDecimalNumberRange array data type.
   BIG_DECIMAL_NUMBER_RANGE_ARRAY = 33;
+  // Represents LongNumberRange array data type.
   LONG_NUMBER_RANGE_ARRAY = 34;
+  // Represents IntegerNumberRange array data type.
   INTEGER_NUMBER_RANGE_ARRAY = 35;
+  // Represents ShortNumberRange array data type.
   SHORT_NUMBER_RANGE_ARRAY = 36;
+  // Represents ByteNumberRange array data type.
   BYTE_NUMBER_RANGE_ARRAY = 37;
+  // Represents Locale array data type.
   LOCALE_ARRAY = 38;
+  // Represents Currency array data type.
   CURRENCY_ARRAY = 39;
 }
 
+// This enum contains all supported data types of AssociatedData.
 message GrpcEvitaAssociatedDataDataType {
   enum GrpcEvitaDataType {
+    // Represents string data type.
     STRING = 0;
+    // Represents byte data type.
     BYTE = 1;
+    // Represents short data type.
     SHORT = 2;
+    // Represents integer data type.
     INTEGER = 3;
+    // Represents long data type.
     LONG = 4;
+    // Represents boolean data type.
     BOOLEAN = 5;
+    // Represents character data type.
     CHARACTER = 6;
+    // Represents BigDecimal data type.
     BIG_DECIMAL = 7;
+    // Represents OffsetDateTime data type.
     OFFSET_DATE_TIME = 8;
+    // Represents LocalDateTime data type.
     LOCAL_DATE_TIME = 9;
+    // Represents LocalDate data type.
     LOCAL_DATE = 10;
+    // Represents LocalTime data type.
     LOCAL_TIME = 11;
+    // Represents DateTimeRange data type.
     DATE_TIME_RANGE = 12;
+    // Represents BigDecimalNumberRange data type.
     BIG_DECIMAL_RANGE = 13;
+    // Represents LongNumberRange data type.
     LONG_RANGE = 14;
+    // Represents IntegerNumberRange data type.
     INTEGER_RANGE = 15;
+    // Represents ShortNumberRange data type.
     SHORT_RANGE = 16;
+    // Represents ByteNumberRange data type.
     BYTE_RANGE = 17;
+    // Represents ComplexDataObject data type.
     COMPLEX_DATA_OBJECT = 18;
 
+    // Represents string array data type.
     STRING_ARRAY = 19;
+    // Represents byte array data type.
     BYTE_ARRAY = 20;
+    // Represents short array data type.
     SHORT_ARRAY = 21;
+    // Represents integer array data type.
     INTEGER_ARRAY = 22;
+    // Represents long array data type.
     LONG_ARRAY = 23;
+    // Represents boolean array data type.
     BOOLEAN_ARRAY = 24;
+    // Represents character array data type.
     CHARACTER_ARRAY = 25;
+    // Represents BigDecimal array data type.
     BIG_DECIMAL_ARRAY = 26;
+    // Represents OffsetDateTime array data type.
     OFFSET_DATE_TIME_ARRAY = 27;
+    // Represents LocalDateTime array data type.
     LOCAL_DATE_TIME_ARRAY = 28;
+    // Represents LocalDate array data type.
     LOCAL_DATE_ARRAY = 29;
+    // Represents LocalTime array data type.
     LOCAL_TIME_ARRAY = 30;
+    // Represents DateTimeRange array data type.
     DATE_TIME_RANGE_ARRAY = 31;
+    // Represents BigDecimalNumberRange array data type.
     BIG_DECIMAL_RANGE_ARRAY = 32;
+    // Represents LongNumberRange array data type.
     LONG_RANGE_ARRAY = 33;
+    // Represents IntegerNumberRange array data type.
     INTEGER_RANGE_ARRAY = 34;
+    // Represents ShortNumberRange array data type.
     SHORT_RANGE_ARRAY = 35;
+    // Represents ByteNumberRange array data type.
     BYTE_RANGE_ARRAY = 36;
   }
 }
 
+//Enum contains all query execution phases, that leads from request to response.
 enum GrpcQueryPhase {
+  // Entire query execution time.
   OVERALL = 0;
+  // Entire planning phase of the query execution.
   PLANNING = 1;
+  // Planning phase of the inner query execution.
   PLANNING_NESTED_QUERY = 2;
+  // Determining which indexes should be used.
   PLANNING_INDEX_USAGE = 3;
+  // Creating formula for filtering entities.
   PLANNING_FILTER = 4;
+  // Creating formula for nested query.
   PLANNING_FILTER_NESTED_QUERY = 5;
+  // Creating alternative formula for filtering entities.
   PLANNING_FILTER_ALTERNATIVE = 6;
+  // Creating formula for sorting result entities.
   PLANNING_SORT = 7;
+  // Creating alternative formula for sorting result entities.
   PLANNING_SORT_ALTERNATIVE = 8;
+  // Creating factories for requested extra results.
   PLANNING_EXTRA_RESULT_FABRICATION = 9;
+  // Creating factories for requested extra results based on alternative indexes.
   PLANNING_EXTRA_RESULT_FABRICATION_ALTERNATIVE = 10;
+  // Entire query execution phase.
   EXECUTION = 11;
+  // Prefetching entities that should be examined instead of consulting indexes.
   EXECUTION_PREFETCH = 12;
+  // Computing entities that should be returned in output (filtering).
   EXECUTION_FILTER = 13;
+  // Computing entities within nested query that should be returned in output (filtering).
   EXECUTION_FILTER_NESTED_QUERY = 14;
+  // Sorting output entities and slicing requested page.
   EXECUTION_SORT_AND_SLICE = 15;
+  // Fabricating requested extra results.
   EXTRA_RESULTS_FABRICATION = 16;
+  // Fabricating requested single extra result.
   EXTRA_RESULT_ITEM_FABRICATION = 17;
+  // Fetching rich data from the storage based on computed entity primary keys.
   FETCHING = 18;
+  // Fetching referenced entities and entity groups from the storage based on referenced primary keys information.
   FETCHING_REFERENCES = 19;
+  // Fetching parent entities from the storage based on parent primary keys information.
   FETCHING_PARENTS = 20;
 }
 
+// Contains set of all possible expected states for the entity.
 enum GrpcEntityExistence {
+  // Entity may or may not exist.
   MAY_EXIST = 0;
+  // Entity must not exist.
   MUST_NOT_EXIST = 1;
+  // Entity must exist.
   MUST_EXIST = 2;
 }

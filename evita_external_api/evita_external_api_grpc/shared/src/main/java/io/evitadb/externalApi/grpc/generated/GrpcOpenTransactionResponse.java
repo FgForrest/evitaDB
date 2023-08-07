@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Request for opening a transaction.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse}
  */
 public final class GrpcOpenTransactionResponse extends
@@ -116,6 +120,10 @@ private static final long serialVersionUID = 0L;
   public static final int ALREADYOPENEDBEFORE_FIELD_NUMBER = 1;
   private boolean alreadyOpenedBefore_;
   /**
+   * <pre>
+   * True, if the transaction was opened before corresponding request.
+   * </pre>
+   *
    * <code>bool alreadyOpenedBefore = 1;</code>
    * @return The alreadyOpenedBefore.
    */
@@ -127,6 +135,10 @@ private static final long serialVersionUID = 0L;
   public static final int TRANSACTIONID_FIELD_NUMBER = 2;
   private long transactionId_;
   /**
+   * <pre>
+   * The id of the opened transaction.
+   * </pre>
+   *
    * <code>int64 transactionId = 2;</code>
    * @return The transactionId.
    */
@@ -304,6 +316,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Request for opening a transaction.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse}
    */
   public static final class Builder extends
@@ -458,6 +474,10 @@ private static final long serialVersionUID = 0L;
 
     private boolean alreadyOpenedBefore_ ;
     /**
+     * <pre>
+     * True, if the transaction was opened before corresponding request.
+     * </pre>
+     *
      * <code>bool alreadyOpenedBefore = 1;</code>
      * @return The alreadyOpenedBefore.
      */
@@ -466,6 +486,10 @@ private static final long serialVersionUID = 0L;
       return alreadyOpenedBefore_;
     }
     /**
+     * <pre>
+     * True, if the transaction was opened before corresponding request.
+     * </pre>
+     *
      * <code>bool alreadyOpenedBefore = 1;</code>
      * @param value The alreadyOpenedBefore to set.
      * @return This builder for chaining.
@@ -477,6 +501,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * True, if the transaction was opened before corresponding request.
+     * </pre>
+     *
      * <code>bool alreadyOpenedBefore = 1;</code>
      * @return This builder for chaining.
      */
@@ -489,6 +517,10 @@ private static final long serialVersionUID = 0L;
 
     private long transactionId_ ;
     /**
+     * <pre>
+     * The id of the opened transaction.
+     * </pre>
+     *
      * <code>int64 transactionId = 2;</code>
      * @return The transactionId.
      */
@@ -497,6 +529,10 @@ private static final long serialVersionUID = 0L;
       return transactionId_;
     }
     /**
+     * <pre>
+     * The id of the opened transaction.
+     * </pre>
+     *
      * <code>int64 transactionId = 2;</code>
      * @param value The transactionId to set.
      * @return This builder for chaining.
@@ -508,6 +544,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The id of the opened transaction.
+     * </pre>
+     *
      * <code>int64 transactionId = 2;</code>
      * @return This builder for chaining.
      */

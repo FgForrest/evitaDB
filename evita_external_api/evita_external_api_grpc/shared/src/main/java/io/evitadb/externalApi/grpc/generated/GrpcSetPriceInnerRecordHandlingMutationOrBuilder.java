@@ -31,11 +31,19 @@ public interface GrpcSetPriceInnerRecordHandlingMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Price inner record handling controls how prices that share same `inner entity id` will behave during filtering and sorting.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 1;</code>
    * @return The enum numeric value on the wire for priceInnerRecordHandling.
    */
   int getPriceInnerRecordHandlingValue();
   /**
+   * <pre>
+   * Price inner record handling controls how prices that share same `inner entity id` will behave during filtering and sorting.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 1;</code>
    * @return The priceInnerRecordHandling.
    */

@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Request for acquiring the list of all entity types.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEntityTypesResponse}
  */
 public final class GrpcEntityTypesResponse extends
@@ -120,6 +124,10 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITYTYPES_FIELD_NUMBER = 1;
   private com.google.protobuf.LazyStringList entityTypes_;
   /**
+   * <pre>
+   * The list of all entity types.
+   * </pre>
+   *
    * <code>repeated string entityTypes = 1;</code>
    * @return A list containing the entityTypes.
    */
@@ -128,6 +136,10 @@ private static final long serialVersionUID = 0L;
     return entityTypes_;
   }
   /**
+   * <pre>
+   * The list of all entity types.
+   * </pre>
+   *
    * <code>repeated string entityTypes = 1;</code>
    * @return The count of entityTypes.
    */
@@ -135,6 +147,10 @@ private static final long serialVersionUID = 0L;
     return entityTypes_.size();
   }
   /**
+   * <pre>
+   * The list of all entity types.
+   * </pre>
+   *
    * <code>repeated string entityTypes = 1;</code>
    * @param index The index of the element to return.
    * @return The entityTypes at the given index.
@@ -143,6 +159,10 @@ private static final long serialVersionUID = 0L;
     return entityTypes_.get(index);
   }
   /**
+   * <pre>
+   * The list of all entity types.
+   * </pre>
+   *
    * <code>repeated string entityTypes = 1;</code>
    * @param index The index of the value to return.
    * @return The bytes of the entityTypes at the given index.
@@ -314,6 +334,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Request for acquiring the list of all entity types.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEntityTypesResponse}
    */
   public static final class Builder extends
@@ -481,6 +505,10 @@ private static final long serialVersionUID = 0L;
        }
     }
     /**
+     * <pre>
+     * The list of all entity types.
+     * </pre>
+     *
      * <code>repeated string entityTypes = 1;</code>
      * @return A list containing the entityTypes.
      */
@@ -489,6 +517,10 @@ private static final long serialVersionUID = 0L;
       return entityTypes_.getUnmodifiableView();
     }
     /**
+     * <pre>
+     * The list of all entity types.
+     * </pre>
+     *
      * <code>repeated string entityTypes = 1;</code>
      * @return The count of entityTypes.
      */
@@ -496,6 +528,10 @@ private static final long serialVersionUID = 0L;
       return entityTypes_.size();
     }
     /**
+     * <pre>
+     * The list of all entity types.
+     * </pre>
+     *
      * <code>repeated string entityTypes = 1;</code>
      * @param index The index of the element to return.
      * @return The entityTypes at the given index.
@@ -504,6 +540,10 @@ private static final long serialVersionUID = 0L;
       return entityTypes_.get(index);
     }
     /**
+     * <pre>
+     * The list of all entity types.
+     * </pre>
+     *
      * <code>repeated string entityTypes = 1;</code>
      * @param index The index of the value to return.
      * @return The bytes of the entityTypes at the given index.
@@ -513,6 +553,10 @@ private static final long serialVersionUID = 0L;
       return entityTypes_.getByteString(index);
     }
     /**
+     * <pre>
+     * The list of all entity types.
+     * </pre>
+     *
      * <code>repeated string entityTypes = 1;</code>
      * @param index The index to set the value at.
      * @param value The entityTypes to set.
@@ -529,6 +573,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The list of all entity types.
+     * </pre>
+     *
      * <code>repeated string entityTypes = 1;</code>
      * @param value The entityTypes to add.
      * @return This builder for chaining.
@@ -544,6 +592,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The list of all entity types.
+     * </pre>
+     *
      * <code>repeated string entityTypes = 1;</code>
      * @param values The entityTypes to add.
      * @return This builder for chaining.
@@ -557,6 +609,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The list of all entity types.
+     * </pre>
+     *
      * <code>repeated string entityTypes = 1;</code>
      * @return This builder for chaining.
      */
@@ -567,6 +623,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The list of all entity types.
+     * </pre>
+     *
      * <code>repeated string entityTypes = 1;</code>
      * @param value The bytes of the entityTypes to add.
      * @return This builder for chaining.

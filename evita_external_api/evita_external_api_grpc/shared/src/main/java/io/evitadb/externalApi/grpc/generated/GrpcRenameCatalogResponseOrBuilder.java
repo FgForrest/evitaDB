@@ -31,6 +31,10 @@ public interface GrpcRenameCatalogResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Indicator whether the catalog was renamed successfully.
+   * </pre>
+   *
    * <code>bool success = 1;</code>
    * @return The success.
    */

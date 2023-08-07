@@ -27,6 +27,11 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Mutation is responsible for setting value to a `AttributeSchema.type` in `EntitySchema`.
+ * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaTypeMutation}
  */
 public final class GrpcModifyAttributeSchemaTypeMutation extends
@@ -125,6 +130,10 @@ private static final long serialVersionUID = 0L;
   public static final int NAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object name_;
   /**
+   * <pre>
+   * Name of the attribute the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
@@ -142,6 +151,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Name of the attribute the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -163,6 +176,10 @@ private static final long serialVersionUID = 0L;
   public static final int TYPE_FIELD_NUMBER = 2;
   private int type_;
   /**
+   * <pre>
+   * Type of the attribute. Must be one of supported data types or its array.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 2;</code>
    * @return The enum numeric value on the wire for type.
    */
@@ -170,6 +187,10 @@ private static final long serialVersionUID = 0L;
     return type_;
   }
   /**
+   * <pre>
+   * Type of the attribute. Must be one of supported data types or its array.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 2;</code>
    * @return The type.
    */
@@ -182,6 +203,10 @@ private static final long serialVersionUID = 0L;
   public static final int INDEXEDDECIMALPLACES_FIELD_NUMBER = 3;
   private int indexedDecimalPlaces_;
   /**
+   * <pre>
+   * Determines how many fractional places are important when entities are compared during filtering or sorting.
+   * </pre>
+   *
    * <code>int32 indexedDecimalPlaces = 3;</code>
    * @return The indexedDecimalPlaces.
    */
@@ -366,6 +391,11 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.type` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaTypeMutation}
    */
   public static final class Builder extends
@@ -527,6 +557,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object name_ = "";
     /**
+     * <pre>
+     * Name of the attribute the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The name.
      */
@@ -543,6 +577,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the attribute the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The bytes for name.
      */
@@ -560,6 +598,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the attribute the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The name to set.
      * @return This builder for chaining.
@@ -575,6 +617,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the attribute the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return This builder for chaining.
      */
@@ -585,6 +631,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the attribute the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The bytes for name to set.
      * @return This builder for chaining.
@@ -603,6 +653,10 @@ private static final long serialVersionUID = 0L;
 
     private int type_ = 0;
     /**
+     * <pre>
+     * Type of the attribute. Must be one of supported data types or its array.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 2;</code>
      * @return The enum numeric value on the wire for type.
      */
@@ -610,6 +664,10 @@ private static final long serialVersionUID = 0L;
       return type_;
     }
     /**
+     * <pre>
+     * Type of the attribute. Must be one of supported data types or its array.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 2;</code>
      * @param value The enum numeric value on the wire for type to set.
      * @return This builder for chaining.
@@ -621,6 +679,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Type of the attribute. Must be one of supported data types or its array.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 2;</code>
      * @return The type.
      */
@@ -631,6 +693,10 @@ private static final long serialVersionUID = 0L;
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType.UNRECOGNIZED : result;
     }
     /**
+     * <pre>
+     * Type of the attribute. Must be one of supported data types or its array.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 2;</code>
      * @param value The type to set.
      * @return This builder for chaining.
@@ -645,6 +711,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Type of the attribute. Must be one of supported data types or its array.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 2;</code>
      * @return This builder for chaining.
      */
@@ -657,6 +727,10 @@ private static final long serialVersionUID = 0L;
 
     private int indexedDecimalPlaces_ ;
     /**
+     * <pre>
+     * Determines how many fractional places are important when entities are compared during filtering or sorting.
+     * </pre>
+     *
      * <code>int32 indexedDecimalPlaces = 3;</code>
      * @return The indexedDecimalPlaces.
      */
@@ -665,6 +739,10 @@ private static final long serialVersionUID = 0L;
       return indexedDecimalPlaces_;
     }
     /**
+     * <pre>
+     * Determines how many fractional places are important when entities are compared during filtering or sorting.
+     * </pre>
+     *
      * <code>int32 indexedDecimalPlaces = 3;</code>
      * @param value The indexedDecimalPlaces to set.
      * @return This builder for chaining.
@@ -676,6 +754,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Determines how many fractional places are important when entities are compared during filtering or sorting.
+     * </pre>
+     *
      * <code>int32 indexedDecimalPlaces = 3;</code>
      * @return This builder for chaining.
      */

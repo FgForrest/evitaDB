@@ -27,6 +27,11 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Mutation is responsible for setting up a new `AttributeSchema` in the `EntitySchema`.
+ * Mutation can be used for altering also the existing `AttributeSchema` alone.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation}
  */
 public final class GrpcCreateSortableAttributeCompoundSchemaMutation extends
@@ -153,6 +158,10 @@ private static final long serialVersionUID = 0L;
   public static final int NAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object name_;
   /**
+   * <pre>
+   * Name of the sortable attribute compound the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
@@ -170,6 +179,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Name of the sortable attribute compound the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -191,6 +204,11 @@ private static final long serialVersionUID = 0L;
   public static final int DESCRIPTION_FIELD_NUMBER = 2;
   private com.google.protobuf.StringValue description_;
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 2;</code>
    * @return Whether the description field is set.
    */
@@ -199,6 +217,11 @@ private static final long serialVersionUID = 0L;
     return description_ != null;
   }
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 2;</code>
    * @return The description.
    */
@@ -207,6 +230,11 @@ private static final long serialVersionUID = 0L;
     return description_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : description_;
   }
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 2;</code>
    */
   @java.lang.Override
@@ -217,6 +245,12 @@ private static final long serialVersionUID = 0L;
   public static final int DEPRECATIONNOTICE_FIELD_NUMBER = 3;
   private com.google.protobuf.StringValue deprecationNotice_;
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this sortable attribute compound from
+   * the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
    * @return Whether the deprecationNotice field is set.
    */
@@ -225,6 +259,12 @@ private static final long serialVersionUID = 0L;
     return deprecationNotice_ != null;
   }
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this sortable attribute compound from
+   * the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
    * @return The deprecationNotice.
    */
@@ -233,6 +273,12 @@ private static final long serialVersionUID = 0L;
     return deprecationNotice_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : deprecationNotice_;
   }
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this sortable attribute compound from
+   * the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
    */
   @java.lang.Override
@@ -243,6 +289,10 @@ private static final long serialVersionUID = 0L;
   public static final int ATTRIBUTEELEMENTS_FIELD_NUMBER = 4;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAttributeElement> attributeElements_;
   /**
+   * <pre>
+   * Defines list of individual elements forming this compound.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
    */
   @java.lang.Override
@@ -250,6 +300,10 @@ private static final long serialVersionUID = 0L;
     return attributeElements_;
   }
   /**
+   * <pre>
+   * Defines list of individual elements forming this compound.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
    */
   @java.lang.Override
@@ -258,6 +312,10 @@ private static final long serialVersionUID = 0L;
     return attributeElements_;
   }
   /**
+   * <pre>
+   * Defines list of individual elements forming this compound.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
    */
   @java.lang.Override
@@ -265,6 +323,10 @@ private static final long serialVersionUID = 0L;
     return attributeElements_.size();
   }
   /**
+   * <pre>
+   * Defines list of individual elements forming this compound.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
    */
   @java.lang.Override
@@ -272,6 +334,10 @@ private static final long serialVersionUID = 0L;
     return attributeElements_.get(index);
   }
   /**
+   * <pre>
+   * Defines list of individual elements forming this compound.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
    */
   @java.lang.Override
@@ -480,6 +546,11 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Mutation is responsible for setting up a new `AttributeSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` alone.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation}
    */
   public static final class Builder extends
@@ -701,6 +772,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object name_ = "";
     /**
+     * <pre>
+     * Name of the sortable attribute compound the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The name.
      */
@@ -717,6 +792,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the sortable attribute compound the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The bytes for name.
      */
@@ -734,6 +813,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the sortable attribute compound the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The name to set.
      * @return This builder for chaining.
@@ -749,6 +832,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the sortable attribute compound the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return This builder for chaining.
      */
@@ -759,6 +846,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the sortable attribute compound the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The bytes for name to set.
      * @return This builder for chaining.
@@ -779,6 +870,11 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> descriptionBuilder_;
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      * @return Whether the description field is set.
      */
@@ -786,6 +882,11 @@ private static final long serialVersionUID = 0L;
       return descriptionBuilder_ != null || description_ != null;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      * @return The description.
      */
@@ -797,6 +898,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public Builder setDescription(com.google.protobuf.StringValue value) {
@@ -813,6 +919,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public Builder setDescription(
@@ -827,6 +938,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public Builder mergeDescription(com.google.protobuf.StringValue value) {
@@ -845,6 +961,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public Builder clearDescription() {
@@ -859,6 +980,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public com.google.protobuf.StringValue.Builder getDescriptionBuilder() {
@@ -867,6 +993,11 @@ private static final long serialVersionUID = 0L;
       return getDescriptionFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public com.google.protobuf.StringValueOrBuilder getDescriptionOrBuilder() {
@@ -878,6 +1009,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -898,6 +1034,12 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> deprecationNoticeBuilder_;
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this sortable attribute compound from
+     * the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      * @return Whether the deprecationNotice field is set.
      */
@@ -905,6 +1047,12 @@ private static final long serialVersionUID = 0L;
       return deprecationNoticeBuilder_ != null || deprecationNotice_ != null;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this sortable attribute compound from
+     * the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      * @return The deprecationNotice.
      */
@@ -916,6 +1064,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this sortable attribute compound from
+     * the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public Builder setDeprecationNotice(com.google.protobuf.StringValue value) {
@@ -932,6 +1086,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this sortable attribute compound from
+     * the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public Builder setDeprecationNotice(
@@ -946,6 +1106,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this sortable attribute compound from
+     * the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public Builder mergeDeprecationNotice(com.google.protobuf.StringValue value) {
@@ -964,6 +1130,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this sortable attribute compound from
+     * the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public Builder clearDeprecationNotice() {
@@ -978,6 +1150,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this sortable attribute compound from
+     * the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public com.google.protobuf.StringValue.Builder getDeprecationNoticeBuilder() {
@@ -986,6 +1164,12 @@ private static final long serialVersionUID = 0L;
       return getDeprecationNoticeFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this sortable attribute compound from
+     * the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public com.google.protobuf.StringValueOrBuilder getDeprecationNoticeOrBuilder() {
@@ -997,6 +1181,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this sortable attribute compound from
+     * the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1026,6 +1216,10 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcAttributeElement, io.evitadb.externalApi.grpc.generated.GrpcAttributeElement.Builder, io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder> attributeElementsBuilder_;
 
     /**
+     * <pre>
+     * Defines list of individual elements forming this compound.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAttributeElement> getAttributeElementsList() {
@@ -1036,6 +1230,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Defines list of individual elements forming this compound.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
      */
     public int getAttributeElementsCount() {
@@ -1046,6 +1244,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Defines list of individual elements forming this compound.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcAttributeElement getAttributeElements(int index) {
@@ -1056,6 +1258,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Defines list of individual elements forming this compound.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
      */
     public Builder setAttributeElements(
@@ -1073,6 +1279,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Defines list of individual elements forming this compound.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
      */
     public Builder setAttributeElements(
@@ -1087,6 +1297,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Defines list of individual elements forming this compound.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
      */
     public Builder addAttributeElements(io.evitadb.externalApi.grpc.generated.GrpcAttributeElement value) {
@@ -1103,6 +1317,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Defines list of individual elements forming this compound.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
      */
     public Builder addAttributeElements(
@@ -1120,6 +1338,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Defines list of individual elements forming this compound.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
      */
     public Builder addAttributeElements(
@@ -1134,6 +1356,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Defines list of individual elements forming this compound.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
      */
     public Builder addAttributeElements(
@@ -1148,6 +1374,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Defines list of individual elements forming this compound.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
      */
     public Builder addAllAttributeElements(
@@ -1163,6 +1393,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Defines list of individual elements forming this compound.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
      */
     public Builder clearAttributeElements() {
@@ -1176,6 +1410,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Defines list of individual elements forming this compound.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
      */
     public Builder removeAttributeElements(int index) {
@@ -1189,6 +1427,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Defines list of individual elements forming this compound.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcAttributeElement.Builder getAttributeElementsBuilder(
@@ -1196,6 +1438,10 @@ private static final long serialVersionUID = 0L;
       return getAttributeElementsFieldBuilder().getBuilder(index);
     }
     /**
+     * <pre>
+     * Defines list of individual elements forming this compound.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder getAttributeElementsOrBuilder(
@@ -1206,6 +1452,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Defines list of individual elements forming this compound.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder> 
@@ -1217,6 +1467,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Defines list of individual elements forming this compound.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcAttributeElement.Builder addAttributeElementsBuilder() {
@@ -1224,6 +1478,10 @@ private static final long serialVersionUID = 0L;
           io.evitadb.externalApi.grpc.generated.GrpcAttributeElement.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Defines list of individual elements forming this compound.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcAttributeElement.Builder addAttributeElementsBuilder(
@@ -1232,6 +1490,10 @@ private static final long serialVersionUID = 0L;
           index, io.evitadb.externalApi.grpc.generated.GrpcAttributeElement.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Defines list of individual elements forming this compound.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAttributeElement.Builder> 

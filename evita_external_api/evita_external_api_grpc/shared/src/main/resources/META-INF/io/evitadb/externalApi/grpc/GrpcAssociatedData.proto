@@ -2,9 +2,14 @@ syntax = "proto3";
 
 package io.evitadb.externalApi.grpc.generated;
 option java_multiple_files = true;
+option csharp_namespace = "EvitaDB";
 
 import "GrpcEvitaDataTypes.proto";
 
+// This structure is used as a wrapper around the associated data map for the purpose of separation the global associated data from the localized.
 message GrpcLocalizedAssociatedData {
+  // The map, where the key is the name of the associated data and the value is the associated data value.
+  // The localization is held on the entity level - specific language tag is used as a key of the outer map on the
+  // SealedEntity level.
   map<string, GrpcEvitaAssociatedDataValue> associatedData = 1;
 }

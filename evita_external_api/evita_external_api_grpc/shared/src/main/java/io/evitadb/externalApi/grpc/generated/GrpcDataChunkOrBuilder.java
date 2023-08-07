@@ -31,144 +31,256 @@ public interface GrpcDataChunkOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Collection of entity references.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityReference> 
       getEntityReferencesList();
   /**
+   * <pre>
+   * Collection of entity references.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityReference getEntityReferences(int index);
   /**
+   * <pre>
+   * Collection of entity references.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
    */
   int getEntityReferencesCount();
   /**
+   * <pre>
+   * Collection of entity references.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> 
       getEntityReferencesOrBuilderList();
   /**
+   * <pre>
+   * Collection of entity references.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder getEntityReferencesOrBuilder(
       int index);
 
   /**
+   * <pre>
+   * Collection of sealed entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity> 
       getSealedEntitiesList();
   /**
+   * <pre>
+   * Collection of sealed entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getSealedEntities(int index);
   /**
+   * <pre>
+   * Collection of sealed entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
    */
   int getSealedEntitiesCount();
   /**
+   * <pre>
+   * Collection of sealed entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
       getSealedEntitiesOrBuilderList();
   /**
+   * <pre>
+   * Collection of sealed entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getSealedEntitiesOrBuilder(
       int index);
 
   /**
+   * <pre>
+   * Collection of binary entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity> 
       getBinaryEntitiesList();
   /**
+   * <pre>
+   * Collection of binary entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity getBinaryEntities(int index);
   /**
+   * <pre>
+   * Collection of binary entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
    */
   int getBinaryEntitiesCount();
   /**
+   * <pre>
+   * Collection of binary entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder> 
       getBinaryEntitiesOrBuilderList();
   /**
+   * <pre>
+   * Collection of binary entities.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder getBinaryEntitiesOrBuilder(
       int index);
 
   /**
+   * <pre>
+   * The paginated list.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
    * @return Whether the paginatedList field is set.
    */
   boolean hasPaginatedList();
   /**
+   * <pre>
+   * The paginated list.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
    * @return The paginatedList.
    */
   io.evitadb.externalApi.grpc.generated.GrpcPaginatedList getPaginatedList();
   /**
+   * <pre>
+   * The paginated list.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcPaginatedListOrBuilder getPaginatedListOrBuilder();
 
   /**
+   * <pre>
+   * The strip list.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
    * @return Whether the stripList field is set.
    */
   boolean hasStripList();
   /**
+   * <pre>
+   * The strip list.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
    * @return The stripList.
    */
   io.evitadb.externalApi.grpc.generated.GrpcStripList getStripList();
   /**
+   * <pre>
+   * The strip list.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcStripListOrBuilder getStripListOrBuilder();
 
   /**
+   * <pre>
+   * The total number of records.
+   * </pre>
+   *
    * <code>int32 totalRecordCount = 6;</code>
    * @return The totalRecordCount.
    */
   int getTotalRecordCount();
 
   /**
+   * <pre>
+   * True, if this is the first page.
+   * </pre>
+   *
    * <code>bool isFirst = 7;</code>
    * @return The isFirst.
    */
   boolean getIsFirst();
 
   /**
+   * <pre>
+   * True, if this is the last page.
+   * </pre>
+   *
    * <code>bool isLast = 8;</code>
    * @return The isLast.
    */
   boolean getIsLast();
 
   /**
+   * <pre>
+   * True, if there is a previous page.
+   * </pre>
+   *
    * <code>bool hasPrevious = 9;</code>
    * @return The hasPrevious.
    */
   boolean getHasPrevious();
 
   /**
+   * <pre>
+   * True, if there is a next page.
+   * </pre>
+   *
    * <code>bool hasNext = 10;</code>
    * @return The hasNext.
    */
   boolean getHasNext();
 
   /**
+   * <pre>
+   * True, if this is a single page.
+   * </pre>
+   *
    * <code>bool isSinglePage = 11;</code>
    * @return The isSinglePage.
    */
   boolean getIsSinglePage();
 
   /**
+   * <pre>
+   * True, if this is an empty page.
+   * </pre>
+   *
    * <code>bool isEmpty = 12;</code>
    * @return The isEmpty.
    */

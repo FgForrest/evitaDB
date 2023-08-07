@@ -31,37 +31,65 @@ public interface GrpcDeleteEntityAndItsHierarchyResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Count of deleted entities.
+   * </pre>
+   *
    * <code>int32 deletedEntities = 1;</code>
    * @return The deletedEntities.
    */
   int getDeletedEntities();
 
   /**
+   * <pre>
+   * The deleted root entity reference.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference deletedRootEntityReference = 2;</code>
    * @return Whether the deletedRootEntityReference field is set.
    */
   boolean hasDeletedRootEntityReference();
   /**
+   * <pre>
+   * The deleted root entity reference.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference deletedRootEntityReference = 2;</code>
    * @return The deletedRootEntityReference.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityReference getDeletedRootEntityReference();
   /**
+   * <pre>
+   * The deleted root entity reference.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference deletedRootEntityReference = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder getDeletedRootEntityReferenceOrBuilder();
 
   /**
+   * <pre>
+   * The deleted root entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedRootEntity = 3;</code>
    * @return Whether the deletedRootEntity field is set.
    */
   boolean hasDeletedRootEntity();
   /**
+   * <pre>
+   * The deleted root entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedRootEntity = 3;</code>
    * @return The deletedRootEntity.
    */
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getDeletedRootEntity();
   /**
+   * <pre>
+   * The deleted root entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedRootEntity = 3;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getDeletedRootEntityOrBuilder();

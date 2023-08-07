@@ -31,6 +31,13 @@ public interface GrpcSetEntitySchemaWithGeneratedPrimaryKeyMutationOrBuilder ext
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Whether primary keys of entities of this type will not be provided by the external systems and Evita
+   * is responsible for generating unique primary keys for the entity on insertion.
+   * Generated key is guaranteed to be unique, but may not represent continuous ascending series. Generated key
+   * will be always greater than zero.
+   * </pre>
+   *
    * <code>bool withGeneratedPrimaryKey = 1;</code>
    * @return The withGeneratedPrimaryKey.
    */

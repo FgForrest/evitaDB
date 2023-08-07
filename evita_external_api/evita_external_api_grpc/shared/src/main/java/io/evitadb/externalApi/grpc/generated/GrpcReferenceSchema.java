@@ -27,6 +27,23 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * This is the definition object for reference that is stored along with
+ * entity. Definition objects allow to describe the structure of the entity type so that
+ * in any time everyone can consult complete structure of the entity type.
+ * The references refer to other entities (of same or different entity type).
+ * Allows entity filtering (but not sorting) of the entities by using `facet_{name}_inSet` query
+ * and statistics computation if when requested. Reference
+ * is uniquely represented by int positive number (max. (2^63)-1) and entity type and can be
+ * part of multiple reference groups, that are also represented by int and entity type.
+ * Reference id in one entity is unique and belongs to single reference group id. Among multiple entities reference may be part
+ * of different reference groups. Referenced entity type may represent type of another Evita entity or may refer
+ * to anything unknown to Evita that posses unique int key and is maintained by external systems (fe. tag assignment,
+ * group assignment, category assignment, stock assignment and so on). Not all these data needs to be present in
+ * Evita.
+ * References may carry additional key-value data linked to this entity relation (fe. item count present on certain stock).
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema}
  */
 public final class GrpcReferenceSchema extends
@@ -227,6 +244,11 @@ private static final long serialVersionUID = 0L;
   public static final int NAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object name_;
   /**
+   * <pre>
+   * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+   * within single entity instance.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
@@ -244,6 +266,11 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+   * within single entity instance.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -265,6 +292,11 @@ private static final long serialVersionUID = 0L;
   public static final int DESCRIPTION_FIELD_NUMBER = 2;
   private com.google.protobuf.StringValue description_;
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 2;</code>
    * @return Whether the description field is set.
    */
@@ -273,6 +305,11 @@ private static final long serialVersionUID = 0L;
     return description_ != null;
   }
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 2;</code>
    * @return The description.
    */
@@ -281,6 +318,11 @@ private static final long serialVersionUID = 0L;
     return description_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : description_;
   }
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 2;</code>
    */
   @java.lang.Override
@@ -291,6 +333,12 @@ private static final long serialVersionUID = 0L;
   public static final int DEPRECATIONNOTICE_FIELD_NUMBER = 3;
   private com.google.protobuf.StringValue deprecationNotice_;
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this entity from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * If notice is `null`, this schema is considered not deprecated.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
    * @return Whether the deprecationNotice field is set.
    */
@@ -299,6 +347,12 @@ private static final long serialVersionUID = 0L;
     return deprecationNotice_ != null;
   }
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this entity from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * If notice is `null`, this schema is considered not deprecated.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
    * @return The deprecationNotice.
    */
@@ -307,6 +361,12 @@ private static final long serialVersionUID = 0L;
     return deprecationNotice_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : deprecationNotice_;
   }
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this entity from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * If notice is `null`, this schema is considered not deprecated.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
    */
   @java.lang.Override
@@ -317,6 +377,14 @@ private static final long serialVersionUID = 0L;
   public static final int CARDINALITY_FIELD_NUMBER = 4;
   private int cardinality_;
   /**
+   * <pre>
+   * Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+   * relationship from the perspective of the entity. We stick to the ERD modelling
+   * [standards](https://www.gleek.io/blog/crows-foot-notation.html) here. Cardinality affect the design
+   * of the client API (returning only single reference or collections) and also help us to protect the consistency
+   * of the data so that conforms to the creator mental model.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality cardinality = 4;</code>
    * @return The enum numeric value on the wire for cardinality.
    */
@@ -324,6 +392,14 @@ private static final long serialVersionUID = 0L;
     return cardinality_;
   }
   /**
+   * <pre>
+   * Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+   * relationship from the perspective of the entity. We stick to the ERD modelling
+   * [standards](https://www.gleek.io/blog/crows-foot-notation.html) here. Cardinality affect the design
+   * of the client API (returning only single reference or collections) and also help us to protect the consistency
+   * of the data so that conforms to the creator mental model.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality cardinality = 4;</code>
    * @return The cardinality.
    */
@@ -336,6 +412,11 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITYTYPE_FIELD_NUMBER = 5;
   private volatile java.lang.Object entityType_;
   /**
+   * <pre>
+   * Reference to `Entity.type` of the referenced entity. Might be also any `String`
+   * that identifies type some external resource not maintained by Evita.
+   * </pre>
+   *
    * <code>string entityType = 5;</code>
    * @return The entityType.
    */
@@ -353,6 +434,11 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Reference to `Entity.type` of the referenced entity. Might be also any `String`
+   * that identifies type some external resource not maintained by Evita.
+   * </pre>
+   *
    * <code>string entityType = 5;</code>
    * @return The bytes for entityType.
    */
@@ -374,6 +460,10 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITYTYPERELATESTOENTITY_FIELD_NUMBER = 6;
   private boolean entityTypeRelatesToEntity_;
   /**
+   * <pre>
+   * Contains `true` if `entityType` refers to any existing entity that is maintained by Evita.
+   * </pre>
+   *
    * <code>bool entityTypeRelatesToEntity = 6;</code>
    * @return The entityTypeRelatesToEntity.
    */
@@ -385,6 +475,11 @@ private static final long serialVersionUID = 0L;
   public static final int GROUPTYPE_FIELD_NUMBER = 7;
   private com.google.protobuf.StringValue groupType_;
   /**
+   * <pre>
+   * Reference to `Entity.type` of the referenced entity. Might be also `String` that identifies type some external
+   * resource not maintained by Evita.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue groupType = 7;</code>
    * @return Whether the groupType field is set.
    */
@@ -393,6 +488,11 @@ private static final long serialVersionUID = 0L;
     return groupType_ != null;
   }
   /**
+   * <pre>
+   * Reference to `Entity.type` of the referenced entity. Might be also `String` that identifies type some external
+   * resource not maintained by Evita.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue groupType = 7;</code>
    * @return The groupType.
    */
@@ -401,6 +501,11 @@ private static final long serialVersionUID = 0L;
     return groupType_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : groupType_;
   }
   /**
+   * <pre>
+   * Reference to `Entity.type` of the referenced entity. Might be also `String` that identifies type some external
+   * resource not maintained by Evita.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue groupType = 7;</code>
    */
   @java.lang.Override
@@ -411,6 +516,10 @@ private static final long serialVersionUID = 0L;
   public static final int GROUPTYPERELATESTOENTITY_FIELD_NUMBER = 8;
   private boolean groupTypeRelatesToEntity_;
   /**
+   * <pre>
+   * Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+   * </pre>
+   *
    * <code>bool groupTypeRelatesToEntity = 8;</code>
    * @return The groupTypeRelatesToEntity.
    */
@@ -422,6 +531,16 @@ private static final long serialVersionUID = 0L;
   public static final int INDEXED_FIELD_NUMBER = 9;
   private boolean indexed_;
   /**
+   * <pre>
+   * Contains `true` if the index for this reference should be created and maintained allowing to filter by
+   * `reference_{reference name}_having` filtering constraints. Index is also required when reference is
+   * `faceted`.
+   * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+   * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+   * the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
+   * fetched.
+   * </pre>
+   *
    * <code>bool indexed = 9;</code>
    * @return The indexed.
    */
@@ -433,6 +552,15 @@ private static final long serialVersionUID = 0L;
   public static final int FACETED_FIELD_NUMBER = 10;
   private boolean faceted_;
   /**
+   * <pre>
+   * Contains `true` if the statistics data for this reference should be maintained and this allowing to get
+   * `facetStatistics` for this reference or use `facet_{reference name}_inSet`
+   * filtering constraint.
+   * Do not mark reference as faceted unless you want it among `facetStatistics`. Each faceted reference
+   * occupies (memory/disk) space in the form of index.
+   * Reference that was marked as faceted is called Facet.
+   * </pre>
+   *
    * <code>bool faceted = 10;</code>
    * @return The faceted.
    */
@@ -468,6 +596,17 @@ private static final long serialVersionUID = 0L;
     return internalGetAttributes().getMap().size();
   }
   /**
+   * <pre>
+   * Attributes related to reference allows defining set of data that are fetched in bulk along with the entity body.
+   * Attributes may be indexed for fast filtering (`AttributeSchema.filterable`) or can be used to sort along
+   * (`AttributeSchema.filterable`). Attributes are not automatically indexed in order not to waste precious
+   * memory space for data that will never be used in search queries.
+   * Filtering in attributes is executed by using constraints like `and`,
+   * `not`, `attributeEquals`, `attributeContains`
+   * and many others. Sorting can be achieved with `attributeNatural` or others.
+   * Attributes are not recommended for bigger data as they are all loaded at once.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema&gt; attributes = 11;</code>
    */
 
@@ -486,6 +625,17 @@ private static final long serialVersionUID = 0L;
     return getAttributesMap();
   }
   /**
+   * <pre>
+   * Attributes related to reference allows defining set of data that are fetched in bulk along with the entity body.
+   * Attributes may be indexed for fast filtering (`AttributeSchema.filterable`) or can be used to sort along
+   * (`AttributeSchema.filterable`). Attributes are not automatically indexed in order not to waste precious
+   * memory space for data that will never be used in search queries.
+   * Filtering in attributes is executed by using constraints like `and`,
+   * `not`, `attributeEquals`, `attributeContains`
+   * and many others. Sorting can be achieved with `attributeNatural` or others.
+   * Attributes are not recommended for bigger data as they are all loaded at once.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema&gt; attributes = 11;</code>
    */
   @java.lang.Override
@@ -494,6 +644,17 @@ private static final long serialVersionUID = 0L;
     return internalGetAttributes().getMap();
   }
   /**
+   * <pre>
+   * Attributes related to reference allows defining set of data that are fetched in bulk along with the entity body.
+   * Attributes may be indexed for fast filtering (`AttributeSchema.filterable`) or can be used to sort along
+   * (`AttributeSchema.filterable`). Attributes are not automatically indexed in order not to waste precious
+   * memory space for data that will never be used in search queries.
+   * Filtering in attributes is executed by using constraints like `and`,
+   * `not`, `attributeEquals`, `attributeContains`
+   * and many others. Sorting can be achieved with `attributeNatural` or others.
+   * Attributes are not recommended for bigger data as they are all loaded at once.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema&gt; attributes = 11;</code>
    */
   @java.lang.Override
@@ -507,6 +668,17 @@ private static final long serialVersionUID = 0L;
     return map.containsKey(key) ? map.get(key) : defaultValue;
   }
   /**
+   * <pre>
+   * Attributes related to reference allows defining set of data that are fetched in bulk along with the entity body.
+   * Attributes may be indexed for fast filtering (`AttributeSchema.filterable`) or can be used to sort along
+   * (`AttributeSchema.filterable`). Attributes are not automatically indexed in order not to waste precious
+   * memory space for data that will never be used in search queries.
+   * Filtering in attributes is executed by using constraints like `and`,
+   * `not`, `attributeEquals`, `attributeContains`
+   * and many others. Sorting can be achieved with `attributeNatural` or others.
+   * Attributes are not recommended for bigger data as they are all loaded at once.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema&gt; attributes = 11;</code>
    */
   @java.lang.Override
@@ -549,6 +721,10 @@ private static final long serialVersionUID = 0L;
     return internalGetSortableAttributeCompounds().getMap().size();
   }
   /**
+   * <pre>
+   * Contains index of definitions of all sortable attribute compounds defined in this schema.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 12;</code>
    */
 
@@ -567,6 +743,10 @@ private static final long serialVersionUID = 0L;
     return getSortableAttributeCompoundsMap();
   }
   /**
+   * <pre>
+   * Contains index of definitions of all sortable attribute compounds defined in this schema.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 12;</code>
    */
   @java.lang.Override
@@ -575,6 +755,10 @@ private static final long serialVersionUID = 0L;
     return internalGetSortableAttributeCompounds().getMap();
   }
   /**
+   * <pre>
+   * Contains index of definitions of all sortable attribute compounds defined in this schema.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 12;</code>
    */
   @java.lang.Override
@@ -588,6 +772,10 @@ private static final long serialVersionUID = 0L;
     return map.containsKey(key) ? map.get(key) : defaultValue;
   }
   /**
+   * <pre>
+   * Contains index of definitions of all sortable attribute compounds defined in this schema.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 12;</code>
    */
   @java.lang.Override
@@ -918,6 +1106,23 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * This is the definition object for reference that is stored along with
+   * entity. Definition objects allow to describe the structure of the entity type so that
+   * in any time everyone can consult complete structure of the entity type.
+   * The references refer to other entities (of same or different entity type).
+   * Allows entity filtering (but not sorting) of the entities by using `facet_{name}_inSet` query
+   * and statistics computation if when requested. Reference
+   * is uniquely represented by int positive number (max. (2^63)-1) and entity type and can be
+   * part of multiple reference groups, that are also represented by int and entity type.
+   * Reference id in one entity is unique and belongs to single reference group id. Among multiple entities reference may be part
+   * of different reference groups. Referenced entity type may represent type of another Evita entity or may refer
+   * to anything unknown to Evita that posses unique int key and is maintained by external systems (fe. tag assignment,
+   * group assignment, category assignment, stock assignment and so on). Not all these data needs to be present in
+   * Evita.
+   * References may carry additional key-value data linked to this entity relation (fe. item count present on certain stock).
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema}
    */
   public static final class Builder extends
@@ -1184,6 +1389,11 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object name_ = "";
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The name.
      */
@@ -1200,6 +1410,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The bytes for name.
      */
@@ -1217,6 +1432,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The name to set.
      * @return This builder for chaining.
@@ -1232,6 +1452,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return This builder for chaining.
      */
@@ -1242,6 +1467,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The bytes for name to set.
      * @return This builder for chaining.
@@ -1262,6 +1492,11 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> descriptionBuilder_;
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      * @return Whether the description field is set.
      */
@@ -1269,6 +1504,11 @@ private static final long serialVersionUID = 0L;
       return descriptionBuilder_ != null || description_ != null;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      * @return The description.
      */
@@ -1280,6 +1520,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public Builder setDescription(com.google.protobuf.StringValue value) {
@@ -1296,6 +1541,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public Builder setDescription(
@@ -1310,6 +1560,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public Builder mergeDescription(com.google.protobuf.StringValue value) {
@@ -1328,6 +1583,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public Builder clearDescription() {
@@ -1342,6 +1602,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public com.google.protobuf.StringValue.Builder getDescriptionBuilder() {
@@ -1350,6 +1615,11 @@ private static final long serialVersionUID = 0L;
       return getDescriptionFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public com.google.protobuf.StringValueOrBuilder getDescriptionOrBuilder() {
@@ -1361,6 +1631,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1381,6 +1656,12 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> deprecationNoticeBuilder_;
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      * @return Whether the deprecationNotice field is set.
      */
@@ -1388,6 +1669,12 @@ private static final long serialVersionUID = 0L;
       return deprecationNoticeBuilder_ != null || deprecationNotice_ != null;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      * @return The deprecationNotice.
      */
@@ -1399,6 +1686,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public Builder setDeprecationNotice(com.google.protobuf.StringValue value) {
@@ -1415,6 +1708,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public Builder setDeprecationNotice(
@@ -1429,6 +1728,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public Builder mergeDeprecationNotice(com.google.protobuf.StringValue value) {
@@ -1447,6 +1752,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public Builder clearDeprecationNotice() {
@@ -1461,6 +1772,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public com.google.protobuf.StringValue.Builder getDeprecationNoticeBuilder() {
@@ -1469,6 +1786,12 @@ private static final long serialVersionUID = 0L;
       return getDeprecationNoticeFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public com.google.protobuf.StringValueOrBuilder getDeprecationNoticeOrBuilder() {
@@ -1480,6 +1803,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1498,6 +1827,14 @@ private static final long serialVersionUID = 0L;
 
     private int cardinality_ = 0;
     /**
+     * <pre>
+     * Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+     * relationship from the perspective of the entity. We stick to the ERD modelling
+     * [standards](https://www.gleek.io/blog/crows-foot-notation.html) here. Cardinality affect the design
+     * of the client API (returning only single reference or collections) and also help us to protect the consistency
+     * of the data so that conforms to the creator mental model.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality cardinality = 4;</code>
      * @return The enum numeric value on the wire for cardinality.
      */
@@ -1505,6 +1842,14 @@ private static final long serialVersionUID = 0L;
       return cardinality_;
     }
     /**
+     * <pre>
+     * Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+     * relationship from the perspective of the entity. We stick to the ERD modelling
+     * [standards](https://www.gleek.io/blog/crows-foot-notation.html) here. Cardinality affect the design
+     * of the client API (returning only single reference or collections) and also help us to protect the consistency
+     * of the data so that conforms to the creator mental model.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality cardinality = 4;</code>
      * @param value The enum numeric value on the wire for cardinality to set.
      * @return This builder for chaining.
@@ -1516,6 +1861,14 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+     * relationship from the perspective of the entity. We stick to the ERD modelling
+     * [standards](https://www.gleek.io/blog/crows-foot-notation.html) here. Cardinality affect the design
+     * of the client API (returning only single reference or collections) and also help us to protect the consistency
+     * of the data so that conforms to the creator mental model.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality cardinality = 4;</code>
      * @return The cardinality.
      */
@@ -1526,6 +1879,14 @@ private static final long serialVersionUID = 0L;
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCardinality.UNRECOGNIZED : result;
     }
     /**
+     * <pre>
+     * Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+     * relationship from the perspective of the entity. We stick to the ERD modelling
+     * [standards](https://www.gleek.io/blog/crows-foot-notation.html) here. Cardinality affect the design
+     * of the client API (returning only single reference or collections) and also help us to protect the consistency
+     * of the data so that conforms to the creator mental model.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality cardinality = 4;</code>
      * @param value The cardinality to set.
      * @return This builder for chaining.
@@ -1540,6 +1901,14 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+     * relationship from the perspective of the entity. We stick to the ERD modelling
+     * [standards](https://www.gleek.io/blog/crows-foot-notation.html) here. Cardinality affect the design
+     * of the client API (returning only single reference or collections) and also help us to protect the consistency
+     * of the data so that conforms to the creator mental model.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality cardinality = 4;</code>
      * @return This builder for chaining.
      */
@@ -1552,6 +1921,11 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object entityType_ = "";
     /**
+     * <pre>
+     * Reference to `Entity.type` of the referenced entity. Might be also any `String`
+     * that identifies type some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>string entityType = 5;</code>
      * @return The entityType.
      */
@@ -1568,6 +1942,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Reference to `Entity.type` of the referenced entity. Might be also any `String`
+     * that identifies type some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>string entityType = 5;</code>
      * @return The bytes for entityType.
      */
@@ -1585,6 +1964,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Reference to `Entity.type` of the referenced entity. Might be also any `String`
+     * that identifies type some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>string entityType = 5;</code>
      * @param value The entityType to set.
      * @return This builder for chaining.
@@ -1600,6 +1984,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Reference to `Entity.type` of the referenced entity. Might be also any `String`
+     * that identifies type some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>string entityType = 5;</code>
      * @return This builder for chaining.
      */
@@ -1610,6 +1999,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Reference to `Entity.type` of the referenced entity. Might be also any `String`
+     * that identifies type some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>string entityType = 5;</code>
      * @param value The bytes for entityType to set.
      * @return This builder for chaining.
@@ -1628,6 +2022,10 @@ private static final long serialVersionUID = 0L;
 
     private boolean entityTypeRelatesToEntity_ ;
     /**
+     * <pre>
+     * Contains `true` if `entityType` refers to any existing entity that is maintained by Evita.
+     * </pre>
+     *
      * <code>bool entityTypeRelatesToEntity = 6;</code>
      * @return The entityTypeRelatesToEntity.
      */
@@ -1636,6 +2034,10 @@ private static final long serialVersionUID = 0L;
       return entityTypeRelatesToEntity_;
     }
     /**
+     * <pre>
+     * Contains `true` if `entityType` refers to any existing entity that is maintained by Evita.
+     * </pre>
+     *
      * <code>bool entityTypeRelatesToEntity = 6;</code>
      * @param value The entityTypeRelatesToEntity to set.
      * @return This builder for chaining.
@@ -1647,6 +2049,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains `true` if `entityType` refers to any existing entity that is maintained by Evita.
+     * </pre>
+     *
      * <code>bool entityTypeRelatesToEntity = 6;</code>
      * @return This builder for chaining.
      */
@@ -1661,6 +2067,11 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> groupTypeBuilder_;
     /**
+     * <pre>
+     * Reference to `Entity.type` of the referenced entity. Might be also `String` that identifies type some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue groupType = 7;</code>
      * @return Whether the groupType field is set.
      */
@@ -1668,6 +2079,11 @@ private static final long serialVersionUID = 0L;
       return groupTypeBuilder_ != null || groupType_ != null;
     }
     /**
+     * <pre>
+     * Reference to `Entity.type` of the referenced entity. Might be also `String` that identifies type some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue groupType = 7;</code>
      * @return The groupType.
      */
@@ -1679,6 +2095,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Reference to `Entity.type` of the referenced entity. Might be also `String` that identifies type some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue groupType = 7;</code>
      */
     public Builder setGroupType(com.google.protobuf.StringValue value) {
@@ -1695,6 +2116,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Reference to `Entity.type` of the referenced entity. Might be also `String` that identifies type some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue groupType = 7;</code>
      */
     public Builder setGroupType(
@@ -1709,6 +2135,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Reference to `Entity.type` of the referenced entity. Might be also `String` that identifies type some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue groupType = 7;</code>
      */
     public Builder mergeGroupType(com.google.protobuf.StringValue value) {
@@ -1727,6 +2158,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Reference to `Entity.type` of the referenced entity. Might be also `String` that identifies type some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue groupType = 7;</code>
      */
     public Builder clearGroupType() {
@@ -1741,6 +2177,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Reference to `Entity.type` of the referenced entity. Might be also `String` that identifies type some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue groupType = 7;</code>
      */
     public com.google.protobuf.StringValue.Builder getGroupTypeBuilder() {
@@ -1749,6 +2190,11 @@ private static final long serialVersionUID = 0L;
       return getGroupTypeFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Reference to `Entity.type` of the referenced entity. Might be also `String` that identifies type some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue groupType = 7;</code>
      */
     public com.google.protobuf.StringValueOrBuilder getGroupTypeOrBuilder() {
@@ -1760,6 +2206,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Reference to `Entity.type` of the referenced entity. Might be also `String` that identifies type some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue groupType = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1778,6 +2229,10 @@ private static final long serialVersionUID = 0L;
 
     private boolean groupTypeRelatesToEntity_ ;
     /**
+     * <pre>
+     * Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+     * </pre>
+     *
      * <code>bool groupTypeRelatesToEntity = 8;</code>
      * @return The groupTypeRelatesToEntity.
      */
@@ -1786,6 +2241,10 @@ private static final long serialVersionUID = 0L;
       return groupTypeRelatesToEntity_;
     }
     /**
+     * <pre>
+     * Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+     * </pre>
+     *
      * <code>bool groupTypeRelatesToEntity = 8;</code>
      * @param value The groupTypeRelatesToEntity to set.
      * @return This builder for chaining.
@@ -1797,6 +2256,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+     * </pre>
+     *
      * <code>bool groupTypeRelatesToEntity = 8;</code>
      * @return This builder for chaining.
      */
@@ -1809,6 +2272,16 @@ private static final long serialVersionUID = 0L;
 
     private boolean indexed_ ;
     /**
+     * <pre>
+     * Contains `true` if the index for this reference should be created and maintained allowing to filter by
+     * `reference_{reference name}_having` filtering constraints. Index is also required when reference is
+     * `faceted`.
+     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+     * the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
+     * fetched.
+     * </pre>
+     *
      * <code>bool indexed = 9;</code>
      * @return The indexed.
      */
@@ -1817,6 +2290,16 @@ private static final long serialVersionUID = 0L;
       return indexed_;
     }
     /**
+     * <pre>
+     * Contains `true` if the index for this reference should be created and maintained allowing to filter by
+     * `reference_{reference name}_having` filtering constraints. Index is also required when reference is
+     * `faceted`.
+     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+     * the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
+     * fetched.
+     * </pre>
+     *
      * <code>bool indexed = 9;</code>
      * @param value The indexed to set.
      * @return This builder for chaining.
@@ -1828,6 +2311,16 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains `true` if the index for this reference should be created and maintained allowing to filter by
+     * `reference_{reference name}_having` filtering constraints. Index is also required when reference is
+     * `faceted`.
+     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+     * the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
+     * fetched.
+     * </pre>
+     *
      * <code>bool indexed = 9;</code>
      * @return This builder for chaining.
      */
@@ -1840,6 +2333,15 @@ private static final long serialVersionUID = 0L;
 
     private boolean faceted_ ;
     /**
+     * <pre>
+     * Contains `true` if the statistics data for this reference should be maintained and this allowing to get
+     * `facetStatistics` for this reference or use `facet_{reference name}_inSet`
+     * filtering constraint.
+     * Do not mark reference as faceted unless you want it among `facetStatistics`. Each faceted reference
+     * occupies (memory/disk) space in the form of index.
+     * Reference that was marked as faceted is called Facet.
+     * </pre>
+     *
      * <code>bool faceted = 10;</code>
      * @return The faceted.
      */
@@ -1848,6 +2350,15 @@ private static final long serialVersionUID = 0L;
       return faceted_;
     }
     /**
+     * <pre>
+     * Contains `true` if the statistics data for this reference should be maintained and this allowing to get
+     * `facetStatistics` for this reference or use `facet_{reference name}_inSet`
+     * filtering constraint.
+     * Do not mark reference as faceted unless you want it among `facetStatistics`. Each faceted reference
+     * occupies (memory/disk) space in the form of index.
+     * Reference that was marked as faceted is called Facet.
+     * </pre>
+     *
      * <code>bool faceted = 10;</code>
      * @param value The faceted to set.
      * @return This builder for chaining.
@@ -1859,6 +2370,15 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains `true` if the statistics data for this reference should be maintained and this allowing to get
+     * `facetStatistics` for this reference or use `facet_{reference name}_inSet`
+     * filtering constraint.
+     * Do not mark reference as faceted unless you want it among `facetStatistics`. Each faceted reference
+     * occupies (memory/disk) space in the form of index.
+     * Reference that was marked as faceted is called Facet.
+     * </pre>
+     *
      * <code>bool faceted = 10;</code>
      * @return This builder for chaining.
      */
@@ -1896,6 +2416,17 @@ private static final long serialVersionUID = 0L;
       return internalGetAttributes().getMap().size();
     }
     /**
+     * <pre>
+     * Attributes related to reference allows defining set of data that are fetched in bulk along with the entity body.
+     * Attributes may be indexed for fast filtering (`AttributeSchema.filterable`) or can be used to sort along
+     * (`AttributeSchema.filterable`). Attributes are not automatically indexed in order not to waste precious
+     * memory space for data that will never be used in search queries.
+     * Filtering in attributes is executed by using constraints like `and`,
+     * `not`, `attributeEquals`, `attributeContains`
+     * and many others. Sorting can be achieved with `attributeNatural` or others.
+     * Attributes are not recommended for bigger data as they are all loaded at once.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema&gt; attributes = 11;</code>
      */
 
@@ -1914,6 +2445,17 @@ private static final long serialVersionUID = 0L;
       return getAttributesMap();
     }
     /**
+     * <pre>
+     * Attributes related to reference allows defining set of data that are fetched in bulk along with the entity body.
+     * Attributes may be indexed for fast filtering (`AttributeSchema.filterable`) or can be used to sort along
+     * (`AttributeSchema.filterable`). Attributes are not automatically indexed in order not to waste precious
+     * memory space for data that will never be used in search queries.
+     * Filtering in attributes is executed by using constraints like `and`,
+     * `not`, `attributeEquals`, `attributeContains`
+     * and many others. Sorting can be achieved with `attributeNatural` or others.
+     * Attributes are not recommended for bigger data as they are all loaded at once.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema&gt; attributes = 11;</code>
      */
     @java.lang.Override
@@ -1922,6 +2464,17 @@ private static final long serialVersionUID = 0L;
       return internalGetAttributes().getMap();
     }
     /**
+     * <pre>
+     * Attributes related to reference allows defining set of data that are fetched in bulk along with the entity body.
+     * Attributes may be indexed for fast filtering (`AttributeSchema.filterable`) or can be used to sort along
+     * (`AttributeSchema.filterable`). Attributes are not automatically indexed in order not to waste precious
+     * memory space for data that will never be used in search queries.
+     * Filtering in attributes is executed by using constraints like `and`,
+     * `not`, `attributeEquals`, `attributeContains`
+     * and many others. Sorting can be achieved with `attributeNatural` or others.
+     * Attributes are not recommended for bigger data as they are all loaded at once.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema&gt; attributes = 11;</code>
      */
     @java.lang.Override
@@ -1935,6 +2488,17 @@ private static final long serialVersionUID = 0L;
       return map.containsKey(key) ? map.get(key) : defaultValue;
     }
     /**
+     * <pre>
+     * Attributes related to reference allows defining set of data that are fetched in bulk along with the entity body.
+     * Attributes may be indexed for fast filtering (`AttributeSchema.filterable`) or can be used to sort along
+     * (`AttributeSchema.filterable`). Attributes are not automatically indexed in order not to waste precious
+     * memory space for data that will never be used in search queries.
+     * Filtering in attributes is executed by using constraints like `and`,
+     * `not`, `attributeEquals`, `attributeContains`
+     * and many others. Sorting can be achieved with `attributeNatural` or others.
+     * Attributes are not recommended for bigger data as they are all loaded at once.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema&gt; attributes = 11;</code>
      */
     @java.lang.Override
@@ -1956,6 +2520,17 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Attributes related to reference allows defining set of data that are fetched in bulk along with the entity body.
+     * Attributes may be indexed for fast filtering (`AttributeSchema.filterable`) or can be used to sort along
+     * (`AttributeSchema.filterable`). Attributes are not automatically indexed in order not to waste precious
+     * memory space for data that will never be used in search queries.
+     * Filtering in attributes is executed by using constraints like `and`,
+     * `not`, `attributeEquals`, `attributeContains`
+     * and many others. Sorting can be achieved with `attributeNatural` or others.
+     * Attributes are not recommended for bigger data as they are all loaded at once.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema&gt; attributes = 11;</code>
      */
 
@@ -1975,6 +2550,17 @@ private static final long serialVersionUID = 0L;
       return internalGetMutableAttributes().getMutableMap();
     }
     /**
+     * <pre>
+     * Attributes related to reference allows defining set of data that are fetched in bulk along with the entity body.
+     * Attributes may be indexed for fast filtering (`AttributeSchema.filterable`) or can be used to sort along
+     * (`AttributeSchema.filterable`). Attributes are not automatically indexed in order not to waste precious
+     * memory space for data that will never be used in search queries.
+     * Filtering in attributes is executed by using constraints like `and`,
+     * `not`, `attributeEquals`, `attributeContains`
+     * and many others. Sorting can be achieved with `attributeNatural` or others.
+     * Attributes are not recommended for bigger data as they are all loaded at once.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema&gt; attributes = 11;</code>
      */
     public Builder putAttributes(
@@ -1990,6 +2576,17 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Attributes related to reference allows defining set of data that are fetched in bulk along with the entity body.
+     * Attributes may be indexed for fast filtering (`AttributeSchema.filterable`) or can be used to sort along
+     * (`AttributeSchema.filterable`). Attributes are not automatically indexed in order not to waste precious
+     * memory space for data that will never be used in search queries.
+     * Filtering in attributes is executed by using constraints like `and`,
+     * `not`, `attributeEquals`, `attributeContains`
+     * and many others. Sorting can be achieved with `attributeNatural` or others.
+     * Attributes are not recommended for bigger data as they are all loaded at once.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema&gt; attributes = 11;</code>
      */
 
@@ -2027,6 +2624,10 @@ private static final long serialVersionUID = 0L;
       return internalGetSortableAttributeCompounds().getMap().size();
     }
     /**
+     * <pre>
+     * Contains index of definitions of all sortable attribute compounds defined in this schema.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 12;</code>
      */
 
@@ -2045,6 +2646,10 @@ private static final long serialVersionUID = 0L;
       return getSortableAttributeCompoundsMap();
     }
     /**
+     * <pre>
+     * Contains index of definitions of all sortable attribute compounds defined in this schema.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 12;</code>
      */
     @java.lang.Override
@@ -2053,6 +2658,10 @@ private static final long serialVersionUID = 0L;
       return internalGetSortableAttributeCompounds().getMap();
     }
     /**
+     * <pre>
+     * Contains index of definitions of all sortable attribute compounds defined in this schema.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 12;</code>
      */
     @java.lang.Override
@@ -2066,6 +2675,10 @@ private static final long serialVersionUID = 0L;
       return map.containsKey(key) ? map.get(key) : defaultValue;
     }
     /**
+     * <pre>
+     * Contains index of definitions of all sortable attribute compounds defined in this schema.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 12;</code>
      */
     @java.lang.Override
@@ -2087,6 +2700,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains index of definitions of all sortable attribute compounds defined in this schema.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 12;</code>
      */
 
@@ -2106,6 +2723,10 @@ private static final long serialVersionUID = 0L;
       return internalGetMutableSortableAttributeCompounds().getMutableMap();
     }
     /**
+     * <pre>
+     * Contains index of definitions of all sortable attribute compounds defined in this schema.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 12;</code>
      */
     public Builder putSortableAttributeCompounds(
@@ -2121,6 +2742,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains index of definitions of all sortable attribute compounds defined in this schema.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema&gt; sortableAttributeCompounds = 12;</code>
      */
 

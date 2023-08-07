@@ -2,49 +2,108 @@ syntax = "proto3";
 
 package io.evitadb.externalApi.grpc.generated;
 option java_multiple_files = true;
+option csharp_namespace = "EvitaDB";
 
 import "GrpcEnums.proto";
 import "google/protobuf/wrappers.proto";
 
+// Mutation is responsible for setting up a new `AssociatedDataSchema` in the `EntitySchema`.
+// Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
 message GrpcCreateAssociatedDataSchemaMutation {
+  // Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+  // within single entity instance.
   string name = 1;
+  // Contains description of the model is optional but helps authors of the schema / client API to better
+  // explain the original purpose of the model to the consumers.
   google.protobuf.StringValue description = 2;
+  // Deprecation notice contains information about planned removal of this associated data from the model / client API.
+  // This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
   google.protobuf.StringValue deprecationNotice = 3;
+  // Contains the data type of the entity. Must be one of supported types or may
+  // represent complex type - which is JSON object that can be automatically converted
+  // to the set of basic types.
   GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 4;
+  // Localized associated data has to be ALWAYS used in connection with specific `locale`. In other
+  // words - it cannot be stored unless associated locale is also provided.
   bool localized = 5;
+  // When associated data is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+  // non-null checks upon upserting of the entity.
   bool nullable = 6;
 }
 
+// Mutation is responsible for setting value to a `AssociatedDataSchemaContract.deprecationNotice`
+// in `EntitySchema`.
+// Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
 message GrpcModifyAssociatedDataSchemaDeprecationNoticeMutation {
+  // Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+  // within single entity instance.
   string name = 1;
+  // Deprecation notice contains information about planned removal of this associated data from the model / client API.
+  // This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
   google.protobuf.StringValue deprecationNotice = 2;
 }
 
+// Mutation is responsible for setting value to a `AssociatedDataSchema.description`
+// in `EntitySchema`.
+// Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
 message GrpcModifyAssociatedDataSchemaDescriptionMutation {
+  // Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+  // within single entity instance.
   string name = 1;
+  // Contains description of the model is optional but helps authors of the schema / client API to better
+  // explain the original purpose of the model to the consumers.
   google.protobuf.StringValue description = 2;
 }
 
+// Mutation is responsible for renaming an existing `AssociatedDataSchema` in `EntitySchema`.
+// Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
 message GrpcModifyAssociatedDataSchemaNameMutation {
+  // Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+  // within single entity instance.
   string name = 1;
+  // Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+  // within single entity instance.
   string newName = 2;
 }
 
+// Mutation is responsible for setting value to a `AssociatedDataSchema.type` in `EntitySchema`.
+// Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
 message GrpcModifyAssociatedDataSchemaTypeMutation {
+  // Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+  // within single entity instance.
   string name = 1;
+  // Contains the data type of the entity. Must be one of supported types or may
+  // represent complex type - which is JSON object that can be automatically converted
+  // to the set of basic types.
   GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 2;
 }
 
+// Mutation is responsible for removing an existing `AssociatedDataSchema` in the `EntitySchema`.
+// Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
 message GrpcRemoveAssociatedDataSchemaMutation {
+  // Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+  // within single entity instance.
   string name = 1;
 }
 
+// Mutation is responsible for setting value to a `AssociatedDataSchema.localized` in `EntitySchema`.
+// Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
 message GrpcSetAssociatedDataSchemaLocalizedMutation {
+  // Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+  // within single entity instance.
   string name = 1;
+  // Localized associated data has to be ALWAYS used in connection with specific `locale`. In other
+  // words - it cannot be stored unless associated locale is also provided.
   bool localized = 2;
 }
 
+// Mutation is responsible for setting value to a `AssociatedDataSchema.nullable` in `EntitySchema`.
+// Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
 message GrpcSetAssociatedDataSchemaNullableMutation {
+  // Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+  // within single entity instance.
   string name = 1;
+  // When associated data is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+  // non-null checks upon upserting of the entity.
   bool nullable = 2;
 }

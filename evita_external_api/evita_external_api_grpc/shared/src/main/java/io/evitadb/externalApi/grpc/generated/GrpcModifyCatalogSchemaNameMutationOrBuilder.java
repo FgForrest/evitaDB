@@ -31,11 +31,19 @@ public interface GrpcModifyCatalogSchemaNameMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the catalog schema the mutation is targeting (will rename).
+   * </pre>
+   *
    * <code>string catalogName = 1;</code>
    * @return The catalogName.
    */
   java.lang.String getCatalogName();
   /**
+   * <pre>
+   * Name of the catalog schema the mutation is targeting (will rename).
+   * </pre>
+   *
    * <code>string catalogName = 1;</code>
    * @return The bytes for catalogName.
    */
@@ -43,11 +51,19 @@ public interface GrpcModifyCatalogSchemaNameMutationOrBuilder extends
       getCatalogNameBytes();
 
   /**
+   * <pre>
+   * The new name of the catalog schema.
+   * </pre>
+   *
    * <code>string newCatalogName = 2;</code>
    * @return The newCatalogName.
    */
   java.lang.String getNewCatalogName();
   /**
+   * <pre>
+   * The new name of the catalog schema.
+   * </pre>
+   *
    * <code>string newCatalogName = 2;</code>
    * @return The bytes for newCatalogName.
    */
@@ -55,6 +71,10 @@ public interface GrpcModifyCatalogSchemaNameMutationOrBuilder extends
       getNewCatalogNameBytes();
 
   /**
+   * <pre>
+   * Flag indicating whether to replace the existing catalog or just to rename it.
+   * </pre>
+   *
    * <code>bool overwriteTarget = 3;</code>
    * @return The overwriteTarget.
    */

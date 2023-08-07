@@ -31,31 +31,55 @@ public interface GrpcUpsertEntityResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The upserted entity reference.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
    * @return Whether the entityReference field is set.
    */
   boolean hasEntityReference();
   /**
+   * <pre>
+   * The upserted entity reference.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
    * @return The entityReference.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityReference getEntityReference();
   /**
+   * <pre>
+   * The upserted entity reference.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder getEntityReferenceOrBuilder();
 
   /**
+   * <pre>
+   * The upserted entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
    * @return Whether the entity field is set.
    */
   boolean hasEntity();
   /**
+   * <pre>
+   * The upserted entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
    * @return The entity.
    */
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getEntity();
   /**
+   * <pre>
+   * The upserted entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getEntityOrBuilder();

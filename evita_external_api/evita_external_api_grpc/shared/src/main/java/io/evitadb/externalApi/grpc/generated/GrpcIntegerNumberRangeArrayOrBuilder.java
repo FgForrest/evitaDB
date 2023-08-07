@@ -31,24 +31,44 @@ public interface GrpcIntegerNumberRangeArrayOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Value that supports storing an IntegerNumberRange array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange> 
       getValueList();
   /**
+   * <pre>
+   * Value that supports storing an IntegerNumberRange array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange getValue(int index);
   /**
+   * <pre>
+   * Value that supports storing an IntegerNumberRange array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
    */
   int getValueCount();
   /**
+   * <pre>
+   * Value that supports storing an IntegerNumberRange array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder> 
       getValueOrBuilderList();
   /**
+   * <pre>
+   * Value that supports storing an IntegerNumberRange array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder getValueOrBuilder(
