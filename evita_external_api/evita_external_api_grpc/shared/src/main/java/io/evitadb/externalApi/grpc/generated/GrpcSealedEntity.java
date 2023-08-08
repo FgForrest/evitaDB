@@ -27,6 +27,12 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Based on our experience we've designed following data model for handling entities in evitaDB. Model is rather complex
+ * but was designed to limit amount of data fetched from database and minimize an amount of data that are indexed and subject
+ * to search.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSealedEntity}
  */
 public final class GrpcSealedEntity extends
@@ -297,6 +303,12 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITYTYPE_FIELD_NUMBER = 1;
   private volatile java.lang.Object entityType_;
   /**
+   * <pre>
+   * Type of entity.
+   * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+   * entity type entity is uniquely represented by primary key.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The entityType.
    */
@@ -314,6 +326,12 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Type of entity.
+   * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+   * entity type entity is uniquely represented by primary key.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The bytes for entityType.
    */
@@ -335,6 +353,11 @@ private static final long serialVersionUID = 0L;
   public static final int PRIMARYKEY_FIELD_NUMBER = 2;
   private int primaryKey_;
   /**
+   * <pre>
+   * Unique Integer positive number representing the entity. Can be used for fast lookup for
+   * entity (entities). Primary key must be unique within the same entity type.
+   * </pre>
+   *
    * <code>int32 primaryKey = 2;</code>
    * @return The primaryKey.
    */
@@ -346,6 +369,11 @@ private static final long serialVersionUID = 0L;
   public static final int VERSION_FIELD_NUMBER = 3;
   private int version_;
   /**
+   * <pre>
+   * Contains version of this entity and gets increased with any entity type update. Allows to execute
+   * optimistic locking i.e. avoiding parallel modifications.
+   * </pre>
+   *
    * <code>int32 version = 3;</code>
    * @return The version.
    */
@@ -357,6 +385,11 @@ private static final long serialVersionUID = 0L;
   public static final int SCHEMAVERSION_FIELD_NUMBER = 4;
   private int schemaVersion_;
   /**
+   * <pre>
+   * Contains version of this entity schema and gets increased with any entity type update. Allows to execute
+   * optimistic locking i.e. avoiding parallel modifications.
+   * </pre>
+   *
    * <code>int32 schemaVersion = 4;</code>
    * @return The schemaVersion.
    */
@@ -368,6 +401,10 @@ private static final long serialVersionUID = 0L;
   public static final int PARENT_FIELD_NUMBER = 5;
   private com.google.protobuf.Int32Value parent_;
   /**
+   * <pre>
+   * Primary key of parent entity.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value parent = 5;</code>
    * @return Whether the parent field is set.
    */
@@ -376,6 +413,10 @@ private static final long serialVersionUID = 0L;
     return parent_ != null;
   }
   /**
+   * <pre>
+   * Primary key of parent entity.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value parent = 5;</code>
    * @return The parent.
    */
@@ -384,6 +425,10 @@ private static final long serialVersionUID = 0L;
     return parent_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : parent_;
   }
   /**
+   * <pre>
+   * Primary key of parent entity.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value parent = 5;</code>
    */
   @java.lang.Override
@@ -394,6 +439,10 @@ private static final long serialVersionUID = 0L;
   public static final int PARENTREFERENCE_FIELD_NUMBER = 6;
   private io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parentReference_;
   /**
+   * <pre>
+   * A parent entity reference with its parent hierarchy chain.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parentReference = 6;</code>
    * @return Whether the parentReference field is set.
    */
@@ -402,6 +451,10 @@ private static final long serialVersionUID = 0L;
     return parentReference_ != null;
   }
   /**
+   * <pre>
+   * A parent entity reference with its parent hierarchy chain.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parentReference = 6;</code>
    * @return The parentReference.
    */
@@ -410,6 +463,10 @@ private static final long serialVersionUID = 0L;
     return parentReference_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent.getDefaultInstance() : parentReference_;
   }
   /**
+   * <pre>
+   * A parent entity reference with its parent hierarchy chain.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parentReference = 6;</code>
    */
   @java.lang.Override
@@ -420,6 +477,10 @@ private static final long serialVersionUID = 0L;
   public static final int PARENTENTITY_FIELD_NUMBER = 7;
   private io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity_;
   /**
+   * <pre>
+   * A parent entity with its parent hierarchy chain.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
    * @return Whether the parentEntity field is set.
    */
@@ -428,6 +489,10 @@ private static final long serialVersionUID = 0L;
     return parentEntity_ != null;
   }
   /**
+   * <pre>
+   * A parent entity with its parent hierarchy chain.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
    * @return The parentEntity.
    */
@@ -436,6 +501,10 @@ private static final long serialVersionUID = 0L;
     return parentEntity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : parentEntity_;
   }
   /**
+   * <pre>
+   * A parent entity with its parent hierarchy chain.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
    */
   @java.lang.Override
@@ -470,6 +539,10 @@ private static final long serialVersionUID = 0L;
     return internalGetGlobalAttributes().getMap().size();
   }
   /**
+   * <pre>
+   * Contains global attributes.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
    */
 
@@ -488,6 +561,10 @@ private static final long serialVersionUID = 0L;
     return getGlobalAttributesMap();
   }
   /**
+   * <pre>
+   * Contains global attributes.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
    */
   @java.lang.Override
@@ -496,6 +573,10 @@ private static final long serialVersionUID = 0L;
     return internalGetGlobalAttributes().getMap();
   }
   /**
+   * <pre>
+   * Contains global attributes.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
    */
   @java.lang.Override
@@ -509,6 +590,10 @@ private static final long serialVersionUID = 0L;
     return map.containsKey(key) ? map.get(key) : defaultValue;
   }
   /**
+   * <pre>
+   * Contains global attributes.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
    */
   @java.lang.Override
@@ -551,6 +636,10 @@ private static final long serialVersionUID = 0L;
     return internalGetLocalizedAttributes().getMap().size();
   }
   /**
+   * <pre>
+   * Contains localized attributes.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
    */
 
@@ -569,6 +658,10 @@ private static final long serialVersionUID = 0L;
     return getLocalizedAttributesMap();
   }
   /**
+   * <pre>
+   * Contains localized attributes.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
    */
   @java.lang.Override
@@ -577,6 +670,10 @@ private static final long serialVersionUID = 0L;
     return internalGetLocalizedAttributes().getMap();
   }
   /**
+   * <pre>
+   * Contains localized attributes.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
    */
   @java.lang.Override
@@ -590,6 +687,10 @@ private static final long serialVersionUID = 0L;
     return map.containsKey(key) ? map.get(key) : defaultValue;
   }
   /**
+   * <pre>
+   * Contains localized attributes.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
    */
   @java.lang.Override
@@ -608,6 +709,10 @@ private static final long serialVersionUID = 0L;
   public static final int PRICES_FIELD_NUMBER = 10;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcPrice> prices_;
   /**
+   * <pre>
+   * Prices allows defining set of prices of entity for complex filtering and ordering.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
    */
   @java.lang.Override
@@ -615,6 +720,10 @@ private static final long serialVersionUID = 0L;
     return prices_;
   }
   /**
+   * <pre>
+   * Prices allows defining set of prices of entity for complex filtering and ordering.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
    */
   @java.lang.Override
@@ -623,6 +732,10 @@ private static final long serialVersionUID = 0L;
     return prices_;
   }
   /**
+   * <pre>
+   * Prices allows defining set of prices of entity for complex filtering and ordering.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
    */
   @java.lang.Override
@@ -630,6 +743,10 @@ private static final long serialVersionUID = 0L;
     return prices_.size();
   }
   /**
+   * <pre>
+   * Prices allows defining set of prices of entity for complex filtering and ordering.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
    */
   @java.lang.Override
@@ -637,6 +754,10 @@ private static final long serialVersionUID = 0L;
     return prices_.get(index);
   }
   /**
+   * <pre>
+   * Prices allows defining set of prices of entity for complex filtering and ordering.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
    */
   @java.lang.Override
@@ -648,6 +769,12 @@ private static final long serialVersionUID = 0L;
   public static final int PRICEFORSALE_FIELD_NUMBER = 11;
   private io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale_;
   /**
+   * <pre>
+   * Price for which the entity should be sold. This method can be used only when appropriate
+   * price related constraints are present so that `currency` and `priceList` priority can be extracted from the query.
+   * The moment is either extracted from the query as well (if present) or current date and time is used.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
    * @return Whether the priceForSale field is set.
    */
@@ -656,6 +783,12 @@ private static final long serialVersionUID = 0L;
     return priceForSale_ != null;
   }
   /**
+   * <pre>
+   * Price for which the entity should be sold. This method can be used only when appropriate
+   * price related constraints are present so that `currency` and `priceList` priority can be extracted from the query.
+   * The moment is either extracted from the query as well (if present) or current date and time is used.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
    * @return The priceForSale.
    */
@@ -664,6 +797,12 @@ private static final long serialVersionUID = 0L;
     return priceForSale_ == null ? io.evitadb.externalApi.grpc.generated.GrpcPrice.getDefaultInstance() : priceForSale_;
   }
   /**
+   * <pre>
+   * Price for which the entity should be sold. This method can be used only when appropriate
+   * price related constraints are present so that `currency` and `priceList` priority can be extracted from the query.
+   * The moment is either extracted from the query as well (if present) or current date and time is used.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
    */
   @java.lang.Override
@@ -674,6 +813,10 @@ private static final long serialVersionUID = 0L;
   public static final int PRICEINNERRECORDHANDLING_FIELD_NUMBER = 12;
   private int priceInnerRecordHandling_;
   /**
+   * <pre>
+   * Price inner record handling controls how prices that share same `inner entity id` will behave during filtering and sorting.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 12;</code>
    * @return The enum numeric value on the wire for priceInnerRecordHandling.
    */
@@ -681,6 +824,10 @@ private static final long serialVersionUID = 0L;
     return priceInnerRecordHandling_;
   }
   /**
+   * <pre>
+   * Price inner record handling controls how prices that share same `inner entity id` will behave during filtering and sorting.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 12;</code>
    * @return The priceInnerRecordHandling.
    */
@@ -693,6 +840,11 @@ private static final long serialVersionUID = 0L;
   public static final int REFERENCES_FIELD_NUMBER = 13;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReference> references_;
   /**
+   * <pre>
+   * Returns a collection of References of this entity. The references represent relations to other evitaDB
+   * entities or external entities in different systems.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
    */
   @java.lang.Override
@@ -700,6 +852,11 @@ private static final long serialVersionUID = 0L;
     return references_;
   }
   /**
+   * <pre>
+   * Returns a collection of References of this entity. The references represent relations to other evitaDB
+   * entities or external entities in different systems.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
    */
   @java.lang.Override
@@ -708,6 +865,11 @@ private static final long serialVersionUID = 0L;
     return references_;
   }
   /**
+   * <pre>
+   * Returns a collection of References of this entity. The references represent relations to other evitaDB
+   * entities or external entities in different systems.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
    */
   @java.lang.Override
@@ -715,6 +877,11 @@ private static final long serialVersionUID = 0L;
     return references_.size();
   }
   /**
+   * <pre>
+   * Returns a collection of References of this entity. The references represent relations to other evitaDB
+   * entities or external entities in different systems.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
    */
   @java.lang.Override
@@ -722,6 +889,11 @@ private static final long serialVersionUID = 0L;
     return references_.get(index);
   }
   /**
+   * <pre>
+   * Returns a collection of References of this entity. The references represent relations to other evitaDB
+   * entities or external entities in different systems.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
    */
   @java.lang.Override
@@ -757,6 +929,10 @@ private static final long serialVersionUID = 0L;
     return internalGetGlobalAssociatedData().getMap().size();
   }
   /**
+   * <pre>
+   * Contains global associated data.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
    */
 
@@ -775,6 +951,10 @@ private static final long serialVersionUID = 0L;
     return getGlobalAssociatedDataMap();
   }
   /**
+   * <pre>
+   * Contains global associated data.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
    */
   @java.lang.Override
@@ -783,6 +963,10 @@ private static final long serialVersionUID = 0L;
     return internalGetGlobalAssociatedData().getMap();
   }
   /**
+   * <pre>
+   * Contains global associated data.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
    */
   @java.lang.Override
@@ -796,6 +980,10 @@ private static final long serialVersionUID = 0L;
     return map.containsKey(key) ? map.get(key) : defaultValue;
   }
   /**
+   * <pre>
+   * Contains global associated data.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
    */
   @java.lang.Override
@@ -838,6 +1026,10 @@ private static final long serialVersionUID = 0L;
     return internalGetLocalizedAssociatedData().getMap().size();
   }
   /**
+   * <pre>
+   * Contains localized associated data.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
    */
 
@@ -856,6 +1048,10 @@ private static final long serialVersionUID = 0L;
     return getLocalizedAssociatedDataMap();
   }
   /**
+   * <pre>
+   * Contains localized associated data.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
    */
   @java.lang.Override
@@ -864,6 +1060,10 @@ private static final long serialVersionUID = 0L;
     return internalGetLocalizedAssociatedData().getMap();
   }
   /**
+   * <pre>
+   * Contains localized associated data.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
    */
   @java.lang.Override
@@ -877,6 +1077,10 @@ private static final long serialVersionUID = 0L;
     return map.containsKey(key) ? map.get(key) : defaultValue;
   }
   /**
+   * <pre>
+   * Contains localized associated data.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
    */
   @java.lang.Override
@@ -895,6 +1099,11 @@ private static final long serialVersionUID = 0L;
   public static final int LOCALES_FIELD_NUMBER = 16;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale> locales_;
   /**
+   * <pre>
+   * Contains set of all locales that were used for localized attributes or associated data of
+   * this particular entity.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
    */
   @java.lang.Override
@@ -902,6 +1111,11 @@ private static final long serialVersionUID = 0L;
     return locales_;
   }
   /**
+   * <pre>
+   * Contains set of all locales that were used for localized attributes or associated data of
+   * this particular entity.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
    */
   @java.lang.Override
@@ -910,6 +1124,11 @@ private static final long serialVersionUID = 0L;
     return locales_;
   }
   /**
+   * <pre>
+   * Contains set of all locales that were used for localized attributes or associated data of
+   * this particular entity.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
    */
   @java.lang.Override
@@ -917,6 +1136,11 @@ private static final long serialVersionUID = 0L;
     return locales_.size();
   }
   /**
+   * <pre>
+   * Contains set of all locales that were used for localized attributes or associated data of
+   * this particular entity.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
    */
   @java.lang.Override
@@ -924,6 +1148,11 @@ private static final long serialVersionUID = 0L;
     return locales_.get(index);
   }
   /**
+   * <pre>
+   * Contains set of all locales that were used for localized attributes or associated data of
+   * this particular entity.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
    */
   @java.lang.Override
@@ -1321,6 +1550,12 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Based on our experience we've designed following data model for handling entities in evitaDB. Model is rather complex
+   * but was designed to limit amount of data fetched from database and minimize an amount of data that are indexed and subject
+   * to search.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSealedEntity}
    */
   public static final class Builder extends
@@ -1732,6 +1967,12 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object entityType_ = "";
     /**
+     * <pre>
+     * Type of entity.
+     * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+     * entity type entity is uniquely represented by primary key.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @return The entityType.
      */
@@ -1748,6 +1989,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Type of entity.
+     * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+     * entity type entity is uniquely represented by primary key.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @return The bytes for entityType.
      */
@@ -1765,6 +2012,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Type of entity.
+     * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+     * entity type entity is uniquely represented by primary key.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @param value The entityType to set.
      * @return This builder for chaining.
@@ -1780,6 +2033,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Type of entity.
+     * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+     * entity type entity is uniquely represented by primary key.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @return This builder for chaining.
      */
@@ -1790,6 +2049,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Type of entity.
+     * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+     * entity type entity is uniquely represented by primary key.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @param value The bytes for entityType to set.
      * @return This builder for chaining.
@@ -1808,6 +2073,11 @@ private static final long serialVersionUID = 0L;
 
     private int primaryKey_ ;
     /**
+     * <pre>
+     * Unique Integer positive number representing the entity. Can be used for fast lookup for
+     * entity (entities). Primary key must be unique within the same entity type.
+     * </pre>
+     *
      * <code>int32 primaryKey = 2;</code>
      * @return The primaryKey.
      */
@@ -1816,6 +2086,11 @@ private static final long serialVersionUID = 0L;
       return primaryKey_;
     }
     /**
+     * <pre>
+     * Unique Integer positive number representing the entity. Can be used for fast lookup for
+     * entity (entities). Primary key must be unique within the same entity type.
+     * </pre>
+     *
      * <code>int32 primaryKey = 2;</code>
      * @param value The primaryKey to set.
      * @return This builder for chaining.
@@ -1827,6 +2102,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Unique Integer positive number representing the entity. Can be used for fast lookup for
+     * entity (entities). Primary key must be unique within the same entity type.
+     * </pre>
+     *
      * <code>int32 primaryKey = 2;</code>
      * @return This builder for chaining.
      */
@@ -1839,6 +2119,11 @@ private static final long serialVersionUID = 0L;
 
     private int version_ ;
     /**
+     * <pre>
+     * Contains version of this entity and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
      * <code>int32 version = 3;</code>
      * @return The version.
      */
@@ -1847,6 +2132,11 @@ private static final long serialVersionUID = 0L;
       return version_;
     }
     /**
+     * <pre>
+     * Contains version of this entity and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
      * <code>int32 version = 3;</code>
      * @param value The version to set.
      * @return This builder for chaining.
@@ -1858,6 +2148,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains version of this entity and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
      * <code>int32 version = 3;</code>
      * @return This builder for chaining.
      */
@@ -1870,6 +2165,11 @@ private static final long serialVersionUID = 0L;
 
     private int schemaVersion_ ;
     /**
+     * <pre>
+     * Contains version of this entity schema and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
      * <code>int32 schemaVersion = 4;</code>
      * @return The schemaVersion.
      */
@@ -1878,6 +2178,11 @@ private static final long serialVersionUID = 0L;
       return schemaVersion_;
     }
     /**
+     * <pre>
+     * Contains version of this entity schema and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
      * <code>int32 schemaVersion = 4;</code>
      * @param value The schemaVersion to set.
      * @return This builder for chaining.
@@ -1889,6 +2194,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains version of this entity schema and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
      * <code>int32 schemaVersion = 4;</code>
      * @return This builder for chaining.
      */
@@ -1903,6 +2213,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> parentBuilder_;
     /**
+     * <pre>
+     * Primary key of parent entity.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value parent = 5;</code>
      * @return Whether the parent field is set.
      */
@@ -1910,6 +2224,10 @@ private static final long serialVersionUID = 0L;
       return parentBuilder_ != null || parent_ != null;
     }
     /**
+     * <pre>
+     * Primary key of parent entity.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value parent = 5;</code>
      * @return The parent.
      */
@@ -1921,6 +2239,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Primary key of parent entity.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value parent = 5;</code>
      */
     public Builder setParent(com.google.protobuf.Int32Value value) {
@@ -1937,6 +2259,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Primary key of parent entity.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value parent = 5;</code>
      */
     public Builder setParent(
@@ -1951,6 +2277,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Primary key of parent entity.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value parent = 5;</code>
      */
     public Builder mergeParent(com.google.protobuf.Int32Value value) {
@@ -1969,6 +2299,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Primary key of parent entity.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value parent = 5;</code>
      */
     public Builder clearParent() {
@@ -1983,6 +2317,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Primary key of parent entity.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value parent = 5;</code>
      */
     public com.google.protobuf.Int32Value.Builder getParentBuilder() {
@@ -1991,6 +2329,10 @@ private static final long serialVersionUID = 0L;
       return getParentFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Primary key of parent entity.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value parent = 5;</code>
      */
     public com.google.protobuf.Int32ValueOrBuilder getParentOrBuilder() {
@@ -2002,6 +2344,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Primary key of parent entity.
+     * </pre>
+     *
      * <code>.google.protobuf.Int32Value parent = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -2022,6 +2368,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParentOrBuilder> parentReferenceBuilder_;
     /**
+     * <pre>
+     * A parent entity reference with its parent hierarchy chain.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parentReference = 6;</code>
      * @return Whether the parentReference field is set.
      */
@@ -2029,6 +2379,10 @@ private static final long serialVersionUID = 0L;
       return parentReferenceBuilder_ != null || parentReference_ != null;
     }
     /**
+     * <pre>
+     * A parent entity reference with its parent hierarchy chain.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parentReference = 6;</code>
      * @return The parentReference.
      */
@@ -2040,6 +2394,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * A parent entity reference with its parent hierarchy chain.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parentReference = 6;</code>
      */
     public Builder setParentReference(io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent value) {
@@ -2056,6 +2414,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * A parent entity reference with its parent hierarchy chain.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parentReference = 6;</code>
      */
     public Builder setParentReference(
@@ -2070,6 +2432,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * A parent entity reference with its parent hierarchy chain.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parentReference = 6;</code>
      */
     public Builder mergeParentReference(io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent value) {
@@ -2088,6 +2454,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * A parent entity reference with its parent hierarchy chain.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parentReference = 6;</code>
      */
     public Builder clearParentReference() {
@@ -2102,6 +2472,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * A parent entity reference with its parent hierarchy chain.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parentReference = 6;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent.Builder getParentReferenceBuilder() {
@@ -2110,6 +2484,10 @@ private static final long serialVersionUID = 0L;
       return getParentReferenceFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * A parent entity reference with its parent hierarchy chain.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parentReference = 6;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParentOrBuilder getParentReferenceOrBuilder() {
@@ -2121,6 +2499,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * A parent entity reference with its parent hierarchy chain.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parentReference = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -2141,6 +2523,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> parentEntityBuilder_;
     /**
+     * <pre>
+     * A parent entity with its parent hierarchy chain.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
      * @return Whether the parentEntity field is set.
      */
@@ -2148,6 +2534,10 @@ private static final long serialVersionUID = 0L;
       return parentEntityBuilder_ != null || parentEntity_ != null;
     }
     /**
+     * <pre>
+     * A parent entity with its parent hierarchy chain.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
      * @return The parentEntity.
      */
@@ -2159,6 +2549,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * A parent entity with its parent hierarchy chain.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
      */
     public Builder setParentEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
@@ -2175,6 +2569,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * A parent entity with its parent hierarchy chain.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
      */
     public Builder setParentEntity(
@@ -2189,6 +2587,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * A parent entity with its parent hierarchy chain.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
      */
     public Builder mergeParentEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
@@ -2207,6 +2609,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * A parent entity with its parent hierarchy chain.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
      */
     public Builder clearParentEntity() {
@@ -2221,6 +2627,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * A parent entity with its parent hierarchy chain.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder getParentEntityBuilder() {
@@ -2229,6 +2639,10 @@ private static final long serialVersionUID = 0L;
       return getParentEntityFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * A parent entity with its parent hierarchy chain.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getParentEntityOrBuilder() {
@@ -2240,6 +2654,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * A parent entity with its parent hierarchy chain.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -2283,6 +2701,10 @@ private static final long serialVersionUID = 0L;
       return internalGetGlobalAttributes().getMap().size();
     }
     /**
+     * <pre>
+     * Contains global attributes.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
      */
 
@@ -2301,6 +2723,10 @@ private static final long serialVersionUID = 0L;
       return getGlobalAttributesMap();
     }
     /**
+     * <pre>
+     * Contains global attributes.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
      */
     @java.lang.Override
@@ -2309,6 +2735,10 @@ private static final long serialVersionUID = 0L;
       return internalGetGlobalAttributes().getMap();
     }
     /**
+     * <pre>
+     * Contains global attributes.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
      */
     @java.lang.Override
@@ -2322,6 +2752,10 @@ private static final long serialVersionUID = 0L;
       return map.containsKey(key) ? map.get(key) : defaultValue;
     }
     /**
+     * <pre>
+     * Contains global attributes.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
      */
     @java.lang.Override
@@ -2343,6 +2777,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains global attributes.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
      */
 
@@ -2362,6 +2800,10 @@ private static final long serialVersionUID = 0L;
       return internalGetMutableGlobalAttributes().getMutableMap();
     }
     /**
+     * <pre>
+     * Contains global attributes.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
      */
     public Builder putGlobalAttributes(
@@ -2377,6 +2819,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains global attributes.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
      */
 
@@ -2414,6 +2860,10 @@ private static final long serialVersionUID = 0L;
       return internalGetLocalizedAttributes().getMap().size();
     }
     /**
+     * <pre>
+     * Contains localized attributes.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
      */
 
@@ -2432,6 +2882,10 @@ private static final long serialVersionUID = 0L;
       return getLocalizedAttributesMap();
     }
     /**
+     * <pre>
+     * Contains localized attributes.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
      */
     @java.lang.Override
@@ -2440,6 +2894,10 @@ private static final long serialVersionUID = 0L;
       return internalGetLocalizedAttributes().getMap();
     }
     /**
+     * <pre>
+     * Contains localized attributes.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
      */
     @java.lang.Override
@@ -2453,6 +2911,10 @@ private static final long serialVersionUID = 0L;
       return map.containsKey(key) ? map.get(key) : defaultValue;
     }
     /**
+     * <pre>
+     * Contains localized attributes.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
      */
     @java.lang.Override
@@ -2474,6 +2936,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains localized attributes.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
      */
 
@@ -2493,6 +2959,10 @@ private static final long serialVersionUID = 0L;
       return internalGetMutableLocalizedAttributes().getMutableMap();
     }
     /**
+     * <pre>
+     * Contains localized attributes.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
      */
     public Builder putLocalizedAttributes(
@@ -2508,6 +2978,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains localized attributes.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
      */
 
@@ -2531,6 +3005,10 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcPrice, io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> pricesBuilder_;
 
     /**
+     * <pre>
+     * Prices allows defining set of prices of entity for complex filtering and ordering.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcPrice> getPricesList() {
@@ -2541,6 +3019,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Prices allows defining set of prices of entity for complex filtering and ordering.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public int getPricesCount() {
@@ -2551,6 +3033,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Prices allows defining set of prices of entity for complex filtering and ordering.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcPrice getPrices(int index) {
@@ -2561,6 +3047,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Prices allows defining set of prices of entity for complex filtering and ordering.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public Builder setPrices(
@@ -2578,6 +3068,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Prices allows defining set of prices of entity for complex filtering and ordering.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public Builder setPrices(
@@ -2592,6 +3086,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Prices allows defining set of prices of entity for complex filtering and ordering.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public Builder addPrices(io.evitadb.externalApi.grpc.generated.GrpcPrice value) {
@@ -2608,6 +3106,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Prices allows defining set of prices of entity for complex filtering and ordering.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public Builder addPrices(
@@ -2625,6 +3127,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Prices allows defining set of prices of entity for complex filtering and ordering.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public Builder addPrices(
@@ -2639,6 +3145,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Prices allows defining set of prices of entity for complex filtering and ordering.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public Builder addPrices(
@@ -2653,6 +3163,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Prices allows defining set of prices of entity for complex filtering and ordering.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public Builder addAllPrices(
@@ -2668,6 +3182,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Prices allows defining set of prices of entity for complex filtering and ordering.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public Builder clearPrices() {
@@ -2681,6 +3199,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Prices allows defining set of prices of entity for complex filtering and ordering.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public Builder removePrices(int index) {
@@ -2694,6 +3216,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Prices allows defining set of prices of entity for complex filtering and ordering.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder getPricesBuilder(
@@ -2701,6 +3227,10 @@ private static final long serialVersionUID = 0L;
       return getPricesFieldBuilder().getBuilder(index);
     }
     /**
+     * <pre>
+     * Prices allows defining set of prices of entity for complex filtering and ordering.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder getPricesOrBuilder(
@@ -2711,6 +3241,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Prices allows defining set of prices of entity for complex filtering and ordering.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> 
@@ -2722,6 +3256,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Prices allows defining set of prices of entity for complex filtering and ordering.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder addPricesBuilder() {
@@ -2729,6 +3267,10 @@ private static final long serialVersionUID = 0L;
           io.evitadb.externalApi.grpc.generated.GrpcPrice.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Prices allows defining set of prices of entity for complex filtering and ordering.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder addPricesBuilder(
@@ -2737,6 +3279,10 @@ private static final long serialVersionUID = 0L;
           index, io.evitadb.externalApi.grpc.generated.GrpcPrice.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Prices allows defining set of prices of entity for complex filtering and ordering.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder> 
@@ -2762,6 +3308,12 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcPrice, io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> priceForSaleBuilder_;
     /**
+     * <pre>
+     * Price for which the entity should be sold. This method can be used only when appropriate
+     * price related constraints are present so that `currency` and `priceList` priority can be extracted from the query.
+     * The moment is either extracted from the query as well (if present) or current date and time is used.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
      * @return Whether the priceForSale field is set.
      */
@@ -2769,6 +3321,12 @@ private static final long serialVersionUID = 0L;
       return priceForSaleBuilder_ != null || priceForSale_ != null;
     }
     /**
+     * <pre>
+     * Price for which the entity should be sold. This method can be used only when appropriate
+     * price related constraints are present so that `currency` and `priceList` priority can be extracted from the query.
+     * The moment is either extracted from the query as well (if present) or current date and time is used.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
      * @return The priceForSale.
      */
@@ -2780,6 +3338,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Price for which the entity should be sold. This method can be used only when appropriate
+     * price related constraints are present so that `currency` and `priceList` priority can be extracted from the query.
+     * The moment is either extracted from the query as well (if present) or current date and time is used.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
      */
     public Builder setPriceForSale(io.evitadb.externalApi.grpc.generated.GrpcPrice value) {
@@ -2796,6 +3360,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Price for which the entity should be sold. This method can be used only when appropriate
+     * price related constraints are present so that `currency` and `priceList` priority can be extracted from the query.
+     * The moment is either extracted from the query as well (if present) or current date and time is used.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
      */
     public Builder setPriceForSale(
@@ -2810,6 +3380,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Price for which the entity should be sold. This method can be used only when appropriate
+     * price related constraints are present so that `currency` and `priceList` priority can be extracted from the query.
+     * The moment is either extracted from the query as well (if present) or current date and time is used.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
      */
     public Builder mergePriceForSale(io.evitadb.externalApi.grpc.generated.GrpcPrice value) {
@@ -2828,6 +3404,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Price for which the entity should be sold. This method can be used only when appropriate
+     * price related constraints are present so that `currency` and `priceList` priority can be extracted from the query.
+     * The moment is either extracted from the query as well (if present) or current date and time is used.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
      */
     public Builder clearPriceForSale() {
@@ -2842,6 +3424,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Price for which the entity should be sold. This method can be used only when appropriate
+     * price related constraints are present so that `currency` and `priceList` priority can be extracted from the query.
+     * The moment is either extracted from the query as well (if present) or current date and time is used.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder getPriceForSaleBuilder() {
@@ -2850,6 +3438,12 @@ private static final long serialVersionUID = 0L;
       return getPriceForSaleFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Price for which the entity should be sold. This method can be used only when appropriate
+     * price related constraints are present so that `currency` and `priceList` priority can be extracted from the query.
+     * The moment is either extracted from the query as well (if present) or current date and time is used.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder getPriceForSaleOrBuilder() {
@@ -2861,6 +3455,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Price for which the entity should be sold. This method can be used only when appropriate
+     * price related constraints are present so that `currency` and `priceList` priority can be extracted from the query.
+     * The moment is either extracted from the query as well (if present) or current date and time is used.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -2879,6 +3479,10 @@ private static final long serialVersionUID = 0L;
 
     private int priceInnerRecordHandling_ = 0;
     /**
+     * <pre>
+     * Price inner record handling controls how prices that share same `inner entity id` will behave during filtering and sorting.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 12;</code>
      * @return The enum numeric value on the wire for priceInnerRecordHandling.
      */
@@ -2886,6 +3490,10 @@ private static final long serialVersionUID = 0L;
       return priceInnerRecordHandling_;
     }
     /**
+     * <pre>
+     * Price inner record handling controls how prices that share same `inner entity id` will behave during filtering and sorting.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 12;</code>
      * @param value The enum numeric value on the wire for priceInnerRecordHandling to set.
      * @return This builder for chaining.
@@ -2897,6 +3505,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Price inner record handling controls how prices that share same `inner entity id` will behave during filtering and sorting.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 12;</code>
      * @return The priceInnerRecordHandling.
      */
@@ -2907,6 +3519,10 @@ private static final long serialVersionUID = 0L;
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling.UNRECOGNIZED : result;
     }
     /**
+     * <pre>
+     * Price inner record handling controls how prices that share same `inner entity id` will behave during filtering and sorting.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 12;</code>
      * @param value The priceInnerRecordHandling to set.
      * @return This builder for chaining.
@@ -2921,6 +3537,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Price inner record handling controls how prices that share same `inner entity id` will behave during filtering and sorting.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 12;</code>
      * @return This builder for chaining.
      */
@@ -2944,6 +3564,11 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcReference, io.evitadb.externalApi.grpc.generated.GrpcReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder> referencesBuilder_;
 
     /**
+     * <pre>
+     * Returns a collection of References of this entity. The references represent relations to other evitaDB
+     * entities or external entities in different systems.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReference> getReferencesList() {
@@ -2954,6 +3579,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Returns a collection of References of this entity. The references represent relations to other evitaDB
+     * entities or external entities in different systems.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public int getReferencesCount() {
@@ -2964,6 +3594,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Returns a collection of References of this entity. The references represent relations to other evitaDB
+     * entities or external entities in different systems.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcReference getReferences(int index) {
@@ -2974,6 +3609,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Returns a collection of References of this entity. The references represent relations to other evitaDB
+     * entities or external entities in different systems.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public Builder setReferences(
@@ -2991,6 +3631,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns a collection of References of this entity. The references represent relations to other evitaDB
+     * entities or external entities in different systems.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public Builder setReferences(
@@ -3005,6 +3650,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns a collection of References of this entity. The references represent relations to other evitaDB
+     * entities or external entities in different systems.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public Builder addReferences(io.evitadb.externalApi.grpc.generated.GrpcReference value) {
@@ -3021,6 +3671,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns a collection of References of this entity. The references represent relations to other evitaDB
+     * entities or external entities in different systems.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public Builder addReferences(
@@ -3038,6 +3693,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns a collection of References of this entity. The references represent relations to other evitaDB
+     * entities or external entities in different systems.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public Builder addReferences(
@@ -3052,6 +3712,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns a collection of References of this entity. The references represent relations to other evitaDB
+     * entities or external entities in different systems.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public Builder addReferences(
@@ -3066,6 +3731,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns a collection of References of this entity. The references represent relations to other evitaDB
+     * entities or external entities in different systems.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public Builder addAllReferences(
@@ -3081,6 +3751,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns a collection of References of this entity. The references represent relations to other evitaDB
+     * entities or external entities in different systems.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public Builder clearReferences() {
@@ -3094,6 +3769,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns a collection of References of this entity. The references represent relations to other evitaDB
+     * entities or external entities in different systems.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public Builder removeReferences(int index) {
@@ -3107,6 +3787,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Returns a collection of References of this entity. The references represent relations to other evitaDB
+     * entities or external entities in different systems.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcReference.Builder getReferencesBuilder(
@@ -3114,6 +3799,11 @@ private static final long serialVersionUID = 0L;
       return getReferencesFieldBuilder().getBuilder(index);
     }
     /**
+     * <pre>
+     * Returns a collection of References of this entity. The references represent relations to other evitaDB
+     * entities or external entities in different systems.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder getReferencesOrBuilder(
@@ -3124,6 +3814,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Returns a collection of References of this entity. The references represent relations to other evitaDB
+     * entities or external entities in different systems.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder> 
@@ -3135,6 +3830,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Returns a collection of References of this entity. The references represent relations to other evitaDB
+     * entities or external entities in different systems.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcReference.Builder addReferencesBuilder() {
@@ -3142,6 +3842,11 @@ private static final long serialVersionUID = 0L;
           io.evitadb.externalApi.grpc.generated.GrpcReference.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Returns a collection of References of this entity. The references represent relations to other evitaDB
+     * entities or external entities in different systems.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcReference.Builder addReferencesBuilder(
@@ -3150,6 +3855,11 @@ private static final long serialVersionUID = 0L;
           index, io.evitadb.externalApi.grpc.generated.GrpcReference.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Returns a collection of References of this entity. The references represent relations to other evitaDB
+     * entities or external entities in different systems.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReference.Builder> 
@@ -3198,6 +3908,10 @@ private static final long serialVersionUID = 0L;
       return internalGetGlobalAssociatedData().getMap().size();
     }
     /**
+     * <pre>
+     * Contains global associated data.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
      */
 
@@ -3216,6 +3930,10 @@ private static final long serialVersionUID = 0L;
       return getGlobalAssociatedDataMap();
     }
     /**
+     * <pre>
+     * Contains global associated data.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
      */
     @java.lang.Override
@@ -3224,6 +3942,10 @@ private static final long serialVersionUID = 0L;
       return internalGetGlobalAssociatedData().getMap();
     }
     /**
+     * <pre>
+     * Contains global associated data.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
      */
     @java.lang.Override
@@ -3237,6 +3959,10 @@ private static final long serialVersionUID = 0L;
       return map.containsKey(key) ? map.get(key) : defaultValue;
     }
     /**
+     * <pre>
+     * Contains global associated data.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
      */
     @java.lang.Override
@@ -3258,6 +3984,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains global associated data.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
      */
 
@@ -3277,6 +4007,10 @@ private static final long serialVersionUID = 0L;
       return internalGetMutableGlobalAssociatedData().getMutableMap();
     }
     /**
+     * <pre>
+     * Contains global associated data.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
      */
     public Builder putGlobalAssociatedData(
@@ -3292,6 +4026,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains global associated data.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
      */
 
@@ -3329,6 +4067,10 @@ private static final long serialVersionUID = 0L;
       return internalGetLocalizedAssociatedData().getMap().size();
     }
     /**
+     * <pre>
+     * Contains localized associated data.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
      */
 
@@ -3347,6 +4089,10 @@ private static final long serialVersionUID = 0L;
       return getLocalizedAssociatedDataMap();
     }
     /**
+     * <pre>
+     * Contains localized associated data.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
      */
     @java.lang.Override
@@ -3355,6 +4101,10 @@ private static final long serialVersionUID = 0L;
       return internalGetLocalizedAssociatedData().getMap();
     }
     /**
+     * <pre>
+     * Contains localized associated data.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
      */
     @java.lang.Override
@@ -3368,6 +4118,10 @@ private static final long serialVersionUID = 0L;
       return map.containsKey(key) ? map.get(key) : defaultValue;
     }
     /**
+     * <pre>
+     * Contains localized associated data.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
      */
     @java.lang.Override
@@ -3389,6 +4143,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains localized associated data.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
      */
 
@@ -3408,6 +4166,10 @@ private static final long serialVersionUID = 0L;
       return internalGetMutableLocalizedAssociatedData().getMutableMap();
     }
     /**
+     * <pre>
+     * Contains localized associated data.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
      */
     public Builder putLocalizedAssociatedData(
@@ -3423,6 +4185,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains localized associated data.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
      */
 
@@ -3446,6 +4212,11 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> localesBuilder_;
 
     /**
+     * <pre>
+     * Contains set of all locales that were used for localized attributes or associated data of
+     * this particular entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale> getLocalesList() {
@@ -3456,6 +4227,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains set of all locales that were used for localized attributes or associated data of
+     * this particular entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public int getLocalesCount() {
@@ -3466,6 +4242,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains set of all locales that were used for localized attributes or associated data of
+     * this particular entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocale getLocales(int index) {
@@ -3476,6 +4257,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains set of all locales that were used for localized attributes or associated data of
+     * this particular entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public Builder setLocales(
@@ -3493,6 +4279,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains set of all locales that were used for localized attributes or associated data of
+     * this particular entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public Builder setLocales(
@@ -3507,6 +4298,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains set of all locales that were used for localized attributes or associated data of
+     * this particular entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public Builder addLocales(io.evitadb.externalApi.grpc.generated.GrpcLocale value) {
@@ -3523,6 +4319,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains set of all locales that were used for localized attributes or associated data of
+     * this particular entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public Builder addLocales(
@@ -3540,6 +4341,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains set of all locales that were used for localized attributes or associated data of
+     * this particular entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public Builder addLocales(
@@ -3554,6 +4360,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains set of all locales that were used for localized attributes or associated data of
+     * this particular entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public Builder addLocales(
@@ -3568,6 +4379,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains set of all locales that were used for localized attributes or associated data of
+     * this particular entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public Builder addAllLocales(
@@ -3583,6 +4399,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains set of all locales that were used for localized attributes or associated data of
+     * this particular entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public Builder clearLocales() {
@@ -3596,6 +4417,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains set of all locales that were used for localized attributes or associated data of
+     * this particular entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public Builder removeLocales(int index) {
@@ -3609,6 +4435,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains set of all locales that were used for localized attributes or associated data of
+     * this particular entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder getLocalesBuilder(
@@ -3616,6 +4447,11 @@ private static final long serialVersionUID = 0L;
       return getLocalesFieldBuilder().getBuilder(index);
     }
     /**
+     * <pre>
+     * Contains set of all locales that were used for localized attributes or associated data of
+     * this particular entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder getLocalesOrBuilder(
@@ -3626,6 +4462,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains set of all locales that were used for localized attributes or associated data of
+     * this particular entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
@@ -3637,6 +4478,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains set of all locales that were used for localized attributes or associated data of
+     * this particular entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder addLocalesBuilder() {
@@ -3644,6 +4490,11 @@ private static final long serialVersionUID = 0L;
           io.evitadb.externalApi.grpc.generated.GrpcLocale.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Contains set of all locales that were used for localized attributes or associated data of
+     * this particular entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder addLocalesBuilder(
@@ -3652,6 +4503,11 @@ private static final long serialVersionUID = 0L;
           index, io.evitadb.externalApi.grpc.generated.GrpcLocale.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Contains set of all locales that were used for localized attributes or associated data of
+     * this particular entity.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder> 

@@ -480,7 +480,8 @@ public class EntityConverter {
 	public static EntityReferenceWithParent toEntityReferenceWithParent(@Nonnull GrpcEntityReferenceWithParent entityReferenceWithParent) {
 		return new EntityReferenceWithParent(
 			entityReferenceWithParent.getEntityType(), entityReferenceWithParent.getPrimaryKey(),
-			toEntityReferenceWithParent(entityReferenceWithParent.getParent())
+			entityReferenceWithParent.hasParent() ?
+				toEntityReferenceWithParent(entityReferenceWithParent.getParent()) : null
 		);
 	}
 
@@ -723,7 +724,8 @@ public class EntityConverter {
 			this.entityIndex = grpcReference.stream()
 				.filter(GrpcReference::hasReferencedEntity)
 				.map(it -> {
-					final RequirementContext fetchCtx = evitaRequest.getReferenceEntityFetch().get(it.getReferenceName());
+					final RequirementContext fetchCtx = Optional.ofNullable(evitaRequest.getReferenceEntityFetch().get(it.getReferenceName()))
+						.orElse(evitaRequest.getDefaultReferenceRequirement());
 					final GrpcSealedEntity referencedEntity = it.getReferencedEntity();
 					final EvitaRequest referenceRequest = evitaRequest.deriveCopyWith(referencedEntity.getEntityType(), fetchCtx.entityFetch());
 					return toEntity(entitySchemaFetcher, referenceRequest, referencedEntity, SealedEntity.class);

@@ -52,9 +52,9 @@ message GrpcSealedEntity {
   int32 schemaVersion = 4;
   // Primary key of parent entity.
   google.protobuf.Int32Value parent = 5;
-  // A list of hierarchical tree of parent entity references.
+  // A parent entity reference with its parent hierarchy chain.
   GrpcEntityReferenceWithParent parentReference = 6;
-  // A list of hierarchical tree of parent entities.
+  // A parent entity with its parent hierarchy chain.
   GrpcSealedEntity parentEntity = 7;
   // Contains global attributes.
   map<string, GrpcEvitaValue> globalAttributes = 8;
