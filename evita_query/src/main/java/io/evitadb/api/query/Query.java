@@ -97,39 +97,39 @@ public class Query implements Serializable {
 		return new Query(null, filter, null, require);
 	}
 
-	public static Query query(@Nonnull Collection entityType) {
+	public static Query query(@Nullable Collection entityType) {
 		return new Query(entityType, null, null, null);
 	}
 
-	public static Query query(@Nonnull Collection entityType, @Nullable FilterBy filter) {
+	public static Query query(@Nullable Collection entityType, @Nullable FilterBy filter) {
 		return new Query(entityType, filter, null, null);
 	}
 
-	public static Query query(@Nonnull Collection entityType, @Nullable FilterBy filter, @Nullable OrderBy order) {
+	public static Query query(@Nullable Collection entityType, @Nullable FilterBy filter, @Nullable OrderBy order) {
 		return new Query(entityType, filter, order, null);
 	}
 
-	public static Query query(@Nonnull Collection entityType, @Nullable FilterBy filter, @Nullable OrderBy order, @Nullable Require require) {
+	public static Query query(@Nullable Collection entityType, @Nullable FilterBy filter, @Nullable OrderBy order, @Nullable Require require) {
 		return new Query(entityType, filter, order, require);
 	}
 
-	public static Query query(@Nonnull Collection entityType, @Nullable FilterBy filter, @Nullable Require require, @Nullable OrderBy order) {
+	public static Query query(@Nullable Collection entityType, @Nullable FilterBy filter, @Nullable Require require, @Nullable OrderBy order) {
 		return new Query(entityType, filter, order, require);
 	}
 
-	public static Query query(@Nonnull Collection entityType, @Nullable OrderBy order) {
+	public static Query query(@Nullable Collection entityType, @Nullable OrderBy order) {
 		return new Query(entityType, null, order, null);
 	}
 
-	public static Query query(@Nonnull Collection entityType, @Nullable OrderBy order, @Nullable Require require) {
+	public static Query query(@Nullable Collection entityType, @Nullable OrderBy order, @Nullable Require require) {
 		return new Query(entityType, null, order, require);
 	}
 
-	public static Query query(@Nonnull Collection entityType, @Nullable FilterBy filter, @Nullable Require require) {
+	public static Query query(@Nullable Collection entityType, @Nullable FilterBy filter, @Nullable Require require) {
 		return new Query(entityType, filter, null, require);
 	}
 
-	public static Query query(@Nonnull Collection entityType, @Nullable Require require) {
+	public static Query query(@Nullable Collection entityType, @Nullable Require require) {
 		return new Query(entityType, null, null, require);
 	}
 
