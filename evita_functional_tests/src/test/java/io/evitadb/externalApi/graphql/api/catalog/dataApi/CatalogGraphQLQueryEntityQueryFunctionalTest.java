@@ -30,6 +30,7 @@ import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -65,7 +66,6 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.builder.MapBuilder;
 import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.utils.StringUtils;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -1342,21 +1342,19 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return price for products outside of filter")
-	@Disabled("TODO LHO: should not return price for products outside of filter")
 	void shouldReturnPriceForProductsOutsideOfFilter(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
-		final var entities = findEntitiesWithPrices(originalProductEntities, 2, PRICE_LIST_BASIC, CURRENCY_CZK, CURRENCY_EUR);
-
-		final var expectedBody = createBasicPageResponse(
-			entities,
-			it -> createEntityDtoWithPrice(it, CURRENCY_USD, PRICE_LIST_BASIC)
+		final int pk = findEntityPk(
+			originalProductEntities,
+			it -> it.getPrices().stream().anyMatch(price -> price.priceList().equals(PRICE_LIST_BASIC) && price.currency().equals(CURRENCY_CZK)) &&
+				it.getPrices().stream().anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP) && price.currency().equals(CURRENCY_EUR))
 		);
 
-		queryEntities(
+		final SealedEntity entity = getEntity(
 			evita,
 			query(
 				collection(Entities.PRODUCT),
 				filterBy(
-					attributeInSet(ATTRIBUTE_CODE, null),
+					entityPrimaryKeyInSet(pk),
 					priceInCurrency(CURRENCY_CZK),
 					priceInPriceLists(PRICE_LIST_BASIC)
 				),
@@ -1365,8 +1363,11 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						priceContentAll()
 					)
 				)
-			)
+			),
+			SealedEntity.class
 		);
+		final Collection<PriceContract> vipPrices = entity.getPrices(CURRENCY_EUR, PRICE_LIST_VIP);
+		assertEquals(1, vipPrices.size());
 
 		tester.test(TEST_CATALOG)
 			.document(
@@ -1374,35 +1375,101 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                query {
 	                    queryProduct(
 	                        filterBy: {
-	                            attributeCodeInSet: ["%s", "%s"]
+	                            entityPrimaryKeyInSet: %d
 	                            priceInCurrency: CZK
 	                            priceInPriceLists: "basic"
 	                        }
                         ) {
-                            __typename
 	                        recordPage {
-	                            __typename
 	                            data {
-	                                primaryKey
-			                        type
-		                            price(currency: USD, priceList: "basic") {
-		                                __typename
-		                                currency
-		                                priceList
-		                                priceWithTax
+		                            price(currency: EUR, priceList: "vip") {
+		                                priceId
 		                            }
 	                            }
 	                        }
 	                    }
 	                }
 					""",
-				entities.get(0).getAttribute(ATTRIBUTE_CODE),
-				entities.get(1).getAttribute(ATTRIBUTE_CODE)
+				pk
 			)
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(PRODUCT_QUERY_PATH, equalTo(expectedBody));
+			.body(
+				resultPath(PRODUCT_QUERY_DATA_PATH, EntityDescriptor.PRICE),
+				equalTo(List.of(
+					map()
+						.e(PriceDescriptor.PRICE_ID.name(), vipPrices.iterator().next().priceId())
+						.build()
+				))
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return prices for products outside of filter")
+	void shouldReturnPricesForProductsOutsideOfFilter(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final int pk = findEntityPk(
+			originalProductEntities,
+			it -> it.getPrices().stream().anyMatch(price -> price.priceList().equals(PRICE_LIST_BASIC) && price.currency().equals(CURRENCY_CZK)) &&
+				it.getPrices().stream().anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP) && price.currency().equals(CURRENCY_EUR))
+		);
+
+		final SealedEntity entity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(pk),
+					priceInCurrency(CURRENCY_CZK),
+					priceInPriceLists(PRICE_LIST_BASIC)
+				),
+				require(
+					entityFetch(
+						priceContentAll()
+					)
+				)
+			),
+			SealedEntity.class
+		);
+		final Collection<PriceContract> vipPrices = entity.getPrices(CURRENCY_EUR, PRICE_LIST_VIP);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            entityPrimaryKeyInSet: %d
+	                            priceInCurrency: CZK
+	                            priceInPriceLists: "basic"
+	                        }
+                        ) {
+	                        recordPage {
+	                            data {
+		                            prices(currency: EUR, priceLists: "vip") {
+		                                priceId
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
+					""",
+				pk
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				resultPath(PRODUCT_QUERY_DATA_PATH, EntityDescriptor.PRICES),
+				equalTo(List.of(
+					vipPrices.stream()
+						.map(price -> map()
+							.e(PriceDescriptor.PRICE_ID.name(), price.priceId())
+							.build())
+						.toList()
+				))
+			);
 	}
 
 	@Test

@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Response to UpdateCatalogSchema request.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaResponse}
  */
 public final class GrpcUpdateCatalogSchemaResponse extends
@@ -111,6 +115,10 @@ private static final long serialVersionUID = 0L;
   public static final int VERSION_FIELD_NUMBER = 1;
   private int version_;
   /**
+   * <pre>
+   * The new version of the catalog schema.
+   * </pre>
+   *
    * <code>int32 version = 1;</code>
    * @return The version.
    */
@@ -275,6 +283,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Response to UpdateCatalogSchema request.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaResponse}
    */
   public static final class Builder extends
@@ -423,6 +435,10 @@ private static final long serialVersionUID = 0L;
 
     private int version_ ;
     /**
+     * <pre>
+     * The new version of the catalog schema.
+     * </pre>
+     *
      * <code>int32 version = 1;</code>
      * @return The version.
      */
@@ -431,6 +447,10 @@ private static final long serialVersionUID = 0L;
       return version_;
     }
     /**
+     * <pre>
+     * The new version of the catalog schema.
+     * </pre>
+     *
      * <code>int32 version = 1;</code>
      * @param value The version to set.
      * @return This builder for chaining.
@@ -442,6 +462,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The new version of the catalog schema.
+     * </pre>
+     *
      * <code>int32 version = 1;</code>
      * @return This builder for chaining.
      */

@@ -421,6 +421,8 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.argument(ListEntitiesHeaderDescriptor.ORDER_BY
 				.to(argumentBuilderTransformer)
 				.type(collectionBuildingContext.getOrderByInputObject()))
+			.argument(ListEntitiesHeaderDescriptor.OFFSET
+				.to(argumentBuilderTransformer))
 			.argument(ListEntitiesHeaderDescriptor.LIMIT
 				.to(argumentBuilderTransformer));
 

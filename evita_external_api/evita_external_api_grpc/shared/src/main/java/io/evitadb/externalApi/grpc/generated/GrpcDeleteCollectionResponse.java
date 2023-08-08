@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Response to DeleteCollection request.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDeleteCollectionResponse}
  */
 public final class GrpcDeleteCollectionResponse extends
@@ -111,6 +115,10 @@ private static final long serialVersionUID = 0L;
   public static final int DELETED_FIELD_NUMBER = 1;
   private boolean deleted_;
   /**
+   * <pre>
+   * True, if the collection was deleted.
+   * </pre>
+   *
    * <code>bool deleted = 1;</code>
    * @return The deleted.
    */
@@ -276,6 +284,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Response to DeleteCollection request.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDeleteCollectionResponse}
    */
   public static final class Builder extends
@@ -424,6 +436,10 @@ private static final long serialVersionUID = 0L;
 
     private boolean deleted_ ;
     /**
+     * <pre>
+     * True, if the collection was deleted.
+     * </pre>
+     *
      * <code>bool deleted = 1;</code>
      * @return The deleted.
      */
@@ -432,6 +448,10 @@ private static final long serialVersionUID = 0L;
       return deleted_;
     }
     /**
+     * <pre>
+     * True, if the collection was deleted.
+     * </pre>
+     *
      * <code>bool deleted = 1;</code>
      * @param value The deleted to set.
      * @return This builder for chaining.
@@ -443,6 +463,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * True, if the collection was deleted.
+     * </pre>
+     *
      * <code>bool deleted = 1;</code>
      * @return This builder for chaining.
      */

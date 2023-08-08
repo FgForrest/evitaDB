@@ -321,7 +321,8 @@ public final class GrpcEvitaDataTypes {
       "iveValue\030\001 \001(\01325.io.evitadb.externalApi." +
       "grpc.generated.GrpcEvitaValueH\000\022\023\n\tjsonV" +
       "alue\030\002 \001(\tH\000\022,\n\007version\030\003 \001(\0132\033.google.p" +
-      "rotobuf.Int32ValueB\007\n\005valueB\002P\001b\006proto3"
+      "rotobuf.Int32ValueB\007\n\005valueB\014P\001\252\002\007EvitaD" +
+      "Bb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

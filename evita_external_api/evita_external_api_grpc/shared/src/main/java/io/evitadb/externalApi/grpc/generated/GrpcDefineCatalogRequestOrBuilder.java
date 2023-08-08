@@ -31,11 +31,19 @@ public interface GrpcDefineCatalogRequestOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the catalog to be defined.
+   * </pre>
+   *
    * <code>string catalogName = 1;</code>
    * @return The catalogName.
    */
   java.lang.String getCatalogName();
   /**
+   * <pre>
+   * Name of the catalog to be defined.
+   * </pre>
+   *
    * <code>string catalogName = 1;</code>
    * @return The bytes for catalogName.
    */

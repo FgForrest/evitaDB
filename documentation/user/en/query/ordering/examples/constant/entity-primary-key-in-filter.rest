@@ -9,9 +9,11 @@ POST /rest/evita/product/query
       110513
     ]
   },
-  "orderBy" : {
-    "entityPrimaryKeyInFilter" : true
-  },
+  "orderBy" : [
+    {
+      "entityPrimaryKeyInFilter" : true
+    }
+  ],
   "require" : {
     "entityFetch" : {
       "attributeContent" : [

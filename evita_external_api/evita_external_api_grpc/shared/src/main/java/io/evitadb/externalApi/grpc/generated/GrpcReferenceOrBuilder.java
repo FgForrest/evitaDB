@@ -31,11 +31,19 @@ public interface GrpcReferenceOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the reference
+   * </pre>
+   *
    * <code>string referenceName = 1;</code>
    * @return The referenceName.
    */
   java.lang.String getReferenceName();
   /**
+   * <pre>
+   * Name of the reference
+   * </pre>
+   *
    * <code>string referenceName = 1;</code>
    * @return The bytes for referenceName.
    */
@@ -43,76 +51,137 @@ public interface GrpcReferenceOrBuilder extends
       getReferenceNameBytes();
 
   /**
+   * <pre>
+   * Contains version of this reference and gets increased with any entity type update. Allows to execute
+   * optimistic locking i.e. avoiding parallel modifications.
+   * </pre>
+   *
    * <code>int32 version = 2;</code>
    * @return The version.
    */
   int getVersion();
 
   /**
+   * <pre>
+   * Returns entity reference of the referenced entity in case its fetching was requested via entityFetch constraint.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference referencedEntityReference = 3;</code>
    * @return Whether the referencedEntityReference field is set.
    */
   boolean hasReferencedEntityReference();
   /**
+   * <pre>
+   * Returns entity reference of the referenced entity in case its fetching was requested via entityFetch constraint.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference referencedEntityReference = 3;</code>
    * @return The referencedEntityReference.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityReference getReferencedEntityReference();
   /**
+   * <pre>
+   * Returns entity reference of the referenced entity in case its fetching was requested via entityFetch constraint.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference referencedEntityReference = 3;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder getReferencedEntityReferenceOrBuilder();
 
   /**
+   * <pre>
+   * Returns body of the referenced entity in case its fetching was requested via entityFetch constraint.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity referencedEntity = 4;</code>
    * @return Whether the referencedEntity field is set.
    */
   boolean hasReferencedEntity();
   /**
+   * <pre>
+   * Returns body of the referenced entity in case its fetching was requested via entityFetch constraint.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity referencedEntity = 4;</code>
    * @return The referencedEntity.
    */
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getReferencedEntity();
   /**
+   * <pre>
+   * Returns body of the referenced entity in case its fetching was requested via entityFetch constraint.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity referencedEntity = 4;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getReferencedEntityOrBuilder();
 
   /**
+   * <pre>
+   * Returns entity reference of the referenced entity in case its fetching was requested via entityGroupFetch constraint.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupReferencedEntityReference = 5;</code>
    * @return Whether the groupReferencedEntityReference field is set.
    */
   boolean hasGroupReferencedEntityReference();
   /**
+   * <pre>
+   * Returns entity reference of the referenced entity in case its fetching was requested via entityGroupFetch constraint.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupReferencedEntityReference = 5;</code>
    * @return The groupReferencedEntityReference.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityReference getGroupReferencedEntityReference();
   /**
+   * <pre>
+   * Returns entity reference of the referenced entity in case its fetching was requested via entityGroupFetch constraint.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupReferencedEntityReference = 5;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder getGroupReferencedEntityReferenceOrBuilder();
 
   /**
+   * <pre>
+   * Returns body of the referenced entity in case its fetching was requested via entityGroupFetch constraint.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupReferencedEntity = 6;</code>
    * @return Whether the groupReferencedEntity field is set.
    */
   boolean hasGroupReferencedEntity();
   /**
+   * <pre>
+   * Returns body of the referenced entity in case its fetching was requested via entityGroupFetch constraint.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupReferencedEntity = 6;</code>
    * @return The groupReferencedEntity.
    */
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getGroupReferencedEntity();
   /**
+   * <pre>
+   * Returns body of the referenced entity in case its fetching was requested via entityGroupFetch constraint.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupReferencedEntity = 6;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getGroupReferencedEntityOrBuilder();
 
   /**
+   * <pre>
+   * Contains global attributes.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 7;</code>
    */
   int getGlobalAttributesCount();
   /**
+   * <pre>
+   * Contains global attributes.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 7;</code>
    */
   boolean containsGlobalAttributes(
@@ -124,11 +193,19 @@ public interface GrpcReferenceOrBuilder extends
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue>
   getGlobalAttributes();
   /**
+   * <pre>
+   * Contains global attributes.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 7;</code>
    */
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue>
   getGlobalAttributesMap();
   /**
+   * <pre>
+   * Contains global attributes.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 7;</code>
    */
 
@@ -136,6 +213,10 @@ public interface GrpcReferenceOrBuilder extends
       java.lang.String key,
       io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue);
   /**
+   * <pre>
+   * Contains global attributes.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 7;</code>
    */
 
@@ -143,10 +224,18 @@ public interface GrpcReferenceOrBuilder extends
       java.lang.String key);
 
   /**
+   * <pre>
+   * Contains localized attributes.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 8;</code>
    */
   int getLocalizedAttributesCount();
   /**
+   * <pre>
+   * Contains localized attributes.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 8;</code>
    */
   boolean containsLocalizedAttributes(
@@ -158,11 +247,19 @@ public interface GrpcReferenceOrBuilder extends
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute>
   getLocalizedAttributes();
   /**
+   * <pre>
+   * Contains localized attributes.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 8;</code>
    */
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute>
   getLocalizedAttributesMap();
   /**
+   * <pre>
+   * Contains localized attributes.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 8;</code>
    */
 
@@ -170,6 +267,10 @@ public interface GrpcReferenceOrBuilder extends
       java.lang.String key,
       io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute defaultValue);
   /**
+   * <pre>
+   * Contains localized attributes.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 8;</code>
    */
 
@@ -177,11 +278,19 @@ public interface GrpcReferenceOrBuilder extends
       java.lang.String key);
 
   /**
+   * <pre>
+   * Contains reference cardinality.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality referenceCardinality = 9;</code>
    * @return The enum numeric value on the wire for referenceCardinality.
    */
   int getReferenceCardinalityValue();
   /**
+   * <pre>
+   * Contains reference cardinality.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCardinality referenceCardinality = 9;</code>
    * @return The referenceCardinality.
    */

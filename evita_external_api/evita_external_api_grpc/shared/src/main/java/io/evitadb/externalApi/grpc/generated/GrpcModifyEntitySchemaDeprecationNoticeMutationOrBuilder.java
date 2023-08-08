@@ -31,16 +31,31 @@ public interface GrpcModifyEntitySchemaDeprecationNoticeMutationOrBuilder extend
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this entity schema from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 1;</code>
    * @return Whether the deprecationNotice field is set.
    */
   boolean hasDeprecationNotice();
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this entity schema from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 1;</code>
    * @return The deprecationNotice.
    */
   com.google.protobuf.StringValue getDeprecationNotice();
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this entity schema from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 1;</code>
    */
   com.google.protobuf.StringValueOrBuilder getDeprecationNoticeOrBuilder();

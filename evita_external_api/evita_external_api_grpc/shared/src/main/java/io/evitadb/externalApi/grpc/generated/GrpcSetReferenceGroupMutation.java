@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * This mutation allows to create / update group of the reference.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSetReferenceGroupMutation}
  */
 public final class GrpcSetReferenceGroupMutation extends
@@ -136,6 +140,10 @@ private static final long serialVersionUID = 0L;
   public static final int REFERENCENAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object referenceName_;
   /**
+   * <pre>
+   * Unique identifier of the reference.
+   * </pre>
+   *
    * <code>string referenceName = 1;</code>
    * @return The referenceName.
    */
@@ -153,6 +161,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Unique identifier of the reference.
+   * </pre>
+   *
    * <code>string referenceName = 1;</code>
    * @return The bytes for referenceName.
    */
@@ -174,6 +186,11 @@ private static final long serialVersionUID = 0L;
   public static final int REFERENCEPRIMARYKEY_FIELD_NUMBER = 2;
   private int referencePrimaryKey_;
   /**
+   * <pre>
+   * Primary key of the referenced entity. Might be also any integer that uniquely identifies some external
+   * resource not maintained by Evita.
+   * </pre>
+   *
    * <code>int32 referencePrimaryKey = 2;</code>
    * @return The referencePrimaryKey.
    */
@@ -185,6 +202,11 @@ private static final long serialVersionUID = 0L;
   public static final int GROUPTYPE_FIELD_NUMBER = 3;
   private com.google.protobuf.StringValue groupType_;
   /**
+   * <pre>
+   * Type of the referenced entity representing group. Might be also any `String` that identifies type in some external
+   * resource not maintained by Evita.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue groupType = 3;</code>
    * @return Whether the groupType field is set.
    */
@@ -193,6 +215,11 @@ private static final long serialVersionUID = 0L;
     return groupType_ != null;
   }
   /**
+   * <pre>
+   * Type of the referenced entity representing group. Might be also any `String` that identifies type in some external
+   * resource not maintained by Evita.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue groupType = 3;</code>
    * @return The groupType.
    */
@@ -201,6 +228,11 @@ private static final long serialVersionUID = 0L;
     return groupType_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : groupType_;
   }
   /**
+   * <pre>
+   * Type of the referenced entity representing group. Might be also any `String` that identifies type in some external
+   * resource not maintained by Evita.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue groupType = 3;</code>
    */
   @java.lang.Override
@@ -211,6 +243,11 @@ private static final long serialVersionUID = 0L;
   public static final int GROUPPRIMARYKEY_FIELD_NUMBER = 4;
   private int groupPrimaryKey_;
   /**
+   * <pre>
+   * Primary key of the referenced entity representing group. Might be also any integer that uniquely identifies
+   * some external resource not maintained by Evita.
+   * </pre>
+   *
    * <code>int32 groupPrimaryKey = 4;</code>
    * @return The groupPrimaryKey.
    */
@@ -412,6 +449,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * This mutation allows to create / update group of the reference.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSetReferenceGroupMutation}
    */
   public static final class Builder extends
@@ -587,6 +628,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object referenceName_ = "";
     /**
+     * <pre>
+     * Unique identifier of the reference.
+     * </pre>
+     *
      * <code>string referenceName = 1;</code>
      * @return The referenceName.
      */
@@ -603,6 +648,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Unique identifier of the reference.
+     * </pre>
+     *
      * <code>string referenceName = 1;</code>
      * @return The bytes for referenceName.
      */
@@ -620,6 +669,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Unique identifier of the reference.
+     * </pre>
+     *
      * <code>string referenceName = 1;</code>
      * @param value The referenceName to set.
      * @return This builder for chaining.
@@ -635,6 +688,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Unique identifier of the reference.
+     * </pre>
+     *
      * <code>string referenceName = 1;</code>
      * @return This builder for chaining.
      */
@@ -645,6 +702,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Unique identifier of the reference.
+     * </pre>
+     *
      * <code>string referenceName = 1;</code>
      * @param value The bytes for referenceName to set.
      * @return This builder for chaining.
@@ -663,6 +724,11 @@ private static final long serialVersionUID = 0L;
 
     private int referencePrimaryKey_ ;
     /**
+     * <pre>
+     * Primary key of the referenced entity. Might be also any integer that uniquely identifies some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>int32 referencePrimaryKey = 2;</code>
      * @return The referencePrimaryKey.
      */
@@ -671,6 +737,11 @@ private static final long serialVersionUID = 0L;
       return referencePrimaryKey_;
     }
     /**
+     * <pre>
+     * Primary key of the referenced entity. Might be also any integer that uniquely identifies some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>int32 referencePrimaryKey = 2;</code>
      * @param value The referencePrimaryKey to set.
      * @return This builder for chaining.
@@ -682,6 +753,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Primary key of the referenced entity. Might be also any integer that uniquely identifies some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>int32 referencePrimaryKey = 2;</code>
      * @return This builder for chaining.
      */
@@ -696,6 +772,11 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> groupTypeBuilder_;
     /**
+     * <pre>
+     * Type of the referenced entity representing group. Might be also any `String` that identifies type in some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue groupType = 3;</code>
      * @return Whether the groupType field is set.
      */
@@ -703,6 +784,11 @@ private static final long serialVersionUID = 0L;
       return groupTypeBuilder_ != null || groupType_ != null;
     }
     /**
+     * <pre>
+     * Type of the referenced entity representing group. Might be also any `String` that identifies type in some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue groupType = 3;</code>
      * @return The groupType.
      */
@@ -714,6 +800,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Type of the referenced entity representing group. Might be also any `String` that identifies type in some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue groupType = 3;</code>
      */
     public Builder setGroupType(com.google.protobuf.StringValue value) {
@@ -730,6 +821,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Type of the referenced entity representing group. Might be also any `String` that identifies type in some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue groupType = 3;</code>
      */
     public Builder setGroupType(
@@ -744,6 +840,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Type of the referenced entity representing group. Might be also any `String` that identifies type in some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue groupType = 3;</code>
      */
     public Builder mergeGroupType(com.google.protobuf.StringValue value) {
@@ -762,6 +863,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Type of the referenced entity representing group. Might be also any `String` that identifies type in some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue groupType = 3;</code>
      */
     public Builder clearGroupType() {
@@ -776,6 +882,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Type of the referenced entity representing group. Might be also any `String` that identifies type in some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue groupType = 3;</code>
      */
     public com.google.protobuf.StringValue.Builder getGroupTypeBuilder() {
@@ -784,6 +895,11 @@ private static final long serialVersionUID = 0L;
       return getGroupTypeFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Type of the referenced entity representing group. Might be also any `String` that identifies type in some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue groupType = 3;</code>
      */
     public com.google.protobuf.StringValueOrBuilder getGroupTypeOrBuilder() {
@@ -795,6 +911,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Type of the referenced entity representing group. Might be also any `String` that identifies type in some external
+     * resource not maintained by Evita.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue groupType = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -813,6 +934,11 @@ private static final long serialVersionUID = 0L;
 
     private int groupPrimaryKey_ ;
     /**
+     * <pre>
+     * Primary key of the referenced entity representing group. Might be also any integer that uniquely identifies
+     * some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>int32 groupPrimaryKey = 4;</code>
      * @return The groupPrimaryKey.
      */
@@ -821,6 +947,11 @@ private static final long serialVersionUID = 0L;
       return groupPrimaryKey_;
     }
     /**
+     * <pre>
+     * Primary key of the referenced entity representing group. Might be also any integer that uniquely identifies
+     * some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>int32 groupPrimaryKey = 4;</code>
      * @param value The groupPrimaryKey to set.
      * @return This builder for chaining.
@@ -832,6 +963,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Primary key of the referenced entity representing group. Might be also any integer that uniquely identifies
+     * some external resource not maintained by Evita.
+     * </pre>
+     *
      * <code>int32 groupPrimaryKey = 4;</code>
      * @return This builder for chaining.
      */

@@ -133,8 +133,8 @@ public final class GrpcEntitySchemaMutations {
       "A\n(GrpcSetEntitySchemaWithHierarchyMutat" +
       "ion\022\025\n\rwithHierarchy\030\001 \001(\010\"U\n$GrpcSetEnt" +
       "itySchemaWithPriceMutation\022\021\n\twithPrice\030" +
-      "\001 \001(\010\022\032\n\022indexedPricePlaces\030\002 \001(\005B\002P\001b\006p" +
-      "roto3"
+      "\001 \001(\010\022\032\n\022indexedPricePlaces\030\002 \001(\005B\014P\001\252\002\007" +
+      "EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

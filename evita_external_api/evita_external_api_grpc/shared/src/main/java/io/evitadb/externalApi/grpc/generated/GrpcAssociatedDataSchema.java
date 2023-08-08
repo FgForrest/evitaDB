@@ -27,6 +27,16 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * This is the definition object for associated data that is stored along with
+ * entity. Definition objects allow to describe the structure of the entity type so that
+ * in any time everyone can consult complete structure of the entity type.
+ * Associated data carry additional data entries that are never used for filtering / sorting but may be needed to be fetched
+ * along with entity in order to present data to the target consumer (i.e. user / API / bot). Associated data may be stored
+ * in slower storage and may contain wide range of data types - from small ones (i.e. numbers, strings, dates) up to large
+ * binary arrays representing entire files (i.e. pictures, documents).
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcAssociatedDataSchema}
  */
 public final class GrpcAssociatedDataSchema extends
@@ -156,6 +166,11 @@ private static final long serialVersionUID = 0L;
   public static final int NAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object name_;
   /**
+   * <pre>
+   * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+   * within single entity instance.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
@@ -173,6 +188,11 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+   * within single entity instance.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -220,6 +240,12 @@ private static final long serialVersionUID = 0L;
   public static final int DEPRECATIONNOTICE_FIELD_NUMBER = 3;
   private com.google.protobuf.StringValue deprecationNotice_;
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this entity from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * If notice is `null`, this schema is considered not deprecated.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
    * @return Whether the deprecationNotice field is set.
    */
@@ -228,6 +254,12 @@ private static final long serialVersionUID = 0L;
     return deprecationNotice_ != null;
   }
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this entity from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * If notice is `null`, this schema is considered not deprecated.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
    * @return The deprecationNotice.
    */
@@ -236,6 +268,12 @@ private static final long serialVersionUID = 0L;
     return deprecationNotice_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : deprecationNotice_;
   }
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this entity from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * If notice is `null`, this schema is considered not deprecated.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
    */
   @java.lang.Override
@@ -246,6 +284,12 @@ private static final long serialVersionUID = 0L;
   public static final int TYPE_FIELD_NUMBER = 4;
   private int type_;
   /**
+   * <pre>
+   * Data type of the associated data. Must be one of Evita-supported values.
+   * Internally the type is converted into Java-corresponding data type.
+   * The type may be scalar type or may represent complex object type (JSON).
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 4;</code>
    * @return The enum numeric value on the wire for type.
    */
@@ -253,6 +297,12 @@ private static final long serialVersionUID = 0L;
     return type_;
   }
   /**
+   * <pre>
+   * Data type of the associated data. Must be one of Evita-supported values.
+   * Internally the type is converted into Java-corresponding data type.
+   * The type may be scalar type or may represent complex object type (JSON).
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 4;</code>
    * @return The type.
    */
@@ -265,6 +315,11 @@ private static final long serialVersionUID = 0L;
   public static final int LOCALIZED_FIELD_NUMBER = 5;
   private boolean localized_;
   /**
+   * <pre>
+   * Localized associated data has to be ALWAYS used in connection with specific `Locale`. In other
+   * words - it cannot be stored unless associated locale is also provided.
+   * </pre>
+   *
    * <code>bool localized = 5;</code>
    * @return The localized.
    */
@@ -276,6 +331,11 @@ private static final long serialVersionUID = 0L;
   public static final int NULLABLE_FIELD_NUMBER = 6;
   private boolean nullable_;
   /**
+   * <pre>
+   * When associated data is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+   * non-null checks upon upserting of the entity.
+   * </pre>
+   *
    * <code>bool nullable = 6;</code>
    * @return The nullable.
    */
@@ -505,6 +565,16 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * This is the definition object for associated data that is stored along with
+   * entity. Definition objects allow to describe the structure of the entity type so that
+   * in any time everyone can consult complete structure of the entity type.
+   * Associated data carry additional data entries that are never used for filtering / sorting but may be needed to be fetched
+   * along with entity in order to present data to the target consumer (i.e. user / API / bot). Associated data may be stored
+   * in slower storage and may contain wide range of data types - from small ones (i.e. numbers, strings, dates) up to large
+   * binary arrays representing entire files (i.e. pictures, documents).
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcAssociatedDataSchema}
    */
   public static final class Builder extends
@@ -700,6 +770,11 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object name_ = "";
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The name.
      */
@@ -716,6 +791,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The bytes for name.
      */
@@ -733,6 +813,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The name to set.
      * @return This builder for chaining.
@@ -748,6 +833,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return This builder for chaining.
      */
@@ -758,6 +848,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The bytes for name to set.
      * @return This builder for chaining.
@@ -897,6 +992,12 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> deprecationNoticeBuilder_;
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      * @return Whether the deprecationNotice field is set.
      */
@@ -904,6 +1005,12 @@ private static final long serialVersionUID = 0L;
       return deprecationNoticeBuilder_ != null || deprecationNotice_ != null;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      * @return The deprecationNotice.
      */
@@ -915,6 +1022,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public Builder setDeprecationNotice(com.google.protobuf.StringValue value) {
@@ -931,6 +1044,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public Builder setDeprecationNotice(
@@ -945,6 +1064,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public Builder mergeDeprecationNotice(com.google.protobuf.StringValue value) {
@@ -963,6 +1088,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public Builder clearDeprecationNotice() {
@@ -977,6 +1108,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public com.google.protobuf.StringValue.Builder getDeprecationNoticeBuilder() {
@@ -985,6 +1122,12 @@ private static final long serialVersionUID = 0L;
       return getDeprecationNoticeFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public com.google.protobuf.StringValueOrBuilder getDeprecationNoticeOrBuilder() {
@@ -996,6 +1139,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Deprecation notice contains information about planned removal of this entity from the model / client API.
+     * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+     * If notice is `null`, this schema is considered not deprecated.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1014,6 +1163,12 @@ private static final long serialVersionUID = 0L;
 
     private int type_ = 0;
     /**
+     * <pre>
+     * Data type of the associated data. Must be one of Evita-supported values.
+     * Internally the type is converted into Java-corresponding data type.
+     * The type may be scalar type or may represent complex object type (JSON).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 4;</code>
      * @return The enum numeric value on the wire for type.
      */
@@ -1021,6 +1176,12 @@ private static final long serialVersionUID = 0L;
       return type_;
     }
     /**
+     * <pre>
+     * Data type of the associated data. Must be one of Evita-supported values.
+     * Internally the type is converted into Java-corresponding data type.
+     * The type may be scalar type or may represent complex object type (JSON).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 4;</code>
      * @param value The enum numeric value on the wire for type to set.
      * @return This builder for chaining.
@@ -1032,6 +1193,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Data type of the associated data. Must be one of Evita-supported values.
+     * Internally the type is converted into Java-corresponding data type.
+     * The type may be scalar type or may represent complex object type (JSON).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 4;</code>
      * @return The type.
      */
@@ -1042,6 +1209,12 @@ private static final long serialVersionUID = 0L;
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType.UNRECOGNIZED : result;
     }
     /**
+     * <pre>
+     * Data type of the associated data. Must be one of Evita-supported values.
+     * Internally the type is converted into Java-corresponding data type.
+     * The type may be scalar type or may represent complex object type (JSON).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 4;</code>
      * @param value The type to set.
      * @return This builder for chaining.
@@ -1056,6 +1229,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Data type of the associated data. Must be one of Evita-supported values.
+     * Internally the type is converted into Java-corresponding data type.
+     * The type may be scalar type or may represent complex object type (JSON).
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 4;</code>
      * @return This builder for chaining.
      */
@@ -1068,6 +1247,11 @@ private static final long serialVersionUID = 0L;
 
     private boolean localized_ ;
     /**
+     * <pre>
+     * Localized associated data has to be ALWAYS used in connection with specific `Locale`. In other
+     * words - it cannot be stored unless associated locale is also provided.
+     * </pre>
+     *
      * <code>bool localized = 5;</code>
      * @return The localized.
      */
@@ -1076,6 +1260,11 @@ private static final long serialVersionUID = 0L;
       return localized_;
     }
     /**
+     * <pre>
+     * Localized associated data has to be ALWAYS used in connection with specific `Locale`. In other
+     * words - it cannot be stored unless associated locale is also provided.
+     * </pre>
+     *
      * <code>bool localized = 5;</code>
      * @param value The localized to set.
      * @return This builder for chaining.
@@ -1087,6 +1276,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Localized associated data has to be ALWAYS used in connection with specific `Locale`. In other
+     * words - it cannot be stored unless associated locale is also provided.
+     * </pre>
+     *
      * <code>bool localized = 5;</code>
      * @return This builder for chaining.
      */
@@ -1099,6 +1293,11 @@ private static final long serialVersionUID = 0L;
 
     private boolean nullable_ ;
     /**
+     * <pre>
+     * When associated data is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+     * non-null checks upon upserting of the entity.
+     * </pre>
+     *
      * <code>bool nullable = 6;</code>
      * @return The nullable.
      */
@@ -1107,6 +1306,11 @@ private static final long serialVersionUID = 0L;
       return nullable_;
     }
     /**
+     * <pre>
+     * When associated data is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+     * non-null checks upon upserting of the entity.
+     * </pre>
+     *
      * <code>bool nullable = 6;</code>
      * @param value The nullable to set.
      * @return This builder for chaining.
@@ -1118,6 +1322,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * When associated data is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+     * non-null checks upon upserting of the entity.
+     * </pre>
+     *
      * <code>bool nullable = 6;</code>
      * @return This builder for chaining.
      */

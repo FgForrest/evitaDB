@@ -27,6 +27,11 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Contains list of statistics for the single level (probably root or whatever is filtered by the query) of
+ * the queried hierarchy entity.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcHierarchy}
  */
 public final class GrpcHierarchy extends
@@ -156,6 +161,10 @@ private static final long serialVersionUID = 0L;
     return internalGetHierarchy().getMap().size();
   }
   /**
+   * <pre>
+   * Map holds the statistics represented by user-specified output name of requested hierarchy.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 1;</code>
    */
 
@@ -174,6 +183,10 @@ private static final long serialVersionUID = 0L;
     return getHierarchyMap();
   }
   /**
+   * <pre>
+   * Map holds the statistics represented by user-specified output name of requested hierarchy.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 1;</code>
    */
   @java.lang.Override
@@ -182,6 +195,10 @@ private static final long serialVersionUID = 0L;
     return internalGetHierarchy().getMap();
   }
   /**
+   * <pre>
+   * Map holds the statistics represented by user-specified output name of requested hierarchy.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 1;</code>
    */
   @java.lang.Override
@@ -195,6 +212,10 @@ private static final long serialVersionUID = 0L;
     return map.containsKey(key) ? map.get(key) : defaultValue;
   }
   /**
+   * <pre>
+   * Map holds the statistics represented by user-specified output name of requested hierarchy.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 1;</code>
    */
   @java.lang.Override
@@ -377,6 +398,11 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Contains list of statistics for the single level (probably root or whatever is filtered by the query) of
+   * the queried hierarchy entity.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcHierarchy}
    */
   public static final class Builder extends
@@ -573,6 +599,10 @@ private static final long serialVersionUID = 0L;
       return internalGetHierarchy().getMap().size();
     }
     /**
+     * <pre>
+     * Map holds the statistics represented by user-specified output name of requested hierarchy.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 1;</code>
      */
 
@@ -591,6 +621,10 @@ private static final long serialVersionUID = 0L;
       return getHierarchyMap();
     }
     /**
+     * <pre>
+     * Map holds the statistics represented by user-specified output name of requested hierarchy.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 1;</code>
      */
     @java.lang.Override
@@ -599,6 +633,10 @@ private static final long serialVersionUID = 0L;
       return internalGetHierarchy().getMap();
     }
     /**
+     * <pre>
+     * Map holds the statistics represented by user-specified output name of requested hierarchy.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 1;</code>
      */
     @java.lang.Override
@@ -612,6 +650,10 @@ private static final long serialVersionUID = 0L;
       return map.containsKey(key) ? map.get(key) : defaultValue;
     }
     /**
+     * <pre>
+     * Map holds the statistics represented by user-specified output name of requested hierarchy.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 1;</code>
      */
     @java.lang.Override
@@ -633,6 +675,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Map holds the statistics represented by user-specified output name of requested hierarchy.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 1;</code>
      */
 
@@ -652,6 +698,10 @@ private static final long serialVersionUID = 0L;
       return internalGetMutableHierarchy().getMutableMap();
     }
     /**
+     * <pre>
+     * Map holds the statistics represented by user-specified output name of requested hierarchy.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 1;</code>
      */
     public Builder putHierarchy(
@@ -667,6 +717,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Map holds the statistics represented by user-specified output name of requested hierarchy.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 1;</code>
      */
 

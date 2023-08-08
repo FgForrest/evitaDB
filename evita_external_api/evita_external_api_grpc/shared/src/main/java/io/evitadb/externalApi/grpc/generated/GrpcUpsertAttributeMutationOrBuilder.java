@@ -31,11 +31,21 @@ public interface GrpcUpsertAttributeMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Unique name of the attribute. Case-sensitive. Distinguishes one associated data item from another within
+   * single entity instance.
+   * </pre>
+   *
    * <code>string attributeName = 1;</code>
    * @return The attributeName.
    */
   java.lang.String getAttributeName();
   /**
+   * <pre>
+   * Unique name of the attribute. Case-sensitive. Distinguishes one associated data item from another within
+   * single entity instance.
+   * </pre>
+   *
    * <code>string attributeName = 1;</code>
    * @return The bytes for attributeName.
    */
@@ -43,31 +53,58 @@ public interface GrpcUpsertAttributeMutationOrBuilder extends
       getAttributeNameBytes();
 
   /**
+   * <pre>
+   * Contains locale in case the attribute is locale specific.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
    * @return Whether the attributeLocale field is set.
    */
   boolean hasAttributeLocale();
   /**
+   * <pre>
+   * Contains locale in case the attribute is locale specific.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
    * @return The attributeLocale.
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocale getAttributeLocale();
   /**
+   * <pre>
+   * Contains locale in case the attribute is locale specific.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder getAttributeLocaleOrBuilder();
 
   /**
+   * <pre>
+   * New value of this attribute. Data type is expected to be the same as in schema or must be explicitly
+   * set via `valueType`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue attributeValue = 3;</code>
    * @return Whether the attributeValue field is set.
    */
   boolean hasAttributeValue();
   /**
+   * <pre>
+   * New value of this attribute. Data type is expected to be the same as in schema or must be explicitly
+   * set via `valueType`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue attributeValue = 3;</code>
    * @return The attributeValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEvitaValue getAttributeValue();
   /**
+   * <pre>
+   * New value of this attribute. Data type is expected to be the same as in schema or must be explicitly
+   * set via `valueType`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue attributeValue = 3;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder getAttributeValueOrBuilder();

@@ -31,11 +31,19 @@ public interface GrpcModifyAttributeSchemaNameMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the attribute the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
   java.lang.String getName();
   /**
+   * <pre>
+   * Name of the attribute the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -43,11 +51,19 @@ public interface GrpcModifyAttributeSchemaNameMutationOrBuilder extends
       getNameBytes();
 
   /**
+   * <pre>
+   * New name of the attribute the mutation is targeting.
+   * </pre>
+   *
    * <code>string newName = 2;</code>
    * @return The newName.
    */
   java.lang.String getNewName();
   /**
+   * <pre>
+   * New name of the attribute the mutation is targeting.
+   * </pre>
+   *
    * <code>string newName = 2;</code>
    * @return The bytes for newName.
    */

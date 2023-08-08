@@ -31,12 +31,20 @@ public interface GrpcOpenTransactionResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * True, if the transaction was opened before corresponding request.
+   * </pre>
+   *
    * <code>bool alreadyOpenedBefore = 1;</code>
    * @return The alreadyOpenedBefore.
    */
   boolean getAlreadyOpenedBefore();
 
   /**
+   * <pre>
+   * The id of the opened transaction.
+   * </pre>
+   *
    * <code>int64 transactionId = 2;</code>
    * @return The transactionId.
    */

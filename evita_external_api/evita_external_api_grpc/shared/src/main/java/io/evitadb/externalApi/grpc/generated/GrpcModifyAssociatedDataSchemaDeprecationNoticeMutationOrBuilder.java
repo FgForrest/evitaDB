@@ -31,11 +31,21 @@ public interface GrpcModifyAssociatedDataSchemaDeprecationNoticeMutationOrBuilde
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+   * within single entity instance.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
   java.lang.String getName();
   /**
+   * <pre>
+   * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+   * within single entity instance.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -43,16 +53,31 @@ public interface GrpcModifyAssociatedDataSchemaDeprecationNoticeMutationOrBuilde
       getNameBytes();
 
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this associated data from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 2;</code>
    * @return Whether the deprecationNotice field is set.
    */
   boolean hasDeprecationNotice();
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this associated data from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 2;</code>
    * @return The deprecationNotice.
    */
   com.google.protobuf.StringValue getDeprecationNotice();
   /**
+   * <pre>
+   * Deprecation notice contains information about planned removal of this associated data from the model / client API.
+   * This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 2;</code>
    */
   com.google.protobuf.StringValueOrBuilder getDeprecationNoticeOrBuilder();

@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Request for updating the schema of an existing entity type.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaRequest}
  */
 public final class GrpcUpdateEntitySchemaRequest extends
@@ -119,6 +123,10 @@ private static final long serialVersionUID = 0L;
   public static final int SCHEMAMUTATION_FIELD_NUMBER = 1;
   private io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation schemaMutation_;
   /**
+   * <pre>
+   * Wrapper that holds the entity type and the collection of EntitySchemaMutations to be applied.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation schemaMutation = 1;</code>
    * @return Whether the schemaMutation field is set.
    */
@@ -127,6 +135,10 @@ private static final long serialVersionUID = 0L;
     return schemaMutation_ != null;
   }
   /**
+   * <pre>
+   * Wrapper that holds the entity type and the collection of EntitySchemaMutations to be applied.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation schemaMutation = 1;</code>
    * @return The schemaMutation.
    */
@@ -135,6 +147,10 @@ private static final long serialVersionUID = 0L;
     return schemaMutation_ == null ? io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation.getDefaultInstance() : schemaMutation_;
   }
   /**
+   * <pre>
+   * Wrapper that holds the entity type and the collection of EntitySchemaMutations to be applied.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation schemaMutation = 1;</code>
    */
   @java.lang.Override
@@ -303,6 +319,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Request for updating the schema of an existing entity type.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaRequest}
    */
   public static final class Builder extends
@@ -461,6 +481,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutationOrBuilder> schemaMutationBuilder_;
     /**
+     * <pre>
+     * Wrapper that holds the entity type and the collection of EntitySchemaMutations to be applied.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation schemaMutation = 1;</code>
      * @return Whether the schemaMutation field is set.
      */
@@ -468,6 +492,10 @@ private static final long serialVersionUID = 0L;
       return schemaMutationBuilder_ != null || schemaMutation_ != null;
     }
     /**
+     * <pre>
+     * Wrapper that holds the entity type and the collection of EntitySchemaMutations to be applied.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation schemaMutation = 1;</code>
      * @return The schemaMutation.
      */
@@ -479,6 +507,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Wrapper that holds the entity type and the collection of EntitySchemaMutations to be applied.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation schemaMutation = 1;</code>
      */
     public Builder setSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation value) {
@@ -495,6 +527,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Wrapper that holds the entity type and the collection of EntitySchemaMutations to be applied.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation schemaMutation = 1;</code>
      */
     public Builder setSchemaMutation(
@@ -509,6 +545,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Wrapper that holds the entity type and the collection of EntitySchemaMutations to be applied.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation schemaMutation = 1;</code>
      */
     public Builder mergeSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation value) {
@@ -527,6 +567,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Wrapper that holds the entity type and the collection of EntitySchemaMutations to be applied.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation schemaMutation = 1;</code>
      */
     public Builder clearSchemaMutation() {
@@ -541,6 +585,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Wrapper that holds the entity type and the collection of EntitySchemaMutations to be applied.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation schemaMutation = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation.Builder getSchemaMutationBuilder() {
@@ -549,6 +597,10 @@ private static final long serialVersionUID = 0L;
       return getSchemaMutationFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Wrapper that holds the entity type and the collection of EntitySchemaMutations to be applied.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation schemaMutation = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutationOrBuilder getSchemaMutationOrBuilder() {
@@ -560,6 +612,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Wrapper that holds the entity type and the collection of EntitySchemaMutations to be applied.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation schemaMutation = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

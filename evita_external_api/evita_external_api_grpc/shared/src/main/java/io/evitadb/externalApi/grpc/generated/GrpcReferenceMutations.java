@@ -110,7 +110,7 @@ public final class GrpcReferenceMutations {
       "onValue.AttributesEntry\032h\n\017AttributesEnt" +
       "ry\022\013\n\003key\030\001 \001(\t\022D\n\005value\030\002 \001(\01325.io.evit" +
       "adb.externalApi.grpc.generated.GrpcEvita" +
-      "Value:\0028\001B\002P\001b\006proto3"
+      "Value:\0028\001B\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

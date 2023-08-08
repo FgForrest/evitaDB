@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Wrapper for representing an array of LongNumberRanges.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray}
  */
 public final class GrpcLongNumberRangeArray extends
@@ -120,6 +124,10 @@ private static final long serialVersionUID = 0L;
   public static final int VALUE_FIELD_NUMBER = 1;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange> value_;
   /**
+   * <pre>
+   * Value that supports storing a LongNumberRange array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
    */
   @java.lang.Override
@@ -127,6 +135,10 @@ private static final long serialVersionUID = 0L;
     return value_;
   }
   /**
+   * <pre>
+   * Value that supports storing a LongNumberRange array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
    */
   @java.lang.Override
@@ -135,6 +147,10 @@ private static final long serialVersionUID = 0L;
     return value_;
   }
   /**
+   * <pre>
+   * Value that supports storing a LongNumberRange array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
    */
   @java.lang.Override
@@ -142,6 +158,10 @@ private static final long serialVersionUID = 0L;
     return value_.size();
   }
   /**
+   * <pre>
+   * Value that supports storing a LongNumberRange array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
    */
   @java.lang.Override
@@ -149,6 +169,10 @@ private static final long serialVersionUID = 0L;
     return value_.get(index);
   }
   /**
+   * <pre>
+   * Value that supports storing a LongNumberRange array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
    */
   @java.lang.Override
@@ -315,6 +339,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Wrapper for representing an array of LongNumberRanges.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray}
    */
   public static final class Builder extends
@@ -512,6 +540,10 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeOrBuilder> valueBuilder_;
 
     /**
+     * <pre>
+     * Value that supports storing a LongNumberRange array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange> getValueList() {
@@ -522,6 +554,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Value that supports storing a LongNumberRange array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
      */
     public int getValueCount() {
@@ -532,6 +568,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Value that supports storing a LongNumberRange array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange getValue(int index) {
@@ -542,6 +582,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Value that supports storing a LongNumberRange array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
      */
     public Builder setValue(
@@ -559,6 +603,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Value that supports storing a LongNumberRange array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
      */
     public Builder setValue(
@@ -573,6 +621,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Value that supports storing a LongNumberRange array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
      */
     public Builder addValue(io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value) {
@@ -589,6 +641,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Value that supports storing a LongNumberRange array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
      */
     public Builder addValue(
@@ -606,6 +662,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Value that supports storing a LongNumberRange array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
      */
     public Builder addValue(
@@ -620,6 +680,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Value that supports storing a LongNumberRange array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
      */
     public Builder addValue(
@@ -634,6 +698,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Value that supports storing a LongNumberRange array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
      */
     public Builder addAllValue(
@@ -649,6 +717,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Value that supports storing a LongNumberRange array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
      */
     public Builder clearValue() {
@@ -662,6 +734,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Value that supports storing a LongNumberRange array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
      */
     public Builder removeValue(int index) {
@@ -675,6 +751,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Value that supports storing a LongNumberRange array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.Builder getValueBuilder(
@@ -682,6 +762,10 @@ private static final long serialVersionUID = 0L;
       return getValueFieldBuilder().getBuilder(index);
     }
     /**
+     * <pre>
+     * Value that supports storing a LongNumberRange array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeOrBuilder getValueOrBuilder(
@@ -692,6 +776,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Value that supports storing a LongNumberRange array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeOrBuilder> 
@@ -703,6 +791,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Value that supports storing a LongNumberRange array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.Builder addValueBuilder() {
@@ -710,6 +802,10 @@ private static final long serialVersionUID = 0L;
           io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Value that supports storing a LongNumberRange array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.Builder addValueBuilder(
@@ -718,6 +814,10 @@ private static final long serialVersionUID = 0L;
           index, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Value that supports storing a LongNumberRange array.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.Builder> 

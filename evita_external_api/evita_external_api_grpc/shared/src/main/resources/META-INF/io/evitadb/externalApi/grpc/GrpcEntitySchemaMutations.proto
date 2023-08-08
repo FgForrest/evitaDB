@@ -2,52 +2,107 @@ syntax = "proto3";
 
 package io.evitadb.externalApi.grpc.generated;
 option java_multiple_files = true;
+option csharp_namespace = "EvitaDB";
 
 import "GrpcEvitaDataTypes.proto";
 import "GrpcEnums.proto";
 import "google/protobuf/wrappers.proto";
 
+// Mutation is responsible for adding one or more currencies to a `EntitySchema.currencies` in `EntitySchema`.
 message GrpcAllowCurrencyInEntitySchemaMutation {
+  // Set of all currencies that could be used for prices in entities of this type.
   repeated GrpcCurrency currencies = 1;
 }
 
+// Mutation is responsible for adding one or more modes to a `EntitySchema.evolutionMode` in `EntitySchema`.
 message GrpcAllowEvolutionModeInEntitySchemaMutation {
+  // Set of allowed evolution modes. These allow to specify how strict is evitaDB when unknown information is
+  // presented to her for the first time. When no evolution mode is set, each violation of the `EntitySchema` is
+  // reported by an error. This behaviour can be changed by this evolution mode, however.
   repeated GrpcEvolutionMode evolutionModes = 1;
 }
 
+// Mutation is responsible for adding one or more locales to a `EntitySchema.locales` in `EntitySchema`.
 message GrpcAllowLocaleInEntitySchemaMutation {
+  // Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
   repeated GrpcLocale locales = 1;
 }
 
+// Mutation is responsible for removing one or more currencies from a `EntitySchema.currencies` in `EntitySchema`.
 message GrpcDisallowCurrencyInEntitySchemaMutation {
+  // Set of all currencies that can't be used for prices in entities of this type.
   repeated GrpcCurrency currencies = 1;
 }
 
+// Mutation is responsible for removing one or more modes from a `EntitySchema.evolutionMode` in `EntitySchema`.
 message GrpcDisallowEvolutionModeInEntitySchemaMutation {
+  // Set of forbidden evolution modes. These allow to specify how strict is evitaDB when unknown information is
+  // presented to her for the first time. When no evolution mode is set, each violation of the `EntitySchema` is
+  // reported by an error. This behaviour can be changed by this evolution mode, however.
   repeated GrpcEvolutionMode evolutionModes = 1;
 }
 
+// Mutation is responsible for removing one or more locales from a `EntitySchema.locales` in `EntitySchema`.
 message GrpcDisallowLocaleInEntitySchemaMutation {
+  // Set of all locales that can't be used for localized `AttributeSchema` or `AssociatedDataSchema`.
   repeated GrpcLocale locales = 1;
 }
 
+// Mutation is responsible for setting a `EntitySchema.deprecationNotice` in `EntitySchema`.
 message GrpcModifyEntitySchemaDeprecationNoticeMutation {
+  // Deprecation notice contains information about planned removal of this entity schema from the model / client API.
+  // This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
   google.protobuf.StringValue deprecationNotice = 1;
 }
 
+// Mutation is responsible for setting a `EntitySchema.description` in `EntitySchema`.
 message GrpcModifyEntitySchemaDescriptionMutation {
+  // Contains description of the model is optional but helps authors of the schema / client API to better
+  // explain the original purpose of the model to the consumers.
   google.protobuf.StringValue description = 1;
 }
 
+// Mutation is responsible for setting a `EntitySchema.withGeneratedPrimaryKey` in `EntitySchema`.
 message GrpcSetEntitySchemaWithGeneratedPrimaryKeyMutation {
+  // Whether primary keys of entities of this type will not be provided by the external systems and Evita
+  // is responsible for generating unique primary keys for the entity on insertion.
+  //
+  // Generated key is guaranteed to be unique, but may not represent continuous ascending series. Generated key
+  // will be always greater than zero.
   bool withGeneratedPrimaryKey = 1;
 }
 
+// Mutation is responsible for setting a `EntitySchema.withHierarchy` in `EntitySchema`.
 message GrpcSetEntitySchemaWithHierarchyMutation {
+  // Whether entities of this type are organized in a tree like structure (hierarchy) where certain entities
+  // are subordinate of other entities.
+  //
+  // Entities may be organized in hierarchical fashion. That means that entity may refer to single parent entity and may be
+  // referred by multiple child entities. Hierarchy is always composed of entities of same type.
+  // Each entity must be part of at most single hierarchy (tree).
+  //
+  // Hierarchy can limit returned entities by using filtering constraints `hierarchy_{reference name}_within`. It's also used for
+  // computation of extra data - such as `hierarchyParents`.
   bool withHierarchy = 1;
 }
 
+// Mutation is responsible for setting a `EntitySchema.withPrice` in `EntitySchema`.
 message GrpcSetEntitySchemaWithPriceMutation {
+  // Whether entities of this type holds price information.
+  //
+  // Prices are specific to a very few entities, but because correct price computation is very complex in e-commerce
+  // systems and highly affects performance of the entities filtering and sorting, they deserve first class support
+  // in entity model. It is pretty common in B2B systems single product has assigned dozens of prices for the different
+  // customers.
+  //
+  // Specifying prices on entity allows usage of `priceValidIn`, `priceInCurrency`
+  // `priceBetween`, and `priceInPriceLists` filtering constraints and also price
+  // ordering of the entities. Additional requirements
+  // `priceHistogram` and `priceType` can be used in query as well.
   bool withPrice = 1;
+  // Determines how many fractional places are important when entities are compared during filtering or sorting. It is
+  // important to know that all prices will be converted to `Integer`, so any of the price values
+  // (either with or without tax) must not ever exceed maximum limits of `Integer` type when scaling
+  // the number by the power of ten using `indexedPricePlaces` as exponent.
   int32 indexedPricePlaces = 2;
 }

@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Representation of DateTimeRange structures with optional from and to values.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange}
  */
 public final class GrpcDateTimeRange extends
@@ -132,6 +136,10 @@ private static final long serialVersionUID = 0L;
   public static final int FROM_FIELD_NUMBER = 1;
   private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime from_;
   /**
+   * <pre>
+   * The lower bound of the range.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime from = 1;</code>
    * @return Whether the from field is set.
    */
@@ -140,6 +148,10 @@ private static final long serialVersionUID = 0L;
     return from_ != null;
   }
   /**
+   * <pre>
+   * The lower bound of the range.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime from = 1;</code>
    * @return The from.
    */
@@ -148,6 +160,10 @@ private static final long serialVersionUID = 0L;
     return from_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : from_;
   }
   /**
+   * <pre>
+   * The lower bound of the range.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime from = 1;</code>
    */
   @java.lang.Override
@@ -158,6 +174,10 @@ private static final long serialVersionUID = 0L;
   public static final int TO_FIELD_NUMBER = 2;
   private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime to_;
   /**
+   * <pre>
+   * The upper bound of the range.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime to = 2;</code>
    * @return Whether the to field is set.
    */
@@ -166,6 +186,10 @@ private static final long serialVersionUID = 0L;
     return to_ != null;
   }
   /**
+   * <pre>
+   * The upper bound of the range.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime to = 2;</code>
    * @return The to.
    */
@@ -174,6 +198,10 @@ private static final long serialVersionUID = 0L;
     return to_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : to_;
   }
   /**
+   * <pre>
+   * The upper bound of the range.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime to = 2;</code>
    */
   @java.lang.Override
@@ -358,6 +386,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Representation of DateTimeRange structures with optional from and to values.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange}
    */
   public static final class Builder extends
@@ -530,6 +562,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> fromBuilder_;
     /**
+     * <pre>
+     * The lower bound of the range.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime from = 1;</code>
      * @return Whether the from field is set.
      */
@@ -537,6 +573,10 @@ private static final long serialVersionUID = 0L;
       return fromBuilder_ != null || from_ != null;
     }
     /**
+     * <pre>
+     * The lower bound of the range.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime from = 1;</code>
      * @return The from.
      */
@@ -548,6 +588,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The lower bound of the range.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime from = 1;</code>
      */
     public Builder setFrom(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
@@ -564,6 +608,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The lower bound of the range.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime from = 1;</code>
      */
     public Builder setFrom(
@@ -578,6 +626,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The lower bound of the range.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime from = 1;</code>
      */
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
@@ -596,6 +648,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The lower bound of the range.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime from = 1;</code>
      */
     public Builder clearFrom() {
@@ -610,6 +666,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The lower bound of the range.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime from = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getFromBuilder() {
@@ -618,6 +678,10 @@ private static final long serialVersionUID = 0L;
       return getFromFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * The lower bound of the range.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime from = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getFromOrBuilder() {
@@ -629,6 +693,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The lower bound of the range.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime from = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -649,6 +717,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> toBuilder_;
     /**
+     * <pre>
+     * The upper bound of the range.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime to = 2;</code>
      * @return Whether the to field is set.
      */
@@ -656,6 +728,10 @@ private static final long serialVersionUID = 0L;
       return toBuilder_ != null || to_ != null;
     }
     /**
+     * <pre>
+     * The upper bound of the range.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime to = 2;</code>
      * @return The to.
      */
@@ -667,6 +743,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The upper bound of the range.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime to = 2;</code>
      */
     public Builder setTo(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
@@ -683,6 +763,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The upper bound of the range.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime to = 2;</code>
      */
     public Builder setTo(
@@ -697,6 +781,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The upper bound of the range.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime to = 2;</code>
      */
     public Builder mergeTo(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
@@ -715,6 +803,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The upper bound of the range.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime to = 2;</code>
      */
     public Builder clearTo() {
@@ -729,6 +821,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The upper bound of the range.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime to = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getToBuilder() {
@@ -737,6 +833,10 @@ private static final long serialVersionUID = 0L;
       return getToFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * The upper bound of the range.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime to = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getToOrBuilder() {
@@ -748,6 +848,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The upper bound of the range.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime to = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

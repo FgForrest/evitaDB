@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Mutation is a holder for a set of `EntitySchemaMutation` that affect a single entity schema within the `CatalogSchema`.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation}
  */
 public final class GrpcModifyEntitySchemaMutation extends
@@ -127,6 +131,10 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITYTYPE_FIELD_NUMBER = 1;
   private volatile java.lang.Object entityType_;
   /**
+   * <pre>
+   * Entity type of entity schema that will be affected by passed mutations.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The entityType.
    */
@@ -144,6 +152,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Entity type of entity schema that will be affected by passed mutations.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The bytes for entityType.
    */
@@ -165,6 +177,10 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITYSCHEMAMUTATIONS_FIELD_NUMBER = 2;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation> entitySchemaMutations_;
   /**
+   * <pre>
+   * Collection of mutations that should be applied on current version of the schema.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
    */
   @java.lang.Override
@@ -172,6 +188,10 @@ private static final long serialVersionUID = 0L;
     return entitySchemaMutations_;
   }
   /**
+   * <pre>
+   * Collection of mutations that should be applied on current version of the schema.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
    */
   @java.lang.Override
@@ -180,6 +200,10 @@ private static final long serialVersionUID = 0L;
     return entitySchemaMutations_;
   }
   /**
+   * <pre>
+   * Collection of mutations that should be applied on current version of the schema.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
    */
   @java.lang.Override
@@ -187,6 +211,10 @@ private static final long serialVersionUID = 0L;
     return entitySchemaMutations_.size();
   }
   /**
+   * <pre>
+   * Collection of mutations that should be applied on current version of the schema.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
    */
   @java.lang.Override
@@ -194,6 +222,10 @@ private static final long serialVersionUID = 0L;
     return entitySchemaMutations_.get(index);
   }
   /**
+   * <pre>
+   * Collection of mutations that should be applied on current version of the schema.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
    */
   @java.lang.Override
@@ -370,6 +402,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Mutation is a holder for a set of `EntitySchemaMutation` that affect a single entity schema within the `CatalogSchema`.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation}
    */
   public static final class Builder extends
@@ -563,6 +599,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object entityType_ = "";
     /**
+     * <pre>
+     * Entity type of entity schema that will be affected by passed mutations.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @return The entityType.
      */
@@ -579,6 +619,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Entity type of entity schema that will be affected by passed mutations.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @return The bytes for entityType.
      */
@@ -596,6 +640,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Entity type of entity schema that will be affected by passed mutations.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @param value The entityType to set.
      * @return This builder for chaining.
@@ -611,6 +659,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Entity type of entity schema that will be affected by passed mutations.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @return This builder for chaining.
      */
@@ -621,6 +673,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Entity type of entity schema that will be affected by passed mutations.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @param value The bytes for entityType to set.
      * @return This builder for chaining.
@@ -650,6 +706,10 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutationOrBuilder> entitySchemaMutationsBuilder_;
 
     /**
+     * <pre>
+     * Collection of mutations that should be applied on current version of the schema.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation> getEntitySchemaMutationsList() {
@@ -660,6 +720,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Collection of mutations that should be applied on current version of the schema.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
      */
     public int getEntitySchemaMutationsCount() {
@@ -670,6 +734,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Collection of mutations that should be applied on current version of the schema.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation getEntitySchemaMutations(int index) {
@@ -680,6 +748,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Collection of mutations that should be applied on current version of the schema.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
      */
     public Builder setEntitySchemaMutations(
@@ -697,6 +769,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of mutations that should be applied on current version of the schema.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
      */
     public Builder setEntitySchemaMutations(
@@ -711,6 +787,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of mutations that should be applied on current version of the schema.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
      */
     public Builder addEntitySchemaMutations(io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation value) {
@@ -727,6 +807,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of mutations that should be applied on current version of the schema.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
      */
     public Builder addEntitySchemaMutations(
@@ -744,6 +828,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of mutations that should be applied on current version of the schema.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
      */
     public Builder addEntitySchemaMutations(
@@ -758,6 +846,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of mutations that should be applied on current version of the schema.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
      */
     public Builder addEntitySchemaMutations(
@@ -772,6 +864,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of mutations that should be applied on current version of the schema.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
      */
     public Builder addAllEntitySchemaMutations(
@@ -787,6 +883,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of mutations that should be applied on current version of the schema.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
      */
     public Builder clearEntitySchemaMutations() {
@@ -800,6 +900,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of mutations that should be applied on current version of the schema.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
      */
     public Builder removeEntitySchemaMutations(int index) {
@@ -813,6 +917,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of mutations that should be applied on current version of the schema.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation.Builder getEntitySchemaMutationsBuilder(
@@ -820,6 +928,10 @@ private static final long serialVersionUID = 0L;
       return getEntitySchemaMutationsFieldBuilder().getBuilder(index);
     }
     /**
+     * <pre>
+     * Collection of mutations that should be applied on current version of the schema.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutationOrBuilder getEntitySchemaMutationsOrBuilder(
@@ -830,6 +942,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Collection of mutations that should be applied on current version of the schema.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutationOrBuilder> 
@@ -841,6 +957,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Collection of mutations that should be applied on current version of the schema.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation.Builder addEntitySchemaMutationsBuilder() {
@@ -848,6 +968,10 @@ private static final long serialVersionUID = 0L;
           io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Collection of mutations that should be applied on current version of the schema.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation.Builder addEntitySchemaMutationsBuilder(
@@ -856,6 +980,10 @@ private static final long serialVersionUID = 0L;
           index, io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Collection of mutations that should be applied on current version of the schema.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation entitySchemaMutations = 2;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation.Builder> 

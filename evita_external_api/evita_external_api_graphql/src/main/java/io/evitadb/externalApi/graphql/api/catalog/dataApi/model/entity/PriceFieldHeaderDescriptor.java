@@ -39,14 +39,14 @@ interface PriceFieldHeaderDescriptor {
 	PropertyDescriptor PRICE_LIST = PropertyDescriptor.builder()
 		.name("priceList")
 		.description("""
-			         Parameter specifying desired price list of output price.
+			Parameter specifying desired price list of output price.
 			""")
 		.type(nonNull(String.class))
 		.build();
 	PropertyDescriptor CURRENCY = PropertyDescriptor.builder()
 		.name("currency")
 		.description("""
-			         Parameter specifying desired currency of output price if different currency that already defined is desired.
+			Parameter specifying desired currency of output price if different currency that already defined is desired.
 			""")
 		// type is expected to be a currency enum
 		.build();

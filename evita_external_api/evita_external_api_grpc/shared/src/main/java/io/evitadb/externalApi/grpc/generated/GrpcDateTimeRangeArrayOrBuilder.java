@@ -31,24 +31,44 @@ public interface GrpcDateTimeRangeArrayOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Value that supports storing a DateTimeRange array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange value = 1;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange> 
       getValueList();
   /**
+   * <pre>
+   * Value that supports storing a DateTimeRange array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange value = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange getValue(int index);
   /**
+   * <pre>
+   * Value that supports storing a DateTimeRange array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange value = 1;</code>
    */
   int getValueCount();
   /**
+   * <pre>
+   * Value that supports storing a DateTimeRange array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange value = 1;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeOrBuilder> 
       getValueOrBuilderList();
   /**
+   * <pre>
+   * Value that supports storing a DateTimeRange array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange value = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeOrBuilder getValueOrBuilder(

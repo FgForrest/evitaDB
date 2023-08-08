@@ -157,7 +157,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 					}
 				}
 				""",
-				serializeIntArrayToRestQueryString(pks))
+				serializeIntArrayToQueryString(pks))
 			.executeAndThen()
 			.statusCode(200)
 			.body("", equalTo(createEntityDtos(entities)));
@@ -209,7 +209,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 					}
 				}
 				""",
-				serializeIntArrayToRestQueryString(pks))
+				serializeIntArrayToQueryString(pks))
 			.executeAndThen()
 			.statusCode(200)
 			.body("", equalTo(createEntityDtos(entities, true)));
@@ -264,7 +264,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 					}
 				}
 				""",
-				serializeStringArrayToRestQueryString(urls))
+				serializeStringArrayToQueryString(urls))
 			.executeAndThen()
 			.statusCode(200)
 			.body("", equalTo(createEntityDtos(entities)));
@@ -1172,21 +1172,27 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("{" +
-					"\"filterBy\": {" +
-					"  \"attributePriorityLessThan\": 35000" +
-					"}," +
-					"\"orderBy\": {" +
-					"  \"attributeCreatedNatural\": \"DESC\"," +
-					"  \"attributeManufacturedNatural\": \"ASC\"" +
-					"}," +
-					"\"require\": {" +
-					"  \"page\": {" +
-					"     \"number\": 1," +
-					"     \"size\": 30"+
-					"    }" +
-					"  }" +
-					"}")
+			.requestBody("""
+			    {
+			        "filterBy": {
+			            "attributePriorityLessThan": 35000
+			        },
+			        "orderBy": [
+			            {
+				            "attributeCreatedNatural": "DESC"
+				        },
+				        {
+				            "attributeManufacturedNatural": "ASC"
+				        }
+			        ],
+			        "require": {
+			            "page": {
+			                "number": 1,
+			                "size": 30
+			            }
+			        }
+			    }
+			    """)
 			.executeAndThen()
 			.statusCode(200)
 			.body(EntityDescriptor.PRIMARY_KEY.name(), contains(expectedEntities));

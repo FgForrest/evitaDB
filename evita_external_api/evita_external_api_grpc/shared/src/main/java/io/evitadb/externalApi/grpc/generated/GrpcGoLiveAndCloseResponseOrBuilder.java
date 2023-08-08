@@ -31,6 +31,10 @@ public interface GrpcGoLiveAndCloseResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * True, if the catalog was switched to ALIVE state.
+   * </pre>
+   *
    * <code>bool success = 1;</code>
    * @return The success.
    */

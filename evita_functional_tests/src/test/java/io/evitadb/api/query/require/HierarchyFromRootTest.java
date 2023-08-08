@@ -76,7 +76,7 @@ class HierarchyFromRootTest {
 		assertEquals("fromRoot('megaMenu',stopAt(level(1)))", hierarchyFromRoot.toString());
 
 		final HierarchyFromRoot hierarchyFromRoot2 = fromRoot("megaMenu", entityFetchAll());
-		assertEquals("fromRoot('megaMenu',entityFetch(attributeContentAll(),hierarchyContent(),associatedDataContentAll(),priceContentAll(),referenceContentAllWithAttributes(attributeContentAll()),dataInLocalesAll()))", hierarchyFromRoot2.toString());
+		assertEquals("fromRoot('megaMenu',entityFetch(attributeContentAll(),hierarchyContent(),associatedDataContentAll(),priceContentAll(),referenceContentAllWithAttributes(),dataInLocalesAll()))", hierarchyFromRoot2.toString());
 
 		final HierarchyFromRoot hierarchyFromRoot3 = fromRoot("megaMenu", statistics());
 		assertEquals("fromRoot('megaMenu',statistics(WITHOUT_USER_FILTER))", hierarchyFromRoot3.toString());

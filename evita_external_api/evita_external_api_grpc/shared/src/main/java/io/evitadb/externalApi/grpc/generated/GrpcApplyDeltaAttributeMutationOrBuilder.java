@@ -31,11 +31,21 @@ public interface GrpcApplyDeltaAttributeMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Unique name of the attribute. Case-sensitive. Distinguishes one associated data item from another within
+   * single entity instance.
+   * </pre>
+   *
    * <code>string attributeName = 1;</code>
    * @return The attributeName.
    */
   java.lang.String getAttributeName();
   /**
+   * <pre>
+   * Unique name of the attribute. Case-sensitive. Distinguishes one associated data item from another within
+   * single entity instance.
+   * </pre>
+   *
    * <code>string attributeName = 1;</code>
    * @return The bytes for attributeName.
    */
@@ -43,98 +53,174 @@ public interface GrpcApplyDeltaAttributeMutationOrBuilder extends
       getAttributeNameBytes();
 
   /**
+   * <pre>
+   * Contains locale in case the attribute is locale specific.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
    * @return Whether the attributeLocale field is set.
    */
   boolean hasAttributeLocale();
   /**
+   * <pre>
+   * Contains locale in case the attribute is locale specific.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
    * @return The attributeLocale.
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocale getAttributeLocale();
   /**
+   * <pre>
+   * Contains locale in case the attribute is locale specific.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder getAttributeLocaleOrBuilder();
 
   /**
+   * <pre>
+   * Integer delta to apply to existing value of this attribute.
+   * </pre>
+   *
    * <code>int32 integerDelta = 3;</code>
    * @return Whether the integerDelta field is set.
    */
   boolean hasIntegerDelta();
   /**
+   * <pre>
+   * Integer delta to apply to existing value of this attribute.
+   * </pre>
+   *
    * <code>int32 integerDelta = 3;</code>
    * @return The integerDelta.
    */
   int getIntegerDelta();
 
   /**
+   * <pre>
+   * Long delta to apply to existing value of this attribute.
+   * </pre>
+   *
    * <code>int64 longDelta = 4;</code>
    * @return Whether the longDelta field is set.
    */
   boolean hasLongDelta();
   /**
+   * <pre>
+   * Long delta to apply to existing value of this attribute.
+   * </pre>
+   *
    * <code>int64 longDelta = 4;</code>
    * @return The longDelta.
    */
   long getLongDelta();
 
   /**
+   * <pre>
+   * BigDecimal delta to apply to existing value of this attribute.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalDelta = 5;</code>
    * @return Whether the bigDecimalDelta field is set.
    */
   boolean hasBigDecimalDelta();
   /**
+   * <pre>
+   * BigDecimal delta to apply to existing value of this attribute.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalDelta = 5;</code>
    * @return The bigDecimalDelta.
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getBigDecimalDelta();
   /**
+   * <pre>
+   * BigDecimal delta to apply to existing value of this attribute.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalDelta = 5;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getBigDecimalDeltaOrBuilder();
 
   /**
+   * <pre>
+   * Integer number range within which the value after delta application has to be.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerRequiredRangeAfterApplication = 6;</code>
    * @return Whether the integerRequiredRangeAfterApplication field is set.
    */
   boolean hasIntegerRequiredRangeAfterApplication();
   /**
+   * <pre>
+   * Integer number range within which the value after delta application has to be.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerRequiredRangeAfterApplication = 6;</code>
    * @return The integerRequiredRangeAfterApplication.
    */
   io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange getIntegerRequiredRangeAfterApplication();
   /**
+   * <pre>
+   * Integer number range within which the value after delta application has to be.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerRequiredRangeAfterApplication = 6;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder getIntegerRequiredRangeAfterApplicationOrBuilder();
 
   /**
+   * <pre>
+   * Long number range within which the value after delta application has to be.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longRequiredRangeAfterApplication = 7;</code>
    * @return Whether the longRequiredRangeAfterApplication field is set.
    */
   boolean hasLongRequiredRangeAfterApplication();
   /**
+   * <pre>
+   * Long number range within which the value after delta application has to be.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longRequiredRangeAfterApplication = 7;</code>
    * @return The longRequiredRangeAfterApplication.
    */
   io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange getLongRequiredRangeAfterApplication();
   /**
+   * <pre>
+   * Long number range within which the value after delta application has to be.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longRequiredRangeAfterApplication = 7;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeOrBuilder getLongRequiredRangeAfterApplicationOrBuilder();
 
   /**
+   * <pre>
+   * BigDecimal number range within which the value after delta application has to be.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalRequiredRangeAfterApplication = 8;</code>
    * @return Whether the bigDecimalRequiredRangeAfterApplication field is set.
    */
   boolean hasBigDecimalRequiredRangeAfterApplication();
   /**
+   * <pre>
+   * BigDecimal number range within which the value after delta application has to be.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalRequiredRangeAfterApplication = 8;</code>
    * @return The bigDecimalRequiredRangeAfterApplication.
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange getBigDecimalRequiredRangeAfterApplication();
   /**
+   * <pre>
+   * BigDecimal number range within which the value after delta application has to be.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalRequiredRangeAfterApplication = 8;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeOrBuilder getBigDecimalRequiredRangeAfterApplicationOrBuilder();

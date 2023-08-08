@@ -51,7 +51,7 @@ public interface DisallowCurrencyInEntitySchemaMutationDescriptor {
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("DisallowCurrencyInEntitySchemaMutation")
 		.description("""
-			Mutation is responsible for adding one or more currencies to a `EntitySchema.currencies`
+			Mutation is responsible for removing one or more currencies from a `EntitySchema.currencies`
 			in `EntitySchema`.
 			""")
 		.staticFields(List.of(CURRENCIES))

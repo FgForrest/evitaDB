@@ -2,29 +2,70 @@ syntax = "proto3";
 
 package io.evitadb.externalApi.grpc.generated;
 option java_multiple_files = true;
+option csharp_namespace = "EvitaDB";
 
 import "GrpcEnums.proto";
 import "google/protobuf/wrappers.proto";
 import "GrpcEvitaDataTypes.proto";
 
+// This mutation allows to set / remove `priceInnerRecordHandling` behaviour of the entity.
 message GrpcSetPriceInnerRecordHandlingMutation {
+  // Price inner record handling controls how prices that share same `inner entity id` will behave during filtering and sorting.
   GrpcPriceInnerRecordHandling priceInnerRecordHandling = 1;
 }
 
+// This mutation allows to create / update `price` of the entity.
 message GrpcUpsertPriceMutation {
+  // Contains identification of the price in the external systems. This id is expected to be used for the synchronization
+  // of the price in relation with the primary source of the prices.
+  //
+  // This id is used to uniquely find a price within same price list and currency and is mandatory.
   int32 priceId = 1;
+  // Contains identification of the price list in the external system. Each price must reference a price list. Price list
+  // identification may refer to another Evita entity or may contain any external price list identification
+  // (for example id or unique name of the price list in the external system).
+  //
+  // Single entity is expected to have single price for the price list unless there is `validity` specified.
+  // In other words there is no sense to have multiple concurrently valid prices for the same entity that have roots
+  // in the same price list.
   string priceList = 2;
+  // Identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
   GrpcCurrency currency = 3;
+  // Some special products (such as master products, or product sets) may contain prices of all "subordinate" products
+  // so that the aggregating product can represent them in certain views on the product. In that case there is need
+  // to distinguish the projected prices of the subordinate product in the one that represents them.
+  //
+  // Inner record id must contain positive value.
   google.protobuf.Int32Value innerRecordId = 4;
+  // Price without tax.
   GrpcBigDecimal priceWithoutTax = 5;
+  // Tax rate percentage (i.e. for 19% it'll be 19.00)
   GrpcBigDecimal taxRate = 6;
+  // Price with tax.
   GrpcBigDecimal priceWithTax = 7;
+  // Date and time interval for which the price is valid (inclusive).
   GrpcDateTimeRange validity = 8;
+  // Controls whether price is subject to filtering / sorting logic, non-sellable prices will be fetched along with
+  // entity but won't be considered when evaluating search query. These prices may be
+  // used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
+  // as "usual price") but are not considered as the "selling" price.
   bool sellable = 9;
 }
 
 message GrpcRemovePriceMutation {
+  // Contains identification of the price in the external systems. This id is expected to be used for the synchronization
+  // of the price in relation with the primary source of the prices.
+  //
+  // This id is used to uniquely find a price within same price list and currency and is mandatory.
   int32 priceId = 1;
+  // Contains identification of the price list in the external system. Each price must reference a price list. Price list
+  // identification may refer to another Evita entity or may contain any external price list identification
+  // (for example id or unique name of the price list in the external system).
+  //
+  // Single entity is expected to have single price for the price list unless there is `validity` specified.
+  // In other words there is no sense to have multiple concurrently valid prices for the same entity that have roots
+  // in the same price list.
   string priceList = 2;
+  // Identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
   GrpcCurrency currency = 3;
 }

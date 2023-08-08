@@ -31,46 +31,82 @@ public interface GrpcAttributeMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Increments or decrements existing numeric value by specified delta (negative number produces decremental of existing number, positive one incrementation).
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation applyDeltaAttributeMutation = 1;</code>
    * @return Whether the applyDeltaAttributeMutation field is set.
    */
   boolean hasApplyDeltaAttributeMutation();
   /**
+   * <pre>
+   * Increments or decrements existing numeric value by specified delta (negative number produces decremental of existing number, positive one incrementation).
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation applyDeltaAttributeMutation = 1;</code>
    * @return The applyDeltaAttributeMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation getApplyDeltaAttributeMutation();
   /**
+   * <pre>
+   * Increments or decrements existing numeric value by specified delta (negative number produces decremental of existing number, positive one incrementation).
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation applyDeltaAttributeMutation = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutationOrBuilder getApplyDeltaAttributeMutationOrBuilder();
 
   /**
+   * <pre>
+   * Upsert attribute mutation will either update existing attribute or create new one.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation upsertAttributeMutation = 2;</code>
    * @return Whether the upsertAttributeMutation field is set.
    */
   boolean hasUpsertAttributeMutation();
   /**
+   * <pre>
+   * Upsert attribute mutation will either update existing attribute or create new one.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation upsertAttributeMutation = 2;</code>
    * @return The upsertAttributeMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation getUpsertAttributeMutation();
   /**
+   * <pre>
+   * Upsert attribute mutation will either update existing attribute or create new one.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation upsertAttributeMutation = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutationOrBuilder getUpsertAttributeMutationOrBuilder();
 
   /**
+   * <pre>
+   * Remove attribute mutation will drop existing attribute - ie.generates new version of the attribute with tombstone on it.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation removeAttributeMutation = 3;</code>
    * @return Whether the removeAttributeMutation field is set.
    */
   boolean hasRemoveAttributeMutation();
   /**
+   * <pre>
+   * Remove attribute mutation will drop existing attribute - ie.generates new version of the attribute with tombstone on it.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation removeAttributeMutation = 3;</code>
    * @return The removeAttributeMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation getRemoveAttributeMutation();
   /**
+   * <pre>
+   * Remove attribute mutation will drop existing attribute - ie.generates new version of the attribute with tombstone on it.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation removeAttributeMutation = 3;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutationOrBuilder getRemoveAttributeMutationOrBuilder();

@@ -101,7 +101,8 @@ public final class GrpcAttributeMutations {
       "ted.GrpcUpsertAttributeMutationH\000\022e\n\027rem" +
       "oveAttributeMutation\030\003 \001(\0132B.io.evitadb." +
       "externalApi.grpc.generated.GrpcRemoveAtt" +
-      "ributeMutationH\000B\n\n\010mutationB\002P\001b\006proto3"
+      "ributeMutationH\000B\n\n\010mutationB\014P\001\252\002\007Evita" +
+      "DBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

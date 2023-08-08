@@ -27,15 +27,28 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * The enum specifies whether the HierarchyStatistics should produce the hierarchy children count or referenced
+ * entity count.
+ * </pre>
+ *
  * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcStatisticsType}
  */
 public enum GrpcStatisticsType
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
+   * <pre>
+   * The statistics will be produce a hierarchy children count.
+   * </pre>
+   *
    * <code>CHILDREN_COUNT = 0;</code>
    */
   CHILDREN_COUNT(0),
   /**
+   * <pre>
+   * The statistics will be produce a reference entity count.
+   * </pre>
+   *
    * <code>QUERIED_ENTITY_COUNT = 1;</code>
    */
   QUERIED_ENTITY_COUNT(1),
@@ -43,10 +56,18 @@ public enum GrpcStatisticsType
   ;
 
   /**
+   * <pre>
+   * The statistics will be produce a hierarchy children count.
+   * </pre>
+   *
    * <code>CHILDREN_COUNT = 0;</code>
    */
   public static final int CHILDREN_COUNT_VALUE = 0;
   /**
+   * <pre>
+   * The statistics will be produce a reference entity count.
+   * </pre>
+   *
    * <code>QUERIED_ENTITY_COUNT = 1;</code>
    */
   public static final int QUERIED_ENTITY_COUNT_VALUE = 1;

@@ -27,19 +27,35 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Determines which prices will be fetched along with entity.
+ * </pre>
+ *
  * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode}
  */
 public enum GrpcPriceContentMode
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
+   * <pre>
+   * No prices will be fetched.
+   * </pre>
+   *
    * <code>FETCH_NONE = 0;</code>
    */
   FETCH_NONE(0),
   /**
+   * <pre>
+   * Only prices respecting filter constraints in query will be fetched.
+   * </pre>
+   *
    * <code>RESPECTING_FILTER = 1;</code>
    */
   RESPECTING_FILTER(1),
   /**
+   * <pre>
+   * All prices will be fetched.
+   * </pre>
+   *
    * <code>ALL = 2;</code>
    */
   ALL(2),
@@ -47,14 +63,26 @@ public enum GrpcPriceContentMode
   ;
 
   /**
+   * <pre>
+   * No prices will be fetched.
+   * </pre>
+   *
    * <code>FETCH_NONE = 0;</code>
    */
   public static final int FETCH_NONE_VALUE = 0;
   /**
+   * <pre>
+   * Only prices respecting filter constraints in query will be fetched.
+   * </pre>
+   *
    * <code>RESPECTING_FILTER = 1;</code>
    */
   public static final int RESPECTING_FILTER_VALUE = 1;
   /**
+   * <pre>
+   * All prices will be fetched.
+   * </pre>
+   *
    * <code>ALL = 2;</code>
    */
   public static final int ALL_VALUE = 2;

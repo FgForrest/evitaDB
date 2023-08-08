@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Mutation is responsible for adding one or more locales to a `EntitySchema.locales` in `EntitySchema`.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcAllowLocaleInEntitySchemaMutation}
  */
 public final class GrpcAllowLocaleInEntitySchemaMutation extends
@@ -120,6 +124,10 @@ private static final long serialVersionUID = 0L;
   public static final int LOCALES_FIELD_NUMBER = 1;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale> locales_;
   /**
+   * <pre>
+   * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
    */
   @java.lang.Override
@@ -127,6 +135,10 @@ private static final long serialVersionUID = 0L;
     return locales_;
   }
   /**
+   * <pre>
+   * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
    */
   @java.lang.Override
@@ -135,6 +147,10 @@ private static final long serialVersionUID = 0L;
     return locales_;
   }
   /**
+   * <pre>
+   * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
    */
   @java.lang.Override
@@ -142,6 +158,10 @@ private static final long serialVersionUID = 0L;
     return locales_.size();
   }
   /**
+   * <pre>
+   * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
    */
   @java.lang.Override
@@ -149,6 +169,10 @@ private static final long serialVersionUID = 0L;
     return locales_.get(index);
   }
   /**
+   * <pre>
+   * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
    */
   @java.lang.Override
@@ -315,6 +339,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Mutation is responsible for adding one or more locales to a `EntitySchema.locales` in `EntitySchema`.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcAllowLocaleInEntitySchemaMutation}
    */
   public static final class Builder extends
@@ -512,6 +540,10 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> localesBuilder_;
 
     /**
+     * <pre>
+     * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale> getLocalesList() {
@@ -522,6 +554,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
     public int getLocalesCount() {
@@ -532,6 +568,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocale getLocales(int index) {
@@ -542,6 +582,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
     public Builder setLocales(
@@ -559,6 +603,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
     public Builder setLocales(
@@ -573,6 +621,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
     public Builder addLocales(io.evitadb.externalApi.grpc.generated.GrpcLocale value) {
@@ -589,6 +641,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
     public Builder addLocales(
@@ -606,6 +662,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
     public Builder addLocales(
@@ -620,6 +680,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
     public Builder addLocales(
@@ -634,6 +698,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
     public Builder addAllLocales(
@@ -649,6 +717,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
     public Builder clearLocales() {
@@ -662,6 +734,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
     public Builder removeLocales(int index) {
@@ -675,6 +751,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder getLocalesBuilder(
@@ -682,6 +762,10 @@ private static final long serialVersionUID = 0L;
       return getLocalesFieldBuilder().getBuilder(index);
     }
     /**
+     * <pre>
+     * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder getLocalesOrBuilder(
@@ -692,6 +776,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
@@ -703,6 +791,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder addLocalesBuilder() {
@@ -710,6 +802,10 @@ private static final long serialVersionUID = 0L;
           io.evitadb.externalApi.grpc.generated.GrpcLocale.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder addLocalesBuilder(
@@ -718,6 +814,10 @@ private static final long serialVersionUID = 0L;
           index, io.evitadb.externalApi.grpc.generated.GrpcLocale.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Set of all locales that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder> 

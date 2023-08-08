@@ -63,8 +63,8 @@ public final class GrpcAttribute {
       "rpc.generated.GrpcLocalizedAttribute.Att" +
       "ributesEntry\032h\n\017AttributesEntry\022\013\n\003key\030\001" +
       " \001(\t\022D\n\005value\030\002 \001(\01325.io.evitadb.externa" +
-      "lApi.grpc.generated.GrpcEvitaValue:\0028\001B\002" +
-      "P\001b\006proto3"
+      "lApi.grpc.generated.GrpcEvitaValue:\0028\001B\014" +
+      "P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

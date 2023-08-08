@@ -31,31 +31,55 @@ public interface GrpcDeleteEntityResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The deleted entity reference.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
    * @return Whether the entityReference field is set.
    */
   boolean hasEntityReference();
   /**
+   * <pre>
+   * The deleted entity reference.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
    * @return The entityReference.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityReference getEntityReference();
   /**
+   * <pre>
+   * The deleted entity reference.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder getEntityReferenceOrBuilder();
 
   /**
+   * <pre>
+   * The deleted entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
    * @return Whether the entity field is set.
    */
   boolean hasEntity();
   /**
+   * <pre>
+   * The deleted entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
    * @return The entity.
    */
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getEntity();
   /**
+   * <pre>
+   * The deleted entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getEntityOrBuilder();

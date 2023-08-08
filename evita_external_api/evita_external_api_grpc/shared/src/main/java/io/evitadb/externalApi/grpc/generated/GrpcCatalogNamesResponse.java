@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Response to a catalog names request.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCatalogNamesResponse}
  */
 public final class GrpcCatalogNamesResponse extends
@@ -120,6 +124,10 @@ private static final long serialVersionUID = 0L;
   public static final int CATALOGNAMES_FIELD_NUMBER = 1;
   private com.google.protobuf.LazyStringList catalogNames_;
   /**
+   * <pre>
+   * Names of all existing catalogs.
+   * </pre>
+   *
    * <code>repeated string catalogNames = 1;</code>
    * @return A list containing the catalogNames.
    */
@@ -128,6 +136,10 @@ private static final long serialVersionUID = 0L;
     return catalogNames_;
   }
   /**
+   * <pre>
+   * Names of all existing catalogs.
+   * </pre>
+   *
    * <code>repeated string catalogNames = 1;</code>
    * @return The count of catalogNames.
    */
@@ -135,6 +147,10 @@ private static final long serialVersionUID = 0L;
     return catalogNames_.size();
   }
   /**
+   * <pre>
+   * Names of all existing catalogs.
+   * </pre>
+   *
    * <code>repeated string catalogNames = 1;</code>
    * @param index The index of the element to return.
    * @return The catalogNames at the given index.
@@ -143,6 +159,10 @@ private static final long serialVersionUID = 0L;
     return catalogNames_.get(index);
   }
   /**
+   * <pre>
+   * Names of all existing catalogs.
+   * </pre>
+   *
    * <code>repeated string catalogNames = 1;</code>
    * @param index The index of the value to return.
    * @return The bytes of the catalogNames at the given index.
@@ -314,6 +334,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Response to a catalog names request.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCatalogNamesResponse}
    */
   public static final class Builder extends
@@ -481,6 +505,10 @@ private static final long serialVersionUID = 0L;
        }
     }
     /**
+     * <pre>
+     * Names of all existing catalogs.
+     * </pre>
+     *
      * <code>repeated string catalogNames = 1;</code>
      * @return A list containing the catalogNames.
      */
@@ -489,6 +517,10 @@ private static final long serialVersionUID = 0L;
       return catalogNames_.getUnmodifiableView();
     }
     /**
+     * <pre>
+     * Names of all existing catalogs.
+     * </pre>
+     *
      * <code>repeated string catalogNames = 1;</code>
      * @return The count of catalogNames.
      */
@@ -496,6 +528,10 @@ private static final long serialVersionUID = 0L;
       return catalogNames_.size();
     }
     /**
+     * <pre>
+     * Names of all existing catalogs.
+     * </pre>
+     *
      * <code>repeated string catalogNames = 1;</code>
      * @param index The index of the element to return.
      * @return The catalogNames at the given index.
@@ -504,6 +540,10 @@ private static final long serialVersionUID = 0L;
       return catalogNames_.get(index);
     }
     /**
+     * <pre>
+     * Names of all existing catalogs.
+     * </pre>
+     *
      * <code>repeated string catalogNames = 1;</code>
      * @param index The index of the value to return.
      * @return The bytes of the catalogNames at the given index.
@@ -513,6 +553,10 @@ private static final long serialVersionUID = 0L;
       return catalogNames_.getByteString(index);
     }
     /**
+     * <pre>
+     * Names of all existing catalogs.
+     * </pre>
+     *
      * <code>repeated string catalogNames = 1;</code>
      * @param index The index to set the value at.
      * @param value The catalogNames to set.
@@ -529,6 +573,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Names of all existing catalogs.
+     * </pre>
+     *
      * <code>repeated string catalogNames = 1;</code>
      * @param value The catalogNames to add.
      * @return This builder for chaining.
@@ -544,6 +592,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Names of all existing catalogs.
+     * </pre>
+     *
      * <code>repeated string catalogNames = 1;</code>
      * @param values The catalogNames to add.
      * @return This builder for chaining.
@@ -557,6 +609,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Names of all existing catalogs.
+     * </pre>
+     *
      * <code>repeated string catalogNames = 1;</code>
      * @return This builder for chaining.
      */
@@ -567,6 +623,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Names of all existing catalogs.
+     * </pre>
+     *
      * <code>repeated string catalogNames = 1;</code>
      * @param value The bytes of the catalogNames to add.
      * @return This builder for chaining.
