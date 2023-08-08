@@ -110,7 +110,7 @@ Using the custom aliases for hierarchies, you can easily create custom menu data
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.selfHierarchy">[Output with multiple menu parts](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-data-structure-association.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.selfHierarchy">[Output with multiple menu parts](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-data-structure-association.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -292,7 +292,7 @@ The computed result of the *megaMenu* looks like this:
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.megaMenu">[Example of using `hierarchyWithin` and `fromRoot` in a single query](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-from-root.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.megaMenu">[Example of using `hierarchyWithin` and `fromRoot` in a single query](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-from-root.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -385,7 +385,7 @@ The computed result both of the *sideMenu1* and *sideMenu2* looks like this:
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories">[Example of using `hierarchyWithin` and `fromNode` in a single query](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-from-node.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories">[Example of using `hierarchyWithin` and `fromNode` in a single query](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-from-node.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -470,7 +470,7 @@ The computed result *subcategories* looks like this:
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.subcategories">[Example of using `children` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-children.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.subcategories">[Example of using `children` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-children.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -557,7 +557,7 @@ The computed result *parentAxis* looks like this:
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.parentAxis">[Example of using `parents` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parents.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.parentAxis">[Example of using `parents` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parents.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -587,7 +587,7 @@ The computed result *parentAxis* with siblings now looks like this:
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.parentAxis">[Example of using `parents` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parents-siblings.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.parentAxis">[Example of using `parents` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parents-siblings.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -699,7 +699,7 @@ The computed result *audioSiblings* looks like this:
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.audioSiblings">[Example of using `siblings` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-siblings.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.audioSiblings">[Example of using `siblings` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-siblings.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -726,7 +726,7 @@ The computed result *audioSiblings* with their direct children looks like this (
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.audioSiblings">[Example of using `siblings` subtree requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-siblings-with-subtree.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.audioSiblings">[Example of using `siblings` subtree requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-siblings-with-subtree.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -817,7 +817,7 @@ Which returns following output:
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.subcategories">[Direct children](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-direct-children.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.subcategories">[Direct children](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-direct-children.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -845,7 +845,7 @@ That returns simply:
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.parent">[Direct parent](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parent.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.parent">[Direct parent](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parent.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -903,7 +903,7 @@ Which returns:
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.megaMenu">[Top 2 level of categories](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-level.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.megaMenu">[Top 2 level of categories](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-level.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -931,7 +931,7 @@ category up to level two.
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.parents">[Parents up to level 2](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-level-parent.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.parents">[Parents up to level 2](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-level-parent.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -989,7 +989,7 @@ The computed result *subMenu* looks like this (visualized in JSON format):
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.subMenu">[Example of using `node` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-node.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.subMenu">[Example of using `node` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-node.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 

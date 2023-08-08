@@ -55,16 +55,11 @@ import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.netty.NettyChannelBuilder;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -97,6 +92,9 @@ import static java.util.Optional.ofNullable;
 @ThreadSafe
 @Slf4j
 public class EvitaClient implements EvitaContract {
+
+	static final Pattern ERROR_MESSAGE_PATTERN = Pattern.compile("(\\w+:\\w+:\\w+): (.*)");
+
 	private static final SchemaMutationConverter<TopLevelCatalogSchemaMutation, GrpcTopLevelCatalogSchemaMutation> CATALOG_SCHEMA_MUTATION_CONVERTER =
 		new DelegatingTopLevelCatalogSchemaMutationConverter();
 
@@ -137,6 +135,38 @@ public class EvitaClient implements EvitaContract {
 		final ManagedChannel managedChannel = this.channelPool.getChannel();
 		try {
 			return evitaServiceBlockingStub.apply(EvitaServiceGrpc.newBlockingStub(managedChannel));
+		} catch (StatusRuntimeException statusRuntimeException) {
+			final Code statusCode = statusRuntimeException.getStatus().getCode();
+			final String description = ofNullable(statusRuntimeException.getStatus().getDescription())
+				.orElse("No description.");
+			if (statusCode == Code.INVALID_ARGUMENT) {
+				final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
+				if (expectedFormat.matches()) {
+					throw EvitaInvalidUsageException.createExceptionWithErrorCode(
+						expectedFormat.group(2), expectedFormat.group(1)
+					);
+				} else {
+					throw new EvitaInvalidUsageException(description);
+				}
+			} else {
+				final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
+				if (expectedFormat.matches()) {
+					throw EvitaInternalError.createExceptionWithErrorCode(
+						expectedFormat.group(2), expectedFormat.group(1)
+					);
+				} else {
+					throw new EvitaInternalError(description);
+				}
+			}
+		} catch (EvitaInvalidUsageException | EvitaInternalError evitaError) {
+			throw evitaError;
+		} catch (Throwable e) {
+			log.error("Unexpected internal Evita error occurred: {}", e.getMessage(), e);
+			throw new EvitaInternalError(
+				"Unexpected internal Evita error occurred: " + e.getMessage(),
+				"Unexpected internal Evita error occurred.",
+				e
+			);
 		} finally {
 			this.channelPool.releaseChannel(managedChannel);
 		}
@@ -264,14 +294,9 @@ public class EvitaClient implements EvitaContract {
 					.ifPresent(it -> it.onTermination(evitaSession));
 			}
 		);
-		final EvitaSessionContract newSessionProxy = (EvitaSessionContract) Proxy.newProxyInstance(
-			EvitaSessionContract.class.getClassLoader(),
-			new Class[]{EvitaSessionContract.class},
-			new EvitaSessionProxy(evitaClientSession)
-		);
 
-		this.activeSessions.put(evitaClientSession.getId(), newSessionProxy);
-		return newSessionProxy;
+		this.activeSessions.put(evitaClientSession.getId(), evitaClientSession);
+		return evitaClientSession;
 	}
 
 	@Nonnull
@@ -432,77 +457,6 @@ public class EvitaClient implements EvitaContract {
 	protected void assertActive() {
 		if (!active.get()) {
 			throw new InstanceTerminatedException("client instance");
-		}
-	}
-
-	/**
-	 * This handler is an infrastructural handler that delegates all calls to {@link #evitaSession}. We'll pay some
-	 * performance price by wrapping {@link EvitaClientSession} in a proxy, that uses this error handler (all calls
-	 * on session object will be approximately 1.7x less performant -
-	 * <a href="http://ordinaryjava.blogspot.com/2008/08/benchmarking-cost-of-dynamic-proxies.html">source</a>) but this
-	 * way we can isolate the error handling in one place and avoid cluttering the source code. Graal
-	 * supports JDK proxies out-of-the-box so this shouldn't be a problem in the future.
-	 */
-	@RequiredArgsConstructor
-	private static class EvitaSessionProxy implements InvocationHandler {
-		private static final Pattern ERROR_MESSAGE_PATTERN = Pattern.compile("(\\w+:\\w+:\\w+): (.*)");
-		private final EvitaClientSession evitaSession;
-
-		@Override
-		public Object invoke(Object proxy, Method method, Object[] args) {
-			// invoke original method on delegate
-			try {
-				return method.invoke(evitaSession, args);
-			} catch (InvocationTargetException ex) {
-				// handle the error
-				final Throwable targetException = ex.getTargetException();
-				if (targetException instanceof StatusRuntimeException statusRuntimeException) {
-					final Code statusCode = statusRuntimeException.getStatus().getCode();
-					final String description = ofNullable(statusRuntimeException.getStatus().getDescription())
-						.orElse("No description.");
-					if (statusCode == Code.UNAUTHENTICATED) {
-						// close session and rethrow
-						evitaSession.closeInternally();
-						throw new InstanceTerminatedException("session");
-					} else if (statusCode == Code.INVALID_ARGUMENT) {
-						final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
-						if (expectedFormat.matches()) {
-							throw EvitaInvalidUsageException.createExceptionWithErrorCode(
-								expectedFormat.group(2), expectedFormat.group(1)
-							);
-						} else {
-							throw new EvitaInvalidUsageException(description);
-						}
-					} else {
-						final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
-						if (expectedFormat.matches()) {
-							throw EvitaInternalError.createExceptionWithErrorCode(
-								expectedFormat.group(2), expectedFormat.group(1)
-							);
-						} else {
-							throw new EvitaInternalError(description);
-						}
-					}
-				} else if (targetException instanceof EvitaInvalidUsageException) {
-					throw (EvitaInvalidUsageException) targetException;
-				} else if (targetException instanceof EvitaInternalError) {
-					throw (EvitaInternalError) targetException;
-				} else {
-					log.error("Unexpected internal Evita error occurred: {}", ex.getMessage(), ex);
-					throw new EvitaInternalError(
-						"Unexpected internal Evita error occurred: " + ex.getMessage(),
-						"Unexpected internal Evita error occurred.",
-						targetException
-					);
-				}
-			} catch (Throwable ex) {
-				log.error("Unexpected system error occurred: {}", ex.getMessage(), ex);
-				throw new EvitaInternalError(
-					"Unexpected system error occurred: " + ex.getMessage(),
-					"Unexpected system error occurred.",
-					ex
-				);
-			}
 		}
 	}
 

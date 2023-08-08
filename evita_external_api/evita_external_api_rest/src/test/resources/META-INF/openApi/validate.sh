@@ -24,7 +24,7 @@
 
 CATALOG_NAME=$1
 TMP=/tmp/evita-rest
-SPEC=$TMP/$CATALOG_NAME.yaml
+SPEC=$TMP/$CATALOG_NAME.json
 
 mkdir $TMP
 wget --no-check-certificate "https://localhost:5555/rest/$CATALOG_NAME" -O $SPEC

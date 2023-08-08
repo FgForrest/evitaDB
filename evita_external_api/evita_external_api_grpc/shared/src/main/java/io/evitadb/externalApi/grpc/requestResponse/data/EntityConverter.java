@@ -174,7 +174,7 @@ public class EntityConverter {
 				)
 			);
 
-			if (SealedEntity.class.isAssignableFrom(expectedType)) {
+			if (expectedType.isInstance(sealedEntity)) {
 				//noinspection unchecked
 				return (T) sealedEntity;
 			} else {
