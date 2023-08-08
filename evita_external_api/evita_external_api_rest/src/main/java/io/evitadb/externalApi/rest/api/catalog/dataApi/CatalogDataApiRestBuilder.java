@@ -281,7 +281,7 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 		final OpenApiSimpleType requireForDeleteObject = deleteRequireConstraintSchemaBuilder.build(entitySchema.getName());
 		collectionBuildingContext.setRequireForDeleteObject(requireForDeleteObject);
 
-		buildingContext.registerLocalizedEntityObject(entityObjectBuilder.buildEntityObject(entitySchema, false));
+		buildingContext.registerEntityObject(entityObjectBuilder.buildEntityObject(entitySchema, false));
 
 		buildListRequestBodyObject(collectionBuildingContext, false);
 		buildQueryRequestBodyObject(collectionBuildingContext, false);
@@ -290,7 +290,7 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 		buildingContext.registerType(fullResponseObjectBuilder.buildFullResponseObject(entitySchema, false));
 
 		if(collectionBuildingContext.isLocalizedEntity()) {
-			buildingContext.registerEntityObject(entityObjectBuilder.buildEntityObject(entitySchema, true));
+			buildingContext.registerLocalizedEntityObject(entityObjectBuilder.buildEntityObject(entitySchema, true));
 
 			buildListRequestBodyObject(collectionBuildingContext, true);
 			buildQueryRequestBodyObject(collectionBuildingContext, true);

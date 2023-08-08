@@ -113,9 +113,32 @@ the requested query, ready for execution by the database.
 [Example of creating gRPC channel and a service operating upon it and executing a query](/documentation/user/en/use/connectors/examples/grpc-client-query-call.java)
 </SourceCodeTabs>
 
+The example uses the `convertQueryParam` method from the <SourceClass>evita_external_api/evita_external_api_grpc/shared/src/main/java/io/evitadb/externalApi/grpc/query/QueryConverter.java</SourceClass> class. A similar method must be implemented in the gRPC client language to register
+input parameters of a specific gRPC data type for the query.
+
 The primary purpose of evitaDB is to execute queries. However, as shown in the example above, working with the database 
 in this way is not the most user-friendly experience. Unfortunately, there is currently no support for intellisense or
 query validation, and we haven't developed any IDE tools to address this limitation.
+
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### Is there a better way to call queries via the gRPC API?
+</NoteTitle>
+
+Yes, there is, and you will not see this kind of usage in our integration tests. Instead, we work with query in its
+original type-safe form:
+
+<SourceCodeTabs requires="/documentation/user/en/use/connectors/examples/channel-and-session-creation.java">
+[Example of alternative gRPC query invocation](/documentation/user/en/use/connectors/examples/grpc-optimized-client-query-call.java)
+</SourceCodeTabs>
+
+However, this approach requires that the query language model be implemented in the target gRPC language, and this 
+requires a significant amount of effort. We always recommend using appropriate client drivers, if they are available for 
+the target language, as this shifts the developer experience to a higher level.
+
+</Note>
 
 # Recommended usage
 

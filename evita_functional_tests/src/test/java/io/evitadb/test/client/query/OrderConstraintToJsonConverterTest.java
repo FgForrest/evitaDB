@@ -23,6 +23,7 @@
 
 package io.evitadb.test.client.query;
 
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
@@ -61,9 +62,15 @@ class OrderConstraintToJsonConverterTest extends ConstraintToJsonConverterTest {
 
 	@Test
 	void shouldResolveChildOrderConstraint() {
-		final ObjectNode referenceCategoryProperty = jsonNodeFactory.objectNode();
-		referenceCategoryProperty.putIfAbsent("attributeCodeNatural", jsonNodeFactory.textNode("ASC"));
-		referenceCategoryProperty.putIfAbsent("random", jsonNodeFactory.booleanNode(true));
+		final ArrayNode referenceCategoryProperty = jsonNodeFactory.arrayNode();
+
+		final ObjectNode attributeCodeNaturalWrapper = jsonNodeFactory.objectNode();
+		attributeCodeNaturalWrapper.putIfAbsent("attributeCodeNatural", jsonNodeFactory.textNode("ASC"));
+		referenceCategoryProperty.add(attributeCodeNaturalWrapper);
+
+		final ObjectNode randomWrapper = jsonNodeFactory.objectNode();
+		randomWrapper.putIfAbsent("random", jsonNodeFactory.booleanNode(true));
+		referenceCategoryProperty.add(randomWrapper);
 
 		assertEquals(
 			new JsonConstraint("referenceCategoryProperty", referenceCategoryProperty),
@@ -80,14 +87,25 @@ class OrderConstraintToJsonConverterTest extends ConstraintToJsonConverterTest {
 
 	@Test
 	void shouldResolveComplexOrderConstraintTree() {
-		final ObjectNode orderBy = jsonNodeFactory.objectNode();
-		orderBy.putIfAbsent("attributeCodeNatural", jsonNodeFactory.textNode("ASC"));
-		orderBy.putIfAbsent("priceNatural", jsonNodeFactory.textNode("DESC"));
+		final ArrayNode orderBy = jsonNodeFactory.arrayNode();
 
-		final ObjectNode referenceCategoryProperty = jsonNodeFactory.objectNode();
-		referenceCategoryProperty.putIfAbsent("attributeCodeNatural", jsonNodeFactory.textNode("DESC"));
-		referenceCategoryProperty.putIfAbsent("random", jsonNodeFactory.booleanNode(true));
-		orderBy.putIfAbsent("referenceCategoryProperty", referenceCategoryProperty);
+		final ObjectNode attributeCodeNaturalWrapper = jsonNodeFactory.objectNode();
+		attributeCodeNaturalWrapper.putIfAbsent("attributeCodeNatural", jsonNodeFactory.textNode("ASC"));
+		orderBy.add(attributeCodeNaturalWrapper);
+		final ObjectNode priceNaturalWrapper = jsonNodeFactory.objectNode();
+		priceNaturalWrapper.putIfAbsent("priceNatural", jsonNodeFactory.textNode("DESC"));
+		orderBy.add(priceNaturalWrapper);
+
+		final ArrayNode referenceCategoryProperty = jsonNodeFactory.arrayNode();
+		final ObjectNode referenceAttributeCodeNaturalWrapper = jsonNodeFactory.objectNode();
+		referenceAttributeCodeNaturalWrapper.putIfAbsent("attributeCodeNatural", jsonNodeFactory.textNode("DESC"));
+		referenceCategoryProperty.add(referenceAttributeCodeNaturalWrapper);
+		final ObjectNode referenceRandomWrapper = jsonNodeFactory.objectNode();
+		referenceRandomWrapper.putIfAbsent("random", jsonNodeFactory.booleanNode(true));
+		referenceCategoryProperty.add(referenceRandomWrapper);
+		final ObjectNode referenceCategoryPropertyWrapper = jsonNodeFactory.objectNode();
+		referenceCategoryPropertyWrapper.putIfAbsent("referenceCategoryProperty", referenceCategoryProperty);
+		orderBy.add(referenceCategoryPropertyWrapper);
 
 		assertEquals(
 			new JsonConstraint("orderBy", orderBy),

@@ -23,6 +23,6 @@
 #
 
 CATALOG_NAME=$1
-SPEC=$CATALOG_NAME.yaml
+SPEC=$CATALOG_NAME.json
 
 wget --no-check-certificate "https://localhost:5555/rest/$CATALOG_NAME" -O $SPEC
