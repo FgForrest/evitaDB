@@ -54,9 +54,4 @@ public class OrderConstraintToJsonConverter extends ConstraintToJsonConverter {
 	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
 		return ConstraintDescriptorProvider.getConstraint(OrderBy.class);
 	}
-
-	@Override
-	protected boolean isChildrenUnique(@Nonnull ChildParameterDescriptor childParameter) {
-		return true;
-	}
 }

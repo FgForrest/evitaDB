@@ -28,6 +28,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.descriptor.ConstraintCreator;
 import io.evitadb.api.query.descriptor.ConstraintCreator.AdditionalChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
@@ -47,6 +48,7 @@ import io.evitadb.utils.ClassUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.xml.parsers.ParserConfigurationException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -275,7 +277,8 @@ public abstract class ConstraintToJsonConverter {
 					.count();
 
 				if (distinctChildren == convertedChildren.size() &&
-					!parsedConstraintDescriptor.constraintDescriptor().constraintClass().equals(Or.class)) {
+					!parsedConstraintDescriptor.constraintDescriptor().constraintClass().equals(Or.class) &&
+					!OrderConstraint.class.isAssignableFrom(parsedConstraintDescriptor.constraintDescriptor().constraintClass())) {
 					// we can use single wrapper container as each child has unique key
 					final ObjectNode wrapperContainer = jsonNodeFactory.objectNode();
 					convertedChildren.forEach(child -> wrapperContainer.putIfAbsent(child.key(), child.value()));
