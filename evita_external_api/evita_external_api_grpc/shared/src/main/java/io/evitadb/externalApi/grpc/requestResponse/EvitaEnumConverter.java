@@ -32,6 +32,10 @@ import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
+import io.evitadb.api.requestResponse.cdc.CaptureArea;
+import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.CaptureSite;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
@@ -39,8 +43,10 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.dataType.ClassifierType;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.grpc.generated.*;
+import io.evitadb.externalApi.grpc.requestResponse.cdc.CaptureResponseType;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -63,8 +69,7 @@ public class EvitaEnumConverter {
 		return switch (grpcCatalogState.getNumber()) {
 			case 0 -> CatalogState.WARMING_UP;
 			case 1 -> CatalogState.ALIVE;
-			default ->
-				throw new EvitaInternalError("Unrecognized remote catalog state: " + grpcCatalogState);
+			default -> throw new EvitaInternalError("Unrecognized remote catalog state: " + grpcCatalogState);
 		};
 	}
 
@@ -85,8 +90,7 @@ public class EvitaEnumConverter {
 		return switch (grpcQueryPriceMode.getNumber()) {
 			case 0 -> QueryPriceMode.WITH_TAX;
 			case 1 -> QueryPriceMode.WITHOUT_TAX;
-			default ->
-				throw new EvitaInternalError("Unrecognized remote query price mode: " + grpcQueryPriceMode);
+			default -> throw new EvitaInternalError("Unrecognized remote query price mode: " + grpcQueryPriceMode);
 		};
 	}
 
@@ -104,8 +108,7 @@ public class EvitaEnumConverter {
 			case 0 -> PriceContentMode.NONE;
 			case 1 -> PriceContentMode.RESPECTING_FILTER;
 			case 2 -> PriceContentMode.ALL;
-			default ->
-				throw new EvitaInternalError("Unrecognized remote price content mode: " + grpcPriceContentMode);
+			default -> throw new EvitaInternalError("Unrecognized remote price content mode: " + grpcPriceContentMode);
 		};
 	}
 
@@ -123,8 +126,7 @@ public class EvitaEnumConverter {
 		return switch (grpcOrderDirection.getNumber()) {
 			case 0 -> OrderDirection.ASC;
 			case 1 -> OrderDirection.DESC;
-			default ->
-				throw new EvitaInternalError("Unrecognized remote order direction: " + grpcOrderDirection);
+			default -> throw new EvitaInternalError("Unrecognized remote order direction: " + grpcOrderDirection);
 		};
 	}
 
@@ -141,8 +143,7 @@ public class EvitaEnumConverter {
 		return switch (grpcOrderBehaviour.getNumber()) {
 			case 0 -> OrderBehaviour.NULLS_FIRST;
 			case 1 -> OrderBehaviour.NULLS_LAST;
-			default ->
-				throw new EvitaInternalError("Unrecognized remote order behaviour: " + grpcOrderBehaviour);
+			default -> throw new EvitaInternalError("Unrecognized remote order behaviour: " + grpcOrderBehaviour);
 		};
 	}
 
@@ -177,8 +178,7 @@ public class EvitaEnumConverter {
 		return switch (grpcStatisticsBase.getNumber()) {
 			case 0 -> StatisticsBase.COMPLETE_FILTER;
 			case 1 -> StatisticsBase.WITHOUT_USER_FILTER;
-			default ->
-				throw new EvitaInternalError("Unrecognized remote statistics base: " + grpcStatisticsBase);
+			default -> throw new EvitaInternalError("Unrecognized remote statistics base: " + grpcStatisticsBase);
 		};
 	}
 
@@ -195,8 +195,7 @@ public class EvitaEnumConverter {
 		return switch (grpcStatisticsType.getNumber()) {
 			case 0 -> StatisticsType.CHILDREN_COUNT;
 			case 1 -> StatisticsType.QUERIED_ENTITY_COUNT;
-			default ->
-				throw new EvitaInternalError("Unrecognized remote statistics type: " + grpcStatisticsType);
+			default -> throw new EvitaInternalError("Unrecognized remote statistics type: " + grpcStatisticsType);
 		};
 	}
 
@@ -274,8 +273,7 @@ public class EvitaEnumConverter {
 			case 2 -> Cardinality.EXACTLY_ONE;
 			case 3 -> Cardinality.ZERO_OR_MORE;
 			case 4 -> Cardinality.ONE_OR_MORE;
-			default ->
-				throw new EvitaInternalError("Unrecognized remote cardinality: " + grpcCardinality);
+			default -> throw new EvitaInternalError("Unrecognized remote cardinality: " + grpcCardinality);
 		};
 	}
 
@@ -296,8 +294,7 @@ public class EvitaEnumConverter {
 	public static CatalogEvolutionMode toCatalogEvolutionMode(@Nonnull GrpcCatalogEvolutionMode grpcEvolutionMode) {
 		return switch (grpcEvolutionMode.getNumber()) {
 			case 0 -> CatalogEvolutionMode.ADDING_ENTITY_TYPES;
-			default ->
-				throw new EvitaInternalError("Unrecognized remote evolution mode: " + grpcEvolutionMode);
+			default -> throw new EvitaInternalError("Unrecognized remote evolution mode: " + grpcEvolutionMode);
 		};
 	}
 
@@ -319,8 +316,7 @@ public class EvitaEnumConverter {
 			case 5 -> EvolutionMode.ADDING_LOCALES;
 			case 6 -> EvolutionMode.ADDING_CURRENCIES;
 			case 7 -> EvolutionMode.ADDING_HIERARCHY;
-			default ->
-				throw new EvitaInternalError("Unrecognized remote evolution mode: " + grpcEvolutionMode);
+			default -> throw new EvitaInternalError("Unrecognized remote evolution mode: " + grpcEvolutionMode);
 		};
 	}
 
@@ -362,8 +358,7 @@ public class EvitaEnumConverter {
 			case 18 -> QueryPhase.FETCHING;
 			case 19 -> QueryPhase.FETCHING_REFERENCES;
 			case 20 -> QueryPhase.FETCHING_PARENTS;
-			default ->
-				throw new EvitaInternalError("Unrecognized remote query phase: " + grpcQueryPhase);
+			default -> throw new EvitaInternalError("Unrecognized remote query phase: " + grpcQueryPhase);
 		};
 	}
 
@@ -380,7 +375,8 @@ public class EvitaEnumConverter {
 			case PLANNING_SORT -> GrpcQueryPhase.PLANNING_SORT;
 			case PLANNING_SORT_ALTERNATIVE -> GrpcQueryPhase.PLANNING_SORT_ALTERNATIVE;
 			case PLANNING_EXTRA_RESULT_FABRICATION -> GrpcQueryPhase.PLANNING_EXTRA_RESULT_FABRICATION;
-			case PLANNING_EXTRA_RESULT_FABRICATION_ALTERNATIVE -> GrpcQueryPhase.PLANNING_EXTRA_RESULT_FABRICATION_ALTERNATIVE;
+			case PLANNING_EXTRA_RESULT_FABRICATION_ALTERNATIVE ->
+				GrpcQueryPhase.PLANNING_EXTRA_RESULT_FABRICATION_ALTERNATIVE;
 			case EXECUTION -> GrpcQueryPhase.EXECUTION;
 			case EXECUTION_PREFETCH -> GrpcQueryPhase.EXECUTION_PREFETCH;
 			case EXECUTION_FILTER -> GrpcQueryPhase.EXECUTION_FILTER;
@@ -400,8 +396,7 @@ public class EvitaEnumConverter {
 			case 0 -> EntityExistence.MAY_EXIST;
 			case 1 -> EntityExistence.MUST_NOT_EXIST;
 			case 2 -> EntityExistence.MUST_EXIST;
-			default ->
-				throw new EvitaInternalError("Unrecognized remote entity existence: " + grpcEntityExistence);
+			default -> throw new EvitaInternalError("Unrecognized remote entity existence: " + grpcEntityExistence);
 		};
 	}
 
@@ -414,4 +409,98 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	@Nonnull
+	public static CaptureContent toCaptureContent(@Nonnull GrpcCaptureContent grpcCaptureContent) {
+		return switch (grpcCaptureContent.getNumber()) {
+			case 0 -> CaptureContent.HEADER;
+			case 1 -> CaptureContent.BODY;
+			default -> throw new EvitaInternalError("Unrecognized remote capture content: " + grpcCaptureContent);
+		};
+	}
+
+	@Nonnull
+	public static GrpcCaptureContent toGrpcCaptureContent(@Nonnull CaptureContent captureContent) {
+		return switch (captureContent) {
+			case HEADER -> GrpcCaptureContent.HEADER;
+			case BODY -> GrpcCaptureContent.BODY;
+		};
+	}
+
+	@Nonnull
+	public static Operation toOperation(@Nonnull GrpcOperation grpcOperation) {
+		return switch (grpcOperation.getNumber()) {
+			case 0 -> Operation.CREATE;
+			case 1 -> Operation.UPDATE;
+			case 2 -> Operation.REMOVE;
+			default -> throw new EvitaInternalError("Unrecognized remote operation: " + grpcOperation);
+		};
+	}
+
+	@Nonnull
+	public static GrpcOperation toGrpcOperation(@Nonnull Operation operation) {
+		return switch (operation) {
+			case CREATE -> GrpcOperation.CREATE;
+			case UPDATE -> GrpcOperation.UPDATE;
+			case REMOVE -> GrpcOperation.REMOVE;
+		};
+	}
+
+	@Nonnull
+	public static ClassifierType toClassifierType(@Nonnull GrpcClassifierType grpcClassifierType) {
+		return switch (grpcClassifierType.getNumber()) {
+			case 0 -> ClassifierType.CATALOG;
+			case 1 -> ClassifierType.ENTITY;
+			case 2 -> ClassifierType.ATTRIBUTE;
+			case 3 -> ClassifierType.ASSOCIATED_DATA;
+			case 4 -> ClassifierType.REFERENCE;
+			case 5 -> ClassifierType.REFERENCE_ATTRIBUTE;
+			default -> throw new EvitaInternalError("Unrecognized remote classifier type: " + grpcClassifierType);
+		};
+	}
+
+	@Nonnull
+	public static GrpcClassifierType toGrpcClassifierType(@Nonnull ClassifierType classifierType) {
+		return switch (classifierType) {
+			case CATALOG -> GrpcClassifierType.CATALOG;
+			case ENTITY -> GrpcClassifierType.ENTITY;
+			case ATTRIBUTE -> GrpcClassifierType.ATTRIBUTE;
+			case ASSOCIATED_DATA -> GrpcClassifierType.ASSOCIATED_DATA;
+			case REFERENCE -> GrpcClassifierType.REFERENCE;
+			case REFERENCE_ATTRIBUTE -> GrpcClassifierType.REFERENCE_ATTRIBUTE;
+		};
+	}
+
+	@Nonnull
+	public static CaptureArea toCaptureArea(@Nonnull GrpcCaptureArea grpcCaptureArea) {
+		return switch (grpcCaptureArea.getNumber()) {
+			case 0 -> CaptureArea.SCHEMA;
+			case 1 -> CaptureArea.DATA;
+			default -> throw new EvitaInternalError("Unrecognized remote capture area: " + grpcCaptureArea);
+		};
+	}
+
+	@Nonnull
+	public static GrpcCaptureArea toGrpcCaptureArea(@Nonnull CaptureArea captureArea) {
+		return switch (captureArea) {
+			case SCHEMA -> GrpcCaptureArea.SCHEMA;
+			case DATA -> GrpcCaptureArea.DATA;
+		};
+	}
+
+	@Nonnull
+	public static CaptureResponseType toCaptureResponseType(@Nonnull GrpcCaptureResponseType grpcCaptureResponseType) {
+		return switch (grpcCaptureResponseType.getNumber()) {
+			case 0 -> CaptureResponseType.ACKNOWLEDGEMENT;
+			case 1 -> CaptureResponseType.CHANGE;
+			default -> throw new EvitaInternalError("Unrecognized remote capture area: " + grpcCaptureResponseType);
+		};
+	}
+
+	@Nonnull
+	public static GrpcCaptureResponseType toGrpcCaptureResponseType(@Nonnull CaptureResponseType captureResponseType) {
+		return switch (captureResponseType) {
+			case ACKNOWLEDGEMENT -> GrpcCaptureResponseType.ACKNOWLEDGEMENT;
+			case CHANGE -> GrpcCaptureResponseType.CHANGE;
+		};
+	}
 }

@@ -28,19 +28,32 @@ import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureObserver;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.grpc.generated.*;
+import io.evitadb.externalApi.grpc.requestResponse.cdc.CaptureResponseType;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import io.evitadb.utils.UUIDUtil;
+import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static io.evitadb.externalApi.grpc.dataType.ChangeDataCaptureConverter.toGrpcChangeSystemCapture;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toCaptureContent;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCaptureContent;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCaptureResponseType;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCatalogState;
 
 /**
@@ -57,6 +70,8 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * Instance of Evita upon which will be executed service calls
 	 */
 	private final Evita evita;
+
+	private final Map<UUID, ChangeSystemCaptureObserver> activeSystemObservers = new HashMap<>(32);
 
 	/**
 	 * Builds array of {@link SessionFlags} based on session type and rollback transactions flag.
@@ -256,6 +271,58 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 			.setSessionId(session.getId().toString())
 			.setCatalogState(toGrpcCatalogState(session.getCatalogState()))
 			.setSessionType(sessionType)
+			.build());
+		responseObserver.onCompleted();
+	}
+
+	@Override
+	public void registerSystemChangeCapture(GrpcRegisterSystemChangeCaptureRequest request, StreamObserver<GrpcRegisterSystemChangeCaptureResponse> responseObserver) {
+		final ChangeSystemCaptureRequest changeSystemCaptureRequest = new ChangeSystemCaptureRequest(toCaptureContent(request.getContent()));
+		final AtomicReference<UUID> uuidRef = new AtomicReference<>();
+
+		final ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse> serverCallStreamObserver = ((ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse>) responseObserver);
+		serverCallStreamObserver.setOnCancelHandler(() -> {
+			ChangeSystemCaptureObserver observer = activeSystemObservers.remove(uuidRef.get());
+			observer.onTermination();
+			System.out.println("Observer removed");
+		});
+
+		final ChangeSystemCaptureObserver changeSystemCaptureObserver = new ChangeSystemCaptureObserver() {
+			@Override
+			public void onChange(@Nonnull ChangeSystemCapture event) {
+				responseObserver.onNext(GrpcRegisterSystemChangeCaptureResponse.newBuilder()
+					.setUuid(uuidRef.get().toString())
+					.setCapture(toGrpcChangeSystemCapture(event))
+					.setResponseType(toGrpcCaptureResponseType(CaptureResponseType.CHANGE))
+					.build());
+			}
+
+			@Override
+			public void onTermination() {
+				activeSystemObservers.remove(uuidRef.get());
+				responseObserver.onCompleted();
+			}
+		};
+
+		uuidRef.set(evita.registerSystemChangeCapture(changeSystemCaptureRequest, changeSystemCaptureObserver));
+
+		activeSystemObservers.put(uuidRef.get(), changeSystemCaptureObserver);
+
+		responseObserver.onNext(GrpcRegisterSystemChangeCaptureResponse.newBuilder()
+			.setUuid(uuidRef.get().toString())
+			.setResponseType(GrpcCaptureResponseType.ACKNOWLEDGEMENT)
+			.build());
+	}
+
+	@Override
+	public void unregisterSystemChangeCapture(GrpcUnregisterSystemChangeCaptureRequest request, StreamObserver<GrpcUnregisterSystemChangeCaptureResponse> responseObserver) {
+		final boolean success = evita.unregisterSystemChangeCapture(UUID.fromString(request.getUuid()));
+		if (success) {
+			ChangeSystemCaptureObserver observer = activeSystemObservers.remove(UUID.fromString(request.getUuid()));
+			observer.onTermination();
+		}
+		responseObserver.onNext(GrpcUnregisterSystemChangeCaptureResponse.newBuilder()
+			.setSuccess(success)
 			.build());
 		responseObserver.onCompleted();
 	}

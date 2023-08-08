@@ -207,3 +207,33 @@ enum GrpcEntityExistence {
   MUST_NOT_EXIST = 1;
   MUST_EXIST = 2;
 }
+
+enum GrpcOperation {
+  CREATE = 0;
+  UPDATE = 1;
+  REMOVE = 2;
+}
+
+enum GrpcCaptureArea {
+  SCHEMA = 0;
+  DATA = 1;
+}
+
+enum GrpcClassifierType {
+  CATALOG = 0;
+  ENTITY = 1;
+  ATTRIBUTE = 2;
+  ASSOCIATED_DATA = 3;
+  REFERENCE = 4;
+  REFERENCE_ATTRIBUTE = 5;
+}
+
+enum GrpcCaptureContent {
+  HEADER = 0;
+  BODY = 1;
+}
+
+enum GrpcCaptureResponseType {
+  ACKNOWLEDGEMENT = 0;
+  CHANGE = 1;
+}

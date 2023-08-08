@@ -59,6 +59,7 @@ import io.grpc.netty.NettyChannelBuilder;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jboss.threads.EnhancedQueueExecutor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -67,7 +68,9 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -77,11 +80,13 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static io.evitadb.externalApi.grpc.dataType.ChangeDataCaptureConverter.toChangeSystemCapture;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -93,8 +98,8 @@ import static java.util.Optional.ofNullable;
  * The class is thread-safe and can be used from multiple threads to acquire {@link EvitaClientSession} that are not
  * thread-safe.
  *
- * @see EvitaContract
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @see EvitaContract
  */
 @ThreadSafe
 @Slf4j
@@ -103,6 +108,8 @@ public class EvitaClient implements EvitaContract {
 		new DelegatingTopLevelCatalogSchemaMutationConverter();
 
 	@Getter private final EvitaClientConfiguration configuration;
+	@Getter
+	private final EnhancedQueueExecutor executor;
 	private final ChannelPool channelPool;
 	/**
 	 * True if client is active and hasn't yet been closed.
@@ -126,6 +133,10 @@ public class EvitaClient implements EvitaContract {
 	 * and closes them along with their gRPC channels.
 	 */
 	private final Runnable terminationCallback;
+
+	private final ManagedChannel cdcChannel;
+
+	private final List<UUID> activeSystemCaptures = new ArrayList<>(8);
 
 	/**
 	 * Method that is called within the {@link EvitaClientSession} to apply the wanted logic on a channel retrieved
@@ -172,31 +183,68 @@ public class EvitaClient implements EvitaContract {
 			.ifPresent(it -> it.accept(nettyChannelBuilder));
 		this.reflectionLookup = new ReflectionLookup(configuration.reflectionLookupBehaviour());
 		this.channelPool = new ChannelPool(nettyChannelBuilder, 10);
+		this.cdcChannel = nettyChannelBuilder.build();
 		this.terminationCallback = () -> {
 			try {
 				Assert.isTrue(
 					this.channelPool.awaitTermination(configuration.waitForClose(), configuration.waitForCloseUnit()),
 					() -> new EvitaClientNotTerminatedInTimeException(configuration.waitForClose(), configuration.waitForCloseUnit())
 				);
+				Assert.isTrue(
+					this.cdcChannel.awaitTermination(configuration.waitForClose(), configuration.waitForCloseUnit()),
+					() -> new EvitaClientNotTerminatedInTimeException(configuration.waitForClose(), configuration.waitForCloseUnit())
+				);
 			} catch (InterruptedException e) {
 				// terminated
 				Thread.currentThread().interrupt();
 			}
-		};;
+		};
 		this.active.set(true);
+		//final RejectingExecutor handoffExecutor = new RejectingExecutor();
+		this.executor = new EnhancedQueueExecutor.Builder()
+			.setCorePoolSize(4)
+			.setMaximumPoolSize(16)
+			.setExceptionHandler((t, e) -> log.error("Uncaught error in thread `" + t.getName() + "`: " + e.getMessage(), e))
+			//.setHandoffExecutor(handoffExecutor)
+			//.setThreadFactory(new EvitaThreadFactory(configuration.server().threadPriority()))
+			.setMaximumQueueSize(100)
+			.setRegisterMBean(false)
+			.build();
+		this.executor.prestartAllCoreThreads();
 	}
 
 	@Nonnull
 	@Override
 	public UUID registerSystemChangeCapture(@Nonnull ChangeSystemCaptureRequest request, @Nonnull ChangeSystemCaptureObserver callback) {
-		// TODO TPO - implement
-		return null;
+		final AtomicReference<UUID> uuid = new AtomicReference<>();
+		final Iterator<GrpcRegisterSystemChangeCaptureResponse> responseIterator = EvitaServiceGrpc.newBlockingStub(this.cdcChannel)
+			.registerSystemChangeCapture(
+				GrpcRegisterSystemChangeCaptureRequest.newBuilder()
+					.setContent(EvitaEnumConverter.toGrpcCaptureContent(request.content()))
+					.build()
+			);
+		this.executor.execute(() -> responseIterator.forEachRemaining(it -> {
+			if (it.getResponseType() == GrpcCaptureResponseType.ACKNOWLEDGEMENT) {
+				uuid.set(UUID.fromString(it.getUuid()));
+				activeSystemCaptures.add(uuid.get());
+			} else {
+				callback.onChange(toChangeSystemCapture(it.getCapture()));
+			}
+		}));
+		while (uuid.get() == null) {
+
+		}
+		return uuid.get();
 	}
 
 	@Override
 	public boolean unregisterSystemChangeCapture(@Nonnull UUID uuid) {
-		// TODO TPO - implement
-		return false;
+		activeSystemCaptures.remove(uuid);
+		return EvitaServiceGrpc.newBlockingStub(this.cdcChannel).unregisterSystemChangeCapture(
+			GrpcUnregisterSystemChangeCaptureRequest.newBuilder()
+				.setUuid(uuid.toString())
+				.build()
+		).getSuccess();
 	}
 
 	@Nonnull
@@ -269,6 +317,8 @@ public class EvitaClient implements EvitaContract {
 				catalogName -> new EvitaEntitySchemaCache(catalogName, this.reflectionLookup)
 			),
 			this.channelPool,
+			this.cdcChannel,
+			this.executor,
 			traits.catalogName(),
 			EvitaEnumConverter.toCatalogState(grpcResponse.getCatalogState()),
 			UUIDUtil.uuid(grpcResponse.getSessionId()),
@@ -437,6 +487,8 @@ public class EvitaClient implements EvitaContract {
 			this.activeSessions.values().forEach(EvitaSessionContract::close);
 			this.activeSessions.clear();
 			this.channelPool.shutdown();
+			this.activeSystemCaptures.stream().toList().forEach(this::unregisterSystemChangeCapture);
+			this.cdcChannel.shutdownNow();
 			this.terminationCallback.run();
 		}
 	}

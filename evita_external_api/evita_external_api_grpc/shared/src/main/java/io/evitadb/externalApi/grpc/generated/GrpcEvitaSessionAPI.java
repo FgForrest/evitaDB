@@ -267,6 +267,21 @@ public final class GrpcEvitaSessionAPI {
   static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_QueryParam_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcRegisterChangeDataCaptureRequest_descriptor;
+  static final 
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcRegisterChangeDataCaptureRequest_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcRegisterChangeDataCaptureResponse_descriptor;
+  static final 
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcRegisterChangeDataCaptureResponse_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcUnregisterChangeDataCaptureRequest_descriptor;
+  static final 
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcUnregisterChangeDataCaptureRequest_fieldAccessorTable;
 
   public static com.google.protobuf.Descriptors.FileDescriptor
       getDescriptor() {
@@ -285,338 +300,365 @@ public final class GrpcEvitaSessionAPI {
       "rpcEntitySchema.proto\032\027GrpcLocalMutation" +
       ".proto\032\030GrpcEntityMutation.proto\032\037GrpcCa" +
       "talogSchemaMutation.proto\032 GrpcCatalogSc" +
-      "hemaMutations.proto\"b\n\030GrpcCatalogStateR" +
-      "esponse\022F\n\005state\030\001 \001(\01627.io.evitadb.exte" +
-      "rnalApi.grpc.generated.GrpcCatalogState\"" +
-      "l\n\031GrpcCatalogSchemaResponse\022O\n\rcatalogS" +
-      "chema\030\001 \001(\01328.io.evitadb.externalApi.grp" +
-      "c.generated.GrpcCatalogSchema\"-\n\027GrpcEnt" +
-      "itySchemaRequest\022\022\n\nentityType\030\001 \001(\t\"i\n\030" +
-      "GrpcEntitySchemaResponse\022M\n\014entitySchema" +
-      "\030\001 \001(\01327.io.evitadb.externalApi.grpc.gen" +
-      "erated.GrpcEntitySchema\"\200\001\n\036GrpcUpdateCa" +
-      "talogSchemaRequest\022^\n\017schemaMutations\030\001 " +
-      "\003(\0132E.io.evitadb.externalApi.grpc.genera" +
-      "ted.GrpcLocalCatalogSchemaMutation\"2\n\037Gr" +
-      "pcUpdateCatalogSchemaResponse\022\017\n\007version" +
-      "\030\001 \001(\005\"z\n\'GrpcUpdateAndFetchCatalogSchem" +
-      "aResponse\022O\n\rcatalogSchema\030\001 \001(\01328.io.ev" +
-      "itadb.externalApi.grpc.generated.GrpcCat" +
-      "alogSchema\"3\n\035GrpcDefineEntitySchemaRequ" +
-      "est\022\022\n\nentityType\030\001 \001(\t\"o\n\036GrpcDefineEnt" +
-      "itySchemaResponse\022M\n\014entitySchema\030\001 \001(\0132" +
-      "7.io.evitadb.externalApi.grpc.generated." +
-      "GrpcEntitySchema\"~\n\035GrpcUpdateEntitySche" +
-      "maRequest\022]\n\016schemaMutation\030\001 \001(\0132E.io.e" +
-      "vitadb.externalApi.grpc.generated.GrpcMo" +
-      "difyEntitySchemaMutation\"1\n\036GrpcUpdateEn" +
-      "titySchemaResponse\022\017\n\007version\030\001 \001(\005\"w\n&G" +
-      "rpcUpdateAndFetchEntitySchemaResponse\022M\n" +
-      "\014entitySchema\030\001 \001(\01327.io.evitadb.externa" +
-      "lApi.grpc.generated.GrpcEntitySchema\"\364\002\n" +
-      "\021GrpcEntityRequest\022\022\n\nprimaryKey\030\001 \001(\005\022\022" +
-      "\n\nentityType\030\002 \001(\t\022\017\n\007require\030\003 \001(\t\022P\n\025p" +
-      "ositionalQueryParams\030\004 \003(\01321.io.evitadb." +
-      "externalApi.grpc.generated.QueryParam\022h\n" +
-      "\020namedQueryParams\030\005 \003(\0132N.io.evitadb.ext" +
-      "ernalApi.grpc.generated.GrpcEntityReques" +
-      "t.NamedQueryParamsEntry\032j\n\025NamedQueryPar" +
-      "amsEntry\022\013\n\003key\030\001 \001(\t\022@\n\005value\030\002 \001(\01321.i" +
-      "o.evitadb.externalApi.grpc.generated.Que" +
-      "ryParam:\0028\001\"]\n\022GrpcEntityResponse\022G\n\006ent" +
-      "ity\030\001 \001(\01327.io.evitadb.externalApi.grpc." +
-      "generated.GrpcSealedEntity\"9\n\021GrpcPagina" +
-      "tedList\022\020\n\010pageSize\030\001 \001(\005\022\022\n\npageNumber\030" +
-      "\002 \001(\005\".\n\rGrpcStripList\022\r\n\005limit\030\001 \001(\005\022\016\n" +
-      "\006offset\030\002 \001(\005\"\266\004\n\rGrpcDataChunk\022T\n\020entit" +
-      "yReferences\030\001 \003(\0132:.io.evitadb.externalA" +
-      "pi.grpc.generated.GrpcEntityReference\022O\n" +
-      "\016sealedEntities\030\002 \003(\01327.io.evitadb.exter" +
-      "nalApi.grpc.generated.GrpcSealedEntity\022O" +
-      "\n\016binaryEntities\030\003 \003(\01327.io.evitadb.exte" +
-      "rnalApi.grpc.generated.GrpcBinaryEntity\022" +
-      "Q\n\rpaginatedList\030\004 \001(\01328.io.evitadb.exte" +
-      "rnalApi.grpc.generated.GrpcPaginatedList" +
-      "H\000\022I\n\tstripList\030\005 \001(\01324.io.evitadb.exter" +
-      "nalApi.grpc.generated.GrpcStripListH\000\022\030\n" +
-      "\020totalRecordCount\030\006 \001(\005\022\017\n\007isFirst\030\007 \001(\010" +
-      "\022\016\n\006isLast\030\010 \001(\010\022\023\n\013hasPrevious\030\t \001(\010\022\017\n" +
-      "\007hasNext\030\n \001(\010\022\024\n\014isSinglePage\030\013 \001(\010\022\017\n\007" +
-      "isEmpty\030\014 \001(\010B\007\n\005chunk\"1\n\033GrpcDeleteColl" +
-      "ectionRequest\022\022\n\nentityType\030\001 \001(\t\"/\n\034Grp" +
-      "cDeleteCollectionResponse\022\017\n\007deleted\030\001 \001" +
-      "(\010\"B\n\033GrpcRenameCollectionRequest\022\022\n\nent" +
-      "ityType\030\001 \001(\t\022\017\n\007newName\030\002 \001(\t\"/\n\034GrpcRe" +
-      "nameCollectionResponse\022\017\n\007renamed\030\001 \001(\010\"" +
-      "b\n\034GrpcReplaceCollectionRequest\022\036\n\026entit" +
-      "yTypeToBeReplaced\030\001 \001(\t\022\"\n\032entityTypeToB" +
-      "eReplacedWith\030\002 \001(\t\"1\n\035GrpcReplaceCollec" +
-      "tionResponse\022\020\n\010replaced\030\001 \001(\010\"5\n\037GrpcEn" +
-      "tityCollectionSizeRequest\022\022\n\nentityType\030" +
-      "\001 \001(\t\"0\n GrpcEntityCollectionSizeRespons" +
-      "e\022\014\n\004size\030\001 \001(\005\"-\n\032GrpcGoLiveAndCloseRes" +
-      "ponse\022\017\n\007success\030\001 \001(\010\".\n\027GrpcEntityType" +
-      "sResponse\022\023\n\013entityTypes\030\001 \003(\t\"\310\002\n\020GrpcQ" +
-      "ueryRequest\022\r\n\005query\030\001 \001(\t\022P\n\025positional" +
-      "QueryParams\030\002 \003(\01321.io.evitadb.externalA" +
-      "pi.grpc.generated.QueryParam\022g\n\020namedQue" +
-      "ryParams\030\003 \003(\0132M.io.evitadb.externalApi." +
-      "grpc.generated.GrpcQueryRequest.NamedQue" +
-      "ryParamsEntry\032j\n\025NamedQueryParamsEntry\022\013" +
-      "\n\003key\030\001 \001(\t\022@\n\005value\030\002 \001(\01321.io.evitadb." +
-      "externalApi.grpc.generated.QueryParam:\0028" +
-      "\001\"\254\001\n\021GrpcQueryResponse\022H\n\nrecordPage\030\001 " +
-      "\001(\01324.io.evitadb.externalApi.grpc.genera" +
-      "ted.GrpcDataChunk\022M\n\014extraResults\030\002 \001(\0132" +
-      "7.io.evitadb.externalApi.grpc.generated." +
-      "GrpcExtraResults\"\211\002\n\024GrpcQueryOneRespons" +
-      "e\022S\n\017entityReference\030\001 \001(\0132:.io.evitadb." +
-      "externalApi.grpc.generated.GrpcEntityRef" +
-      "erence\022M\n\014sealedEntity\030\002 \001(\01327.io.evitad" +
-      "b.externalApi.grpc.generated.GrpcSealedE" +
-      "ntity\022M\n\014binaryEntity\030\003 \001(\01327.io.evitadb" +
-      ".externalApi.grpc.generated.GrpcBinaryEn" +
-      "tity\"\217\002\n\025GrpcQueryListResponse\022T\n\020entity" +
-      "References\030\001 \003(\0132:.io.evitadb.externalAp" +
-      "i.grpc.generated.GrpcEntityReference\022O\n\016" +
-      "sealedEntities\030\002 \003(\01327.io.evitadb.extern" +
-      "alApi.grpc.generated.GrpcSealedEntity\022O\n" +
-      "\016binaryEntities\030\003 \003(\01327.io.evitadb.exter" +
-      "nalApi.grpc.generated.GrpcBinaryEntity\"\253" +
-      "\003\n\027GrpcUpsertEntityRequest\022Q\n\016entityMuta" +
-      "tion\030\001 \001(\01329.io.evitadb.externalApi.grpc" +
-      ".generated.GrpcEntityMutation\022\017\n\007require" +
-      "\030\002 \001(\t\022P\n\025positionalQueryParams\030\003 \003(\01321." +
-      "io.evitadb.externalApi.grpc.generated.Qu" +
-      "eryParam\022n\n\020namedQueryParams\030\004 \003(\0132T.io." +
-      "evitadb.externalApi.grpc.generated.GrpcU" +
-      "psertEntityRequest.NamedQueryParamsEntry" +
-      "\032j\n\025NamedQueryParamsEntry\022\013\n\003key\030\001 \001(\t\022@" +
-      "\n\005value\030\002 \001(\01321.io.evitadb.externalApi.g" +
-      "rpc.generated.QueryParam:\0028\001\"\362\003\n\027GrpcDel" +
-      "eteEntityRequest\022\022\n\nentityType\030\001 \001(\t\022/\n\n" +
-      "primaryKey\030\002 \001(\0132\033.google.protobuf.Int32" +
-      "Value\022S\n\017entityExistence\030\003 \001(\0162:.io.evit" +
-      "adb.externalApi.grpc.generated.GrpcEntit" +
-      "yExistence\022\017\n\007require\030\004 \001(\t\022P\n\025positiona" +
-      "lQueryParams\030\005 \003(\01321.io.evitadb.external" +
-      "Api.grpc.generated.QueryParam\022n\n\020namedQu" +
-      "eryParams\030\006 \003(\0132T.io.evitadb.externalApi" +
-      ".grpc.generated.GrpcDeleteEntityRequest." +
-      "NamedQueryParamsEntry\032j\n\025NamedQueryParam" +
-      "sEntry\022\013\n\003key\030\001 \001(\t\022@\n\005value\030\002 \001(\01321.io." +
-      "evitadb.externalApi.grpc.generated.Query" +
-      "Param:\0028\001\"\332\002\n\031GrpcDeleteEntitiesRequest\022" +
-      "\r\n\005query\030\001 \001(\t\022P\n\025positionalQueryParams\030" +
-      "\002 \003(\01321.io.evitadb.externalApi.grpc.gene" +
-      "rated.QueryParam\022p\n\020namedQueryParams\030\003 \003" +
-      "(\0132V.io.evitadb.externalApi.grpc.generat" +
-      "ed.GrpcDeleteEntitiesRequest.NamedQueryP" +
+      "hemaMutations.proto\032\033GrpcChangeDataCaptu" +
+      "re.proto\"b\n\030GrpcCatalogStateResponse\022F\n\005" +
+      "state\030\001 \001(\01627.io.evitadb.externalApi.grp" +
+      "c.generated.GrpcCatalogState\"l\n\031GrpcCata" +
+      "logSchemaResponse\022O\n\rcatalogSchema\030\001 \001(\013" +
+      "28.io.evitadb.externalApi.grpc.generated" +
+      ".GrpcCatalogSchema\"-\n\027GrpcEntitySchemaRe" +
+      "quest\022\022\n\nentityType\030\001 \001(\t\"i\n\030GrpcEntityS" +
+      "chemaResponse\022M\n\014entitySchema\030\001 \001(\01327.io" +
+      ".evitadb.externalApi.grpc.generated.Grpc" +
+      "EntitySchema\"\200\001\n\036GrpcUpdateCatalogSchema" +
+      "Request\022^\n\017schemaMutations\030\001 \003(\0132E.io.ev" +
+      "itadb.externalApi.grpc.generated.GrpcLoc" +
+      "alCatalogSchemaMutation\"2\n\037GrpcUpdateCat" +
+      "alogSchemaResponse\022\017\n\007version\030\001 \001(\005\"z\n\'G" +
+      "rpcUpdateAndFetchCatalogSchemaResponse\022O" +
+      "\n\rcatalogSchema\030\001 \001(\01328.io.evitadb.exter" +
+      "nalApi.grpc.generated.GrpcCatalogSchema\"" +
+      "3\n\035GrpcDefineEntitySchemaRequest\022\022\n\nenti" +
+      "tyType\030\001 \001(\t\"o\n\036GrpcDefineEntitySchemaRe" +
+      "sponse\022M\n\014entitySchema\030\001 \001(\01327.io.evitad" +
+      "b.externalApi.grpc.generated.GrpcEntityS" +
+      "chema\"~\n\035GrpcUpdateEntitySchemaRequest\022]" +
+      "\n\016schemaMutation\030\001 \001(\0132E.io.evitadb.exte" +
+      "rnalApi.grpc.generated.GrpcModifyEntityS" +
+      "chemaMutation\"1\n\036GrpcUpdateEntitySchemaR" +
+      "esponse\022\017\n\007version\030\001 \001(\005\"w\n&GrpcUpdateAn" +
+      "dFetchEntitySchemaResponse\022M\n\014entitySche" +
+      "ma\030\001 \001(\01327.io.evitadb.externalApi.grpc.g" +
+      "enerated.GrpcEntitySchema\"\364\002\n\021GrpcEntity" +
+      "Request\022\022\n\nprimaryKey\030\001 \001(\005\022\022\n\nentityTyp" +
+      "e\030\002 \001(\t\022\017\n\007require\030\003 \001(\t\022P\n\025positionalQu" +
+      "eryParams\030\004 \003(\01321.io.evitadb.externalApi" +
+      ".grpc.generated.QueryParam\022h\n\020namedQuery" +
+      "Params\030\005 \003(\0132N.io.evitadb.externalApi.gr" +
+      "pc.generated.GrpcEntityRequest.NamedQuer" +
+      "yParamsEntry\032j\n\025NamedQueryParamsEntry\022\013\n" +
+      "\003key\030\001 \001(\t\022@\n\005value\030\002 \001(\01321.io.evitadb.e" +
+      "xternalApi.grpc.generated.QueryParam:\0028\001" +
+      "\"]\n\022GrpcEntityResponse\022G\n\006entity\030\001 \001(\01327" +
+      ".io.evitadb.externalApi.grpc.generated.G" +
+      "rpcSealedEntity\"9\n\021GrpcPaginatedList\022\020\n\010" +
+      "pageSize\030\001 \001(\005\022\022\n\npageNumber\030\002 \001(\005\".\n\rGr" +
+      "pcStripList\022\r\n\005limit\030\001 \001(\005\022\016\n\006offset\030\002 \001" +
+      "(\005\"\266\004\n\rGrpcDataChunk\022T\n\020entityReferences" +
+      "\030\001 \003(\0132:.io.evitadb.externalApi.grpc.gen" +
+      "erated.GrpcEntityReference\022O\n\016sealedEnti" +
+      "ties\030\002 \003(\01327.io.evitadb.externalApi.grpc" +
+      ".generated.GrpcSealedEntity\022O\n\016binaryEnt" +
+      "ities\030\003 \003(\01327.io.evitadb.externalApi.grp" +
+      "c.generated.GrpcBinaryEntity\022Q\n\rpaginate" +
+      "dList\030\004 \001(\01328.io.evitadb.externalApi.grp" +
+      "c.generated.GrpcPaginatedListH\000\022I\n\tstrip" +
+      "List\030\005 \001(\01324.io.evitadb.externalApi.grpc" +
+      ".generated.GrpcStripListH\000\022\030\n\020totalRecor" +
+      "dCount\030\006 \001(\005\022\017\n\007isFirst\030\007 \001(\010\022\016\n\006isLast\030" +
+      "\010 \001(\010\022\023\n\013hasPrevious\030\t \001(\010\022\017\n\007hasNext\030\n " +
+      "\001(\010\022\024\n\014isSinglePage\030\013 \001(\010\022\017\n\007isEmpty\030\014 \001" +
+      "(\010B\007\n\005chunk\"1\n\033GrpcDeleteCollectionReque" +
+      "st\022\022\n\nentityType\030\001 \001(\t\"/\n\034GrpcDeleteColl" +
+      "ectionResponse\022\017\n\007deleted\030\001 \001(\010\"B\n\033GrpcR" +
+      "enameCollectionRequest\022\022\n\nentityType\030\001 \001" +
+      "(\t\022\017\n\007newName\030\002 \001(\t\"/\n\034GrpcRenameCollect" +
+      "ionResponse\022\017\n\007renamed\030\001 \001(\010\"b\n\034GrpcRepl" +
+      "aceCollectionRequest\022\036\n\026entityTypeToBeRe" +
+      "placed\030\001 \001(\t\022\"\n\032entityTypeToBeReplacedWi" +
+      "th\030\002 \001(\t\"1\n\035GrpcReplaceCollectionRespons" +
+      "e\022\020\n\010replaced\030\001 \001(\010\"5\n\037GrpcEntityCollect" +
+      "ionSizeRequest\022\022\n\nentityType\030\001 \001(\t\"0\n Gr" +
+      "pcEntityCollectionSizeResponse\022\014\n\004size\030\001" +
+      " \001(\005\"-\n\032GrpcGoLiveAndCloseResponse\022\017\n\007su" +
+      "ccess\030\001 \001(\010\".\n\027GrpcEntityTypesResponse\022\023" +
+      "\n\013entityTypes\030\001 \003(\t\"\310\002\n\020GrpcQueryRequest" +
+      "\022\r\n\005query\030\001 \001(\t\022P\n\025positionalQueryParams" +
+      "\030\002 \003(\01321.io.evitadb.externalApi.grpc.gen" +
+      "erated.QueryParam\022g\n\020namedQueryParams\030\003 " +
+      "\003(\0132M.io.evitadb.externalApi.grpc.genera" +
+      "ted.GrpcQueryRequest.NamedQueryParamsEnt" +
+      "ry\032j\n\025NamedQueryParamsEntry\022\013\n\003key\030\001 \001(\t" +
+      "\022@\n\005value\030\002 \001(\01321.io.evitadb.externalApi" +
+      ".grpc.generated.QueryParam:\0028\001\"\254\001\n\021GrpcQ" +
+      "ueryResponse\022H\n\nrecordPage\030\001 \001(\01324.io.ev" +
+      "itadb.externalApi.grpc.generated.GrpcDat" +
+      "aChunk\022M\n\014extraResults\030\002 \001(\01327.io.evitad" +
+      "b.externalApi.grpc.generated.GrpcExtraRe" +
+      "sults\"\211\002\n\024GrpcQueryOneResponse\022S\n\017entity" +
+      "Reference\030\001 \001(\0132:.io.evitadb.externalApi" +
+      ".grpc.generated.GrpcEntityReference\022M\n\014s" +
+      "ealedEntity\030\002 \001(\01327.io.evitadb.externalA" +
+      "pi.grpc.generated.GrpcSealedEntity\022M\n\014bi" +
+      "naryEntity\030\003 \001(\01327.io.evitadb.externalAp" +
+      "i.grpc.generated.GrpcBinaryEntity\"\217\002\n\025Gr" +
+      "pcQueryListResponse\022T\n\020entityReferences\030" +
+      "\001 \003(\0132:.io.evitadb.externalApi.grpc.gene" +
+      "rated.GrpcEntityReference\022O\n\016sealedEntit" +
+      "ies\030\002 \003(\01327.io.evitadb.externalApi.grpc." +
+      "generated.GrpcSealedEntity\022O\n\016binaryEnti" +
+      "ties\030\003 \003(\01327.io.evitadb.externalApi.grpc" +
+      ".generated.GrpcBinaryEntity\"\253\003\n\027GrpcUpse" +
+      "rtEntityRequest\022Q\n\016entityMutation\030\001 \001(\0132" +
+      "9.io.evitadb.externalApi.grpc.generated." +
+      "GrpcEntityMutation\022\017\n\007require\030\002 \001(\t\022P\n\025p" +
+      "ositionalQueryParams\030\003 \003(\01321.io.evitadb." +
+      "externalApi.grpc.generated.QueryParam\022n\n" +
+      "\020namedQueryParams\030\004 \003(\0132T.io.evitadb.ext" +
+      "ernalApi.grpc.generated.GrpcUpsertEntity" +
+      "Request.NamedQueryParamsEntry\032j\n\025NamedQu" +
+      "eryParamsEntry\022\013\n\003key\030\001 \001(\t\022@\n\005value\030\002 \001" +
+      "(\01321.io.evitadb.externalApi.grpc.generat" +
+      "ed.QueryParam:\0028\001\"\362\003\n\027GrpcDeleteEntityRe" +
+      "quest\022\022\n\nentityType\030\001 \001(\t\022/\n\nprimaryKey\030" +
+      "\002 \001(\0132\033.google.protobuf.Int32Value\022S\n\017en" +
+      "tityExistence\030\003 \001(\0162:.io.evitadb.externa" +
+      "lApi.grpc.generated.GrpcEntityExistence\022" +
+      "\017\n\007require\030\004 \001(\t\022P\n\025positionalQueryParam" +
+      "s\030\005 \003(\01321.io.evitadb.externalApi.grpc.ge" +
+      "nerated.QueryParam\022n\n\020namedQueryParams\030\006" +
+      " \003(\0132T.io.evitadb.externalApi.grpc.gener" +
+      "ated.GrpcDeleteEntityRequest.NamedQueryP" +
       "aramsEntry\032j\n\025NamedQueryParamsEntry\022\013\n\003k" +
       "ey\030\001 \001(\t\022@\n\005value\030\002 \001(\01321.io.evitadb.ext" +
-      "ernalApi.grpc.generated.QueryParam:\0028\001\"\310" +
-      "\001\n\030GrpcUpsertEntityResponse\022U\n\017entityRef" +
-      "erence\030\001 \001(\0132:.io.evitadb.externalApi.gr" +
-      "pc.generated.GrpcEntityReferenceH\000\022I\n\006en" +
-      "tity\030\002 \001(\01327.io.evitadb.externalApi.grpc" +
-      ".generated.GrpcSealedEntityH\000B\n\n\010respons" +
-      "e\"\310\001\n\030GrpcDeleteEntityResponse\022U\n\017entity" +
-      "Reference\030\001 \001(\0132:.io.evitadb.externalApi" +
-      ".grpc.generated.GrpcEntityReferenceH\000\022I\n" +
-      "\006entity\030\002 \001(\01327.io.evitadb.externalApi.g" +
-      "rpc.generated.GrpcSealedEntityH\000B\n\n\010resp" +
-      "onse\"\206\002\n\'GrpcDeleteEntityAndItsHierarchy" +
-      "Response\022\027\n\017deletedEntities\030\001 \001(\005\022`\n\032del" +
-      "etedRootEntityReference\030\002 \001(\0132:.io.evita" +
-      "db.externalApi.grpc.generated.GrpcEntity" +
-      "ReferenceH\000\022T\n\021deletedRootEntity\030\003 \001(\01327" +
-      ".io.evitadb.externalApi.grpc.generated.G" +
-      "rpcSealedEntityH\000B\n\n\010response\"\213\001\n\032GrpcDe" +
-      "leteEntitiesResponse\022\027\n\017deletedEntities\030" +
-      "\001 \001(\005\022T\n\023deletedEntityBodies\030\002 \003(\01327.io." +
-      "evitadb.externalApi.grpc.generated.GrpcS" +
-      "ealedEntity\"Q\n\033GrpcOpenTransactionRespon" +
-      "se\022\033\n\023alreadyOpenedBefore\030\001 \001(\010\022\025\n\rtrans" +
-      "actionId\030\002 \001(\003\"/\n\033GrpcCloseTransactionRe" +
-      "quest\022\020\n\010rollback\030\001 \001(\010\"\370\033\n\nQueryParam\022\025" +
-      "\n\013stringValue\030\001 \001(\tH\000\022\026\n\014integerValue\030\002 " +
-      "\001(\005H\000\022\023\n\tlongValue\030\003 \001(\003H\000\022\026\n\014booleanVal" +
-      "ue\030\004 \001(\010H\000\022P\n\017bigDecimalValue\030\005 \001(\01325.io" +
+      "ernalApi.grpc.generated.QueryParam:\0028\001\"\332" +
+      "\002\n\031GrpcDeleteEntitiesRequest\022\r\n\005query\030\001 " +
+      "\001(\t\022P\n\025positionalQueryParams\030\002 \003(\01321.io." +
+      "evitadb.externalApi.grpc.generated.Query" +
+      "Param\022p\n\020namedQueryParams\030\003 \003(\0132V.io.evi" +
+      "tadb.externalApi.grpc.generated.GrpcDele" +
+      "teEntitiesRequest.NamedQueryParamsEntry\032" +
+      "j\n\025NamedQueryParamsEntry\022\013\n\003key\030\001 \001(\t\022@\n" +
+      "\005value\030\002 \001(\01321.io.evitadb.externalApi.gr" +
+      "pc.generated.QueryParam:\0028\001\"\310\001\n\030GrpcUpse" +
+      "rtEntityResponse\022U\n\017entityReference\030\001 \001(" +
+      "\0132:.io.evitadb.externalApi.grpc.generate" +
+      "d.GrpcEntityReferenceH\000\022I\n\006entity\030\002 \001(\0132" +
+      "7.io.evitadb.externalApi.grpc.generated." +
+      "GrpcSealedEntityH\000B\n\n\010response\"\310\001\n\030GrpcD" +
+      "eleteEntityResponse\022U\n\017entityReference\030\001" +
+      " \001(\0132:.io.evitadb.externalApi.grpc.gener" +
+      "ated.GrpcEntityReferenceH\000\022I\n\006entity\030\002 \001" +
+      "(\01327.io.evitadb.externalApi.grpc.generat" +
+      "ed.GrpcSealedEntityH\000B\n\n\010response\"\206\002\n\'Gr" +
+      "pcDeleteEntityAndItsHierarchyResponse\022\027\n" +
+      "\017deletedEntities\030\001 \001(\005\022`\n\032deletedRootEnt" +
+      "ityReference\030\002 \001(\0132:.io.evitadb.external" +
+      "Api.grpc.generated.GrpcEntityReferenceH\000" +
+      "\022T\n\021deletedRootEntity\030\003 \001(\01327.io.evitadb" +
+      ".externalApi.grpc.generated.GrpcSealedEn" +
+      "tityH\000B\n\n\010response\"\213\001\n\032GrpcDeleteEntitie" +
+      "sResponse\022\027\n\017deletedEntities\030\001 \001(\005\022T\n\023de" +
+      "letedEntityBodies\030\002 \003(\01327.io.evitadb.ext" +
+      "ernalApi.grpc.generated.GrpcSealedEntity" +
+      "\"Q\n\033GrpcOpenTransactionResponse\022\033\n\023alrea" +
+      "dyOpenedBefore\030\001 \001(\010\022\025\n\rtransactionId\030\002 " +
+      "\001(\003\"/\n\033GrpcCloseTransactionRequest\022\020\n\010ro" +
+      "llback\030\001 \001(\010\"\370\033\n\nQueryParam\022\025\n\013stringVal" +
+      "ue\030\001 \001(\tH\000\022\026\n\014integerValue\030\002 \001(\005H\000\022\023\n\tlo" +
+      "ngValue\030\003 \001(\003H\000\022\026\n\014booleanValue\030\004 \001(\010H\000\022" +
+      "P\n\017bigDecimalValue\030\005 \001(\01325.io.evitadb.ex" +
+      "ternalApi.grpc.generated.GrpcBigDecimalH" +
+      "\000\022V\n\022dateTimeRangeValue\030\006 \001(\01328.io.evita" +
+      "db.externalApi.grpc.generated.GrpcDateTi" +
+      "meRangeH\000\022`\n\027integerNumberRangeValue\030\007 \001" +
+      "(\0132=.io.evitadb.externalApi.grpc.generat" +
+      "ed.GrpcIntegerNumberRangeH\000\022Z\n\024longNumbe" +
+      "rRangeValue\030\010 \001(\0132:.io.evitadb.externalA" +
+      "pi.grpc.generated.GrpcLongNumberRangeH\000\022" +
+      "f\n\032bigDecimalNumberRangeValue\030\t \001(\0132@.io" +
       ".evitadb.externalApi.grpc.generated.Grpc" +
-      "BigDecimalH\000\022V\n\022dateTimeRangeValue\030\006 \001(\013" +
-      "28.io.evitadb.externalApi.grpc.generated" +
-      ".GrpcDateTimeRangeH\000\022`\n\027integerNumberRan" +
-      "geValue\030\007 \001(\0132=.io.evitadb.externalApi.g" +
-      "rpc.generated.GrpcIntegerNumberRangeH\000\022Z" +
-      "\n\024longNumberRangeValue\030\010 \001(\0132:.io.evitad" +
-      "b.externalApi.grpc.generated.GrpcLongNum" +
-      "berRangeH\000\022f\n\032bigDecimalNumberRangeValue" +
-      "\030\t \001(\0132@.io.evitadb.externalApi.grpc.gen" +
-      "erated.GrpcBigDecimalNumberRangeH\000\022X\n\023of" +
-      "fsetDateTimeValue\030\n \001(\01329.io.evitadb.ext" +
-      "ernalApi.grpc.generated.GrpcOffsetDateTi" +
-      "meH\000\022H\n\013localeValue\030\013 \001(\01321.io.evitadb.e" +
-      "xternalApi.grpc.generated.GrpcLocaleH\000\022L" +
-      "\n\rcurrencyValue\030\014 \001(\01323.io.evitadb.exter" +
-      "nalApi.grpc.generated.GrpcCurrencyH\000\022d\n\031" +
-      "facetStatisticsDepthValue\030\r \001(\0162?.io.evi" +
-      "tadb.externalApi.grpc.generated.GrpcFace" +
-      "tStatisticsDepthH\000\022Y\n\024queryPriceModelVal" +
-      "ue\030\016 \001(\01629.io.evitadb.externalApi.grpc.g" +
-      "enerated.GrpcQueryPriceModeH\000\022\\\n\025priceCo" +
-      "ntentModeValue\030\017 \001(\0162;.io.evitadb.extern" +
-      "alApi.grpc.generated.GrpcPriceContentMod" +
-      "eH\000\022a\n\025attributeSpecialValue\030\020 \001(\0162@.io." +
-      "evitadb.externalApi.grpc.generated.GrpcA" +
-      "ttributeSpecialValueH\000\022X\n\023orderDirection" +
-      "Value\030\021 \001(\01629.io.evitadb.externalApi.grp" +
-      "c.generated.GrpcOrderDirectionH\000\022w\n empt" +
-      "yHierarchicalEntityBehaviour\030\022 \001(\0162K.io." +
-      "evitadb.externalApi.grpc.generated.GrpcE" +
-      "mptyHierarchicalEntityBehaviourH\000\022S\n\016sta" +
-      "tisticsBase\030\023 \001(\01629.io.evitadb.externalA" +
-      "pi.grpc.generated.GrpcStatisticsBaseH\000\022S" +
-      "\n\016statisticsType\030\024 \001(\01629.io.evitadb.exte" +
-      "rnalApi.grpc.generated.GrpcStatisticsTyp" +
-      "eH\000\022R\n\020stringArrayValue\030\025 \001(\01326.io.evita" +
-      "db.externalApi.grpc.generated.GrpcString" +
-      "ArrayH\000\022T\n\021integerArrayValue\030\026 \001(\01327.io." +
-      "evitadb.externalApi.grpc.generated.GrpcI" +
-      "ntegerArrayH\000\022N\n\016longArrayValue\030\027 \001(\01324." +
+      "BigDecimalNumberRangeH\000\022X\n\023offsetDateTim" +
+      "eValue\030\n \001(\01329.io.evitadb.externalApi.gr" +
+      "pc.generated.GrpcOffsetDateTimeH\000\022H\n\013loc" +
+      "aleValue\030\013 \001(\01321.io.evitadb.externalApi." +
+      "grpc.generated.GrpcLocaleH\000\022L\n\rcurrencyV" +
+      "alue\030\014 \001(\01323.io.evitadb.externalApi.grpc" +
+      ".generated.GrpcCurrencyH\000\022d\n\031facetStatis" +
+      "ticsDepthValue\030\r \001(\0162?.io.evitadb.extern" +
+      "alApi.grpc.generated.GrpcFacetStatistics" +
+      "DepthH\000\022Y\n\024queryPriceModelValue\030\016 \001(\01629." +
       "io.evitadb.externalApi.grpc.generated.Gr" +
-      "pcLongArrayH\000\022T\n\021booleanArrayValue\030\030 \001(\013" +
-      "27.io.evitadb.externalApi.grpc.generated" +
-      ".GrpcBooleanArrayH\000\022Z\n\024bigDecimalArrayVa" +
-      "lue\030\031 \001(\0132:.io.evitadb.externalApi.grpc." +
-      "generated.GrpcBigDecimalArrayH\000\022`\n\027dateT" +
-      "imeRangeArrayValue\030\032 \001(\0132=.io.evitadb.ex" +
-      "ternalApi.grpc.generated.GrpcDateTimeRan" +
-      "geArrayH\000\022j\n\034integerNumberRangeArrayValu" +
-      "e\030\033 \001(\0132B.io.evitadb.externalApi.grpc.ge" +
-      "nerated.GrpcIntegerNumberRangeArrayH\000\022d\n" +
-      "\031longNumberRangeArrayValue\030\034 \001(\0132?.io.ev" +
-      "itadb.externalApi.grpc.generated.GrpcLon" +
-      "gNumberRangeArrayH\000\022p\n\037bigDecimalNumberR" +
-      "angeArrayValue\030\035 \001(\0132E.io.evitadb.extern" +
-      "alApi.grpc.generated.GrpcBigDecimalNumbe" +
-      "rRangeArrayH\000\022b\n\030offsetDateTimeArrayValu" +
-      "e\030\036 \001(\0132>.io.evitadb.externalApi.grpc.ge" +
-      "nerated.GrpcOffsetDateTimeArrayH\000\022R\n\020loc" +
-      "aleArrayValue\030\037 \001(\01326.io.evitadb.externa" +
-      "lApi.grpc.generated.GrpcLocaleArrayH\000\022V\n" +
-      "\022currencyArrayValue\030  \001(\01328.io.evitadb.e" +
-      "xternalApi.grpc.generated.GrpcCurrencyAr" +
-      "rayH\000\022n\n\036facetStatisticsDepthArrayValue\030" +
-      "! \001(\0132D.io.evitadb.externalApi.grpc.gene" +
-      "rated.GrpcFacetStatisticsDepthArrayH\000\022c\n" +
-      "\031queryPriceModelArrayValue\030\" \001(\0132>.io.ev" +
-      "itadb.externalApi.grpc.generated.GrpcQue" +
-      "ryPriceModeArrayH\000\022f\n\032priceContentModeAr" +
-      "rayValue\030# \001(\0132@.io.evitadb.externalApi." +
-      "grpc.generated.GrpcPriceContentModeArray" +
-      "H\000\022k\n\032attributeSpecialArrayValue\030$ \001(\0132E" +
+      "pcQueryPriceModeH\000\022\\\n\025priceContentModeVa" +
+      "lue\030\017 \001(\0162;.io.evitadb.externalApi.grpc." +
+      "generated.GrpcPriceContentModeH\000\022a\n\025attr" +
+      "ibuteSpecialValue\030\020 \001(\0162@.io.evitadb.ext" +
+      "ernalApi.grpc.generated.GrpcAttributeSpe" +
+      "cialValueH\000\022X\n\023orderDirectionValue\030\021 \001(\016" +
+      "29.io.evitadb.externalApi.grpc.generated" +
+      ".GrpcOrderDirectionH\000\022w\n emptyHierarchic" +
+      "alEntityBehaviour\030\022 \001(\0162K.io.evitadb.ext" +
+      "ernalApi.grpc.generated.GrpcEmptyHierarc" +
+      "hicalEntityBehaviourH\000\022S\n\016statisticsBase" +
+      "\030\023 \001(\01629.io.evitadb.externalApi.grpc.gen" +
+      "erated.GrpcStatisticsBaseH\000\022S\n\016statistic" +
+      "sType\030\024 \001(\01629.io.evitadb.externalApi.grp" +
+      "c.generated.GrpcStatisticsTypeH\000\022R\n\020stri" +
+      "ngArrayValue\030\025 \001(\01326.io.evitadb.external" +
+      "Api.grpc.generated.GrpcStringArrayH\000\022T\n\021" +
+      "integerArrayValue\030\026 \001(\01327.io.evitadb.ext" +
+      "ernalApi.grpc.generated.GrpcIntegerArray" +
+      "H\000\022N\n\016longArrayValue\030\027 \001(\01324.io.evitadb." +
+      "externalApi.grpc.generated.GrpcLongArray" +
+      "H\000\022T\n\021booleanArrayValue\030\030 \001(\01327.io.evita" +
+      "db.externalApi.grpc.generated.GrpcBoolea" +
+      "nArrayH\000\022Z\n\024bigDecimalArrayValue\030\031 \001(\0132:" +
       ".io.evitadb.externalApi.grpc.generated.G" +
-      "rpcAttributeSpecialValueArrayH\000\022b\n\030order" +
-      "DirectionArrayValue\030% \001(\0132>.io.evitadb.e" +
-      "xternalApi.grpc.generated.GrpcOrderDirec" +
-      "tionArrayH\000\022\206\001\n*emptyHierarchicalEntityB" +
-      "ehaviourArrayValue\030& \001(\0132P.io.evitadb.ex" +
-      "ternalApi.grpc.generated.GrpcEmptyHierar" +
-      "chicalEntityBehaviourArrayH\000\022b\n\030statisti" +
-      "csBaseArrayValue\030\' \001(\0132>.io.evitadb.exte" +
-      "rnalApi.grpc.generated.GrpcStatisticsBas" +
-      "eArrayH\000\022b\n\030statisticsTypeArrayValue\030( \001" +
-      "(\0132>.io.evitadb.externalApi.grpc.generat" +
-      "ed.GrpcStatisticsTypeArrayH\000B\014\n\nqueryPar" +
-      "am2\315\033\n\023EvitaSessionService\022l\n\020GetCatalog" +
-      "Schema\022\026.google.protobuf.Empty\032@.io.evit" +
-      "adb.externalApi.grpc.generated.GrpcCatal" +
-      "ogSchemaResponse\022j\n\017GetCatalogState\022\026.go" +
-      "ogle.protobuf.Empty\032?.io.evitadb.externa" +
-      "lApi.grpc.generated.GrpcCatalogStateResp" +
-      "onse\022\222\001\n\017GetEntitySchema\022>.io.evitadb.ex" +
-      "ternalApi.grpc.generated.GrpcEntitySchem" +
-      "aRequest\032?.io.evitadb.externalApi.grpc.g" +
-      "enerated.GrpcEntitySchemaResponse\022k\n\021Get" +
-      "AllEntityTypes\022\026.google.protobuf.Empty\032>" +
-      ".io.evitadb.externalApi.grpc.generated.G" +
-      "rpcEntityTypesResponse\022k\n\016GoLiveAndClose" +
-      "\022\026.google.protobuf.Empty\032A.io.evitadb.ex" +
-      "ternalApi.grpc.generated.GrpcGoLiveAndCl" +
-      "oseResponse\0227\n\005Close\022\026.google.protobuf.E" +
-      "mpty\032\026.google.protobuf.Empty\022\200\001\n\010QueryOn" +
-      "e\0227.io.evitadb.externalApi.grpc.generate" +
-      "d.GrpcQueryRequest\032;.io.evitadb.external" +
-      "Api.grpc.generated.GrpcQueryOneResponse\022" +
-      "\202\001\n\tQueryList\0227.io.evitadb.externalApi.g" +
-      "rpc.generated.GrpcQueryRequest\032<.io.evit" +
-      "adb.externalApi.grpc.generated.GrpcQuery" +
-      "ListResponse\022z\n\005Query\0227.io.evitadb.exter" +
-      "nalApi.grpc.generated.GrpcQueryRequest\0328" +
-      ".io.evitadb.externalApi.grpc.generated.G" +
-      "rpcQueryResponse\022\200\001\n\tGetEntity\0228.io.evit" +
-      "adb.externalApi.grpc.generated.GrpcEntit" +
-      "yRequest\0329.io.evitadb.externalApi.grpc.g" +
-      "enerated.GrpcEntityResponse\022\244\001\n\023UpdateCa" +
-      "talogSchema\022E.io.evitadb.externalApi.grp" +
-      "c.generated.GrpcUpdateCatalogSchemaReque" +
-      "st\032F.io.evitadb.externalApi.grpc.generat" +
-      "ed.GrpcUpdateCatalogSchemaResponse\022\264\001\n\033U" +
-      "pdateAndFetchCatalogSchema\022E.io.evitadb." +
-      "externalApi.grpc.generated.GrpcUpdateCat" +
-      "alogSchemaRequest\032N.io.evitadb.externalA" +
-      "pi.grpc.generated.GrpcUpdateAndFetchCata" +
-      "logSchemaResponse\022\241\001\n\022DefineEntitySchema" +
-      "\022D.io.evitadb.externalApi.grpc.generated" +
-      ".GrpcDefineEntitySchemaRequest\032E.io.evit" +
-      "adb.externalApi.grpc.generated.GrpcDefin" +
-      "eEntitySchemaResponse\022\241\001\n\022UpdateEntitySc" +
+      "rpcBigDecimalArrayH\000\022`\n\027dateTimeRangeArr" +
+      "ayValue\030\032 \001(\0132=.io.evitadb.externalApi.g" +
+      "rpc.generated.GrpcDateTimeRangeArrayH\000\022j" +
+      "\n\034integerNumberRangeArrayValue\030\033 \001(\0132B.i" +
+      "o.evitadb.externalApi.grpc.generated.Grp" +
+      "cIntegerNumberRangeArrayH\000\022d\n\031longNumber" +
+      "RangeArrayValue\030\034 \001(\0132?.io.evitadb.exter" +
+      "nalApi.grpc.generated.GrpcLongNumberRang" +
+      "eArrayH\000\022p\n\037bigDecimalNumberRangeArrayVa" +
+      "lue\030\035 \001(\0132E.io.evitadb.externalApi.grpc." +
+      "generated.GrpcBigDecimalNumberRangeArray" +
+      "H\000\022b\n\030offsetDateTimeArrayValue\030\036 \001(\0132>.i" +
+      "o.evitadb.externalApi.grpc.generated.Grp" +
+      "cOffsetDateTimeArrayH\000\022R\n\020localeArrayVal" +
+      "ue\030\037 \001(\01326.io.evitadb.externalApi.grpc.g" +
+      "enerated.GrpcLocaleArrayH\000\022V\n\022currencyAr" +
+      "rayValue\030  \001(\01328.io.evitadb.externalApi." +
+      "grpc.generated.GrpcCurrencyArrayH\000\022n\n\036fa" +
+      "cetStatisticsDepthArrayValue\030! \001(\0132D.io." +
+      "evitadb.externalApi.grpc.generated.GrpcF" +
+      "acetStatisticsDepthArrayH\000\022c\n\031queryPrice" +
+      "ModelArrayValue\030\" \001(\0132>.io.evitadb.exter" +
+      "nalApi.grpc.generated.GrpcQueryPriceMode" +
+      "ArrayH\000\022f\n\032priceContentModeArrayValue\030# " +
+      "\001(\0132@.io.evitadb.externalApi.grpc.genera" +
+      "ted.GrpcPriceContentModeArrayH\000\022k\n\032attri" +
+      "buteSpecialArrayValue\030$ \001(\0132E.io.evitadb" +
+      ".externalApi.grpc.generated.GrpcAttribut" +
+      "eSpecialValueArrayH\000\022b\n\030orderDirectionAr" +
+      "rayValue\030% \001(\0132>.io.evitadb.externalApi." +
+      "grpc.generated.GrpcOrderDirectionArrayH\000" +
+      "\022\206\001\n*emptyHierarchicalEntityBehaviourArr" +
+      "ayValue\030& \001(\0132P.io.evitadb.externalApi.g" +
+      "rpc.generated.GrpcEmptyHierarchicalEntit" +
+      "yBehaviourArrayH\000\022b\n\030statisticsBaseArray" +
+      "Value\030\' \001(\0132>.io.evitadb.externalApi.grp" +
+      "c.generated.GrpcStatisticsBaseArrayH\000\022b\n" +
+      "\030statisticsTypeArrayValue\030( \001(\0132>.io.evi" +
+      "tadb.externalApi.grpc.generated.GrpcStat" +
+      "isticsTypeArrayH\000B\014\n\nqueryParam\"\236\003\n$Grpc" +
+      "RegisterChangeDataCaptureRequest\022D\n\004area" +
+      "\030\001 \001(\01626.io.evitadb.externalApi.grpc.gen" +
+      "erated.GrpcCaptureArea\022K\n\nschemaSite\030\002 \001" +
+      "(\01325.io.evitadb.externalApi.grpc.generat" +
+      "ed.GrpcSchemaSiteH\000\022G\n\010dataSite\030\003 \001(\01323." +
+      "io.evitadb.externalApi.grpc.generated.Gr" +
+      "pcDataSiteH\000\022J\n\007content\030\004 \001(\01629.io.evita" +
+      "db.externalApi.grpc.generated.GrpcCaptur" +
+      "eContent\022F\n\005since\030\005 \001(\01327.io.evitadb.ext" +
+      "ernalApi.grpc.generated.GrpcCaptureSince" +
+      "B\006\n\004site\"\363\001\n%GrpcRegisterChangeDataCaptu" +
+      "reResponse\022\014\n\004uuid\030\001 \001(\t\022M\n\007capture\030\002 \003(" +
+      "\0132<.io.evitadb.externalApi.grpc.generate" +
+      "d.GrpcChangeDataCapture\022\027\n\017transactional" +
+      "Id\030\003 \001(\003\022T\n\014responseType\030\004 \001(\0162>.io.evit" +
+      "adb.externalApi.grpc.generated.GrpcCaptu" +
+      "reResponseType\"6\n&GrpcUnregisterChangeDa" +
+      "taCaptureRequest\022\014\n\004uuid\030\001 \001(\t2\217\036\n\023Evita" +
+      "SessionService\022l\n\020GetCatalogSchema\022\026.goo" +
+      "gle.protobuf.Empty\032@.io.evitadb.external" +
+      "Api.grpc.generated.GrpcCatalogSchemaResp" +
+      "onse\022j\n\017GetCatalogState\022\026.google.protobu" +
+      "f.Empty\032?.io.evitadb.externalApi.grpc.ge" +
+      "nerated.GrpcCatalogStateResponse\022\222\001\n\017Get" +
+      "EntitySchema\022>.io.evitadb.externalApi.gr" +
+      "pc.generated.GrpcEntitySchemaRequest\032?.i" +
+      "o.evitadb.externalApi.grpc.generated.Grp" +
+      "cEntitySchemaResponse\022k\n\021GetAllEntityTyp" +
+      "es\022\026.google.protobuf.Empty\032>.io.evitadb." +
+      "externalApi.grpc.generated.GrpcEntityTyp" +
+      "esResponse\022k\n\016GoLiveAndClose\022\026.google.pr" +
+      "otobuf.Empty\032A.io.evitadb.externalApi.gr" +
+      "pc.generated.GrpcGoLiveAndCloseResponse\022" +
+      "7\n\005Close\022\026.google.protobuf.Empty\032\026.googl" +
+      "e.protobuf.Empty\022\200\001\n\010QueryOne\0227.io.evita" +
+      "db.externalApi.grpc.generated.GrpcQueryR" +
+      "equest\032;.io.evitadb.externalApi.grpc.gen" +
+      "erated.GrpcQueryOneResponse\022\202\001\n\tQueryLis" +
+      "t\0227.io.evitadb.externalApi.grpc.generate" +
+      "d.GrpcQueryRequest\032<.io.evitadb.external" +
+      "Api.grpc.generated.GrpcQueryListResponse" +
+      "\022z\n\005Query\0227.io.evitadb.externalApi.grpc." +
+      "generated.GrpcQueryRequest\0328.io.evitadb." +
+      "externalApi.grpc.generated.GrpcQueryResp" +
+      "onse\022\200\001\n\tGetEntity\0228.io.evitadb.external" +
+      "Api.grpc.generated.GrpcEntityRequest\0329.i" +
+      "o.evitadb.externalApi.grpc.generated.Grp" +
+      "cEntityResponse\022\244\001\n\023UpdateCatalogSchema\022" +
+      "E.io.evitadb.externalApi.grpc.generated." +
+      "GrpcUpdateCatalogSchemaRequest\032F.io.evit" +
+      "adb.externalApi.grpc.generated.GrpcUpdat" +
+      "eCatalogSchemaResponse\022\264\001\n\033UpdateAndFetc" +
+      "hCatalogSchema\022E.io.evitadb.externalApi." +
+      "grpc.generated.GrpcUpdateCatalogSchemaRe" +
+      "quest\032N.io.evitadb.externalApi.grpc.gene" +
+      "rated.GrpcUpdateAndFetchCatalogSchemaRes" +
+      "ponse\022\241\001\n\022DefineEntitySchema\022D.io.evitad" +
+      "b.externalApi.grpc.generated.GrpcDefineE" +
+      "ntitySchemaRequest\032E.io.evitadb.external" +
+      "Api.grpc.generated.GrpcDefineEntitySchem" +
+      "aResponse\022\241\001\n\022UpdateEntitySchema\022D.io.ev" +
+      "itadb.externalApi.grpc.generated.GrpcUpd" +
+      "ateEntitySchemaRequest\032E.io.evitadb.exte" +
+      "rnalApi.grpc.generated.GrpcUpdateEntityS" +
+      "chemaResponse\022\261\001\n\032UpdateAndFetchEntitySc" +
       "hema\022D.io.evitadb.externalApi.grpc.gener" +
-      "ated.GrpcUpdateEntitySchemaRequest\032E.io." +
+      "ated.GrpcUpdateEntitySchemaRequest\032M.io." +
       "evitadb.externalApi.grpc.generated.GrpcU" +
-      "pdateEntitySchemaResponse\022\261\001\n\032UpdateAndF" +
-      "etchEntitySchema\022D.io.evitadb.externalAp" +
-      "i.grpc.generated.GrpcUpdateEntitySchemaR" +
-      "equest\032M.io.evitadb.externalApi.grpc.gen" +
-      "erated.GrpcUpdateAndFetchEntitySchemaRes" +
-      "ponse\022\233\001\n\020DeleteCollection\022B.io.evitadb." +
-      "externalApi.grpc.generated.GrpcDeleteCol" +
-      "lectionRequest\032C.io.evitadb.externalApi." +
-      "grpc.generated.GrpcDeleteCollectionRespo" +
-      "nse\022\233\001\n\020RenameCollection\022B.io.evitadb.ex" +
-      "ternalApi.grpc.generated.GrpcRenameColle" +
-      "ctionRequest\032C.io.evitadb.externalApi.gr" +
-      "pc.generated.GrpcRenameCollectionRespons" +
-      "e\022\236\001\n\021ReplaceCollection\022C.io.evitadb.ext" +
-      "ernalApi.grpc.generated.GrpcReplaceColle" +
-      "ctionRequest\032D.io.evitadb.externalApi.gr" +
-      "pc.generated.GrpcReplaceCollectionRespon" +
-      "se\022\252\001\n\027GetEntityCollectionSize\022F.io.evit" +
-      "adb.externalApi.grpc.generated.GrpcEntit" +
-      "yCollectionSizeRequest\032G.io.evitadb.exte" +
-      "rnalApi.grpc.generated.GrpcEntityCollect" +
-      "ionSizeResponse\022\217\001\n\014UpsertEntity\022>.io.ev" +
-      "itadb.externalApi.grpc.generated.GrpcUps" +
-      "ertEntityRequest\032?.io.evitadb.externalAp" +
-      "i.grpc.generated.GrpcUpsertEntityRespons" +
-      "e\022\217\001\n\014DeleteEntity\022>.io.evitadb.external" +
-      "Api.grpc.generated.GrpcDeleteEntityReque" +
-      "st\032?.io.evitadb.externalApi.grpc.generat" +
-      "ed.GrpcDeleteEntityResponse\022\255\001\n\033DeleteEn" +
-      "tityAndItsHierarchy\022>.io.evitadb.externa" +
-      "lApi.grpc.generated.GrpcDeleteEntityRequ" +
-      "est\032N.io.evitadb.externalApi.grpc.genera" +
-      "ted.GrpcDeleteEntityAndItsHierarchyRespo" +
-      "nse\022\225\001\n\016DeleteEntities\022@.io.evitadb.exte" +
-      "rnalApi.grpc.generated.GrpcDeleteEntitie" +
-      "sRequest\032A.io.evitadb.externalApi.grpc.g" +
-      "enerated.GrpcDeleteEntitiesResponse\022m\n\017O" +
-      "penTransaction\022\026.google.protobuf.Empty\032B" +
-      ".io.evitadb.externalApi.grpc.generated.G" +
-      "rpcOpenTransactionResponse\022n\n\020CloseTrans" +
-      "action\022B.io.evitadb.externalApi.grpc.gen" +
-      "erated.GrpcCloseTransactionRequest\032\026.goo" +
-      "gle.protobuf.EmptyB\002P\001b\006proto3"
+      "pdateAndFetchEntitySchemaResponse\022\233\001\n\020De" +
+      "leteCollection\022B.io.evitadb.externalApi." +
+      "grpc.generated.GrpcDeleteCollectionReque" +
+      "st\032C.io.evitadb.externalApi.grpc.generat" +
+      "ed.GrpcDeleteCollectionResponse\022\233\001\n\020Rena" +
+      "meCollection\022B.io.evitadb.externalApi.gr" +
+      "pc.generated.GrpcRenameCollectionRequest" +
+      "\032C.io.evitadb.externalApi.grpc.generated" +
+      ".GrpcRenameCollectionResponse\022\236\001\n\021Replac" +
+      "eCollection\022C.io.evitadb.externalApi.grp" +
+      "c.generated.GrpcReplaceCollectionRequest" +
+      "\032D.io.evitadb.externalApi.grpc.generated" +
+      ".GrpcReplaceCollectionResponse\022\252\001\n\027GetEn" +
+      "tityCollectionSize\022F.io.evitadb.external" +
+      "Api.grpc.generated.GrpcEntityCollectionS" +
+      "izeRequest\032G.io.evitadb.externalApi.grpc" +
+      ".generated.GrpcEntityCollectionSizeRespo" +
+      "nse\022\217\001\n\014UpsertEntity\022>.io.evitadb.extern" +
+      "alApi.grpc.generated.GrpcUpsertEntityReq" +
+      "uest\032?.io.evitadb.externalApi.grpc.gener" +
+      "ated.GrpcUpsertEntityResponse\022\217\001\n\014Delete" +
+      "Entity\022>.io.evitadb.externalApi.grpc.gen" +
+      "erated.GrpcDeleteEntityRequest\032?.io.evit" +
+      "adb.externalApi.grpc.generated.GrpcDelet" +
+      "eEntityResponse\022\255\001\n\033DeleteEntityAndItsHi" +
+      "erarchy\022>.io.evitadb.externalApi.grpc.ge" +
+      "nerated.GrpcDeleteEntityRequest\032N.io.evi" +
+      "tadb.externalApi.grpc.generated.GrpcDele" +
+      "teEntityAndItsHierarchyResponse\022\225\001\n\016Dele" +
+      "teEntities\022@.io.evitadb.externalApi.grpc" +
+      ".generated.GrpcDeleteEntitiesRequest\032A.i" +
+      "o.evitadb.externalApi.grpc.generated.Grp" +
+      "cDeleteEntitiesResponse\022m\n\017OpenTransacti" +
+      "on\022\026.google.protobuf.Empty\032B.io.evitadb." +
+      "externalApi.grpc.generated.GrpcOpenTrans" +
+      "actionResponse\022n\n\020CloseTransaction\022B.io." +
+      "evitadb.externalApi.grpc.generated.GrpcC" +
+      "loseTransactionRequest\032\026.google.protobuf" +
+      ".Empty\022\270\001\n\031RegisterChangeDataCapture\022K.i" +
+      "o.evitadb.externalApi.grpc.generated.Grp" +
+      "cRegisterChangeDataCaptureRequest\032L.io.e" +
+      "vitadb.externalApi.grpc.generated.GrpcRe" +
+      "gisterChangeDataCaptureResponse0\001\022\204\001\n\033Un" +
+      "registerChangeDataCapture\022M.io.evitadb.e" +
+      "xternalApi.grpc.generated.GrpcUnregister" +
+      "ChangeDataCaptureRequest\032\026.google.protob" +
+      "uf.EmptyB\002P\001b\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -633,6 +675,7 @@ public final class GrpcEvitaSessionAPI {
           io.evitadb.externalApi.grpc.generated.GrpcEntityMutationOuterClass.getDescriptor(),
           io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaMutation.getDescriptor(),
           io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaMutations.getDescriptor(),
+          io.evitadb.externalApi.grpc.generated.GrpcChangeDataCaptureOuterClass.getDescriptor(),
         });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcCatalogStateResponse_descriptor =
       getDescriptor().getMessageTypes().get(0);
@@ -910,6 +953,24 @@ public final class GrpcEvitaSessionAPI {
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_QueryParam_descriptor,
         new java.lang.String[] { "StringValue", "IntegerValue", "LongValue", "BooleanValue", "BigDecimalValue", "DateTimeRangeValue", "IntegerNumberRangeValue", "LongNumberRangeValue", "BigDecimalNumberRangeValue", "OffsetDateTimeValue", "LocaleValue", "CurrencyValue", "FacetStatisticsDepthValue", "QueryPriceModelValue", "PriceContentModeValue", "AttributeSpecialValue", "OrderDirectionValue", "EmptyHierarchicalEntityBehaviour", "StatisticsBase", "StatisticsType", "StringArrayValue", "IntegerArrayValue", "LongArrayValue", "BooleanArrayValue", "BigDecimalArrayValue", "DateTimeRangeArrayValue", "IntegerNumberRangeArrayValue", "LongNumberRangeArrayValue", "BigDecimalNumberRangeArrayValue", "OffsetDateTimeArrayValue", "LocaleArrayValue", "CurrencyArrayValue", "FacetStatisticsDepthArrayValue", "QueryPriceModelArrayValue", "PriceContentModeArrayValue", "AttributeSpecialArrayValue", "OrderDirectionArrayValue", "EmptyHierarchicalEntityBehaviourArrayValue", "StatisticsBaseArrayValue", "StatisticsTypeArrayValue", "QueryParam", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcRegisterChangeDataCaptureRequest_descriptor =
+      getDescriptor().getMessageTypes().get(41);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcRegisterChangeDataCaptureRequest_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcRegisterChangeDataCaptureRequest_descriptor,
+        new java.lang.String[] { "Area", "SchemaSite", "DataSite", "Content", "Since", "Site", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcRegisterChangeDataCaptureResponse_descriptor =
+      getDescriptor().getMessageTypes().get(42);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcRegisterChangeDataCaptureResponse_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcRegisterChangeDataCaptureResponse_descriptor,
+        new java.lang.String[] { "Uuid", "Capture", "TransactionalId", "ResponseType", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcUnregisterChangeDataCaptureRequest_descriptor =
+      getDescriptor().getMessageTypes().get(43);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcUnregisterChangeDataCaptureRequest_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcUnregisterChangeDataCaptureRequest_descriptor,
+        new java.lang.String[] { "Uuid", });
     com.google.protobuf.EmptyProto.getDescriptor();
     com.google.protobuf.WrappersProto.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEntity.getDescriptor();
@@ -922,6 +983,7 @@ public final class GrpcEvitaSessionAPI {
     io.evitadb.externalApi.grpc.generated.GrpcEntityMutationOuterClass.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaMutation.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaMutations.getDescriptor();
+    io.evitadb.externalApi.grpc.generated.GrpcChangeDataCaptureOuterClass.getDescriptor();
   }
 
   // @@protoc_insertion_point(outer_class_scope)

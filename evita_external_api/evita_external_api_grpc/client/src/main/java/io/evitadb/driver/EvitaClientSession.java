@@ -51,8 +51,14 @@ import io.evitadb.api.requestResponse.EvitaEntityResponse;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
+import io.evitadb.api.requestResponse.cdc.CaptureArea;
+import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.CaptureSince;
 import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureObserver;
 import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.DataSite;
+import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.cdc.SchemaSite;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
@@ -79,10 +85,12 @@ import io.evitadb.dataType.DataChunk;
 import io.evitadb.driver.pooling.ChannelPool;
 import io.evitadb.driver.requestResponse.schema.ClientCatalogSchemaDecorator;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.externalApi.grpc.dataType.ChangeDataCaptureConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.externalApi.grpc.query.QueryConverter;
+import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.ResponseConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingEntityMutationConverter;
@@ -98,13 +106,16 @@ import io.grpc.ManagedChannel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
+import org.jboss.threads.EnhancedQueueExecutor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -115,6 +126,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
@@ -175,6 +187,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 * Contains reference to the channel pool that is used for retrieving a channel and applying wanted login onto it.
 	 */
 	private final ChannelPool channelPool;
+
+	private final ManagedChannel cdcChannel;
+
+	private final EnhancedQueueExecutor executor;
+
 	/**
 	 * Contains reference to the catalog name targeted by queries / mutations from this session.
 	 */
@@ -214,6 +231,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 */
 	private long lastCall;
 
+	private final List<UUID> activeDataCaptures = new ArrayList<>(32);
+
 	private static <S extends Serializable> void assertRequestMakesSense(@Nonnull Query query, @Nonnull Class<S> expectedType) {
 		if (EntityContract.class.isAssignableFrom(expectedType) &&
 			(query.getRequire() == null ||
@@ -230,6 +249,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull EvitaEntitySchemaCache schemaCache,
 		@Nonnull ChannelPool channelPool,
+		@Nonnull ManagedChannel cdcChannel,
+		@Nonnull EnhancedQueueExecutor executor,
 		@Nonnull String catalogName,
 		@Nonnull CatalogState catalogState,
 		@Nonnull UUID sessionId,
@@ -240,6 +261,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 		this.proxyFactory = schemaCache.getProxyFactory();
 		this.schemaCache = schemaCache;
 		this.channelPool = channelPool;
+		this.cdcChannel = cdcChannel;
+		this.executor = executor;
 		this.catalogName = catalogName;
 		this.catalogState = catalogState;
 		this.sessionId = sessionId;
@@ -304,13 +327,52 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Nonnull
 	@Override
 	public UUID registerChangeDataCapture(@Nonnull ChangeDataCaptureRequest request, @Nonnull ChangeDataCaptureObserver callback) {
-		// TODO TPO - implement
-		return null;
+		final AtomicReference<UUID> uuid = new AtomicReference<>();
+		final GrpcRegisterChangeDataCaptureRequest.Builder builder = GrpcRegisterChangeDataCaptureRequest.newBuilder();
+		if (request.site() instanceof DataSite dataSite) {
+			builder.setDataSite(ChangeDataCaptureConverter.toGrpcDataSite(dataSite));
+		} else if (request.site() instanceof SchemaSite schemaSite) {
+			builder.setSchemaSite(ChangeDataCaptureConverter.toGrpcSchemaSite(schemaSite));
+		}
+
+		SessionIdHolder.setSessionId(getCatalogName(), getId().toString());
+		final Iterator<GrpcRegisterChangeDataCaptureResponse> responseIterator = EvitaSessionServiceGrpc.newBlockingStub(cdcChannel)
+			.registerChangeDataCapture(builder
+			.setArea(EvitaEnumConverter.toGrpcCaptureArea(request.area()))
+			.setContent(EvitaEnumConverter.toGrpcCaptureContent(request.content()))
+			.setSince(ChangeDataCaptureConverter.toGrpcCaptureSince(request.since()))
+			.build()
+		);
+
+		this.executor.execute(() -> responseIterator.forEachRemaining(it -> {
+			if (it.getResponseType() == GrpcCaptureResponseType.ACKNOWLEDGEMENT) {
+				uuid.set(UUID.fromString(it.getUuid()));
+				activeDataCaptures.add(uuid.get());
+			} else {
+				callback.onTransactionCommit(
+					it.getTransactionalId(),
+					it.getCaptureList().stream().map(ChangeDataCaptureConverter::toChangeDataCapture).collect(Collectors.toList())
+				);
+			}
+		}));
+
+		while (uuid.get() == null) {
+
+		}
+		SessionIdHolder.reset();
+		return uuid.get();
 	}
 
 	@Override
 	public void unregisterChangeDataCapture(@Nonnull UUID uuid) {
-		// TODO TPO - implement
+		SessionIdHolder.setSessionId(getCatalogName(), getId().toString());
+		activeDataCaptures.remove(uuid);
+		EvitaSessionServiceGrpc.newBlockingStub(cdcChannel).unregisterChangeDataCapture(
+			GrpcUnregisterChangeDataCaptureRequest.newBuilder()
+				.setUuid(uuid.toString())
+				.build()
+		);
+		SessionIdHolder.reset();
 	}
 
 	@Nonnull

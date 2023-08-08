@@ -33,6 +33,12 @@ import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.cdc.ChangeDataCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureObserver;
+import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureObserver;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -52,8 +58,10 @@ import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.grpc.builders.query.extraResults.GrpcExtraResultsBuilder;
+import io.evitadb.externalApi.grpc.dataType.ChangeDataCaptureConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaResponse.Builder;
+import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingEntityMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingLocalMutationConverter;
@@ -65,6 +73,7 @@ import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.Modif
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
 import io.evitadb.utils.ArrayUtils;
+import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
 
@@ -73,10 +82,22 @@ import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
+import static io.evitadb.externalApi.grpc.dataType.ChangeDataCaptureConverter.toCaptureSince;
+import static io.evitadb.externalApi.grpc.dataType.ChangeDataCaptureConverter.toCaptureSite;
+import static io.evitadb.externalApi.grpc.dataType.ChangeDataCaptureConverter.toGrpcChangeSystemCapture;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toCaptureArea;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toCaptureContent;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCatalogState;
 import static io.evitadb.externalApi.grpc.requestResponse.schema.CatalogSchemaConverter.convert;
 import static java.util.Optional.empty;
@@ -97,6 +118,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		new ModifyEntitySchemaMutationConverter();
 	private static final EntityMutationConverter<EntityMutation, GrpcEntityMutation> ENTITY_MUTATION_CONVERTER =
 		new DelegatingEntityMutationConverter();
+
+	private final Map<UUID, ChangeDataCaptureObserver> activeDataObservers = new HashMap<>(32);
 
 	/**
 	 * Produces the {@link CatalogSchema}.
@@ -798,5 +821,62 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		} catch (UnexpectedTransactionStateException ex) {
 			logic.accept(session);
 		}
+	}
+
+	@Override
+	public void registerChangeDataCapture(GrpcRegisterChangeDataCaptureRequest request, StreamObserver<GrpcRegisterChangeDataCaptureResponse> responseObserver) {
+		final EvitaSessionContract session = ServerSessionInterceptor.SESSION.get();
+		final AtomicReference<UUID> uuidRef = new AtomicReference<>();
+
+		final ServerCallStreamObserver<GrpcRegisterChangeDataCaptureResponse> serverCallStreamObserver = ((ServerCallStreamObserver<GrpcRegisterChangeDataCaptureResponse>) responseObserver);
+		serverCallStreamObserver.setOnCancelHandler(() -> {
+			ChangeDataCaptureObserver observer = activeDataObservers.remove(uuidRef.get());
+			observer.onTermination();
+			System.out.println("Observer "+session.getId()+" removed");
+		});
+
+		final ChangeDataCaptureObserver changeDataCaptureObserver = new ChangeDataCaptureObserver() {
+			@Override
+			public void onTransactionCommit(long transactionId, @Nonnull Collection<ChangeDataCapture> events) {
+				responseObserver.onNext(GrpcRegisterChangeDataCaptureResponse.newBuilder()
+					.setUuid(uuidRef.get().toString())
+					.addAllCapture(events.stream().map(ChangeDataCaptureConverter::toGrpcChangeDataCapture).collect(Collectors.toList()))
+					.setTransactionalId(transactionId)
+					.setResponseType(GrpcCaptureResponseType.CHANGE)
+					.build());
+			}
+
+			@Override
+			public void onTermination() {
+				activeDataObservers.remove(uuidRef.get());
+				responseObserver.onCompleted();
+			}
+		};
+
+		final ChangeDataCaptureRequest changeDataCaptureRequest = new ChangeDataCaptureRequest(
+			toCaptureArea(request.getArea()),
+			toCaptureSite(request),
+			toCaptureContent(request.getContent()),
+			toCaptureSince(request.getSince())
+		);
+
+		uuidRef.set(session.registerChangeDataCapture(changeDataCaptureRequest, changeDataCaptureObserver));
+
+		activeDataObservers.put(uuidRef.get(), changeDataCaptureObserver);
+
+		responseObserver.onNext(GrpcRegisterChangeDataCaptureResponse.newBuilder()
+			.setUuid(uuidRef.get().toString())
+			.setResponseType(GrpcCaptureResponseType.ACKNOWLEDGEMENT)
+			.build());
+	}
+
+	@Override
+	public void unregisterChangeDataCapture(GrpcUnregisterChangeDataCaptureRequest request, StreamObserver<Empty> responseObserver) {
+		final EvitaSessionContract session = ServerSessionInterceptor.SESSION.get();
+		session.unregisterChangeDataCapture(UUID.fromString(request.getUuid()));
+		ChangeDataCaptureObserver observer = activeDataObservers.remove(UUID.fromString(request.getUuid()));
+		observer.onTermination();
+		responseObserver.onNext(Empty.newBuilder().build());
+		responseObserver.onCompleted();
 	}
 }

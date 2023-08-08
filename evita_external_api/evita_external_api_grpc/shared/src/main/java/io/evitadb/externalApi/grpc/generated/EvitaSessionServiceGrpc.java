@@ -811,6 +811,68 @@ public final class EvitaSessionServiceGrpc {
     return getCloseTransactionMethod;
   }
 
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse> getRegisterChangeDataCaptureMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "RegisterChangeDataCapture",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse> getRegisterChangeDataCaptureMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureRequest, io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse> getRegisterChangeDataCaptureMethod;
+    if ((getRegisterChangeDataCaptureMethod = EvitaSessionServiceGrpc.getRegisterChangeDataCaptureMethod) == null) {
+      synchronized (EvitaSessionServiceGrpc.class) {
+        if ((getRegisterChangeDataCaptureMethod = EvitaSessionServiceGrpc.getRegisterChangeDataCaptureMethod) == null) {
+          EvitaSessionServiceGrpc.getRegisterChangeDataCaptureMethod = getRegisterChangeDataCaptureMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureRequest, io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "RegisterChangeDataCapture"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaSessionServiceMethodDescriptorSupplier("RegisterChangeDataCapture"))
+              .build();
+        }
+      }
+    }
+    return getRegisterChangeDataCaptureMethod;
+  }
+
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcUnregisterChangeDataCaptureRequest,
+      com.google.protobuf.Empty> getUnregisterChangeDataCaptureMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "UnregisterChangeDataCapture",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcUnregisterChangeDataCaptureRequest.class,
+      responseType = com.google.protobuf.Empty.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcUnregisterChangeDataCaptureRequest,
+      com.google.protobuf.Empty> getUnregisterChangeDataCaptureMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcUnregisterChangeDataCaptureRequest, com.google.protobuf.Empty> getUnregisterChangeDataCaptureMethod;
+    if ((getUnregisterChangeDataCaptureMethod = EvitaSessionServiceGrpc.getUnregisterChangeDataCaptureMethod) == null) {
+      synchronized (EvitaSessionServiceGrpc.class) {
+        if ((getUnregisterChangeDataCaptureMethod = EvitaSessionServiceGrpc.getUnregisterChangeDataCaptureMethod) == null) {
+          EvitaSessionServiceGrpc.getUnregisterChangeDataCaptureMethod = getUnregisterChangeDataCaptureMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcUnregisterChangeDataCaptureRequest, com.google.protobuf.Empty>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "UnregisterChangeDataCapture"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcUnregisterChangeDataCaptureRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  com.google.protobuf.Empty.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaSessionServiceMethodDescriptorSupplier("UnregisterChangeDataCapture"))
+              .build();
+        }
+      }
+    }
+    return getUnregisterChangeDataCaptureMethod;
+  }
+
   /**
    * Creates a new async stub that supports all call types for the service
    */
@@ -1034,6 +1096,20 @@ public final class EvitaSessionServiceGrpc {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getCloseTransactionMethod(), responseObserver);
     }
 
+    /**
+     */
+    public void registerChangeDataCapture(io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getRegisterChangeDataCaptureMethod(), responseObserver);
+    }
+
+    /**
+     */
+    public void unregisterChangeDataCapture(io.evitadb.externalApi.grpc.generated.GrpcUnregisterChangeDataCaptureRequest request,
+        io.grpc.stub.StreamObserver<com.google.protobuf.Empty> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getUnregisterChangeDataCaptureMethod(), responseObserver);
+    }
+
     @java.lang.Override public final io.grpc.ServerServiceDefinition bindService() {
       return io.grpc.ServerServiceDefinition.builder(getServiceDescriptor())
           .addMethod(
@@ -1211,6 +1287,20 @@ public final class EvitaSessionServiceGrpc {
                 io.evitadb.externalApi.grpc.generated.GrpcCloseTransactionRequest,
                 com.google.protobuf.Empty>(
                   this, METHODID_CLOSE_TRANSACTION)))
+          .addMethod(
+            getRegisterChangeDataCaptureMethod(),
+            io.grpc.stub.ServerCalls.asyncServerStreamingCall(
+              new MethodHandlers<
+                io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureRequest,
+                io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse>(
+                  this, METHODID_REGISTER_CHANGE_DATA_CAPTURE)))
+          .addMethod(
+            getUnregisterChangeDataCaptureMethod(),
+            io.grpc.stub.ServerCalls.asyncUnaryCall(
+              new MethodHandlers<
+                io.evitadb.externalApi.grpc.generated.GrpcUnregisterChangeDataCaptureRequest,
+                com.google.protobuf.Empty>(
+                  this, METHODID_UNREGISTER_CHANGE_DATA_CAPTURE)))
           .build();
     }
   }
@@ -1428,6 +1518,22 @@ public final class EvitaSessionServiceGrpc {
       io.grpc.stub.ClientCalls.asyncUnaryCall(
           getChannel().newCall(getCloseTransactionMethod(), getCallOptions()), request, responseObserver);
     }
+
+    /**
+     */
+    public void registerChangeDataCapture(io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncServerStreamingCall(
+          getChannel().newCall(getRegisterChangeDataCaptureMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     */
+    public void unregisterChangeDataCapture(io.evitadb.externalApi.grpc.generated.GrpcUnregisterChangeDataCaptureRequest request,
+        io.grpc.stub.StreamObserver<com.google.protobuf.Empty> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getUnregisterChangeDataCaptureMethod(), getCallOptions()), request, responseObserver);
+    }
   }
 
   /**
@@ -1617,6 +1723,21 @@ public final class EvitaSessionServiceGrpc {
     public com.google.protobuf.Empty closeTransaction(io.evitadb.externalApi.grpc.generated.GrpcCloseTransactionRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
           getChannel(), getCloseTransactionMethod(), getCallOptions(), request);
+    }
+
+    /**
+     */
+    public java.util.Iterator<io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse> registerChangeDataCapture(
+        io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureRequest request) {
+      return io.grpc.stub.ClientCalls.blockingServerStreamingCall(
+          getChannel(), getRegisterChangeDataCaptureMethod(), getCallOptions(), request);
+    }
+
+    /**
+     */
+    public com.google.protobuf.Empty unregisterChangeDataCapture(io.evitadb.externalApi.grpc.generated.GrpcUnregisterChangeDataCaptureRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getUnregisterChangeDataCaptureMethod(), getCallOptions(), request);
     }
   }
 
@@ -1833,6 +1954,14 @@ public final class EvitaSessionServiceGrpc {
       return io.grpc.stub.ClientCalls.futureUnaryCall(
           getChannel().newCall(getCloseTransactionMethod(), getCallOptions()), request);
     }
+
+    /**
+     */
+    public com.google.common.util.concurrent.ListenableFuture<com.google.protobuf.Empty> unregisterChangeDataCapture(
+        io.evitadb.externalApi.grpc.generated.GrpcUnregisterChangeDataCaptureRequest request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getUnregisterChangeDataCaptureMethod(), getCallOptions()), request);
+    }
   }
 
   private static final int METHODID_GET_CATALOG_SCHEMA = 0;
@@ -1860,6 +1989,8 @@ public final class EvitaSessionServiceGrpc {
   private static final int METHODID_DELETE_ENTITIES = 22;
   private static final int METHODID_OPEN_TRANSACTION = 23;
   private static final int METHODID_CLOSE_TRANSACTION = 24;
+  private static final int METHODID_REGISTER_CHANGE_DATA_CAPTURE = 25;
+  private static final int METHODID_UNREGISTER_CHANGE_DATA_CAPTURE = 26;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -1978,6 +2109,14 @@ public final class EvitaSessionServiceGrpc {
           serviceImpl.closeTransaction((io.evitadb.externalApi.grpc.generated.GrpcCloseTransactionRequest) request,
               (io.grpc.stub.StreamObserver<com.google.protobuf.Empty>) responseObserver);
           break;
+        case METHODID_REGISTER_CHANGE_DATA_CAPTURE:
+          serviceImpl.registerChangeDataCapture((io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse>) responseObserver);
+          break;
+        case METHODID_UNREGISTER_CHANGE_DATA_CAPTURE:
+          serviceImpl.unregisterChangeDataCapture((io.evitadb.externalApi.grpc.generated.GrpcUnregisterChangeDataCaptureRequest) request,
+              (io.grpc.stub.StreamObserver<com.google.protobuf.Empty>) responseObserver);
+          break;
         default:
           throw new AssertionError();
       }
@@ -2064,6 +2203,8 @@ public final class EvitaSessionServiceGrpc {
               .addMethod(getDeleteEntitiesMethod())
               .addMethod(getOpenTransactionMethod())
               .addMethod(getCloseTransactionMethod())
+              .addMethod(getRegisterChangeDataCaptureMethod())
+              .addMethod(getUnregisterChangeDataCaptureMethod())
               .build();
         }
       }

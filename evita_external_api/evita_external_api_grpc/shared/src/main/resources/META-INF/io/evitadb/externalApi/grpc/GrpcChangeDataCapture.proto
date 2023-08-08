@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+option csharp_namespace = "EvitaDB";
+
+import "GrpcEnums.proto";
+import "GrpcCatalogSchemaMutation.proto";
+import "GrpcLocalMutation.proto";
+import "GrpcEntityMutation.proto";
+import "GrpcEntitySchemaMutation.proto";
+import "google/protobuf/wrappers.proto";
+
+message GrpcChangeSystemCapture {
+  string catalog = 1;
+  GrpcOperation operation = 2;
+  GrpcTopLevelCatalogSchemaMutation mutation = 3;
+}
+
+message GrpcChangeDataCapture {
+  GrpcCaptureArea area = 1;
+  string catalog = 2;
+  string entityType = 3;
+  google.protobuf.Int32Value version = 4;
+  GrpcOperation operation = 5;
+  oneof body {
+    GrpcEntityMutation entityMutation = 6;
+    GrpcLocalMutation localMutation = 7;
+    GrpcEntitySchemaMutation entitySchemaMutation = 8;
+    GrpcLocalCatalogSchemaMutation catalogSchemaMutation = 9;
+  }
+}
+
+message GrpcCaptureSince {
+  google.protobuf.Int32Value version = 1;
+  int64 transactionId = 2;
+}
+
+message GrpcSchemaSite {
+  string entityType = 1;
+  repeated GrpcOperation operations = 2;
+}
+
+message GrpcDataSite {
+  string entityType = 1;
+  google.protobuf.Int32Value entityPrimaryKey = 2;
+  repeated GrpcClassifierType classifierTypes = 3;
+  repeated GrpcOperation operations = 4;
+}

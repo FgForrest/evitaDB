@@ -6,6 +6,7 @@ option java_multiple_files = true;
 import "google/protobuf/empty.proto";
 import "GrpcEnums.proto";
 import "GrpcCatalogSchemaMutation.proto";
+import "GrpcChangeDataCapture.proto";
 
 message GrpcEvitaSessionRequest {
   string catalogName = 1;
@@ -69,6 +70,24 @@ message GrpcUpdateEvitaRequest {
   repeated GrpcTopLevelCatalogSchemaMutation schemaMutations = 1;
 }
 
+message GrpcRegisterSystemChangeCaptureRequest {
+  GrpcCaptureContent content = 1;
+}
+
+message GrpcRegisterSystemChangeCaptureResponse {
+  string uuid = 1;
+  GrpcChangeSystemCapture capture = 2;
+  GrpcCaptureResponseType responseType = 3;
+}
+
+message GrpcUnregisterSystemChangeCaptureRequest {
+  string uuid = 1;
+}
+
+message GrpcUnregisterSystemChangeCaptureResponse {
+  bool success = 1;
+}
+
 service EvitaService {
   rpc CreateReadOnlySession(GrpcEvitaSessionRequest) returns (GrpcEvitaSessionResponse);
   rpc CreateReadWriteSession(GrpcEvitaSessionRequest) returns (GrpcEvitaSessionResponse);
@@ -81,4 +100,7 @@ service EvitaService {
   rpc ReplaceCatalog(GrpcReplaceCatalogRequest) returns (GrpcReplaceCatalogResponse);
   rpc DeleteCatalogIfExists(GrpcDeleteCatalogIfExistsRequest) returns (GrpcDeleteCatalogIfExistsResponse);
   rpc Update(GrpcUpdateEvitaRequest) returns (google.protobuf.Empty);
+
+  rpc RegisterSystemChangeCapture(GrpcRegisterSystemChangeCaptureRequest) returns (stream GrpcRegisterSystemChangeCaptureResponse);
+  rpc UnregisterSystemChangeCapture(GrpcUnregisterSystemChangeCaptureRequest) returns (GrpcUnregisterSystemChangeCaptureResponse);
 }

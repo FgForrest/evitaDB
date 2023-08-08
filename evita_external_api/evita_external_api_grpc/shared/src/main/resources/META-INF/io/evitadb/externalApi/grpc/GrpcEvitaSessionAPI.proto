@@ -15,6 +15,7 @@ import "GrpcLocalMutation.proto";
 import "GrpcEntityMutation.proto";
 import "GrpcCatalogSchemaMutation.proto";
 import "GrpcCatalogSchemaMutations.proto";
+import "GrpcChangeDataCapture.proto";
 
 message GrpcCatalogStateResponse {
   GrpcCatalogState state = 1;
@@ -272,6 +273,27 @@ message QueryParam {
   }
 }
 
+message GrpcRegisterChangeDataCaptureRequest {
+  GrpcCaptureArea area = 1;
+  oneof site {
+    GrpcSchemaSite schemaSite = 2;
+    GrpcDataSite dataSite = 3;
+  }
+  GrpcCaptureContent content = 4;
+  GrpcCaptureSince since = 5;
+}
+
+message GrpcRegisterChangeDataCaptureResponse {
+  string uuid = 1;
+  repeated GrpcChangeDataCapture capture = 2;
+  int64 transactionalId = 3;
+  GrpcCaptureResponseType responseType = 4;
+}
+
+message GrpcUnregisterChangeDataCaptureRequest {
+  string uuid = 1;
+}
+
 service EvitaSessionService {
   rpc GetCatalogSchema(google.protobuf.Empty) returns (GrpcCatalogSchemaResponse);
   rpc GetCatalogState(google.protobuf.Empty) returns (GrpcCatalogStateResponse);
@@ -303,4 +325,7 @@ service EvitaSessionService {
 
   rpc OpenTransaction(google.protobuf.Empty) returns (GrpcOpenTransactionResponse);
   rpc CloseTransaction(GrpcCloseTransactionRequest) returns (google.protobuf.Empty);
+
+  rpc RegisterChangeDataCapture(GrpcRegisterChangeDataCaptureRequest) returns (stream GrpcRegisterChangeDataCaptureResponse);
+  rpc UnregisterChangeDataCapture(GrpcUnregisterChangeDataCaptureRequest) returns (google.protobuf.Empty);
 }
