@@ -70,6 +70,7 @@ public class GetReferencedEntityPrimaryKeyMethodClassifier extends DirectMethodC
 				final Optional<String> propertyName = ReflectionLookup.getPropertyNameFromMethodNameIfPossible(method.getName());
 				if (Number.class.isAssignableFrom(toWrappedForm(valueType)) && referencedEntity != null || (
 					!reflectionLookup.hasAnnotationInSamePackage(method, ReferencedEntity.class) &&
+						ClassUtils.isAbstract(method) &&
 						propertyName
 							.map(PrimaryKeyRef.POSSIBLE_ARGUMENT_NAMES::contains)
 							.orElse(false)

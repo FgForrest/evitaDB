@@ -62,6 +62,7 @@ public class GetEntityTypeMethodClassifier extends DirectMethodClassification<Ob
 				if (entity != null || entityRef != null || (
 					!reflectionLookup.hasAnnotationInSamePackage(method, Entity.class) &&
 						(returnType.isEnum() || String.class.isAssignableFrom(returnType)) &&
+						ClassUtils.isAbstract(method) &&
 						propertyName
 							.map(EntityRef.POSSIBLE_ARGUMENT_NAMES::contains)
 							.orElse(false)
