@@ -47,7 +47,7 @@ in the set. To access the dataset on your hardware, you need to:
 
 1. [download the archive with the dataset](https://evitadb.io/download/evita-demo-dataset.zip)
    ```bash
-   wget https://evitadb.io/download/evita-demo-data.zip
+   wget https://evitadb.io/download/evita-demo-dataset.zip
    ```
 
 2. unzip the contents to the `data` folder

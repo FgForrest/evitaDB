@@ -23,6 +23,12 @@
 
 package io.evitadb.api.query.descriptor;
 
+import io.evitadb.api.query.AttributeConstraint;
+import io.evitadb.api.query.ConstraintLeaf;
+import io.evitadb.api.query.ConstraintVisitor;
+import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.order.AttributeNatural;
 import io.evitadb.api.query.order.AttributeSetExact;
@@ -32,11 +38,14 @@ import io.evitadb.api.query.require.FacetSummaryOfReference;
 import io.evitadb.exception.EvitaInternalError;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -50,6 +59,12 @@ class ConstraintDescriptorProviderTest {
 	@Test
 	void shouldHaveProcessedConstraints() {
 		assertEquals(88, ConstraintDescriptorProvider.getAllConstraints().size());
+	}
+
+	@Test
+	void shouldCorrectlyDetermineExistenceOfConstraint() {
+		assertTrue(ConstraintDescriptorProvider.isKnownConstraint(And.class));
+		assertFalse(ConstraintDescriptorProvider.isKnownConstraint(UnknownConstraint.class));
 	}
 
 	@Test
@@ -202,5 +217,38 @@ class ConstraintDescriptorProviderTest {
 				true
 			).isEmpty()
 		);
+	}
+
+	@ConstraintDefinition(
+		name = "something",
+		shortDescription = "This is a constraint."
+	)
+	private static class UnknownConstraint extends ConstraintLeaf<FilterConstraint> implements FilterConstraint, AttributeConstraint<FilterConstraint> {
+
+		@Creator
+		public UnknownConstraint() {
+		}
+
+		@Nonnull
+		@Override
+		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+			return null;
+		}
+
+		@Nonnull
+		@Override
+		public Class<FilterConstraint> getType() {
+			return FilterConstraint.class;
+		}
+
+		@Override
+		public boolean isApplicable() {
+			return isArgumentsNonNull() && getArguments().length > 0;
+		}
+
+		@Override
+		public void accept(@Nonnull ConstraintVisitor visitor) {
+			visitor.visit(this);
+		}
 	}
 }
