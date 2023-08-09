@@ -10,7 +10,7 @@ author: 'Ing. Jan Novotný'
 proofreading: 'needed'
 ---
 
-**Work in progress**
+**Work still in progress**
 
 <LanguageSpecific to="evitaql,java,rest">
 
