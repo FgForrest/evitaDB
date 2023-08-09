@@ -28,9 +28,18 @@ jobs:
          distribution: 'temurin'
          java-version: '17'
          cache: 'maven'
+         server-id: ossrh
+         server-username: MAVEN_USERNAME
+         server-password: MAVEN_CENTRAL_TOKEN
+         gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+         gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
     - name: Build with Maven       # run Maven without tests (tests must pass in dev branch)
       run: mvn -T 1C -B deploy -Dmaven.test.skip=true --file pom.xml
+      env:
+        MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+        MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
+        MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
 
     - name: Upload evitaDB server artifact   # upload `evita-server.jar` for `docker.yml` to deploy to DockerHub
       uses: actions/upload-artifact@v2
