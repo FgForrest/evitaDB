@@ -230,6 +230,11 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	}
 
 	@Override
+	public boolean associatedDataAvailable(@Nonnull Locale locale) {
+		return true;
+	}
+
+	@Override
 	@Nullable
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale) {
 		//noinspection unchecked

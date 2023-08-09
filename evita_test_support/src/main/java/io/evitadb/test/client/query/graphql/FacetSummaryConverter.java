@@ -37,9 +37,12 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.FacetGroupStatisticsHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.FacetStatisticsHeaderDescriptor;
+import io.evitadb.test.client.query.graphql.GraphQLOutputFieldsBuilder.Argument;
+import io.evitadb.test.client.query.graphql.GraphQLOutputFieldsBuilder.ArgumentSupplier;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -96,13 +99,13 @@ public class FacetSummaryConverter extends RequireConverter {
 
 						facetSummaryBuilder.addObjectField(
 							referenceSchema.getNameVariant(ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION),
-							getFacetGroupStatisticsArgumentsBuilder(referenceSchema, facetSummaryOfReference),
 							facetSummaryOfReferenceBuilder -> convertFacetSummaryOfReference(
 								facetSummaryBuilder,
 								locale,
 								referenceSchema,
 								facetSummaryOfReference
-							)
+							),
+							getFacetGroupStatisticsArgumentsBuilder(referenceSchema, facetSummaryOfReference)
 						);
 					});
 			}
@@ -145,26 +148,45 @@ public class FacetSummaryConverter extends RequireConverter {
 			));
 	}
 
-	@Nullable
-	private Consumer<GraphQLOutputFieldsBuilder> getFacetGroupStatisticsArgumentsBuilder(@Nonnull ReferenceSchemaContract referenceSchema,
-	                                                                                     @Nonnull FacetSummaryOfReference facetSummaryOfReference) {
+	@Nonnull
+	private ArgumentSupplier[] getFacetGroupStatisticsArgumentsBuilder(@Nonnull ReferenceSchemaContract referenceSchema,
+	                                                                   @Nonnull FacetSummaryOfReference facetSummaryOfReference) {
 		if (facetSummaryOfReference.getFilterGroupBy().isEmpty() && facetSummaryOfReference.getOrderGroupBy().isEmpty()) {
-			return null;
+			return new ArgumentSupplier[0];
 		}
 
-		return facetSummaryOfReferenceArgumentsBuilder -> {
-			facetSummaryOfReference.getFilterGroupBy()
-				.ifPresent(it -> facetSummaryOfReferenceArgumentsBuilder.addFieldArgument(
-					FacetGroupStatisticsHeaderDescriptor.FILTER_GROUP_BY,
-					offset -> convertFilterConstraint(new EntityDataLocator(referenceSchema.getReferencedGroupType()), it, offset).orElseThrow()
-				));
+		final List<ArgumentSupplier> arguments = new ArrayList<>(2);
 
-			facetSummaryOfReference.getOrderGroupBy()
-				.ifPresent(it -> facetSummaryOfReferenceArgumentsBuilder.addFieldArgument(
+		if (facetSummaryOfReference.getFilterGroupBy().isPresent()) {
+			arguments.add(
+				offset -> new Argument(
+					FacetGroupStatisticsHeaderDescriptor.FILTER_GROUP_BY,
+					convertFilterConstraint(
+						new EntityDataLocator(referenceSchema.getReferencedGroupType()),
+						facetSummaryOfReference.getFilterGroupBy().get(),
+						offset
+					)
+						.orElseThrow()
+				)
+			);
+		}
+
+
+		if (facetSummaryOfReference.getOrderGroupBy().isPresent()) {
+			arguments.add(
+				offset -> new Argument(
 					FacetGroupStatisticsHeaderDescriptor.ORDER_GROUP_BY,
-					offset -> convertOrderConstraint(new EntityDataLocator(referenceSchema.getReferencedGroupType()), it, offset).orElseThrow()
-				));
-		};
+					convertOrderConstraint(
+						new EntityDataLocator(referenceSchema.getReferencedGroupType()),
+						facetSummaryOfReference.getOrderGroupBy().get(),
+						offset
+					)
+						.orElseThrow()
+				)
+			);
+		}
+
+		return arguments.toArray(ArgumentSupplier[]::new);
 	}
 
 	private void convertFacetSummaryOfReference(@Nonnull GraphQLOutputFieldsBuilder facetSummaryOfReferenceBuilder,
@@ -185,35 +207,54 @@ public class FacetSummaryConverter extends RequireConverter {
 			)
 			.addObjectField(
 				FacetGroupStatisticsDescriptor.FACET_STATISTICS,
-				getFacetStatisticsArgumentsBuilder(referenceSchema, facetSummaryOfReference),
 				facetStatisticsBuilder -> convertFacetStatistics(
 					facetStatisticsBuilder,
 					locale,
 					referenceSchema,
 					facetSummaryOfReference
-				)
+				),
+				getFacetStatisticsArgumentsBuilder(referenceSchema, facetSummaryOfReference)
 			);
 	}
 
-	@Nullable
-	private Consumer<GraphQLOutputFieldsBuilder> getFacetStatisticsArgumentsBuilder(@Nonnull ReferenceSchemaContract referenceSchema,
-	                                                                                @Nonnull FacetSummaryOfReference facetSummaryOfReference) {
+	@Nonnull
+	private ArgumentSupplier[] getFacetStatisticsArgumentsBuilder(@Nonnull ReferenceSchemaContract referenceSchema,
+	                                                              @Nonnull FacetSummaryOfReference facetSummaryOfReference) {
 		if (facetSummaryOfReference.getFilterBy().isEmpty() && facetSummaryOfReference.getOrderBy().isEmpty()) {
-			return null;
+			return new ArgumentSupplier[0];
 		}
-		return facetStatisticsArgumentsBuilder -> {
-			facetSummaryOfReference.getFilterBy()
-				.ifPresent(it -> facetStatisticsArgumentsBuilder.addFieldArgument(
-					FacetStatisticsHeaderDescriptor.FILTER_BY,
-					offset -> convertFilterConstraint(new EntityDataLocator(referenceSchema.getReferencedEntityType()), it, offset).orElseThrow()
-				));
 
-			facetSummaryOfReference.getOrderBy()
-				.ifPresent(it -> facetStatisticsArgumentsBuilder.addFieldArgument(
+		final List<ArgumentSupplier> arguments = new ArrayList<>(2);
+
+		if (facetSummaryOfReference.getFilterBy().isPresent()) {
+			arguments.add(
+				offset -> new Argument(
+					FacetStatisticsHeaderDescriptor.FILTER_BY,
+					convertFilterConstraint(
+						new EntityDataLocator(referenceSchema.getReferencedEntityType()),
+						facetSummaryOfReference.getFilterBy().get(),
+						offset
+					)
+						.orElseThrow()
+				)
+			);
+		}
+
+		if (facetSummaryOfReference.getOrderBy().isPresent()) {
+			arguments.add(
+				offset -> new Argument(
 					FacetStatisticsHeaderDescriptor.ORDER_BY,
-					offset -> convertOrderConstraint(new EntityDataLocator(referenceSchema.getReferencedEntityType()), it, offset).orElseThrow()
-				));
-		};
+					convertOrderConstraint(
+						new EntityDataLocator(referenceSchema.getReferencedEntityType()),
+						facetSummaryOfReference.getOrderBy().get(),
+						offset
+					)
+						.orElseThrow()
+				)
+			);
+		}
+
+		return arguments.toArray(ArgumentSupplier[]::new);
 	}
 
 	private void convertFacetStatistics(@Nonnull GraphQLOutputFieldsBuilder facetStatisticsBuilder,
