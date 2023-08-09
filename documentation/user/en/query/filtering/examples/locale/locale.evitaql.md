@@ -1,4 +1,4 @@
-| entityPrimaryKey | code                                        | name                                              |
+| entityPrimaryKey | code                                        | 🇬🇧 name                                         |
 | ---------------- | ------------------------------------------- | ------------------------------------------------- |
 | 113884           | 'vip-voucher-200-for-christmas-electronics' | 'EVITA VIP Voucher 200 for Christmas electronics' |
 | 113885           | 'vip-voucher-500-for-christmas-electronics' | 'EVITA VIP Voucher 500 for Christmas electronics' |

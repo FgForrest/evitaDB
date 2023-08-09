@@ -3,7 +3,7 @@ var evita = new EvitaClient(
 		.host("demo.evitadb.io")
 		.port(5556)
         // demo server provides Let's encrypt trusted certificate
-	.useGeneratedCertificate(false)
+		.useGeneratedCertificate(false)
         // the client will not be mutually verified by the server side
         .mtlsEnabled(false)
 		.build()

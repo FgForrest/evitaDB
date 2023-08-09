@@ -254,7 +254,7 @@ public class EntityDocumentationJsonSerializer extends JsonSerializer<EntityCont
 
 				gen.writeNumberField("referencedKey", reference.getReferenceKey().primaryKey());
 				reference.getReferencedEntity()
-					.ifPresent(group -> wrap(() -> gen.writeObjectField("referencedEntity", group)));
+					.ifPresent(entity -> wrap(() -> gen.writeObjectField("referencedEntity", entity)));
 				writeAttributes(gen, reference);
 				gen.writeEndObject();
 			}
@@ -317,7 +317,7 @@ public class EntityDocumentationJsonSerializer extends JsonSerializer<EntityCont
 				parent -> wrap(() -> gen.writeNumberField("parent", parent))
 			);
 			value.getParentEntity().ifPresent(
-				parentEntity -> wrap(() -> gen.writeObject(parentEntity))
+				parentEntity -> wrap(() -> gen.writeObjectField("parentEntity", parentEntity))
 			);
 		}
 		if (value.getPriceInnerRecordHandling() != PriceInnerRecordHandling.UNKNOWN) {

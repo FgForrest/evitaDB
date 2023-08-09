@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.BucketsFieldHeaderDescriptor;
+import io.evitadb.test.client.query.graphql.GraphQLOutputFieldsBuilder.Argument;
 
 import javax.annotation.Nonnull;
 import java.util.function.Consumer;
@@ -51,12 +52,11 @@ public abstract class HistogramConverter extends RequireConverter {
 			.addPrimitiveField(HistogramDescriptor.OVERALL_COUNT)
 			.addObjectField(
 				HistogramDescriptor.BUCKETS,
-				bucketsArgumentsBuilder -> bucketsArgumentsBuilder
-					.addFieldArgument(BucketsFieldHeaderDescriptor.REQUESTED_COUNT, __ -> String.valueOf(requestedBucketCount)),
 				bucketsBuilder -> bucketsBuilder
 					.addPrimitiveField(BucketDescriptor.INDEX)
 					.addPrimitiveField(BucketDescriptor.THRESHOLD)
-					.addPrimitiveField(BucketDescriptor.OCCURRENCES)
+					.addPrimitiveField(BucketDescriptor.OCCURRENCES),
+				__ -> new Argument(BucketsFieldHeaderDescriptor.REQUESTED_COUNT, requestedBucketCount)
 			);
 	}
 }

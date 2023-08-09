@@ -48,6 +48,8 @@ import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.AttributesContract;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
@@ -56,6 +58,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.PaginatedList;
@@ -94,6 +97,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
@@ -124,6 +128,11 @@ import static org.junit.jupiter.api.Assertions.fail;
 public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 	private static final String REF_LINK = "\uD83D\uDD17 ";
 	private static final String ATTR_LINK = ": ";
+	private static final Map<Locale, String> LOCALES = Map.of(
+		new Locale("cs"), "\uD83C\uDDE8\uD83C\uDDFF",
+		Locale.ENGLISH, "\uD83C\uDDEC\uD83C\uDDE7",
+		Locale.GERMAN, "\uD83C\uDDE9\uD83C\uDDEA"
+	);
 	public static final String PRICE_LINK = "\uD83E\uDE99 ";
 	private static final String PRICE_FOR_SALE = PRICE_LINK + "Price for sale";
 
@@ -327,6 +336,7 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 
 		// collect headers for the MarkDown table
 		final String entityType = query.getCollection().getEntityType();
+		final SealedEntitySchema entitySchema = session.getEntitySchemaOrThrow(entityType);
 		final String[] headers = Stream.of(
 				Stream.of(ENTITY_PRIMARY_KEY),
 				entityFetch
@@ -336,7 +346,7 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 						.stream()
 						.flatMap(attributeContent -> {
 							if (attributeContent.isAllRequested()) {
-								final Stream<AttributeSchemaContract> attributes = session.getEntitySchemaOrThrow(entityType).getAttributes().values().stream();
+								final Stream<AttributeSchemaContract> attributes = entitySchema.getAttributes().values().stream();
 								return (localizedQuery ? attributes.filter(AttributeSchemaContract::isLocalized) : attributes)
 									.map(AttributeSchemaContract::getName)
 									.filter(attrName -> response.getRecordData().stream().anyMatch(entity -> entity.getAttributeValue(attrName).isPresent()));
@@ -344,6 +354,11 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 								return Arrays.stream(attributeContent.getAttributeNames());
 							}
 						})
+						.flatMap(
+							attributeName -> transformLocalizedAttributes(
+								response, attributeName, entitySchema.getLocales(), entitySchema, Stream::of
+							)
+						)
 						.distinct())
 					.orElse(Stream.empty()),
 				entityFetch
@@ -351,31 +366,37 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 							it, ReferenceContent.class, SeparateEntityContentRequireContainer.class
 						)
 						.stream()
-						.flatMap(refCnt -> {
-							final SealedEntitySchema schema = session.getEntitySchemaOrThrow(entityType);
-							return Arrays.stream(refCnt.getReferenceNames()).filter(Objects::nonNull)
-								.map(schema::getReferenceOrThrowException)
-								.flatMap(ref -> {
-									final AttributeContent attributeContent = QueryUtils.findConstraint(refCnt, AttributeContent.class, SeparateEntityContentRequireContainer.class);
-									if (attributeContent != null) {
-										if (attributeContent.isAllRequested()) {
-											final Stream<AttributeSchemaContract> attributes = ref.getAttributes().values().stream();
-											return (localizedQuery ? attributes.filter(AttributeSchemaContract::isLocalized) : attributes)
-												.map(AttributeSchemaContract::getName)
-												.filter(
-													attrName -> response.getRecordData().stream()
-														.flatMap(entity -> entity.getReferences(ref.getName()).stream())
-														.anyMatch(reference -> reference.getAttributeValue(attrName).isPresent())
-												);
-										} else {
-											return Arrays.stream(attributeContent.getAttributeNames())
-												.map(attr -> REF_LINK + ref.getName() + ATTR_LINK + attr);
-										}
+						.flatMap(refCnt -> Arrays.stream(refCnt.getReferenceNames())
+							.filter(Objects::nonNull)
+							.map(entitySchema::getReferenceOrThrowException)
+							.flatMap(referenceSchema -> {
+								final AttributeContent attributeContent = QueryUtils.findConstraint(refCnt, AttributeContent.class, SeparateEntityContentRequireContainer.class);
+								if (attributeContent != null) {
+									final Stream<String> attributeNames;
+									if (attributeContent.isAllRequested()) {
+										final Stream<AttributeSchemaContract> attributes = referenceSchema.getAttributes().values().stream();
+										attributeNames = (localizedQuery ? attributes.filter(AttributeSchemaContract::isLocalized) : attributes)
+											.map(AttributeSchemaContract::getName)
+											.filter(
+												attrName -> response.getRecordData().stream()
+													.flatMap(entity -> entity.getReferences(referenceSchema.getName()).stream())
+													.anyMatch(reference -> reference.getAttributeValue(attrName).isPresent())
+											);
 									} else {
-										return Stream.empty();
+										attributeNames = Arrays.stream(attributeContent.getAttributeNames());
 									}
-								});
-						})
+									return attributeNames
+										.flatMap(
+											attributeName -> transformLocalizedAttributes(
+												response, attributeName, entitySchema.getLocales(), referenceSchema,
+												entity -> entity.getReferences(referenceSchema.getName()).stream().map(AttributesContract.class::cast)
+											)
+										)
+										.map(attr -> REF_LINK + referenceSchema.getName() + ATTR_LINK + attr);
+								} else {
+									return Stream.empty();
+								}
+							}))
 						.distinct())
 					.orElse(Stream.empty()),
 				entityFetch
@@ -423,6 +444,7 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 						Stream.of(String.valueOf(sealedEntity.getPrimaryKey())),
 						Arrays.stream(headers)
 							.filter(it -> !ENTITY_PRIMARY_KEY.equals(it) && !it.startsWith(REF_LINK) && !it.startsWith(PRICE_LINK))
+							.map(EvitaQLExecutable::toAttributeKey)
 							.map(sealedEntity::getAttributeValue)
 							.filter(Optional::isPresent)
 							.map(Optional::get)
@@ -432,10 +454,11 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 							.filter(it -> it.startsWith(REF_LINK))
 							.map(it -> {
 								final String[] refAttr = ATTR_LINK_PARSER.split(it.substring(REF_LINK.length()));
+								final AttributeKey attributeKey = toAttributeKey(refAttr[1]);
 								return sealedEntity.getReferences(refAttr[0])
 									.stream()
-									.filter(ref -> ref.getAttributeValue(refAttr[1]).isPresent())
-									.map(ref -> REF_LINK + ref.getReferenceKey().primaryKey() + ATTR_LINK + EvitaDataTypes.formatValue(ref.getAttribute(refAttr[1])))
+									.filter(ref -> ref.getAttributeValue(attributeKey).isPresent())
+									.map(ref -> REF_LINK + ref.getReferenceKey().primaryKey() + ATTR_LINK + EvitaDataTypes.formatValue(ref.getAttributeValue(attributeKey).get().value()))
 									.collect(Collectors.joining(", "));
 							}),
 						Arrays.stream(headers)
@@ -452,6 +475,49 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 		// generate MarkDown
 		final PaginatedList<SealedEntity> recordPage = (PaginatedList<SealedEntity>) response.getRecordPage();
 		return tableBuilder.build().serialize() + "\n\n###### **Page** " + recordPage.getPageNumber() + "/" + recordPage.getLastPageNumber() + " **(Total number of results: "  + response.getTotalRecordCount() + ")**";
+	}
+
+	@Nonnull
+	private static AttributeKey toAttributeKey(@Nonnull String attributeHeader) {
+		if (attributeHeader.startsWith("\uD83C")) {
+			for (Entry<Locale, String> entry : LOCALES.entrySet()) {
+				if (attributeHeader.startsWith(entry.getValue())) {
+					return new AttributeKey(
+						attributeHeader.substring(entry.getValue().length() + 1),
+						entry.getKey()
+					);
+				}
+			}
+			throw new IllegalStateException("Unknown locale for attribute header: " + attributeHeader);
+		} else {
+			return new AttributeKey(attributeHeader);
+		}
+	}
+
+	@Nonnull
+	private static Stream<String> transformLocalizedAttributes(
+		@Nonnull EvitaResponse<SealedEntity> response,
+		@Nonnull String attributeName,
+		@Nonnull Set<Locale> entityLocales,
+		@Nonnull AttributeSchemaProvider<?> schema,
+		@Nonnull Function<SealedEntity, Stream<AttributesContract>> attributesProvider
+	) {
+		final boolean localized = schema
+			.getAttribute(attributeName)
+			.orElseThrow()
+			.isLocalized();
+		if (localized) {
+			return entityLocales.stream()
+				.filter(locale -> response.getRecordData()
+					.stream()
+					.flatMap(attributesProvider)
+					.anyMatch(attributeProvider -> attributeProvider.attributesAvailable(locale) &&
+						attributeProvider.getAttributeValue(attributeName, locale).isPresent())
+				)
+				.map(locale -> ofNullable(LOCALES.get(locale)).orElseThrow(() -> new IllegalArgumentException("No flag for locale: " + locale)) + " " + attributeName);
+		} else {
+			return Stream.of(attributeName);
+		}
 	}
 
 	/**

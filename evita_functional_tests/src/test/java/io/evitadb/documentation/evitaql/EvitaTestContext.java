@@ -25,10 +25,10 @@ package io.evitadb.documentation.evitaql;
 
 import io.evitadb.api.EvitaContract;
 import io.evitadb.documentation.TestContext;
-import io.evitadb.test.client.query.graphql.GraphQLQueryConverter;
-import io.evitadb.test.client.query.rest.RestQueryConverter;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.EvitaClientConfiguration;
+import io.evitadb.test.client.query.graphql.GraphQLQueryConverter;
+import io.evitadb.test.client.query.rest.RestQueryConverter;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -58,10 +58,10 @@ public class EvitaTestContext implements TestContext {
 	public EvitaTestContext() {
 		this.evitaContract = new EvitaClient(
 			EvitaClientConfiguration.builder()
-				.host("demo.evitadb.io")
+				.host("localhost")
 				.port(5556)
 				// demo server provides Let's encrypt trusted certificate
-				.useGeneratedCertificate(false)
+				.useGeneratedCertificate(true)
 				// the client will not be mutually verified by the server side
 				.mtlsEnabled(false)
 				.build()

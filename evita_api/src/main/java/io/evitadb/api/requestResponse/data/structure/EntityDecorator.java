@@ -643,6 +643,11 @@ public class EntityDecorator implements SealedEntity {
 		return attributePredicate.wasFetched();
 	}
 
+	@Override
+	public boolean attributesAvailable(@Nonnull Locale locale) {
+		return attributePredicate.wasFetched(locale);
+	}
+
 	@Nullable
 	@Override
 	public <T extends Serializable> T getAttribute(@Nonnull String attributeName) {
@@ -769,6 +774,11 @@ public class EntityDecorator implements SealedEntity {
 	@Override
 	public boolean associatedDataAvailable() {
 		return associatedDataPredicate.wasFetched();
+	}
+
+	@Override
+	public boolean associatedDataAvailable(@Nonnull Locale locale) {
+		return associatedDataPredicate.wasFetched(locale);
 	}
 
 	@Nullable

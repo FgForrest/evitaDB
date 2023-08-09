@@ -1,0 +1,25 @@
+{
+  queryBrand(
+    filterBy: {
+      entityPrimaryKeyInSet: [
+        64703
+      ],
+      entityLocaleEquals: cs
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        associatedDataGlobal: associatedData {
+          allActiveUrls
+        }
+        associatedDataCs: associatedData(locale: cs) {
+          localization
+        }
+        associatedDataEn: associatedData(locale: en) {
+          localization
+        }
+      }
+    }
+  }
+}
