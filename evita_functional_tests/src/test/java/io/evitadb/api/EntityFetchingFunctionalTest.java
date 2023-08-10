@@ -3167,6 +3167,48 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 		);
 	}
 
+	@DisplayName("Should limit the scope of parent visibility")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldLimitTheScopeOfParentVisibility(Evita evita, Hierarchy categoryHierarchy, Map<Integer, SealedEntity> originalCategories) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HierarchyItem theChild = categoryHierarchy.getRootItems()
+					.stream()
+					.flatMap(it -> categoryHierarchy.getAllChildItems(it.getCode()).stream())
+					.max(Comparator.comparingInt(HierarchyItem::getLevel))
+					.orElseThrow();
+				final int theChildPk = Integer.parseInt(theChild.getCode());
+				final int theParentPk = Integer.parseInt(categoryHierarchy.getParentItem(theChild.getCode()).getCode());
+				assertTrue(theChild.getLevel() > 2);
+
+				final EvitaResponse<SealedEntity> categoryByPk = session.querySealedEntity(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(theChildPk)
+						),
+						require(
+							entityFetch(
+								hierarchyContent(
+									stopAt(distance(1))
+								)
+							)
+						)
+					)
+				);
+				assertEquals(1, categoryByPk.getRecordData().size());
+				assertEquals(1, categoryByPk.getTotalRecordCount());
+
+				final SealedEntity category = categoryByPk.getRecordData().get(0);
+				assertTrue(category.getParentEntity().isPresent());
+				assertFalse(category.getParentEntity().get().getParentEntity().isPresent());
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return hierarchy parent sealed entities")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
