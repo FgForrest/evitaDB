@@ -545,8 +545,8 @@ public class EntityDecorator implements SealedEntity {
 			() -> new EntityIsNotHierarchicalException(getSchema().getName())
 		);
 		if (parentAvailable()) {
-			return ofNullable(parentEntity)
-				.or(delegate::getParentEntity);
+			return parentEntity == CONCEALED_ENTITY ? empty() :
+				ofNullable(parentEntity).or(delegate::getParentEntity);
 		} else {
 			return empty();
 		}

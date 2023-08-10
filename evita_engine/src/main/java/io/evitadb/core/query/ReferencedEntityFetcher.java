@@ -1054,8 +1054,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		return Entity.decorate(
 			entityDecorator,
 			entityReference.getParentEntity()
-				.map(parentEntity -> replaceWithSealedEntities((EntityReferenceWithParent) parentEntity, parentBodies))
-				.orElse(null),
+				.map(parentEntity -> (EntityClassifierWithParent) replaceWithSealedEntities((EntityReferenceWithParent) parentEntity, parentBodies))
+				.orElse(EntityClassifierWithParent.CONCEALED_ENTITY),
 			entityDecorator.getLocalePredicate(),
 			new HierarchySerializablePredicate(true),
 			entityDecorator.getAttributePredicate(),
