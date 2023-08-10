@@ -168,6 +168,16 @@ public class AssociatedData implements AssociatedDataContract {
 	}
 
 	@Override
+	public boolean associatedDataAvailable(@Nonnull String associatedDataName) {
+		return true;
+	}
+
+	@Override
+	public boolean associatedDataAvailable(@Nonnull String associatedDataName, @Nonnull Locale locale) {
+		return true;
+	}
+
+	@Override
 	@Nullable
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName) {
 		final AssociatedDataSchemaContract associatedDataSchema = ofNullable(associatedDataTypes.get(associatedDataName))

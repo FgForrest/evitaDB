@@ -1516,8 +1516,8 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) ->
 					languagePredicate.test(sealedEntity, parentItems) &&
-						(sealedEntity.getParent().isEmpty() ||
-							!originalCategoryIndex.get(sealedEntity.getParent().getAsInt()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
+						(sealedEntity.getParentEntity().isEmpty() ||
+							!originalCategoryIndex.get(sealedEntity.getParentEntity().get().getPrimaryKey()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
 					categoryHierarchy, originalProductEntities, originalCategoryIndex,
@@ -1592,8 +1592,8 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							.stream()
 							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
 					return languagePredicate.test(sealedEntity, parentItems) && withinCategory1 &&
-						(sealedEntity.getParent().isEmpty() ||
-							!originalCategoryIndex.get(sealedEntity.getParent().getAsInt()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
+						(sealedEntity.getParentEntity().isEmpty() ||
+							!originalCategoryIndex.get(sealedEntity.getParentEntity().get().getPrimaryKey()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
@@ -1669,8 +1669,8 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							.stream()
 							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
 					return languagePredicate.test(sealedEntity, parentItems) && withinCategory1 &&
-						(sealedEntity.getParent().isEmpty() ||
-							!originalCategoryIndex.get(sealedEntity.getParent().getAsInt()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
+						(sealedEntity.getParentEntity().isEmpty() ||
+							!originalCategoryIndex.get(sealedEntity.getParentEntity().get().getPrimaryKey()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
@@ -1746,8 +1746,8 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							.stream()
 							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
 					return languagePredicate.test(sealedEntity, parentItems) && withinCategory1 &&
-						(sealedEntity.getParent().isEmpty() ||
-							!originalCategoryIndex.get(sealedEntity.getParent().getAsInt()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
+						(sealedEntity.getParentEntity().isEmpty() ||
+							!originalCategoryIndex.get(sealedEntity.getParentEntity().get().getPrimaryKey()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(

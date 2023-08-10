@@ -26,6 +26,8 @@ package io.evitadb.api.requestResponse.data;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.io.Serial;
 import java.util.Optional;
 
 /**
@@ -36,6 +38,31 @@ import java.util.Optional;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public interface EntityClassifierWithParent extends EntityClassifier {
+	/**
+	 * Special value for {@link EntityClassifierWithParent} that represents concealed entity. This constant is expected
+	 * to be used for concealing parents that were not requested by the client, but in reality they do exist.
+	 */
+	EntityClassifierWithParent CONCEALED_ENTITY = new EntityClassifierWithParent() {
+		@Serial private static final long serialVersionUID = -2322605230612089578L;
+
+		@Nonnull
+		@Override
+		public Optional<EntityClassifierWithParent> getParentEntity() {
+			return Optional.empty();
+		}
+
+		@Nonnull
+		@Override
+		public String getType() {
+			throw new UnsupportedOperationException();
+		}
+
+		@Nullable
+		@Override
+		public Integer getPrimaryKey() {
+			throw new UnsupportedOperationException();
+		}
+	};
 
 	/**
 	 * Optional reference to {@link Entity#getParent()} of the referenced entity.

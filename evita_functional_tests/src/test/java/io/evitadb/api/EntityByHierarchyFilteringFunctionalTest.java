@@ -30,6 +30,7 @@ import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -332,9 +333,10 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 					originalCategoryEntities,
 					sealedEntity -> Stream.concat(
 							Stream.of(sealedEntity),
-							sealedEntity.getParent()
+							sealedEntity.getParentEntity()
 								.stream()
-								.mapToObj(originalCategoryIndex::get)
+								.map(EntityClassifier::getPrimaryKey)
+								.map(originalCategoryIndex::get)
 						)
 						.anyMatch(it -> it.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class)),
 					result.getRecordData()
@@ -1635,8 +1637,8 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) ->
 					languagePredicate.test(sealedEntity, parentItems) &&
-						(sealedEntity.getParent().isEmpty() ||
-							!originalCategoryIndex.get(sealedEntity.getParent().getAsInt()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
+						(sealedEntity.getParentEntity().isEmpty() ||
+							!originalCategoryIndex.get(sealedEntity.getParentEntity().get().getPrimaryKey()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
 					categoryHierarchy, originalCategoryIndex,
@@ -1703,8 +1705,8 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							.stream()
 							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
 					return languagePredicate.test(sealedEntity, parentItems) && withinCategory1 &&
-						(sealedEntity.getParent().isEmpty() ||
-							!originalCategoryIndex.get(sealedEntity.getParent().getAsInt()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
+						(sealedEntity.getParentEntity().isEmpty() ||
+							!originalCategoryIndex.get(sealedEntity.getParentEntity().get().getPrimaryKey()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
@@ -1772,8 +1774,8 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							.stream()
 							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
 					return languagePredicate.test(sealedEntity, parentItems) && withinCategory1 &&
-						(sealedEntity.getParent().isEmpty() ||
-							!originalCategoryIndex.get(sealedEntity.getParent().getAsInt()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
+						(sealedEntity.getParentEntity().isEmpty() ||
+							!originalCategoryIndex.get(sealedEntity.getParentEntity().get().getPrimaryKey()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
@@ -1841,8 +1843,8 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							.stream()
 							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
 					return languagePredicate.test(sealedEntity, parentItems) && withinCategory1 &&
-						(sealedEntity.getParent().isEmpty() ||
-							!originalCategoryIndex.get(sealedEntity.getParent().getAsInt()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
+						(sealedEntity.getParentEntity().isEmpty() ||
+							!originalCategoryIndex.get(sealedEntity.getParentEntity().get().getPrimaryKey()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(

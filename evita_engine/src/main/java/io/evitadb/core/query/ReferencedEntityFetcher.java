@@ -41,6 +41,7 @@ import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -95,7 +96,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -681,8 +681,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					entityDecorator.getParentWithoutCheckingPredicate()
 						.stream()
 						.toArray() :
-					richEnoughEntity.getParent()
+					richEnoughEntity.getParentEntity()
 						.stream()
+						.mapToInt(EntityClassifier::getPrimaryKey)
 						.toArray()
 			);
 		}
@@ -731,13 +732,11 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				queryContext,
 				entityCollection,
 				entities.stream()
-					.map(it ->
-						it instanceof EntityDecorator entityDecorator ?
-							entityDecorator.getParentWithoutCheckingPredicate() :
-							it.getParent()
+					.flatMapToInt(
+						it -> it instanceof EntityDecorator entityDecorator ?
+							entityDecorator.getParentWithoutCheckingPredicate().stream() :
+							it.getParentEntity().map(EntityClassifier::getPrimaryKey).stream().mapToInt(__ -> __)
 					)
-					.filter(OptionalInt::isPresent)
-					.mapToInt(OptionalInt::getAsInt)
 					.toArray()
 			);
 		}
@@ -1055,8 +1054,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		return Entity.decorate(
 			entityDecorator,
 			entityReference.getParentEntity()
-				.map(parentEntity -> replaceWithSealedEntities((EntityReferenceWithParent) parentEntity, parentBodies))
-				.orElse(null),
+				.map(parentEntity -> (EntityClassifierWithParent) replaceWithSealedEntities((EntityReferenceWithParent) parentEntity, parentBodies))
+				.orElse(EntityClassifierWithParent.CONCEALED_ENTITY),
 			entityDecorator.getLocalePredicate(),
 			new HierarchySerializablePredicate(true),
 			entityDecorator.getAttributePredicate(),

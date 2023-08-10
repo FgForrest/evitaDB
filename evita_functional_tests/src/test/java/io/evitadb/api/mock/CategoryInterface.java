@@ -24,6 +24,7 @@
 package io.evitadb.api.mock;
 
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
@@ -73,6 +74,14 @@ public interface CategoryInterface extends EntityClassifier {
 	@ParentEntity
 	@Nullable
 	EntityReference getParentEntityReference();
+
+	@ParentEntity
+	@Nullable
+	EntityClassifier getParentEntityClassifier();
+
+	@ParentEntity
+	@Nullable
+	EntityClassifierWithParent getParentEntityClassifierWithParent();
 
 	@ParentEntity
 	@Nullable

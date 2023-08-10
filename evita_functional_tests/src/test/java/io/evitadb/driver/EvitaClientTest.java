@@ -254,12 +254,12 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		@Nullable Locale locale
 	) {
 		final SealedEntity originalCategory = originalCategories.get(category.getId());
-		if (originalCategory.getParent().isEmpty()) {
+		if (originalCategory.getParentEntity().isEmpty()) {
 			assertNull(category.getParentId());
 			assertNull(category.getParentEntityReference());
 			assertNull(category.getParentEntity());
 		} else {
-			final int expectedParentId = originalCategory.getParent().getAsInt();
+			final int expectedParentId = originalCategory.getParentEntity().get().getPrimaryKey();
 			assertEquals(
 				expectedParentId,
 				category.getParentId()

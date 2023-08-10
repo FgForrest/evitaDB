@@ -38,6 +38,7 @@ import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.query.require.AssociatedDataContent;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.HierarchyContent;
+import io.evitadb.api.query.require.HierarchyOfReference;
 import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceHistogram;
@@ -940,9 +941,24 @@ public class Entity implements SealedEntity {
 		return withHierarchy;
 	}
 
+	/**
+	 * Returns hierarchy information about the entity. Hierarchy information allows to compose hierarchy tree composed
+	 * of entities of the same type. Referenced entity is always entity of the same type. Referenced entity must be
+	 * already present in the evitaDB and must also have hierarchy placement set. Root `parentPrimaryKey` (i.e. parent
+	 * for top-level hierarchical placements) is null.
+	 *
+	 * Entities may be organized in hierarchical fashion. That means that entity may refer to single parent entity and
+	 * may be referred by multiple child entities. Hierarchy is always composed of entities of same type.
+	 * Each entity must be part of at most single hierarchy (tree).
+	 *
+	 * Hierarchy can limit returned entities by using filtering constraints {@link HierarchyWithin}. It's also used for
+	 * computation of extra data - such as {@link HierarchyOfSelf}. It can also invert type of returned entities in case
+	 * requirement {@link HierarchyOfReference} is used.
+	 *
+	 * @throws EntityIsNotHierarchicalException when {@link EntitySchemaContract#isWithHierarchy()} is false
+	 */
 	@Nonnull
-	@Override
-	public OptionalInt getParent() {
+	public OptionalInt getParent() throws EntityIsNotHierarchicalException {
 		Assert.isTrue(
 			withHierarchy,
 			() -> new EntityIsNotHierarchicalException(schema.getName())
@@ -957,11 +973,17 @@ public class Entity implements SealedEntity {
 			withHierarchy,
 			() -> new EntityIsNotHierarchicalException(schema.getName())
 		);
-		return empty();
+		return ofNullable(parent)
+			.map(it -> new EntityReferenceWithParent(type, it, null));
 	}
 
 	@Override
 	public boolean referencesAvailable() {
+		return true;
+	}
+
+	@Override
+	public boolean referencesAvailable(@Nonnull String referenceName) {
 		return true;
 	}
 

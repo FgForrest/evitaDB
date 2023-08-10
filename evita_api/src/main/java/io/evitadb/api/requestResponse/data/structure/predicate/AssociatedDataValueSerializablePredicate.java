@@ -162,6 +162,21 @@ public class AssociatedDataValueSerializablePredicate implements SerializablePre
 	}
 
 	/**
+	 * Returns true if the associated data of particular name was fetched along with the entity.
+	 */
+	public boolean wasFetched(@Nonnull String attributeName) {
+		return requiresEntityAssociatedData && (associatedDataSet.isEmpty() || associatedDataSet.contains(attributeName));
+	}
+
+	/**
+	 * Returns true if the associated data of particular name was in specified locale were fetched along with the entity.
+	 */
+	public boolean wasFetched(@Nonnull String attributeName, @Nonnull Locale locale) {
+		return (requiresEntityAssociatedData && (associatedDataSet.isEmpty() || associatedDataSet.contains(attributeName))) &&
+			(this.locales != null && this.locales.isEmpty() || this.locales.contains(locale));
+	}
+
+	/**
 	 * Method return TRUE if associated data with particular `associatedDataKey` was fetched with the entity.
 	 */
 	public boolean wasFetched(@Nonnull AssociatedDataKey associatedDataKey) {

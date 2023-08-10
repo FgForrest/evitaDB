@@ -1,26 +1,26 @@
 ```json
 {
-  "pageSize" : 20,
-  "pageNumber" : 1,
-  "totalRecordCount" : 1,
-  "data" : [
+  "data": [
     {
-      "primaryKey" : 66486,
-      "parent" : 66481,
-      "parentEntity" : {
-        "type" : "Category",
-        "primaryKey" : 66481,
-        "parentEntity" : {
-          "type" : "Category",
-          "primaryKey" : 66468
-        }
+      "primaryKey": 66486,
+      "parent": 66481,
+      "parentEntity": {
+        "parentEntity": {
+          "primaryKey": 66468,
+          "type": "Category"
+        },
+        "primaryKey": 66481,
+        "type": "Category"
       }
     }
   ],
-  "lastPageNumber" : 1,
-  "first" : true,
-  "last" : true,
-  "lastPageItemNumber" : 1,
-  "singlePage" : true
+  "first": true,
+  "last": true,
+  "lastPageItemNumber": 1,
+  "lastPageNumber": 1,
+  "pageNumber": 1,
+  "pageSize": 20,
+  "singlePage": true,
+  "totalRecordCount": 1
 }
 ```

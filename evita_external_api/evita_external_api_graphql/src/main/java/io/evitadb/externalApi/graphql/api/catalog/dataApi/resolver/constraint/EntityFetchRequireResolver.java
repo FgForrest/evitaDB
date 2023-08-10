@@ -249,7 +249,8 @@ public class EntityFetchRequireResolver {
 				return hierarchyContent(stopAt, entityFetch);
 			}).or(() -> {
 				if (!selectionSetWrapper.getFields(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name()).isEmpty()) {
-					return Optional.of(hierarchyContent());
+					// we need only direct parent to be able to return parentPrimaryKey
+					return Optional.of(hierarchyContent(stopAt(distance(1))));
 				} else {
 					return Optional.empty();
 				}
