@@ -387,15 +387,16 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			),
 			SealedEntity.class
 		);
-		assertTrue(entityInTree.getParent().isPresent());
+		assertTrue(entityInTree.getParentEntity().isPresent());
 
-		final int parent = entityInTree.getParent().orElseThrow();
+		final int parent = entityInTree.getParentEntity().orElseThrow().getPrimaryKey();
 		final Map<String, Object> expectedBodyWithHierarchicalPlacement = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.CATEGORY)
 			.e(EntityDescriptor.VERSION.name(), entityInTree.version() + 1)
-			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 			.e(RestEntityDescriptor.PARENT.name(), parent + 10)
+			.e(RestEntityDescriptor.PARENT_ENTITY.name(), createEntityDto(new EntityReference(Entities.CATEGORY, parent + 10)))
+			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 			.build();
 
 		tester.test(TEST_CATALOG)

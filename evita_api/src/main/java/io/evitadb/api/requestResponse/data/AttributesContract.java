@@ -97,6 +97,20 @@ public interface AttributesContract extends Serializable {
 	boolean attributesAvailable(@Nonnull Locale locale);
 
 	/**
+	 * Returns true if entity attribute of particular name was fetched along with the entity. Calling this method
+	 * before calling any other method that requires attributes to be fetched will allow you to avoid
+	 * {@link ContextMissingException}.
+	 */
+	boolean attributeAvailable(@Nonnull String attributeName);
+
+	/**
+	 * Returns true if entity attribute of particular name in particular locale was fetched along with the entity.
+	 * Calling this method before calling any other method that requires attributes to be fetched will allow you to
+	 * avoid {@link ContextMissingException}.
+	 */
+	boolean attributeAvailable(@Nonnull String attributeName, @Nonnull Locale locale);
+
+	/**
 	 * Returns value associated with the key or null when the attribute is missing.
 	 * This method variant differs from {@link #getAttribute(String, Class)} in the sense that it relies on Java local
 	 * variable type inference. It's shorted, but it can't be used on every place. You may safely use in this context:

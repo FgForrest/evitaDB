@@ -736,7 +736,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		final EntityClassifierWithParent parentEntity;
 		final EntitySchema internalSchema = getInternalSchema();
 		if (internalSchema.isWithHierarchy() && newHierarchyPredicate.isRequiresHierarchy()) {
-			if (partiallyLoadedEntity.getParentEntityWithoutCheckingPredicate().isPresent()) {
+			if (partiallyLoadedEntity.getParentEntityWithoutCheckingPredicate().map(it -> it instanceof SealedEntity).orElse(false)) {
 				parentEntity = partiallyLoadedEntity.getParentEntityWithoutCheckingPredicate().get();
 			} else {
 				parentEntity = partiallyLoadedEntity.getParentWithoutCheckingPredicate().isPresent() ?

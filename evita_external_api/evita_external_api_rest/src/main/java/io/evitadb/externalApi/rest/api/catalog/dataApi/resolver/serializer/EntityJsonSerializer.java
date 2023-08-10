@@ -38,7 +38,6 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.data.structure.AssociatedData;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.RestEntityDescriptor;
@@ -133,7 +132,7 @@ public class EntityJsonSerializer {
 		rootNode.put(RestEntityDescriptor.VERSION.name(), entity.version());
 
 		if (entity.parentAvailable()) {
-			entity.getParent().ifPresent(pk -> rootNode.put(RestEntityDescriptor.PARENT.name(), pk));
+			entity.getParentEntity().ifPresent(parent -> rootNode.put(RestEntityDescriptor.PARENT.name(), parent.getPrimaryKey()));
 			entity.getParentEntity().ifPresent(parent -> rootNode.putIfAbsent(RestEntityDescriptor.PARENT_ENTITY.name(), serialize(parent)));
 		}
 

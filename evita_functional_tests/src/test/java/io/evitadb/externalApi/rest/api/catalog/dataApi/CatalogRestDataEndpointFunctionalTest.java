@@ -51,14 +51,11 @@ import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.Serializable;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
@@ -121,7 +118,7 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 		entityDto.e(EntityDescriptor.VERSION.name(), entity.version());
 
 		if (entity.parentAvailable()) {
-			entity.getParent().ifPresent(pk -> entityDto.e(RestEntityDescriptor.PARENT.name(), pk));
+			entity.getParentEntity().ifPresent(parent -> entityDto.e(RestEntityDescriptor.PARENT.name(), parent.getPrimaryKey()));
 			entity.getParentEntity().ifPresent(parent -> entityDto.e(RestEntityDescriptor.PARENT_ENTITY.name(), createEntityDto(parent, localized)));
 		}
 

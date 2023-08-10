@@ -244,8 +244,8 @@ public class EntityConverter {
 			.setVersion(entity.version());
 
 		if (entity.parentAvailable()) {
-			entity.getParent()
-				.ifPresent(parent -> entityBuilder.setParent(Int32Value.of(parent)));
+			entity.getParentEntity()
+				.ifPresent(parent -> entityBuilder.setParent(Int32Value.of(parent.getPrimaryKey())));
 
 			entity.getParentEntity()
 				.ifPresent(parent -> {

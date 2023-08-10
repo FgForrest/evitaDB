@@ -39,7 +39,6 @@ import io.evitadb.test.builder.MapBuilder;
 import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
-import java.io.Serializable;
 import java.text.NumberFormat;
 import java.util.Collection;
 import java.util.Currency;
@@ -48,7 +47,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
@@ -159,7 +157,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 		}
 
 		final Map<String, Object> entityWithParentsDto = map()
-			.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), hierarchicalEntity.getParent().isPresent() ? hierarchicalEntity.getParent().getAsInt() : null)
+			.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), hierarchicalEntity.getParentEntity().isPresent() ? hierarchicalEntity.getParentEntity().get().getPrimaryKey() : null)
 			.e(GraphQLEntityDescriptor.PARENTS.name(), parents.stream()
 				.map(entityClassifier -> {
 					final MapBuilder parentBuilder = map()

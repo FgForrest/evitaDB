@@ -313,8 +313,8 @@ public class EntityDocumentationJsonSerializer extends JsonSerializer<EntityCont
 		gen.writeStartObject();
 		gen.writeNumberField("primaryKey", value.getPrimaryKey());
 		if (value.parentAvailable()) {
-			value.getParent().ifPresent(
-				parent -> wrap(() -> gen.writeNumberField("parent", parent))
+			value.getParentEntity().ifPresent(
+				parent -> wrap(() -> gen.writeNumberField("parent", parent.getPrimaryKey()))
 			);
 			value.getParentEntity().ifPresent(
 				parentEntity -> wrap(() -> gen.writeObjectField("parentEntity", parentEntity))

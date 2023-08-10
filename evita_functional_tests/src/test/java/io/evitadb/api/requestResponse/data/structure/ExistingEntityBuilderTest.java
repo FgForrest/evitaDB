@@ -46,6 +46,7 @@ import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.Locale;
+import java.util.Optional;
 
 import static java.util.OptionalInt.of;
 import static org.junit.jupiter.api.Assertions.*;
@@ -111,9 +112,9 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldRemoveParent() {
-		assertFalse(builder.getParent().isEmpty());
+		assertFalse(builder.getParentEntity().isEmpty());
 		builder.removeParent();
-		assertTrue(builder.getParent().isEmpty());
+		assertTrue(builder.getParentEntity().isEmpty());
 
 		final Entity updatedEntity = builder.toMutation()
 			.map(it -> it.mutate(initialEntity.getSchema(), initialEntity))
@@ -161,7 +162,10 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 	@Test
 	void shouldOverwriteParent() {
 		builder.setParent(78);
-		assertEquals(of(78), builder.getParent());
+		assertEquals(
+			Optional.of(new EntityReferenceWithParent(initialEntity.getSchema().getName(), 78, null)),
+			builder.getParentEntity()
+		);
 
 		final Entity updatedEntity = builder.toMutation().orElseThrow().mutate(initialEntity.getSchema(), initialEntity);
 		assertEquals(initialEntity.version() + 1, updatedEntity.version());

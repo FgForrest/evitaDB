@@ -97,13 +97,13 @@ public class ProxyUtils {
 	@Nonnull
 	public static UnaryOperator<Object> createOptionalWrapper(@Nullable Class<?> optionalType) {
 		if (optionalType == null) {
-			return value -> value;
+			return UnaryOperator.identity();
 		} else if (int.class == optionalType) {
-			return value -> value == null ? OptionalInt.empty() : OptionalInt.of((Integer)value);
+			return OptionalIntUnaryOperator.INSTANCE;
 		} else if (long.class == optionalType) {
-			return value -> value == null ? OptionalLong.empty() : OptionalLong.of((Long)value);
+			return OptionalLongUnaryOperator.INSTANCE;
 		} else {
-			return Optional::ofNullable;
+			return OptionalUnaryOperator.INSTANCE;
 		}
 	}
 
@@ -112,6 +112,38 @@ public class ProxyUtils {
 		@Nullable Class<?> collectionType,
 		@Nonnull Class<?> elementType
 	) {
+	}
+
+	/**
+	 * Marks {@link UnaryOperator<?>} operators that wrap the value to an optional wrapper.
+	 */
+	public interface OptionalProducingOperator {
+
+	}
+
+	private static class OptionalIntUnaryOperator implements UnaryOperator<Object>, OptionalProducingOperator {
+		public static final OptionalIntUnaryOperator INSTANCE = new OptionalIntUnaryOperator();
+
+		@Override
+		public Object apply(Object value) {
+			return value == null ? OptionalInt.empty() : OptionalInt.of((Integer)value);
+		}
+	}
+
+	private static class OptionalLongUnaryOperator implements UnaryOperator<Object>, OptionalProducingOperator {
+		public static final OptionalLongUnaryOperator INSTANCE = new OptionalLongUnaryOperator();
+		@Override
+		public Object apply(Object value) {
+			return value == null ? OptionalLong.empty() : OptionalLong.of((Long)value);
+		}
+	}
+
+	private static class OptionalUnaryOperator implements UnaryOperator<Object>, OptionalProducingOperator {
+		public static final OptionalUnaryOperator INSTANCE = new OptionalUnaryOperator();
+		@Override
+		public Object apply(Object value) {
+			return Optional.ofNullable(value);
+		}
 	}
 
 }
