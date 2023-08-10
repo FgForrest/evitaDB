@@ -161,10 +161,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 			.e(GraphQLEntityDescriptor.PARENTS.name(), parents.stream()
 				.map(entityClassifier -> {
 					final MapBuilder parentBuilder = map()
-						.e(GraphQLEntityDescriptor.PRIMARY_KEY.name(), entityClassifier.getPrimaryKey())
-						.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), entityClassifier.getParentEntity()
-							.map(EntityClassifier::getPrimaryKey)
-							.orElse(null));
+						.e(GraphQLEntityDescriptor.PRIMARY_KEY.name(), entityClassifier.getPrimaryKey());
 
 					if (withBody) {
 						final SealedEntity parent = (SealedEntity) entityClassifier;

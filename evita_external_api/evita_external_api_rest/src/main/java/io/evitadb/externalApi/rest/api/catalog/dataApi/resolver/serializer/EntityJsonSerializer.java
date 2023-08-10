@@ -132,7 +132,6 @@ public class EntityJsonSerializer {
 		rootNode.put(RestEntityDescriptor.VERSION.name(), entity.version());
 
 		if (entity.parentAvailable()) {
-			entity.getParentEntity().ifPresent(parent -> rootNode.put(RestEntityDescriptor.PARENT.name(), parent.getPrimaryKey()));
 			entity.getParentEntity().ifPresent(parent -> rootNode.putIfAbsent(RestEntityDescriptor.PARENT_ENTITY.name(), serialize(parent)));
 		}
 

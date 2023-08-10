@@ -35,17 +35,6 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  */
 public interface RestEntityDescriptor extends EntityDescriptor {
 
-	PropertyDescriptor PARENT = PropertyDescriptor.builder()
-		.name("parent")
-		.description("""
-            Returns primary key of direct parent entity or `null` if the entity is root entity.
-            
-            Entities may be organized in hierarchical fashion. That means that entity may refer to single parent entity and
-            may be referred by multiple child entities. Hierarchy is always composed of entities of same type.
-            Each entity must be part of at most single hierarchy (tree).
-            """)
-		.type(nullable(Integer.class))
-		.build();
 	PropertyDescriptor PARENT_ENTITY = PropertyDescriptor.builder()
 		.name("parentEntity")
 		.description("""

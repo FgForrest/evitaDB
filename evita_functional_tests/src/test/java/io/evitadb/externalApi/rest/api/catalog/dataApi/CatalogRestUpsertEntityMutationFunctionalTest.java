@@ -394,7 +394,6 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.CATEGORY)
 			.e(EntityDescriptor.VERSION.name(), entityInTree.version() + 1)
-			.e(RestEntityDescriptor.PARENT.name(), parent + 10)
 			.e(RestEntityDescriptor.PARENT_ENTITY.name(), createEntityDto(new EntityReference(Entities.CATEGORY, parent + 10)))
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 			.build();

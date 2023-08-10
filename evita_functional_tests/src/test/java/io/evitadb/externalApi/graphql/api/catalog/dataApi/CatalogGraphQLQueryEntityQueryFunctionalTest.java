@@ -611,7 +611,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								parentPrimaryKey
 								parents {
 									primaryKey
-									parentPrimaryKey
 								}
 							}
 						}
@@ -671,7 +670,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								parentPrimaryKey
 								parents {
 									primaryKey
-									parentPrimaryKey
 									allLocales
 									attributes {
 										code
@@ -737,7 +735,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 									}
 							    ) {
 									primaryKey
-									parentPrimaryKey
 								}
 							}
 						}
@@ -817,7 +814,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 										parentPrimaryKey
 										parents {
 											primaryKey
-											parentPrimaryKey
 										}
 									}
 								}
@@ -903,7 +899,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 										parentPrimaryKey
 										parents {
 											primaryKey
-											parentPrimaryKey
 											allLocales
 											attributes {
 												code
@@ -995,7 +990,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 											}
 									    ) {
 											primaryKey
-											parentPrimaryKey
 										}
 									}
 								}

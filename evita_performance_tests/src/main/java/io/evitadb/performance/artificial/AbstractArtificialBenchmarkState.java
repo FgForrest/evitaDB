@@ -34,8 +34,10 @@ import io.evitadb.performance.setup.CatalogSetup;
 import io.evitadb.test.TestConstants;
 import io.evitadb.test.generator.DataGenerator;
 import lombok.Getter;
+import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;

@@ -118,7 +118,6 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 		entityDto.e(EntityDescriptor.VERSION.name(), entity.version());
 
 		if (entity.parentAvailable()) {
-			entity.getParentEntity().ifPresent(parent -> entityDto.e(RestEntityDescriptor.PARENT.name(), parent.getPrimaryKey()));
 			entity.getParentEntity().ifPresent(parent -> entityDto.e(RestEntityDescriptor.PARENT_ENTITY.name(), createEntityDto(parent, localized)));
 		}
 
