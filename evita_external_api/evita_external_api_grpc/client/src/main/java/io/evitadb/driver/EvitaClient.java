@@ -24,6 +24,7 @@
 package io.evitadb.driver;
 
 import com.google.protobuf.Empty;
+import io.evitadb.api.ClientContext;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
@@ -132,44 +133,50 @@ public class EvitaClient implements EvitaContract {
 	 * @return result of the applied function
 	 */
 	private <T> T executeWithEvitaService(@Nonnull Function<EvitaServiceBlockingStub, T> evitaServiceBlockingStub) {
-		final ManagedChannel managedChannel = this.channelPool.getChannel();
-		try {
-			return evitaServiceBlockingStub.apply(EvitaServiceGrpc.newBlockingStub(managedChannel));
-		} catch (StatusRuntimeException statusRuntimeException) {
-			final Code statusCode = statusRuntimeException.getStatus().getCode();
-			final String description = ofNullable(statusRuntimeException.getStatus().getDescription())
-				.orElse("No description.");
-			if (statusCode == Code.INVALID_ARGUMENT) {
-				final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
-				if (expectedFormat.matches()) {
-					throw EvitaInvalidUsageException.createExceptionWithErrorCode(
-						expectedFormat.group(2), expectedFormat.group(1)
+		return ClientContext.executeWithClientAndRequestId(
+			configuration.clientId(),
+			UUIDUtil.randomUUID().toString(),
+			() -> {
+				final ManagedChannel managedChannel = this.channelPool.getChannel();
+				try {
+					return evitaServiceBlockingStub.apply(EvitaServiceGrpc.newBlockingStub(managedChannel));
+				} catch (StatusRuntimeException statusRuntimeException) {
+					final Code statusCode = statusRuntimeException.getStatus().getCode();
+					final String description = ofNullable(statusRuntimeException.getStatus().getDescription())
+						.orElse("No description.");
+					if (statusCode == Code.INVALID_ARGUMENT) {
+						final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
+						if (expectedFormat.matches()) {
+							throw EvitaInvalidUsageException.createExceptionWithErrorCode(
+								expectedFormat.group(2), expectedFormat.group(1)
+							);
+						} else {
+							throw new EvitaInvalidUsageException(description);
+						}
+					} else {
+						final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
+						if (expectedFormat.matches()) {
+							throw EvitaInternalError.createExceptionWithErrorCode(
+								expectedFormat.group(2), expectedFormat.group(1)
+							);
+						} else {
+							throw new EvitaInternalError(description);
+						}
+					}
+				} catch (EvitaInvalidUsageException | EvitaInternalError evitaError) {
+					throw evitaError;
+				} catch (Throwable e) {
+					log.error("Unexpected internal Evita error occurred: {}", e.getMessage(), e);
+					throw new EvitaInternalError(
+						"Unexpected internal Evita error occurred: " + e.getMessage(),
+						"Unexpected internal Evita error occurred.",
+						e
 					);
-				} else {
-					throw new EvitaInvalidUsageException(description);
-				}
-			} else {
-				final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
-				if (expectedFormat.matches()) {
-					throw EvitaInternalError.createExceptionWithErrorCode(
-						expectedFormat.group(2), expectedFormat.group(1)
-					);
-				} else {
-					throw new EvitaInternalError(description);
+				} finally {
+					this.channelPool.releaseChannel(managedChannel);
 				}
 			}
-		} catch (EvitaInvalidUsageException | EvitaInternalError evitaError) {
-			throw evitaError;
-		} catch (Throwable e) {
-			log.error("Unexpected internal Evita error occurred: {}", e.getMessage(), e);
-			throw new EvitaInternalError(
-				"Unexpected internal Evita error occurred: " + e.getMessage(),
-				"Unexpected internal Evita error occurred.",
-				e
-			);
-		} finally {
-			this.channelPool.releaseChannel(managedChannel);
-		}
+		);
 	}
 
 	public EvitaClient(@Nonnull EvitaClientConfiguration configuration) {
@@ -278,6 +285,7 @@ public class EvitaClient implements EvitaContract {
 			}
 		}
 		final EvitaClientSession evitaClientSession = new EvitaClientSession(
+			this.configuration.clientId(),
 			this.reflectionLookup,
 			this.entitySchemaCache.computeIfAbsent(
 				traits.catalogName(),

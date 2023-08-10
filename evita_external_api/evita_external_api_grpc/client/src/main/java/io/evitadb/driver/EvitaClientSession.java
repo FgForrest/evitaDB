@@ -26,6 +26,7 @@ package io.evitadb.driver;
 import com.google.protobuf.Empty;
 import com.google.protobuf.Int32Value;
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.ClientContext;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.exception.CollectionNotFoundException;
@@ -168,6 +169,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 	);
 
 	/**
+	 * Identification of the client from the configuration.
+	 */
+	private final String clientId;
+	/**
 	 * Reflection lookup is used to speed up reflection operation by memoizing the results for examined classes.
 	 */
 	private final ReflectionLookup reflectionLookup;
@@ -232,6 +237,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	}
 
 	public EvitaClientSession(
+		@Nonnull String clientId,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull EvitaEntitySchemaCache schemaCache,
 		@Nonnull ChannelPool channelPool,
@@ -241,6 +247,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		@Nonnull SessionTraits sessionTraits,
 		@Nonnull Consumer<EvitaClientSession> onTerminationCallback
 	) {
+		this.clientId = clientId;
 		this.reflectionLookup = reflectionLookup;
 		this.proxyFactory = schemaCache.getProxyFactory();
 		this.schemaCache = schemaCache;
@@ -303,6 +310,26 @@ public class EvitaClientSession implements EvitaSessionContract {
 			);
 			closeInternally();
 		}
+	}
+
+	@Nonnull
+	@Override
+	public EntitySchemaBuilder defineEntitySchema(@Nonnull String entityType) {
+		assertActive();
+		final SealedEntitySchema newEntitySchema = executeInTransactionIfPossible(session -> {
+			final GrpcDefineEntitySchemaRequest request = GrpcDefineEntitySchemaRequest.newBuilder()
+				.setEntityType(entityType)
+				.build();
+
+			final GrpcDefineEntitySchemaResponse response = executeWithEvitaSessionService(evitaSessionService ->
+				evitaSessionService.defineEntitySchema(request)
+			);
+
+			final EntitySchema theSchema = EntitySchemaConverter.convert(response.getEntitySchema());
+			schemaCache.setLatestEntitySchema(theSchema);
+			return new EntitySchemaDecorator(this::getCatalogSchema, theSchema);
+		});
+		return newEntitySchema.openForWrite();
 	}
 
 	@Nonnull
@@ -624,26 +651,6 @@ public class EvitaClientSession implements EvitaSessionContract {
 		//noinspection unchecked
 		return (T) getEntityInternal(entityType, expectedType, entityPk, evitaRequest, require)
 			.orElseThrow(() -> new EntityAlreadyRemovedException(entityType, entityPk));
-	}
-
-	@Nonnull
-	@Override
-	public EntitySchemaBuilder defineEntitySchema(@Nonnull String entityType) {
-		assertActive();
-		final SealedEntitySchema newEntitySchema = executeInTransactionIfPossible(session -> {
-			final GrpcDefineEntitySchemaRequest request = GrpcDefineEntitySchemaRequest.newBuilder()
-				.setEntityType(entityType)
-				.build();
-
-			final GrpcDefineEntitySchemaResponse response = executeWithEvitaSessionService(evitaSessionService ->
-				evitaSessionService.defineEntitySchema(request)
-			);
-
-			final EntitySchema theSchema = EntitySchemaConverter.convert(response.getEntitySchema());
-			schemaCache.setLatestEntitySchema(theSchema);
-			return new EntitySchemaDecorator(this::getCatalogSchema, theSchema);
-		});
-		return newEntitySchema.openForWrite();
 	}
 
 	@Override
@@ -1211,50 +1218,54 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 * @return result of the applied function
 	 */
 	private <T> T executeWithEvitaSessionService(@Nonnull Function<EvitaSessionServiceBlockingStub, T> evitaSessionServiceBlockingStub) {
-		final ManagedChannel managedChannel = this.channelPool.getChannel();
-		try {
-			SessionIdHolder.setSessionId(getCatalogName(), getId().toString());
-			return evitaSessionServiceBlockingStub.apply(EvitaSessionServiceGrpc.newBlockingStub(managedChannel));
-		} catch (StatusRuntimeException statusRuntimeException) {
-			final Code statusCode = statusRuntimeException.getStatus().getCode();
-			final String description = ofNullable(statusRuntimeException.getStatus().getDescription())
-				.orElse("No description.");
-			if (statusCode == Code.UNAUTHENTICATED) {
-				// close session and rethrow
-				closeInternally();
-				throw new InstanceTerminatedException("session");
-			} else if (statusCode == Code.INVALID_ARGUMENT) {
-				final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
-				if (expectedFormat.matches()) {
-					throw EvitaInvalidUsageException.createExceptionWithErrorCode(
-						expectedFormat.group(2), expectedFormat.group(1)
+		return ClientContext.executeWithClientId(
+			clientId,
+			() -> {
+				final ManagedChannel managedChannel = this.channelPool.getChannel();
+				try {
+					SessionIdHolder.setSessionId(getCatalogName(), getId().toString());
+					return evitaSessionServiceBlockingStub.apply(EvitaSessionServiceGrpc.newBlockingStub(managedChannel));
+				} catch (StatusRuntimeException statusRuntimeException) {
+					final Code statusCode = statusRuntimeException.getStatus().getCode();
+					final String description = ofNullable(statusRuntimeException.getStatus().getDescription())
+						.orElse("No description.");
+					if (statusCode == Code.UNAUTHENTICATED) {
+						// close session and rethrow
+						closeInternally();
+						throw new InstanceTerminatedException("session");
+					} else if (statusCode == Code.INVALID_ARGUMENT) {
+						final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
+						if (expectedFormat.matches()) {
+							throw EvitaInvalidUsageException.createExceptionWithErrorCode(
+								expectedFormat.group(2), expectedFormat.group(1)
+							);
+						} else {
+							throw new EvitaInvalidUsageException(description);
+						}
+					} else {
+						final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
+						if (expectedFormat.matches()) {
+							throw EvitaInternalError.createExceptionWithErrorCode(
+								expectedFormat.group(2), expectedFormat.group(1)
+							);
+						} else {
+							throw new EvitaInternalError(description);
+						}
+					}
+				} catch (EvitaInvalidUsageException | EvitaInternalError evitaError) {
+					throw evitaError;
+				} catch (Throwable e) {
+					log.error("Unexpected internal Evita error occurred: {}", e.getMessage(), e);
+					throw new EvitaInternalError(
+						"Unexpected internal Evita error occurred: " + e.getMessage(),
+						"Unexpected internal Evita error occurred.",
+						e
 					);
-				} else {
-					throw new EvitaInvalidUsageException(description);
+				} finally {
+					this.channelPool.releaseChannel(managedChannel);
+					SessionIdHolder.reset();
 				}
-			} else {
-				final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
-				if (expectedFormat.matches()) {
-					throw EvitaInternalError.createExceptionWithErrorCode(
-						expectedFormat.group(2), expectedFormat.group(1)
-					);
-				} else {
-					throw new EvitaInternalError(description);
-				}
-			}
-		} catch (EvitaInvalidUsageException | EvitaInternalError evitaError) {
-			throw evitaError;
-		} catch (Throwable e) {
-			log.error("Unexpected internal Evita error occurred: {}", e.getMessage(), e);
-			throw new EvitaInternalError(
-				"Unexpected internal Evita error occurred: " + e.getMessage(),
-				"Unexpected internal Evita error occurred.",
-				e
-			);
-		} finally {
-			this.channelPool.releaseChannel(managedChannel);
-			SessionIdHolder.reset();
-		}
+			});
 	}
 
 	@Nonnull
