@@ -27,24 +27,49 @@ import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.ChangeDataCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureObserver;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureObserver;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureSubscriber;
 import io.evitadb.externalApi.rest.RestManager;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.Objects;
+import java.util.concurrent.Flow.Subscription;
 
 /**
  * This observer allows to react on changes in Catalog's structure and reload OpenAPI and REST handlers if necessary.
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class CatalogRestRefreshingObserver implements ChangeSystemCaptureObserver, ChangeDataCaptureObserver {
+public class CatalogRestRefreshingObserver implements ChangeSystemCaptureSubscriber, ChangeDataCaptureObserver {
 	private final RestManager restManager;
 
 	public CatalogRestRefreshingObserver(@Nonnull RestManager restManager) {
 		this.restManager = restManager;
+	}
+
+	@Override
+	public void onSubscribe(Subscription subscription) {
+		subscription.request(Long.MAX_VALUE);
+	}
+
+	@Override
+	public void onNext(ChangeSystemCapture item) {
+		switch (item.operation()) {
+			case CREATE -> restManager.registerCatalog(item.catalog());
+			case UPDATE -> restManager.refreshCatalog(item.catalog());
+			case REMOVE -> restManager.unregisterCatalog(item.catalog());
+		}
+	}
+
+	@Override
+	public void onError(Throwable throwable) {
+		// do nothing, there are no resources to free, logging happens in the caller
+	}
+
+	@Override
+	public void onComplete() {
+		// do nothing, there are no resources to free
 	}
 
 	@Override
@@ -66,17 +91,8 @@ public class CatalogRestRefreshingObserver implements ChangeSystemCaptureObserve
 	}
 
 	@Override
-	public void onChange(@Nonnull ChangeSystemCapture event) {
-		switch (event.operation()) {
-			case CREATE -> restManager.registerCatalog(event.catalog());
-			case UPDATE -> restManager.refreshCatalog(event.catalog());
-			case REMOVE -> restManager.unregisterCatalog(event.catalog());
-		}
-	}
-
-	@Override
 	public void onTermination() {
-		// do nothing, there are no resources to free
+
 	}
 
 }

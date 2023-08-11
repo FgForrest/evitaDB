@@ -26,8 +26,9 @@ package io.evitadb.api;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.exception.CatalogAlreadyPresentException;
 import io.evitadb.api.exception.InstanceTerminatedException;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureObserver;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureSubscriber;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
@@ -38,6 +39,8 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Flow.Publisher;
+import java.util.concurrent.Flow.Subscriber;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -56,22 +59,42 @@ import java.util.function.Function;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ThreadSafe
-public interface EvitaContract extends AutoCloseable, ClientContext {
+public interface EvitaContract extends AutoCloseable, ClientContext, Publisher<ChangeSystemCapture> {
 
 	/**
-	 * TODO JNO - document me
+	 * Accepts subscription to evitaDB system events. System events track global changes on the evitaDB level, such as
+	 * catalog creation, catalog deletion, backup, etc.
+	 *
+	 * @param subscriber the subscriber implementation, it must implement {@link ChangeSystemCaptureSubscriber} interface
+	 * @throws NullPointerException when subscriber is null
+	 * @throws IllegalArgumentException when subscriber doesn't implement {@link ChangeSystemCaptureSubscriber} interface
 	 */
-	@Nonnull
-	UUID registerSystemChangeCapture(
-		@Nonnull ChangeSystemCaptureRequest request,
-		@Nonnull ChangeSystemCaptureObserver callback
-	);
+	@Override
+	void subscribe(@Nullable Subscriber<? super ChangeSystemCapture> subscriber)
+		throws NullPointerException, IllegalArgumentException;
 
 	/**
-	 * TODO JNO - document me
-	 * @param uuid
+	 * Allows to extend existing subscription with additional request. When subscription by `subscriptionId` is found,
+	 * its requests are extended with `additionalRequest` and subscription is updated. Immediately after that newly
+	 * occurred events that match the request are sent to the existing {@link Subscriber#onNext(Object)} method.
+	 *
+	 * @param subscriptionId identifier of the subscription
+	 * @param additionalRequest additional request to be added to the existing subscription
+	 * @return true if subscription was found and updated, false otherwise
 	 */
-	boolean unregisterSystemChangeCapture(@Nonnull UUID uuid);
+	boolean extendSubscription(@Nonnull UUID subscriptionId, @Nonnull ChangeSystemCaptureRequest additionalRequest);
+
+	/**
+	 * Allows to drop existing request from existing subscription identified by `subscriptionId`. The request must be
+	 * identified by `cdcRequestId` matching {@link ChangeSystemCaptureRequest#id()} sent when the request was issued.
+	 * The events that match the request are no longer sent to the existing {@link Subscriber#onNext(Object)} method.
+	 * When the last request is dropped, the subscription is canceled as well.
+	 *
+	 * @param subscriptionId identifier of the subscription
+	 * @param cdcRequestId identifier of the request to be dropped
+	 * @return true if subscription was found and updated, false otherwise
+	 */
+	boolean limitSubscription(@Nonnull UUID subscriptionId, @Nonnull UUID cdcRequestId);
 
 	/**
 	 * Creates {@link EvitaSessionContract} for querying the database.

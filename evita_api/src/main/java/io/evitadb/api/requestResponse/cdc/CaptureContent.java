@@ -24,12 +24,21 @@
 package io.evitadb.api.requestResponse.cdc;
 
 /**
- * TODO JNO - document me
+ * Enum to specify the depth of details sent in the CDC event.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public enum CaptureContent {
 
-	HEADER, BODY
+	/**
+	 * Only the header of the event is sent.
+	 */
+	HEADER,
+	/**
+	 * Entire mutation triggering the event is sent. In case of mutations with the large content (associated data
+	 * update), the size of the event can be significant. Consider whether you need the entire mutation or just the
+	 * header.
+	 */
+	BODY
 
 }

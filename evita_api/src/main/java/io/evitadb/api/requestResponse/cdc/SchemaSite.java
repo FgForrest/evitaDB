@@ -23,10 +23,15 @@
 
 package io.evitadb.api.requestResponse.cdc;
 
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+
 import javax.annotation.Nullable;
 
 /**
- * TODO JNO - document me
+ * Record describing the location and form of the CDC event in the evitaDB that should be captured.
+ *
+ * @param entityType the {@link EntitySchema#getName()} of the intercepted entity type
+ * @param operation the intercepted type of {@link Operation}
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

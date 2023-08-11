@@ -42,7 +42,6 @@ import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.CaptureContent;
-import io.evitadb.api.requestResponse.cdc.CaptureSince;
 import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.SchemaSite;
@@ -92,6 +91,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -116,7 +116,9 @@ class EvitaTest implements EvitaTestSupport {
 	private static final Currency CURRENCY_EUR = Currency.getInstance("EUR");
 	private static final String PRICE_LIST_BASIC = "basic";
 	private static final String PRICE_LIST_VIP = "vip";
-	private final MockCatalogStructuralChangeObserver observer = new MockCatalogStructuralChangeObserver();
+	private final MockCatalogStructuralChangeObserver observer = new MockCatalogStructuralChangeObserver(
+		new ChangeSystemCaptureRequest(UUID.randomUUID(), CaptureContent.BODY)
+	);
 	private Evita evita;
 
 	@BeforeEach
@@ -126,15 +128,12 @@ class EvitaTest implements EvitaTestSupport {
 			getEvitaConfiguration()
 		);
 		evita.defineCatalog(TEST_CATALOG);
-		evita.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(CaptureContent.BODY),
-			observer
-		);
+		evita.subscribe(observer);
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.registerChangeDataCapture(
-					new ChangeDataCaptureRequest(CaptureArea.SCHEMA, new SchemaSite(), CaptureContent.BODY, new CaptureSince(0L)),
+					new ChangeDataCaptureRequest(CaptureArea.SCHEMA, new SchemaSite(), CaptureContent.BODY, 0L),
 					observer
 				);
 			}

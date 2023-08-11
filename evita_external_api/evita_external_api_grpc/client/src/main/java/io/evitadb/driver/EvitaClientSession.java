@@ -51,13 +51,9 @@ import io.evitadb.api.requestResponse.EvitaEntityResponse;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
-import io.evitadb.api.requestResponse.cdc.CaptureArea;
-import io.evitadb.api.requestResponse.cdc.CaptureContent;
-import io.evitadb.api.requestResponse.cdc.CaptureSince;
 import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureObserver;
 import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.DataSite;
-import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.cdc.SchemaSite;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -356,7 +352,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 			.registerChangeDataCapture(builder
 				.setArea(EvitaEnumConverter.toGrpcCaptureArea(request.area()))
 				.setContent(EvitaEnumConverter.toGrpcCaptureContent(request.content()))
-				.setSince(ChangeDataCaptureConverter.toGrpcCaptureSince(request.since()))
+				/* TODO TPO - redesign */
+				/*.setSince(ChangeDataCaptureConverter.toGrpcCaptureSince(request.since()))*/
 				.build()
 			);
 

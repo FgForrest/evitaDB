@@ -25,16 +25,29 @@ package io.evitadb.api.requestResponse.cdc;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.UUID;
 
 /**
- * TODO JNO - document me
+ * Record describing the capture request for the {@link ChangeSystemCaptureSubscriber}. The request contains the recipe
+ * for the messages that the subscriber is interested in and that are sent to it by {@link ChangeSystemCaptureSubscriber#onNext(ChangeSystemCapture)}
+ * method.
+ *
+ * @param id                 unique identifier of the subscriber, id must be unique among all subscribers and must change when
+ *                           the instance of the subscriber is finalized and a new instance is created
+ * @param area               the requested area of the capture
+ * @param site               the filter for the events to be sent, limits the amount of events sent to the subscriber
+ * @param content            the requested content of the capture, by default only the header information is sent
+ * @param sinceTransactionId specifies the initial capture point for the CDC stream, it must always provide a last
+ *                           known transaction id from the client point of view
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public record ChangeDataCaptureRequest(
+	/* TODO TPO - this was added */
+	@Nonnull UUID id,
 	@Nullable CaptureArea area,
 	@Nullable CaptureSite site,
 	@Nonnull CaptureContent content,
-	@Nonnull CaptureSince since
+	long sinceTransactionId
 ) {
 }

@@ -27,7 +27,8 @@ import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.ChangeDataCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureObserver;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureObserver;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureSubscriber;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.utils.Assert;
 
@@ -35,13 +36,14 @@ import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Flow.Subscription;
 
 /**
- * This observer allows to test {@link ChangeSystemCaptureObserver} and {@link ChangeDataCaptureObserver} behaviour.
+ * This observer allows to test {@link ChangeSystemCaptureSubscriber} and {@link ChangeDataCaptureObserver} behaviour.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class MockCatalogStructuralChangeObserver implements ChangeSystemCaptureObserver, ChangeDataCaptureObserver {
+public class MockCatalogStructuralChangeObserver implements ChangeSystemCaptureSubscriber, ChangeDataCaptureObserver {
 	private final Map<String, Integer> catalogCreated = new HashMap<>();
 	private final Map<String, Integer> catalogUpdated = new HashMap<>();
 	private final Map<String, Integer> catalogDeleted = new HashMap<>();
@@ -49,6 +51,15 @@ public class MockCatalogStructuralChangeObserver implements ChangeSystemCaptureO
 	private final Map<EntityCollectionCatalogRecord, Integer> entityCollectionCreated = new HashMap<>();
 	private final Map<EntityCollectionCatalogRecord, Integer> entityCollectionUpdated = new HashMap<>();
 	private final Map<EntityCollectionCatalogRecord, Integer> entityCollectionDeleted = new HashMap<>();
+	private final ChangeSystemCaptureRequest captureRequest;
+
+	public MockCatalogStructuralChangeObserver() {
+		this.captureRequest = null;
+	}
+
+	public MockCatalogStructuralChangeObserver(ChangeSystemCaptureRequest captureRequest) {
+		this.captureRequest = captureRequest;
+	}
 
 	public void reset() {
 		catalogCreated.clear();
@@ -89,17 +100,37 @@ public class MockCatalogStructuralChangeObserver implements ChangeSystemCaptureO
 		return entityCollectionUpdated.getOrDefault(new EntityCollectionCatalogRecord(catalogName, entityType), 0);
 	}
 
+	@Nonnull
+	@Override
+	public ChangeSystemCaptureRequest initialSystemCaptureRequest() {
+		return captureRequest == null ? ChangeSystemCaptureSubscriber.super.initialSystemCaptureRequest() : captureRequest;
+	}
 
 	@Override
-	public void onChange(@Nonnull ChangeSystemCapture event) {
-		switch (event.operation()) {
+	public void onSubscribe(Subscription subscription) {
+		subscription.request(Long.MAX_VALUE);
+	}
+
+	@Override
+	public void onNext(ChangeSystemCapture item) {
+		switch (item.operation()) {
 			case CREATE -> catalogCreated
-				.compute(event.catalog(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
+				.compute(item.catalog(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
 			case UPDATE -> catalogUpdated
-				.compute(event.catalog(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
+				.compute(item.catalog(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
 			case REMOVE -> catalogDeleted
-				.compute(event.catalog(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
+				.compute(item.catalog(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
 		}
+	}
+
+	@Override
+	public void onError(Throwable throwable) {
+		throw new RuntimeException(throwable);
+	}
+
+	@Override
+	public void onComplete() {
+		// do nothing
 	}
 
 	@Override

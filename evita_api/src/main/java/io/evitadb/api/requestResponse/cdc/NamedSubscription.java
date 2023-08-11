@@ -23,19 +23,24 @@
 
 package io.evitadb.api.requestResponse.cdc;
 
-import javax.annotation.Nullable;
+import javax.annotation.Nonnull;
+import java.util.UUID;
+import java.util.concurrent.Flow.Subscription;
 
 /**
- * TODO JNO - document me
+ * Subscription extension that allows to identify the subscription by its {@link UUID} identification.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public record CaptureSince(
-	@Nullable Integer version,
-	long transactionId
-) {
+public interface NamedSubscription extends Subscription {
 
-	public CaptureSince(long transactionId) {
-		this(null, transactionId);
-	}
+	/**
+	 * Returns the ID assigned by the server to this subscription. This ID can be used to identify the subscription
+	 * among other subscriptions on the server.
+	 *
+	 * @return the ID assigned by the server to this subscription
+	 */
+	@Nonnull
+	UUID id();
+
 }

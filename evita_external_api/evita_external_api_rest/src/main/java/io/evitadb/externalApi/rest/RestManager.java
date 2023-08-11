@@ -27,9 +27,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.CaptureContent;
-import io.evitadb.api.requestResponse.cdc.CaptureSince;
 import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureRequest;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.cdc.SchemaSite;
 import io.evitadb.core.CorruptedCatalog;
@@ -107,10 +105,7 @@ public class RestManager {
 		// register initial endpoints
 		registerSystemApi();
 
-		evita.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(CaptureContent.HEADER),
-			observer
-		);
+		evita.subscribe(observer);
 		this.evita.getCatalogs().forEach(catalog -> registerCatalog(catalog.getName()));
 		corsEndpoints.forEach((path, endpoint) -> restRouter.add("OPTIONS", path.toString(), endpoint.toHandler()));
 
@@ -138,7 +133,7 @@ public class RestManager {
 		catalog.registerChangeDataCapture(
 			new ChangeDataCaptureRequest(
 				CaptureArea.SCHEMA, new SchemaSite(Operation.values()), CaptureContent.HEADER,
-				new CaptureSince(catalog.getLastCommittedTransactionId())
+				catalog.getLastCommittedTransactionId()
 			),
 			observer
 		);
