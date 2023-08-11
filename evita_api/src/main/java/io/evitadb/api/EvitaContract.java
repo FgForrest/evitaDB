@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutat
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.ThreadSafe;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -50,10 +51,12 @@ import java.util.function.Function;
  * built up from scratch easily again.
  *
  * This interface represents main entrance to the evitaDB contents.
+ * Evita contract is thread safe.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface EvitaContract extends AutoCloseable {
+@ThreadSafe
+public interface EvitaContract extends AutoCloseable, ClientContext {
 
 	/**
 	 * TODO JNO - document me

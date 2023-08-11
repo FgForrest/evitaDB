@@ -70,6 +70,7 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Optional;
@@ -78,6 +79,7 @@ import java.util.UUID;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.require;
@@ -86,20 +88,27 @@ import static io.evitadb.api.query.QueryConstraints.require;
  * Session are created by the clients to envelope a "piece of work" with evitaDB. In web environment it's a good idea
  * to have session per request, in batch processing it's recommended to keep session per "record page" or "transaction".
  * There may be multiple {@link TransactionContract transactions} during single session instance life but there is no support
- * for transactional overlap - there may be at most single transaction open in single session. Session also caches
- * response to the queries - when client reads twice the same entity within the session (in different queries) he/she
- * should obtain the same reference to that entity (i.e. same in the sense of ==). Once transaction is committed cached
- * results are purged.
+ * for transactional overlap - there may be at most single transaction open in single session.
  *
  * EvitaSession transactions behave like <a href="https://en.wikipedia.org/wiki/Snapshot_isolation">Snapshot</a>
  * transactions. When no transaction is explicitly opened - each query to Evita behaves as one small transaction. Data
  * updates are not allowed without explicitly opened transaction.
  *
  * Don't forget to {@link #close()} when your work with Evita is finished.
+ * EvitaSession contract is NOT thread safe.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, AutoCloseable {
+@NotThreadSafe
+public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, ClientContext, AutoCloseable {
+
+	/**
+	 * Returns Evita instance this session is connected to.
+	 *
+	 * @return Evita instance this session is connected to.
+	 */
+	@Nonnull
+	EvitaContract getEvita();
 
 	/**
 	 * Returns unique id of the session.
@@ -1035,4 +1044,45 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	@Nonnull
 	ProxyFactory getProxyFactory();
 
+	@Override
+	default void executeWithClientAndRequestId(@Nonnull String clientId, @Nonnull String requestId, @Nonnull Runnable lambda) {
+		getEvita().executeWithClientAndRequestId(clientId, requestId, lambda);
+	}
+
+	@Override
+	default void executeWithClientId(@Nonnull String clientId, @Nonnull Runnable lambda) {
+		getEvita().executeWithClientId(clientId, lambda);
+	}
+
+	@Override
+	default void executeWithRequestId(@Nonnull String requestId, @Nonnull Runnable lambda) {
+		getEvita().executeWithRequestId(requestId, lambda);
+	}
+
+	@Override
+	default <T> T executeWithClientAndRequestId(@Nonnull String clientId, @Nonnull String requestId, @Nonnull Supplier<T> lambda) {
+		return getEvita().executeWithClientAndRequestId(clientId, requestId, lambda);
+	}
+
+	@Override
+	default <T> T executeWithClientId(@Nonnull String clientId, @Nonnull Supplier<T> lambda) {
+		return getEvita().executeWithClientId(clientId, lambda);
+	}
+
+	@Override
+	default <T> T executeWithRequestId(@Nonnull String requestId, @Nonnull Supplier<T> lambda) {
+		return getEvita().executeWithRequestId(requestId, lambda);
+	}
+
+	@Nonnull
+	@Override
+	default Optional<String> getClientId() {
+		return getEvita().getClientId();
+	}
+
+	@Nonnull
+	@Override
+	default Optional<String> getRequestId() {
+		return getEvita().getRequestId();
+	}
 }

@@ -774,8 +774,8 @@ public final class Evita implements EvitaContract {
 		final EvitaSessionContract newSession = sessionRegistry.addSession(
 			catalog.supportsTransaction(),
 			() -> sessionTraits.isReadWrite() ?
-				new EvitaSession(catalog, reflectionLookup, terminationCallback, this::replaceCatalogReference, sessionTraits) :
-				new EvitaSession(catalog, reflectionLookup, terminationCallback, sessionTraits)
+				new EvitaSession(this, catalog, reflectionLookup, terminationCallback, this::replaceCatalogReference, sessionTraits) :
+				new EvitaSession(this, catalog, reflectionLookup, terminationCallback, sessionTraits)
 		);
 
 		if (sessionTraits.isReadWrite()) {

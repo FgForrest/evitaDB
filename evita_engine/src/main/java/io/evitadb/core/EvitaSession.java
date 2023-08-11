@@ -105,16 +105,14 @@ import static java.util.Optional.ofNullable;
  * Session are created by the clients to envelope a "piece of work" with evitaDB. In web environment it's a good idea
  * to have session per request, in batch processing it's recommended to keep session per "record page" or "transaction".
  * There may be multiple {@link Transaction transactions} during single session instance life but there is no support
- * for transactional overlap - there may be at most single transaction open in single session. Session also caches
- * response to the queries - when client reads twice the same entity within the session (in different queries) he/she
- * should obtain the same reference to that entity (i.e. same in the sense of ==). Once transaction is committed cached
- * results are purged.
+ * for transactional overlap - there may be at most single transaction open in single session.
  *
  * EvitaSession transactions behave like <a href="https://en.wikipedia.org/wiki/Snapshot_isolation">Snapshot</a>
  * transactions. When no transaction is explicitly opened - each query to Evita behaves as one small transaction. Data
  * updates are not allowed without explicitly opened transaction.
  *
  * Don't forget to {@link #close()} when your work with Evita is finished.
+ * EvitaSession contract is NOT thread safe.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -140,6 +138,10 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		}
 	);
 
+	/**
+	 * Evita instance this session is connected to.
+	 */
+	@Getter private final Evita evita;
 	/**
 	 * Contains unique identification of this particular Evita session. The id is not currently used, but may be
 	 * propagated into the logs in the future.
@@ -237,11 +239,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	EvitaSession(
+		@Nonnull Evita evita,
 		@Nonnull Catalog catalog,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nullable EvitaSessionTerminationCallback terminationCallback,
 		@Nonnull SessionTraits sessionTraits
 	) {
+		this.evita = evita;
 		this.catalog = new AtomicReference<>(catalog);
 		this.reflectionLookup = reflectionLookup;
 		this.proxyFactory = catalog.getProxyFactory();
@@ -251,12 +255,14 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	EvitaSession(
+		@Nonnull Evita evita,
 		@Nonnull Catalog catalog,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nullable EvitaSessionTerminationCallback terminationCallback,
 		@Nonnull UnaryOperator<CatalogContract> updatedCatalogCallback,
 		@Nonnull SessionTraits sessionTraits
 	) {
+		this.evita = evita;
 		this.catalog = new AtomicReference<>(catalog);
 		this.reflectionLookup = reflectionLookup;
 		this.proxyFactory = catalog.getProxyFactory();
