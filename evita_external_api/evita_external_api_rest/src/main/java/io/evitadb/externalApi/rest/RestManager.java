@@ -47,6 +47,7 @@ import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.externalApi.rest.exception.OpenApiInternalError;
 import io.evitadb.externalApi.rest.io.RestEndpointHandler;
 import io.evitadb.externalApi.rest.io.RestExceptionHandler;
+import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 import io.undertow.Handlers;
@@ -60,7 +61,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
 
@@ -96,7 +96,7 @@ public class RestManager {
 	 * Observer for refreshing REST API endpoints
 	 */
 	@Nonnull private final CatalogRestRefreshingObserver observer = new CatalogRestRefreshingObserver(this);
-	@Nonnull private final Map<String, CorsEndpoint> corsEndpoints = createConcurrentHashMap(20);
+	@Nonnull private final Map<UriPath, CorsEndpoint> corsEndpoints = createConcurrentHashMap(20);
 
 	public RestManager(@Nonnull Evita evita, @Nonnull RestConfig restConfig) {
 		this.evita = evita;
@@ -112,7 +112,7 @@ public class RestManager {
 			observer
 		);
 		this.evita.getCatalogs().forEach(catalog -> registerCatalog(catalog.getName()));
-		corsEndpoints.forEach((path, endpoint) -> restRouter.add("OPTIONS", path, endpoint.toHandler()));
+		corsEndpoints.forEach((path, endpoint) -> restRouter.add("OPTIONS", path.toString(), endpoint.toHandler()));
 
 		log.info("Built REST API in " + StringUtils.formatPreciseNano(System.currentTimeMillis() - buildingStartTime));
 	}
@@ -214,7 +214,7 @@ public class RestManager {
 	private void registerSystemRestEndpoint(@Nonnull Rest.Endpoint endpoint) {
 		registerRestEndpoint(
 			endpoint.method(),
-			Path.of("/" + OpenApiSystemEndpoint.URL_PREFIX).resolve(endpoint.path()),
+			UriPath.of("/", OpenApiSystemEndpoint.URL_PREFIX, endpoint.path()),
 			endpoint.handler()
 		);
 	}
@@ -222,8 +222,8 @@ public class RestManager {
 	/**
 	 * Registers endpoints into router. Also CORS endpoint is created automatically for this endpoint.
 	 */
-	private void registerRestEndpoint(@Nonnull HttpString method, @Nonnull Path path, @Nonnull RestEndpointHandler<?, ?> handler) {
-		final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(path.toString(), p -> new CorsEndpoint(restConfig));
+	private void registerRestEndpoint(@Nonnull HttpString method, @Nonnull UriPath path, @Nonnull RestEndpointHandler<?, ?> handler) {
+		final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(path, p -> new CorsEndpoint(restConfig));
 		corsEndpoint.addMetadataFromHandler(handler);
 
 		restRouter.add(
@@ -242,8 +242,8 @@ public class RestManager {
 	}
 
 	@Nonnull
-	private Path constructCatalogPath(@Nonnull CatalogContract catalog, @Nonnull Path endpointPath) {
-		return Path.of("/" + catalog.getSchema().getNameVariant(URL_NAME_NAMING_CONVENTION)).resolve(endpointPath);
+	private UriPath constructCatalogPath(@Nonnull CatalogContract catalog, @Nonnull UriPath endpointPath) {
+		return UriPath.of(catalog.getSchema().getNameVariant(URL_NAME_NAMING_CONVENTION), endpointPath);
 	}
 
 	private static class CorsEndpoint {
