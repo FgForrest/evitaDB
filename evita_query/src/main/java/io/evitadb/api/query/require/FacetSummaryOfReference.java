@@ -32,7 +32,6 @@ import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.FilterGroupBy;
 import io.evitadb.api.query.filter.UserFilter;
@@ -130,7 +129,7 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 	@Creator
 	public FacetSummaryOfReference(
 		@Nonnull @Classifier String referenceName,
-		@Nonnull @Value FacetStatisticsDepth statisticsDepth,
+		@Nonnull FacetStatisticsDepth statisticsDepth,
 		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) FilterBy filterBy,
 		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) FilterGroupBy filterGroupBy,
 		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) OrderBy orderBy,

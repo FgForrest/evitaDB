@@ -25,12 +25,15 @@ package io.evitadb.api.proxy.impl.reference;
 
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.proxy.impl.ProxyUtils;
+import io.evitadb.api.proxy.impl.ProxyUtils.OptionalProducingOperator;
 import io.evitadb.api.proxy.impl.SealedEntityReferenceProxyState;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.function.TriFunction;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.CollectionUtils;
@@ -53,6 +56,7 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
@@ -92,7 +96,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 			return schemaLocator.apply(attributeInstance.name());
 		} else if (attributeRefInstance != null) {
 			return schemaLocator.apply(attributeRefInstance.value());
-		} else if (!reflectionLookup.hasAnnotationInSamePackage(method, Attribute.class)) {
+		} else if (!reflectionLookup.hasAnnotationInSamePackage(method, Attribute.class) && ClassUtils.isAbstract(method)) {
 			final Optional<String> attributeName = ReflectionLookup.getPropertyNameFromMethodNameIfPossible(method.getName());
 			return attributeName
 				.flatMap(attrName -> referenceSchema.getAttributeByName(attrName, NamingConvention.CAMEL_CASE))
@@ -111,6 +115,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Method method,
 		@Nonnull Class<? extends Serializable> itemType,
 		int indexedDecimalPlaces,
+		@Nonnull BiFunction<ReferenceContract, String, Serializable> attributeExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
@@ -120,7 +125,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		);
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
 			toTargetType(
-				defaultValueProvider.apply(theState.getReference().getAttribute(cleanAttributeName)),
+				defaultValueProvider.apply(attributeExtractor.apply(theState.getReference(), cleanAttributeName)),
 				itemType, indexedDecimalPlaces
 			)
 		);
@@ -135,6 +140,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Method method,
 		@Nonnull Class<? extends Serializable> itemType,
 		int indexedDecimalPlaces,
+		@Nonnull BiFunction<ReferenceContract, String, Serializable> attributeExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
@@ -145,7 +151,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
 			ofNullable(
 				toTargetType(
-					defaultValueProvider.apply(theState.getReference().getAttribute(cleanAttributeName)),
+					defaultValueProvider.apply(attributeExtractor.apply(theState.getReference(), cleanAttributeName)),
 					itemType, indexedDecimalPlaces
 				)
 			)
@@ -168,6 +174,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Method method,
 		@Nonnull Class<? extends Serializable> itemType,
 		int indexedDecimalPlaces,
+		@Nonnull BiFunction<ReferenceContract, String, Serializable> attributeExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
@@ -178,7 +185,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
 			ofNullable(
 				toTargetType(
-					defaultValueProvider.apply(theState.getReference().getAttribute(cleanAttributeName)),
+					defaultValueProvider.apply(attributeExtractor.apply(theState.getReference(), cleanAttributeName)),
 					itemType, indexedDecimalPlaces
 				)
 			)
@@ -196,19 +203,23 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Method method,
 		@Nonnull Class<? extends Serializable> itemType,
 		int indexedDecimalPlaces,
+		@Nonnull BiFunction<ReferenceContract, String, Serializable> attributeExtractor,
+		@Nonnull TriFunction<ReferenceContract, String, Locale, Serializable> localizedAttributeExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		return method.getParameterCount() == 0 ?
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
 				toTargetType(
-					defaultValueProvider.apply(theState.getReference().getAttribute(cleanAttributeName)),
+					defaultValueProvider.apply(attributeExtractor.apply(theState.getReference(), cleanAttributeName)),
 					itemType, indexedDecimalPlaces
 				)
 			) :
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
 				toTargetType(
-					defaultValueProvider.apply(theState.getReference().getAttribute(cleanAttributeName, (Locale) args[0])),
+					defaultValueProvider.apply(
+						localizedAttributeExtractor.apply(theState.getReference(), cleanAttributeName, (Locale) args[0])
+					),
 					itemType, indexedDecimalPlaces
 				)
 			);
@@ -223,6 +234,8 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Method method,
 		@Nonnull Class<? extends Serializable> itemType,
 		int indexedDecimalPlaces,
+		@Nonnull BiFunction<ReferenceContract, String, Serializable> attributeExtractor,
+		@Nonnull TriFunction<ReferenceContract, String, Locale, Serializable> localizedAttributeExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
@@ -230,7 +243,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
 				ofNullable(
 					toTargetType(
-						defaultValueProvider.apply(theState.getReference().getAttribute(cleanAttributeName)),
+						defaultValueProvider.apply(attributeExtractor.apply(theState.getReference(), cleanAttributeName)),
 						itemType, indexedDecimalPlaces
 					)
 				)
@@ -245,7 +258,11 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
 				ofNullable(
 					toTargetType(
-						defaultValueProvider.apply(theState.getReference().getAttribute(cleanAttributeName, (Locale) args[0])),
+						defaultValueProvider.apply(
+							localizedAttributeExtractor.apply(
+								theState.getReference(), cleanAttributeName, (Locale) args[0]
+							)
+						),
 						itemType, indexedDecimalPlaces
 					)
 				)
@@ -268,6 +285,8 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Method method,
 		@Nonnull Class<? extends Serializable> itemType,
 		int indexedDecimalPlaces,
+		@Nonnull BiFunction<ReferenceContract, String, Serializable> attributeExtractor,
+		@Nonnull TriFunction<ReferenceContract, String, Locale, Serializable> localizedAttributeExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
@@ -275,7 +294,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
 				ofNullable(
 					toTargetType(
-						defaultValueProvider.apply(theState.getReference().getAttribute(cleanAttributeName)),
+						defaultValueProvider.apply(attributeExtractor.apply(theState.getReference(), cleanAttributeName)),
 						itemType, indexedDecimalPlaces
 					)
 				)
@@ -285,7 +304,11 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
 				ofNullable(
 					toTargetType(
-						defaultValueProvider.apply(theState.getReference().getAttribute(cleanAttributeName, (Locale) args[0])),
+						defaultValueProvider.apply(
+							localizedAttributeExtractor.apply(
+								theState.getReference(), cleanAttributeName, (Locale) args[0]
+							)
+						),
 						itemType, indexedDecimalPlaces
 					)
 				)
@@ -354,24 +377,35 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 						}
 					}
 
+					final BiFunction<ReferenceContract, String, Serializable> attributeExtractor =
+						resultWrapper instanceof OptionalProducingOperator ?
+							(reference, attributeName) -> reference.attributeAvailable(attributeName) ? reference.getAttribute(attributeName) : null :
+							ReferenceContract::getAttribute;
+
 					if (attributeSchema.isLocalized()) {
+
+						final TriFunction<ReferenceContract, String, Locale, Serializable> localizedAttributeExtractor =
+							resultWrapper instanceof OptionalProducingOperator ?
+								(reference, attributeName, locale) -> reference.attributeAvailable(attributeName, locale) ? reference.getAttribute(attributeName, locale) : null :
+								ReferenceContract::getAttribute;
+
 						if (collectionType != null && Set.class.isAssignableFrom(collectionType)) {
 							//noinspection unchecked
 							return setOfLocalizedResults(
 								cleanAttributeName, method, itemType, indexedDecimalPlaces,
-								defaultValueProvider, resultWrapper
+								attributeExtractor, localizedAttributeExtractor, defaultValueProvider, resultWrapper
 							);
 						} else if (collectionType != null) {
 							//noinspection unchecked
 							return listOfLocalizedResults(
 								cleanAttributeName, method, itemType, indexedDecimalPlaces,
-								defaultValueProvider, resultWrapper
+								attributeExtractor, localizedAttributeExtractor, defaultValueProvider, resultWrapper
 							);
 						} else {
 							//noinspection unchecked
 							return singleLocalizedResult(
 								cleanAttributeName, method, itemType, indexedDecimalPlaces,
-								defaultValueProvider, resultWrapper
+								attributeExtractor, localizedAttributeExtractor, defaultValueProvider, resultWrapper
 							);
 						}
 					} else {
@@ -383,19 +417,19 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 							//noinspection unchecked
 							return setOfResults(
 								cleanAttributeName, method, itemType, indexedDecimalPlaces,
-								defaultValueProvider, resultWrapper
+								attributeExtractor, defaultValueProvider, resultWrapper
 							);
 						} else if (collectionType != null) {
 							//noinspection unchecked
 							return listOfResults(
 								cleanAttributeName, method, itemType, indexedDecimalPlaces,
-								defaultValueProvider, resultWrapper
+								attributeExtractor, defaultValueProvider, resultWrapper
 							);
 						} else {
 							//noinspection unchecked
 							return singleResult(
 								cleanAttributeName, method, itemType, indexedDecimalPlaces,
-								defaultValueProvider, resultWrapper
+								attributeExtractor, defaultValueProvider, resultWrapper
 							);
 						}
 					}

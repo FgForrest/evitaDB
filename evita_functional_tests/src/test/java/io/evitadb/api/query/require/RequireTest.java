@@ -61,7 +61,7 @@ class RequireTest {
 
 	@Test
 	void shouldRecognizeNecessity() {
-		assertTrue(new Require(facetSummary(), attributeContent()).isNecessary());
+		assertTrue(new Require(facetSummary(), attributeContentAll()).isNecessary());
 		assertTrue(new Require(facetSummary()).isNecessary());
 		assertFalse(new Require().isNecessary());
 	}

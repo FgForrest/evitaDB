@@ -20,7 +20,7 @@ public class PrefilledDataSetTest {
 
 		final SealedEntity theBrand = session.getEntity(
 			ENTITY_BRAND, 1,
-			attributeContent(), dataInLocales(Locale.ENGLISH)
+			attributeContentAll(), dataInLocales(Locale.ENGLISH)
 		).orElseThrow();
 
 		assertEquals("Siemens", theBrand.getAttribute("name"));

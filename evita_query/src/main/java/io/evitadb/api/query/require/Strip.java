@@ -27,7 +27,6 @@ import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -63,7 +62,7 @@ public class Strip extends AbstractRequireConstraintLeaf implements GenericConst
 	}
 
 	@Creator
-	public Strip(@Value Integer offset, @Value Integer limit) {
+	public Strip(Integer offset, Integer limit) {
 		super(
 			Optional.ofNullable(offset).orElse(0),
 			Optional.ofNullable(limit).orElse(20)

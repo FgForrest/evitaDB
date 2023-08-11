@@ -28,7 +28,6 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.ReferenceConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
-import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
@@ -88,7 +87,7 @@ public class ReferenceHaving extends AbstractFilterConstraintContainer implement
 
 	@Creator
 	public ReferenceHaving(@Nonnull @Classifier String referenceName,
-	                       @Nonnull @Child FilterConstraint... filter) {
+	                       @Nonnull FilterConstraint... filter) {
 		super(new Serializable[]{referenceName}, filter);
 	}
 

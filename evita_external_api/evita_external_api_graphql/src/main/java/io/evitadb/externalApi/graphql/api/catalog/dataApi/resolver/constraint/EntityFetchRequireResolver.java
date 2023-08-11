@@ -249,7 +249,8 @@ public class EntityFetchRequireResolver {
 				return hierarchyContent(stopAt, entityFetch);
 			}).or(() -> {
 				if (!selectionSetWrapper.getFields(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name()).isEmpty()) {
-					return Optional.of(hierarchyContent());
+					// we need only direct parent to be able to return parentPrimaryKey
+					return Optional.of(hierarchyContent(stopAt(distance(1))));
 				} else {
 					return Optional.empty();
 				}
@@ -306,8 +307,11 @@ public class EntityFetchRequireResolver {
 		}
 
 		if (selectionSetWrapper.getFields(GraphQLEntityDescriptor.PRICES.name())
-			.stream()
-			.anyMatch(f -> f.getArguments().get(PricesFieldHeaderDescriptor.PRICE_LISTS.name()) == null)) {
+				.stream()
+				.anyMatch(f -> f.getArguments().get(PricesFieldHeaderDescriptor.PRICE_LISTS.name()) == null || f.getArguments().get(PricesFieldHeaderDescriptor.CURRENCY.name()) != null) ||
+			selectionSetWrapper.getFields(GraphQLEntityDescriptor.PRICE.name())
+				.stream()
+				.anyMatch(f -> f.getArguments().get(PriceFieldHeaderDescriptor.CURRENCY.name()) != null)) {
 			return Optional.of(priceContentAll());
 		} else {
 			final Set<String> neededPriceLists = createHashSet(10);

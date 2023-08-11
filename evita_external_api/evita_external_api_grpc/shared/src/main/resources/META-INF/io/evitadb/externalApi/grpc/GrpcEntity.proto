@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package io.evitadb.externalApi.grpc.generated;
 option java_multiple_files = true;
+option csharp_namespace = "EvitaDB";
 
 import "GrpcAttribute.proto";
 import "GrpcPrice.proto";
@@ -10,57 +11,136 @@ import "GrpcEnums.proto";
 import "GrpcEvitaDataTypes.proto";
 import "google/protobuf/wrappers.proto";
 
+// This type represents a reference to any Evita entity and that ne returned by default for all
+// queries that don't require loading additional data.
 message GrpcEntityReference {
+  // Type of entity.
+  // Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+  // entity type entity is uniquely represented by primary key.
   string entityType = 1;
+  // Unique Integer positive number representing the entity. Can be used for fast lookup for
+  // entity (entities). Primary key must be unique within the same entity type.
   int32 primaryKey = 2;
+  // Contains version of this entity and gets increased with any entity type update. Allows to execute
+  // optimistic locking i.e. avoiding parallel modifications.
   int32 version = 3;
 }
 
-message GrpcSealedEntity {
+message GrpcEntityReferenceWithParent {
   string entityType = 1;
   int32 primaryKey = 2;
   int32 version = 3;
+  GrpcEntityReferenceWithParent parent = 4;
+}
+
+// Based on our experience we've designed following data model for handling entities in evitaDB. Model is rather complex
+// but was designed to limit amount of data fetched from database and minimize an amount of data that are indexed and subject
+// to search.
+message GrpcSealedEntity {
+  // Type of entity.
+  // Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+  // entity type entity is uniquely represented by primary key.
+  string entityType = 1;
+  // Unique Integer positive number representing the entity. Can be used for fast lookup for
+  // entity (entities). Primary key must be unique within the same entity type.
+  int32 primaryKey = 2;
+  // Contains version of this entity and gets increased with any entity type update. Allows to execute
+  // optimistic locking i.e. avoiding parallel modifications.
+  int32 version = 3;
+  // Contains version of this entity schema and gets increased with any entity type update. Allows to execute
+  // optimistic locking i.e. avoiding parallel modifications.
   int32 schemaVersion = 4;
+  // Primary key of parent entity.
   google.protobuf.Int32Value parent = 5;
-  repeated GrpcEntityReference parentReference = 6;
-  repeated GrpcSealedEntity parentEntity = 7;
+  // A parent entity reference with its parent hierarchy chain.
+  GrpcEntityReferenceWithParent parentReference = 6;
+  // A parent entity with its parent hierarchy chain.
+  GrpcSealedEntity parentEntity = 7;
+  // Contains global attributes.
   map<string, GrpcEvitaValue> globalAttributes = 8;
+  // Contains localized attributes.
   map<string, GrpcLocalizedAttribute> localizedAttributes = 9;
+  // Prices allows defining set of prices of entity for complex filtering and ordering.
   repeated GrpcPrice prices = 10;
+  // Price for which the entity should be sold. This method can be used only when appropriate
+  // price related constraints are present so that `currency` and `priceList` priority can be extracted from the query.
+  // The moment is either extracted from the query as well (if present) or current date and time is used.
   GrpcPrice priceForSale = 11;
+  // Price inner record handling controls how prices that share same `inner entity id` will behave during filtering and sorting.
   GrpcPriceInnerRecordHandling priceInnerRecordHandling = 12;
+  // Returns a collection of References of this entity. The references represent relations to other evitaDB
+  // entities or external entities in different systems.
   repeated GrpcReference references = 13;
+  // Contains global associated data.
   map<string, GrpcEvitaAssociatedDataValue> globalAssociatedData = 14;
+  // Contains localized associated data.
   map<string, GrpcLocalizedAssociatedData> localizedAssociatedData = 15;
+  // Contains set of all locales that were used for localized attributes or associated data of
+  // this particular entity.
   repeated GrpcLocale locales = 16;
 }
 
+// Response carries entities in a binary format and is part of the PRIVATE API that is used by Java driver. The client
+// that receives the binary data must know how to deserialize them using Kryo deserializers which are internal to
+// the evitaDB (and even if they had been public they could not have been used because Kryo is not ported to other
+// platforms than Java). The response is triggered by BinaryForm query requirement.
 message GrpcBinaryEntity {
+  // Type of entity.
+  // Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+  // entity type entity is uniquely represented by primary key.
   string entityType = 1;
+  // Unique Integer positive number representing the entity. Can be used for fast lookup for
+  // entity (entities). Primary key must be unique within the same entity type.
   int32 primaryKey = 2;
-  int32 schemaVersion = 4;
-  bytes entityStoragePart = 5;
-  repeated bytes attributeStorageParts = 6;
-  repeated bytes associatedDataStorageParts = 7;
-  bytes priceStoragePart = 8;
-  bytes referenceStoragePart = 9;
+  // Contains version of this entity schema and gets increased with any entity type update. Allows to execute
+  // optimistic locking i.e. avoiding parallel modifications.
+  int32 schemaVersion = 3;
+  // Serialized representation of the entity body.
+  bytes entityStoragePart = 4;
+  // Serialized representation of entity attributes.
+  repeated bytes attributeStorageParts = 5;
+  // Serialized representation of entity associated data.
+  repeated bytes associatedDataStorageParts = 6;
+  // Serialized representation of entity prices.
+  bytes priceStoragePart = 7;
+  // Serialized representation of entity references.
+  bytes referenceStoragePart = 8;
 }
 
+// References refer to other entities (of same or different entity type).
+// Allows entity filtering (but not sorting) of the entities by using FacetHaving query
+// and statistics computation if when FacetStatistics requirement is used. Reference
+// is uniquely represented by int positive number (max. (2^63)--1) and string entity type and can be
+// part of multiple reference groups, that are also represented by int and string entity type.
+
+// Reference id in one entity is unique and belongs to single reference group id. Among multiple entities reference may be part
+// of different reference groups. Referenced entity type may represent type of another Evita entity or may refer
+// to anything unknown to Evita that posses unique int key and is maintained by external systems (fe. tag assignment,
+// group assignment, category assignment, stock assignment and so on). Not all these data needs to be present in
+// Evita.
+
+// References may carry additional key-value data linked to this entity relation (fe. item count present on certain stock).
 message GrpcReference {
+  // Name of the reference
   string referenceName = 1;
+  // Contains version of this reference and gets increased with any entity type update. Allows to execute
+  // optimistic locking i.e. avoiding parallel modifications.
   int32 version = 2;
+  // Returns entity reference of the referenced entity in case its fetching was requested via entityFetch constraint.
   GrpcEntityReference referencedEntityReference = 3;
+  // Returns body of the referenced entity in case its fetching was requested via entityFetch constraint.
   GrpcSealedEntity referencedEntity = 4;
+  // Returns the referenced entity in case its fetching was requested via entityGroupFetch constraint.
   oneof groupReferenceType {
+    // Returns entity reference of the referenced entity in case its fetching was requested via entityGroupFetch constraint.
     GrpcEntityReference groupReferencedEntityReference = 5;
+    // Returns body of the referenced entity in case its fetching was requested via entityGroupFetch constraint.
     GrpcSealedEntity groupReferencedEntity = 6;
   }
+  // Contains global attributes.
   map<string, GrpcEvitaValue> globalAttributes = 7;
+  // Contains localized attributes.
   map<string, GrpcLocalizedAttribute> localizedAttributes = 8;
+  // Contains reference cardinality.
   GrpcCardinality referenceCardinality = 9;
 }
-
-message GrpcTypeReferences {
-  repeated GrpcReference references = 1;
-}
-

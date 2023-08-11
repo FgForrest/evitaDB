@@ -31,11 +31,19 @@ public interface GrpcModifyReferenceSchemaRelatedEntityGroupMutationOrBuilder ex
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the reference the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
   java.lang.String getName();
   /**
+   * <pre>
+   * Name of the reference the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -43,21 +51,40 @@ public interface GrpcModifyReferenceSchemaRelatedEntityGroupMutationOrBuilder ex
       getNameBytes();
 
   /**
+   * <pre>
+   * Reference to `EntitySchema.name` of the referenced group entity. Might be also any `String`
+   * that identifies type some external resource not maintained by Evita.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue referencedGroupType = 2;</code>
    * @return Whether the referencedGroupType field is set.
    */
   boolean hasReferencedGroupType();
   /**
+   * <pre>
+   * Reference to `EntitySchema.name` of the referenced group entity. Might be also any `String`
+   * that identifies type some external resource not maintained by Evita.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue referencedGroupType = 2;</code>
    * @return The referencedGroupType.
    */
   com.google.protobuf.StringValue getReferencedGroupType();
   /**
+   * <pre>
+   * Reference to `EntitySchema.name` of the referenced group entity. Might be also any `String`
+   * that identifies type some external resource not maintained by Evita.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue referencedGroupType = 2;</code>
    */
   com.google.protobuf.StringValueOrBuilder getReferencedGroupTypeOrBuilder();
 
   /**
+   * <pre>
+   * Whether `referencedGroupType` refers to any existing `EntitySchema.name` that is maintained by Evita.
+   * </pre>
+   *
    * <code>bool referencedGroupTypeManaged = 3;</code>
    * @return The referencedGroupTypeManaged.
    */

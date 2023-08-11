@@ -150,6 +150,10 @@ public class DataGenerator {
 	 */
 	private final Function<Faker, PriceInnerRecordHandling> priceInnerRecordHandlingGenerator;
 	/**
+	 * Holds custom generators for specific entity attributes.
+	 */
+	private final Map<EntityAttribute, Function<Faker, Object>> valueGenerators = new HashMap<>();
+	/**
 	 * Holds information about created hierarchies for generated / modified entities indexed by their type.
 	 */
 	private final PMPTT hierarchies = new PMPTT(new MemoryStorage());
@@ -231,6 +235,7 @@ public class DataGenerator {
 		@Nonnull Map<Object, Integer> uniqueSequencer,
 		@Nonnull SortableAttributesChecker sortableAttributesHolder,
 		@Nonnull Predicate<String> attributeFilter, Function<Locale, Faker> localeFaker,
+		@Nonnull Map<EntityAttribute, Function<Faker, Object>> valueGenerators,
 		@Nonnull Faker genericFaker,
 		@Nonnull AttributesEditor<?> attributesEditor,
 		@Nonnull Collection<Locale> usedLocales,
@@ -246,12 +251,14 @@ public class DataGenerator {
 				// randomly skip attributes
 				continue;
 			}
+
+			final Function<Faker, Object> valueGenerator = valueGenerators.get(new EntityAttribute(entityType, attributeName));
 			if (attribute.isLocalized()) {
 				final Collection<Locale> localesToGenerate = attribute.isNullable() ? usedLocales : allLocales;
 				for (Locale usedLocale : localesToGenerate) {
 					generateAndSetAttribute(
 						globalUniqueSequencer, uniqueSequencer, sortableAttributesHolder,
-						attributesEditor, attribute, type, entityType, attributeName,
+						attributesEditor, attribute, type, entityType, attributeName, valueGenerator,
 						localeFaker.apply(usedLocale),
 						value -> attributesEditor.setAttribute(attributeName, usedLocale, value)
 					);
@@ -259,7 +266,7 @@ public class DataGenerator {
 			} else {
 				generateAndSetAttribute(
 					globalUniqueSequencer, uniqueSequencer, sortableAttributesHolder,
-					attributesEditor, attribute, type, entityType, attributeName, genericFaker,
+					attributesEditor, attribute, type, entityType, attributeName, valueGenerator, genericFaker,
 					value -> attributesEditor.setAttribute(attributeName, value)
 				);
 			}
@@ -462,7 +469,7 @@ public class DataGenerator {
 									uniqueSequencer,
 									sortableAttributesHolder,
 									attributePredicate,
-									localeFaker, genericFaker, thatIs, usedLocales, allLocales
+									localeFaker, Collections.emptyMap(), genericFaker, thatIs, usedLocales, allLocales
 								)
 							);
 						}
@@ -482,6 +489,7 @@ public class DataGenerator {
 		@Nonnull Class<? extends Serializable> type,
 		@Nonnull String entityType,
 		@Nonnull String attributeName,
+		@Nullable Function<Faker, Object> valueGenerator,
 		@Nonnull Faker fakerToUse,
 		@Nonnull Consumer<T> generatedValueWriter
 	) {
@@ -490,7 +498,9 @@ public class DataGenerator {
 		do {
 			final Map<Object, Integer> chosenUniqueSequencer = attribute instanceof GlobalAttributeSchemaContract globalAttributeSchema && globalAttributeSchema.isUniqueGlobally() ?
 				globalUniqueSequencer : uniqueSequencer;
-			if (String.class.equals(type)) {
+			if (valueGenerator != null) {
+				value = valueGenerator.apply(fakerToUse);
+			} else if (String.class.equals(type)) {
 				value = generateRandomString(chosenUniqueSequencer, attributesBuilder, attribute, entityType, attributeName, fakerToUse);
 			} else if (type.isArray() && String.class.equals(type.getComponentType())) {
 				final String[] randomArray = new String[fakerToUse.random().nextInt(8)];
@@ -540,7 +550,7 @@ public class DataGenerator {
 			} else {
 				throw new IllegalArgumentException("Unsupported auto-generated value type: " + type);
 			}
-			if (attribute.isSortable()) {
+			if (valueGenerator == null && attribute.isSortable()) {
 				value = sortableAttributesChecker.getUniqueAttribute(attributeName, value);
 			}
 		} while (value == null && sanityCheck++ < 1000);
@@ -844,7 +854,12 @@ public class DataGenerator {
 
 			final List<Locale> usedLocales = pickRandomFromSet(genericFaker, allLocales);
 
-			generateRandomAttributes(schema.getName(), schema.getAttributes().values(), globalUniqueSequencer, uniqueSequencer, sortableAttributesHolder, TRUE_PREDICATE, localizedFakerFetcher, genericFaker, detachedBuilder, usedLocales, allLocales);
+			generateRandomAttributes(
+				schema.getName(), schema.getAttributes().values(),
+				globalUniqueSequencer, uniqueSequencer, sortableAttributesHolder, TRUE_PREDICATE, localizedFakerFetcher,
+				this.valueGenerators,
+				genericFaker, detachedBuilder, usedLocales, allLocales
+			);
 			generateRandomAssociatedData(schema, genericFaker, detachedBuilder, usedLocales, allLocales);
 
 			generateRandomPrices(schema, uniqueSequencer, genericFaker, allCurrencies, allPriceLists, detachedBuilder, priceInnerRecordHandlingGenerator);
@@ -870,7 +885,8 @@ public class DataGenerator {
 
 		return new ModificationFunction(
 			genericFaker, hierarchies, uniqueSequencer, sortableAttributesChecker, allCurrencies, allPriceLists,
-			priceInnerRecordHandlingGenerator, referencedEntityResolver, localizedFakerFetcher, parameterIndex
+			priceInnerRecordHandlingGenerator, referencedEntityResolver, localizedFakerFetcher, parameterIndex,
+			valueGenerators
 		);
 	}
 
@@ -1228,6 +1244,19 @@ public class DataGenerator {
 	}
 
 	/**
+	 * Registers value generator for passed entity type / attribute combination.
+	 * @param entityType
+	 * @param attributeName
+	 * @param valueGenerator
+	 */
+	public void registerValueGenerator(
+		@Nonnull String entityType,
+		@Nonnull String attributeName,
+		@Nonnull Function<Faker, Object> valueGenerator) {
+		this.valueGenerators.put(new EntityAttribute(entityType, attributeName), valueGenerator);
+	}
+
+	/**
 	 * Registers attributes `code` and `url` that may be defined on the catalog level.
 	 */
 	private void addPossiblyGlobalAttributes(@Nonnull EvitaSessionContract evitaSession, @Nonnull EntitySchemaEditor.EntitySchemaBuilder schemaBuilder, @Nonnull String... attributeNames) {
@@ -1359,6 +1388,7 @@ public class DataGenerator {
 		private final BiFunction<String, Faker, Integer> referencedEntityResolver;
 		private final Function<Locale, Faker> localizedFakerFetcher;
 		private final Map<Integer, Integer> parameterIndex;
+		private final Map<EntityAttribute, Function<Faker, Object>> valueGenerators;
 
 		@Override
 		public EntityBuilder apply(@Nonnull SealedEntity existingEntity) {
@@ -1380,7 +1410,7 @@ public class DataGenerator {
 
 			// randomly delete hierarchy placement
 			if (detachedBuilder.getSchema().isWithHierarchy()) {
-				if (detachedBuilder.getParent().isPresent() && genericFaker.random().nextInt(3) == 0) {
+				if (detachedBuilder.getParentEntity().isPresent() && genericFaker.random().nextInt(3) == 0) {
 					detachedBuilder.removeParent();
 				}
 				generateRandomHierarchy(schema, referencedEntityResolver, getHierarchyIfNeeded(hierarchies, schema), genericFaker, detachedBuilder);
@@ -1397,7 +1427,7 @@ public class DataGenerator {
 			}
 			generateRandomAttributes(
 				schema.getName(), schema.getAttributes().values(), globalUniqueSequencer, uniqueSequencer, sortableAttributesHolder,
-				TRUE_PREDICATE, localizedFakerFetcher, genericFaker, detachedBuilder, usedLocales, allLocales
+				TRUE_PREDICATE, localizedFakerFetcher, valueGenerators, genericFaker, detachedBuilder, usedLocales, allLocales
 			);
 
 			// randomly delete associated data
@@ -1433,5 +1463,16 @@ public class DataGenerator {
 			return detachedBuilder;
 		}
 	}
+
+	/**
+	 * Tuple for entity type / attribute combination.
+	 *
+	 * @param entityType
+	 * @param attributeName
+	 */
+	private record EntityAttribute(
+		@Nonnull String entityType,
+		@Nonnull String attributeName
+	) {}
 
 }

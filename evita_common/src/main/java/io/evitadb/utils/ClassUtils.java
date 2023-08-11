@@ -52,6 +52,13 @@ public class ClassUtils {
 	}
 
 	/**
+	 * Whether method lacks its implementation.
+	 */
+	public static boolean isAbstract(@Nonnull Method method) {
+		return Modifier.isAbstract(method.getModifiers());
+	}
+
+	/**
 	 * Returns true if the method is abstract or default.
 	 */
 	public static boolean isAbstractOrDefault(@Nonnull Method method) {

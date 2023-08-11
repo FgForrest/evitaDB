@@ -71,6 +71,7 @@ public class GetPrimaryKeyMethodClassifier extends DirectMethodClassification<Ob
 				if (primaryKey != null || primaryKeyRef != null || (
 					!reflectionLookup.hasAnnotationInSamePackage(method, PrimaryKey.class) &&
 						Number.class.isAssignableFrom(toWrappedForm(valueType)) &&
+						ClassUtils.isAbstract(method) &&
 						propertyName
 							.map(PrimaryKeyRef.POSSIBLE_ARGUMENT_NAMES::contains)
 							.orElse(false)

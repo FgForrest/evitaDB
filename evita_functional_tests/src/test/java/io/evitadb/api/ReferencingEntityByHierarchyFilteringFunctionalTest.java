@@ -183,13 +183,13 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				.toList();
 
 			final List<SealedEntity> categoriesAvailable = storedCategories.stream()
-				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), hierarchyContent(), attributeContent(), referenceContentAll(), dataInLocales()).orElseThrow())
+				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), hierarchyContent(), attributeContentAll(), referenceContentAll(), dataInLocalesAll()).orElseThrow())
 				.toList();
 			return new DataCarrier(
 				tuple(
 					"originalProductEntities",
 					storedProducts.stream()
-						.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContent(), referenceContentAll(), dataInLocales()).orElseThrow())
+						.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContentAll(), referenceContentAll(), dataInLocalesAll()).orElseThrow())
 						.collect(Collectors.toList())
 				),
 				tuple(
@@ -713,7 +713,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								REMOVE_EMPTY,
 								fromRoot(
 									"megaMenu",
-									entityFetch(attributeContent(), dataInLocales(CZECH_LOCALE))
+									entityFetch(attributeContentAll(), dataInLocales(CZECH_LOCALE))
 								)
 							)
 						)
@@ -775,7 +775,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								Entities.CATEGORY,
 								fromRoot(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
@@ -838,7 +838,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								LEAVE_EMPTY,
 								fromRoot(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
@@ -908,7 +908,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								Entities.CATEGORY,
 								fromRoot(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
@@ -977,7 +977,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								Entities.CATEGORY,
 								siblings(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
@@ -1049,7 +1049,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								fromNode(
 									"megaMenu",
 									node(filterBy(entityPrimaryKeyInSet(2))),
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
@@ -1126,7 +1126,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								Entities.CATEGORY,
 								fromRoot(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									stopAt(distance(1)),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
@@ -1199,7 +1199,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								Entities.CATEGORY,
 								children(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									stopAt(distance(1)),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
@@ -1277,7 +1277,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								Entities.CATEGORY,
 								siblings(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									stopAt(distance(1)),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
@@ -1356,7 +1356,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								fromNode(
 									"megaMenu",
 									node(filterBy(entityPrimaryKeyInSet(1))),
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									stopAt(distance(1)),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
@@ -1432,7 +1432,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								Entities.CATEGORY,
 								children(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									stopAt(distance(1)),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
@@ -1503,7 +1503,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								Entities.CATEGORY,
 								fromRoot(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									stopAt(node(filterBy(attributeEqualsTrue(ATTRIBUTE_SHORTCUT)))),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
@@ -1516,8 +1516,8 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) ->
 					languagePredicate.test(sealedEntity, parentItems) &&
-						(sealedEntity.getParent().isEmpty() ||
-							!originalCategoryIndex.get(sealedEntity.getParent().getAsInt()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
+						(sealedEntity.getParentEntity().isEmpty() ||
+							!originalCategoryIndex.get(sealedEntity.getParentEntity().get().getPrimaryKey()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
 					categoryHierarchy, originalProductEntities, originalCategoryIndex,
@@ -1575,7 +1575,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								fromNode(
 									"megaMenu",
 									node(filterBy(entityPrimaryKeyInSet(1))),
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									stopAt(node(filterBy(attributeEqualsTrue(ATTRIBUTE_SHORTCUT)))),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
@@ -1592,8 +1592,8 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							.stream()
 							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
 					return languagePredicate.test(sealedEntity, parentItems) && withinCategory1 &&
-						(sealedEntity.getParent().isEmpty() ||
-							!originalCategoryIndex.get(sealedEntity.getParent().getAsInt()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
+						(sealedEntity.getParentEntity().isEmpty() ||
+							!originalCategoryIndex.get(sealedEntity.getParentEntity().get().getPrimaryKey()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
@@ -1652,7 +1652,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								Entities.CATEGORY,
 								children(
 									"megaMenu",
-									entityFetch(attributeContent()),
+									entityFetch(attributeContentAll()),
 									stopAt(node(filterBy(attributeEqualsTrue(ATTRIBUTE_SHORTCUT)))),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
@@ -1669,8 +1669,8 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							.stream()
 							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
 					return languagePredicate.test(sealedEntity, parentItems) && withinCategory1 &&
-						(sealedEntity.getParent().isEmpty() ||
-							!originalCategoryIndex.get(sealedEntity.getParent().getAsInt()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
+						(sealedEntity.getParentEntity().isEmpty() ||
+							!originalCategoryIndex.get(sealedEntity.getParentEntity().get().getPrimaryKey()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
@@ -1746,8 +1746,8 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							.stream()
 							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
 					return languagePredicate.test(sealedEntity, parentItems) && withinCategory1 &&
-						(sealedEntity.getParent().isEmpty() ||
-							!originalCategoryIndex.get(sealedEntity.getParent().getAsInt()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
+						(sealedEntity.getParentEntity().isEmpty() ||
+							!originalCategoryIndex.get(sealedEntity.getParentEntity().get().getPrimaryKey()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(

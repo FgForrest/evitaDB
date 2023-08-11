@@ -31,23 +31,39 @@ public interface GrpcCatalogNamesResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Names of all existing catalogs.
+   * </pre>
+   *
    * <code>repeated string catalogNames = 1;</code>
    * @return A list containing the catalogNames.
    */
   java.util.List<java.lang.String>
       getCatalogNamesList();
   /**
+   * <pre>
+   * Names of all existing catalogs.
+   * </pre>
+   *
    * <code>repeated string catalogNames = 1;</code>
    * @return The count of catalogNames.
    */
   int getCatalogNamesCount();
   /**
+   * <pre>
+   * Names of all existing catalogs.
+   * </pre>
+   *
    * <code>repeated string catalogNames = 1;</code>
    * @param index The index of the element to return.
    * @return The catalogNames at the given index.
    */
   java.lang.String getCatalogNames(int index);
   /**
+   * <pre>
+   * Names of all existing catalogs.
+   * </pre>
+   *
    * <code>repeated string catalogNames = 1;</code>
    * @param index The index of the value to return.
    * @return The bytes of the catalogNames at the given index.

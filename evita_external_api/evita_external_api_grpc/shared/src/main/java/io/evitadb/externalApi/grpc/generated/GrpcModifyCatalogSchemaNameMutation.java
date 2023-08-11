@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Mutation is responsible for renaming an existing CatalogSchema.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation}
  */
 public final class GrpcModifyCatalogSchemaNameMutation extends
@@ -125,6 +129,10 @@ private static final long serialVersionUID = 0L;
   public static final int CATALOGNAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object catalogName_;
   /**
+   * <pre>
+   * Name of the catalog schema the mutation is targeting (will rename).
+   * </pre>
+   *
    * <code>string catalogName = 1;</code>
    * @return The catalogName.
    */
@@ -142,6 +150,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Name of the catalog schema the mutation is targeting (will rename).
+   * </pre>
+   *
    * <code>string catalogName = 1;</code>
    * @return The bytes for catalogName.
    */
@@ -163,6 +175,10 @@ private static final long serialVersionUID = 0L;
   public static final int NEWCATALOGNAME_FIELD_NUMBER = 2;
   private volatile java.lang.Object newCatalogName_;
   /**
+   * <pre>
+   * The new name of the catalog schema.
+   * </pre>
+   *
    * <code>string newCatalogName = 2;</code>
    * @return The newCatalogName.
    */
@@ -180,6 +196,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * The new name of the catalog schema.
+   * </pre>
+   *
    * <code>string newCatalogName = 2;</code>
    * @return The bytes for newCatalogName.
    */
@@ -201,6 +221,10 @@ private static final long serialVersionUID = 0L;
   public static final int OVERWRITETARGET_FIELD_NUMBER = 3;
   private boolean overwriteTarget_;
   /**
+   * <pre>
+   * Flag indicating whether to replace the existing catalog or just to rename it.
+   * </pre>
+   *
    * <code>bool overwriteTarget = 3;</code>
    * @return The overwriteTarget.
    */
@@ -386,6 +410,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Mutation is responsible for renaming an existing CatalogSchema.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation}
    */
   public static final class Builder extends
@@ -548,6 +576,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object catalogName_ = "";
     /**
+     * <pre>
+     * Name of the catalog schema the mutation is targeting (will rename).
+     * </pre>
+     *
      * <code>string catalogName = 1;</code>
      * @return The catalogName.
      */
@@ -564,6 +596,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the catalog schema the mutation is targeting (will rename).
+     * </pre>
+     *
      * <code>string catalogName = 1;</code>
      * @return The bytes for catalogName.
      */
@@ -581,6 +617,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the catalog schema the mutation is targeting (will rename).
+     * </pre>
+     *
      * <code>string catalogName = 1;</code>
      * @param value The catalogName to set.
      * @return This builder for chaining.
@@ -596,6 +636,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the catalog schema the mutation is targeting (will rename).
+     * </pre>
+     *
      * <code>string catalogName = 1;</code>
      * @return This builder for chaining.
      */
@@ -606,6 +650,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the catalog schema the mutation is targeting (will rename).
+     * </pre>
+     *
      * <code>string catalogName = 1;</code>
      * @param value The bytes for catalogName to set.
      * @return This builder for chaining.
@@ -624,6 +672,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object newCatalogName_ = "";
     /**
+     * <pre>
+     * The new name of the catalog schema.
+     * </pre>
+     *
      * <code>string newCatalogName = 2;</code>
      * @return The newCatalogName.
      */
@@ -640,6 +692,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The new name of the catalog schema.
+     * </pre>
+     *
      * <code>string newCatalogName = 2;</code>
      * @return The bytes for newCatalogName.
      */
@@ -657,6 +713,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The new name of the catalog schema.
+     * </pre>
+     *
      * <code>string newCatalogName = 2;</code>
      * @param value The newCatalogName to set.
      * @return This builder for chaining.
@@ -672,6 +732,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The new name of the catalog schema.
+     * </pre>
+     *
      * <code>string newCatalogName = 2;</code>
      * @return This builder for chaining.
      */
@@ -682,6 +746,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The new name of the catalog schema.
+     * </pre>
+     *
      * <code>string newCatalogName = 2;</code>
      * @param value The bytes for newCatalogName to set.
      * @return This builder for chaining.
@@ -700,6 +768,10 @@ private static final long serialVersionUID = 0L;
 
     private boolean overwriteTarget_ ;
     /**
+     * <pre>
+     * Flag indicating whether to replace the existing catalog or just to rename it.
+     * </pre>
+     *
      * <code>bool overwriteTarget = 3;</code>
      * @return The overwriteTarget.
      */
@@ -708,6 +780,10 @@ private static final long serialVersionUID = 0L;
       return overwriteTarget_;
     }
     /**
+     * <pre>
+     * Flag indicating whether to replace the existing catalog or just to rename it.
+     * </pre>
+     *
      * <code>bool overwriteTarget = 3;</code>
      * @param value The overwriteTarget to set.
      * @return This builder for chaining.
@@ -719,6 +795,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Flag indicating whether to replace the existing catalog or just to rename it.
+     * </pre>
+     *
      * <code>bool overwriteTarget = 3;</code>
      * @return This builder for chaining.
      */

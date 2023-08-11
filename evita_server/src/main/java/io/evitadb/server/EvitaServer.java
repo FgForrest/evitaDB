@@ -194,8 +194,8 @@ public class EvitaServer {
 	private static Map<String, String> parseOptions(String[] args) {
 		final Map<String, String> map = CollectionUtils.createHashMap(args.length);
 		for (String arg : args) {
-			final Matcher javaArgMatcher = OPTION_JAVA_ARGUMENT.matcher(arg);
-			final Matcher gnuArgMatcher = OPTION_GNU_ARGUMENT.matcher(arg);
+			final Matcher javaArgMatcher = OPTION_JAVA_ARGUMENT.matcher(arg.trim());
+			final Matcher gnuArgMatcher = OPTION_GNU_ARGUMENT.matcher(arg.trim());
 			if (javaArgMatcher.matches()) {
 				map.put(javaArgMatcher.group(1), javaArgMatcher.group(2));
 			} else if (gnuArgMatcher.matches()) {

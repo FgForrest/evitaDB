@@ -2,71 +2,106 @@ syntax = "proto3";
 
 package io.evitadb.externalApi.grpc.generated;
 option java_multiple_files = true;
+option csharp_namespace = "EvitaDB";
 
 import "google/protobuf/empty.proto";
 import "GrpcEnums.proto";
 import "GrpcCatalogSchemaMutation.proto";
 import "GrpcChangeDataCapture.proto";
 
+// Request to create a session inside of a catalog.
 message GrpcEvitaSessionRequest {
+  // The name of the catalog for which the session is to be created.
   string catalogName = 1;
+  // For testing purposes. Flag indicating that all changes by the session should be rollbacked after the session is closed.
   bool dryRun = 2;
 }
 
+// Response to a session creation request.
 message GrpcEvitaSessionResponse {
+  // UUID of the created session.
   string sessionId = 1;
+  // Type of the created session.
   GrpcSessionType sessionType = 2;
+  // State of the catalog after the session was created.
   GrpcCatalogState catalogState = 3;
 }
 
+// Request to terminate a session.
 message GrpcEvitaSessionTerminationRequest {
+  // Name of the catalog for which the session is to be terminated.
   string catalogName = 1;
+  // UUID of the session to be terminated.
   string sessionId = 2;
 }
 
+// Response to a session termination request.
 message GrpcEvitaSessionTerminationResponse {
+  // Indicator whether the session was terminated successfully.
   bool terminated = 1;
 }
 
+// Response to a catalog names request.
 message GrpcCatalogNamesResponse {
+  // Names of all existing catalogs.
   repeated string catalogNames = 1;
 }
 
+// Request to define a new catalog.
 message GrpcDefineCatalogRequest {
+  // Name of the catalog to be defined.
   string catalogName = 1;
 }
 
+// Response to a catalog definition request.
 message GrpcDefineCatalogResponse {
+  // Indicator whether the catalog was defined successfully.
   bool success = 1;
 }
 
+// Request to rename a catalog.
 message GrpcRenameCatalogRequest {
+  // Name of the catalog to be renamed.
   string catalogName = 1;
+  // New name of the catalog.
   string newCatalogName = 2;
 }
 
+// Response to a catalog rename request.
 message GrpcRenameCatalogResponse {
+  // Indicator whether the catalog was renamed successfully.
   bool success = 1;
 }
 
+// Request to replace a catalog.
 message GrpcReplaceCatalogRequest {
+  // Name of the catalog that will become the successor of the original catalog (old name)
   string catalogNameToBeReplacedWith = 1;
+  // Name of the catalog that will be replaced and dropped (new name)
   string catalogNameToBeReplaced = 2;
 }
 
+// Response to a catalog replace request.
 message GrpcReplaceCatalogResponse {
+  // Indicator whether the catalog was replaced successfully.
   bool success = 1;
 }
 
+// Request to delete a catalog.
 message GrpcDeleteCatalogIfExistsRequest {
+  // Name of the catalog to be deleted.
   string catalogName = 1;
 }
 
+// Response to a catalog deletion request.
 message GrpcDeleteCatalogIfExistsResponse {
+  // Indicator whether the catalog was deleted successfully.
   bool success = 1;
 }
 
+// Request to update the catalog.
 message GrpcUpdateEvitaRequest {
+  // Collection of top level catalog schema mutations to be applied.
   repeated GrpcTopLevelCatalogSchemaMutation schemaMutations = 1;
 }
 
@@ -88,17 +123,30 @@ message GrpcUnregisterSystemChangeCaptureResponse {
   bool success = 1;
 }
 
+// This service contains RPCs that could be called by gRPC clients on evitaDB. Main purpose of this service is to provide
+// a way to create sessions and catalogs, and to update the catalog.
 service EvitaService {
+  // Procedure used to create read only sessions.
   rpc CreateReadOnlySession(GrpcEvitaSessionRequest) returns (GrpcEvitaSessionResponse);
+  // Procedure used to create read write sessions.
   rpc CreateReadWriteSession(GrpcEvitaSessionRequest) returns (GrpcEvitaSessionResponse);
+  // Procedure used to create read-only session which will return data in binary format. Part of the Private API.
   rpc CreateBinaryReadOnlySession(GrpcEvitaSessionRequest) returns (GrpcEvitaSessionResponse);
+  // Procedure used to create read-write session which will return data in binary format. Part of the Private API.
   rpc CreateBinaryReadWriteSession(GrpcEvitaSessionRequest) returns (GrpcEvitaSessionResponse);
+  // Procedure used to terminate existing session.
   rpc TerminateSession(GrpcEvitaSessionTerminationRequest) returns (GrpcEvitaSessionTerminationResponse);
+  // Procedure used to get names of all existing catalogs.
   rpc GetCatalogNames(google.protobuf.Empty) returns (GrpcCatalogNamesResponse);
+  // Procedure used to define a new catalog.
   rpc DefineCatalog(GrpcDefineCatalogRequest) returns (GrpcDefineCatalogResponse);
+  // Procedure used to rename an existing catalog.
   rpc RenameCatalog(GrpcRenameCatalogRequest) returns (GrpcRenameCatalogResponse);
+  // Procedure used to replace an existing catalog.
   rpc ReplaceCatalog(GrpcReplaceCatalogRequest) returns (GrpcReplaceCatalogResponse);
+  // Procedure used to delete an existing catalog.
   rpc DeleteCatalogIfExists(GrpcDeleteCatalogIfExistsRequest) returns (GrpcDeleteCatalogIfExistsResponse);
+  // Procedure used to update the catalog with a set of mutations.
   rpc Update(GrpcUpdateEvitaRequest) returns (google.protobuf.Empty);
 
   rpc RegisterSystemChangeCapture(GrpcRegisterSystemChangeCaptureRequest) returns (stream GrpcRegisterSystemChangeCaptureResponse);

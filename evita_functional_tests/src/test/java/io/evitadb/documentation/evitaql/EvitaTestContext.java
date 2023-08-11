@@ -25,10 +25,10 @@ package io.evitadb.documentation.evitaql;
 
 import io.evitadb.api.EvitaContract;
 import io.evitadb.documentation.TestContext;
-import io.evitadb.test.client.query.graphql.GraphQLQueryConverter;
-import io.evitadb.test.client.query.rest.RestQueryConverter;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.EvitaClientConfiguration;
+import io.evitadb.test.client.query.graphql.GraphQLQueryConverter;
+import io.evitadb.test.client.query.rest.RestQueryConverter;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;

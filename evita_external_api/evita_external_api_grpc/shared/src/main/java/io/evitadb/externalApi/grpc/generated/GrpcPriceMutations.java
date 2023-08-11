@@ -84,7 +84,7 @@ public final class GrpcPriceMutations {
       "\n\027GrpcRemovePriceMutation\022\017\n\007priceId\030\001 \001" +
       "(\005\022\021\n\tpriceList\030\002 \001(\t\022E\n\010currency\030\003 \001(\0132" +
       "3.io.evitadb.externalApi.grpc.generated." +
-      "GrpcCurrencyB\002P\001b\006proto3"
+      "GrpcCurrencyB\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

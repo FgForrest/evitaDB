@@ -31,31 +31,55 @@ public interface GrpcIntegerNumberRangeOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The lower bound of the range.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value from = 1;</code>
    * @return Whether the from field is set.
    */
   boolean hasFrom();
   /**
+   * <pre>
+   * The lower bound of the range.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value from = 1;</code>
    * @return The from.
    */
   com.google.protobuf.Int32Value getFrom();
   /**
+   * <pre>
+   * The lower bound of the range.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value from = 1;</code>
    */
   com.google.protobuf.Int32ValueOrBuilder getFromOrBuilder();
 
   /**
+   * <pre>
+   * The upper bound of the range.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value to = 2;</code>
    * @return Whether the to field is set.
    */
   boolean hasTo();
   /**
+   * <pre>
+   * The upper bound of the range.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value to = 2;</code>
    * @return The to.
    */
   com.google.protobuf.Int32Value getTo();
   /**
+   * <pre>
+   * The upper bound of the range.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value to = 2;</code>
    */
   com.google.protobuf.Int32ValueOrBuilder getToOrBuilder();

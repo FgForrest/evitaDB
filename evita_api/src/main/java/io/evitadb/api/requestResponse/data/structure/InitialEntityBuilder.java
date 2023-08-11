@@ -67,7 +67,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -246,14 +245,9 @@ public class InitialEntityBuilder implements EntityBuilder {
 
 	@Nonnull
 	@Override
-	public OptionalInt getParent() {
-		return parent == null ? OptionalInt.empty() : OptionalInt.of(parent);
-	}
-
-	@Nonnull
-	@Override
 	public Optional<EntityClassifierWithParent> getParentEntity() {
-		return Optional.empty();
+		return ofNullable(parent)
+			.map(it -> new EntityReferenceWithParent(type, it, null));
 	}
 
 	@Override
@@ -261,6 +255,10 @@ public class InitialEntityBuilder implements EntityBuilder {
 		return true;
 	}
 
+	@Override
+	public boolean referencesAvailable(@Nonnull String referenceName) {
+		return true;
+	}
 	@Nonnull
 	@Override
 	public Collection<ReferenceContract> getReferences() {

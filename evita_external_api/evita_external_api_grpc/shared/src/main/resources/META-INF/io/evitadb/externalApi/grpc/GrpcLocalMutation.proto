@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package io.evitadb.externalApi.grpc.generated;
 option java_multiple_files = true;
+option csharp_namespace = "EvitaDB";
 
 import "GrpcAttributeMutations.proto";
 import "GrpcAssociatedDataMutations.proto";
@@ -9,22 +10,44 @@ import "GrpcPriceMutations.proto";
 import "GrpcEntityMutations.proto";
 import "GrpcReferenceMutations.proto";
 
+// Contains all possible local mutations to perform on entity.
 message GrpcLocalMutation {
+  // The mutation to be performed.
   oneof mutation {
+    // Increments or decrements existing numeric value by specified delta (negative number produces decremental of
+    // existing number, positive one incrementation).
+    //
+    // Allows to specify the number range that is tolerated for the value after delta application has been finished to
+    // verify for example that number of items on stock doesn't go below zero.
     GrpcApplyDeltaAttributeMutation applyDeltaAttributeMutation = 1;
+    // Upsert attribute mutation will either update existing attribute or create new one.
     GrpcUpsertAttributeMutation upsertAttributeMutation = 2;
+    // Remove attribute mutation will drop existing attribute - ie.generates new version of the attribute with tombstone on it.
     GrpcRemoveAttributeMutation removeAttributeMutation = 3;
+    // Upsert associatedData mutation will either update existing associatedData or create new one.
     GrpcUpsertAssociatedDataMutation upsertAssociatedDataMutation = 4;
+    // Remove associated data mutation will drop existing associatedData - ie.generates new version of the associated
+    // data with tombstone on it.
     GrpcRemoveAssociatedDataMutation removeAssociatedDataMutation = 5;
+    // This mutation allows to create / update `price` of the entity.
     GrpcUpsertPriceMutation upsertPriceMutation = 6;
+    // This mutation allows to remove existing `price` of the entity.
     GrpcRemovePriceMutation removePriceMutation = 7;
+    // This mutation allows to set / remove `priceInnerRecordHandling` behaviour of the entity.
     GrpcSetPriceInnerRecordHandlingMutation setPriceInnerRecordHandlingMutation = 8;
+    // This mutation allows to set `parent` in the `entity`.
     GrpcSetParentMutation setParentMutation = 9;
+    // This mutation allows to remove `parent` from the `entity`.
     GrpcRemoveParentMutation removeParentMutation = 10;
+    // This mutation allows to create a reference in the entity.
     GrpcInsertReferenceMutation insertReferenceMutation = 11;
+    // This mutation allows to remove a reference from the entity.
     GrpcRemoveReferenceMutation removeReferenceMutation = 12;
+    // This mutation allows to create / update group of the reference.
     GrpcSetReferenceGroupMutation setReferenceGroupMutation = 13;
+    // This mutation allows to remove group in the reference.
     GrpcRemoveReferenceGroupMutation removeReferenceGroupMutation = 14;
+    // This mutation allows to create / update / remove attribute of the reference.
     GrpcReferenceAttributeMutation referenceAttributeMutation = 15;
   }
 }

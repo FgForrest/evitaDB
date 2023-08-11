@@ -47,7 +47,7 @@ in the set. To access the dataset on your hardware, you need to:
 
 1. [download the archive with the dataset](https://evitadb.io/download/evita-demo-dataset.zip)
    ```bash
-   wget https://evitadb.io/download/evita-demo-data.zip
+   wget https://evitadb.io/download/evita-demo-dataset.zip
    ```
 
 2. unzip the contents to the `data` folder
@@ -76,7 +76,7 @@ When this procedure is completed you should see the similar output in the consol
 |  __/\ V /| | || (_| | |_| | |_) |
  \___| \_/ |_|\__\__,_|____/|____/ 
 
-alpha build 0.7-SNAPSHOT
+alpha build 0.8.ALPHA
 Visit us at: https://evitadb.io
 
 19:45:37.088 INFO  i.e.s.c.DefaultCatalogPersistenceService - Catalog `evita` is being loaded and  it contains:

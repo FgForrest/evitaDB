@@ -28,7 +28,6 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -67,7 +66,7 @@ public class EntityPrimaryKeyInSet extends AbstractFilterConstraintLeaf
 	}
 
 	@Creator(implicitClassifier = "primaryKey")
-	public EntityPrimaryKeyInSet(@Nonnull @Value Integer... primaryKeys) {
+	public EntityPrimaryKeyInSet(@Nonnull Integer... primaryKeys) {
 		super(primaryKeys);
 	}
 

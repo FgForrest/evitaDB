@@ -31,64 +31,112 @@ public interface GrpcQueryTelemetryOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Phase of the query processing.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPhase operation = 1;</code>
    * @return The enum numeric value on the wire for operation.
    */
   int getOperationValue();
   /**
+   * <pre>
+   * Phase of the query processing.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPhase operation = 1;</code>
    * @return The operation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcQueryPhase getOperation();
 
   /**
+   * <pre>
+   * Date and time of the start of this step in nanoseconds.
+   * </pre>
+   *
    * <code>int64 start = 2;</code>
    * @return The start.
    */
   long getStart();
 
   /**
+   * <pre>
+   * Internal steps of this telemetry step (operation decomposition).
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry> 
       getStepsList();
   /**
+   * <pre>
+   * Internal steps of this telemetry step (operation decomposition).
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry getSteps(int index);
   /**
+   * <pre>
+   * Internal steps of this telemetry step (operation decomposition).
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
    */
   int getStepsCount();
   /**
+   * <pre>
+   * Internal steps of this telemetry step (operation decomposition).
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder> 
       getStepsOrBuilderList();
   /**
+   * <pre>
+   * Internal steps of this telemetry step (operation decomposition).
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder getStepsOrBuilder(
       int index);
 
   /**
+   * <pre>
+   * Arguments of the processing phase.
+   * </pre>
+   *
    * <code>repeated string arguments = 4;</code>
    * @return A list containing the arguments.
    */
   java.util.List<java.lang.String>
       getArgumentsList();
   /**
+   * <pre>
+   * Arguments of the processing phase.
+   * </pre>
+   *
    * <code>repeated string arguments = 4;</code>
    * @return The count of arguments.
    */
   int getArgumentsCount();
   /**
+   * <pre>
+   * Arguments of the processing phase.
+   * </pre>
+   *
    * <code>repeated string arguments = 4;</code>
    * @param index The index of the element to return.
    * @return The arguments at the given index.
    */
   java.lang.String getArguments(int index);
   /**
+   * <pre>
+   * Arguments of the processing phase.
+   * </pre>
+   *
    * <code>repeated string arguments = 4;</code>
    * @param index The index of the value to return.
    * @return The bytes of the arguments at the given index.
@@ -97,6 +145,10 @@ public interface GrpcQueryTelemetryOrBuilder extends
       getArgumentsBytes(int index);
 
   /**
+   * <pre>
+   * Duration in nanoseconds.
+   * </pre>
+   *
    * <code>int64 spentTime = 5;</code>
    * @return The spentTime.
    */

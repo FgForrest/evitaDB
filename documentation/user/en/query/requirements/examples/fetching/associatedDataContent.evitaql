@@ -1,0 +1,12 @@
+query(
+    collection('Brand'),
+    filterBy(
+        entityPrimaryKeyInSet(64703),
+        entityLocaleEquals('en')
+    ),
+    require(
+        entityFetch(
+            associatedDataContent('allActiveUrls', 'localization')
+        )
+    )
+)

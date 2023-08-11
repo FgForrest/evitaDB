@@ -96,8 +96,8 @@ public final class GrpcLocalMutationOuterClass {
       "moveReferenceGroupMutationH\000\022k\n\032referenc" +
       "eAttributeMutation\030\017 \001(\0132E.io.evitadb.ex" +
       "ternalApi.grpc.generated.GrpcReferenceAt" +
-      "tributeMutationH\000B\n\n\010mutationB\002P\001b\006proto" +
-      "3"
+      "tributeMutationH\000B\n\n\010mutationB\014P\001\252\002\007Evit" +
+      "aDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Request for updating the catalog schema.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest}
  */
 public final class GrpcUpdateCatalogSchemaRequest extends
@@ -120,6 +124,10 @@ private static final long serialVersionUID = 0L;
   public static final int SCHEMAMUTATIONS_FIELD_NUMBER = 1;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation> schemaMutations_;
   /**
+   * <pre>
+   * Collection of local catalog schema mutations to be applied.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
    */
   @java.lang.Override
@@ -127,6 +135,10 @@ private static final long serialVersionUID = 0L;
     return schemaMutations_;
   }
   /**
+   * <pre>
+   * Collection of local catalog schema mutations to be applied.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
    */
   @java.lang.Override
@@ -135,6 +147,10 @@ private static final long serialVersionUID = 0L;
     return schemaMutations_;
   }
   /**
+   * <pre>
+   * Collection of local catalog schema mutations to be applied.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
    */
   @java.lang.Override
@@ -142,6 +158,10 @@ private static final long serialVersionUID = 0L;
     return schemaMutations_.size();
   }
   /**
+   * <pre>
+   * Collection of local catalog schema mutations to be applied.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
    */
   @java.lang.Override
@@ -149,6 +169,10 @@ private static final long serialVersionUID = 0L;
     return schemaMutations_.get(index);
   }
   /**
+   * <pre>
+   * Collection of local catalog schema mutations to be applied.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
    */
   @java.lang.Override
@@ -315,6 +339,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Request for updating the catalog schema.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest}
    */
   public static final class Builder extends
@@ -512,6 +540,10 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutationOrBuilder> schemaMutationsBuilder_;
 
     /**
+     * <pre>
+     * Collection of local catalog schema mutations to be applied.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation> getSchemaMutationsList() {
@@ -522,6 +554,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Collection of local catalog schema mutations to be applied.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
      */
     public int getSchemaMutationsCount() {
@@ -532,6 +568,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Collection of local catalog schema mutations to be applied.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation getSchemaMutations(int index) {
@@ -542,6 +582,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Collection of local catalog schema mutations to be applied.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
      */
     public Builder setSchemaMutations(
@@ -559,6 +603,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of local catalog schema mutations to be applied.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
      */
     public Builder setSchemaMutations(
@@ -573,6 +621,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of local catalog schema mutations to be applied.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
      */
     public Builder addSchemaMutations(io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation value) {
@@ -589,6 +641,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of local catalog schema mutations to be applied.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
      */
     public Builder addSchemaMutations(
@@ -606,6 +662,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of local catalog schema mutations to be applied.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
      */
     public Builder addSchemaMutations(
@@ -620,6 +680,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of local catalog schema mutations to be applied.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
      */
     public Builder addSchemaMutations(
@@ -634,6 +698,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of local catalog schema mutations to be applied.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
      */
     public Builder addAllSchemaMutations(
@@ -649,6 +717,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of local catalog schema mutations to be applied.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
      */
     public Builder clearSchemaMutations() {
@@ -662,6 +734,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of local catalog schema mutations to be applied.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
      */
     public Builder removeSchemaMutations(int index) {
@@ -675,6 +751,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Collection of local catalog schema mutations to be applied.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.Builder getSchemaMutationsBuilder(
@@ -682,6 +762,10 @@ private static final long serialVersionUID = 0L;
       return getSchemaMutationsFieldBuilder().getBuilder(index);
     }
     /**
+     * <pre>
+     * Collection of local catalog schema mutations to be applied.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutationOrBuilder getSchemaMutationsOrBuilder(
@@ -692,6 +776,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Collection of local catalog schema mutations to be applied.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutationOrBuilder> 
@@ -703,6 +791,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Collection of local catalog schema mutations to be applied.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.Builder addSchemaMutationsBuilder() {
@@ -710,6 +802,10 @@ private static final long serialVersionUID = 0L;
           io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Collection of local catalog schema mutations to be applied.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.Builder addSchemaMutationsBuilder(
@@ -718,6 +814,10 @@ private static final long serialVersionUID = 0L;
           index, io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.getDefaultInstance());
     }
     /**
+     * <pre>
+     * Collection of local catalog schema mutations to be applied.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.Builder> 

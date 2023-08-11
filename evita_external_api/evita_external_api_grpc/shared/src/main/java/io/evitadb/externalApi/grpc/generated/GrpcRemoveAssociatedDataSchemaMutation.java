@@ -27,6 +27,11 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Mutation is responsible for removing an existing `AssociatedDataSchema` in the `EntitySchema`.
+ * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataSchemaMutation}
  */
 public final class GrpcRemoveAssociatedDataSchemaMutation extends
@@ -113,6 +118,11 @@ private static final long serialVersionUID = 0L;
   public static final int NAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object name_;
   /**
+   * <pre>
+   * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+   * within single entity instance.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
@@ -130,6 +140,11 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+   * within single entity instance.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -303,6 +318,11 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Mutation is responsible for removing an existing `AssociatedDataSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataSchemaMutation}
    */
   public static final class Builder extends
@@ -452,6 +472,11 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object name_ = "";
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The name.
      */
@@ -468,6 +493,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The bytes for name.
      */
@@ -485,6 +515,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The name to set.
      * @return This builder for chaining.
@@ -500,6 +535,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return This builder for chaining.
      */
@@ -510,6 +550,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
+     * within single entity instance.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The bytes for name to set.
      * @return This builder for chaining.

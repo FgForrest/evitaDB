@@ -31,11 +31,19 @@ public interface GrpcModifyReferenceAttributeSchemaMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the reference the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
   java.lang.String getName();
   /**
+   * <pre>
+   * Name of the reference the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -43,16 +51,28 @@ public interface GrpcModifyReferenceAttributeSchemaMutationOrBuilder extends
       getNameBytes();
 
   /**
+   * <pre>
+   * Nested attribute schema mutation that mutates reference attributes of targeted reference.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutation attributeSchemaMutation = 2;</code>
    * @return Whether the attributeSchemaMutation field is set.
    */
   boolean hasAttributeSchemaMutation();
   /**
+   * <pre>
+   * Nested attribute schema mutation that mutates reference attributes of targeted reference.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutation attributeSchemaMutation = 2;</code>
    * @return The attributeSchemaMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutation getAttributeSchemaMutation();
   /**
+   * <pre>
+   * Nested attribute schema mutation that mutates reference attributes of targeted reference.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutation attributeSchemaMutation = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutationOrBuilder getAttributeSchemaMutationOrBuilder();

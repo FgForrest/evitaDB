@@ -51,122 +51,91 @@ public class GraphQLOutputFieldsBuilder {
 	}
 
 	@Nonnull
-	public GraphQLOutputFieldsBuilder addPrimitiveField(@Nonnull PropertyDescriptor fieldDescriptor) {
-		return addPrimitiveField(fieldDescriptor.name());
-	}
-
-	@Nonnull
 	public GraphQLOutputFieldsBuilder addPrimitiveField(@Nonnull PropertyDescriptor fieldDescriptor,
-	                                                    @Nullable Consumer<GraphQLOutputFieldsBuilder> argumentsBuilder) {
-		return addPrimitiveField(fieldDescriptor.name(), argumentsBuilder);
-	}
-
-	@Nonnull
-	public GraphQLOutputFieldsBuilder addPrimitiveField(@Nonnull String fieldName) {
-		lines.add(getCurrentIndentation() + fieldName);
-		return this;
+	                                                    @Nonnull ArgumentSupplier... arguments) {
+		return addPrimitiveField(fieldDescriptor.name(), arguments);
 	}
 
 	@Nonnull
 	public GraphQLOutputFieldsBuilder addPrimitiveField(@Nonnull String fieldName,
-	                                                    @Nullable Consumer<GraphQLOutputFieldsBuilder> argumentsBuilder) {
-		if (argumentsBuilder == null) {
-			return addPrimitiveField(fieldName);
+	                                                    @Nonnull ArgumentSupplier... arguments) {
+		if (arguments.length == 0) {
+			lines.add(getCurrentIndentation() + fieldName);
+		} else if (arguments.length == 1) {
+			final Argument argument = arguments[0].apply(-1);
+			lines.add(getCurrentIndentation() + fieldName + "(" + argument.toString() + ") {");
+		} else {
+			lines.add(getCurrentIndentation() + fieldName + "(");
+			level++;
+			for (ArgumentSupplier argumentSupplier : arguments) {
+				final Argument argument = argumentSupplier.apply(offset + level);
+				lines.add(getCurrentIndentation() + argument.toString());
+			}
+			level--;
+			lines.add(getCurrentIndentation() + ")");
 		}
-
-		lines.add(getCurrentIndentation() + fieldName + " (");
-		level++;
-		argumentsBuilder.accept(this);
-		level--;
-		lines.add(getCurrentIndentation() + ")");
 
 		return this;
 	}
 
 	@Nonnull
 	public GraphQLOutputFieldsBuilder addObjectField(@Nonnull PropertyDescriptor fieldDescriptor,
-	                                                 @Nonnull Consumer<GraphQLOutputFieldsBuilder> objectFieldsBuilder) {
-		return addObjectField(null, fieldDescriptor, objectFieldsBuilder);
+	                                                 @Nonnull Consumer<GraphQLOutputFieldsBuilder> objectFieldsBuilder,
+	                                                 @Nonnull ArgumentSupplier... arguments) {
+		return addObjectField(null, fieldDescriptor, objectFieldsBuilder, arguments);
 	}
 
 	@Nonnull
 	public GraphQLOutputFieldsBuilder addObjectField(@Nullable String alias,
 	                                                 @Nonnull PropertyDescriptor fieldDescriptor,
-	                                                 @Nonnull Consumer<GraphQLOutputFieldsBuilder> objectFieldsBuilder) {
-		return addObjectField(alias, fieldDescriptor.name(), objectFieldsBuilder);
+	                                                 @Nonnull Consumer<GraphQLOutputFieldsBuilder> objectFieldsBuilder,
+	                                                 @Nonnull ArgumentSupplier... arguments) {
+		return addObjectField(alias, fieldDescriptor.name(), objectFieldsBuilder, arguments);
 	}
 
 	@Nonnull
 	public GraphQLOutputFieldsBuilder addObjectField(@Nonnull String fieldName,
-	                                                 @Nonnull Consumer<GraphQLOutputFieldsBuilder> objectFieldsBuilder) {
-		return addObjectField(null, fieldName, objectFieldsBuilder);
+	                                                 @Nonnull Consumer<GraphQLOutputFieldsBuilder> objectFieldsBuilder,
+	                                                 @Nonnull ArgumentSupplier... arguments) {
+		return addObjectField(null, fieldName, objectFieldsBuilder, arguments);
 	}
 
 	@Nonnull
 	public GraphQLOutputFieldsBuilder addObjectField(@Nullable String alias,
 	                                                 @Nonnull String fieldName,
-	                                                 @Nonnull Consumer<GraphQLOutputFieldsBuilder> objectFieldsBuilder) {
-		lines.add(getCurrentIndentation() + (alias != null ? alias + ": " : "") + fieldName + " {");
+	                                                 @Nonnull Consumer<GraphQLOutputFieldsBuilder> objectFieldsBuilder,
+	                                                 @Nonnull ArgumentSupplier... arguments) {
+		if (arguments.length == 0) {
+			lines.add(getCurrentIndentation() + (alias != null ? alias + ": " : "") + fieldName + " {");
+		} else if (arguments.length == 1) {
+			final Argument argument = arguments[0].apply(offset + level);
+			final String serializedArgument = argument.toString();
+			if (serializedArgument.contains("\n")) {
+				lines.add(getCurrentIndentation() + (alias != null ? alias + ": " : "") + fieldName + "(");
+				level++;
+				lines.add(getCurrentIndentation() + serializedArgument);
+				level--;
+				lines.add(getCurrentIndentation() + ") {");
+			} else {
+				lines.add(getCurrentIndentation() + (alias != null ? alias + ": " : "") + fieldName + "(" + serializedArgument + ") {");
+			}
+		} else {
+			lines.add(getCurrentIndentation() + (alias != null ? alias + ": " : "") + fieldName + "(");
+			level++;
+			for (ArgumentSupplier argumentSupplier : arguments) {
+				final Argument argument = argumentSupplier.apply(offset + level);
+				lines.add(getCurrentIndentation() + argument.toString());
+			}
+			level--;
+			lines.add(getCurrentIndentation() + ") {");
+		}
+
 		level++;
 		objectFieldsBuilder.accept(this);
 		level--;
+
 		lines.add(getCurrentIndentation() + "}");
 
-		return this;
-	}
-
-	@Nonnull
-	public GraphQLOutputFieldsBuilder addObjectField(@Nonnull PropertyDescriptor fieldDescriptor,
-	                                                 @Nullable Consumer<GraphQLOutputFieldsBuilder> argumentsBuilder,
-	                                                 @Nonnull Consumer<GraphQLOutputFieldsBuilder> objectFieldsBuilder) {
-		return addObjectField(null, fieldDescriptor, argumentsBuilder, objectFieldsBuilder);
-	}
-
-	@Nonnull
-	public GraphQLOutputFieldsBuilder addObjectField(@Nonnull String alias,
-	                                                 @Nonnull PropertyDescriptor fieldDescriptor,
-	                                                 @Nullable Consumer<GraphQLOutputFieldsBuilder> argumentsBuilder,
-	                                                 @Nonnull Consumer<GraphQLOutputFieldsBuilder> objectFieldsBuilder) {
-		return addObjectField(alias, fieldDescriptor.name(), argumentsBuilder, objectFieldsBuilder);
-	}
-
-	@Nonnull
-	public GraphQLOutputFieldsBuilder addObjectField(@Nonnull String fieldName,
-	                                                 @Nullable Consumer<GraphQLOutputFieldsBuilder> argumentsBuilder,
-	                                                 @Nonnull Consumer<GraphQLOutputFieldsBuilder> objectFieldsBuilder) {
-		return addObjectField(null, fieldName, argumentsBuilder, objectFieldsBuilder);
-	}
-
-	@Nonnull
-	public GraphQLOutputFieldsBuilder addObjectField(@Nullable String alias,
-	                                                 @Nonnull String fieldName,
-													 @Nullable Consumer<GraphQLOutputFieldsBuilder> argumentsBuilder,
-	                                                 @Nonnull Consumer<GraphQLOutputFieldsBuilder> objectFieldsBuilder) {
-		if (argumentsBuilder == null) {
-			return addObjectField(alias, fieldName, objectFieldsBuilder);
-		}
-
-		lines.add(getCurrentIndentation() + (alias != null ? alias + ": " : "") + fieldName + "(");
-		level++;
-		argumentsBuilder.accept(this);
-		level--;
-		lines.add(getCurrentIndentation() + ") {");
-		level++;
-		objectFieldsBuilder.accept(this);
-		level--;
-		lines.add(getCurrentIndentation() + "}");
-
-		return this;
-	}
-
-	@Nonnull
-	public GraphQLOutputFieldsBuilder addFieldArgument(@Nonnull PropertyDescriptor argumentDescriptor,
-	                                                   @Nonnull Function<Integer, String> valueSupplier) {
-		final String value = valueSupplier.apply(offset + level);
-		if (value == null) {
-			return this;
-		}
-		lines.add(getCurrentIndentation() + argumentDescriptor.name() + ": " + value);
 		return this;
 	}
 
@@ -181,5 +150,15 @@ public class GraphQLOutputFieldsBuilder {
 	@Nonnull
 	private String getCurrentIndentation() {
 		return INDENTATION.repeat(offset + level);
+	}
+
+	@FunctionalInterface
+	public interface ArgumentSupplier extends Function<Integer, Argument> {}
+
+	public record Argument(@Nonnull PropertyDescriptor argumentDescriptor, @Nonnull Object value) {
+		@Override
+		public String toString() {
+			return argumentDescriptor.name() + ": " + value.toString().stripLeading();
+		}
 	}
 }

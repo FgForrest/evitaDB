@@ -163,6 +163,13 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	}
 
 	/**
+	 * Returns true if the references of particular name were fetched along with the entity.
+	 */
+	public boolean wasFetched(@Nonnull String referenceName) {
+		return requiresEntityReferences && (referenceSet.isEmpty() || referenceSet.containsKey(referenceName));
+	}
+
+	/**
 	 * Method verifies that references were fetched with the entity.
 	 */
 	public void checkFetched() throws ContextMissingException {

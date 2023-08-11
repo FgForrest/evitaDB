@@ -24,6 +24,7 @@
 package io.evitadb.api;
 
 import com.github.javafaker.Faker;
+import io.evitadb.api.exception.EntityCollectionRequiredException;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityContract;
@@ -3555,6 +3556,31 @@ public class EntityByAttributeFilteringFunctionalTest {
 							.orElse(true) &&
 						sealedEntity.getReference(Entities.BRAND, referencedBrandId).isPresent(),
 					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should throw exception when querying by PKs without specifying collection")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldThrowExceptionWhenCollectionIsMissing(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					EntityCollectionRequiredException.class,
+					() -> {
+						session.query(
+							query(
+								filterBy(
+									entityPrimaryKeyInSet(1)
+								)
+							),
+							EntityReference.class
+						);
+					}
 				);
 				return null;
 			}

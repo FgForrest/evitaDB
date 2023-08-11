@@ -45,6 +45,7 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
+import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
  * Provides access to all registered {@link Constraint}s via {@link ConstraintDescriptor}s which serve as generic
@@ -56,9 +57,20 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 public class ConstraintDescriptorProvider {
 
 	private static final Set<ConstraintDescriptor> CONSTRAINT_DESCRIPTORS;
+	private static final Map<Class<?>, Set<ConstraintDescriptor>> CONSTRAINT_DESCRIPTORS_TO_CLASS;
 	private static final Map<ConstraintReconstructionLookupKey, Set<ConstraintDescriptor>> CONSTRAINT_DESCRIPTOR_RECONSTRUCTION_LOOKUP_INDEX;
 	static {
 		CONSTRAINT_DESCRIPTORS = new ConstraintProcessor().process(RegisteredConstraintProvider.REGISTERED_CONSTRAINTS);
+
+		final Map<Class<?>, Set<ConstraintDescriptor>> constraintDescriptorsToClass = createHashMap(CONSTRAINT_DESCRIPTORS.size());
+		CONSTRAINT_DESCRIPTORS.forEach(descriptor -> {
+			final Set<ConstraintDescriptor> descriptors = constraintDescriptorsToClass.computeIfAbsent(
+				descriptor.constraintClass(),
+				k -> createHashSet(2)
+			);
+			descriptors.add(descriptor);
+		});
+		CONSTRAINT_DESCRIPTORS_TO_CLASS = Collections.unmodifiableMap(constraintDescriptorsToClass);
 
 		final Map<ConstraintReconstructionLookupKey, Set<ConstraintDescriptor>> constraintDescriptorReconstructionLookupIndex = createHashMap(CONSTRAINT_DESCRIPTORS.size());
 		CONSTRAINT_DESCRIPTORS.forEach(descriptor -> {
@@ -143,9 +155,7 @@ public class ConstraintDescriptorProvider {
 
 	@Nonnull
 	public static Set<ConstraintDescriptor> getConstraints(@Nonnull Class<? extends Constraint<?>> constraintClass) {
-		final Set<ConstraintDescriptor> foundConstraints = CONSTRAINT_DESCRIPTORS.stream()
-			.filter(cd -> cd.constraintClass().equals(constraintClass))
-			.collect(Collectors.toCollection(TreeSet::new));
+		final Set<ConstraintDescriptor> foundConstraints = CONSTRAINT_DESCRIPTORS_TO_CLASS.getOrDefault(constraintClass, Set.of());
 		Assert.isPremiseValid(
 			!foundConstraints.isEmpty(),
 			"Unknown constraint `" + constraintClass.getName() + "`. Is it properly registered?"
@@ -194,6 +204,13 @@ public class ConstraintDescriptorProvider {
 				cd.supportedValues().dataTypes().contains(requiredSupportedValueType.isPrimitive() ? EvitaDataTypes.getWrappingPrimitiveClass(requiredSupportedValueType) : requiredSupportedValueType) &&
 				(!arraySupportRequired || cd.supportedValues().supportsArrays()))
 			.collect(Collectors.toUnmodifiableSet());
+	}
+
+	/**
+	 * Checks if specified constraint is known to Evita.
+	 */
+	public static boolean isKnownConstraint(@Nonnull Class<?> constraintClass) {
+		return CONSTRAINT_DESCRIPTORS_TO_CLASS.containsKey(constraintClass);
 	}
 
 	/**

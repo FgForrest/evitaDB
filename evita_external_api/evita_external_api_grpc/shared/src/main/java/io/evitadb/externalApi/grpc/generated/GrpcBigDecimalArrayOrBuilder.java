@@ -31,24 +31,44 @@ public interface GrpcBigDecimalArrayOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Value that supports storing a BigDecimal array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value = 1;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBigDecimal> 
       getValueList();
   /**
+   * <pre>
+   * Value that supports storing a BigDecimal array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getValue(int index);
   /**
+   * <pre>
+   * Value that supports storing a BigDecimal array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value = 1;</code>
    */
   int getValueCount();
   /**
+   * <pre>
+   * Value that supports storing a BigDecimal array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value = 1;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
       getValueOrBuilderList();
   /**
+   * <pre>
+   * Value that supports storing a BigDecimal array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getValueOrBuilder(

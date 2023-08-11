@@ -2,42 +2,74 @@ syntax = "proto3";
 
 package io.evitadb.externalApi.grpc.generated;
 option java_multiple_files = true;
+option csharp_namespace = "EvitaDB";
 
 import "GrpcEnums.proto";
 import "GrpcEvitaDataTypes.proto";
 import "GrpcAttributeMutations.proto";
 import "google/protobuf/wrappers.proto";
 
+// This mutation allows to create a reference in the entity.
 message GrpcInsertReferenceMutation {
+  // Unique identifier of the reference.
   string referenceName = 1;
+  // Primary key of the referenced entity. Might be also any integer that uniquely identifies some external
+  // resource not maintained by Evita.
   int32 referencePrimaryKey = 2;
+  // Contains information about reference cardinality. This value is usually NULL except the case when the reference
+  // is created for the first time and `EvolutionMode.ADDING_REFERENCES` is allowed.
   GrpcCardinality referenceCardinality = 3;
+  // Contains information about target entity type. This value is usually NULL except the case when the reference
+  // is created for the first time and `EvolutionMode.ADDING_REFERENCES` is allowed.
   google.protobuf.StringValue referencedEntityType = 4;
 }
 
+// This mutation allows to remove a reference from the entity.
 message GrpcRemoveReferenceMutation {
+  // Unique identifier of the reference.
   string referenceName = 1;
+  // Primary key of the referenced entity. Might be also any integer that uniquely identifies some external
+  // resource not maintained by Evita.
   int32 referencePrimaryKey = 2;
 }
 
+// This mutation allows to create / update group of the reference.
 message GrpcSetReferenceGroupMutation {
+  // Unique identifier of the reference.
   string referenceName = 1;
+  // Primary key of the referenced entity. Might be also any integer that uniquely identifies some external
+  // resource not maintained by Evita.
   int32 referencePrimaryKey = 2;
+  // Type of the referenced entity representing group. Might be also any `String` that identifies type in some external
+  // resource not maintained by Evita.
   google.protobuf.StringValue groupType = 3;
+  // Primary key of the referenced entity representing group. Might be also any integer that uniquely identifies
+  // some external resource not maintained by Evita.
   int32 groupPrimaryKey = 4;
 }
 
+// This mutation allows to remove group in the reference.
 message GrpcRemoveReferenceGroupMutation {
+  // Unique identifier of the reference.
   string referenceName = 1;
+  // Primary key of the referenced entity. Might be also any integer that uniquely identifies some external
+  // resource not maintained by Evita.
   int32 referencePrimaryKey = 2;
 }
 
+// This mutation allows to create / update / remove attribute of the reference.
 message GrpcReferenceAttributeMutation {
+  // Unique identifier of the reference.
   string referenceName = 1;
+  // Primary key of the referenced entity. Might be also any integer that uniquely identifies some external
+  // resource not maintained by Evita.
   int32 referencePrimaryKey = 2;
+  // One attribute mutation to update / insert / delete single attribute of the reference.
   GrpcAttributeMutation attributeMutation = 3;
 }
 
+// This structure is used as a wrapper around the attribute map for the purpose of separation the global attributes from the localized ones.
 message GrpcLocalizedAttributeMutationValue {
+  // The map, where the key is the name of the attribute and the value is the its value.
   map<string, GrpcEvitaValue> attributes = 1;
 }

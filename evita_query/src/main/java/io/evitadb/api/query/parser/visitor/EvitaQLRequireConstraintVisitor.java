@@ -905,18 +905,17 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
+	public RequireConstraint visitDataInLocalesAllConstraint(DataInLocalesAllConstraintContext ctx) {
+		return parse(ctx, DataInLocales::new);
+	}
+
+	@Override
 	public RequireConstraint visitDataInLocalesConstraint(@Nonnull DataInLocalesConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> {
-				if (ctx.args == null) {
-					return new DataInLocales();
-				} else {
-					return new DataInLocales(
-						ctx.args.values.accept(localeValueTokenVisitor).asLocaleArray()
-					);
-				}
-			}
+			() -> new DataInLocales(
+				ctx.args.values.accept(localeValueTokenVisitor).asLocaleArray()
+			)
 		);
 	}
 

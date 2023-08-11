@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * This mutation allows to set `parent` in the `entity`.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation}
  */
 public final class GrpcSetParentMutation extends
@@ -111,6 +115,10 @@ private static final long serialVersionUID = 0L;
   public static final int PRIMARYKEY_FIELD_NUMBER = 1;
   private int primaryKey_;
   /**
+   * <pre>
+   * Optional new primary key of parent entity. If null, this entity is at the root of hierarchy.
+   * </pre>
+   *
    * <code>int32 primaryKey = 1;</code>
    * @return The primaryKey.
    */
@@ -275,6 +283,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * This mutation allows to set `parent` in the `entity`.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation}
    */
   public static final class Builder extends
@@ -423,6 +435,10 @@ private static final long serialVersionUID = 0L;
 
     private int primaryKey_ ;
     /**
+     * <pre>
+     * Optional new primary key of parent entity. If null, this entity is at the root of hierarchy.
+     * </pre>
+     *
      * <code>int32 primaryKey = 1;</code>
      * @return The primaryKey.
      */
@@ -431,6 +447,10 @@ private static final long serialVersionUID = 0L;
       return primaryKey_;
     }
     /**
+     * <pre>
+     * Optional new primary key of parent entity. If null, this entity is at the root of hierarchy.
+     * </pre>
+     *
      * <code>int32 primaryKey = 1;</code>
      * @param value The primaryKey to set.
      * @return This builder for chaining.
@@ -442,6 +462,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Optional new primary key of parent entity. If null, this entity is at the root of hierarchy.
+     * </pre>
+     *
      * <code>int32 primaryKey = 1;</code>
      * @return This builder for chaining.
      */

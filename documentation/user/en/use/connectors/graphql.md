@@ -1,6 +1,10 @@
 ---
 title: GraphQL
-perex:
+perex: |
+  GraphQL is an open-source data query and manipulation language for APIs, providing a powerful alternative to REST by 
+  allowing clients to specify exactly what data they need, reducing over-fetching and under-fetching of data. Developed 
+  by Facebook in 2012 and open-sourced in 2015, it enables declarative data fetching where the client can ask for what 
+  it needs and get exactly that.
 date: '21.3.2023'
 author: 'Lukáš Hornych'
 ---
@@ -11,7 +15,7 @@ evitaDB with a high degree of customisation of the queries and the self-document
 The main idea behind our GraphQL API implementation is that the API schema is dynamically generated based on
 evitaDB's [internal schemas](/documentation/user/en/use/schema.md). This means that users only see the data they
 can actually retrieve. They do not see some generic strings of names. For example, if you have defined in evitaDB an
-entity called `product` with attributes `code` and `name`, the GraphQL API allows you to query only these two attributes
+entity called `Product` with attributes `code` and `name`, the GraphQL API allows you to query only these two attributes
 like this:
 
 ```graphql

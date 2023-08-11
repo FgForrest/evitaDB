@@ -31,11 +31,19 @@ public interface GrpcSetAttributeSchemaFilterableMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the attribute the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
   java.lang.String getName();
   /**
+   * <pre>
+   * Name of the attribute the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -43,6 +51,12 @@ public interface GrpcSetAttributeSchemaFilterableMutationOrBuilder extends
       getNameBytes();
 
   /**
+   * <pre>
+   * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+   * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+   * (memory/disk) space in the form of index.
+   * </pre>
+   *
    * <code>bool filterable = 2;</code>
    * @return The filterable.
    */

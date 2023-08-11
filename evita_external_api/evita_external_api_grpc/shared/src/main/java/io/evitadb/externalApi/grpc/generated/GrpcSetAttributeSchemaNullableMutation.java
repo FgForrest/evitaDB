@@ -27,6 +27,11 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Mutation is responsible for setting value to a `AttributeSchema.nullable` in `EntitySchema`.
+ * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNullableMutation}
  */
 public final class GrpcSetAttributeSchemaNullableMutation extends
@@ -118,6 +123,10 @@ private static final long serialVersionUID = 0L;
   public static final int NAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object name_;
   /**
+   * <pre>
+   * Name of the attribute the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
@@ -135,6 +144,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Name of the attribute the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -156,6 +169,11 @@ private static final long serialVersionUID = 0L;
   public static final int NULLABLE_FIELD_NUMBER = 2;
   private boolean nullable_;
   /**
+   * <pre>
+   * When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+   * non-null checks upon upserting of the entity.
+   * </pre>
+   *
    * <code>bool nullable = 2;</code>
    * @return The nullable.
    */
@@ -331,6 +349,11 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Mutation is responsible for setting value to a `AttributeSchema.nullable` in `EntitySchema`.
+   * Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNullableMutation}
    */
   public static final class Builder extends
@@ -486,6 +509,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object name_ = "";
     /**
+     * <pre>
+     * Name of the attribute the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The name.
      */
@@ -502,6 +529,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the attribute the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return The bytes for name.
      */
@@ -519,6 +550,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the attribute the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The name to set.
      * @return This builder for chaining.
@@ -534,6 +569,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the attribute the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @return This builder for chaining.
      */
@@ -544,6 +583,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the attribute the mutation is targeting.
+     * </pre>
+     *
      * <code>string name = 1;</code>
      * @param value The bytes for name to set.
      * @return This builder for chaining.
@@ -562,6 +605,11 @@ private static final long serialVersionUID = 0L;
 
     private boolean nullable_ ;
     /**
+     * <pre>
+     * When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+     * non-null checks upon upserting of the entity.
+     * </pre>
+     *
      * <code>bool nullable = 2;</code>
      * @return The nullable.
      */
@@ -570,6 +618,11 @@ private static final long serialVersionUID = 0L;
       return nullable_;
     }
     /**
+     * <pre>
+     * When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+     * non-null checks upon upserting of the entity.
+     * </pre>
+     *
      * <code>bool nullable = 2;</code>
      * @param value The nullable to set.
      * @return This builder for chaining.
@@ -581,6 +634,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+     * non-null checks upon upserting of the entity.
+     * </pre>
+     *
      * <code>bool nullable = 2;</code>
      * @return This builder for chaining.
      */

@@ -557,7 +557,7 @@ public class EvitaDataTypes {
 	 * Method validates input value for use in Evita query.
 	 *
 	 * @return possible converted object to known type
-	 * @throws UnsupportedDataTypeException if non supported type is used
+	 * @throws UnsupportedDataTypeException if non-supported type is used
 	 */
 	public static Serializable toSupportedType(@Nullable Serializable unknownObject) throws UnsupportedDataTypeException {
 		if (unknownObject == null) {
@@ -570,7 +570,8 @@ public class EvitaDataTypes {
 			// always convert local date time to zoned date time
 			return ((LocalDateTime) unknownObject).atOffset(ZoneOffset.UTC);
 		} else if (unknownObject.getClass().isEnum()) {
-			return unknownObject;
+			return unknownObject.getClass().isAnnotationPresent(SupportedEnum.class) ?
+				unknownObject : ((Enum<?>)unknownObject).name();
 		} else if (SUPPORTED_QUERY_DATA_TYPES.contains(unknownObject.getClass())) {
 			return unknownObject;
 		} else {

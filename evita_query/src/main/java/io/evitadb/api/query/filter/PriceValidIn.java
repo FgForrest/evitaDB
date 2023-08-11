@@ -29,7 +29,6 @@ import io.evitadb.api.query.PriceConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -83,7 +82,7 @@ public class PriceValidIn extends AbstractFilterConstraintLeaf
 	}
 
 	@Creator
-	public PriceValidIn(@Nonnull @Value OffsetDateTime theMoment) {
+	public PriceValidIn(@Nonnull OffsetDateTime theMoment) {
 		super(theMoment);
 	}
 

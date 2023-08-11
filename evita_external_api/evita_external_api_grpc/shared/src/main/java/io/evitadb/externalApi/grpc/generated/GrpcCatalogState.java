@@ -27,15 +27,38 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Indicates actual state in which Evita operates. See detailed information for each state.
+ * </pre>
+ *
  * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcCatalogState}
  */
 public enum GrpcCatalogState
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
+   * <pre>
+   * Initial state of the Evita catalog.
+   * This state has several limitations but also advantages.
+   * This state requires single threaded access - this means only single thread can read/write data to the catalog
+   * in this state. No transactions are allowed in this state and there are no guarantees on consistency of the catalog
+   * if any of the WRITE operations fails. If any error is encountered while writing to the catalog in this state it is
+   * strongly recommended discarding entire catalog contents and starts filling it from the scratch.
+   * Writing to the catalog in this phase is much faster than with transactional access. Operations are executed in bulk,
+   * transactional logic is disabled and doesn't slow down the writing process.
+   * This phase is meant to quickly fill initial state of the catalog from the external primary data store. This state
+   * is also planned to be used when new replica is created and needs to quickly catch up with the master.
+   * </pre>
+   *
    * <code>WARMING_UP = 0;</code>
    */
   WARMING_UP(0),
   /**
+   * <pre>
+   * Standard "serving" state of the Evita catalog.
+   * All operations are executed transactionally and leave the date in consistent state even if any error occurs.
+   * Multiple readers and writers can work with the catalog simultaneously.
+   * </pre>
+   *
    * <code>ALIVE = 1;</code>
    */
   ALIVE(1),
@@ -43,10 +66,29 @@ public enum GrpcCatalogState
   ;
 
   /**
+   * <pre>
+   * Initial state of the Evita catalog.
+   * This state has several limitations but also advantages.
+   * This state requires single threaded access - this means only single thread can read/write data to the catalog
+   * in this state. No transactions are allowed in this state and there are no guarantees on consistency of the catalog
+   * if any of the WRITE operations fails. If any error is encountered while writing to the catalog in this state it is
+   * strongly recommended discarding entire catalog contents and starts filling it from the scratch.
+   * Writing to the catalog in this phase is much faster than with transactional access. Operations are executed in bulk,
+   * transactional logic is disabled and doesn't slow down the writing process.
+   * This phase is meant to quickly fill initial state of the catalog from the external primary data store. This state
+   * is also planned to be used when new replica is created and needs to quickly catch up with the master.
+   * </pre>
+   *
    * <code>WARMING_UP = 0;</code>
    */
   public static final int WARMING_UP_VALUE = 0;
   /**
+   * <pre>
+   * Standard "serving" state of the Evita catalog.
+   * All operations are executed transactionally and leave the date in consistent state even if any error occurs.
+   * Multiple readers and writers can work with the catalog simultaneously.
+   * </pre>
+   *
    * <code>ALIVE = 1;</code>
    */
   public static final int ALIVE_VALUE = 1;

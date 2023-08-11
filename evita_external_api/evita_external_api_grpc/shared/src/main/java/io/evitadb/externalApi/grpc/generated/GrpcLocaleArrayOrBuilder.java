@@ -31,24 +31,44 @@ public interface GrpcLocaleArrayOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Value that supports storing a Locale array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale value = 1;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale> 
       getValueList();
   /**
+   * <pre>
+   * Value that supports storing a Locale array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale value = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocale getValue(int index);
   /**
+   * <pre>
+   * Value that supports storing a Locale array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale value = 1;</code>
    */
   int getValueCount();
   /**
+   * <pre>
+   * Value that supports storing a Locale array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale value = 1;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
       getValueOrBuilderList();
   /**
+   * <pre>
+   * Value that supports storing a Locale array.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale value = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder getValueOrBuilder(

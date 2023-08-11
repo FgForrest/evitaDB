@@ -110,7 +110,7 @@ public class RestArtificialPageReadState extends AbstractRestArtificialState {
 				.filter(it -> benchmarkState.getProductSchema().getReference(it).isPresent())
 				.forEach(ref -> {
 					final String refFieldName = StringUtils.toPascalCase(ref);
-					entityFetchRequireConstraints.add("\"reference" + refFieldName + "Content\": true");
+					entityFetchRequireConstraints.add("\"reference" + refFieldName + "Content\": {}");
 				});
 		}
 

@@ -84,6 +84,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchema
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.driver.pooling.ChannelPool;
 import io.evitadb.driver.requestResponse.schema.ClientCatalogSchemaDecorator;
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.dataType.ChangeDataCaptureConverter;
 import io.evitadb.externalApi.grpc.generated.*;
@@ -103,10 +104,13 @@ import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.Modif
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import io.grpc.ManagedChannel;
+import io.grpc.Status.Code;
+import io.grpc.StatusRuntimeException;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
 import org.jboss.threads.EnhancedQueueExecutor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -127,10 +131,12 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.regex.Matcher;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.require;
+import static io.evitadb.driver.EvitaClient.ERROR_MESSAGE_PATTERN;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -144,6 +150,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  * @see EvitaSessionContract
  */
+@Slf4j
 @NotThreadSafe
 @EqualsAndHashCode(of = "sessionId")
 @ToString(of = "sessionId")
@@ -280,7 +287,6 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Override
 	public SealedCatalogSchema getCatalogSchema() {
 		assertActive();
-		// todo lho inner calls are not wrapped into exception handling in proxy
 		return schemaCache.getLatestCatalogSchema(this::fetchCatalogSchema, this::getEntitySchemaOrThrow);
 	}
 
@@ -1285,6 +1291,42 @@ public class EvitaClientSession implements EvitaSessionContract {
 		try {
 			SessionIdHolder.setSessionId(getCatalogName(), getId().toString());
 			return evitaSessionServiceBlockingStub.apply(EvitaSessionServiceGrpc.newBlockingStub(managedChannel));
+		} catch (StatusRuntimeException statusRuntimeException) {
+			final Code statusCode = statusRuntimeException.getStatus().getCode();
+			final String description = ofNullable(statusRuntimeException.getStatus().getDescription())
+				.orElse("No description.");
+			if (statusCode == Code.UNAUTHENTICATED) {
+				// close session and rethrow
+				closeInternally();
+				throw new InstanceTerminatedException("session");
+			} else if (statusCode == Code.INVALID_ARGUMENT) {
+				final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
+				if (expectedFormat.matches()) {
+					throw EvitaInvalidUsageException.createExceptionWithErrorCode(
+						expectedFormat.group(2), expectedFormat.group(1)
+					);
+				} else {
+					throw new EvitaInvalidUsageException(description);
+				}
+			} else {
+				final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
+				if (expectedFormat.matches()) {
+					throw EvitaInternalError.createExceptionWithErrorCode(
+						expectedFormat.group(2), expectedFormat.group(1)
+					);
+				} else {
+					throw new EvitaInternalError(description);
+				}
+			}
+		} catch (EvitaInvalidUsageException | EvitaInternalError evitaError) {
+			throw evitaError;
+		} catch (Throwable e) {
+			log.error("Unexpected internal Evita error occurred: {}", e.getMessage(), e);
+			throw new EvitaInternalError(
+				"Unexpected internal Evita error occurred: " + e.getMessage(),
+				"Unexpected internal Evita error occurred.",
+				e
+			);
 		} finally {
 			this.channelPool.releaseChannel(managedChannel);
 			SessionIdHolder.reset();
@@ -1468,9 +1510,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		final GrpcCatalogSchemaResponse grpcResponse = executeWithEvitaSessionService(evitaSessionService ->
 			evitaSessionService.getCatalogSchema(Empty.getDefaultInstance())
 		);
-		return CatalogSchemaConverter.convert(
-			/*this::getEntitySchemaOrThrow, */grpcResponse.getCatalogSchema()
-		);
+		return CatalogSchemaConverter.convert(grpcResponse.getCatalogSchema());
 	}
 
 	/**

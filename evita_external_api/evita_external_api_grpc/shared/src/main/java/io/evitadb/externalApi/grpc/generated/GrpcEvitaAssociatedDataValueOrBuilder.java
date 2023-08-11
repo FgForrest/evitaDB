@@ -31,31 +31,55 @@ public interface GrpcEvitaAssociatedDataValueOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Primitive value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
    * @return Whether the primitiveValue field is set.
    */
   boolean hasPrimitiveValue();
   /**
+   * <pre>
+   * Primitive value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
    * @return The primitiveValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEvitaValue getPrimitiveValue();
   /**
+   * <pre>
+   * Primitive value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder getPrimitiveValueOrBuilder();
 
   /**
+   * <pre>
+   * JSON string value.
+   * </pre>
+   *
    * <code>string jsonValue = 2;</code>
    * @return Whether the jsonValue field is set.
    */
   boolean hasJsonValue();
   /**
+   * <pre>
+   * JSON string value.
+   * </pre>
+   *
    * <code>string jsonValue = 2;</code>
    * @return The jsonValue.
    */
   java.lang.String getJsonValue();
   /**
+   * <pre>
+   * JSON string value.
+   * </pre>
+   *
    * <code>string jsonValue = 2;</code>
    * @return The bytes for jsonValue.
    */
@@ -63,16 +87,31 @@ public interface GrpcEvitaAssociatedDataValueOrBuilder extends
       getJsonValueBytes();
 
   /**
+   * <pre>
+   * Contains version of this value and gets increased with any entity type update. Allows to execute
+   *			optimistic locking i.e. avoiding parallel modifications.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value version = 3;</code>
    * @return Whether the version field is set.
    */
   boolean hasVersion();
   /**
+   * <pre>
+   * Contains version of this value and gets increased with any entity type update. Allows to execute
+   *			optimistic locking i.e. avoiding parallel modifications.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value version = 3;</code>
    * @return The version.
    */
   com.google.protobuf.Int32Value getVersion();
   /**
+   * <pre>
+   * Contains version of this value and gets increased with any entity type update. Allows to execute
+   *			optimistic locking i.e. avoiding parallel modifications.
+   * </pre>
+   *
    * <code>.google.protobuf.Int32Value version = 3;</code>
    */
   com.google.protobuf.Int32ValueOrBuilder getVersionOrBuilder();

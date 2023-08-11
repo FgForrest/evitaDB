@@ -25,13 +25,17 @@ package io.evitadb.api.proxy.impl.entity;
 
 import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.proxy.impl.ProxyUtils;
+import io.evitadb.api.proxy.impl.ProxyUtils.OptionalProducingOperator;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
+import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedData;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedDataRef;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
+import io.evitadb.function.TriFunction;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.CollectionUtils;
@@ -54,6 +58,7 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.api.proxy.impl.ProxyUtils.getResolvedTypes;
@@ -99,7 +104,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 			return entitySchema.getAssociatedDataOrThrowException(associatedDataInstance.name());
 		} else if (associatedDataRefInstance != null) {
 			return entitySchema.getAssociatedDataOrThrowException(associatedDataRefInstance.value());
-		} else if (!reflectionLookup.hasAnnotationInSamePackage(method, AssociatedData.class)) {
+		} else if (!reflectionLookup.hasAnnotationInSamePackage(method, AssociatedData.class) && ClassUtils.isAbstract(method)) {
 			return ReflectionLookup.getPropertyNameFromMethodNameIfPossible(method.getName())
 				.flatMap(
 					associatedDataName -> entitySchema.getAssociatedDataByName(
@@ -121,19 +126,21 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull String cleanAssociatedDataName,
 		@Nonnull Method method,
 		@Nonnull Class<Serializable> itemType,
+		@Nonnull BiFunction<SealedEntity, String, Optional<AssociatedDataValue>> associatedDataExtractor,
+		@Nonnull TriFunction<SealedEntity, String, Locale, Optional<AssociatedDataValue>> localizedAssociatedDataExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		return method.getParameterCount() == 0 ?
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				theState.getSealedEntity().getAssociatedDataValue(cleanAssociatedDataName)
+				associatedDataExtractor.apply(theState.getSealedEntity(), cleanAssociatedDataName)
 					.map(AssociatedDataValue::value)
 					.map(defaultValueProvider)
 					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
 					.orElse(null)
 			) :
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				theState.getSealedEntity().getAssociatedDataValue(cleanAssociatedDataName, (Locale) args[0])
+				localizedAssociatedDataExtractor.apply(theState.getSealedEntity(), cleanAssociatedDataName, (Locale) args[0])
 					.map(AssociatedDataValue::value)
 					.map(defaultValueProvider)
 					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
@@ -149,6 +156,8 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull String cleanAssociatedDataName,
 		@Nonnull Method method,
 		@Nonnull Class<Serializable> itemType,
+		@Nonnull BiFunction<SealedEntity, String, Optional<AssociatedDataValue>> associatedDataExtractor,
+		@Nonnull TriFunction<SealedEntity, String, Locale, Optional<AssociatedDataValue>> localizedAssociatedDataExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
@@ -162,7 +171,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		);
 		return method.getParameterCount() == 0 ?
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				theState.getSealedEntity().getAssociatedDataValue(cleanAssociatedDataName)
+				associatedDataExtractor.apply(theState.getSealedEntity(), cleanAssociatedDataName)
 					.map(AssociatedDataValue::value)
 					.map(defaultValueProvider)
 					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
@@ -175,7 +184,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 					.orElse(Collections.emptySet())
 			) :
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				theState.getSealedEntity().getAssociatedDataValue(cleanAssociatedDataName, (Locale) args[0])
+				localizedAssociatedDataExtractor.apply(theState.getSealedEntity(), cleanAssociatedDataName, (Locale) args[0])
 					.map(AssociatedDataValue::value)
 					.map(defaultValueProvider)
 					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
@@ -197,6 +206,8 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull String cleanAssociatedDataName,
 		@Nonnull Method method,
 		@Nonnull Class<Serializable> itemType,
+		@Nonnull BiFunction<SealedEntity, String, Optional<AssociatedDataValue>> associatedDataExtractor,
+		@Nonnull TriFunction<SealedEntity, String, Locale, Optional<AssociatedDataValue>> localizedAssociatedDataExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
@@ -210,7 +221,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		);
 		return method.getParameterCount() == 0 ?
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				theState.getSealedEntity().getAssociatedDataValue(cleanAssociatedDataName)
+				associatedDataExtractor.apply(theState.getSealedEntity(), cleanAssociatedDataName)
 					.map(AssociatedDataValue::value)
 					.map(defaultValueProvider)
 					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
@@ -219,7 +230,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 					.orElse(Collections.emptyList())
 			) :
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				theState.getSealedEntity().getAssociatedDataValue(cleanAssociatedDataName, (Locale) args[0])
+				localizedAssociatedDataExtractor.apply(theState.getSealedEntity(), cleanAssociatedDataName, (Locale) args[0])
 					.map(AssociatedDataValue::value)
 					.map(defaultValueProvider)
 					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
@@ -236,11 +247,12 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> singleResult(
 		@Nonnull String cleanAssociatedDataName,
 		@Nonnull Class<Serializable> itemType,
+		@Nonnull BiFunction<SealedEntity, String, Optional<AssociatedDataValue>> associatedDataExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				theState.getSealedEntity().getAssociatedDataValue(cleanAssociatedDataName)
+				associatedDataExtractor.apply(theState.getSealedEntity(), cleanAssociatedDataName)
 					.map(AssociatedDataValue::value)
 					.map(defaultValueProvider)
 					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
@@ -256,6 +268,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull String cleanAssociatedDataName,
 		@Nonnull Method method,
 		@Nonnull Class<Serializable> itemType,
+		@Nonnull BiFunction<SealedEntity, String, Optional<AssociatedDataValue>> associatedDataExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
@@ -268,7 +281,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 			)
 		);
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				theState.getSealedEntity().getAssociatedDataValue(cleanAssociatedDataName)
+				associatedDataExtractor.apply(theState.getSealedEntity(), cleanAssociatedDataName)
 					.map(AssociatedDataValue::value)
 					.map(defaultValueProvider)
 					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
@@ -290,6 +303,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull String cleanAssociatedDataName,
 		@Nonnull Method method,
 		@Nonnull Class<Serializable> itemType,
+		@Nonnull BiFunction<SealedEntity, String, Optional<AssociatedDataValue>> associatedDataExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
@@ -302,7 +316,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 			)
 		);
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				theState.getSealedEntity().getAssociatedDataValue(cleanAssociatedDataName)
+				associatedDataExtractor.apply(theState.getSealedEntity(), cleanAssociatedDataName)
 					.map(AssociatedDataValue::value)
 					.map(defaultValueProvider)
 					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
@@ -368,23 +382,37 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 						}
 					}
 
+					final BiFunction<SealedEntity, String, Optional<AssociatedDataValue>> associatedDataExtractor =
+						resultWrapper instanceof OptionalProducingOperator ?
+							(entity, associatedDataName) -> entity.associatedDataAvailable(associatedDataName) ? entity.getAssociatedDataValue(associatedDataName) : Optional.empty() :
+							AssociatedDataContract::getAssociatedDataValue;
+
 					if (associatedDataSchema.isLocalized()) {
+
+						final TriFunction<SealedEntity, String, Locale, Optional<AssociatedDataValue>> localizedAssociatedDataExtractor =
+							resultWrapper instanceof OptionalProducingOperator ?
+								(entity, associatedDataName, locale) -> entity.associatedDataAvailable(associatedDataName, locale) ? entity.getAssociatedDataValue(associatedDataName, locale) : Optional.empty() :
+								AssociatedDataContract::getAssociatedDataValue;
+
 						if (collectionType != null && Set.class.isAssignableFrom(collectionType)) {
 							//noinspection unchecked
 							return setOfLocalizedResults(
 								cleanAssociatedDataName, method, itemType,
+								associatedDataExtractor, localizedAssociatedDataExtractor,
 								defaultValueProvider, resultWrapper
 							);
 						} else if (collectionType != null) {
 							//noinspection unchecked
 							return listOfLocalizedResults(
 								cleanAssociatedDataName, method, itemType,
+								associatedDataExtractor, localizedAssociatedDataExtractor,
 								defaultValueProvider, resultWrapper
 							);
 						} else {
 							//noinspection unchecked
 							return singleLocalizedResult(
 								cleanAssociatedDataName, method, itemType,
+								associatedDataExtractor, localizedAssociatedDataExtractor,
 								defaultValueProvider, resultWrapper
 							);
 						}
@@ -397,19 +425,19 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 							//noinspection unchecked
 							return setOfResults(
 								cleanAssociatedDataName, method, itemType,
-								defaultValueProvider, resultWrapper
+								associatedDataExtractor, defaultValueProvider, resultWrapper
 							);
 						} else if (collectionType != null) {
 							//noinspection unchecked
 							return listOfResults(
 								cleanAssociatedDataName, method, itemType,
-								defaultValueProvider, resultWrapper
+								associatedDataExtractor, defaultValueProvider, resultWrapper
 							);
 						} else {
 							//noinspection unchecked
 							return singleResult(
 								cleanAssociatedDataName, itemType,
-								defaultValueProvider, resultWrapper
+								associatedDataExtractor, defaultValueProvider, resultWrapper
 							);
 						}
 					}

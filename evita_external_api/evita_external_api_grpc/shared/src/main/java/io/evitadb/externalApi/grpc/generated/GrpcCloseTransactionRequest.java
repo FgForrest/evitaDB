@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Request for closing a transaction.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCloseTransactionRequest}
  */
 public final class GrpcCloseTransactionRequest extends
@@ -111,6 +115,10 @@ private static final long serialVersionUID = 0L;
   public static final int ROLLBACK_FIELD_NUMBER = 1;
   private boolean rollback_;
   /**
+   * <pre>
+   * If true, tha changes made by the transaction will be omitted and rollbacked.
+   * </pre>
+   *
    * <code>bool rollback = 1;</code>
    * @return The rollback.
    */
@@ -276,6 +284,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Request for closing a transaction.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCloseTransactionRequest}
    */
   public static final class Builder extends
@@ -424,6 +436,10 @@ private static final long serialVersionUID = 0L;
 
     private boolean rollback_ ;
     /**
+     * <pre>
+     * If true, tha changes made by the transaction will be omitted and rollbacked.
+     * </pre>
+     *
      * <code>bool rollback = 1;</code>
      * @return The rollback.
      */
@@ -432,6 +448,10 @@ private static final long serialVersionUID = 0L;
       return rollback_;
     }
     /**
+     * <pre>
+     * If true, tha changes made by the transaction will be omitted and rollbacked.
+     * </pre>
+     *
      * <code>bool rollback = 1;</code>
      * @param value The rollback to set.
      * @return This builder for chaining.
@@ -443,6 +463,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * If true, tha changes made by the transaction will be omitted and rollbacked.
+     * </pre>
+     *
      * <code>bool rollback = 1;</code>
      * @return This builder for chaining.
      */

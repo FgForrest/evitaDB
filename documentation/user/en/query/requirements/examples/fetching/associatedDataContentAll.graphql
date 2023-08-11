@@ -1,0 +1,19 @@
+{
+  queryBrand(
+    filterBy: {
+      entityPrimaryKeyInSet: [
+        64703
+      ]
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        associatedData {
+          allActiveUrls
+          allRelatedFiles
+        }
+      }
+    }
+  }
+}

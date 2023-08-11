@@ -31,11 +31,19 @@ public interface GrpcSetAttributeSchemaNullableMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Name of the attribute the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
   java.lang.String getName();
   /**
+   * <pre>
+   * Name of the attribute the mutation is targeting.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -43,6 +51,11 @@ public interface GrpcSetAttributeSchemaNullableMutationOrBuilder extends
       getNameBytes();
 
   /**
+   * <pre>
+   * When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+   * non-null checks upon upserting of the entity.
+   * </pre>
+   *
    * <code>bool nullable = 2;</code>
    * @return The nullable.
    */

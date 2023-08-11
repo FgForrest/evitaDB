@@ -23,9 +23,12 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.dataType.SupportedEnum;
+
 /**
  * Determines which price will be used for filtering.
  */
+@SupportedEnum
 public enum QueryPriceMode {
 
 	WITH_TAX, WITHOUT_TAX

@@ -30,6 +30,7 @@ import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -65,7 +66,6 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.builder.MapBuilder;
 import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.utils.StringUtils;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -73,7 +73,6 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.text.Collator;
 import java.text.NumberFormat;
 import java.util.*;
@@ -612,7 +611,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								parentPrimaryKey
 								parents {
 									primaryKey
-									parentPrimaryKey
 								}
 							}
 						}
@@ -672,7 +670,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								parentPrimaryKey
 								parents {
 									primaryKey
-									parentPrimaryKey
 									allLocales
 									attributes {
 										code
@@ -738,7 +735,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 									}
 							    ) {
 									primaryKey
-									parentPrimaryKey
 								}
 							}
 						}
@@ -818,7 +814,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 										parentPrimaryKey
 										parents {
 											primaryKey
-											parentPrimaryKey
 										}
 									}
 								}
@@ -904,7 +899,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 										parentPrimaryKey
 										parents {
 											primaryKey
-											parentPrimaryKey
 											allLocales
 											attributes {
 												code
@@ -996,7 +990,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 											}
 									    ) {
 											primaryKey
-											parentPrimaryKey
 										}
 									}
 								}
@@ -1343,14 +1336,32 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return price for products outside of filter")
-	@Disabled("TODO LHO: should not return price for products outside of filter")
-	void shouldReturnPriceForProductsOutsideOfFilter(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
-		final var entities = findEntitiesWithPrices(originalProductEntities, 2, PRICE_LIST_BASIC, CURRENCY_CZK, CURRENCY_EUR);
-
-		final var expectedBody = createBasicPageResponse(
-			entities,
-			it -> createEntityDtoWithPrice(it, CURRENCY_USD, PRICE_LIST_BASIC)
+	void shouldReturnPriceForProductsOutsideOfFilter(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final int pk = findEntityPk(
+			originalProductEntities,
+			it -> it.getPrices().stream().anyMatch(price -> price.priceList().equals(PRICE_LIST_BASIC) && price.currency().equals(CURRENCY_CZK)) &&
+				it.getPrices().stream().anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP) && price.currency().equals(CURRENCY_EUR))
 		);
+
+		final SealedEntity entity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(pk),
+					priceInCurrency(CURRENCY_CZK),
+					priceInPriceLists(PRICE_LIST_BASIC)
+				),
+				require(
+					entityFetch(
+						priceContentAll()
+					)
+				)
+			),
+			SealedEntity.class
+		);
+		final Collection<PriceContract> vipPrices = entity.getPrices(CURRENCY_EUR, PRICE_LIST_VIP);
+		assertEquals(1, vipPrices.size());
 
 		tester.test(TEST_CATALOG)
 			.document(
@@ -1358,35 +1369,101 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                query {
 	                    queryProduct(
 	                        filterBy: {
-	                            attributeCodeInSet: ["%s", "%s"]
+	                            entityPrimaryKeyInSet: %d
 	                            priceInCurrency: CZK
 	                            priceInPriceLists: "basic"
 	                        }
                         ) {
-                            __typename
 	                        recordPage {
-	                            __typename
 	                            data {
-	                                primaryKey
-			                        type
-		                            price(currency: USD, priceList: "basic") {
-		                                __typename
-		                                currency
-		                                priceList
-		                                priceWithTax
+		                            price(currency: EUR, priceList: "vip") {
+		                                priceId
 		                            }
 	                            }
 	                        }
 	                    }
 	                }
 					""",
-				entities.get(0).getAttribute(ATTRIBUTE_CODE),
-				entities.get(1).getAttribute(ATTRIBUTE_CODE)
+				pk
 			)
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(PRODUCT_QUERY_PATH, equalTo(expectedBody));
+			.body(
+				resultPath(PRODUCT_QUERY_DATA_PATH, EntityDescriptor.PRICE),
+				equalTo(List.of(
+					map()
+						.e(PriceDescriptor.PRICE_ID.name(), vipPrices.iterator().next().priceId())
+						.build()
+				))
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return prices for products outside of filter")
+	void shouldReturnPricesForProductsOutsideOfFilter(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final int pk = findEntityPk(
+			originalProductEntities,
+			it -> it.getPrices().stream().anyMatch(price -> price.priceList().equals(PRICE_LIST_BASIC) && price.currency().equals(CURRENCY_CZK)) &&
+				it.getPrices().stream().anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP) && price.currency().equals(CURRENCY_EUR))
+		);
+
+		final SealedEntity entity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(pk),
+					priceInCurrency(CURRENCY_CZK),
+					priceInPriceLists(PRICE_LIST_BASIC)
+				),
+				require(
+					entityFetch(
+						priceContentAll()
+					)
+				)
+			),
+			SealedEntity.class
+		);
+		final Collection<PriceContract> vipPrices = entity.getPrices(CURRENCY_EUR, PRICE_LIST_VIP);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            entityPrimaryKeyInSet: %d
+	                            priceInCurrency: CZK
+	                            priceInPriceLists: "basic"
+	                        }
+                        ) {
+	                        recordPage {
+	                            data {
+		                            prices(currency: EUR, priceLists: "vip") {
+		                                priceId
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
+					""",
+				pk
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				resultPath(PRODUCT_QUERY_DATA_PATH, EntityDescriptor.PRICES),
+				equalTo(List.of(
+					vipPrices.stream()
+						.map(price -> map()
+							.e(PriceDescriptor.PRICE_ID.name(), price.priceId())
+							.build())
+						.toList()
+				))
+			);
 	}
 
 	@Test
@@ -4880,27 +4957,22 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Nonnull
 	private List<Map<String, Object>> createFlattenedHierarchy(@Nonnull List<LevelInfo> hierarchy) {
 		final List<Map<String, Object>> flattenedHierarchy = new LinkedList<>();
-		hierarchy.forEach(levelInfo -> createFlattenedHierarchy(flattenedHierarchy, null, levelInfo, 1));
+		hierarchy.forEach(levelInfo -> createFlattenedHierarchy(flattenedHierarchy, levelInfo, 1));
 		return flattenedHierarchy;
 	}
 
 	private void createFlattenedHierarchy(@Nonnull List<Map<String, Object>> flattenedHierarchy,
-	                                      @Nullable LevelInfo parentLevelInfo,
 	                                      @Nonnull LevelInfo levelInfo,
 	                                      int currentLevel) {
 		final SealedEntity entity = (SealedEntity) levelInfo.entity();
 
 		final MapBuilder currentLevelInfoDto = map()
-			.e(LevelInfoDescriptor.PARENT_PRIMARY_KEY.name(), parentLevelInfo != null
-				? parentLevelInfo.entity().getPrimaryKey()
-				: null)
 			.e(LevelInfoDescriptor.LEVEL.name(), currentLevel)
 			.e(LevelInfoDescriptor.ENTITY.name(), map()
 				.e(EntityDescriptor.PRIMARY_KEY.name(), levelInfo.entity().getPrimaryKey())
-				.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), entity.parentAvailable() && entity.getParent().isPresent() ? entity.getParent().getAsInt() : null)
+				.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), entity.parentAvailable() && entity.getParentEntity().isPresent() ? entity.getParentEntity().get().getPrimaryKey() : null)
 				.e(EntityDescriptor.ATTRIBUTES.name(), map()
-					.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))))
-			.e(LevelInfoDescriptor.HAS_CHILDREN.name(), !levelInfo.children().isEmpty());
+					.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))));
 
 		if (levelInfo.queriedEntityCount() != null) {
 			currentLevelInfoDto.e(LevelInfoDescriptor.QUERIED_ENTITY_COUNT.name(), levelInfo.queriedEntityCount());
@@ -4911,7 +4983,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		flattenedHierarchy.add(currentLevelInfoDto.build());
 
 		levelInfo.children()
-			.forEach(childLevelInfo -> createFlattenedHierarchy(flattenedHierarchy, levelInfo, childLevelInfo, currentLevel + 1));
+			.forEach(childLevelInfo -> createFlattenedHierarchy(flattenedHierarchy, childLevelInfo, currentLevel + 1));
 	}
 
 	@Nonnull
@@ -5014,7 +5086,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	private static String getLevelInfoFragment(@Nonnull EnumSet<StatisticsType> statisticsTypes) {
 		return String.format(
             """
-				parentPrimaryKey
 				level
 				entity {
 					primaryKey
@@ -5025,7 +5096,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				}
 				%s
 				%s
-				hasChildren
 				""",
 			statisticsTypes.contains(StatisticsType.QUERIED_ENTITY_COUNT) ? LevelInfoDescriptor.QUERIED_ENTITY_COUNT.name() : "",
 			statisticsTypes.contains(StatisticsType.CHILDREN_COUNT) ? LevelInfoDescriptor.CHILDREN_COUNT.name() : ""

@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Upsert attribute mutation will either update existing attribute or create new one.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation}
  */
 public final class GrpcUpsertAttributeMutation extends
@@ -139,6 +143,11 @@ private static final long serialVersionUID = 0L;
   public static final int ATTRIBUTENAME_FIELD_NUMBER = 1;
   private volatile java.lang.Object attributeName_;
   /**
+   * <pre>
+   * Unique name of the attribute. Case-sensitive. Distinguishes one associated data item from another within
+   * single entity instance.
+   * </pre>
+   *
    * <code>string attributeName = 1;</code>
    * @return The attributeName.
    */
@@ -156,6 +165,11 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Unique name of the attribute. Case-sensitive. Distinguishes one associated data item from another within
+   * single entity instance.
+   * </pre>
+   *
    * <code>string attributeName = 1;</code>
    * @return The bytes for attributeName.
    */
@@ -177,6 +191,10 @@ private static final long serialVersionUID = 0L;
   public static final int ATTRIBUTELOCALE_FIELD_NUMBER = 2;
   private io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale_;
   /**
+   * <pre>
+   * Contains locale in case the attribute is locale specific.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
    * @return Whether the attributeLocale field is set.
    */
@@ -185,6 +203,10 @@ private static final long serialVersionUID = 0L;
     return attributeLocale_ != null;
   }
   /**
+   * <pre>
+   * Contains locale in case the attribute is locale specific.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
    * @return The attributeLocale.
    */
@@ -193,6 +215,10 @@ private static final long serialVersionUID = 0L;
     return attributeLocale_ == null ? io.evitadb.externalApi.grpc.generated.GrpcLocale.getDefaultInstance() : attributeLocale_;
   }
   /**
+   * <pre>
+   * Contains locale in case the attribute is locale specific.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
    */
   @java.lang.Override
@@ -203,6 +229,11 @@ private static final long serialVersionUID = 0L;
   public static final int ATTRIBUTEVALUE_FIELD_NUMBER = 3;
   private io.evitadb.externalApi.grpc.generated.GrpcEvitaValue attributeValue_;
   /**
+   * <pre>
+   * New value of this attribute. Data type is expected to be the same as in schema or must be explicitly
+   * set via `valueType`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue attributeValue = 3;</code>
    * @return Whether the attributeValue field is set.
    */
@@ -211,6 +242,11 @@ private static final long serialVersionUID = 0L;
     return attributeValue_ != null;
   }
   /**
+   * <pre>
+   * New value of this attribute. Data type is expected to be the same as in schema or must be explicitly
+   * set via `valueType`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue attributeValue = 3;</code>
    * @return The attributeValue.
    */
@@ -219,6 +255,11 @@ private static final long serialVersionUID = 0L;
     return attributeValue_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.getDefaultInstance() : attributeValue_;
   }
   /**
+   * <pre>
+   * New value of this attribute. Data type is expected to be the same as in schema or must be explicitly
+   * set via `valueType`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue attributeValue = 3;</code>
    */
   @java.lang.Override
@@ -413,6 +454,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Upsert attribute mutation will either update existing attribute or create new one.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation}
    */
   public static final class Builder extends
@@ -590,6 +635,11 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object attributeName_ = "";
     /**
+     * <pre>
+     * Unique name of the attribute. Case-sensitive. Distinguishes one associated data item from another within
+     * single entity instance.
+     * </pre>
+     *
      * <code>string attributeName = 1;</code>
      * @return The attributeName.
      */
@@ -606,6 +656,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Unique name of the attribute. Case-sensitive. Distinguishes one associated data item from another within
+     * single entity instance.
+     * </pre>
+     *
      * <code>string attributeName = 1;</code>
      * @return The bytes for attributeName.
      */
@@ -623,6 +678,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Unique name of the attribute. Case-sensitive. Distinguishes one associated data item from another within
+     * single entity instance.
+     * </pre>
+     *
      * <code>string attributeName = 1;</code>
      * @param value The attributeName to set.
      * @return This builder for chaining.
@@ -638,6 +698,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Unique name of the attribute. Case-sensitive. Distinguishes one associated data item from another within
+     * single entity instance.
+     * </pre>
+     *
      * <code>string attributeName = 1;</code>
      * @return This builder for chaining.
      */
@@ -648,6 +713,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Unique name of the attribute. Case-sensitive. Distinguishes one associated data item from another within
+     * single entity instance.
+     * </pre>
+     *
      * <code>string attributeName = 1;</code>
      * @param value The bytes for attributeName to set.
      * @return This builder for chaining.
@@ -668,6 +738,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> attributeLocaleBuilder_;
     /**
+     * <pre>
+     * Contains locale in case the attribute is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
      * @return Whether the attributeLocale field is set.
      */
@@ -675,6 +749,10 @@ private static final long serialVersionUID = 0L;
       return attributeLocaleBuilder_ != null || attributeLocale_ != null;
     }
     /**
+     * <pre>
+     * Contains locale in case the attribute is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
      * @return The attributeLocale.
      */
@@ -686,6 +764,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains locale in case the attribute is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
      */
     public Builder setAttributeLocale(io.evitadb.externalApi.grpc.generated.GrpcLocale value) {
@@ -702,6 +784,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains locale in case the attribute is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
      */
     public Builder setAttributeLocale(
@@ -716,6 +802,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains locale in case the attribute is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
      */
     public Builder mergeAttributeLocale(io.evitadb.externalApi.grpc.generated.GrpcLocale value) {
@@ -734,6 +824,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains locale in case the attribute is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
      */
     public Builder clearAttributeLocale() {
@@ -748,6 +842,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains locale in case the attribute is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder getAttributeLocaleBuilder() {
@@ -756,6 +854,10 @@ private static final long serialVersionUID = 0L;
       return getAttributeLocaleFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Contains locale in case the attribute is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder getAttributeLocaleOrBuilder() {
@@ -767,6 +869,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains locale in case the attribute is locale specific.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -787,6 +893,11 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcEvitaValue, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder, io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder> attributeValueBuilder_;
     /**
+     * <pre>
+     * New value of this attribute. Data type is expected to be the same as in schema or must be explicitly
+     * set via `valueType`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue attributeValue = 3;</code>
      * @return Whether the attributeValue field is set.
      */
@@ -794,6 +905,11 @@ private static final long serialVersionUID = 0L;
       return attributeValueBuilder_ != null || attributeValue_ != null;
     }
     /**
+     * <pre>
+     * New value of this attribute. Data type is expected to be the same as in schema or must be explicitly
+     * set via `valueType`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue attributeValue = 3;</code>
      * @return The attributeValue.
      */
@@ -805,6 +921,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * New value of this attribute. Data type is expected to be the same as in schema or must be explicitly
+     * set via `valueType`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue attributeValue = 3;</code>
      */
     public Builder setAttributeValue(io.evitadb.externalApi.grpc.generated.GrpcEvitaValue value) {
@@ -821,6 +942,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * New value of this attribute. Data type is expected to be the same as in schema or must be explicitly
+     * set via `valueType`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue attributeValue = 3;</code>
      */
     public Builder setAttributeValue(
@@ -835,6 +961,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * New value of this attribute. Data type is expected to be the same as in schema or must be explicitly
+     * set via `valueType`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue attributeValue = 3;</code>
      */
     public Builder mergeAttributeValue(io.evitadb.externalApi.grpc.generated.GrpcEvitaValue value) {
@@ -853,6 +984,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * New value of this attribute. Data type is expected to be the same as in schema or must be explicitly
+     * set via `valueType`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue attributeValue = 3;</code>
      */
     public Builder clearAttributeValue() {
@@ -867,6 +1003,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * New value of this attribute. Data type is expected to be the same as in schema or must be explicitly
+     * set via `valueType`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue attributeValue = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder getAttributeValueBuilder() {
@@ -875,6 +1016,11 @@ private static final long serialVersionUID = 0L;
       return getAttributeValueFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * New value of this attribute. Data type is expected to be the same as in schema or must be explicitly
+     * set via `valueType`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue attributeValue = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder getAttributeValueOrBuilder() {
@@ -886,6 +1032,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * New value of this attribute. Data type is expected to be the same as in schema or must be explicitly
+     * set via `valueType`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue attributeValue = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

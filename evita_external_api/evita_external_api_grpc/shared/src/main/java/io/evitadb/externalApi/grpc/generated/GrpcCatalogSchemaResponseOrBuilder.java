@@ -31,16 +31,28 @@ public interface GrpcCatalogSchemaResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The current catalog schema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
    * @return Whether the catalogSchema field is set.
    */
   boolean hasCatalogSchema();
   /**
+   * <pre>
+   * The current catalog schema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
    * @return The catalogSchema.
    */
   io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema getCatalogSchema();
   /**
+   * <pre>
+   * The current catalog schema.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaOrBuilder getCatalogSchemaOrBuilder();

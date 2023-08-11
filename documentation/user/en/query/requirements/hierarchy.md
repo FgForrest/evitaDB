@@ -56,11 +56,34 @@ These top hierarchy requirements must have at least one of the following hierarc
 
 #### Constraint to result association
 
+<LanguageSpecific to="evitaql,java,rest">
 There can be multiple sub-constraints, and each constraint can be duplicated (usually with different settings).
 Each hierarchy sub-constraint defines a [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) 
 argument with a named value that allows to associate the request constraint with the computed result data structure
 in <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass>
 extra result.
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+There can be multiple sub-requirements, and each requirement can be duplicated (usually with different settings), but in
+such case, each requirement must be aliased with unique name (see examples below). Each such sub-requirements then returns
+a list of hierarchy tree nodes.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Result hierarchy tree structure
+</NoteTitle>
+
+In GraphQL, returning tree data structures of unknown depth is problematic and cannot be solved in developer-friendly way.
+That's why we opted for a solution where the tree is returned as a flat list of nodes. Each node contains information
+about its depth level in the original tree, so that the tree can be reconstructed on the client side.
+
+Note that the list of nodes is sorted in [depth-first](https://en.wikipedia.org/wiki/Depth-first_search) order, which 
+can be used to simplify the reconstruction of the tree on the client side.
+
+</Note>
+</LanguageSpecific>
 
 <Note type="info">
 
@@ -73,16 +96,21 @@ The following code snippet contains a query that lists all (transitive) categori
 returns menu items that contain direct children of the *Audio* category and its direct parent category (which is 
 *Accessories*):
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Hierarchy request association](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-data-structure-association.java)
 </SourceCodeTabs>
 
+<LanguageSpecific to="evitaql,java,rest">
 Both menu components are stored in the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass>
 extra result data structure and are available under the labels that correspond to those used in request constraints.
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+Using the custom aliases for hierarchies, you can easily create custom menu data structures.
+</LanguageSpecific>
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.selfHierarchy">[Output with multiple menu parts](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-data-structure-association.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.selfHierarchy">[Output with multiple menu parts](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-data-structure-association.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -252,7 +280,7 @@ requires a computed *megaMenu* data structure that lists the top 2 levels of the
 a computed count of child categories for each menu item and an aggregated count of all filtered products that would 
 fall into the given category.
 
-<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Example of using `hierarchyWithin` and `fromRoot` in a single query](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-from-root.java)
 </SourceCodeTabs>
 
@@ -264,7 +292,7 @@ The computed result of the *megaMenu* looks like this:
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.megaMenu">[Example of using `hierarchyWithin` and `fromRoot` in a single query](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-from-root.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.megaMenu">[Example of using `hierarchyWithin` and `fromRoot` in a single query](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-from-root.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -345,7 +373,7 @@ returns a computed *sideMenu1* and *sideMenu2* data structure that lists the fla
 *Portables* and *Laptops* with a computed count of child categories for each menu item and an aggregated count of all 
 products that would fall into the given category.
 
-<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Example of using `hierarchyWithin` and `fromNode` in a single query](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-from-node.java)
 </SourceCodeTabs>
 
@@ -357,7 +385,7 @@ The computed result both of the *sideMenu1* and *sideMenu2* looks like this:
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories">[Example of using `hierarchyWithin` and `fromNode` in a single query](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-from-node.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories">[Example of using `hierarchyWithin` and `fromNode` in a single query](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-from-node.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -430,7 +458,7 @@ returns a computed *subcategories* data structure that lists the flat category l
 *Audio* with a computed count of child categories for each menu item and an aggregated count of all products that
 would fall into the given category.
 
-<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Example of using `children` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-children.java)
 </SourceCodeTabs>
 
@@ -442,7 +470,7 @@ The computed result *subcategories* looks like this:
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.subcategories">[Example of using `children` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-children.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.subcategories">[Example of using `children` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-children.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -474,7 +502,7 @@ so that the calculated number remains consistent for the end user.
 ```evitaql-syntax
 parents
     argument:string!,   
-    requireConstraint:(silings|entityFetch|stopAt|statistics)*
+    requireConstraint:(siblings|entityFetch|stopAt|statistics)*
 )
 ```
 
@@ -517,7 +545,7 @@ also returns a computed *parentAxis* data structure that lists all the parent no
 *True wireless* with a computed count of child categories for each menu item and an aggregated count of all products that
 would fall into the given category.
 
-<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Example of using `children` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parents.java)
 </SourceCodeTabs>
 
@@ -529,7 +557,7 @@ The computed result *parentAxis* looks like this:
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.parentAxis">[Example of using `parents` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parents.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.parentAxis">[Example of using `parents` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parents.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -547,7 +575,7 @@ The computed result *parentAxis* looks like this:
 
 You can also list all siblings of the parent node as you move up the tree:
 
-<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Example of using `children` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parents-siblings.java)
 </SourceCodeTabs>
 
@@ -559,7 +587,7 @@ The computed result *parentAxis* with siblings now looks like this:
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.parentAxis">[Example of using `parents` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parents-siblings.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.parentAxis">[Example of using `parents` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parents-siblings.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -659,7 +687,7 @@ returns a computed *audioSiblings* data structure that lists the flat category l
 *Audio* with a computed count of child categories for each menu item and an aggregated count of all products that
 would fall into the given category.
 
-<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Example of using `siblings` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-siblings.java)
 </SourceCodeTabs>
 
@@ -671,7 +699,7 @@ The computed result *audioSiblings* looks like this:
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.audioSiblings">[Example of using `siblings` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-siblings.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.audioSiblings">[Example of using `siblings` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-siblings.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -690,7 +718,7 @@ The computed result *audioSiblings* looks like this:
 If you need to return all siblings and also the level below them (their children), just use `stopAt` constraint and
 extend the default scope of the `siblings` constraint.
 
-<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Example of using `siblings` subtree requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-siblings-with-subtree.java)
 </SourceCodeTabs>
 
@@ -698,7 +726,7 @@ The computed result *audioSiblings* with their direct children looks like this (
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.audioSiblings">[Example of using `siblings` subtree requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-siblings-with-subtree.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.audioSiblings">[Example of using `siblings` subtree requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-siblings-with-subtree.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -781,7 +809,7 @@ The following query lists products in category *Audio* and its subcategories. Al
 returns a computed *subcategories* data structure that lists the flat category list the currently focused category
 *Audio*.
 
-<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Example of using `distance` with `children` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-direct-children.java)
 </SourceCodeTabs>
 
@@ -789,7 +817,7 @@ Which returns following output:
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.subcategories">[Direct children](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-direct-children.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.subcategories">[Direct children](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-direct-children.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -809,7 +837,7 @@ The following query lists products in the category *Audio* and its subcategories
 also returns a computed *parent* data structure that lists single direct parent category of the currently focused 
 *Audio* category.
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Example of using `distance` with `parents` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parent.java)
 </SourceCodeTabs>
 
@@ -817,7 +845,7 @@ That returns simply:
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.parent">[Direct parent](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parent.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.parent">[Direct parent](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parent.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -867,7 +895,7 @@ following figure:
 The following query lists products in *Audio* category and its subcategories. Along with the products returned, it also
 returns a computed *megaMenu* data structure that lists top two levels of the entire hierarchy.
 
-<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Example of using `level` with `fromRoot` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-level.java)
 </SourceCodeTabs>
 
@@ -875,7 +903,7 @@ Which returns:
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.megaMenu">[Top 2 level of categories](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-level.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.megaMenu">[Top 2 level of categories](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-level.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -895,7 +923,7 @@ The following query lists products in the *Audio* category and its subcategories
 also returns a computed *parent* data structure that lists all the parents of the currently focused *True wireless*
 category up to level two.
 
-<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Example of using `level` with `parents` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-level-parent.java)
 </SourceCodeTabs>
 
@@ -903,7 +931,7 @@ category up to level two.
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.parents">[Parents up to level 2](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-level-parent.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.parents">[Parents up to level 2](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-level-parent.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -953,7 +981,7 @@ a meaningful example of this in the demo dataset, so our example query will be s
 demonstration, let's list the entire *Accessories* hierarchy, but stop traversing at the nodes whose code starts with 
 the letter *w*.
 
-<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server-and-open-session.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 [Example of using `node` with `children` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-node.java)
 </SourceCodeTabs>
 
@@ -961,7 +989,7 @@ The computed result *subMenu* looks like this (visualized in JSON format):
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.subMenu">[Example of using `node` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-node.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.subMenu">[Example of using `node` requirement](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-node.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 

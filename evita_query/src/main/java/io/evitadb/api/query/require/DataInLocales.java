@@ -23,12 +23,12 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -38,6 +38,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 /**
@@ -62,7 +63,7 @@ import java.util.stream.Stream;
  * Example that fetches all available global and localized data:
  *
  * ```
- * dataInLocales()
+ * dataInLocalesAll()
  * ```
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
@@ -72,16 +73,24 @@ import java.util.stream.Stream;
 	shortDescription = "The constraint triggers fetching of the localized attributes or associated data in different/additional locales than the locale specified in filtering constraints (if any at all).",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class DataInLocales extends AbstractRequireConstraintLeaf implements GenericConstraint<RequireConstraint>, EntityContentRequire {
+public class DataInLocales extends AbstractRequireConstraintLeaf
+	implements GenericConstraint<RequireConstraint>, EntityContentRequire, ConstraintWithSuffix {
 	@Serial private static final long serialVersionUID = 4716406488516855299L;
+
+	private static final String SUFFIX_ALL = "all";
 
 	private DataInLocales(Serializable... arguments) {
 		super(arguments);
 	}
 
+	@Creator(suffix = SUFFIX_ALL)
+	public DataInLocales() {
+		super();
+	}
+
 	@Creator
-	public DataInLocales(@Nonnull @Value Locale... locale) {
-		super(locale);
+	public DataInLocales(@Nonnull Locale... locales) {
+		super(locales);
 	}
 
 	@Nonnull
@@ -124,5 +133,11 @@ public class DataInLocales extends AbstractRequireConstraintLeaf implements Gene
 	@Override
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
 		return new DataInLocales(newArguments);
+	}
+
+	@Nonnull
+	@Override
+	public Optional<String> getSuffixIfApplied() {
+		return isAllRequested() ? Optional.of(SUFFIX_ALL) : Optional.empty();
 	}
 }

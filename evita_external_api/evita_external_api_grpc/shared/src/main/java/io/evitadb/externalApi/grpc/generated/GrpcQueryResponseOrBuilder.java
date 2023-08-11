@@ -31,31 +31,55 @@ public interface GrpcQueryResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The fetched record page with entities.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
    * @return Whether the recordPage field is set.
    */
   boolean hasRecordPage();
   /**
+   * <pre>
+   * The fetched record page with entities.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
    * @return The recordPage.
    */
   io.evitadb.externalApi.grpc.generated.GrpcDataChunk getRecordPage();
   /**
+   * <pre>
+   * The fetched record page with entities.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcDataChunkOrBuilder getRecordPageOrBuilder();
 
   /**
+   * <pre>
+   * The computed extra results.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
    * @return Whether the extraResults field is set.
    */
   boolean hasExtraResults();
   /**
+   * <pre>
+   * The computed extra results.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
    * @return The extraResults.
    */
   io.evitadb.externalApi.grpc.generated.GrpcExtraResults getExtraResults();
   /**
+   * <pre>
+   * The computed extra results.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOrBuilder getExtraResultsOrBuilder();

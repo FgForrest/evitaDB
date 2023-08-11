@@ -35,7 +35,7 @@ public class PrefilledDataSetAndCustomDataTest {
 
 		final SealedEntity theBrand = session.getEntity(
 			ENTITY_BRAND, 1,
-			attributeContent(), dataInLocales(Locale.ENGLISH)
+			attributeContentAll(), dataInLocales(Locale.ENGLISH)
 		).orElseThrow();
 
 		assertEquals(expectedBrandName, theBrand.getAttribute("name"));

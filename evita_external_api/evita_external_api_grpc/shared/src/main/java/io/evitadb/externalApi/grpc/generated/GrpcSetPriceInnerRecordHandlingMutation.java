@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * This mutation allows to set / remove `priceInnerRecordHandling` behaviour of the entity.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSetPriceInnerRecordHandlingMutation}
  */
 public final class GrpcSetPriceInnerRecordHandlingMutation extends
@@ -113,6 +117,10 @@ private static final long serialVersionUID = 0L;
   public static final int PRICEINNERRECORDHANDLING_FIELD_NUMBER = 1;
   private int priceInnerRecordHandling_;
   /**
+   * <pre>
+   * Price inner record handling controls how prices that share same `inner entity id` will behave during filtering and sorting.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 1;</code>
    * @return The enum numeric value on the wire for priceInnerRecordHandling.
    */
@@ -120,6 +128,10 @@ private static final long serialVersionUID = 0L;
     return priceInnerRecordHandling_;
   }
   /**
+   * <pre>
+   * Price inner record handling controls how prices that share same `inner entity id` will behave during filtering and sorting.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 1;</code>
    * @return The priceInnerRecordHandling.
    */
@@ -284,6 +296,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * This mutation allows to set / remove `priceInnerRecordHandling` behaviour of the entity.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSetPriceInnerRecordHandlingMutation}
    */
   public static final class Builder extends
@@ -432,6 +448,10 @@ private static final long serialVersionUID = 0L;
 
     private int priceInnerRecordHandling_ = 0;
     /**
+     * <pre>
+     * Price inner record handling controls how prices that share same `inner entity id` will behave during filtering and sorting.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 1;</code>
      * @return The enum numeric value on the wire for priceInnerRecordHandling.
      */
@@ -439,6 +459,10 @@ private static final long serialVersionUID = 0L;
       return priceInnerRecordHandling_;
     }
     /**
+     * <pre>
+     * Price inner record handling controls how prices that share same `inner entity id` will behave during filtering and sorting.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 1;</code>
      * @param value The enum numeric value on the wire for priceInnerRecordHandling to set.
      * @return This builder for chaining.
@@ -450,6 +474,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Price inner record handling controls how prices that share same `inner entity id` will behave during filtering and sorting.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 1;</code>
      * @return The priceInnerRecordHandling.
      */
@@ -460,6 +488,10 @@ private static final long serialVersionUID = 0L;
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling.UNRECOGNIZED : result;
     }
     /**
+     * <pre>
+     * Price inner record handling controls how prices that share same `inner entity id` will behave during filtering and sorting.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 1;</code>
      * @param value The priceInnerRecordHandling to set.
      * @return This builder for chaining.
@@ -474,6 +506,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Price inner record handling controls how prices that share same `inner entity id` will behave during filtering and sorting.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 1;</code>
      * @return This builder for chaining.
      */

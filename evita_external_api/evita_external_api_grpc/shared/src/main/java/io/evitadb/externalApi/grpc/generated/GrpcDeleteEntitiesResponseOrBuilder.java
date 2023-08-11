@@ -31,30 +31,54 @@ public interface GrpcDeleteEntitiesResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Count of deleted entities.
+   * </pre>
+   *
    * <code>int32 deletedEntities = 1;</code>
    * @return The deletedEntities.
    */
   int getDeletedEntities();
 
   /**
+   * <pre>
+   * The deleted entity bodies.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity> 
       getDeletedEntityBodiesList();
   /**
+   * <pre>
+   * The deleted entity bodies.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getDeletedEntityBodies(int index);
   /**
+   * <pre>
+   * The deleted entity bodies.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
    */
   int getDeletedEntityBodiesCount();
   /**
+   * <pre>
+   * The deleted entity bodies.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
       getDeletedEntityBodiesOrBuilderList();
   /**
+   * <pre>
+   * The deleted entity bodies.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getDeletedEntityBodiesOrBuilder(

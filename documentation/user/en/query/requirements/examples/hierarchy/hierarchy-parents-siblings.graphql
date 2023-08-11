@@ -14,7 +14,6 @@
           parentAxis: parents(
             siblings: { }
           ) {
-            parentPrimaryKey
             level
             entity {
               primaryKey
@@ -25,7 +24,6 @@
             }
             queriedEntityCount
             childrenCount
-            hasChildren
           }
         }
       }

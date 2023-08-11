@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Request for deleting a collection of entities specified by a query.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesRequest}
  */
 public final class GrpcDeleteEntitiesRequest extends
@@ -152,6 +156,10 @@ private static final long serialVersionUID = 0L;
   public static final int QUERY_FIELD_NUMBER = 1;
   private volatile java.lang.Object query_;
   /**
+   * <pre>
+   * The string part of the parametrised query.
+   * </pre>
+   *
    * <code>string query = 1;</code>
    * @return The query.
    */
@@ -169,6 +177,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * The string part of the parametrised query.
+   * </pre>
+   *
    * <code>string query = 1;</code>
    * @return The bytes for query.
    */
@@ -190,6 +202,10 @@ private static final long serialVersionUID = 0L;
   public static final int POSITIONALQUERYPARAMS_FIELD_NUMBER = 2;
   private java.util.List<io.evitadb.externalApi.grpc.generated.QueryParam> positionalQueryParams_;
   /**
+   * <pre>
+   * The positional query parameters.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 2;</code>
    */
   @java.lang.Override
@@ -197,6 +213,10 @@ private static final long serialVersionUID = 0L;
     return positionalQueryParams_;
   }
   /**
+   * <pre>
+   * The positional query parameters.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 2;</code>
    */
   @java.lang.Override
@@ -205,6 +225,10 @@ private static final long serialVersionUID = 0L;
     return positionalQueryParams_;
   }
   /**
+   * <pre>
+   * The positional query parameters.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 2;</code>
    */
   @java.lang.Override
@@ -212,6 +236,10 @@ private static final long serialVersionUID = 0L;
     return positionalQueryParams_.size();
   }
   /**
+   * <pre>
+   * The positional query parameters.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 2;</code>
    */
   @java.lang.Override
@@ -219,6 +247,10 @@ private static final long serialVersionUID = 0L;
     return positionalQueryParams_.get(index);
   }
   /**
+   * <pre>
+   * The positional query parameters.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 2;</code>
    */
   @java.lang.Override
@@ -254,6 +286,10 @@ private static final long serialVersionUID = 0L;
     return internalGetNamedQueryParams().getMap().size();
   }
   /**
+   * <pre>
+   * The named query parameters.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 3;</code>
    */
 
@@ -272,6 +308,10 @@ private static final long serialVersionUID = 0L;
     return getNamedQueryParamsMap();
   }
   /**
+   * <pre>
+   * The named query parameters.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 3;</code>
    */
   @java.lang.Override
@@ -280,6 +320,10 @@ private static final long serialVersionUID = 0L;
     return internalGetNamedQueryParams().getMap();
   }
   /**
+   * <pre>
+   * The named query parameters.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 3;</code>
    */
   @java.lang.Override
@@ -293,6 +337,10 @@ private static final long serialVersionUID = 0L;
     return map.containsKey(key) ? map.get(key) : defaultValue;
   }
   /**
+   * <pre>
+   * The named query parameters.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 3;</code>
    */
   @java.lang.Override
@@ -498,6 +546,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Request for deleting a collection of entities specified by a query.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesRequest}
    */
   public static final class Builder extends
@@ -718,6 +770,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object query_ = "";
     /**
+     * <pre>
+     * The string part of the parametrised query.
+     * </pre>
+     *
      * <code>string query = 1;</code>
      * @return The query.
      */
@@ -734,6 +790,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The string part of the parametrised query.
+     * </pre>
+     *
      * <code>string query = 1;</code>
      * @return The bytes for query.
      */
@@ -751,6 +811,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The string part of the parametrised query.
+     * </pre>
+     *
      * <code>string query = 1;</code>
      * @param value The query to set.
      * @return This builder for chaining.
@@ -766,6 +830,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The string part of the parametrised query.
+     * </pre>
+     *
      * <code>string query = 1;</code>
      * @return This builder for chaining.
      */
@@ -776,6 +844,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The string part of the parametrised query.
+     * </pre>
+     *
      * <code>string query = 1;</code>
      * @param value The bytes for query to set.
      * @return This builder for chaining.
@@ -805,6 +877,10 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.QueryParam, io.evitadb.externalApi.grpc.generated.QueryParam.Builder, io.evitadb.externalApi.grpc.generated.QueryParamOrBuilder> positionalQueryParamsBuilder_;
 
     /**
+     * <pre>
+     * The positional query parameters.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 2;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.QueryParam> getPositionalQueryParamsList() {
@@ -815,6 +891,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The positional query parameters.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 2;</code>
      */
     public int getPositionalQueryParamsCount() {
@@ -825,6 +905,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The positional query parameters.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.QueryParam getPositionalQueryParams(int index) {
@@ -835,6 +919,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The positional query parameters.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 2;</code>
      */
     public Builder setPositionalQueryParams(
@@ -852,6 +940,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The positional query parameters.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 2;</code>
      */
     public Builder setPositionalQueryParams(
@@ -866,6 +958,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The positional query parameters.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 2;</code>
      */
     public Builder addPositionalQueryParams(io.evitadb.externalApi.grpc.generated.QueryParam value) {
@@ -882,6 +978,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The positional query parameters.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 2;</code>
      */
     public Builder addPositionalQueryParams(
@@ -899,6 +999,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The positional query parameters.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 2;</code>
      */
     public Builder addPositionalQueryParams(
@@ -913,6 +1017,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The positional query parameters.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 2;</code>
      */
     public Builder addPositionalQueryParams(
@@ -927,6 +1035,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The positional query parameters.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 2;</code>
      */
     public Builder addAllPositionalQueryParams(
@@ -942,6 +1054,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The positional query parameters.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 2;</code>
      */
     public Builder clearPositionalQueryParams() {
@@ -955,6 +1071,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The positional query parameters.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 2;</code>
      */
     public Builder removePositionalQueryParams(int index) {
@@ -968,6 +1088,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The positional query parameters.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.QueryParam.Builder getPositionalQueryParamsBuilder(
@@ -975,6 +1099,10 @@ private static final long serialVersionUID = 0L;
       return getPositionalQueryParamsFieldBuilder().getBuilder(index);
     }
     /**
+     * <pre>
+     * The positional query parameters.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.QueryParamOrBuilder getPositionalQueryParamsOrBuilder(
@@ -985,6 +1113,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The positional query parameters.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 2;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.QueryParamOrBuilder> 
@@ -996,6 +1128,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The positional query parameters.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.QueryParam.Builder addPositionalQueryParamsBuilder() {
@@ -1003,6 +1139,10 @@ private static final long serialVersionUID = 0L;
           io.evitadb.externalApi.grpc.generated.QueryParam.getDefaultInstance());
     }
     /**
+     * <pre>
+     * The positional query parameters.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.QueryParam.Builder addPositionalQueryParamsBuilder(
@@ -1011,6 +1151,10 @@ private static final long serialVersionUID = 0L;
           index, io.evitadb.externalApi.grpc.generated.QueryParam.getDefaultInstance());
     }
     /**
+     * <pre>
+     * The positional query parameters.
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 2;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.QueryParam.Builder> 
@@ -1059,6 +1203,10 @@ private static final long serialVersionUID = 0L;
       return internalGetNamedQueryParams().getMap().size();
     }
     /**
+     * <pre>
+     * The named query parameters.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 3;</code>
      */
 
@@ -1077,6 +1225,10 @@ private static final long serialVersionUID = 0L;
       return getNamedQueryParamsMap();
     }
     /**
+     * <pre>
+     * The named query parameters.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 3;</code>
      */
     @java.lang.Override
@@ -1085,6 +1237,10 @@ private static final long serialVersionUID = 0L;
       return internalGetNamedQueryParams().getMap();
     }
     /**
+     * <pre>
+     * The named query parameters.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 3;</code>
      */
     @java.lang.Override
@@ -1098,6 +1254,10 @@ private static final long serialVersionUID = 0L;
       return map.containsKey(key) ? map.get(key) : defaultValue;
     }
     /**
+     * <pre>
+     * The named query parameters.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 3;</code>
      */
     @java.lang.Override
@@ -1119,6 +1279,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The named query parameters.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 3;</code>
      */
 
@@ -1138,6 +1302,10 @@ private static final long serialVersionUID = 0L;
       return internalGetMutableNamedQueryParams().getMutableMap();
     }
     /**
+     * <pre>
+     * The named query parameters.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 3;</code>
      */
     public Builder putNamedQueryParams(
@@ -1153,6 +1321,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The named query parameters.
+     * </pre>
+     *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 3;</code>
      */
 

@@ -27,7 +27,6 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 
@@ -100,7 +99,7 @@ public class And extends AbstractFilterConstraintContainer implements GenericCon
 	@Serial private static final long serialVersionUID = -3383976355275556890L;
 
 	@Creator
-	public And(@Nonnull @Child FilterConstraint... children) {
+	public And(@Nonnull FilterConstraint... children) {
 		super(children);
 	}
 

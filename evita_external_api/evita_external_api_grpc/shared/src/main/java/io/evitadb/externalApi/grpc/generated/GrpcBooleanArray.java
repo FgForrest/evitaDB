@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Wrapper for representing an array of booleans.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcBooleanArray}
  */
 public final class GrpcBooleanArray extends
@@ -132,6 +136,10 @@ private static final long serialVersionUID = 0L;
   public static final int VALUE_FIELD_NUMBER = 1;
   private com.google.protobuf.Internal.BooleanList value_;
   /**
+   * <pre>
+   * Value that supports storing a boolean array.
+   * </pre>
+   *
    * <code>repeated bool value = 1;</code>
    * @return A list containing the value.
    */
@@ -141,6 +149,10 @@ private static final long serialVersionUID = 0L;
     return value_;
   }
   /**
+   * <pre>
+   * Value that supports storing a boolean array.
+   * </pre>
+   *
    * <code>repeated bool value = 1;</code>
    * @return The count of value.
    */
@@ -148,6 +160,10 @@ private static final long serialVersionUID = 0L;
     return value_.size();
   }
   /**
+   * <pre>
+   * Value that supports storing a boolean array.
+   * </pre>
+   *
    * <code>repeated bool value = 1;</code>
    * @param index The index of the element to return.
    * @return The value at the given index.
@@ -327,6 +343,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Wrapper for representing an array of booleans.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcBooleanArray}
    */
   public static final class Builder extends
@@ -494,6 +514,10 @@ private static final long serialVersionUID = 0L;
        }
     }
     /**
+     * <pre>
+     * Value that supports storing a boolean array.
+     * </pre>
+     *
      * <code>repeated bool value = 1;</code>
      * @return A list containing the value.
      */
@@ -503,6 +527,10 @@ private static final long serialVersionUID = 0L;
                java.util.Collections.unmodifiableList(value_) : value_;
     }
     /**
+     * <pre>
+     * Value that supports storing a boolean array.
+     * </pre>
+     *
      * <code>repeated bool value = 1;</code>
      * @return The count of value.
      */
@@ -510,6 +538,10 @@ private static final long serialVersionUID = 0L;
       return value_.size();
     }
     /**
+     * <pre>
+     * Value that supports storing a boolean array.
+     * </pre>
+     *
      * <code>repeated bool value = 1;</code>
      * @param index The index of the element to return.
      * @return The value at the given index.
@@ -518,6 +550,10 @@ private static final long serialVersionUID = 0L;
       return value_.getBoolean(index);
     }
     /**
+     * <pre>
+     * Value that supports storing a boolean array.
+     * </pre>
+     *
      * <code>repeated bool value = 1;</code>
      * @param index The index to set the value at.
      * @param value The value to set.
@@ -531,6 +567,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Value that supports storing a boolean array.
+     * </pre>
+     *
      * <code>repeated bool value = 1;</code>
      * @param value The value to add.
      * @return This builder for chaining.
@@ -542,6 +582,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Value that supports storing a boolean array.
+     * </pre>
+     *
      * <code>repeated bool value = 1;</code>
      * @param values The value to add.
      * @return This builder for chaining.
@@ -555,6 +599,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Value that supports storing a boolean array.
+     * </pre>
+     *
      * <code>repeated bool value = 1;</code>
      * @return This builder for chaining.
      */

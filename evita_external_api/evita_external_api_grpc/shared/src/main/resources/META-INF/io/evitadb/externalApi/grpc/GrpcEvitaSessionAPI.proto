@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package io.evitadb.externalApi.grpc.generated;
 option java_multiple_files = true;
+option csharp_namespace = "EvitaDB";
 
 import "google/protobuf/empty.proto";
 import "google/protobuf/wrappers.proto";
@@ -17,258 +18,419 @@ import "GrpcCatalogSchemaMutation.proto";
 import "GrpcCatalogSchemaMutations.proto";
 import "GrpcChangeDataCapture.proto";
 
+// Response to GetCatalogState request.
 message GrpcCatalogStateResponse {
+  // The current state of the catalog.
   GrpcCatalogState state = 1;
 }
 
+// Response to GetCatalogSchema request.
 message GrpcCatalogSchemaResponse {
+  // The current catalog schema.
   GrpcCatalogSchema catalogSchema = 1;
 }
 
+// Request for acquiring the schema of a specific entity type.
 message GrpcEntitySchemaRequest {
+  // The entity type for which the schema is requested.
   string entityType = 1;
 }
 
+// Response to GetEntitySchema request.
 message GrpcEntitySchemaResponse {
+  // The schema of the requested entity type.
   GrpcEntitySchema entitySchema = 1;
 }
 
+// Request for updating the catalog schema.
 message GrpcUpdateCatalogSchemaRequest {
+  // Collection of local catalog schema mutations to be applied.
   repeated GrpcLocalCatalogSchemaMutation schemaMutations = 1;
 }
 
+// Response to UpdateCatalogSchema request.
 message GrpcUpdateCatalogSchemaResponse {
+  // The new version of the catalog schema.
   int32 version = 1;
 }
 
+// Request for updating the catalog schema and its afterwards fetching.
 message GrpcUpdateAndFetchCatalogSchemaResponse {
+  // Modified catalog schema.
   GrpcCatalogSchema catalogSchema = 1;
 }
 
+// Request for defining the schema of a new entity type.
 message GrpcDefineEntitySchemaRequest {
+  // The schema of the new entity type.
   string entityType = 1;
 }
 
+// Response to DefineEntitySchema request.
 message GrpcDefineEntitySchemaResponse {
+  // Newly created entity schema.
   GrpcEntitySchema entitySchema = 1;
 }
 
+// Request for updating the schema of an existing entity type.
 message GrpcUpdateEntitySchemaRequest {
+  // Wrapper that holds the entity type and the collection of EntitySchemaMutations to be applied.
   GrpcModifyEntitySchemaMutation schemaMutation = 1;
 }
 
+// Response to UpdateEntitySchema request.
 message GrpcUpdateEntitySchemaResponse {
+  // The new version of the entity schema.
   int32 version = 1;
 }
 
+// Request for updating the entity schema and its afterwards fetching.
 message GrpcUpdateAndFetchEntitySchemaResponse {
+  // Modified entity schema.
   GrpcEntitySchema entitySchema = 1;
 }
 
+// Request for acquiring an entity.
 message GrpcEntityRequest {
+  // The primary key of the entity.
   int32 primaryKey = 1;
+  // The entity type of the entity.
   string entityType = 2;
+  // The string part of the parametrised query require part.
   string require = 3;
+  // The positional query parameters.
   repeated QueryParam positionalQueryParams = 4;
+  // The named query parameters.
   map<string, QueryParam> namedQueryParams = 5;
 }
 
+// Response to GetEntity request.
 message GrpcEntityResponse {
+  // The found entity.
   GrpcSealedEntity entity = 1;
 }
 
+// Structure that represents a pagination within a data chunk.
 message GrpcPaginatedList {
+  // The size of the page.
   int32 pageSize = 1;
+  // The number of the page.
   int32 pageNumber = 2;
 }
 
+// Structure that represents a strip within a data chunk.
 message GrpcStripList {
+  // The size of the strip.
   int32 limit = 1;
+  // The offset of the strip - count of records from the beginning to skip.
   int32 offset = 2;
 }
 
+// Structure that represents a data chunk of entities. Only one of the entity fields should be set in one response.
+// That is decided by require block in a query, so as the pagination method used.
 message GrpcDataChunk {
+  // Collection of entity references.
   repeated GrpcEntityReference entityReferences = 1;
+  // Collection of sealed entities.
   repeated GrpcSealedEntity sealedEntities = 2;
+  // Collection of binary entities.
   repeated GrpcBinaryEntity binaryEntities = 3;
+  // Chunk of the data.
   oneof chunk {
+    // The paginated list.
     GrpcPaginatedList paginatedList = 4;
+    // The strip list.
     GrpcStripList stripList = 5;
   }
+  // The total number of records.
   int32 totalRecordCount = 6;
+  // True, if this is the first page.
   bool isFirst = 7;
+  // True, if this is the last page.
   bool isLast = 8;
+  // True, if there is a previous page.
   bool hasPrevious = 9;
+  // True, if there is a next page.
   bool hasNext = 10;
+  // True, if this is a single page.
   bool isSinglePage = 11;
+  // True, if this is an empty page.
   bool isEmpty = 12;
 }
 
+// Request for deleting an entity collection.
 message GrpcDeleteCollectionRequest {
+  // The entity type of the collection to be deleted.
   string entityType = 1;
 }
 
+// Response to DeleteCollection request.
 message GrpcDeleteCollectionResponse {
+  // True, if the collection was deleted.
   bool deleted = 1;
 }
 
+// Request for renaming an entity collection.
 message GrpcRenameCollectionRequest {
+  // The entity type of the collection to be renamed.
   string entityType = 1;
+  // The new name of the collection.
   string newName = 2;
 }
 
+// Response to RenameCollection request.
 message GrpcRenameCollectionResponse {
+  // True, if the collection was renamed.
   bool renamed = 1;
 }
 
 message GrpcReplaceCollectionRequest {
+  // Name of the entity collection that will be replaced and dropped (new name)
   string entityTypeToBeReplaced = 1;
+  // Name of the entity collection that will become the successor of the original collection (old name)
   string entityTypeToBeReplacedWith = 2;
 }
 
+// Response to ReplaceCollection request.
 message GrpcReplaceCollectionResponse {
+  // True, if the collection was replaced.
   bool replaced = 1;
 }
 
+// Request for acquiring the size of an entity collection.
 message GrpcEntityCollectionSizeRequest {
+  // The entity type of the collection - (count of entities stored).
   string entityType = 1;
 }
 
+// Response to GetEntityCollectionSize request.
 message GrpcEntityCollectionSizeResponse {
+  // The size of the collection.
   int32 size = 1;
 }
 
+// Response for GoLiveAndClose request that switches the catalog to ALIVE state and closes the session.
 message GrpcGoLiveAndCloseResponse {
+  // True, if the catalog was switched to ALIVE state.
   bool success = 1;
 }
 
+// Request for acquiring the list of all entity types.
 message GrpcEntityTypesResponse {
+  // The list of all entity types.
   repeated string entityTypes = 1;
 }
 
+// Request for specifying a query to be executed.
 message GrpcQueryRequest {
+  // The string part of the parametrised query.
   string query = 1;
+  // The positional query parameters.
   repeated QueryParam positionalQueryParams = 2;
+  // The named query parameters.
   map<string, QueryParam> namedQueryParams = 3;
 }
 
+// Response to Query request.
 message GrpcQueryResponse {
+  // The fetched record page with entities.
   GrpcDataChunk recordPage = 1;
+  // The computed extra results.
   GrpcExtraResults extraResults = 2;
 }
 
+// Response for query request executed when searched for exactly one entity. The used field is decided by the require block in the query.
 message GrpcQueryOneResponse {
+  // Entity reference of the found entity.
   GrpcEntityReference entityReference = 1;
+  // Sealed entity of the found entity.
   GrpcSealedEntity sealedEntity = 2;
+  // Binary entity of the found entity.
   GrpcBinaryEntity binaryEntity = 3;
 }
 
+// Response for query request executed when searched for a list of entities. The used field is decided by the require block in the query.
 message GrpcQueryListResponse {
   repeated GrpcEntityReference entityReferences = 1;
   repeated GrpcSealedEntity sealedEntities = 2;
   repeated GrpcBinaryEntity binaryEntities = 3;
 }
 
+// Request for upserting an entity that should return an entity with required richness.
 message GrpcUpsertEntityRequest {
+  // Either Upsert or Delete entity mutation.
   GrpcEntityMutation entityMutation = 1;
+  // The string part of the parametrised query require part.
   string require = 2;
+  // The positional query parameters.
   repeated QueryParam positionalQueryParams = 3;
+  // The named query parameters.
   map<string, QueryParam> namedQueryParams = 4;
 }
 
+// Request for deleting an entity that should return the deleted entity with required richness.
 message GrpcDeleteEntityRequest {
+  // Entity type of the entity to be deleted.
   string entityType = 1;
+  // Primary key of the entity to be deleted.
   google.protobuf.Int32Value primaryKey = 2;
-  GrpcEntityExistence entityExistence = 3;
-  string require = 4;
-  repeated QueryParam positionalQueryParams = 5;
-  map<string, QueryParam> namedQueryParams = 6;
+  // The string part of the parametrised query require part.
+  string require = 3;
+  // The positional query parameters.
+  repeated QueryParam positionalQueryParams = 4;
+  // The named query parameters.
+  map<string, QueryParam> namedQueryParams = 5;
 }
 
+// Request for deleting a collection of entities specified by a query.
 message GrpcDeleteEntitiesRequest {
+  // The string part of the parametrised query.
   string query = 1;
+  // The positional query parameters.
   repeated QueryParam positionalQueryParams = 2;
+  // The named query parameters.
   map<string, QueryParam> namedQueryParams = 3;
 }
 
+// Response to UpsertEntity request. The used field is decided by the require block in the query.
 message GrpcUpsertEntityResponse {
+  // The upserted entity.
   oneof response {
+    // The upserted entity reference.
     GrpcEntityReference entityReference = 1;
+    // The upserted entity.
     GrpcSealedEntity entity = 2;
   }
 }
 
+// Response to DeleteEntity request.
 message GrpcDeleteEntityResponse {
+  // The deleted entity. The used field is decided by the require block in the query.
   oneof response {
+    // The deleted entity reference.
     GrpcEntityReference entityReference = 1;
+    // The deleted entity.
     GrpcSealedEntity entity = 2;
   }
 }
 
+// Response to DeleteEntity request when hierarchy has been specified in filter.
 message GrpcDeleteEntityAndItsHierarchyResponse {
+  // Count of deleted entities.
   int32 deletedEntities = 1;
   oneof response {
+    // The deleted root entity reference.
     GrpcEntityReference deletedRootEntityReference = 2;
+    // The deleted root entity.
     GrpcSealedEntity deletedRootEntity = 3;
   }
 }
 
+// Response to DeleteEntities request that deletes all entities that match the sent query..
 message GrpcDeleteEntitiesResponse {
+  // Count of deleted entities.
   int32 deletedEntities = 1;
+  // The deleted entity bodies.
   repeated GrpcSealedEntity deletedEntityBodies = 2;
 }
 
+// Request for opening a transaction.
 message GrpcOpenTransactionResponse {
+  // True, if the transaction was opened before corresponding request.
   bool alreadyOpenedBefore = 1;
+  // The id of the opened transaction.
   int64 transactionId = 2;
 }
 
+// Request for closing a transaction.
 message GrpcCloseTransactionRequest {
+  // If true, tha changes made by the transaction will be omitted and rollbacked.
   bool rollback = 1;
 }
 
+// Structure that supports storing all possible parameters that could be used within query.
 message QueryParam {
+  // The value of the parameter.
   oneof queryParam {
+    // The string value.
     string stringValue = 1;
+    // The integer value.
     int32 integerValue = 2;
+    // The long value.
     int64 longValue = 3;
+    // The boolean value.
     bool booleanValue = 4;
+    // The big decimal value.
     GrpcBigDecimal bigDecimalValue = 5;
+    // The date time range value.
     GrpcDateTimeRange dateTimeRangeValue = 6;
+    // The integer number range value.
     GrpcIntegerNumberRange integerNumberRangeValue = 7;
+    // The long number range value.
     GrpcLongNumberRange longNumberRangeValue = 8;
+    // The big decimal number range value.
     GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;
+    // The offset date time value.
     GrpcOffsetDateTime offsetDateTimeValue = 10;
+    // The locale value.
     GrpcLocale localeValue = 11;
+    // The currency value.
     GrpcCurrency currencyValue = 12;
+    // The facet statistics depth enum value.
     GrpcFacetStatisticsDepth facetStatisticsDepthValue = 13;
+    // The query price mode enum value.
     GrpcQueryPriceMode queryPriceModelValue = 14;
+    // The price content mode enum value.
     GrpcPriceContentMode priceContentModeValue = 15;
+    // The attribute special value enum value.
     GrpcAttributeSpecialValue attributeSpecialValue = 16;
+    // The order direction enum value.
     GrpcOrderDirection orderDirectionValue = 17;
+    // The empty hierarchical entity behaviour enum value.
     GrpcEmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour = 18;
+    // The statistics base enum value.
     GrpcStatisticsBase statisticsBase = 19;
+    // The statistics type enum value.
     GrpcStatisticsType statisticsType = 20;
 
+    // The string array value.
     GrpcStringArray stringArrayValue = 21;
+    // The integer array value.
     GrpcIntegerArray integerArrayValue = 22;
+    // The long array value.
     GrpcLongArray longArrayValue = 23;
+    // The boolean array value.
     GrpcBooleanArray booleanArrayValue = 24;
+    // The big decimal array value.
     GrpcBigDecimalArray bigDecimalArrayValue = 25;
+    // The date time range array value.
     GrpcDateTimeRangeArray dateTimeRangeArrayValue = 26;
+    // The integer number range array value.
     GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 27;
+    // The long number range array value.
     GrpcLongNumberRangeArray longNumberRangeArrayValue = 28;
+    // The big decimal number range array value.
     GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 29;
+    // The offset date time array value.
     GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 30;
+    // The locale array value.
     GrpcLocaleArray localeArrayValue = 31;
+    // The currency array value.
     GrpcCurrencyArray currencyArrayValue = 32;
+    // The facet statistics depth array value.
     GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 33;
+    // The query price mode array value.
     GrpcQueryPriceModeArray queryPriceModelArrayValue = 34;
+    // The price content mode array value.
     GrpcPriceContentModeArray priceContentModeArrayValue = 35;
+    // The attribute special value array value.
     GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 36;
+    // The order direction array value.
     GrpcOrderDirectionArray orderDirectionArrayValue = 37;
+    // The empty hierarchical entity behaviour array value.
     GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 38;
     GrpcStatisticsBaseArray statisticsBaseArrayValue = 39;
+    // The statistics type array value.
     GrpcStatisticsTypeArray statisticsTypeArrayValue = 40;
   }
 }
@@ -294,36 +456,68 @@ message GrpcUnregisterChangeDataCaptureRequest {
   string uuid = 1;
 }
 
+// This service contains RPCs that could be called by gRPC clients on evitaDB's catalog by usage of a before created session.
+// By specifying its UUID and the name of a catalog to which it corresponds to it's possible to execute methods that in
+// evitaDB's implementation a called on an instance of EvitaSessionContract.
+//
+// Main purpose of this service is to provide a way to manipulate with stored entity collections and their schemas. That
+// includes their creating, updating and deleting. Same operations could be done with entities, which in addition could
+// be fetched by specifying a complex queries.
 service EvitaSessionService {
+  // Procedure that returns the current (the one on which the used session operates) catalog schema.
   rpc GetCatalogSchema(google.protobuf.Empty) returns (GrpcCatalogSchemaResponse);
+  // Procedure that returns the current state of the catalog.
   rpc GetCatalogState(google.protobuf.Empty) returns (GrpcCatalogStateResponse);
+  // Procedure that returns the schema of a specific entity type.
   rpc GetEntitySchema(GrpcEntitySchemaRequest) returns (GrpcEntitySchemaResponse);
+  // Procedure that returns the list of all entity types.
   rpc GetAllEntityTypes(google.protobuf.Empty) returns (GrpcEntityTypesResponse);
+  // Procedure that changes the state of the catalog to ALIVE and closes the session.
   rpc GoLiveAndClose(google.protobuf.Empty) returns (GrpcGoLiveAndCloseResponse);
+  // Procedure that closes the session.
   rpc Close(google.protobuf.Empty) returns (google.protobuf.Empty);
 
+  // Procedure that executes passed parametrised query and returns zero or one entity.
   rpc QueryOne(GrpcQueryRequest) returns (GrpcQueryOneResponse);
+  // Procedure that executes passed parametrised query and returns a list of entities.
   rpc QueryList(GrpcQueryRequest) returns (GrpcQueryListResponse);
+  // Procedure that executes passed parametrised query and returns a data chunk with computed extra results.
   rpc Query(GrpcQueryRequest) returns (GrpcQueryResponse);
+  // Procedure that find entity by passed entity type and primary key and return it by specified richness by passed parametrised require query part.
   rpc GetEntity(GrpcEntityRequest) returns (GrpcEntityResponse);
 
+  // Procedure that updates the catalog schema and return its updated version.
   rpc UpdateCatalogSchema(GrpcUpdateCatalogSchemaRequest) returns (GrpcUpdateCatalogSchemaResponse);
+  // Procedure that updates the catalog schema and returns it.
   rpc UpdateAndFetchCatalogSchema(GrpcUpdateCatalogSchemaRequest) returns (GrpcUpdateAndFetchCatalogSchemaResponse);
+  // Procedure that defines the schema of a new entity type and return it.
   rpc DefineEntitySchema(GrpcDefineEntitySchemaRequest) returns (GrpcDefineEntitySchemaResponse);
+  // Procedure that updates the schema of an existing entity type and return its updated version.
   rpc UpdateEntitySchema(GrpcUpdateEntitySchemaRequest) returns (GrpcUpdateEntitySchemaResponse);
+  // Procedure that updates the schema of an existing entity type and returns it.
   rpc UpdateAndFetchEntitySchema(GrpcUpdateEntitySchemaRequest) returns (GrpcUpdateAndFetchEntitySchemaResponse);
 
+  // Procedure that deletes an entity collection.
   rpc DeleteCollection(GrpcDeleteCollectionRequest) returns (GrpcDeleteCollectionResponse);
+  // Procedure that renames an entity collection.
   rpc RenameCollection(GrpcRenameCollectionRequest) returns (GrpcRenameCollectionResponse);
+  // Procedure that replaces an entity collection.
   rpc ReplaceCollection(GrpcReplaceCollectionRequest) returns (GrpcReplaceCollectionResponse);
+  // Procedure that returns the size of an entity collection.
   rpc GetEntityCollectionSize(GrpcEntityCollectionSizeRequest) returns (GrpcEntityCollectionSizeResponse);
 
+  // Procedure that upserts (inserts/updates) an entity and returns it with required richness.
   rpc UpsertEntity(GrpcUpsertEntityRequest) returns (GrpcUpsertEntityResponse);
+  // Procedure that deletes an entity and returns it with required richness.
   rpc DeleteEntity(GrpcDeleteEntityRequest) returns (GrpcDeleteEntityResponse);
+  // Procedure that deletes an entity and its hierarchy and returns the root entity with required richness.
   rpc DeleteEntityAndItsHierarchy(GrpcDeleteEntityRequest) returns (GrpcDeleteEntityAndItsHierarchyResponse);
+  // Procedure that deletes all entities that match the sent query and returns their bodies.
   rpc DeleteEntities(GrpcDeleteEntitiesRequest) returns (GrpcDeleteEntitiesResponse);
 
+  // Procedure that opens a transaction.
   rpc OpenTransaction(google.protobuf.Empty) returns (GrpcOpenTransactionResponse);
+  // Procedure that closes a transaction.
   rpc CloseTransaction(GrpcCloseTransactionRequest) returns (google.protobuf.Empty);
 
   rpc RegisterChangeDataCapture(GrpcRegisterChangeDataCaptureRequest) returns (stream GrpcRegisterChangeDataCaptureResponse);

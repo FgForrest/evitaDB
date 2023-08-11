@@ -31,31 +31,55 @@ public interface GrpcEntityMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Represents a terminal mutation that wraps a list of mutation that are to be performed on an entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation entityUpsertMutation = 1;</code>
    * @return Whether the entityUpsertMutation field is set.
    */
   boolean hasEntityUpsertMutation();
   /**
+   * <pre>
+   * Represents a terminal mutation that wraps a list of mutation that are to be performed on an entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation entityUpsertMutation = 1;</code>
    * @return The entityUpsertMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation getEntityUpsertMutation();
   /**
+   * <pre>
+   * Represents a terminal mutation that wraps a list of mutation that are to be performed on an entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation entityUpsertMutation = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutationOrBuilder getEntityUpsertMutationOrBuilder();
 
   /**
+   * <pre>
+   * Represents a terminal mutation when existing entity is removed in the evitaDB. The entity with all its internal data are deleted.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation entityRemoveMutation = 2;</code>
    * @return Whether the entityRemoveMutation field is set.
    */
   boolean hasEntityRemoveMutation();
   /**
+   * <pre>
+   * Represents a terminal mutation when existing entity is removed in the evitaDB. The entity with all its internal data are deleted.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation entityRemoveMutation = 2;</code>
    * @return The entityRemoveMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation getEntityRemoveMutation();
   /**
+   * <pre>
+   * Represents a terminal mutation when existing entity is removed in the evitaDB. The entity with all its internal data are deleted.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation entityRemoveMutation = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutationOrBuilder getEntityRemoveMutationOrBuilder();

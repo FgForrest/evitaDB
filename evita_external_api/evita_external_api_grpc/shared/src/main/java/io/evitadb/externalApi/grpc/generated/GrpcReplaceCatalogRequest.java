@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Request to replace a catalog.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest}
  */
 public final class GrpcReplaceCatalogRequest extends
@@ -120,6 +124,10 @@ private static final long serialVersionUID = 0L;
   public static final int CATALOGNAMETOBEREPLACEDWITH_FIELD_NUMBER = 1;
   private volatile java.lang.Object catalogNameToBeReplacedWith_;
   /**
+   * <pre>
+   * Name of the catalog that will become the successor of the original catalog (old name)
+   * </pre>
+   *
    * <code>string catalogNameToBeReplacedWith = 1;</code>
    * @return The catalogNameToBeReplacedWith.
    */
@@ -137,6 +145,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Name of the catalog that will become the successor of the original catalog (old name)
+   * </pre>
+   *
    * <code>string catalogNameToBeReplacedWith = 1;</code>
    * @return The bytes for catalogNameToBeReplacedWith.
    */
@@ -158,6 +170,10 @@ private static final long serialVersionUID = 0L;
   public static final int CATALOGNAMETOBEREPLACED_FIELD_NUMBER = 2;
   private volatile java.lang.Object catalogNameToBeReplaced_;
   /**
+   * <pre>
+   * Name of the catalog that will be replaced and dropped (new name)
+   * </pre>
+   *
    * <code>string catalogNameToBeReplaced = 2;</code>
    * @return The catalogNameToBeReplaced.
    */
@@ -175,6 +191,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Name of the catalog that will be replaced and dropped (new name)
+   * </pre>
+   *
    * <code>string catalogNameToBeReplaced = 2;</code>
    * @return The bytes for catalogNameToBeReplaced.
    */
@@ -358,6 +378,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Request to replace a catalog.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest}
    */
   public static final class Builder extends
@@ -514,6 +538,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object catalogNameToBeReplacedWith_ = "";
     /**
+     * <pre>
+     * Name of the catalog that will become the successor of the original catalog (old name)
+     * </pre>
+     *
      * <code>string catalogNameToBeReplacedWith = 1;</code>
      * @return The catalogNameToBeReplacedWith.
      */
@@ -530,6 +558,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the catalog that will become the successor of the original catalog (old name)
+     * </pre>
+     *
      * <code>string catalogNameToBeReplacedWith = 1;</code>
      * @return The bytes for catalogNameToBeReplacedWith.
      */
@@ -547,6 +579,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the catalog that will become the successor of the original catalog (old name)
+     * </pre>
+     *
      * <code>string catalogNameToBeReplacedWith = 1;</code>
      * @param value The catalogNameToBeReplacedWith to set.
      * @return This builder for chaining.
@@ -562,6 +598,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the catalog that will become the successor of the original catalog (old name)
+     * </pre>
+     *
      * <code>string catalogNameToBeReplacedWith = 1;</code>
      * @return This builder for chaining.
      */
@@ -572,6 +612,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the catalog that will become the successor of the original catalog (old name)
+     * </pre>
+     *
      * <code>string catalogNameToBeReplacedWith = 1;</code>
      * @param value The bytes for catalogNameToBeReplacedWith to set.
      * @return This builder for chaining.
@@ -590,6 +634,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object catalogNameToBeReplaced_ = "";
     /**
+     * <pre>
+     * Name of the catalog that will be replaced and dropped (new name)
+     * </pre>
+     *
      * <code>string catalogNameToBeReplaced = 2;</code>
      * @return The catalogNameToBeReplaced.
      */
@@ -606,6 +654,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the catalog that will be replaced and dropped (new name)
+     * </pre>
+     *
      * <code>string catalogNameToBeReplaced = 2;</code>
      * @return The bytes for catalogNameToBeReplaced.
      */
@@ -623,6 +675,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Name of the catalog that will be replaced and dropped (new name)
+     * </pre>
+     *
      * <code>string catalogNameToBeReplaced = 2;</code>
      * @param value The catalogNameToBeReplaced to set.
      * @return This builder for chaining.
@@ -638,6 +694,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the catalog that will be replaced and dropped (new name)
+     * </pre>
+     *
      * <code>string catalogNameToBeReplaced = 2;</code>
      * @return This builder for chaining.
      */
@@ -648,6 +708,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Name of the catalog that will be replaced and dropped (new name)
+     * </pre>
+     *
      * <code>string catalogNameToBeReplaced = 2;</code>
      * @param value The bytes for catalogNameToBeReplaced to set.
      * @return This builder for chaining.

@@ -101,21 +101,21 @@ public class GraphQLScalars {
     public static final Coercing<?, ?> LOCAL_DATE_TIME_COERCING = new LocalDateTimeCoercing();
     public static final GraphQLScalarType LOCAL_DATE_TIME = newScalar()
         .name("LocalDateTime")
-        .description("ISO date time without offset and zone.")
+        .description("ISO 8601 date time without offset.")
         .coercing(LOCAL_DATE_TIME_COERCING)
         .build();
 
     public static final Coercing<?, ?> OFFSET_DATE_TIME_COERCING = new OffsetDateTimeCoercing();
     public static final GraphQLScalarType OFFSET_DATE_TIME = newScalar()
         .name("OffsetDateTime")
-        .description("ISO date time with offset.")
+        .description("ISO 8601 date time with offset.")
         .coercing(OFFSET_DATE_TIME_COERCING)
         .build();
 
     public static final Coercing<?, ?> DATE_TIME_RANGE_COERCING = new DateTimeRangeCoercing();
     public static final GraphQLScalarType DATE_TIME_RANGE = newScalar()
         .name("DateTimeRange")
-        .description("Range of offset date times.")
+        .description("Range of ISO 8601 offset date times.")
         .coercing(DATE_TIME_RANGE_COERCING)
         .build();
 

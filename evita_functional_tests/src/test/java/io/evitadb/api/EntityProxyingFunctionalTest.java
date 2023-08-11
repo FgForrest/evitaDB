@@ -52,8 +52,10 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -80,6 +82,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("Evita entity proxying functionality")
 @Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
+@TestMethodOrder(MethodOrderer.MethodName.class)
 @Slf4j
 public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctionalTest implements EvitaTestSupport {
 	private static final String HUNDRED_PRODUCTS = "HundredProxyProducts";
@@ -235,7 +238,7 @@ public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctio
 		@Nullable Locale locale
 	) {
 		final SealedEntity originalCategory = originalCategories.get(category.getId());
-		if (originalCategory.getParent().isEmpty()) {
+		if (originalCategory.getParentEntity().isEmpty()) {
 			assertNull(category.getParentId());
 			assertTrue(category.getParentIdIfPresent().isEmpty());
 			assertNull(category.getParentEntityReference());
@@ -243,7 +246,7 @@ public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctio
 			assertNull(category.getParentEntity());
 			assertTrue(category.getParentEntityIfPresent().isEmpty());
 		} else {
-			final int expectedParentId = originalCategory.getParent().getAsInt();
+			final int expectedParentId = originalCategory.getParentEntity().get().getPrimaryKey();
 			assertEquals(
 				expectedParentId,
 				category.getParentId()
@@ -255,6 +258,14 @@ public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctio
 			assertEquals(
 				new EntityReference(Entities.CATEGORY, expectedParentId),
 				category.getParentEntityReference()
+			);
+			assertEquals(
+				expectedParentId,
+				category.getParentEntityClassifier().getPrimaryKey()
+			);
+			assertEquals(
+				expectedParentId,
+				category.getParentEntityClassifierWithParent().getPrimaryKey()
 			);
 			assertEquals(
 				Optional.of(new EntityReference(Entities.CATEGORY, expectedParentId)),
@@ -425,6 +436,13 @@ public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctio
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantity());
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantityAsDifferentProperty());
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_ALIAS), product.isAlias());
+		assertEquals(TestEnum.valueOf(originalProduct.getAttribute(ATTRIBUTE_ENUM, String.class)), product.getEnum());
+
+		// methods with implementation not directly annotated by @Attribute annotation are not intercepted
+		assertEquals("computed EAN", product.getEan());
+		// methods with different name are intercepted based on @Attribute annotation
+		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_EAN),  product.getEanAsDifferentProperty());
+
 		final Optional<Object> optionallyAvailable = ofNullable(originalProduct.getAttribute(ATTRIBUTE_OPTIONAL_AVAILABILITY));
 		assertEquals(optionallyAvailable.orElse(false), product.isOptionallyAvailable());
 		assertEquals(optionallyAvailable, product.getOptionallyAvailable());
@@ -628,17 +646,21 @@ public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctio
 	) {
 		final Random rnd = new Random(seed);
 		final int primaryKey = rnd.nextInt(49) + 1;
-		final Query query = query(
-			collection(Entities.PRODUCT),
-			filterBy(entityPrimaryKeyInSet(primaryKey)),
-			require(entityFetchAll())
-		);
 
 		final SealedEntity theProduct = originalProducts
 			.stream()
 			.filter(it -> it.getPrimaryKey() == primaryKey)
 			.findFirst()
 			.orElseThrow();
+
+		final Query query = query(
+			collection(Entities.PRODUCT),
+			filterBy(
+				entityPrimaryKeyInSet(primaryKey),
+				attributeEquals(ATTRIBUTE_ENUM, TestEnum.valueOf(theProduct.getAttribute(ATTRIBUTE_ENUM, String.class)))
+			),
+			require(entityFetchAll())
+		);
 
 		System.out.println("PK: " + primaryKey);
 		assertProduct(
@@ -889,20 +911,20 @@ public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctio
 				),
 				require(
 					entityFetch(
-						attributeContent(),
-						associatedDataContent(),
+						attributeContentAll(),
+						associatedDataContentAll(),
 						priceContentAll(),
 						referenceContentAllWithAttributes(
 							entityFetch(
 								hierarchyContent(
 									entityFetchAll()
 								),
-								attributeContent(),
-								associatedDataContent()
+								attributeContentAll(),
+								associatedDataContentAll()
 							),
 							entityGroupFetch(
-								attributeContent(),
-								associatedDataContent()
+								attributeContentAll(),
+								associatedDataContentAll()
 							)
 						)
 					)
@@ -938,20 +960,20 @@ public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctio
 		final Optional<ProductInterface> productRef = evitaSession.getEntity(
 			ProductInterface.class,
 			theProduct.getPrimaryKey(),
-			attributeContent(),
-			associatedDataContent(),
+			attributeContentAll(),
+			associatedDataContentAll(),
 			priceContentAll(),
 			referenceContentAllWithAttributes(
 				entityFetch(
 					hierarchyContent(
 						entityFetchAll()
 					),
-					attributeContent(),
-					associatedDataContent()
+					attributeContentAll(),
+					associatedDataContentAll()
 				),
 				entityGroupFetchAll()
 			),
-			dataInLocales()
+			dataInLocalesAll()
 		);
 
 		assertProduct(
@@ -962,10 +984,27 @@ public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctio
 		);
 	}
 
+	@DisplayName("Should not throw exception when accessing optional non-fetched data")
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldNotThrowExceptionWhenAccessingOptionalNonFetchedData(
+		EvitaSessionContract evitaSession
+	) {
+		final ProductInterface product = evitaSession.getEntity(ProductInterface.class, 1).orElse(null);
+		assertTrue(product.getOptionallyAvailable().isEmpty());
+		assertTrue(product.getReferencedFileSetIfPresent().isEmpty());
+		assertTrue(product.getCategoriesIfFetched().isEmpty());
+		assertTrue(product.getPriceForSaleIfPresent().isEmpty());
+		assertTrue(product.getBasicPriceIfPresent().isEmpty());
+
+		final CategoryInterface category = evitaSession.getEntity(CategoryInterface.class, 1).orElse(null);
+		assertTrue(category.getParentEntityIfPresent().isEmpty());
+	}
+
 	@DisplayName("Should delete entity")
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
-	void deleteEntity(
+	void x_deleteEntity(
 		EvitaContract evita,
 		List<SealedEntity> originalProducts
 	) {
@@ -1006,7 +1045,7 @@ public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctio
 	@DisplayName("Should delete entity with hierarchy")
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
-	void deleteEntityWithHierarchy(
+	void x_deleteEntityWithHierarchy(
 		EvitaContract evita,
 		Map<Integer, SealedEntity> originalCategories
 	) {

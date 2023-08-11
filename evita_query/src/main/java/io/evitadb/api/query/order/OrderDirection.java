@@ -23,11 +23,14 @@
 
 package io.evitadb.api.query.order;
 
+import io.evitadb.dataType.SupportedEnum;
+
 /**
  * Used in order constraints to specify ordering direction.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@SupportedEnum
 public enum OrderDirection {
 
     ASC, DESC

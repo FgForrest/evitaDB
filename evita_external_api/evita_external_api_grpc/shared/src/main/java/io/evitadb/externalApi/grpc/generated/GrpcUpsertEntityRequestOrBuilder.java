@@ -31,26 +31,46 @@ public interface GrpcUpsertEntityRequestOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Either Upsert or Delete entity mutation.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 1;</code>
    * @return Whether the entityMutation field is set.
    */
   boolean hasEntityMutation();
   /**
+   * <pre>
+   * Either Upsert or Delete entity mutation.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 1;</code>
    * @return The entityMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityMutation getEntityMutation();
   /**
+   * <pre>
+   * Either Upsert or Delete entity mutation.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityMutationOrBuilder getEntityMutationOrBuilder();
 
   /**
+   * <pre>
+   * The string part of the parametrised query require part.
+   * </pre>
+   *
    * <code>string require = 2;</code>
    * @return The require.
    */
   java.lang.String getRequire();
   /**
+   * <pre>
+   * The string part of the parametrised query require part.
+   * </pre>
+   *
    * <code>string require = 2;</code>
    * @return The bytes for require.
    */
@@ -58,34 +78,62 @@ public interface GrpcUpsertEntityRequestOrBuilder extends
       getRequireBytes();
 
   /**
+   * <pre>
+   * The positional query parameters.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.QueryParam> 
       getPositionalQueryParamsList();
   /**
+   * <pre>
+   * The positional query parameters.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
    */
   io.evitadb.externalApi.grpc.generated.QueryParam getPositionalQueryParams(int index);
   /**
+   * <pre>
+   * The positional query parameters.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
    */
   int getPositionalQueryParamsCount();
   /**
+   * <pre>
+   * The positional query parameters.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.QueryParamOrBuilder> 
       getPositionalQueryParamsOrBuilderList();
   /**
+   * <pre>
+   * The positional query parameters.
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
    */
   io.evitadb.externalApi.grpc.generated.QueryParamOrBuilder getPositionalQueryParamsOrBuilder(
       int index);
 
   /**
+   * <pre>
+   * The named query parameters.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 4;</code>
    */
   int getNamedQueryParamsCount();
   /**
+   * <pre>
+   * The named query parameters.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 4;</code>
    */
   boolean containsNamedQueryParams(
@@ -97,11 +145,19 @@ public interface GrpcUpsertEntityRequestOrBuilder extends
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.QueryParam>
   getNamedQueryParams();
   /**
+   * <pre>
+   * The named query parameters.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 4;</code>
    */
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.QueryParam>
   getNamedQueryParamsMap();
   /**
+   * <pre>
+   * The named query parameters.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 4;</code>
    */
 
@@ -109,6 +165,10 @@ public interface GrpcUpsertEntityRequestOrBuilder extends
       java.lang.String key,
       io.evitadb.externalApi.grpc.generated.QueryParam defaultValue);
   /**
+   * <pre>
+   * The named query parameters.
+   * </pre>
+   *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 4;</code>
    */
 

@@ -27,7 +27,11 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.Int32Value;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.SessionTraits.SessionFlags;
+import io.evitadb.api.query.QueryConstraints;
+import io.evitadb.api.query.require.EntityContentRequire;
+import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
@@ -55,6 +59,7 @@ import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute.Builder;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 
@@ -109,10 +114,25 @@ public class EntityConverter {
 	) {
 		final SealedEntitySchema entitySchema = entitySchemaFetcher.apply(grpcEntity);
 		final EntityClassifierWithParent parentEntity;
-		if (grpcEntity.getParentEntityCount() > 0) {
-			parentEntity = toSealedEntityWithParent(entitySchemaFetcher, evitaRequest, grpcEntity.getParentEntityList());
-		} else if (grpcEntity.getParentReferenceCount() > 0) {
-			parentEntity = toEntityReferenceWithParent(grpcEntity.getParentReferenceList());
+		if (grpcEntity.hasParentEntity()) {
+			final HierarchyContent hierarchyContent = evitaRequest.getHierarchyContent();
+			final EvitaRequest parentRequest = Optional.ofNullable(hierarchyContent)
+				.flatMap(HierarchyContent::getEntityFetch)
+				.map(
+					it -> evitaRequest.deriveCopyWith(
+						entitySchema.getName(),
+						QueryConstraints.entityFetch(
+							ArrayUtils.mergeArrays(
+								it.getRequirements(),
+								new EntityContentRequire[] { QueryConstraints.hierarchyContent() }
+							)
+						)
+					)
+				)
+				.orElse(evitaRequest);
+			parentEntity = toEntity(entitySchemaFetcher, parentRequest, grpcEntity.getParentEntity(), SealedEntity.class);
+		} else if (grpcEntity.hasParentReference()) {
+			parentEntity = toEntityReferenceWithParent(grpcEntity.getParentReference());
 		} else {
 			parentEntity = parent;
 		}
@@ -174,7 +194,7 @@ public class EntityConverter {
 				)
 			);
 
-			if (SealedEntity.class.isAssignableFrom(expectedType)) {
+			if (expectedType.isInstance(sealedEntity)) {
 				//noinspection unchecked
 				return (T) sealedEntity;
 			} else {
@@ -237,15 +257,19 @@ public class EntityConverter {
 			.setVersion(entity.version());
 
 		if (entity.parentAvailable()) {
-			entity.getParent()
-				.ifPresent(parent -> entityBuilder.setParent(Int32Value.of(parent)));
+			entity.getParentEntity()
+				.ifPresent(parent -> entityBuilder.setParent(Int32Value.of(parent.getPrimaryKey())));
 
 			entity.getParentEntity()
 				.ifPresent(parent -> {
 					if (parent instanceof EntityReferenceWithParent entityReference) {
-						buildParentReferenceList(entityBuilder, entityReference);
+						entityBuilder.setParentReference(
+							toGrpcEntityReferenceWithParent(entityReference)
+						);
 					} else if (parent instanceof SealedEntity sealedEntity) {
-						buildParentEntity(entityBuilder, sealedEntity);
+						entityBuilder.setParentEntity(
+							toGrpcSealedEntity(sealedEntity)
+						);
 					} else {
 						throw new IllegalStateException("Unexpected parent type: " + parent.getClass());
 					}
@@ -466,31 +490,12 @@ public class EntityConverter {
 	 * in the Java client.
 	 */
 	@Nonnull
-	public static EntityReferenceWithParent toEntityReferenceWithParent(@Nonnull List<GrpcEntityReference> entityReferences) {
-		EntityReferenceWithParent current = null;
-		for (GrpcEntityReference entityReference : entityReferences) {
-			current = new EntityReferenceWithParent(
-				entityReference.getEntityType(), entityReference.getPrimaryKey(), current
-			);
-		}
-		return current;
-	}
-
-	/**
-	 * Converts {@link GrpcEntityReference} to the {@link EntityReference} that should be used
-	 * in the Java client.
-	 */
-	@Nonnull
-	public static SealedEntity toSealedEntityWithParent(
-		@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
-		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull List<GrpcSealedEntity> sealedEntities
-	) {
-		SealedEntity current = null;
-		for (GrpcSealedEntity sealedEntity : sealedEntities) {
-			current = toEntity(entitySchemaFetcher, evitaRequest, current, sealedEntity, SealedEntity.class);
-		}
-		return current;
+	public static EntityReferenceWithParent toEntityReferenceWithParent(@Nonnull GrpcEntityReferenceWithParent entityReferenceWithParent) {
+		return new EntityReferenceWithParent(
+			entityReferenceWithParent.getEntityType(), entityReferenceWithParent.getPrimaryKey(),
+			entityReferenceWithParent.hasParent() ?
+				toEntityReferenceWithParent(entityReferenceWithParent.getParent()) : null
+		);
 	}
 
 	/**
@@ -524,43 +529,23 @@ public class EntityConverter {
 	}
 
 	/**
-	 * Builds a parent reference list in gRPC entity from {@link EntityReferenceWithParent} instance.
+	 * Builds a entity reference with parent in gRPC entity from {@link EntityReferenceWithParent} instance.
 	 */
-	private static void buildParentReferenceList(
-		@Nonnull GrpcSealedEntity.Builder entityBuilder,
+	private static GrpcEntityReferenceWithParent toGrpcEntityReferenceWithParent(
 		@Nonnull EntityReferenceWithParent entityReference
 	) {
-		if (entityReference.getParentEntity().isPresent()) {
-			buildParentReferenceList(
-				entityBuilder,
-				(EntityReferenceWithParent) entityReference.getParentEntity().get()
-			);
-		}
-		entityBuilder.addParentReference(
-			GrpcEntityReference.newBuilder()
-				.setEntityType(entityReference.getType())
-				.setPrimaryKey(entityReference.getPrimaryKey())
-				.build()
-		);
-	}
+		final GrpcEntityReferenceWithParent.Builder builder = GrpcEntityReferenceWithParent.newBuilder()
+			.setEntityType(entityReference.getType())
+			.setPrimaryKey(entityReference.getPrimaryKey());
 
-	/**
-	 * Builds a parent reference list in gRPC entity from {@link EntityReferenceWithParent} instance.
-	 */
-	private static void buildParentEntity(
-		@Nonnull GrpcSealedEntity.Builder entityBuilder,
-		@Nonnull SealedEntity sealedEntity
-	) {
-		sealedEntity.getParentEntity()
+		entityReference.getParentEntity()
 			.ifPresent(
-				parent -> buildParentEntity(
-					entityBuilder,
-					(SealedEntity) parent
+				it -> builder.setParent(
+					toGrpcEntityReferenceWithParent((EntityReferenceWithParent) it)
 				)
 			);
-		entityBuilder.addParentEntity(
-			toGrpcSealedEntity(sealedEntity)
-		);
+
+		return builder.build();
 	}
 
 	/**
@@ -751,7 +736,13 @@ public class EntityConverter {
 			this.parentEntity = parentEntity;
 			this.entityIndex = grpcReference.stream()
 				.filter(GrpcReference::hasReferencedEntity)
-				.map(it -> toEntity(entitySchemaFetcher, evitaRequest, it.getReferencedEntity(), SealedEntity.class))
+				.map(it -> {
+					final RequirementContext fetchCtx = Optional.ofNullable(evitaRequest.getReferenceEntityFetch().get(it.getReferenceName()))
+						.orElse(evitaRequest.getDefaultReferenceRequirement());
+					final GrpcSealedEntity referencedEntity = it.getReferencedEntity();
+					final EvitaRequest referenceRequest = evitaRequest.deriveCopyWith(referencedEntity.getEntityType(), fetchCtx.entityFetch());
+					return toEntity(entitySchemaFetcher, referenceRequest, referencedEntity, SealedEntity.class);
+				})
 				.collect(
 					Collectors.toMap(
 						it -> new EntityReference(it.getType(), it.getPrimaryKey()),

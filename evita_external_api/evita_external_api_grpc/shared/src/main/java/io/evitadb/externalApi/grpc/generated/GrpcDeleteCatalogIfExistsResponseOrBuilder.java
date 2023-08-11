@@ -31,6 +31,10 @@ public interface GrpcDeleteCatalogIfExistsResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Indicator whether the catalog was deleted successfully.
+   * </pre>
+   *
    * <code>bool success = 1;</code>
    * @return The success.
    */
