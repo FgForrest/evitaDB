@@ -229,7 +229,7 @@ public final class GrpcEvitaAPI {
       "GrpcUnregisterSystemChangeCaptureRequest" +
       "\032P.io.evitadb.externalApi.grpc.generated" +
       ".GrpcUnregisterSystemChangeCaptureRespon" +
-      "seB\002P\001b\006proto3"
+      "seB\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

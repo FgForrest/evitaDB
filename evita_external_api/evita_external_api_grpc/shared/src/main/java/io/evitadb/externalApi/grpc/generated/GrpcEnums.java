@@ -145,7 +145,7 @@ public final class GrpcEnums {
       "ERENCE\020\004\022\027\n\023REFERENCE_ATTRIBUTE\020\005**\n\022Grp" +
       "cCaptureContent\022\n\n\006HEADER\020\000\022\010\n\004BODY\020\001*:\n" +
       "\027GrpcCaptureResponseType\022\023\n\017ACKNOWLEDGEM" +
-      "ENT\020\000\022\n\n\006CHANGE\020\001B\002P\001b\006proto3"
+      "ENT\020\000\022\n\n\006CHANGE\020\001B\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
