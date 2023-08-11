@@ -26,7 +26,6 @@ package io.evitadb.driver;
 import com.google.protobuf.Empty;
 import com.google.protobuf.Int32Value;
 import io.evitadb.api.CatalogState;
-import io.evitadb.api.ClientContext;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.exception.CollectionNotFoundException;
@@ -169,6 +168,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 	);
 
 	/**
+	 * Evita instance this session is connected to.
+	 */
+	@Getter private final EvitaClient evita;
+	/**
 	 * Identification of the client from the configuration.
 	 */
 	private final String clientId;
@@ -237,8 +240,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	}
 
 	public EvitaClientSession(
-		@Nonnull String clientId,
-		@Nonnull ReflectionLookup reflectionLookup,
+		@Nonnull EvitaClient evita,
 		@Nonnull EvitaEntitySchemaCache schemaCache,
 		@Nonnull ChannelPool channelPool,
 		@Nonnull String catalogName,
@@ -247,8 +249,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 		@Nonnull SessionTraits sessionTraits,
 		@Nonnull Consumer<EvitaClientSession> onTerminationCallback
 	) {
-		this.clientId = clientId;
-		this.reflectionLookup = reflectionLookup;
+		this.evita = evita;
+		this.clientId = evita.getConfiguration().clientId();
+		this.reflectionLookup = evita.getReflectionLookup();
 		this.proxyFactory = schemaCache.getProxyFactory();
 		this.schemaCache = schemaCache;
 		this.channelPool = channelPool;
@@ -1218,7 +1221,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 * @return result of the applied function
 	 */
 	private <T> T executeWithEvitaSessionService(@Nonnull Function<EvitaSessionServiceBlockingStub, T> evitaSessionServiceBlockingStub) {
-		return ClientContext.executeWithClientId(
+		return executeWithClientId(
 			clientId,
 			() -> {
 				final ManagedChannel managedChannel = this.channelPool.getChannel();

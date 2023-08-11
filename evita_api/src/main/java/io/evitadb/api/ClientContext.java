@@ -50,14 +50,14 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class ClientContext {
+public interface ClientContext {
 	/**
 	 * Holds the client context for the current thread.
 	 *
 	 * TOBEDONE - the implementation should be switched to <a href="https://www.baeldung.com/java-20-scoped-values">scoped values</a>
 	 * TOBEDONE - once the evitaDB is switched to Java 20
 	 */
-	private final static ThreadLocal<Deque<Context>> CLIENT_CONTEXT = new ThreadLocal<>();
+	ThreadLocal<Deque<Context>> CLIENT_CONTEXT = new InheritableThreadLocal<>();
 
 	/**
 	 * Method executes the `lambda` function within the scope of client defined context.
@@ -70,7 +70,7 @@ public class ClientContext {
 	 *                  evita sessions
 	 * @param lambda    function to be executed
 	 */
-	public static void executeWithClientAndRequestId(
+	default void executeWithClientAndRequestId(
 		@Nonnull String clientId,
 		@Nonnull String requestId,
 		@Nonnull Runnable lambda
@@ -95,7 +95,7 @@ public class ClientContext {
 	 *                 example values: Next.JS Middleware, evitaDB console etc.
 	 * @param lambda   function to be executed
 	 */
-	public static void executeWithClientId(
+	default void executeWithClientId(
 		@Nonnull String clientId,
 		@Nonnull Runnable lambda
 	) {
@@ -123,7 +123,7 @@ public class ClientContext {
 	 *                  evita sessions
 	 * @param lambda    function to be executed
 	 */
-	public static void executeWithRequestId(
+	default void executeWithRequestId(
 		@Nonnull String requestId,
 		@Nonnull Runnable lambda
 	) {
@@ -149,7 +149,7 @@ public class ClientContext {
 	 * @param lambda    function to be executed
 	 * @return result of the lambda function
 	 */
-	public static <T> T executeWithClientAndRequestId(
+	default <T> T executeWithClientAndRequestId(
 		@Nonnull String clientId,
 		@Nonnull String requestId,
 		@Nonnull Supplier<T> lambda
@@ -175,7 +175,7 @@ public class ClientContext {
 	 * @param lambda   function to be executed
 	 * @return result of the lambda function
 	 */
-	public static <T> T executeWithClientId(
+	default <T> T executeWithClientId(
 		@Nonnull String clientId,
 		@Nonnull Supplier<T> lambda
 	) {
@@ -203,7 +203,7 @@ public class ClientContext {
 	 *                  evita sessions
 	 * @param lambda    function to be executed
 	 */
-	public static <T> T executeWithRequestId(
+	default <T> T executeWithRequestId(
 		@Nonnull String requestId,
 		@Nonnull Supplier<T> lambda
 	) {
@@ -224,7 +224,7 @@ public class ClientContext {
 	 * example values: Next.JS Middleware, evitaDB console etc.
 	 */
 	@Nonnull
-	public static Optional<String> getClientId() {
+	default Optional<String> getClientId() {
 		return getContext().map(Context::clientId);
 	}
 
@@ -237,7 +237,7 @@ public class ClientContext {
 	 * evita sessions
 	 */
 	@Nonnull
-	public static Optional<String> getRequestId() {
+	default Optional<String> getRequestId() {
 		return getContext().map(Context::requestId);
 	}
 
@@ -260,7 +260,7 @@ public class ClientContext {
 	 * @param clientId client identifier
 	 * @param requestId request identifier
 	 */
-	private record Context(
+	record Context(
 		@Nonnull String clientId,
 		@Nullable String requestId
 	) {

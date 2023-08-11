@@ -24,7 +24,6 @@
 package io.evitadb.driver;
 
 import com.google.protobuf.Empty;
-import io.evitadb.api.ClientContext;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
@@ -99,7 +98,14 @@ public class EvitaClient implements EvitaContract {
 	private static final SchemaMutationConverter<TopLevelCatalogSchemaMutation, GrpcTopLevelCatalogSchemaMutation> CATALOG_SCHEMA_MUTATION_CONVERTER =
 		new DelegatingTopLevelCatalogSchemaMutationConverter();
 
+	/**
+	 * The configuration of the evitaDB client.
+	 */
 	@Getter private final EvitaClientConfiguration configuration;
+	/**
+	 * The channel pool is used to manage the gRPC channels. The channels are created lazily and are reused for
+	 * subsequent requests. The channel pool is thread-safe.
+	 */
 	private final ChannelPool channelPool;
 	/**
 	 * True if client is active and hasn't yet been closed.
@@ -108,7 +114,7 @@ public class EvitaClient implements EvitaContract {
 	/**
 	 * Reflection lookup is used to speed up reflection operation by memoizing the results for examined classes.
 	 */
-	private final ReflectionLookup reflectionLookup;
+	@Getter private final ReflectionLookup reflectionLookup;
 	/**
 	 * Index of the {@link EntitySchemaContract} cache. See {@link EvitaEntitySchemaCache} for more information.
 	 * The key in index is the catalog name.
@@ -133,7 +139,7 @@ public class EvitaClient implements EvitaContract {
 	 * @return result of the applied function
 	 */
 	private <T> T executeWithEvitaService(@Nonnull Function<EvitaServiceBlockingStub, T> evitaServiceBlockingStub) {
-		return ClientContext.executeWithClientAndRequestId(
+		return executeWithClientAndRequestId(
 			configuration.clientId(),
 			UUIDUtil.randomUUID().toString(),
 			() -> {
@@ -285,8 +291,7 @@ public class EvitaClient implements EvitaContract {
 			}
 		}
 		final EvitaClientSession evitaClientSession = new EvitaClientSession(
-			this.configuration.clientId(),
-			this.reflectionLookup,
+			this,
 			this.entitySchemaCache.computeIfAbsent(
 				traits.catalogName(),
 				catalogName -> new EvitaEntitySchemaCache(catalogName, this.reflectionLookup)

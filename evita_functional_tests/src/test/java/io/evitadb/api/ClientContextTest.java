@@ -51,21 +51,21 @@ class ClientContextTest {
 		String requestId = "request-id";
 
 		// when
-		ClientContext.executeWithClientAndRequestId(clientId, requestId, () -> {
+		evita.executeWithClientAndRequestId(clientId, requestId, () -> {
 			evita.defineCatalog(TEST_CATALOG);
 			evita.queryCatalog(TEST_CATALOG, session -> {
 				// then
-				assertEquals(clientId, ClientContext.getClientId().orElseThrow());
-				assertEquals(requestId, ClientContext.getRequestId().orElseThrow());
+				assertEquals(clientId, evita.getClientId().orElseThrow());
+				assertEquals(requestId, evita.getRequestId().orElseThrow());
 			});
 		});
 
-		ClientContext.executeWithClientAndRequestId(clientId, requestId, () -> {
+		evita.executeWithClientAndRequestId(clientId, requestId, () -> {
 			evita.defineCatalog(TEST_CATALOG);
 			evita.queryCatalog(TEST_CATALOG, session -> {
 				// then
-				assertEquals(clientId, ClientContext.getClientId().orElseThrow());
-				assertEquals(requestId, ClientContext.getRequestId().orElseThrow());
+				assertEquals(clientId, evita.getClientId().orElseThrow());
+				assertEquals(requestId, evita.getRequestId().orElseThrow());
 			});
 			return null;
 		});
@@ -77,41 +77,41 @@ class ClientContextTest {
 		String clientId = "client-id";
 
 		// when
-		ClientContext.executeWithClientId(clientId, () -> {
+		evita.executeWithClientId(clientId, () -> {
 			evita.defineCatalog(TEST_CATALOG);
 			evita.queryCatalog(TEST_CATALOG, session -> {
 				// then
-				assertEquals(clientId, ClientContext.getClientId().orElseThrow());
-				assertTrue(ClientContext.getRequestId().isEmpty());
+				assertEquals(clientId, session.getClientId().orElseThrow());
+				assertTrue(session.getRequestId().isEmpty());
 
-				ClientContext.executeWithRequestId("#1", () -> {
-					assertEquals(clientId, ClientContext.getClientId().orElseThrow());
-					assertEquals("#1", ClientContext.getRequestId().orElseThrow());
+				session.executeWithRequestId("#1", () -> {
+					assertEquals(clientId, session.getClientId().orElseThrow());
+					assertEquals("#1", session.getRequestId().orElseThrow());
 				});
 
-				ClientContext.executeWithRequestId("#2", () -> {
-					assertEquals(clientId, ClientContext.getClientId().orElseThrow());
-					assertEquals("#2", ClientContext.getRequestId().orElseThrow());
+				session.executeWithRequestId("#2", () -> {
+					assertEquals(clientId, session.getClientId().orElseThrow());
+					assertEquals("#2", session.getRequestId().orElseThrow());
 				});
 
 			});
 		});
 
-		ClientContext.executeWithClientId(clientId, () -> {
+		evita.executeWithClientId(clientId, () -> {
 			evita.defineCatalog(TEST_CATALOG);
 			return evita.queryCatalog(TEST_CATALOG, session -> {
 				// then
-				assertEquals(clientId, ClientContext.getClientId().orElseThrow());
-				assertTrue(ClientContext.getRequestId().isEmpty());
+				assertEquals(clientId, session.getClientId().orElseThrow());
+				assertTrue(session.getRequestId().isEmpty());
 
-				ClientContext.executeWithRequestId("#1", () -> {
-					assertEquals(clientId, ClientContext.getClientId().orElseThrow());
-					assertEquals("#1", ClientContext.getRequestId().orElseThrow());
+				session.executeWithRequestId("#1", () -> {
+					assertEquals(clientId, session.getClientId().orElseThrow());
+					assertEquals("#1", session.getRequestId().orElseThrow());
 				});
 
-				ClientContext.executeWithRequestId("#2", () -> {
-					assertEquals(clientId, ClientContext.getClientId().orElseThrow());
-					assertEquals("#2", ClientContext.getRequestId().orElseThrow());
+				session.executeWithRequestId("#2", () -> {
+					assertEquals(clientId, session.getClientId().orElseThrow());
+					assertEquals("#2", session.getRequestId().orElseThrow());
 				});
 
 				return null;
@@ -126,31 +126,31 @@ class ClientContextTest {
 		String requestId = "request-id";
 
 		// when
-		ClientContext.executeWithClientAndRequestId(clientId, requestId, () -> {
+		evita.executeWithClientAndRequestId(clientId, requestId, () -> {
 			evita.defineCatalog(TEST_CATALOG);
 			evita.queryCatalog(TEST_CATALOG, session -> {
 				// then
-				assertEquals(clientId, ClientContext.getClientId().orElseThrow());
-				assertEquals(requestId, ClientContext.getRequestId().orElseThrow());
+				assertEquals(clientId, session.getClientId().orElseThrow());
+				assertEquals(requestId, session.getRequestId().orElseThrow());
 			});
 			evita.queryCatalog(TEST_CATALOG, session -> {
 				// then
-				assertEquals(clientId, ClientContext.getClientId().orElseThrow());
-				assertEquals(requestId, ClientContext.getRequestId().orElseThrow());
+				assertEquals(clientId, session.getClientId().orElseThrow());
+				assertEquals(requestId, session.getRequestId().orElseThrow());
 			});
 		});
 
-		ClientContext.executeWithClientAndRequestId(clientId, requestId, () -> {
+		evita.executeWithClientAndRequestId(clientId, requestId, () -> {
 			evita.defineCatalog(TEST_CATALOG);
 			evita.queryCatalog(TEST_CATALOG, session -> {
 				// then
-				assertEquals(clientId, ClientContext.getClientId().orElseThrow());
-				assertEquals(requestId, ClientContext.getRequestId().orElseThrow());
+				assertEquals(clientId, session.getClientId().orElseThrow());
+				assertEquals(requestId, session.getRequestId().orElseThrow());
 			});
 			evita.queryCatalog(TEST_CATALOG, session -> {
 				// then
-				assertEquals(clientId, ClientContext.getClientId().orElseThrow());
-				assertEquals(requestId, ClientContext.getRequestId().orElseThrow());
+				assertEquals(clientId, session.getClientId().orElseThrow());
+				assertEquals(requestId, session.getRequestId().orElseThrow());
 			});
 			return null;
 		});
@@ -162,45 +162,45 @@ class ClientContextTest {
 		String clientId = "client-id";
 
 		// when
-		ClientContext.executeWithClientAndRequestId(clientId, "A", () -> {
+		evita.executeWithClientAndRequestId(clientId, "A", () -> {
 			evita.defineCatalog(TEST_CATALOG);
 			evita.queryCatalog(TEST_CATALOG, session -> {
 				// then
-				assertEquals(clientId, ClientContext.getClientId().orElseThrow());
-				assertEquals("A", ClientContext.getRequestId().orElseThrow());
+				assertEquals(clientId, session.getClientId().orElseThrow());
+				assertEquals("A", session.getRequestId().orElseThrow());
 
-				ClientContext.executeWithRequestId("#1", () -> {
-					assertEquals(clientId, ClientContext.getClientId().orElseThrow());
-					assertEquals("#1", ClientContext.getRequestId().orElseThrow());
+				session.executeWithRequestId("#1", () -> {
+					assertEquals(clientId, session.getClientId().orElseThrow());
+					assertEquals("#1", session.getRequestId().orElseThrow());
 				});
 
-				ClientContext.executeWithRequestId("#2", () -> {
-					assertEquals(clientId, ClientContext.getClientId().orElseThrow());
-					assertEquals("#2", ClientContext.getRequestId().orElseThrow());
+				session.executeWithRequestId("#2", () -> {
+					assertEquals(clientId, session.getClientId().orElseThrow());
+					assertEquals("#2", session.getRequestId().orElseThrow());
 				});
 
-				assertEquals("A", ClientContext.getRequestId().orElseThrow());
+				assertEquals("A", session.getRequestId().orElseThrow());
 			});
 		});
 
-		ClientContext.executeWithClientAndRequestId(clientId, "A", () -> {
+		evita.executeWithClientAndRequestId(clientId, "A", () -> {
 			evita.defineCatalog(TEST_CATALOG);
 			evita.queryCatalog(TEST_CATALOG, session -> {
 				// then
-				assertEquals(clientId, ClientContext.getClientId().orElseThrow());
-				assertEquals("A", ClientContext.getRequestId().orElseThrow());
+				assertEquals(clientId, session.getClientId().orElseThrow());
+				assertEquals("A", session.getRequestId().orElseThrow());
 
-				ClientContext.executeWithRequestId("#1", () -> {
-					assertEquals(clientId, ClientContext.getClientId().orElseThrow());
-					assertEquals("#1", ClientContext.getRequestId().orElseThrow());
+				session.executeWithRequestId("#1", () -> {
+					assertEquals(clientId, session.getClientId().orElseThrow());
+					assertEquals("#1", session.getRequestId().orElseThrow());
 				});
 
-				ClientContext.executeWithRequestId("#2", () -> {
-					assertEquals(clientId, ClientContext.getClientId().orElseThrow());
-					assertEquals("#2", ClientContext.getRequestId().orElseThrow());
+				session.executeWithRequestId("#2", () -> {
+					assertEquals(clientId, session.getClientId().orElseThrow());
+					assertEquals("#2", session.getRequestId().orElseThrow());
 				});
 
-				assertEquals("A", ClientContext.getRequestId().orElseThrow());
+				assertEquals("A", session.getRequestId().orElseThrow());
 			});
 			return null;
 		});
