@@ -12,6 +12,14 @@
               "parent": 66481,
               "parentEntity": {
                 "primaryKey": 66481,
+                "parent": 66468,
+                "parentEntity": {
+                  "primaryKey": 66468,
+                  "attributes": {
+                    "name:en": "Accessories",
+                    "code": "accessories"
+                  }
+                },
                 "attributes": {
                   "name:en": "Smart wearable",
                   "code": "smart-wearable"

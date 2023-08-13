@@ -91,6 +91,20 @@ public interface AssociatedDataContract extends Serializable {
 	boolean associatedDataAvailable(@Nonnull Locale locale);
 
 	/**
+	 * Returns true if entity associated data of particular name was fetched along with the entity. Calling this method
+	 * before calling any other method that requires associated data to be fetched will allow you to avoid
+	 * {@link ContextMissingException}.
+	 */
+	boolean associatedDataAvailable(@Nonnull String associatedDataName);
+
+	/**
+	 * Returns true if entity associated data of particular name in particular locale was fetched along with the entity.
+	 * Calling this method before calling any other method that requires associated data to be fetched will allow you to
+	 * avoid {@link ContextMissingException}.
+	 */
+	boolean associatedDataAvailable(@Nonnull String associatedDataName, @Nonnull Locale locale);
+
+	/**
 	 * Returns value associated with the key or null when the associatedData is missing.
 	 *
 	 * @throws ClassCastException when associatedData is of different type than expected

@@ -527,13 +527,6 @@ public class EntityDecorator implements SealedEntity {
 		return delegate.parentAvailable() && hierarchyPredicate.wasFetched();
 	}
 
-	@Nonnull
-	@Override
-	public OptionalInt getParent() {
-		hierarchyPredicate.checkFetched();
-		return delegate.getParent();
-	}
-
 	/**
 	 * Returns parent entity id without checking the predicate.
 	 * Part of the PRIVATE API.
@@ -551,7 +544,12 @@ public class EntityDecorator implements SealedEntity {
 			getSchema().isWithHierarchy(),
 			() -> new EntityIsNotHierarchicalException(getSchema().getName())
 		);
-		return ofNullable(parentEntity);
+		if (parentAvailable()) {
+			return parentEntity == CONCEALED_ENTITY ? empty() :
+				ofNullable(parentEntity).or(delegate::getParentEntity);
+		} else {
+			return empty();
+		}
 	}
 
 	/**
@@ -566,6 +564,11 @@ public class EntityDecorator implements SealedEntity {
 	@Override
 	public boolean referencesAvailable() {
 		return referencePredicate.wasFetched();
+	}
+
+	@Override
+	public boolean referencesAvailable(@Nonnull String referenceName) {
+		return referencePredicate.wasFetched(referenceName);
 	}
 
 	@Nonnull
@@ -646,6 +649,16 @@ public class EntityDecorator implements SealedEntity {
 	@Override
 	public boolean attributesAvailable(@Nonnull Locale locale) {
 		return attributePredicate.wasFetched(locale);
+	}
+
+	@Override
+	public boolean attributeAvailable(@Nonnull String attributeName) {
+		return attributePredicate.wasFetched(attributeName);
+	}
+
+	@Override
+	public boolean attributeAvailable(@Nonnull String attributeName, @Nonnull Locale locale) {
+		return attributePredicate.wasFetched(attributeName, locale);
 	}
 
 	@Nullable
@@ -779,6 +792,16 @@ public class EntityDecorator implements SealedEntity {
 	@Override
 	public boolean associatedDataAvailable(@Nonnull Locale locale) {
 		return associatedDataPredicate.wasFetched(locale);
+	}
+
+	@Override
+	public boolean associatedDataAvailable(@Nonnull String associatedDataName) {
+		return associatedDataPredicate.wasFetched(associatedDataName);
+	}
+
+	@Override
+	public boolean associatedDataAvailable(@Nonnull String associatedDataName, @Nonnull Locale locale) {
+		return associatedDataPredicate.wasFetched(associatedDataName, locale);
 	}
 
 	@Nullable

@@ -172,6 +172,16 @@ public class Attributes implements AttributesContract {
 	}
 
 	@Override
+	public boolean attributeAvailable(@Nonnull String attributeName) {
+		return true;
+	}
+
+	@Override
+	public boolean attributeAvailable(@Nonnull String attributeName, @Nonnull Locale locale) {
+		return true;
+	}
+
+	@Override
 	@Nullable
 	public <T extends Serializable> T getAttribute(@Nonnull String attributeName) {
 		final AttributeSchemaContract attributeSchema = ofNullable(attributeTypes.get(attributeName))

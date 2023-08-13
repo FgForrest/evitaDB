@@ -169,28 +169,18 @@ public class EntityObjectBuilder {
 		}
 
 		// build hierarchy fields
-		if (entitySchema.isWithHierarchy()) {
-			if (variant == EntityObjectVariant.DEFAULT) {
-				buildingContext.registerFieldToObject(
-					objectName,
-					entityObjectBuilder,
-					buildEntityParentPrimaryKeyField()
-				);
+		if (entitySchema.isWithHierarchy() && variant == EntityObjectVariant.DEFAULT) {
+			buildingContext.registerFieldToObject(
+				objectName,
+				entityObjectBuilder,
+				buildEntityParentPrimaryKeyField()
+			);
 
-				buildingContext.registerFieldToObject(
-					objectName,
-					entityObjectBuilder,
-					buildEntityParentsField(collectionBuildingContext)
-				);
-			} else if (variant == EntityObjectVariant.NON_HIERARCHICAL) {
-				buildingContext.registerFieldToObject(
-					objectName,
-					entityObjectBuilder,
-					buildNonHierarchicalEntityParentPrimaryKeyField()
-				);
-			} else {
-				throw new GraphQLSchemaBuildingError("Unsupported entity object variant `" + variant + "`.");
-			}
+			buildingContext.registerFieldToObject(
+				objectName,
+				entityObjectBuilder,
+				buildEntityParentsField(collectionBuildingContext)
+			);
 		}
 
 		// build price fields

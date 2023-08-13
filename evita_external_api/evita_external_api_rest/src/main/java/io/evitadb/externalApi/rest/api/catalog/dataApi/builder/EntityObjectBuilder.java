@@ -118,7 +118,6 @@ public class EntityObjectBuilder {
 
 		// build hierarchy placement field
 		if (entitySchema.isWithHierarchy()) {
-			entityObject.property(RestEntityDescriptor.PARENT.to(propertyBuilderTransformer));
 			entityObject.property(RestEntityDescriptor.PARENT_ENTITY
 				.to(propertyBuilderTransformer)
 				.type(typeRefTo(objectName)));

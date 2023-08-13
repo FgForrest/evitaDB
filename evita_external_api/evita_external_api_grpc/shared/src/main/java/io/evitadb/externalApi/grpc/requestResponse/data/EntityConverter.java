@@ -27,6 +27,8 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.Int32Value;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.SessionTraits.SessionFlags;
+import io.evitadb.api.query.QueryConstraints;
+import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
@@ -57,6 +59,7 @@ import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute.Builder;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 
@@ -115,7 +118,17 @@ public class EntityConverter {
 			final HierarchyContent hierarchyContent = evitaRequest.getHierarchyContent();
 			final EvitaRequest parentRequest = Optional.ofNullable(hierarchyContent)
 				.flatMap(HierarchyContent::getEntityFetch)
-				.map(it -> evitaRequest.deriveCopyWith(entitySchema.getName(), it))
+				.map(
+					it -> evitaRequest.deriveCopyWith(
+						entitySchema.getName(),
+						QueryConstraints.entityFetch(
+							ArrayUtils.mergeArrays(
+								it.getRequirements(),
+								new EntityContentRequire[] { QueryConstraints.hierarchyContent() }
+							)
+						)
+					)
+				)
 				.orElse(evitaRequest);
 			parentEntity = toEntity(entitySchemaFetcher, parentRequest, grpcEntity.getParentEntity(), SealedEntity.class);
 		} else if (grpcEntity.hasParentReference()) {
@@ -244,8 +257,8 @@ public class EntityConverter {
 			.setVersion(entity.version());
 
 		if (entity.parentAvailable()) {
-			entity.getParent()
-				.ifPresent(parent -> entityBuilder.setParent(Int32Value.of(parent)));
+			entity.getParentEntity()
+				.ifPresent(parent -> entityBuilder.setParent(Int32Value.of(parent.getPrimaryKey())));
 
 			entity.getParentEntity()
 				.ifPresent(parent -> {

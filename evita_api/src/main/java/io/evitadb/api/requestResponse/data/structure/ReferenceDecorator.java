@@ -175,6 +175,16 @@ public class ReferenceDecorator implements ReferenceContract {
 		return attributePredicate.wasFetched(locale);
 	}
 
+	@Override
+	public boolean attributeAvailable(@Nonnull String attributeName) {
+		return attributePredicate.wasFetched(attributeName);
+	}
+
+	@Override
+	public boolean attributeAvailable(@Nonnull String attributeName, @Nonnull Locale locale) {
+		return attributePredicate.wasFetched(attributeName, locale);
+	}
+
 	@Nullable
 	@Override
 	public <T extends Serializable> T getAttribute(@Nonnull String attributeName) {

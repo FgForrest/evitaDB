@@ -29,6 +29,7 @@ import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.Paramete
 import io.evitadb.externalApi.rest.api.system.resolver.endpoint.SystemRestHandlingContext;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.externalApi.rest.io.RestEndpointHandler;
+import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
@@ -36,7 +37,6 @@ import io.swagger.v3.oas.models.PathItem;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.nio.file.Path;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -58,7 +58,7 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 	public static final String URL_PREFIX = "system";
 
 	private OpenApiSystemEndpoint(@Nonnull PathItem.HttpMethod method,
-	                              @Nonnull Path path,
+	                              @Nonnull UriPath path,
 								  @Nonnull String operationId,
 	                              @Nonnull String description,
 	                              @Nullable String deprecationNotice,
@@ -97,7 +97,7 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 	public static class Builder {
 
 		@Nullable private PathItem.HttpMethod method;
-		@Nullable private Path path;
+		@Nullable private UriPath path;
 
 		@Nullable private String operationId;
 		@Nullable private String description;
@@ -132,7 +132,7 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 			PathBuilder pathBuilder = newPath();
 			pathBuilder = pathBuilderFunction.apply(pathBuilder);
 
-			this.path = pathBuilder.getPath();
+			this.path = pathBuilder.getPathBuilder();
 			this.parameters.addAll(pathBuilder.getPathParameters());
 			return this;
 		}
