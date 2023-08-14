@@ -3000,7 +3000,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
 
-				assertEquals(theParentPk, productByPk.getRecordData().get(0).getParent().orElseThrow());
+				assertEquals(theParentPk, productByPk.getRecordData().get(0).getParentEntity().orElseThrow().getPrimaryKey());
 				final EntityClassifierWithParent parentEntity = productByPk.getRecordData().get(0).getParentEntity().orElseThrow();
 				assertTrue(parentEntity instanceof EntityReferenceWithParent);
 				assertEquals(theParentPk, ((EntityReferenceWithParent) parentEntity).getPrimaryKey());
@@ -3038,7 +3038,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				assertEquals(1, categoryByPk.getRecordData().size());
 				assertEquals(1, categoryByPk.getTotalRecordCount());
 
-				assertEquals(theParentPk, categoryByPk.getRecordData().get(0).getParent().orElseThrow());
+				assertEquals(theParentPk, categoryByPk.getRecordData().get(0).getParentEntity().orElseThrow().getPrimaryKey());
 				assertEquals(createParentChain(categoryHierarchy, theChildPk, null, null), categoryByPk.getRecordData().get(0).getParentEntity().orElseThrow());
 				return null;
 			}
@@ -3074,7 +3074,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				assertEquals(1, categoryByPk.getRecordData().size());
 				assertEquals(1, categoryByPk.getTotalRecordCount());
 
-				assertEquals(theParentPk, categoryByPk.getRecordData().get(0).getParent().orElseThrow());
+				assertEquals(theParentPk, categoryByPk.getRecordData().get(0).getParentEntity().orElseThrow().getPrimaryKey());
 				assertEquals(createParentChain(categoryHierarchy, theChildPk, 2, null), categoryByPk.getRecordData().get(0).getParentEntity().orElseThrow());
 				return null;
 			}
@@ -3110,7 +3110,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				assertEquals(1, categoryByPk.getRecordData().size());
 				assertEquals(1, categoryByPk.getTotalRecordCount());
 
-				assertEquals(theParentPk, categoryByPk.getRecordData().get(0).getParent().orElseThrow());
+				assertEquals(theParentPk, categoryByPk.getRecordData().get(0).getParentEntity().orElseThrow().getPrimaryKey());
 				assertEquals(createParentChain(categoryHierarchy, theChildPk, null, 1), categoryByPk.getRecordData().get(0).getParentEntity().orElseThrow());
 				return null;
 			}
@@ -3160,8 +3160,92 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				assertEquals(1, categoryByPk.getRecordData().size());
 				assertEquals(1, categoryByPk.getTotalRecordCount());
 
-				assertEquals(theParentPk, categoryByPk.getRecordData().get(0).getParent().orElseThrow());
+				assertEquals(theParentPk, categoryByPk.getRecordData().get(0).getParentEntity().orElseThrow().getPrimaryKey());
 				assertEquals(createParentChain(categoryHierarchy, theChildPk, null, 1), categoryByPk.getRecordData().get(0).getParentEntity().orElseThrow());
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should limit the scope of parent visibility")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldLimitTheScopeOfParentVisibility(Evita evita, Hierarchy categoryHierarchy, Map<Integer, SealedEntity> originalCategories) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HierarchyItem theChild = categoryHierarchy.getRootItems()
+					.stream()
+					.flatMap(it -> categoryHierarchy.getAllChildItems(it.getCode()).stream())
+					.max(Comparator.comparingInt(HierarchyItem::getLevel))
+					.orElseThrow();
+				final int theChildPk = Integer.parseInt(theChild.getCode());
+				final int theParentPk = Integer.parseInt(categoryHierarchy.getParentItem(theChild.getCode()).getCode());
+				assertTrue(theChild.getLevel() > 2);
+
+				final EvitaResponse<SealedEntity> categoryByPk = session.querySealedEntity(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(theChildPk)
+						),
+						require(
+							entityFetch(
+								hierarchyContent(
+									stopAt(distance(1))
+								)
+							)
+						)
+					)
+				);
+				assertEquals(1, categoryByPk.getRecordData().size());
+				assertEquals(1, categoryByPk.getTotalRecordCount());
+
+				final SealedEntity category = categoryByPk.getRecordData().get(0);
+				assertTrue(category.getParentEntity().isPresent());
+				assertFalse(category.getParentEntity().get().getParentEntity().isPresent());
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should limit the scope of rich parent visibility")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldLimitTheScopeOfRichParentVisibility(Evita evita, Hierarchy categoryHierarchy, Map<Integer, SealedEntity> originalCategories) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HierarchyItem theChild = categoryHierarchy.getRootItems()
+					.stream()
+					.flatMap(it -> categoryHierarchy.getAllChildItems(it.getCode()).stream())
+					.max(Comparator.comparingInt(HierarchyItem::getLevel))
+					.orElseThrow();
+				final int theChildPk = Integer.parseInt(theChild.getCode());
+				assertTrue(theChild.getLevel() > 2);
+
+				final EvitaResponse<SealedEntity> categoryByPk = session.querySealedEntity(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(theChildPk)
+						),
+						require(
+							entityFetch(
+								hierarchyContent(
+									stopAt(distance(1)),
+									entityFetchAll()
+								)
+							)
+						)
+					)
+				);
+				assertEquals(1, categoryByPk.getRecordData().size());
+				assertEquals(1, categoryByPk.getTotalRecordCount());
+
+				final SealedEntity category = categoryByPk.getRecordData().get(0);
+				assertTrue(category.getParentEntity().isPresent());
+				assertFalse(category.getParentEntity().get().getParentEntity().isPresent());
 				return null;
 			}
 		);
@@ -3196,7 +3280,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				assertEquals(1, categoryByPk.getRecordData().size());
 				assertEquals(1, categoryByPk.getTotalRecordCount());
 
-				assertEquals(theParentPk, categoryByPk.getRecordData().get(0).getParent().orElseThrow());
+				assertEquals(theParentPk, categoryByPk.getRecordData().get(0).getParentEntity().orElseThrow().getPrimaryKey());
 				assertEquals(
 					createParentEntityChain(categoryHierarchy, originalCategories, theChildPk, null, null),
 					categoryByPk.getRecordData().get(0).getParentEntity().orElseThrow()
@@ -3235,7 +3319,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				assertEquals(1, categoryByPk.getRecordData().size());
 				assertEquals(1, categoryByPk.getTotalRecordCount());
 
-				assertEquals(theParentPk, categoryByPk.getRecordData().get(0).getParent().orElseThrow());
+				assertEquals(theParentPk, categoryByPk.getRecordData().get(0).getParentEntity().orElseThrow().getPrimaryKey());
 				assertEquals(
 					createParentEntityChain(categoryHierarchy, originalCategories, theChildPk, 2, null),
 					categoryByPk.getRecordData().get(0).getParentEntity().orElseThrow()
@@ -3274,7 +3358,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				assertEquals(1, categoryByPk.getRecordData().size());
 				assertEquals(1, categoryByPk.getTotalRecordCount());
 
-				assertEquals(theParentPk, categoryByPk.getRecordData().get(0).getParent().orElseThrow());
+				assertEquals(theParentPk, categoryByPk.getRecordData().get(0).getParentEntity().orElseThrow().getPrimaryKey());
 				assertEquals(
 					createParentEntityChain(categoryHierarchy, originalCategories, theChildPk, null, 1),
 					categoryByPk.getRecordData().get(0).getParentEntity().orElseThrow()
@@ -3328,7 +3412,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				assertEquals(1, categoryByPk.getRecordData().size());
 				assertEquals(1, categoryByPk.getTotalRecordCount());
 
-				assertEquals(theParentPk, categoryByPk.getRecordData().get(0).getParent().orElseThrow());
+				assertEquals(theParentPk, categoryByPk.getRecordData().get(0).getParentEntity().orElseThrow().getPrimaryKey());
 				assertEquals(
 					createParentEntityChain(categoryHierarchy, originalCategories, theChildPk, null, 1),
 					categoryByPk.getRecordData().get(0).getParentEntity().orElseThrow()
@@ -3374,7 +3458,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 
 				final ReferenceContract categoryReference = products.getRecordData().get(0).getReference(Entities.CATEGORY, theChildPk).orElseThrow();
 				final SealedEntity referencedCategory = categoryReference.getReferencedEntity().orElseThrow();
-				assertEquals(theParentPk, referencedCategory.getParent().orElseThrow());
+				assertEquals(theParentPk, referencedCategory.getParentEntity().orElseThrow().getPrimaryKey());
 				assertEquals(
 					createParentChain(categoryHierarchy, theChildPk, null, null),
 					referencedCategory.getParentEntity().orElseThrow()
@@ -3420,7 +3504,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 
 				final ReferenceContract categoryReference = products.getRecordData().get(0).getReference(Entities.CATEGORY, theChildPk).orElseThrow();
 				final SealedEntity referencedCategory = categoryReference.getReferencedEntity().orElseThrow();
-				assertEquals(theParentPk, referencedCategory.getParent().orElseThrow());
+				assertEquals(theParentPk, referencedCategory.getParentEntity().orElseThrow().getPrimaryKey());
 				assertEquals(
 					createParentChain(categoryHierarchy, theChildPk, 2, null),
 					referencedCategory.getParentEntity().orElseThrow()
@@ -3466,7 +3550,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 
 				final ReferenceContract categoryReference = products.getRecordData().get(0).getReference(Entities.CATEGORY, theChildPk).orElseThrow();
 				final SealedEntity referencedCategory = categoryReference.getReferencedEntity().orElseThrow();
-				assertEquals(theParentPk, referencedCategory.getParent().orElseThrow());
+				assertEquals(theParentPk, referencedCategory.getParentEntity().orElseThrow().getPrimaryKey());
 				assertEquals(
 					createParentChain(categoryHierarchy, theChildPk, null, 1),
 					referencedCategory.getParentEntity().orElseThrow()
@@ -3526,7 +3610,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 
 				final ReferenceContract categoryReference = products.getRecordData().get(0).getReference(Entities.CATEGORY, theChildPk).orElseThrow();
 				final SealedEntity referencedCategory = categoryReference.getReferencedEntity().orElseThrow();
-				assertEquals(theParentPk, referencedCategory.getParent().orElseThrow());
+				assertEquals(theParentPk, referencedCategory.getParentEntity().orElseThrow().getPrimaryKey());
 				assertEquals(
 					createParentChain(categoryHierarchy, theChildPk, 2, null),
 					referencedCategory.getParentEntity().orElseThrow()
@@ -3568,7 +3652,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				final ReferenceContract categoryReference = products.getRecordData().get(0).getReference(Entities.CATEGORY, theChildPk).orElseThrow();
 				final SealedEntity referencedCategory = categoryReference.getReferencedEntity().orElseThrow();
 
-				assertEquals(theParentPk, referencedCategory.getParent().orElseThrow());
+				assertEquals(theParentPk, referencedCategory.getParentEntity().orElseThrow().getPrimaryKey());
 				assertEquals(
 					createParentEntityChain(categoryHierarchy, originalCategories, theChildPk, null, null),
 					referencedCategory.getParentEntity().orElseThrow()
@@ -3615,7 +3699,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				final ReferenceContract categoryReference = products.getRecordData().get(0).getReference(Entities.CATEGORY, theChildPk).orElseThrow();
 				final SealedEntity referencedCategory = categoryReference.getReferencedEntity().orElseThrow();
 
-				assertEquals(theParentPk, referencedCategory.getParent().orElseThrow());
+				assertEquals(theParentPk, referencedCategory.getParentEntity().orElseThrow().getPrimaryKey());
 				assertEquals(
 					createParentEntityChain(categoryHierarchy, originalCategories, theChildPk, 2, null),
 					referencedCategory.getParentEntity().orElseThrow()
@@ -3662,7 +3746,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				final ReferenceContract categoryReference = products.getRecordData().get(0).getReference(Entities.CATEGORY, theChildPk).orElseThrow();
 				final SealedEntity referencedCategory = categoryReference.getReferencedEntity().orElseThrow();
 
-				assertEquals(theParentPk, referencedCategory.getParent().orElseThrow());
+				assertEquals(theParentPk, referencedCategory.getParentEntity().orElseThrow().getPrimaryKey());
 				assertEquals(
 					createParentEntityChain(categoryHierarchy, originalCategories, theChildPk, null, 1),
 					referencedCategory.getParentEntity().orElseThrow()
@@ -3724,7 +3808,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				final ReferenceContract categoryReference = products.getRecordData().get(0).getReference(Entities.CATEGORY, theChildPk).orElseThrow();
 				final SealedEntity referencedCategory = categoryReference.getReferencedEntity().orElseThrow();
 
-				assertEquals(theParentPk, referencedCategory.getParent().orElseThrow());
+				assertEquals(theParentPk, referencedCategory.getParentEntity().orElseThrow().getPrimaryKey());
 				assertEquals(
 					createParentEntityChain(categoryHierarchy, originalCategories, theChildPk, null, 1),
 					referencedCategory.getParentEntity().orElseThrow()
@@ -4108,10 +4192,6 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 
 				assertThrows(
 					EntityIsNotHierarchicalException.class,
-					productByPk::getParent
-				);
-				assertThrows(
-					EntityIsNotHierarchicalException.class,
 					productByPk::getParentEntity
 				);
 				return null;
@@ -4135,10 +4215,6 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 					)
 				).orElseThrow();
 
-				assertThrows(
-					ContextMissingException.class,
-					productByPk::getParent
-				);
 				assertThrows(
 					ContextMissingException.class,
 					productByPk::getParentEntity

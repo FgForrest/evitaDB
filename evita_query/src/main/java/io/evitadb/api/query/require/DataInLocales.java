@@ -89,8 +89,8 @@ public class DataInLocales extends AbstractRequireConstraintLeaf
 	}
 
 	@Creator
-	public DataInLocales(@Nonnull Locale... locale) {
-		super(locale);
+	public DataInLocales(@Nonnull Locale... locales) {
+		super(locales);
 	}
 
 	@Nonnull

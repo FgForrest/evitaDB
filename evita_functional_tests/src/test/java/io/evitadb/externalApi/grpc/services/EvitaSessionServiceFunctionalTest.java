@@ -40,6 +40,7 @@ import io.evitadb.api.query.visitor.PrettyPrintingVisitor;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -2108,17 +2109,17 @@ class EvitaSessionServiceFunctionalTest {
 			.collect(
 				Collectors.toMap(
 					EntityContract::getPrimaryKey,
-					it -> it.getParent().orElse(0)
+					it -> it.getParentEntity().map(EntityClassifier::getPrimaryKey).orElse(0)
 				)
 			);
 		final String entityType = Entities.CATEGORY;
 
 		final SealedEntity categoryWithoutHierarchyPlacement = originalCategoryEntities.stream().filter(e -> e.getType().equals(entityType) &&
-				e.getParent().isEmpty())
+				e.getParentEntity().isEmpty())
 			.findFirst().orElseThrow(() -> new IllegalArgumentException("Suitable category not found!"));
 
 		final SealedEntity categoryWithHierarchyPlacement = originalCategoryEntities.stream()
-			.filter(e -> e.getType().equals(entityType) && e.getParent().isPresent() && !relatesTo(e.getPrimaryKey(), categoryWithoutHierarchyPlacement.getPrimaryKey(), parentChildIndex))
+			.filter(e -> e.getType().equals(entityType) && e.getParentEntity().isPresent() && !relatesTo(e.getPrimaryKey(), categoryWithoutHierarchyPlacement.getPrimaryKey(), parentChildIndex))
 			.findFirst().orElseThrow(() -> new IllegalArgumentException("Suitable category not found!"));
 
 		//noinspection ConstantConditions

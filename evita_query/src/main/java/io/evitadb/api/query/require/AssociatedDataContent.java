@@ -82,8 +82,8 @@ public class AssociatedDataContent extends AbstractRequireConstraintLeaf
 	}
 
 	@Creator
-	public AssociatedDataContent(@Nonnull String... associatedDataName) {
-		super(associatedDataName);
+	public AssociatedDataContent(@Nonnull String... associatedDataNames) {
+		super(associatedDataNames);
 	}
 
 	/**

@@ -1,0 +1,17 @@
+{
+  queryCategory(
+    filterBy: {
+      attributeCodeEquals: "smartwatches"
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        parentPrimaryKey
+        parents {
+          primaryKey
+        }
+      }
+    }
+  }
+}

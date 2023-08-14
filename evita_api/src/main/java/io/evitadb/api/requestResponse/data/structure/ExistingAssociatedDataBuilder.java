@@ -246,6 +246,21 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	}
 
 	@Override
+	public boolean associatedDataAvailable(@Nonnull Locale locale) {
+		return this.baseAssociatedData.associatedDataAvailable(locale);
+	}
+
+	@Override
+	public boolean associatedDataAvailable(@Nonnull String associatedDataName) {
+		return this.baseAssociatedData.associatedDataAvailable(associatedDataName);
+	}
+
+	@Override
+	public boolean associatedDataAvailable(@Nonnull String associatedDataName, @Nonnull Locale locale) {
+		return this.baseAssociatedData.associatedDataAvailable(associatedDataName, locale);
+	}
+
+	@Override
 	@Nullable
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName) {
 		//noinspection unchecked

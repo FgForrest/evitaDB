@@ -45,6 +45,7 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
+import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
  * Provides access to all registered {@link Constraint}s via {@link ConstraintDescriptor}s which serve as generic
@@ -65,7 +66,7 @@ public class ConstraintDescriptorProvider {
 		CONSTRAINT_DESCRIPTORS.forEach(descriptor -> {
 			final Set<ConstraintDescriptor> descriptors = constraintDescriptorsToClass.computeIfAbsent(
 				descriptor.constraintClass(),
-				k -> new TreeSet<>(new ConstraintDescriptorClassifierComparator())
+				k -> new TreeSet<>(Comparator.comparing(ConstraintDescriptor::type).thenComparing(ConstraintDescriptor::fullName))
 			);
 			descriptors.add(descriptor);
 		});

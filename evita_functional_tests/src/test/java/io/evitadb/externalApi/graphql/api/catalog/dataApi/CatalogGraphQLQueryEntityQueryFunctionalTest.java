@@ -611,7 +611,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								parentPrimaryKey
 								parents {
 									primaryKey
-									parentPrimaryKey
 								}
 							}
 						}
@@ -671,7 +670,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								parentPrimaryKey
 								parents {
 									primaryKey
-									parentPrimaryKey
 									allLocales
 									attributes {
 										code
@@ -737,7 +735,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 									}
 							    ) {
 									primaryKey
-									parentPrimaryKey
 								}
 							}
 						}
@@ -817,7 +814,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 										parentPrimaryKey
 										parents {
 											primaryKey
-											parentPrimaryKey
 										}
 									}
 								}
@@ -903,7 +899,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 										parentPrimaryKey
 										parents {
 											primaryKey
-											parentPrimaryKey
 											allLocales
 											attributes {
 												code
@@ -995,7 +990,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 											}
 									    ) {
 											primaryKey
-											parentPrimaryKey
 										}
 									}
 								}
@@ -4976,7 +4970,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.e(LevelInfoDescriptor.LEVEL.name(), currentLevel)
 			.e(LevelInfoDescriptor.ENTITY.name(), map()
 				.e(EntityDescriptor.PRIMARY_KEY.name(), levelInfo.entity().getPrimaryKey())
-				.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), entity.parentAvailable() && entity.getParent().isPresent() ? entity.getParent().getAsInt() : null)
+				.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), entity.parentAvailable() && entity.getParentEntity().isPresent() ? entity.getParentEntity().get().getPrimaryKey() : null)
 				.e(EntityDescriptor.ATTRIBUTES.name(), map()
 					.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))));
 

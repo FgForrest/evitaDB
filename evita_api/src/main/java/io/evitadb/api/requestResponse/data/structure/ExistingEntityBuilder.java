@@ -235,21 +235,24 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	@Nonnull
 	@Override
-	public OptionalInt getParent() {
-		return ofNullable(hierarchyMutation)
-			.map(it -> it.mutateLocal(this.baseEntity.schema, this.baseEntity.getParent()))
-			.orElseGet(this.baseEntity::getParent);
-	}
-
-	@Nonnull
-	@Override
 	public Optional<EntityClassifierWithParent> getParentEntity() {
-		return Optional.empty();
+		return ofNullable(hierarchyMutation)
+			.map(it ->
+				it.mutateLocal(this.baseEntity.schema, this.baseEntity.getParent())
+					.stream()
+					.mapToObj(pId -> (EntityClassifierWithParent) new EntityReferenceWithParent(getType(), pId, null))
+					.findFirst()
+			).orElseGet(this.baseEntity::getParentEntity);
 	}
 
 	@Override
 	public boolean referencesAvailable() {
 		return baseEntity.referencesAvailable();
+	}
+
+	@Override
+	public boolean referencesAvailable(@Nonnull String referenceName) {
+		return baseEntity.referencesAvailable(referenceName);
 	}
 
 	@Nonnull

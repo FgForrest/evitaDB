@@ -37,6 +37,7 @@ import io.evitadb.externalApi.rest.api.resolver.serializer.BigDecimalSerializer;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
+import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VersionUtils;
 import io.swagger.v3.oas.models.Components;
@@ -53,7 +54,6 @@ import io.undertow.util.HttpString;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -84,7 +84,7 @@ public abstract class RestBuildingContext {
 	private final ObjectMapper objectMapper;
 
 	@Nonnull private final Map<String, OpenApiComplexType> registeredTypes = createHashMap(100);
-	private final Map<Path, Map<HttpMethod, OpenApiEndpoint<?>>> registeredEndpoints = createHashMap(100);
+	private final Map<UriPath, Map<HttpMethod, OpenApiEndpoint<?>>> registeredEndpoints = createHashMap(100);
 	/**
 	 * Holds all globally registered custom enums that will be inserted into GraphQL schema.
 	 */
