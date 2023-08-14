@@ -33,7 +33,7 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange;
-import io.evitadb.externalApi.grpc.generated.QueryParam;
+import io.evitadb.externalApi.grpc.generated.GrpcQueryParam;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
@@ -67,12 +67,12 @@ class QueryConverterTest {
 		final String nameName = fields[1].getName();
 		final String rangeName = fields[2].getName();
 
-		final QueryParam enabledQueryParam = QueryParam.newBuilder().setBooleanValue(enabled).build();
-		final QueryParam nameQueryParam = QueryParam.newBuilder().setStringValue(name).build();
+		final GrpcQueryParam enabledQueryParam = GrpcQueryParam.newBuilder().setBooleanValue(enabled).build();
+		final GrpcQueryParam nameQueryParam = GrpcQueryParam.newBuilder().setStringValue(name).build();
 		//noinspection ConstantConditions
-		final QueryParam rangeQueryParam = QueryParam.newBuilder().setIntegerNumberRangeValue(GrpcIntegerNumberRange.newBuilder().setFrom(Int32Value.newBuilder().setValue(range.getPreciseFrom()).build()).build()).build();
+		final GrpcQueryParam rangeQueryParam = GrpcQueryParam.newBuilder().setIntegerNumberRangeValue(GrpcIntegerNumberRange.newBuilder().setFrom(Int32Value.newBuilder().setValue(range.getPreciseFrom()).build()).build()).build();
 
-		final List<QueryParam> positionalQueryParams = List.of(
+		final List<GrpcQueryParam> positionalQueryParams = List.of(
 			enabledQueryParam,
 			nameQueryParam,
 			rangeQueryParam
@@ -84,7 +84,7 @@ class QueryConverterTest {
 		assertEquals(name, positionalParams.get(1));
 		assertEquals(range, positionalParams.get(2));
 
-		final Map<String, QueryParam> namedQueryParams = Map.of(
+		final Map<String, GrpcQueryParam> namedQueryParams = Map.of(
 			enabledName, enabledQueryParam,
 			nameName, nameQueryParam,
 			rangeName, rangeQueryParam

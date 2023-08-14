@@ -9,11 +9,15 @@
         }
       ]
     },
-    orderBy: {
-      referenceBrandProperty: {
-        attributeOrderInBrandNatural: ASC
+    orderBy: [
+      {
+        referenceBrandProperty: [
+          {
+            attributeOrderInBrandNatural: ASC
+          }
+        ]
       }
-    }
+    ]
   ) {
     recordPage {
       data {

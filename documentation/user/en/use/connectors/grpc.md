@@ -76,8 +76,8 @@ message GrpcGoLiveAndCloseResponse {
 
 message GrpcQueryRequest {
   string query = 1;
-  repeated QueryParam positionalQueryParams = 2;
-  map<string, QueryParam> namedQueryParams = 3;
+  repeated GrpcQueryParam positionalQueryParams = 2;
+  map<string, GrpcQueryParam> namedQueryParams = 3;
 }
 
 message GrpcQueryResponse {

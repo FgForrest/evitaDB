@@ -1,441 +1,441 @@
 ```json
 {
-  "recordPage" : {
-    "data" : [
+  "recordPage": {
+    "data": [
       {
-        "primaryKey" : 106570,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 106570,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "google-pixel-6"
+        "attributes": {
+          "global": {
+            "code": "google-pixel-6"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 106571,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "brand": {
+          "referencedPrimaryKey": 106571,
+          "attributes": {
+            "global": {
+              "orderInBrand": 0
             }
           }
         }
       },
       {
-        "primaryKey" : 106573,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 106573,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "google-pixel-6-1"
+        "attributes": {
+          "global": {
+            "code": "google-pixel-6-1"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 106571,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "brand": {
+          "referencedPrimaryKey": 106571,
+          "attributes": {
+            "global": {
+              "orderInBrand": 0
             }
           }
         }
       },
       {
-        "primaryKey" : 106575,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 106575,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "google-pixel-6-2"
+        "attributes": {
+          "global": {
+            "code": "google-pixel-6-2"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 106571,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "brand": {
+          "referencedPrimaryKey": 106571,
+          "attributes": {
+            "global": {
+              "orderInBrand": 0
             }
           }
         }
       },
       {
-        "primaryKey" : 106577,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 106577,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "google-pixel-6-3"
+        "attributes": {
+          "global": {
+            "code": "google-pixel-6-3"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 106571,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "brand": {
+          "referencedPrimaryKey": 106571,
+          "attributes": {
+            "global": {
+              "orderInBrand": 0
             }
           }
         }
       },
       {
-        "primaryKey" : 106578,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 106578,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "google-pixel-6-4"
+        "attributes": {
+          "global": {
+            "code": "google-pixel-6-4"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 106571,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "brand": {
+          "referencedPrimaryKey": 106571,
+          "attributes": {
+            "global": {
+              "orderInBrand": 0
             }
           }
         }
       },
       {
-        "primaryKey" : 106579,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 106579,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "google-pixel-6-5"
+        "attributes": {
+          "global": {
+            "code": "google-pixel-6-5"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 106571,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "brand": {
+          "referencedPrimaryKey": 106571,
+          "attributes": {
+            "global": {
+              "orderInBrand": 0
             }
           }
         }
       },
       {
-        "primaryKey" : 106580,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 106580,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "google-pixel-6-6"
+        "attributes": {
+          "global": {
+            "code": "google-pixel-6-6"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 106571,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "brand": {
+          "referencedPrimaryKey": 106571,
+          "attributes": {
+            "global": {
+              "orderInBrand": 0
             }
           }
         }
       },
       {
-        "primaryKey" : 106584,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 106584,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "google-pixel-6a"
+        "attributes": {
+          "global": {
+            "code": "google-pixel-6a"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 106571,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "brand": {
+          "referencedPrimaryKey": 106571,
+          "attributes": {
+            "global": {
+              "orderInBrand": 0
             }
           }
         }
       },
       {
-        "primaryKey" : 106586,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 106586,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "google-pixel-6a-1"
+        "attributes": {
+          "global": {
+            "code": "google-pixel-6a-1"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 106571,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "brand": {
+          "referencedPrimaryKey": 106571,
+          "attributes": {
+            "global": {
+              "orderInBrand": 0
             }
           }
         }
       },
       {
-        "primaryKey" : 106588,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 106588,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "google-pixel-6a-2"
+        "attributes": {
+          "global": {
+            "code": "google-pixel-6a-2"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 106571,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "brand": {
+          "referencedPrimaryKey": 106571,
+          "attributes": {
+            "global": {
+              "orderInBrand": 0
             }
           }
         }
       },
       {
-        "primaryKey" : 106590,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 106590,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "google-pixel-6a-3"
+        "attributes": {
+          "global": {
+            "code": "google-pixel-6a-3"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 106571,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "brand": {
+          "referencedPrimaryKey": 106571,
+          "attributes": {
+            "global": {
+              "orderInBrand": 0
             }
           }
         }
       },
       {
-        "primaryKey" : 108448,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 108448,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "google-pixel-watch"
+        "attributes": {
+          "global": {
+            "code": "google-pixel-watch"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 106571,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "brand": {
+          "referencedPrimaryKey": 106571,
+          "attributes": {
+            "global": {
+              "orderInBrand": 0
             }
           }
         }
       },
       {
-        "primaryKey" : 108449,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 108449,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "google-pixel-watch-1"
+        "attributes": {
+          "global": {
+            "code": "google-pixel-watch-1"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 106571,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "brand": {
+          "referencedPrimaryKey": 106571,
+          "attributes": {
+            "global": {
+              "orderInBrand": 0
             }
           }
         }
       },
       {
-        "primaryKey" : 108451,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 108451,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "google-pixel-watch-2"
+        "attributes": {
+          "global": {
+            "code": "google-pixel-watch-2"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 106571,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "brand": {
+          "referencedPrimaryKey": 106571,
+          "attributes": {
+            "global": {
+              "orderInBrand": 0
             }
           }
         }
       },
       {
-        "primaryKey" : 108452,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 108452,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "google-pixel-watch-3"
+        "attributes": {
+          "global": {
+            "code": "google-pixel-watch-3"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 106571,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "brand": {
+          "referencedPrimaryKey": 106571,
+          "attributes": {
+            "global": {
+              "orderInBrand": 0
             }
           }
         }
       },
       {
-        "primaryKey" : 113035,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 113035,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "sony-inzone-h3"
+        "attributes": {
+          "global": {
+            "code": "sony-inzone-h3"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 113036,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "brand": {
+          "referencedPrimaryKey": 113036,
+          "attributes": {
+            "global": {
+              "orderInBrand": 0
             }
           }
         }
       },
       {
-        "primaryKey" : 113038,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 113038,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "sony-inzone-h7"
+        "attributes": {
+          "global": {
+            "code": "sony-inzone-h7"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 113036,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "brand": {
+          "referencedPrimaryKey": 113036,
+          "attributes": {
+            "global": {
+              "orderInBrand": 0
             }
           }
         }
       },
       {
-        "primaryKey" : 113040,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 113040,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "sony-inzone-h9"
+        "attributes": {
+          "global": {
+            "code": "sony-inzone-h9"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 113036,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "brand": {
+          "referencedPrimaryKey": 113036,
+          "attributes": {
+            "global": {
+              "orderInBrand": 0
             }
           }
         }
       },
       {
-        "primaryKey" : 113042,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 113042,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "sony-wh-1000xm4"
+        "attributes": {
+          "global": {
+            "code": "sony-wh-1000xm4"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 113036,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "brand": {
+          "referencedPrimaryKey": 113036,
+          "attributes": {
+            "global": {
+              "orderInBrand": 0
             }
           }
         }
       },
       {
-        "primaryKey" : 113044,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 113044,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "sony-wh-1000xm5"
+        "attributes": {
+          "global": {
+            "code": "sony-wh-1000xm5"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 113036,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "brand": {
+          "referencedPrimaryKey": 113036,
+          "attributes": {
+            "global": {
+              "orderInBrand": 0
             }
           }
         }
       }
     ],
-    "type" : "PAGE",
-    "totalRecordCount" : 22,
-    "first" : true,
-    "last" : false,
-    "hasPrevious" : false,
-    "hasNext" : true,
-    "singlePage" : false,
-    "empty" : false,
-    "pageSize" : 20,
-    "pageNumber" : 1,
-    "lastPageNumber" : 2,
-    "firstPageItemNumber" : 0,
-    "lastPageItemNumber" : 19
+    "type": "PAGE",
+    "totalRecordCount": 22,
+    "first": true,
+    "last": false,
+    "hasPrevious": false,
+    "hasNext": true,
+    "singlePage": false,
+    "empty": false,
+    "pageSize": 20,
+    "pageNumber": 1,
+    "lastPageNumber": 2,
+    "firstPageItemNumber": 0,
+    "lastPageItemNumber": 19
   }
 }
 ```

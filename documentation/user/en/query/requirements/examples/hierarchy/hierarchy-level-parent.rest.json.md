@@ -1,46 +1,46 @@
 ```json
 [
   {
-    "entity" : {
-      "primaryKey" : 66482,
-      "type" : "Category",
-      "version" : 1,
-      "allLocales" : [
+    "entity": {
+      "primaryKey": 66482,
+      "type": "Category",
+      "version": 1,
+      "allLocales": [
         "en"
       ],
-      "attributes" : {
-        "global" : {
-          "code" : "audio"
+      "attributes": {
+        "global": {
+          "code": "audio"
         }
       }
     },
-    "children" : [
+    "children": [
       {
-        "entity" : {
-          "primaryKey" : 66488,
-          "type" : "Category",
-          "version" : 1,
-          "allLocales" : [
+        "entity": {
+          "primaryKey": 66488,
+          "type": "Category",
+          "version": 1,
+          "allLocales": [
             "en"
           ],
-          "attributes" : {
-            "global" : {
-              "code" : "wireless-headphones"
+          "attributes": {
+            "global": {
+              "code": "wireless-headphones"
             }
           }
         },
-        "children" : [
+        "children": [
           {
-            "entity" : {
-              "primaryKey" : 66494,
-              "type" : "Category",
-              "version" : 1,
-              "allLocales" : [
+            "entity": {
+              "primaryKey": 66494,
+              "type": "Category",
+              "version": 1,
+              "allLocales": [
                 "en"
               ],
-              "attributes" : {
-                "global" : {
-                  "code" : "true-wireless"
+              "attributes": {
+                "global": {
+                  "code": "true-wireless"
                 }
               }
             }

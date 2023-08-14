@@ -1,8 +1,10 @@
 {
   queryProduct(
-    orderBy: {
-      attributeOrderedQuantityNatural: DESC
-    }
+    orderBy: [
+      {
+        attributeOrderedQuantityNatural: DESC
+      }
+    ]
   ) {
     recordPage {
       data {

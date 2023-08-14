@@ -222,7 +222,7 @@ class EvitaSessionServiceFunctionalTest {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
 
-		final List<QueryParam> params = new ArrayList<>(8);
+		final List<GrpcQueryParam> params = new ArrayList<>(8);
 		params.add(convertQueryParam(Entities.PRODUCT));
 		params.add(convertQueryParam(1));
 		params.add(convertQueryParam(2));
@@ -278,7 +278,7 @@ class EvitaSessionServiceFunctionalTest {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
 
-		final List<QueryParam> params = new ArrayList<>(8);
+		final List<GrpcQueryParam> params = new ArrayList<>(8);
 		params.add(convertQueryParam(Entities.PRODUCT));
 		params.add(convertQueryParam(1));
 		params.add(convertQueryParam(2));
@@ -332,7 +332,7 @@ class EvitaSessionServiceFunctionalTest {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
 
-		final List<QueryParam> params = new ArrayList<>(8);
+		final List<GrpcQueryParam> params = new ArrayList<>(8);
 		params.add(convertQueryParam(Entities.PRODUCT));
 		params.add(convertQueryParam(1));
 		params.add(convertQueryParam(2));
@@ -371,7 +371,7 @@ class EvitaSessionServiceFunctionalTest {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
 
-		final List<QueryParam> params = new ArrayList<>(4);
+		final List<GrpcQueryParam> params = new ArrayList<>(4);
 		params.add(convertQueryParam(Entities.PRODUCT));
 		params.add(convertQueryParam(1));
 		params.add(convertQueryParam(1));
@@ -420,7 +420,7 @@ class EvitaSessionServiceFunctionalTest {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
 
-		final List<QueryParam> params = new ArrayList<>(8);
+		final List<GrpcQueryParam> params = new ArrayList<>(8);
 		params.add(convertQueryParam(Entities.PRODUCT));
 		params.add(convertQueryParam(1));
 		params.add(convertQueryParam(2));
@@ -457,7 +457,7 @@ class EvitaSessionServiceFunctionalTest {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
 
-		final List<QueryParam> params = new ArrayList<>(17);
+		final List<GrpcQueryParam> params = new ArrayList<>(17);
 		params.add(convertQueryParam(Entities.PRODUCT));
 		params.add(convertQueryParam(ATTRIBUTE_NAME));
 		params.add(convertQueryParam("a"));
@@ -543,7 +543,7 @@ class EvitaSessionServiceFunctionalTest {
 			.findAny()
 			.orElseThrow();
 
-		final List<QueryParam> params = new ArrayList<>(17);
+		final List<GrpcQueryParam> params = new ArrayList<>(17);
 		params.add(convertQueryParam(Entities.PRODUCT));
 		params.add(convertQueryParam(primaryKey));
 		params.add(convertQueryParam(1));
@@ -631,7 +631,7 @@ class EvitaSessionServiceFunctionalTest {
 			.distinct()
 			.toArray(String[]::new);
 
-		final List<QueryParam> params = new ArrayList<>(17);
+		final List<GrpcQueryParam> params = new ArrayList<>(17);
 		params.add(convertQueryParam(Entities.PRODUCT));
 		params.add(convertQueryParam(productsWithLotsOfStores.keySet().toArray(Integer[]::new)));
 		params.add(convertQueryParam(CZECH_LOCALE));
@@ -711,7 +711,7 @@ class EvitaSessionServiceFunctionalTest {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
 
-		final List<QueryParam> positionalParams = new ArrayList<>(19);
+		final List<GrpcQueryParam> positionalParams = new ArrayList<>(19);
 		positionalParams.add(convertQueryParam(Entities.PRODUCT));
 		positionalParams.add(convertQueryParam(ATTRIBUTE_SIZE));
 		positionalParams.add(convertQueryParam(ATTRIBUTE_NAME));
@@ -732,7 +732,7 @@ class EvitaSessionServiceFunctionalTest {
 		positionalParams.add(convertQueryParam(FacetStatisticsDepth.COUNTS));
 		positionalParams.add(convertQueryParam(QueryPriceMode.WITH_TAX));
 
-		final Map<String, QueryParam> namedParams = CollectionUtils.createHashMap(4);
+		final Map<String, GrpcQueryParam> namedParams = CollectionUtils.createHashMap(4);
 		namedParams.put("sizeIs", convertQueryParam(AttributeSpecialValue.NOT_NULL));
 		namedParams.put("nameContains", convertQueryParam("a"));
 		namedParams.put("page", convertQueryParam(1));
@@ -816,7 +816,7 @@ class EvitaSessionServiceFunctionalTest {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
 
-		final List<QueryParam> positionalParams = new ArrayList<>(19);
+		final List<GrpcQueryParam> positionalParams = new ArrayList<>(19);
 		positionalParams.add(convertQueryParam(Entities.PRODUCT));
 		positionalParams.add(convertQueryParam(ATTRIBUTE_SIZE));
 		positionalParams.add(convertQueryParam(AttributeSpecialValue.NOT_NULL));
@@ -914,7 +914,7 @@ class EvitaSessionServiceFunctionalTest {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
 
-		final Map<String, QueryParam> namedParams = CollectionUtils.createHashMap(19);
+		final Map<String, GrpcQueryParam> namedParams = CollectionUtils.createHashMap(19);
 		namedParams.put("entitiesProduct", convertQueryParam(Entities.PRODUCT));
 		namedParams.put("attributeSizeName", convertQueryParam(ATTRIBUTE_SIZE));
 		namedParams.put("attributeSizeValue", convertQueryParam(AttributeSpecialValue.NOT_NULL));
@@ -1008,7 +1008,7 @@ class EvitaSessionServiceFunctionalTest {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
 
-		final List<QueryParam> params = new ArrayList<>(17);
+		final List<GrpcQueryParam> params = new ArrayList<>(17);
 		params.add(convertQueryParam(Entities.PRODUCT));
 		params.add(convertQueryParam(ATTRIBUTE_NAME));
 		params.add(convertQueryParam("a"));
@@ -1089,7 +1089,7 @@ class EvitaSessionServiceFunctionalTest {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
 
-		final List<QueryParam> params = new ArrayList<>(23);
+		final List<GrpcQueryParam> params = new ArrayList<>(23);
 		params.add(convertQueryParam(Entities.PRODUCT));
 		params.add(convertQueryParam(ATTRIBUTE_NAME));
 		params.add(convertQueryParam("a"));
@@ -1183,7 +1183,7 @@ class EvitaSessionServiceFunctionalTest {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
 
-		final List<QueryParam> params = new ArrayList<>(21);
+		final List<GrpcQueryParam> params = new ArrayList<>(21);
 		params.add(convertQueryParam(Entities.PRODUCT));
 		params.add(convertQueryParam(CURRENCY_USD));
 		params.add(convertQueryParam(PRICE_LIST_VIP));
@@ -1259,7 +1259,7 @@ class EvitaSessionServiceFunctionalTest {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
 
-		final List<QueryParam> params = new ArrayList<>(21);
+		final List<GrpcQueryParam> params = new ArrayList<>(21);
 		params.add(convertQueryParam(Entities.PRODUCT));
 		params.add(convertQueryParam(CURRENCY_USD));
 		params.add(convertQueryParam(PRICE_LIST_VIP));
@@ -1325,7 +1325,7 @@ class EvitaSessionServiceFunctionalTest {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
 
-		final List<QueryParam> params = new ArrayList<>(5);
+		final List<GrpcQueryParam> params = new ArrayList<>(5);
 		params.add(convertQueryParam(Entities.CATEGORY));
 		params.add(convertQueryParam(1));
 		params.add(convertQueryParam(1));
@@ -1389,7 +1389,7 @@ class EvitaSessionServiceFunctionalTest {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
 
-		final List<QueryParam> params = new ArrayList<>(3);
+		final List<GrpcQueryParam> params = new ArrayList<>(3);
 		params.add(convertQueryParam(Entities.CATEGORY));
 		params.add(convertQueryParam(1));
 		params.add(convertQueryParam(Integer.MAX_VALUE));
@@ -2539,7 +2539,7 @@ class EvitaSessionServiceFunctionalTest {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.BINARY_READ_ONLY);
 
-		final List<QueryParam> params = new ArrayList<>(8);
+		final List<GrpcQueryParam> params = new ArrayList<>(8);
 		params.add(convertQueryParam(Entities.PRODUCT));
 		params.add(convertQueryParam(1));
 		params.add(convertQueryParam(2));

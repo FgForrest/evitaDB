@@ -39,7 +39,7 @@ import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.externalApi.grpc.generated.QueryParam;
+import io.evitadb.externalApi.grpc.generated.GrpcQueryParam;
 import io.evitadb.externalApi.grpc.query.QueryConverter;
 import io.grpc.stub.StreamObserver;
 import lombok.AccessLevel;
@@ -124,8 +124,8 @@ public class QueryUtil {
 	@Nonnull
 	public static <T extends GeneratedMessageV3> EntityContentRequire[] parseEntityRequiredContents(
 		@Nonnull String requireConstraints,
-		@Nonnull List<QueryParam> queryParams,
-		@Nonnull Map<String, QueryParam> namedQueryParams,
+		@Nonnull List<GrpcQueryParam> queryParams,
+		@Nonnull Map<String, GrpcQueryParam> namedQueryParams,
 		@Nullable StreamObserver<T> responseObserver
 	) {
 		try {
@@ -162,7 +162,7 @@ public class QueryUtil {
 	@Nullable
 	public static <T extends GeneratedMessageV3> Query parseQuery(
 		@Nonnull String queryString,
-		@Nonnull List<QueryParam> queryParams,
+		@Nonnull List<GrpcQueryParam> queryParams,
 		@Nullable StreamObserver<T> responseObserver
 	) {
 		try {
@@ -185,7 +185,7 @@ public class QueryUtil {
 	 * @return parsed {@link Query}
 	 */
 	@Nullable
-	public static <T extends GeneratedMessageV3> Query parseQuery(@Nonnull String queryString, @Nonnull Map<String, QueryParam> queryParams, @Nullable StreamObserver<T> responseObserver) {
+	public static <T extends GeneratedMessageV3> Query parseQuery(@Nonnull String queryString, @Nonnull Map<String, GrpcQueryParam> queryParams, @Nullable StreamObserver<T> responseObserver) {
 		try {
 			return parser.parseQuery(queryString, QueryConverter.convertQueryParamsMap(queryParams));
 		} catch (Exception ex) {
@@ -207,7 +207,7 @@ public class QueryUtil {
 	 * @return parsed {@link Query}
 	 */
 	@Nullable
-	public static <T extends GeneratedMessageV3> Query parseQuery(@Nonnull String queryString, @Nonnull List<QueryParam> queryParamsList, @Nonnull Map<String, QueryParam> queryParamsMap, @Nullable StreamObserver<T> responseObserver) {
+	public static <T extends GeneratedMessageV3> Query parseQuery(@Nonnull String queryString, @Nonnull List<GrpcQueryParam> queryParamsList, @Nonnull Map<String, GrpcQueryParam> queryParamsMap, @Nullable StreamObserver<T> responseObserver) {
 		try {
 			if (queryParamsList.isEmpty() && queryParamsMap.isEmpty()) {
 				return parser.parseQuery(queryString);

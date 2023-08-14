@@ -23,6 +23,8 @@
 
 package io.evitadb.documentation;
 
+import io.evitadb.documentation.csharp.CsharpExecutable;
+import io.evitadb.documentation.csharp.CsharpTestContextFactory;
 import io.evitadb.documentation.evitaql.EvitaQLExecutable;
 import io.evitadb.documentation.evitaql.EvitaTestContextFactory;
 import io.evitadb.documentation.graphql.GraphQLExecutable;
@@ -78,7 +80,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * Pattern for searching for ``` java ``` blocks.
 	 */
 	private static final Pattern SOURCE_CODE_PATTERN = Pattern.compile(
-		"```\\s*(\\S+)?\\s*\n(.+?)```",
+		"```\\s*(\\S+)?\\s*\n(.+?)\\s*```",
 		Pattern.DOTALL | Pattern.MULTILINE
 	);
 	/**
@@ -114,6 +116,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		NOT_TESTED_LANGUAGES.add("json");
 		NOT_TESTED_LANGUAGES.add("yaml");
 		NOT_TESTED_LANGUAGES.add("plain");
+		NOT_TESTED_LANGUAGES.add("protobuf");
 	}
 
 	/**
@@ -256,6 +259,17 @@ public class UserDocumentationTest implements EvitaTestSupport {
 					createSnippets
 				);
 			}
+			case "cs" -> {
+				return new CsharpExecutable(
+					contextAccessor.get(CsharpTestContextFactory.class),
+					sourceContent,
+					rootPath,
+					resource,
+					Arrays.stream(requiredResources).filter(it -> it.endsWith(".cs")).toArray(Path[]::new),
+					codeSnippetIndex,
+					outputSnippet
+				);
+			}
 			default -> {
 				throw new UnsupportedOperationException("Unsupported file format: " + sourceFormat);
 			}
@@ -326,6 +340,9 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
+			//getRootDirectory().resolve("documentation/user/en/query/ordering/reference.md")
+			//getRootDirectory().resolve("documentation/user/en/query/filtering/hierarchy.md")
+			//getRootDirectory().resolve("documentation/user/en/query/ordering/random.md")
 			getRootDirectory().resolve("documentation/user/en/query/requirements/hierarchy.md")
 		).stream();
 	}
@@ -341,8 +358,24 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
 		return this.createTests(
-			getRootDirectory().resolve("documentation/user/en/query/requirements/hierarchy.md"),
-			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.REST, CreateSnippets.GRAPHQL
+			//getRootDirectory().resolve("documentation/user/en/query/filtering/comparable.md"),
+			//getRootDirectory().resolve("documentation/user/en/query/filtering/constant.md"),
+			//getRootDirectory().resolve("documentation/user/en/query/filtering/hierarchy.md"),
+			//getRootDirectory().resolve("documentation/user/en/query/filtering/locale.md"),
+			//getRootDirectory().resolve("documentation/user/en/query/filtering/logical.md"),
+			//getRootDirectory().resolve("documentation/user/en/query/filtering/range.md"),
+			//getRootDirectory().resolve("documentation/user/en/query/filtering/string.md"),
+
+			//getRootDirectory().resolve("documentation/user/en/query/ordering/constant.md"),
+			//getRootDirectory().resolve("documentation/user/en/query/ordering/natural.md"),
+			//getRootDirectory().resolve("documentation/user/en/query/ordering/price.md"),
+			//getRootDirectory().resolve("documentation/user/en/query/ordering/random.md"),
+			//getRootDirectory().resolve("documentation/user/en/query/ordering/reference.md"),
+
+			//getRootDirectory().resolve("documentation/user/en/query/requirements/fetching.md"),
+			//getRootDirectory().resolve("documentation/user/en/query/requirements/hierarchy.md"),
+			getRootDirectory().resolve("documentation/user/en/query/requirements/paging.md"),
+			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.REST, CreateSnippets.GRAPHQL, CreateSnippets.CSHARP
 		).stream();
 	}
 
@@ -444,7 +477,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 									requiredScripts,
 									contextAccessor,
 									codeSnippetIndex,
-									outputSnippetIndex.get(relatedFile),
+									relatedFileExtension.equals("cs") ? outputSnippetIndex.get(Path.of(relatedFile.toString().replace(".cs", ".evitaql"))) : outputSnippetIndex.get(relatedFile),
 									createSnippets
 								)
 							);
@@ -512,7 +545,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 */
 	public enum CreateSnippets {
 
-		JAVA, MARKDOWN, GRAPHQL, REST
+		JAVA, MARKDOWN, GRAPHQL, REST, CSHARP
 
 	}
 

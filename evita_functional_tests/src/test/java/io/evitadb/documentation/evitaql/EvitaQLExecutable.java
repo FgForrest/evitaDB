@@ -23,16 +23,7 @@
 
 package io.evitadb.documentation.evitaql;
 
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.util.DefaultIndenter;
-import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
-import com.fasterxml.jackson.core.util.Separators;
-import com.fasterxml.jackson.databind.MapperFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
@@ -40,30 +31,21 @@ import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.PriceInCurrency;
 import io.evitadb.api.query.parser.DefaultQueryParser;
-import io.evitadb.api.query.require.AttributeContent;
-import io.evitadb.api.query.require.DataInLocales;
-import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.api.query.require.PriceContent;
-import io.evitadb.api.query.require.PriceContentMode;
-import io.evitadb.api.query.require.ReferenceContent;
-import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
+import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
-import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
-import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.extraResult.Hierarchy;
-import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.PaginatedList;
-import io.evitadb.dataType.StripList;
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import io.evitadb.documentation.JavaPrettyPrintingVisitor;
+import io.evitadb.documentation.JsonExecutable;
 import io.evitadb.documentation.UserDocumentationTest.CreateSnippets;
 import io.evitadb.documentation.UserDocumentationTest.OutputSnippet;
+import io.evitadb.documentation.csharp.CsharpPrettyPrintingVisitor;
+import io.evitadb.documentation.markdown.CustomCodeBlock;
 import io.evitadb.documentation.markdown.Table;
 import io.evitadb.documentation.markdown.Table.Builder;
 import io.evitadb.driver.EvitaClient;
@@ -71,7 +53,6 @@ import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.RequiredArgsConstructor;
 import net.steppschuh.markdowngenerator.MarkdownSerializationException;
-import net.steppschuh.markdowngenerator.text.code.CodeBlock;
 import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.function.Executable;
 
@@ -79,21 +60,14 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.Serial;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.text.NumberFormat;
-import java.util.Arrays;
-import java.util.Currency;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
@@ -103,11 +77,8 @@ import java.util.stream.Stream;
 
 import static io.evitadb.documentation.UserDocumentationTest.readFile;
 import static io.evitadb.documentation.UserDocumentationTest.resolveSiblingWithDifferentExtension;
-import static io.evitadb.documentation.evitaql.CustomJsonVisibilityChecker.allow;
 import static java.util.Optional.ofNullable;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * The implementation of the EvitaQL source code dynamic test verifying single EvitaQL example from the documentation.
@@ -121,7 +92,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class EvitaQLExecutable implements Executable, EvitaTestSupport {
+public class EvitaQLExecutable extends JsonExecutable implements Executable, EvitaTestSupport {
 	private static final String REF_LINK = "\uD83D\uDD17 ";
 	private static final String ATTR_LINK = ": ";
 	public static final String PRICE_LINK = "\uD83E\uDE99 ";
@@ -132,17 +103,13 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 	 */
 	private static final String ENTITY_PRIMARY_KEY = "entityPrimaryKey";
 	/**
-	 * Object mapper used to serialize unknown objects to JSON output.
-	 */
-	private final static ObjectMapper OBJECT_MAPPER;
-	/**
-	 * Pretty printer used to format JSON output.
-	 */
-	private final static DefaultPrettyPrinter DEFAULT_PRETTY_PRINTER;
-	/**
 	 * Contents of the Java code template that is used to generate Java examples from EvitaQL queries.
 	 */
 	private final static List<String> JAVA_CODE_TEMPLATE;
+	/**
+	 * Contents of the Java code template that is used to generate C# examples from EvitaQL queries.
+	 */
+	private final static List<String> CSHARP_CODE_TEMPLATE;
 	/**
 	 * Regex pattern for replacing a placeholder in the Java template.
 	 */
@@ -160,31 +127,14 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 	  Initializes the Java code template to be used when {@link CreateSnippets#JAVA} is requested.
 	 */
 	static {
-		OBJECT_MAPPER = new ObjectMapper();
-		OBJECT_MAPPER.setVisibility(
-			new CustomJsonVisibilityChecker(
-				allow(EntityClassifier.class),
-				allow(EntityClassifierWithParent.class),
-				allow(Hierarchy.class),
-				allow(LevelInfo.class),
-				allow(PaginatedList.class),
-				allow(StripList.class)
-			)
-		);
-		OBJECT_MAPPER.registerModule(new Jdk8Module());
-		OBJECT_MAPPER.registerModule(
-			new SimpleModule()
-				.addSerializer(EntityContract.class, new EntityDocumentationJsonSerializer()));
-
-		OBJECT_MAPPER.setSerializationInclusion(Include.NON_DEFAULT);
-		OBJECT_MAPPER.enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
-		OBJECT_MAPPER.enable(SerializationFeature.WRITE_DATE_KEYS_AS_TIMESTAMPS);
-		OBJECT_MAPPER.setConfig(OBJECT_MAPPER.getSerializationConfig().with(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY));
-
-		DEFAULT_PRETTY_PRINTER = new CustomPrettyPrinter();
-
 		try (final InputStream is = EvitaQLExecutable.class.getClassLoader().getResourceAsStream("META-INF/documentation/evitaql.java");) {
 			JAVA_CODE_TEMPLATE = IOUtils.readLines(is, StandardCharsets.UTF_8);
+		} catch (IOException e) {
+			throw new IllegalStateException(e);
+		}
+
+		try (final InputStream is = EvitaQLExecutable.class.getClassLoader().getResourceAsStream("META-INF/documentation/evitaql.cs");) {
+			CSHARP_CODE_TEMPLATE = IOUtils.readLines(is, StandardCharsets.UTF_8);
 		} catch (IOException e) {
 			throw new IllegalStateException(e);
 		}
@@ -257,6 +207,24 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 				final Matcher replacementMatcher = THE_QUERY_REPLACEMENT.matcher(theLine);
 				if (replacementMatcher.matches()) {
 					return JavaPrettyPrintingVisitor.toString(theQuery, "\t", replacementMatcher.group(1));
+				} else {
+					return theLine;
+				}
+			})
+			.collect(Collectors.joining("\n"));
+	}
+
+	/**
+	 * Generates the Java code snippet for the given query.
+	 */
+	@Nonnull
+	private static String generateCsharpSnippet(@Nonnull Query theQuery) {
+		return CSHARP_CODE_TEMPLATE
+			.stream()
+			.map(theLine -> {
+				final Matcher replacementMatcher = THE_QUERY_REPLACEMENT.matcher(theLine);
+				if (replacementMatcher.matches()) {
+					return CsharpPrettyPrintingVisitor.toString(theQuery, "\t", replacementMatcher.group(1));
 				} else {
 					return theLine;
 				}
@@ -481,7 +449,7 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 			.orElse("");
 
 		try {
-			return new CodeBlock(json, "json").serialize();
+			return new CustomCodeBlock(json, "json").serialize();
 		} catch (MarkdownSerializationException e) {
 			fail(e);
 			return "";
@@ -604,6 +572,10 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 				final String restSnippet = generateRestSnippet(theQuery);
 				writeFile(resource, "rest", restSnippet);
 			}
+			if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.CSHARP)) {
+				final String csharpSnippet = generateCsharpSnippet(theQuery);
+				writeFile(resource, "cs", csharpSnippet);
+			}
 			// generate Markdown snippet from the result if required
 			final String outputFormat = ofNullable(outputSnippet).map(OutputSnippet::forFormat).orElse("md");
 			if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.MARKDOWN)) {
@@ -632,37 +604,6 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 					System.out.println("Markdown snippet `" + relativePath + "` contents verified OK. \uD83D\uDE0A");
 				}
 			);
-		}
-	}
-
-	/**
-	 * Custom pretty printer that leaves space before colon and properly indents arrays and objects.
-	 */
-	private static class CustomPrettyPrinter extends DefaultPrettyPrinter {
-		@Serial private static final long serialVersionUID = 5382128008653605263L;
-
-		public CustomPrettyPrinter() {
-			this.indentArraysWith(DefaultIndenter.SYSTEM_LINEFEED_INSTANCE);
-			this.indentObjectsWith(DefaultIndenter.SYSTEM_LINEFEED_INSTANCE);
-		}
-
-		public CustomPrettyPrinter(CustomPrettyPrinter basePrettyPrinter) {
-			super(basePrettyPrinter);
-			this.indentArraysWith(DefaultIndenter.SYSTEM_LINEFEED_INSTANCE);
-			this.indentObjectsWith(DefaultIndenter.SYSTEM_LINEFEED_INSTANCE);
-		}
-
-
-		@Override
-		public DefaultPrettyPrinter createInstance() {
-			return new CustomPrettyPrinter(this);
-		}
-
-		@Override
-		public DefaultPrettyPrinter withSeparators(Separators separators) {
-			final DefaultPrettyPrinter instance = super.withSeparators(separators);
-			_objectFieldValueSeparatorWithSpaces = separators.getObjectFieldValueSeparator() + " ";
-			return instance;
 		}
 	}
 }

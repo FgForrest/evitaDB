@@ -1,8 +1,10 @@
 {
   queryProduct(
-    orderBy: {
-      random: true
-    }
+    orderBy: [
+      {
+        random: true
+      }
+    ]
   ) {
     recordPage {
       data {
