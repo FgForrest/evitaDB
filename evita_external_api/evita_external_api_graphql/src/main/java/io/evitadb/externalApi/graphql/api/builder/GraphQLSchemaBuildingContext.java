@@ -62,6 +62,8 @@ public class GraphQLSchemaBuildingContext {
     @Nonnull
     private final List<GraphQLFieldDefinition> mutationFields = new LinkedList<>();
     @Nonnull
+    private final List<GraphQLFieldDefinition> subscriptionFields = new LinkedList<>();
+    @Nonnull
     private final Builder schemaBuilder = GraphQLSchema.newSchema();
     @Nonnull
     private final GraphQLCodeRegistry.Builder registryBuilder = GraphQLCodeRegistry.newCodeRegistry();
@@ -182,6 +184,22 @@ public class GraphQLSchemaBuildingContext {
     }
 
     /**
+     * Register GraphQL field to the root subscription object in schema.
+     */
+    public void registerSubscriptionField(@Nonnull BuiltFieldDescriptor subscriptionFieldDescriptor) {
+        Assert.isPremiseValid(
+            subscriptionFieldDescriptor.dataFetcher() != null,
+            () -> new GraphQLSchemaBuildingError("Missing data fetcher for subscription field `" + subscriptionFieldDescriptor.definition().getName() + "`.")
+        );
+
+        subscriptionFields.add(subscriptionFieldDescriptor.definition());
+        registryBuilder.dataFetcher(
+            coordinates("Subscription", subscriptionFieldDescriptor.definition().getName()),
+            subscriptionFieldDescriptor.dataFetcher()
+        );
+    }
+
+    /**
      * Registers new GraphQL field to any GraphQL object with optional data fetcher.
      *
      * @param objectName name of GraphQL object to which the field will be added
@@ -229,6 +247,11 @@ public class GraphQLSchemaBuildingContext {
             final GraphQLObjectType.Builder mutationObjectBuilder = newObject().name("Mutation");
             mutationFields.forEach(mutationObjectBuilder::field);
             schemaBuilder.mutation(mutationObjectBuilder.build());
+        }
+        if (!subscriptionFields.isEmpty()) {
+            final GraphQLObjectType.Builder subscriptionObjectBuilder = newObject().name("Subscription");
+            subscriptionFields.forEach(subscriptionObjectBuilder::field);
+            schemaBuilder.subscription(subscriptionObjectBuilder.build());
         }
 
         schemaBuilder.codeRegistry(registryBuilder.build());

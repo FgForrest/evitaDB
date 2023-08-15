@@ -41,7 +41,7 @@ import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.exception.HttpExchangeException;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidUsageException;
-import io.evitadb.externalApi.graphql.io.GraphQLHandler.GraphQLEndpointExchange;
+import io.evitadb.externalApi.graphql.io.GraphQLWebHandler.GraphQLWebEndpointExchange;
 import io.evitadb.externalApi.http.EndpointExchange;
 import io.evitadb.externalApi.http.EndpointHandler;
 import io.evitadb.externalApi.http.EndpointResponse;
@@ -72,7 +72,7 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange, GraphQLResponse<?>> {
+public class GraphQLWebHandler extends EndpointHandler<GraphQLWebEndpointExchange, GraphQLResponse<?>> {
 
     private static final Set<Class<? extends GraphQLException>> GRAPHQL_USER_ERRORS = Set.of(
         CoercingSerializeException.class,
@@ -91,16 +91,16 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange, Gra
 
     @Nonnull
     @Override
-    protected GraphQLEndpointExchange createEndpointExchange(@Nonnull HttpServerExchange serverExchange,
-                                                             @Nonnull String httpMethod,
-                                                             @Nullable String requestBodyMediaType,
-                                                             @Nullable String preferredResponseMediaType) {
-        return new GraphQLEndpointExchange(serverExchange, httpMethod, requestBodyMediaType, preferredResponseMediaType);
+    protected GraphQLWebEndpointExchange createEndpointExchange(@Nonnull HttpServerExchange serverExchange,
+                                                                @Nonnull String httpMethod,
+                                                                @Nullable String requestBodyMediaType,
+                                                                @Nullable String preferredResponseMediaType) {
+        return new GraphQLWebEndpointExchange(serverExchange, httpMethod, requestBodyMediaType, preferredResponseMediaType);
     }
 
     @Override
     @Nonnull
-    protected EndpointResponse<GraphQLResponse<?>> doHandleRequest(@Nonnull GraphQLEndpointExchange exchange) {
+    protected EndpointResponse<GraphQLResponse<?>> doHandleRequest(@Nonnull GraphQLWebEndpointExchange exchange) {
         final GraphQLRequest graphQLRequest = parseRequestBody(exchange, GraphQLRequest.class);
         final GraphQLResponse<?> graphQLResponse = executeRequest(graphQLRequest);
         return new SuccessEndpointResponse<>(graphQLResponse);
@@ -150,7 +150,7 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange, Gra
 
     @Nonnull
     @Override
-    protected <T> T parseRequestBody(@Nonnull GraphQLEndpointExchange exchange, @Nonnull Class<T> dataClass) {
+    protected <T> T parseRequestBody(@Nonnull GraphQLWebEndpointExchange exchange, @Nonnull Class<T> dataClass) {
         final String rawBody = readRawRequestBody(exchange);
         try {
             return objectMapper.readValue(rawBody, dataClass);
@@ -203,7 +203,7 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange, Gra
 
     @Nonnull
     @Override
-    protected String serializeResult(@Nonnull GraphQLEndpointExchange exchange, @Nonnull GraphQLResponse<?> response) {
+    protected String serializeResult(@Nonnull GraphQLWebEndpointExchange exchange, @Nonnull GraphQLResponse<?> response) {
         final String json;
         try {
             json = objectMapper.writeValueAsString(response);
@@ -217,8 +217,8 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange, Gra
         return json;
     }
 
-    protected record GraphQLEndpointExchange(@Nonnull HttpServerExchange serverExchange,
-                                             @Nonnull String httpMethod,
-                                             @Nullable String requestBodyContentType,
-                                             @Nullable String preferredResponseContentType) implements EndpointExchange {}
+    protected record GraphQLWebEndpointExchange(@Nonnull HttpServerExchange serverExchange,
+                                                @Nonnull String httpMethod,
+                                                @Nullable String requestBodyContentType,
+                                                @Nullable String preferredResponseContentType) implements EndpointExchange {}
 }

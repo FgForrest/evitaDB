@@ -45,7 +45,8 @@ import io.evitadb.externalApi.graphql.api.system.SystemGraphQLBuilder;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.io.GraphQLExceptionHandler;
-import io.evitadb.externalApi.graphql.io.GraphQLHandler;
+import io.evitadb.externalApi.graphql.io.GraphQLWebHandler;
+import io.evitadb.externalApi.graphql.io.GraphQLWebSocketHandler;
 import io.evitadb.externalApi.http.CorsFilter;
 import io.evitadb.externalApi.http.CorsPreflightHandler;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
@@ -58,6 +59,9 @@ import io.undertow.server.RoutingHandler;
 import io.undertow.server.handlers.BlockingHandler;
 import io.undertow.util.Headers;
 import io.undertow.util.Methods;
+import io.undertow.websockets.WebSocketConnectionCallback;
+import io.undertow.websockets.core.WebSocketChannel;
+import io.undertow.websockets.spi.WebSocketHttpExchange;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -219,9 +223,10 @@ public class GraphQLManager {
 	 * Initializes system GraphQL endpoint for managing Evita.
 	 */
 	private void registerSystemApi() {
+		final GraphQL graphql = new SystemGraphQLBuilder(evita).build(graphQLConfig);
 		registerGraphQLEndpoint(new RegisteredGraphQLApi(
 			UriPath.of("/", "system"),
-			new AtomicReference<>(new SystemGraphQLBuilder(evita).build(graphQLConfig))
+			new AtomicReference<>(graphql)
 		));
 	}
 
@@ -229,7 +234,7 @@ public class GraphQLManager {
 	 * Creates new GraphQL endpoint on specified path with specified {@link GraphQL} instance.
 	 */
 	private void registerGraphQLEndpoint(@Nonnull RegisteredGraphQLApi registeredGraphQLApi) {
-		// actual GraphQL handler
+		// GraphQL handler for main HTTP web API
 		graphQLRouter.add(
 			Methods.POST,
 			registeredGraphQLApi.path().toString(),
@@ -237,7 +242,7 @@ public class GraphQLManager {
 				new CorsFilter(
 					new GraphQLExceptionHandler(
 						objectMapper,
-						new GraphQLHandler(objectMapper, evita.getConfiguration(), registeredGraphQLApi.graphQLReference())
+						new GraphQLWebHandler(objectMapper, evita.getConfiguration(), registeredGraphQLApi.graphQLReference())
 					),
 					graphQLConfig.getAllowedOrigins()
 				)
@@ -248,13 +253,37 @@ public class GraphQLManager {
 			Methods.OPTIONS,
 			registeredGraphQLApi.path().toString(),
 			new BlockingHandler(
+				new CorsPreflightHandler(
+					graphQLConfig.getAllowedOrigins(),
+					Set.of(Methods.POST_STRING),
+					Set.of(Headers.CONTENT_TYPE_STRING, Headers.ACCEPT_STRING)
+				)
+			)
+		);
+
+
+		// GraphQL handler for WebSocket web API
+		// todo lho this is only prototype
+		graphQLRouter.add(
+			Methods.GET,
+			registeredGraphQLApi.path() + "-ws",
+			new GraphQLExceptionHandler(
+				objectMapper,
 				new CorsFilter(
-					new CorsPreflightHandler(
-						graphQLConfig.getAllowedOrigins(),
-						Set.of(Methods.POST_STRING),
-						Set.of(Headers.CONTENT_TYPE_STRING, Headers.ACCEPT_STRING)
-					),
+					new GraphQLWebSocketHandler(objectMapper, evita, registeredGraphQLApi.graphQLReference()),
 					graphQLConfig.getAllowedOrigins()
+				)
+			)
+		);
+		// CORS pre-flight handler for the GraphQL handler
+		graphQLRouter.add(
+			Methods.OPTIONS,
+			registeredGraphQLApi.path() + "-ws",
+			new BlockingHandler(
+				new CorsPreflightHandler(
+					graphQLConfig.getAllowedOrigins(),
+					Set.of(Methods.POST_STRING),
+					Set.of(Headers.CONTENT_TYPE_STRING, Headers.ACCEPT_STRING)
 				)
 			)
 		);

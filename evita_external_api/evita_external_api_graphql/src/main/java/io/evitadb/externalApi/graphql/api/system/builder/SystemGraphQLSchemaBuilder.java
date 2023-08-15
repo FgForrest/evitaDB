@@ -23,13 +23,12 @@
 
 package io.evitadb.externalApi.graphql.api.system.builder;
 
-import graphql.schema.GraphQLFieldDefinition;
-import graphql.schema.GraphQLObjectType;
-import graphql.schema.GraphQLSchema;
-import graphql.schema.GraphQLUnionType;
-import graphql.schema.PropertyDataFetcher;
-import graphql.schema.TypeResolver;
+import graphql.schema.*;
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureObserver;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.CorruptedCatalog;
 import io.evitadb.core.Evita;
@@ -41,6 +40,7 @@ import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.FinalGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.NameVariantDataFetcher;
+import io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars;
 import io.evitadb.externalApi.graphql.api.system.model.CatalogQueryHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.system.model.CreateCatalogMutationHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.system.model.DeleteCatalogIfExistsMutationHeaderDescriptor;
@@ -60,6 +60,8 @@ import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
+import java.util.concurrent.Flow.Publisher;
+import java.util.concurrent.SubmissionPublisher;
 
 /**
  * Implementation of {@link FinalGraphQLSchemaBuilder} for building evitaDB management manipulation schema.
@@ -96,6 +98,45 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		buildingContext.registerMutationField(buildRenameCatalogField());
 		buildingContext.registerMutationField(buildReplaceCatalogField());
 		buildingContext.registerMutationField(buildDeleteCatalogIfExistsField());
+
+
+		buildingContext.registerType(GraphQLObjectType.newObject()
+			.name("ChangeSystemCapture")
+			.field(GraphQLFieldDefinition.newFieldDefinition()
+				.name("catalog")
+				.type(GraphQLScalars.STRING)
+				.build())
+			.build());
+
+		buildingContext.registerSubscriptionField(new BuiltFieldDescriptor(
+			GraphQLFieldDefinition.newFieldDefinition()
+				.name("onSystemChange")
+				.type(GraphQLTypeReference.typeRef("ChangeSystemCapture"))
+				.build(),
+			new DataFetcher<Publisher<ChangeSystemCapture>>() {
+				@Override
+				public Publisher<ChangeSystemCapture> get(DataFetchingEnvironment environment) throws Exception {
+					final SubmissionPublisher<ChangeSystemCapture> publisher = new SubmissionPublisher<>(evita.getExecutor(), 5, (subscriber, throwable) -> {
+						// todo lho what here?
+					});
+					evita.registerSystemChangeCapture(
+						new ChangeSystemCaptureRequest(CaptureContent.HEADER),
+						new ChangeSystemCaptureObserver() {
+							@Override
+							public void onChange(@Nonnull ChangeSystemCapture event) {
+								publisher.submit(event);
+							}
+
+							@Override
+							public void onTermination() {
+								publisher.close(); // todo lho ?
+							}
+						}
+					);
+					return publisher;
+				}
+			}
+		));
 
 		return buildingContext.buildGraphQLSchema();
 	}
