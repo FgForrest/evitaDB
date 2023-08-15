@@ -42,6 +42,11 @@ jobs:
          java-version: '17'
          cache: 'maven'
 
+    - name: Setup dotnet
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '7.0.10'    # setup dotnet 7.0.10 for building
+
     - name: Build with Maven       # run Maven with tests
       run: |
         mvn -T 1C -B package -P documentation -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
