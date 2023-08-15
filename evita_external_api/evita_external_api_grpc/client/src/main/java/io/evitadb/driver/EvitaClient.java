@@ -29,12 +29,13 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.exception.InstanceTerminatedException;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureObserver;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
+import io.evitadb.driver.cdc.ClientSubscription;
 import io.evitadb.driver.certificate.ClientCertificateManager;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientNotTerminatedInTimeException;
@@ -63,13 +64,8 @@ import org.jboss.threads.EnhancedQueueExecutor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -78,14 +74,13 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static io.evitadb.externalApi.grpc.dataType.ChangeDataCaptureConverter.toChangeSystemCapture;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -145,7 +140,7 @@ public class EvitaClient implements EvitaContract {
 
 	private final ManagedChannel cdcChannel;
 
-	private final List<UUID> activeSystemCaptures = new ArrayList<>(8);
+	private final List<ClientSubscription> activeSubscriptions = new ArrayList<>(8);
 
 	/**
 	 * Method that is called within the {@link EvitaClientSession} to apply the wanted logic on a channel retrieved
@@ -260,10 +255,10 @@ public class EvitaClient implements EvitaContract {
 		this.executor.prestartAllCoreThreads();
 	}
 
-	@Nonnull
 	@Override
-	public UUID registerSystemChangeCapture(@Nonnull ChangeSystemCaptureRequest request, @Nonnull ChangeSystemCaptureObserver callback) {
-		final AtomicReference<UUID> uuid = new AtomicReference<>();
+	public void subscribe(@Nullable Subscriber<? super ChangeSystemCapture> subscriber) throws NullPointerException, IllegalArgumentException {
+		/* TODO TPO - original implementation */
+		/*final AtomicReference<UUID> uuid = new AtomicReference<>();
 		final Iterator<GrpcRegisterSystemChangeCaptureResponse> responseIterator = EvitaServiceGrpc.newBlockingStub(this.cdcChannel)
 			.registerSystemChangeCapture(
 				GrpcRegisterSystemChangeCaptureRequest.newBuilder()
@@ -281,17 +276,19 @@ public class EvitaClient implements EvitaContract {
 		while (uuid.get() == null) {
 
 		}
-		return uuid.get();
+		return uuid.get();*/
 	}
 
 	@Override
-	public boolean unregisterSystemChangeCapture(@Nonnull UUID uuid) {
-		activeSystemCaptures.remove(uuid);
-		return EvitaServiceGrpc.newBlockingStub(this.cdcChannel).unregisterSystemChangeCapture(
-			GrpcUnregisterSystemChangeCaptureRequest.newBuilder()
-				.setUuid(uuid.toString())
-				.build()
-		).getSuccess();
+	public boolean extendSubscription(@Nonnull UUID subscriptionId, @Nonnull ChangeSystemCaptureRequest additionalRequest) {
+		/* TODO TPO - implement please */
+		return false;
+	}
+
+	@Override
+	public boolean limitSubscription(@Nonnull UUID subscriptionId, @Nonnull UUID cdcRequestId) {
+		/* TODO TPO - implement please */
+		return false;
 	}
 
 	@Nonnull
@@ -529,7 +526,7 @@ public class EvitaClient implements EvitaContract {
 			this.activeSessions.values().forEach(EvitaSessionContract::close);
 			this.activeSessions.clear();
 			this.channelPool.shutdown();
-			this.activeSystemCaptures.stream().toList().forEach(this::unregisterSystemChangeCapture);
+			this.activeSubscriptions.forEach(ClientSubscription::cancel);
 			this.cdcChannel.shutdownNow();
 			this.terminationCallback.run();
 		}

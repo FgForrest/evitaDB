@@ -27,7 +27,7 @@ import javax.annotation.Nonnull;
 import java.util.Collection;
 
 /**
- * TODO JNO - document me
+ * TODO JNO - redesign me
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

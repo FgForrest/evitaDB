@@ -24,7 +24,7 @@
 package io.evitadb.api.requestResponse.cdc;
 
 /**
- * TODO JNO - document me
+ * Enumeration of possible mutation types handled by evitaDB.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

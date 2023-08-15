@@ -21,27 +21,50 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.cdc;
+package io.evitadb.core.cdc;
+
+import io.evitadb.api.requestResponse.cdc.NamedSubscription;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.UUID;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
- * TODO JNO - document me
+ * Server-side subscription implementation to a CDC stream.
+ * Internal use only.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface ChangeSystemCaptureObserver {
-
+@RequiredArgsConstructor
+class ServerSubscription implements NamedSubscription {
 	/**
-	 * TODO JNO - document me
-	 * @param event
+	 * Unique identifier of this subscription.
 	 */
-	void onChange(@Nonnull ChangeSystemCapture event);
-
+	private final UUID id = UUID.randomUUID();
 	/**
-	 * Method is called just before evitaDB instance is terminated.
-	 * It allows the client to terminate the resources associated with this observer.
+	 * Consumer to be called to cancel the subscription.
 	 */
-	void onTermination();
+	private final Consumer<UUID> canceller;
+	/**
+	 * Consumer to be called to request more data.
+	 */
+	private final BiConsumer<UUID, Long> requester;
 
+	@Nonnull
+	@Override
+	public UUID id() {
+		return id;
+	}
+
+	@Override
+	public void request(long n) {
+		requester.accept(id, n);
+	}
+
+	@Override
+	public void cancel() {
+		canceller.accept(id);
+	}
 }

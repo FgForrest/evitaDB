@@ -29,9 +29,7 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.mock.MockCatalogStructuralChangeObserver;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.CaptureContent;
-import io.evitadb.api.requestResponse.cdc.CaptureSince;
 import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureRequest;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
@@ -64,10 +62,10 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 			getEvitaConfiguration()
 		);
 		evita.defineCatalog(TEST_CATALOG);
-		evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.BODY), observer);
+		evita.subscribe(observer);
 		evita.updateCatalog(
 			TEST_CATALOG, session -> {
-				session.registerChangeDataCapture(new ChangeDataCaptureRequest(CaptureArea.SCHEMA, null, CaptureContent.BODY, new CaptureSince(0L)), observer);
+				session.registerChangeDataCapture(new ChangeDataCaptureRequest(CaptureArea.SCHEMA, null, CaptureContent.BODY, 0L), observer);
 			}
 		);
 	}

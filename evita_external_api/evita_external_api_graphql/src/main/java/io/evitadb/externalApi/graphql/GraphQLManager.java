@@ -28,9 +28,7 @@ import graphql.GraphQL;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.CaptureContent;
-import io.evitadb.api.requestResponse.cdc.CaptureSince;
 import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureRequest;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.cdc.SchemaSite;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -113,7 +111,7 @@ public class GraphQLManager {
 		// register initial endpoints
 		registerSystemApi();
 
-		evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER), observer);
+		evita.subscribe(observer);
 		this.evita.getCatalogs().forEach(catalog -> registerCatalog(catalog.getName()));
 
 		log.info("Built GraphQL API in " + StringUtils.formatPreciseNano(System.currentTimeMillis() - buildingStartTime));
@@ -140,7 +138,7 @@ public class GraphQLManager {
 		catalog.registerChangeDataCapture(
 			new ChangeDataCaptureRequest(
 				CaptureArea.SCHEMA, new SchemaSite(Operation.values()), CaptureContent.HEADER,
-				new CaptureSince(catalog.getLastCommittedTransactionId())
+				catalog.getLastCommittedTransactionId()
 			),
 			observer
 		);

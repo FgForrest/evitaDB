@@ -27,7 +27,7 @@ import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.ChangeDataCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureObserver;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureObserver;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureSubscriber;
 import io.evitadb.externalApi.graphql.GraphQLManager;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +35,7 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.Objects;
+import java.util.concurrent.Flow.Subscription;
 
 /**
  * Updates GraphQL API endpoints and their GraphQL instances based on Evita updates.
@@ -43,7 +44,7 @@ import java.util.Objects;
  */
 // TOBEDONE LHO: consider more efficient GraphQL schema updating when only part of Evita schema is updated
 @RequiredArgsConstructor
-public class CatalogGraphQLRefreshingObserver implements ChangeSystemCaptureObserver, ChangeDataCaptureObserver {
+public class CatalogGraphQLRefreshingObserver implements ChangeSystemCaptureSubscriber, ChangeDataCaptureObserver {
 	private final GraphQLManager graphQLManager;
 
 	@Override
@@ -65,12 +66,27 @@ public class CatalogGraphQLRefreshingObserver implements ChangeSystemCaptureObse
 	}
 
 	@Override
-	public void onChange(@Nonnull ChangeSystemCapture event) {
-		switch (event.operation()) {
-			case CREATE -> graphQLManager.registerCatalog(event.catalog());
-			case UPDATE -> graphQLManager.refreshCatalog(event.catalog());
-			case REMOVE -> graphQLManager.unregisterCatalog(event.catalog());
+	public void onSubscribe(Subscription subscription) {
+		subscription.request(Long.MAX_VALUE);
+	}
+
+	@Override
+	public void onNext(ChangeSystemCapture item) {
+		switch (item.operation()) {
+			case CREATE -> graphQLManager.registerCatalog(item.catalog());
+			case UPDATE -> graphQLManager.refreshCatalog(item.catalog());
+			case REMOVE -> graphQLManager.unregisterCatalog(item.catalog());
 		}
+	}
+
+	@Override
+	public void onError(Throwable throwable) {
+		// do nothing, there are no resources to free, logging happens in the caller
+	}
+
+	@Override
+	public void onComplete() {
+		// do nothing, there are no resources to free
 	}
 
 	@Override

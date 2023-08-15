@@ -24,7 +24,7 @@
 package io.evitadb.api.requestResponse.cdc;
 
 /**
- * TODO JNO - document me
+ * The unifying interface for all capture sites.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

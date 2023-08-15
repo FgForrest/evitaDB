@@ -36,9 +36,6 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.cdc.ChangeDataCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureObserver;
 import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureRequest;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureObserver;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -61,7 +58,6 @@ import io.evitadb.externalApi.grpc.builders.query.extraResults.GrpcExtraResultsB
 import io.evitadb.externalApi.grpc.dataType.ChangeDataCaptureConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaResponse.Builder;
-import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingEntityMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingLocalMutationConverter;
@@ -86,16 +82,13 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static io.evitadb.externalApi.grpc.dataType.ChangeDataCaptureConverter.toCaptureSince;
 import static io.evitadb.externalApi.grpc.dataType.ChangeDataCaptureConverter.toCaptureSite;
-import static io.evitadb.externalApi.grpc.dataType.ChangeDataCaptureConverter.toGrpcChangeSystemCapture;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toCaptureArea;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toCaptureContent;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCatalogState;
@@ -857,7 +850,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			toCaptureArea(request.getArea()),
 			toCaptureSite(request),
 			toCaptureContent(request.getContent()),
-			toCaptureSince(request.getSince())
+			/* TODO TPO - REDESIGN */
+			0L // toCaptureSince(request.getSince())
 		);
 
 		uuidRef.set(session.registerChangeDataCapture(changeDataCaptureRequest, changeDataCaptureObserver));

@@ -24,13 +24,22 @@
 package io.evitadb.api.requestResponse.cdc;
 
 import javax.annotation.Nonnull;
+import java.util.UUID;
 
 /**
- * TODO JNO - document me
+ * Record describing the capture request for the {@link ChangeSystemCaptureSubscriber}. The request contains the recipe
+ * for the messages that the subscriber is interested in and that are sent to it by {@link ChangeSystemCaptureSubscriber#onNext(ChangeSystemCapture)}
+ * method.
+ *
+ * @param id      unique identifier of the subscriber, id must be unique among all subscribers and must change when
+ *                the instance of the subscriber is finalized and a new instance is created
+ * @param content the requested content of the capture, by default only the header information is sent
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public record ChangeSystemCaptureRequest(
+	/* TODO TPO - this was added */
+	@Nonnull UUID id,
 	@Nonnull CaptureContent content
 ) {
 }

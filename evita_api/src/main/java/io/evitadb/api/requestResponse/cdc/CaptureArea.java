@@ -24,11 +24,17 @@
 package io.evitadb.api.requestResponse.cdc;
 
 /**
- * TODO JNO - document me
+ * The enum defines what catalog area is covered by the capture.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public enum CaptureArea {
+	/**
+	 * Changes in the schema are captured.
+	 */
 	SCHEMA,
+	/**
+	 * Changes in the data are captured.
+	 */
 	DATA
 }

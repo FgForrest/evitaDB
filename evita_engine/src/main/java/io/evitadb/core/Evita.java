@@ -38,8 +38,10 @@ import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureObserver;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureSubscriber;
+import io.evitadb.api.requestResponse.cdc.NamedSubscription;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
@@ -92,6 +94,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -160,7 +163,7 @@ public final class Evita implements EvitaContract {
 	 */
 	private final ReflectionLookup reflectionLookup;
 	/**
-	 * Change observer that is used to notify all registered {@link ChangeSystemCaptureObserver} about changes in the
+	 * Change observer that is used to notify all registered {@link ChangeSystemCaptureSubscriber} about changes in the
 	 * catalogs.
 	 */
 	private final SystemChangeObserver changeObserver = new SystemChangeObserver();
@@ -259,17 +262,6 @@ public final class Evita implements EvitaContract {
 	public void setReadOnly() {
 		Assert.isTrue(!readOnly, "Only read-write evita can be switched to read-only instance!");
 		this.readOnly = true;
-	}
-
-	@Nonnull
-	@Override
-	public UUID registerSystemChangeCapture(@Nonnull ChangeSystemCaptureRequest request, @Nonnull ChangeSystemCaptureObserver callback) {
-		return changeObserver.registerObserver(request, callback);
-	}
-
-	@Override
-	public boolean unregisterSystemChangeCapture(@Nonnull UUID uuid) {
-		return changeObserver.unregisterObserver(uuid);
 	}
 
 	/**
@@ -490,6 +482,32 @@ public final class Evita implements EvitaContract {
 	public CatalogContract getCatalogInstanceOrThrowException(@Nonnull String catalog) throws IllegalArgumentException {
 		return getCatalogInstance(catalog)
 			.orElseThrow(() -> new IllegalArgumentException("Catalog " + catalog + " is not known to Evita!"));
+	}
+
+	@Override
+	public void subscribe(@Nullable Subscriber<? super ChangeSystemCapture> subscriber)
+		throws NullPointerException, IllegalArgumentException
+	{
+		if (subscriber instanceof ChangeSystemCaptureSubscriber changeSystemCaptureObserver) {
+			changeObserver.registerObserver(changeSystemCaptureObserver);
+		} else {
+			throw new IllegalArgumentException("Subscriber must implement ChangeSystemCaptureObserver interface!");
+		}
+	}
+
+	@Override
+	public boolean extendSubscription(@Nonnull UUID subscriptionId, @Nonnull ChangeSystemCaptureRequest additionalRequest) {
+		return changeObserver.extendSubscription(subscriptionId, additionalRequest);
+	}
+
+	@Override
+	public boolean limitSubscription(@Nonnull UUID subscriptionId, @Nonnull UUID cdcRequestId) {
+		return changeObserver.limitSubscription(subscriptionId, cdcRequestId);
+	}
+
+	@Nonnull
+	public Optional<NamedSubscription> getSubscriptionById(@Nonnull UUID id) {
+		return changeObserver.getSubscriptionById(id);
 	}
 
 	/*
