@@ -30,6 +30,6 @@ public class CsharpTestContext implements TestContext {
 	@Getter
 	private final CShell cshell;
 	public CsharpTestContext() {
-		this.cshell = new CShell("");
+		this.cshell = new CShell();
 	}
 }
