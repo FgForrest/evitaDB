@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.CaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.SchemaSite;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -93,6 +94,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Flow;
+import java.util.concurrent.Flow.Publisher;
+import java.util.concurrent.Flow.Subscriber;
+import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntFunction;
@@ -144,6 +149,68 @@ class EvitaTest implements EvitaTestSupport {
 	void tearDown() {
 		evita.close();
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
+	}
+
+	@Test
+	void observerProposal() {
+		final Publisher<ChangeSystemCapture> systemHeaderPublisher = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
+		final Publisher<ChangeSystemCapture> systemBodyPublisher = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.BODY));
+
+		systemHeaderPublisher.subscribe(new Subscriber<ChangeSystemCapture>() {
+
+			private Subscription subscription;
+
+			@Override
+			public void onSubscribe(Subscription subscription) {
+				this.subscription = subscription;
+				this.subscription.request(1);
+			}
+
+			@Override
+			public void onNext(ChangeSystemCapture item) {
+				handleItem(item);
+				// don't want another data, therefore no additional request is made... evitaDB observer will close
+				// automatically this subscription, potentially entire publisher if no other subscriptions are registered
+			}
+
+			@Override
+			public void onError(Throwable throwable) {
+				throwable.printStackTrace();
+			}
+
+			@Override
+			public void onComplete() {
+				System.out.println("closed");
+			}
+		});
+
+		systemBodyPublisher.subscribe(new Subscriber<ChangeSystemCapture>() {
+
+			private Subscription subscription;
+
+			@Override
+			public void onSubscribe(Subscription subscription) {
+				this.subscription = subscription;
+				this.subscription.request(1);
+			}
+
+			@Override
+			public void onNext(ChangeSystemCapture item) {
+				handleItem(item);
+				// requesting another item in loop, the publisher will stay open
+				this.subscription.request(1);
+			}
+
+			@Override
+			public void onError(Throwable throwable) {
+				throwable.printStackTrace();
+			}
+
+			@Override
+			public void onComplete() {
+				System.out.println("closed");
+			}
+		});
 	}
 
 	@Test

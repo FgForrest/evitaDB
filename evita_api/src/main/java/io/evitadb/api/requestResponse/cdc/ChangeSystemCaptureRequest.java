@@ -39,7 +39,7 @@ import java.util.UUID;
  */
 public record ChangeSystemCaptureRequest(
 	/* TODO TPO - this was added */
-	@Nonnull UUID id,
+//	@Nonnull UUID id,
 	@Nonnull CaptureContent content
 ) {
 }

@@ -59,7 +59,16 @@ import java.util.function.Function;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ThreadSafe
-public interface EvitaContract extends AutoCloseable, ClientContext, Publisher<ChangeSystemCapture> {
+public interface EvitaContract extends AutoCloseable, ClientContext/*, Publisher<ChangeSystemCapture>*/ {
+
+	/**
+	 * Creates new publisher that emits {@link ChangeSystemCapture}s that match the request.
+	 *
+	 * @param request defines what events are captured
+	 * @return publisher that emits {@link ChangeSystemCapture}s that match the request
+	 */
+	// TODO JNO: prototype
+	Publisher<ChangeSystemCapture> registerSystemChangeCapture(@Nonnull ChangeSystemCaptureRequest request);
 
 	/**
 	 * Accepts subscription to evitaDB system events. System events track global changes on the evitaDB level, such as
@@ -69,9 +78,9 @@ public interface EvitaContract extends AutoCloseable, ClientContext, Publisher<C
 	 * @throws NullPointerException when subscriber is null
 	 * @throws IllegalArgumentException when subscriber doesn't implement {@link ChangeSystemCaptureSubscriber} interface
 	 */
-	@Override
-	void subscribe(@Nullable Subscriber<? super ChangeSystemCapture> subscriber)
-		throws NullPointerException, IllegalArgumentException;
+//	@Override
+//	void subscribe(@Nullable Subscriber<? super ChangeSystemCapture> subscriber)
+//		throws NullPointerException, IllegalArgumentException;
 
 	/**
 	 * Allows to extend existing subscription with additional request. When subscription by `subscriptionId` is found,
@@ -82,7 +91,7 @@ public interface EvitaContract extends AutoCloseable, ClientContext, Publisher<C
 	 * @param additionalRequest additional request to be added to the existing subscription
 	 * @return true if subscription was found and updated, false otherwise
 	 */
-	boolean extendSubscription(@Nonnull UUID subscriptionId, @Nonnull ChangeSystemCaptureRequest additionalRequest);
+//	boolean extendSubscription(@Nonnull UUID subscriptionId, @Nonnull ChangeSystemCaptureRequest additionalRequest);
 
 	/**
 	 * Allows to drop existing request from existing subscription identified by `subscriptionId`. The request must be
@@ -94,7 +103,7 @@ public interface EvitaContract extends AutoCloseable, ClientContext, Publisher<C
 	 * @param cdcRequestId identifier of the request to be dropped
 	 * @return true if subscription was found and updated, false otherwise
 	 */
-	boolean limitSubscription(@Nonnull UUID subscriptionId, @Nonnull UUID cdcRequestId);
+//	boolean limitSubscription(@Nonnull UUID subscriptionId, @Nonnull UUID cdcRequestId);
 
 	/**
 	 * Creates {@link EvitaSessionContract} for querying the database.

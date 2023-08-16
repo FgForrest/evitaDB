@@ -94,6 +94,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Flow.Publisher;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
@@ -485,30 +486,40 @@ public final class Evita implements EvitaContract {
 	}
 
 	@Override
-	public void subscribe(@Nullable Subscriber<? super ChangeSystemCapture> subscriber)
-		throws NullPointerException, IllegalArgumentException
-	{
-		if (subscriber instanceof ChangeSystemCaptureSubscriber changeSystemCaptureObserver) {
-			changeObserver.registerObserver(changeSystemCaptureObserver);
-		} else {
-			throw new IllegalArgumentException("Subscriber must implement ChangeSystemCaptureObserver interface!");
-		}
+	public Publisher<ChangeSystemCapture> registerSystemChangeCapture(@Nonnull ChangeSystemCaptureRequest request) {
+		// TODO JNO: the observer would store registered publishers and emit captures via them. Clients would subscribe to them
+		//  and they wouldn't bother with UUIDs, explicit closing or extending via IDs. They would simply request another publisher.
+		//  When wouldn't request another data via the subscription, the observer would automatically close the publisher
+		//  similarly to how it is done now in the observer. Of course, it would need to be able to handle multiple subscriptions
+		//  to single publisher. Basically a single publisher would just encapsulate the single request into separate unit (from clients POV).
+		return changeObserver.registerObserver(request);
 	}
 
-	@Override
-	public boolean extendSubscription(@Nonnull UUID subscriptionId, @Nonnull ChangeSystemCaptureRequest additionalRequest) {
-		return changeObserver.extendSubscription(subscriptionId, additionalRequest);
-	}
+//	@Override
+//	public void subscribe(@Nullable Subscriber<? super ChangeSystemCapture> subscriber)
+//		throws NullPointerException, IllegalArgumentException
+//	{
+//		if (subscriber instanceof ChangeSystemCaptureSubscriber changeSystemCaptureObserver) {
+//			changeObserver.registerObserver(changeSystemCaptureObserver);
+//		} else {
+//			throw new IllegalArgumentException("Subscriber must implement ChangeSystemCaptureObserver interface!");
+//		}
+//	}
 
-	@Override
-	public boolean limitSubscription(@Nonnull UUID subscriptionId, @Nonnull UUID cdcRequestId) {
-		return changeObserver.limitSubscription(subscriptionId, cdcRequestId);
-	}
-
-	@Nonnull
-	public Optional<NamedSubscription> getSubscriptionById(@Nonnull UUID id) {
-		return changeObserver.getSubscriptionById(id);
-	}
+//	@Override
+//	public boolean extendSubscription(@Nonnull UUID subscriptionId, @Nonnull ChangeSystemCaptureRequest additionalRequest) {
+//		return changeObserver.extendSubscription(subscriptionId, additionalRequest);
+//	}
+//
+//	@Override
+//	public boolean limitSubscription(@Nonnull UUID subscriptionId, @Nonnull UUID cdcRequestId) {
+//		return changeObserver.limitSubscription(subscriptionId, cdcRequestId);
+//	}
+//
+//	@Nonnull
+//	public Optional<NamedSubscription> getSubscriptionById(@Nonnull UUID id) {
+//		return changeObserver.getSubscriptionById(id);
+//	}
 
 	/*
 		PRIVATE METHODS
