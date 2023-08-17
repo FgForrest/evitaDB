@@ -1,0 +1,57 @@
+# Pipeline that checks the documentation when changed
+
+name: CI Test branch documentation
+
+on:
+  push:
+    branches: [ "documentation-tests-csharp-query-validation" ]            # trap each push to dev branch
+    paths:                         # but react only to changes in code or pipeline definition
+      - .github/workflows/ci-test-documentation.yml
+      - documentation/user/**.*
+
+permissions:
+  id-token: write
+  contents: write
+  actions: read
+  checks: write
+  pull-requests: read
+  security-events: write
+  statuses: write
+
+concurrency:
+  group: ${{ format('{0}_documentation', github.head_ref || github.ref_name) }}  # for the same branch (dev or PR)
+  cancel-in-progress: true        # run only one workflow at a time (cancel the previous)
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3    # checkout sources
+
+    - name: Setup Java JDK
+      uses: actions/setup-java@v3  # setup JDK 17 for building
+      with:
+         distribution: 'temurin'
+         java-version: '17'
+         cache: 'maven'
+
+    - name: Setup dotnet
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '7.0.10'    # setup dotnet 7.0.10 for building
+
+    - name: Build with Maven       # run Maven with tests
+      run: |
+        mvn -T 1C -B package -P documentation -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
+
+    - name: Publish Test Report
+      uses: mikepenz/action-junit-report@v3
+      if: success() || failure() # always run even if the previous step fails
+      with:
+        report_paths: '**/TEST-*.xml'
+        require_tests: true
+        fail_on_failure: true
+        summary: true
+        job_summary: true
+        annotate_notice: true
