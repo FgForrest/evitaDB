@@ -31,40 +31,35 @@ public interface GrpcRegisterSystemChangeCaptureResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
-   * <code>string uuid = 1;</code>
-   * @return The uuid.
-   */
-  java.lang.String getUuid();
-  /**
-   * <code>string uuid = 1;</code>
-   * @return The bytes for uuid.
-   */
-  com.google.protobuf.ByteString
-      getUuidBytes();
-
-  /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 2;</code>
+   * <pre>
+   *string uuid = 1;
+   *GrpcChangeSystemCapture capture = 2;
+   *GrpcCaptureResponseType responseType = 3;
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
    * @return Whether the capture field is set.
    */
   boolean hasCapture();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 2;</code>
+   * <pre>
+   *string uuid = 1;
+   *GrpcChangeSystemCapture capture = 2;
+   *GrpcCaptureResponseType responseType = 3;
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
    * @return The capture.
    */
   io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture getCapture();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 2;</code>
+   * <pre>
+   *string uuid = 1;
+   *GrpcChangeSystemCapture capture = 2;
+   *GrpcCaptureResponseType responseType = 3;
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureOrBuilder getCaptureOrBuilder();
-
-  /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
-   * @return The enum numeric value on the wire for responseType.
-   */
-  int getResponseTypeValue();
-  /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
-   * @return The responseType.
-   */
-  io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType getResponseType();
 }

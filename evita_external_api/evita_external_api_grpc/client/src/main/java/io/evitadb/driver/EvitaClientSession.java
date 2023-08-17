@@ -105,7 +105,6 @@ import io.grpc.StatusRuntimeException;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
-import org.jboss.threads.EnhancedQueueExecutor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -121,6 +120,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -201,7 +201,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	private final ManagedChannel cdcChannel;
 
-	private final EnhancedQueueExecutor executor;
+	private final ThreadPoolExecutor executor;
 
 	/**
 	 * Contains reference to the catalog name targeted by queries / mutations from this session.
@@ -261,7 +261,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		@Nonnull EvitaEntitySchemaCache schemaCache,
 		@Nonnull ChannelPool channelPool,
 		@Nonnull ManagedChannel cdcChannel,
-		@Nonnull EnhancedQueueExecutor executor,
+		@Nonnull ThreadPoolExecutor executor,
 		@Nonnull String catalogName,
 		@Nonnull CatalogState catalogState,
 		@Nonnull UUID sessionId,

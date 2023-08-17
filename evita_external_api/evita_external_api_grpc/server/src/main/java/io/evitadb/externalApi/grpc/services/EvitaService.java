@@ -28,10 +28,13 @@ import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.NamedSubscription;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.grpc.cdc.ServerSystemResponseObserver;
+import io.evitadb.externalApi.grpc.cdc.SystemChangeSubscriber;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
@@ -45,6 +48,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
 
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toCaptureContent;
@@ -267,10 +271,45 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		responseObserver.onCompleted();
 	}
 
+	/*@Override
+	public StreamObserver<GrpcRegisterSystemChangeCaptureRequest> registerSystemChangeCapture(StreamObserver<GrpcRegisterSystemChangeCaptureResponse> responseObserver) {
+        return new ServerSystemResponseObserver((ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse>) responseObserver, evita);
+	}*/
+
 	@Override
 	public void registerSystemChangeCapture(GrpcRegisterSystemChangeCaptureRequest request, StreamObserver<GrpcRegisterSystemChangeCaptureResponse> responseObserver) {
-		/* TODO TPO - uuid should be assigned on the client and sent to the server */
-		final ChangeSystemCaptureRequest changeSystemCaptureRequest = new ChangeSystemCaptureRequest(UUID.randomUUID(), toCaptureContent(request.getContent()));
+		final Flow.Publisher<ChangeSystemCapture> publisher = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(toCaptureContent(request.getContent())));
+		final ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse> observer = ((ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse>) responseObserver);
+		observer.disableAutoRequest();
+		observer.setOnReadyHandler(() -> observer.request(1));
+		publisher.subscribe(new Flow.Subscriber<ChangeSystemCapture>() {
+			@Override
+			public void onSubscribe(Subscription subscription) {
+
+			}
+
+			@Override
+			public void onNext(ChangeSystemCapture item) {
+				observer.onNext(GrpcRegisterSystemChangeCaptureResponse.newBuilder().build());
+			}
+
+			@Override
+			public void onError(Throwable throwable) {
+
+			}
+
+			@Override
+			public void onComplete() {
+
+			}
+		});
+		super.registerSystemChangeCapture(request, responseObserver);
+	}
+
+	/*@Override
+	public void registerSystemChangeCapture(GrpcRegisterSystemChangeCaptureRequest request, StreamObserver<GrpcRegisterSystemChangeCaptureResponse> responseObserver) {
+		*//* TODO TPO - uuid should be assigned on the client and sent to the server *//*
+		final ChangeSystemCaptureRequest changeSystemCaptureRequest = new ChangeSystemCaptureRequest(toCaptureContent(request.getContent()));
 		final GrpcChangeSystemCaptureSubscriber changeSystemCaptureObserver = new GrpcChangeSystemCaptureSubscriber(responseObserver);
 
 		final ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse> serverCallStreamObserver = ((ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse>) responseObserver);
@@ -279,10 +318,10 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 			System.out.println("Observer removed");
 		});
 
-		evita.subscribe(changeSystemCaptureObserver);
-	}
+		evita.registerSystemChangeCapture(changeSystemCaptureRequest);
+	}*/
 
-	@Override
+	/*@Override
 	public void unregisterSystemChangeCapture(GrpcUnregisterSystemChangeCaptureRequest request, StreamObserver<GrpcUnregisterSystemChangeCaptureResponse> responseObserver) {
 		final Optional<NamedSubscription> subscriptionById = evita.getSubscriptionById(UUID.fromString(request.getUuid()));
 		subscriptionById.ifPresent(Subscription::cancel);
@@ -291,5 +330,5 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 			.setSuccess(subscriptionById.isPresent())
 			.build());
 		responseObserver.onCompleted();
-	}
+	}*/
 }

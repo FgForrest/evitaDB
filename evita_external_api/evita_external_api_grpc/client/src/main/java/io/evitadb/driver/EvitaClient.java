@@ -36,6 +36,8 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
 import io.evitadb.driver.cdc.ClientSubscription;
+import io.evitadb.driver.cdc.SystemChangePublisher;
+import io.evitadb.driver.cdc.ClientSystemResponseObserver;
 import io.evitadb.driver.certificate.ClientCertificateManager;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientNotTerminatedInTimeException;
@@ -59,22 +61,12 @@ import io.grpc.StatusRuntimeException;
 import io.grpc.netty.NettyChannelBuilder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.jboss.threads.EnhancedQueueExecutor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Flow.Subscriber;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -98,7 +90,6 @@ import static java.util.Optional.ofNullable;
 @ThreadSafe
 @Slf4j
 public class EvitaClient implements EvitaContract {
-
 	static final Pattern ERROR_MESSAGE_PATTERN = Pattern.compile("(\\w+:\\w+:\\w+): (.*)");
 
 	private static final SchemaMutationConverter<TopLevelCatalogSchemaMutation, GrpcTopLevelCatalogSchemaMutation> CATALOG_SCHEMA_MUTATION_CONVERTER =
@@ -108,8 +99,7 @@ public class EvitaClient implements EvitaContract {
 	 * The configuration of the evitaDB client.
 	 */
 	@Getter private final EvitaClientConfiguration configuration;
-	@Getter
-	private final EnhancedQueueExecutor executor;
+	@Getter private final ThreadPoolExecutor executor;
 	/**
 	 * The channel pool is used to manage the gRPC channels. The channels are created lazily and are reused for
 	 * subsequent requests. The channel pool is thread-safe.
@@ -242,22 +232,14 @@ public class EvitaClient implements EvitaContract {
 			}
 		};
 		this.active.set(true);
-		//final RejectingExecutor handoffExecutor = new RejectingExecutor();
-		this.executor = new EnhancedQueueExecutor.Builder()
-			.setCorePoolSize(4)
-			.setMaximumPoolSize(16)
-			.setExceptionHandler((t, e) -> log.error("Uncaught error in thread `" + t.getName() + "`: " + e.getMessage(), e))
-			//.setHandoffExecutor(handoffExecutor)
-			//.setThreadFactory(new EvitaThreadFactory(configuration.server().threadPriority()))
-			.setMaximumQueueSize(100)
-			.setRegisterMBean(false)
-			.build();
+		this.executor = new ThreadPoolExecutor(4, 16, 1000, TimeUnit.HOURS, new LinkedBlockingQueue<>());
 		this.executor.prestartAllCoreThreads();
 	}
 
-	@Override
-	public void subscribe(@Nullable Subscriber<? super ChangeSystemCapture> subscriber) throws NullPointerException, IllegalArgumentException {
+	/*@Override
+	public void subscribe(@Nullable Subscriber<? super ChangeSystemCapture> subscriber) throws NullPointerException, IllegalArgumentException {*/
 		/* TODO TPO - original implementation */
+
 		/*final AtomicReference<UUID> uuid = new AtomicReference<>();
 		final Iterator<GrpcRegisterSystemChangeCaptureResponse> responseIterator = EvitaServiceGrpc.newBlockingStub(this.cdcChannel)
 			.registerSystemChangeCapture(
@@ -277,18 +259,33 @@ public class EvitaClient implements EvitaContract {
 
 		}
 		return uuid.get();*/
-	}
+	//}
 
-	@Override
+	/*@Override
 	public boolean extendSubscription(@Nonnull UUID subscriptionId, @Nonnull ChangeSystemCaptureRequest additionalRequest) {
-		/* TODO TPO - implement please */
+		*//* TODO TPO - implement please *//*
 		return false;
 	}
 
 	@Override
 	public boolean limitSubscription(@Nonnull UUID subscriptionId, @Nonnull UUID cdcRequestId) {
-		/* TODO TPO - implement please */
+		*//* TODO TPO - implement please *//*
 		return false;
+	}*/
+
+	@Override
+	public Flow.Publisher<ChangeSystemCapture> registerSystemChangeCapture(@Nonnull ChangeSystemCaptureRequest request) {
+		final EvitaServiceGrpc.EvitaServiceStub stub = EvitaServiceGrpc.newStub(this.cdcChannel);
+
+		final ClientSystemResponseObserver clientResponseObserver = new ClientSystemResponseObserver();
+
+		stub.registerSystemChangeCapture(
+				GrpcRegisterSystemChangeCaptureRequest.newBuilder()
+						.setContent(EvitaEnumConverter.toGrpcCaptureContent(request.content()))
+						.build(),
+		clientResponseObserver);
+
+		return new SystemChangePublisher(clientResponseObserver);
 	}
 
 	@Nonnull

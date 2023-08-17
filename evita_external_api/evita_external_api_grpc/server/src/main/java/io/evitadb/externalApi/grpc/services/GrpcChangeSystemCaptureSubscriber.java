@@ -63,8 +63,8 @@ class GrpcChangeSystemCaptureSubscriber implements ChangeSystemCaptureSubscriber
 		Assert.isTrue(subscription instanceof NamedSubscription, "Subscription must implement `NamedSubscription` interface!");
 		this.subscription = (NamedSubscription) subscription;
 		responseObserver.onNext(GrpcRegisterSystemChangeCaptureResponse.newBuilder()
-			.setUuid(this.subscription.id().toString())
-			.setResponseType(GrpcCaptureResponseType.ACKNOWLEDGEMENT)
+			//.setUuid(this.subscription.id().toString())
+			//.setResponseType(GrpcCaptureResponseType.ACKNOWLEDGEMENT)
 			.build());
 	}
 
@@ -72,9 +72,9 @@ class GrpcChangeSystemCaptureSubscriber implements ChangeSystemCaptureSubscriber
 	public void onNext(ChangeSystemCapture item) {
 		Assert.notNull(this.subscription, "Observer hasn't yet been subscribed!");
 		responseObserver.onNext(GrpcRegisterSystemChangeCaptureResponse.newBuilder()
-			.setUuid(this.subscription.id().toString())
+			//.setUuid(this.subscription.id().toString())
 			.setCapture(toGrpcChangeSystemCapture(item))
-			.setResponseType(toGrpcCaptureResponseType(CaptureResponseType.CHANGE))
+			//.setResponseType(toGrpcCaptureResponseType(CaptureResponseType.CHANGE))
 			.build());
 	}
 

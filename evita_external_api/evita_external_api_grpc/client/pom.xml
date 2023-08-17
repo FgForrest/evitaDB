@@ -60,9 +60,5 @@
 			<artifactId>netty-handler</artifactId>
 			<version>${nettyHandler.version}</version>
 		</dependency>
-		<dependency>
-			<groupId>org.jboss.threads</groupId>
-			<artifactId>jboss-threads</artifactId>
-		</dependency>
 	</dependencies>
 </project>

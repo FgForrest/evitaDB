@@ -412,37 +412,6 @@ public final class EvitaServiceGrpc {
     return getRegisterSystemChangeCaptureMethod;
   }
 
-  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcUnregisterSystemChangeCaptureRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcUnregisterSystemChangeCaptureResponse> getUnregisterSystemChangeCaptureMethod;
-
-  @io.grpc.stub.annotations.RpcMethod(
-      fullMethodName = SERVICE_NAME + '/' + "UnregisterSystemChangeCapture",
-      requestType = io.evitadb.externalApi.grpc.generated.GrpcUnregisterSystemChangeCaptureRequest.class,
-      responseType = io.evitadb.externalApi.grpc.generated.GrpcUnregisterSystemChangeCaptureResponse.class,
-      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
-  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcUnregisterSystemChangeCaptureRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcUnregisterSystemChangeCaptureResponse> getUnregisterSystemChangeCaptureMethod() {
-    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcUnregisterSystemChangeCaptureRequest, io.evitadb.externalApi.grpc.generated.GrpcUnregisterSystemChangeCaptureResponse> getUnregisterSystemChangeCaptureMethod;
-    if ((getUnregisterSystemChangeCaptureMethod = EvitaServiceGrpc.getUnregisterSystemChangeCaptureMethod) == null) {
-      synchronized (EvitaServiceGrpc.class) {
-        if ((getUnregisterSystemChangeCaptureMethod = EvitaServiceGrpc.getUnregisterSystemChangeCaptureMethod) == null) {
-          EvitaServiceGrpc.getUnregisterSystemChangeCaptureMethod = getUnregisterSystemChangeCaptureMethod =
-              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcUnregisterSystemChangeCaptureRequest, io.evitadb.externalApi.grpc.generated.GrpcUnregisterSystemChangeCaptureResponse>newBuilder()
-              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
-              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "UnregisterSystemChangeCapture"))
-              .setSampledToLocalTracing(true)
-              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcUnregisterSystemChangeCaptureRequest.getDefaultInstance()))
-              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcUnregisterSystemChangeCaptureResponse.getDefaultInstance()))
-              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("UnregisterSystemChangeCapture"))
-              .build();
-        }
-      }
-    }
-    return getUnregisterSystemChangeCaptureMethod;
-  }
-
   /**
    * Creates a new async stub that supports all call types for the service
    */
@@ -606,17 +575,13 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     *rpc UnregisterSystemChangeCapture(GrpcUnregisterSystemChangeCaptureRequest) returns (GrpcUnregisterSystemChangeCaptureResponse);
+     * </pre>
      */
     public void registerSystemChangeCapture(io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getRegisterSystemChangeCaptureMethod(), responseObserver);
-    }
-
-    /**
-     */
-    public void unregisterSystemChangeCapture(io.evitadb.externalApi.grpc.generated.GrpcUnregisterSystemChangeCaptureRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcUnregisterSystemChangeCaptureResponse> responseObserver) {
-      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getUnregisterSystemChangeCaptureMethod(), responseObserver);
     }
 
     @java.lang.Override public final io.grpc.ServerServiceDefinition bindService() {
@@ -705,13 +670,6 @@ public final class EvitaServiceGrpc {
                 io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest,
                 io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse>(
                   this, METHODID_REGISTER_SYSTEM_CHANGE_CAPTURE)))
-          .addMethod(
-            getUnregisterSystemChangeCaptureMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcUnregisterSystemChangeCaptureRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcUnregisterSystemChangeCaptureResponse>(
-                  this, METHODID_UNREGISTER_SYSTEM_CHANGE_CAPTURE)))
           .build();
     }
   }
@@ -856,19 +814,14 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     *rpc UnregisterSystemChangeCapture(GrpcUnregisterSystemChangeCaptureRequest) returns (GrpcUnregisterSystemChangeCaptureResponse);
+     * </pre>
      */
     public void registerSystemChangeCapture(io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse> responseObserver) {
       io.grpc.stub.ClientCalls.asyncServerStreamingCall(
           getChannel().newCall(getRegisterSystemChangeCaptureMethod(), getCallOptions()), request, responseObserver);
-    }
-
-    /**
-     */
-    public void unregisterSystemChangeCapture(io.evitadb.externalApi.grpc.generated.GrpcUnregisterSystemChangeCaptureRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcUnregisterSystemChangeCaptureResponse> responseObserver) {
-      io.grpc.stub.ClientCalls.asyncUnaryCall(
-          getChannel().newCall(getUnregisterSystemChangeCaptureMethod(), getCallOptions()), request, responseObserver);
     }
   }
 
@@ -1001,18 +954,14 @@ public final class EvitaServiceGrpc {
     }
 
     /**
+     * <pre>
+     *rpc UnregisterSystemChangeCapture(GrpcUnregisterSystemChangeCaptureRequest) returns (GrpcUnregisterSystemChangeCaptureResponse);
+     * </pre>
      */
     public java.util.Iterator<io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse> registerSystemChangeCapture(
         io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest request) {
       return io.grpc.stub.ClientCalls.blockingServerStreamingCall(
           getChannel(), getRegisterSystemChangeCaptureMethod(), getCallOptions(), request);
-    }
-
-    /**
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcUnregisterSystemChangeCaptureResponse unregisterSystemChangeCapture(io.evitadb.externalApi.grpc.generated.GrpcUnregisterSystemChangeCaptureRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
-          getChannel(), getUnregisterSystemChangeCaptureMethod(), getCallOptions(), request);
     }
   }
 
@@ -1154,14 +1103,6 @@ public final class EvitaServiceGrpc {
       return io.grpc.stub.ClientCalls.futureUnaryCall(
           getChannel().newCall(getUpdateMethod(), getCallOptions()), request);
     }
-
-    /**
-     */
-    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcUnregisterSystemChangeCaptureResponse> unregisterSystemChangeCapture(
-        io.evitadb.externalApi.grpc.generated.GrpcUnregisterSystemChangeCaptureRequest request) {
-      return io.grpc.stub.ClientCalls.futureUnaryCall(
-          getChannel().newCall(getUnregisterSystemChangeCaptureMethod(), getCallOptions()), request);
-    }
   }
 
   private static final int METHODID_CREATE_READ_ONLY_SESSION = 0;
@@ -1176,7 +1117,6 @@ public final class EvitaServiceGrpc {
   private static final int METHODID_DELETE_CATALOG_IF_EXISTS = 9;
   private static final int METHODID_UPDATE = 10;
   private static final int METHODID_REGISTER_SYSTEM_CHANGE_CAPTURE = 11;
-  private static final int METHODID_UNREGISTER_SYSTEM_CHANGE_CAPTURE = 12;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -1242,10 +1182,6 @@ public final class EvitaServiceGrpc {
         case METHODID_REGISTER_SYSTEM_CHANGE_CAPTURE:
           serviceImpl.registerSystemChangeCapture((io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse>) responseObserver);
-          break;
-        case METHODID_UNREGISTER_SYSTEM_CHANGE_CAPTURE:
-          serviceImpl.unregisterSystemChangeCapture((io.evitadb.externalApi.grpc.generated.GrpcUnregisterSystemChangeCaptureRequest) request,
-              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcUnregisterSystemChangeCaptureResponse>) responseObserver);
           break;
         default:
           throw new AssertionError();
@@ -1320,7 +1256,6 @@ public final class EvitaServiceGrpc {
               .addMethod(getDeleteCatalogIfExistsMethod())
               .addMethod(getUpdateMethod())
               .addMethod(getRegisterSystemChangeCaptureMethod())
-              .addMethod(getUnregisterSystemChangeCaptureMethod())
               .build();
         }
       }
