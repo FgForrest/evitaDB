@@ -21,24 +21,27 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.system.model;
+package io.evitadb.externalApi.lab.api.dto;
 
-import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.extern.jackson.Jacksonized;
 
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
+import javax.annotation.Nullable;
+import java.util.List;
+import java.util.Map;
 
 /**
- * Descriptor for header arguments of catalog endpoints.
+ * DTO used to get root query constraints from request to get list of entities.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface CatalogsHeaderDescriptor {
+@Builder
+@Jacksonized
+@Getter
+public class QueryEntitiesRequestBodyDto {
 
-	PropertyDescriptor NAME = PropertyDescriptor.builder()
-		.name("name")
-		.description("""
-			Name of catalog to operate on.
-			""")
-		.type(nonNull(String.class))
-		.build();
+	@Nullable private final String query;
+	@Nullable private final List<Object> positionalArguments;
+	@Nullable private final Map<String, Object> namedArguments;
 }

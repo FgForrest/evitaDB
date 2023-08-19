@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
+package io.evitadb.externalApi.lab.api.resolver.endpoint;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.api.CatalogContract;
@@ -38,16 +38,16 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
- * Returns all evitaDB catalogs.
+ * Returns all known evitaDB catalogs.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ListCatalogsHandler extends JsonRestHandler<Collection<CatalogContract>, SystemRestHandlingContext> {
+public class ListCatalogsHandler extends JsonRestHandler<Collection<CatalogContract>, LabRestHandlingContext> {
 
 	@Nonnull
 	private final CatalogJsonSerializer catalogJsonSerializer;
 
-	public ListCatalogsHandler(@Nonnull SystemRestHandlingContext restApiHandlingContext) {
+	public ListCatalogsHandler(@Nonnull LabRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
 		this.catalogJsonSerializer = new CatalogJsonSerializer(restApiHandlingContext);
 	}

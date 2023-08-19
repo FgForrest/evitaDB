@@ -21,15 +21,15 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.openApi;
+package io.evitadb.externalApi.lab.api.openApi;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.EndpointHeaderDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
-import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
+import io.evitadb.externalApi.lab.api.resolver.endpoint.LabRestHandlingContext;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpoint;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.ParameterLocation;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.externalApi.rest.io.RestEndpointHandler;
 import io.evitadb.externalApi.utils.UriPath;
@@ -48,68 +48,56 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiEndpoint.PathBuilder.newPath;
-import static io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.newPathParameter;
 import static io.swagger.v3.oas.models.PathItem.HttpMethod.*;
 
 /**
- * Single REST endpoint with schema description and handler builder for building catalog-specific endpoints
- * (for specific catalog and entity type). It combines {@link io.swagger.v3.oas.models.PathItem},
- * {@link Operation} and {@link io.undertow.server.HttpHandler} into one place with useful defaults.
+ * Single REST endpoint with schema description and handler builder for building data endpoints.
+ * It combines {@link PathItem}, {@link Operation} and {@link io.undertow.server.HttpHandler} into one place with useful defaults.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class OpenApiCatalogEndpoint extends OpenApiEndpoint<CatalogRestHandlingContext> {
+public class OpenApiLabApiDataEndpoint extends OpenApiEndpoint<LabRestHandlingContext> {
 
-	@Nonnull protected final CatalogSchemaContract catalogSchema;
-
-	private OpenApiCatalogEndpoint(@Nonnull CatalogSchemaContract catalogSchema,
-	                               @Nonnull PathItem.HttpMethod method,
-	                               @Nonnull UriPath path,
-								   boolean localized,
-								   @Nonnull String operationId,
-	                               @Nonnull String description,
-	                               @Nullable String deprecationNotice,
-	                               @Nonnull List<OpenApiEndpointParameter> parameters,
-	                               @Nullable OpenApiSimpleType requestBody,
-	                               @Nonnull OpenApiSimpleType successResponse,
-	                               @Nonnull Function<CatalogRestHandlingContext, RestEndpointHandler<?, CatalogRestHandlingContext>> handlerBuilder) {
-		super(method, path, localized, operationId, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
-		this.catalogSchema = catalogSchema;
+	private OpenApiLabApiDataEndpoint(@Nonnull PathItem.HttpMethod method,
+	                                  @Nonnull UriPath path,
+	                                  @Nonnull String operationId,
+	                                  @Nonnull String description,
+	                                  @Nullable String deprecationNotice,
+	                                  @Nonnull List<OpenApiEndpointParameter> parameters,
+	                                  @Nullable OpenApiSimpleType requestBody,
+	                                  @Nonnull OpenApiSimpleType successResponse,
+	                                  @Nonnull Function<LabRestHandlingContext, RestEndpointHandler<?, LabRestHandlingContext>> handlerBuilder) {
+		super(method, path, false, operationId, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
 	}
 
 	/**
-	 * Creates builder for new catalog endpoint.
+	 * Creates builder for new data endpoint.
 	 */
 	@Nonnull
-	public static Builder newCatalogEndpoint(@Nonnull CatalogSchemaContract catalogSchema) {
-		return new Builder(catalogSchema);
+	public static Builder newLabDataEndpoint() {
+		return new Builder();
 	}
 
 	@Nonnull
 	@Override
-	public RestEndpointHandler<?, CatalogRestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
-	                                                                    @Nonnull Evita evita,
-	                                                                    @Nonnull OpenAPI openApi,
-	                                                                    @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping) {
-		final CatalogRestHandlingContext context = new CatalogRestHandlingContext(
+	public RestEndpointHandler<?, LabRestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
+	                                                                @Nonnull Evita evita,
+	                                                                @Nonnull OpenAPI openApi,
+	                                                                @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping) {
+		final LabRestHandlingContext context = new LabRestHandlingContext(
 			objectMapper,
 			evita,
-			catalogSchema,
 			openApi,
 			enumMapping,
-			toOperation(),
-			localized
+			toOperation()
 		);
 		return handlerBuilder.apply(context);
 	}
 
 	public static class Builder {
 
-		@Nonnull private final CatalogSchemaContract catalogSchema;
-
 		@Nullable private PathItem.HttpMethod method;
 		@Nullable private UriPath path;
-		private boolean localized;
 
 		@Nullable private String operationId;
 		@Nullable private String description;
@@ -119,10 +107,9 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<CatalogRestHandlingC
 		@Nullable private OpenApiSimpleType requestBody;
 		@Nullable private OpenApiSimpleType successResponse;
 
-		@Nullable private Function<CatalogRestHandlingContext, RestEndpointHandler<?, CatalogRestHandlingContext>> handlerBuilder;
+		@Nullable private Function<LabRestHandlingContext, RestEndpointHandler<?, LabRestHandlingContext>> handlerBuilder;
 
-		private Builder(@Nonnull CatalogSchemaContract catalogSchema) {
-			this.catalogSchema = catalogSchema;
+		private Builder() {
 			this.parameters = new LinkedList<>();
 		}
 
@@ -136,33 +123,16 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<CatalogRestHandlingC
 		}
 
 		/**
-		 * Set non-localized path of this endpoint. Provided builder is already configured with catalog-specific prefix
-		 * `/rest/catalog`.
+		 * Set path of this endpoint. Provided builder is already configured with data prefix
+		 * `/lab/data`.
 		 */
 		@Nonnull
 		public Builder path(@Nonnull UnaryOperator<PathBuilder> pathBuilderFunction) {
-			return path(false, pathBuilderFunction);
-		}
-
-		/**
-		 * Set path of this endpoint. Provided builder is already configured with catalog-specific prefix
-		 * `/rest/catalog` or `/rest/catalog/{locale}`.
-		 */
-		@Nonnull
-		public Builder path(boolean localized, @Nonnull UnaryOperator<PathBuilder> pathBuilderFunction) {
-			// prepare new catalog path
-			PathBuilder pathBuilder = newPath();
-			if (localized) {
-				pathBuilder.paramItem(newPathParameter()
-					.name(EndpointHeaderDescriptor.LOCALIZED.name())
-					.description(EndpointHeaderDescriptor.LOCALIZED.description())
-					.type(DataTypesConverter.getOpenApiScalar(EndpointHeaderDescriptor.LOCALIZED.primitiveType().javaType()))
-					.build());
-			}
-
+			// prepare new data path
+			PathBuilder pathBuilder = newPath()
+				.staticItem("data");
 			pathBuilder = pathBuilderFunction.apply(pathBuilder);
 
-			this.localized = localized;
 			this.path = pathBuilder.getPath();
 			this.parameters.addAll(pathBuilder.getPathParameters());
 			return this;
@@ -246,13 +216,13 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<CatalogRestHandlingC
 		 * Sets handler builder.
 		 */
 		@Nonnull
-		public Builder handler(@Nonnull Function<CatalogRestHandlingContext, RestEndpointHandler<?, CatalogRestHandlingContext>> handlerBuilder) {
+		public Builder handler(@Nonnull Function<LabRestHandlingContext, RestEndpointHandler<?, LabRestHandlingContext>> handlerBuilder) {
 			this.handlerBuilder = handlerBuilder;
 			return this;
 		}
 
 		@Nonnull
-		public OpenApiCatalogEndpoint build() {
+		public OpenApiLabApiDataEndpoint build() {
 			Assert.isPremiseValid(
 				path != null,
 				() -> new OpenApiBuildingError("Missing endpoint path.")
@@ -294,11 +264,9 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<CatalogRestHandlingC
 				() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing handler.")
 			);
 
-			return new OpenApiCatalogEndpoint(
-				catalogSchema,
+			return new OpenApiLabApiDataEndpoint(
 				method,
 				path,
-				localized,
 				operationId,
 				description,
 				deprecationNotice,

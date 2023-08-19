@@ -21,24 +21,51 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.system.model;
+package io.evitadb.externalApi.lab.api.model;
 
+import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.externalApi.dataType.Any;
+import io.evitadb.externalApi.dataType.GenericObject;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor for header arguments of catalog endpoints.
+ * Requests query of entities.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface CatalogsHeaderDescriptor {
+public interface QueryEntitiesRequestBodyDescriptor {
 
-	PropertyDescriptor NAME = PropertyDescriptor.builder()
-		.name("name")
+	PropertyDescriptor QUERY = PropertyDescriptor.builder()
+		.name("query")
 		.description("""
-			Name of catalog to operate on.
+			Query in EvitaQL language
 			""")
 		.type(nonNull(String.class))
+		.build();
+	PropertyDescriptor POSITIONAL_ARGUMENTS = PropertyDescriptor.builder()
+		.name("positionalArguments")
+		.description("""
+			Positional arguments for query.
+			""")
+		.type(nonNull(Any[].class))
+		.build();
+	PropertyDescriptor NAMED_ARGUMENTS = PropertyDescriptor.builder()
+		.name("namedArguments")
+		.description("""
+			Named arguments for query.
+			""")
+		.type(nonNull(GenericObject.class))
+		.build();
+
+	ObjectDescriptor THIS = ObjectDescriptor.builder()
+		.name("QueryEntitiesRequestBody")
+		.description("""
+			Request body for querying entities.
+			""")
+		.staticField(QUERY)
+		.staticField(POSITIONAL_ARGUMENTS)
+		.staticField(NAMED_ARGUMENTS)
 		.build();
 }

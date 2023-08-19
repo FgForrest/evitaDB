@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.system.model;
+package io.evitadb.externalApi.lab.api.model;
 
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 

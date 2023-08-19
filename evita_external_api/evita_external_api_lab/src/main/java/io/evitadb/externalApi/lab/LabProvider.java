@@ -21,24 +21,38 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.system.model;
+package io.evitadb.externalApi.lab;
 
-import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.externalApi.http.ExternalApiProvider;
+import io.evitadb.externalApi.lab.configuration.LabConfig;
+import io.undertow.server.HttpHandler;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
+import javax.annotation.Nonnull;
 
 /**
- * Descriptor for header arguments of catalog endpoints.
+ * Descriptor of provider of lab API and GUI.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface CatalogsHeaderDescriptor {
+@RequiredArgsConstructor
+public class LabProvider implements ExternalApiProvider<LabConfig> {
 
-	PropertyDescriptor NAME = PropertyDescriptor.builder()
-		.name("name")
-		.description("""
-			Name of catalog to operate on.
-			""")
-		.type(nonNull(String.class))
-		.build();
+	public static final String CODE = "lab";
+
+	@Nonnull
+	@Getter
+	private final LabConfig configuration;
+
+	@Nonnull
+	@Getter
+	private final HttpHandler apiHandler;
+
+	@Nonnull
+	@Override
+	public String getCode() {
+		return CODE;
+	}
+
 }

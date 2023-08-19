@@ -21,24 +21,39 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.system.model;
+package io.evitadb.externalApi.lab.configuration;
 
-import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Getter;
 
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
+import javax.annotation.Nullable;
+import java.util.Optional;
 
 /**
- * Descriptor for header arguments of catalog endpoints.
+ * Configuration of lab GUI.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface CatalogsHeaderDescriptor {
+public class GuiConfig {
 
-	PropertyDescriptor NAME = PropertyDescriptor.builder()
-		.name("name")
-		.description("""
-			Name of catalog to operate on.
-			""")
-		.type(nonNull(String.class))
-		.build();
+	@Getter private final boolean enabled;
+	@Getter private final boolean readOnly;
+
+	public GuiConfig() {
+		this.enabled = true;
+		this.readOnly = false;
+	}
+
+	public GuiConfig(boolean enabled) {
+		this.enabled = enabled;
+		this.readOnly = false;
+	}
+
+	@JsonCreator
+	public GuiConfig(@Nullable @JsonProperty("enabled") Boolean enabled,
+	                 @Nullable @JsonProperty("readOnly") Boolean readOnly) {
+		this.enabled = Optional.ofNullable(enabled).orElse(true);
+		this.readOnly = Optional.ofNullable(readOnly).orElse(false);
+	}
 }

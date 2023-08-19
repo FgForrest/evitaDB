@@ -32,6 +32,7 @@ import lombok.Singular;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -68,13 +69,14 @@ public record ObjectDescriptor(@Nonnull String name,
 	}
 
 	/**
-	 * Extends existing descriptor into new one. Note that {@link ObjectDescriptor#name} is not being transferred to
-	 * prevent name duplication.
+	 * Creates new descriptor extending all properties of specified one. Note that {@link ObjectDescriptor#name} is not
+	 * being transferred to prevent name duplication.
 	 */
+	@Nonnull
 	public static ObjectDescriptorBuilder extend(@Nonnull ObjectDescriptor objectDescriptor) {
 		return builder()
 			.description(objectDescriptor.description())
-			.staticFields(objectDescriptor.staticFields());
+			.staticFields(new ArrayList<>(objectDescriptor.staticFields()));
 	}
 
 	@Nonnull

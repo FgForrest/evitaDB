@@ -21,23 +21,23 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.system.model;
+package io.evitadb.externalApi.lab.api.model;
 
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor for header arguments of catalog endpoints.
+ * Descriptor for header arguments of collection endpoints.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface CatalogsHeaderDescriptor {
+public interface CollectionsHeaderDescriptor {
 
-	PropertyDescriptor NAME = PropertyDescriptor.builder()
-		.name("name")
+	PropertyDescriptor ENTITY_TYPE = PropertyDescriptor.builder()
+		.name("entityType")
 		.description("""
-			Name of catalog to operate on.
+			Entity type of collection (name) to operate on.
 			""")
 		.type(nonNull(String.class))
 		.build();

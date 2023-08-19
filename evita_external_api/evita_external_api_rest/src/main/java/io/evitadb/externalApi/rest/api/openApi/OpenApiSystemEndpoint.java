@@ -132,7 +132,7 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 			PathBuilder pathBuilder = newPath();
 			pathBuilder = pathBuilderFunction.apply(pathBuilder);
 
-			this.path = pathBuilder.getPathBuilder();
+			this.path = pathBuilder.getPath();
 			this.parameters.addAll(pathBuilder.getPathParameters());
 			return this;
 		}
