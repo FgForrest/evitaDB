@@ -25,7 +25,7 @@ package io.evitadb.externalApi.lab.api.builder;
 
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
-import io.evitadb.externalApi.lab.api.model.entity.GenericRestEntityDescriptor;
+import io.evitadb.externalApi.lab.api.model.entity.GenericEntityDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.EntityObjectBuilder;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiObjectTransformer;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiPropertyTransformer;
@@ -58,20 +58,20 @@ public class GenericEntityObjectBuilder {
 		final String objectName = EntityDescriptor.THIS_GLOBAL.name();
 
 		// build specific entity object
-		final OpenApiObject.Builder entityObject = GenericRestEntityDescriptor.THIS
+		final OpenApiObject.Builder entityObject = GenericEntityDescriptor.THIS
 			.to(objectBuilderTransformer)
 			.name(objectName)
 			.description("Generic evitaDB-wise entity containing all possible data.");
 
-		entityObject.property(GenericRestEntityDescriptor.LOCALES.to(propertyBuilderTransformer));
-		entityObject.property(GenericRestEntityDescriptor.ALL_LOCALES.to(propertyBuilderTransformer));
-		entityObject.property(GenericRestEntityDescriptor.PARENT_ENTITY.to(propertyBuilderTransformer).type(typeRefTo(objectName)));
-		entityObject.property(GenericRestEntityDescriptor.PRICE_INNER_RECORD_HANDLING.to(propertyBuilderTransformer));
-		entityObject.property(GenericRestEntityDescriptor.PRICE_FOR_SALE.to(propertyBuilderTransformer));
-		entityObject.property(GenericRestEntityDescriptor.PRICES.to(propertyBuilderTransformer));
-		entityObject.property(GenericRestEntityDescriptor.ATTRIBUTES.to(propertyBuilderTransformer));
-		entityObject.property(GenericRestEntityDescriptor.ASSOCIATED_DATA.to(propertyBuilderTransformer));
-		entityObject.property(GenericRestEntityDescriptor.REFERENCES.to(propertyBuilderTransformer));
+		entityObject.property(GenericEntityDescriptor.LOCALES.to(propertyBuilderTransformer));
+		entityObject.property(GenericEntityDescriptor.ALL_LOCALES.to(propertyBuilderTransformer));
+		entityObject.property(GenericEntityDescriptor.PARENT_ENTITY.to(propertyBuilderTransformer).type(typeRefTo(objectName)));
+		entityObject.property(GenericEntityDescriptor.PRICE_INNER_RECORD_HANDLING.to(propertyBuilderTransformer));
+		entityObject.property(GenericEntityDescriptor.PRICE_FOR_SALE.to(propertyBuilderTransformer));
+		entityObject.property(GenericEntityDescriptor.PRICES.to(propertyBuilderTransformer));
+		entityObject.property(GenericEntityDescriptor.ATTRIBUTES.to(propertyBuilderTransformer));
+		entityObject.property(GenericEntityDescriptor.ASSOCIATED_DATA.to(propertyBuilderTransformer));
+		entityObject.property(GenericEntityDescriptor.REFERENCES.to(propertyBuilderTransformer));
 
 		return entityObject.build();
 	}

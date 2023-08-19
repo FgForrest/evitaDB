@@ -23,19 +23,27 @@
 
 package io.evitadb.externalApi.lab.api.builder;
 
+import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogUnionDescriptor;
 import io.evitadb.externalApi.lab.api.model.CatalogsHeaderDescriptor;
+import io.evitadb.externalApi.lab.api.model.GenericResponseDescriptor;
 import io.evitadb.externalApi.lab.api.model.QueryEntitiesRequestBodyDescriptor;
-import io.evitadb.externalApi.lab.api.openApi.OpenApiLabApiDataEndpoint;
+import io.evitadb.externalApi.lab.api.openApi.OpenApiLabApiEndpoint;
+import io.evitadb.externalApi.lab.api.resolver.endpoint.GetCatalogSchemaHandler;
 import io.evitadb.externalApi.lab.api.resolver.endpoint.ListCatalogsHandler;
 import io.evitadb.externalApi.lab.api.resolver.endpoint.QueryEntitiesHandler;
+import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiOperationPathParameterTransformer;
+import io.evitadb.externalApi.rest.api.model.RestRootDescriptor;
+import io.evitadb.externalApi.rest.api.resolver.endpoint.OpenApiSpecificationHandler;
 import io.swagger.v3.oas.models.PathItem.HttpMethod;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 
-import static io.evitadb.externalApi.lab.api.openApi.OpenApiLabApiDataEndpoint.newLabDataEndpoint;
+import static io.evitadb.externalApi.lab.api.openApi.OpenApiLabApiEndpoint.DATA_API_URL_PREFIX;
+import static io.evitadb.externalApi.lab.api.openApi.OpenApiLabApiEndpoint.SCHEMA_API_URL_PREFIX;
+import static io.evitadb.externalApi.lab.api.openApi.OpenApiLabApiEndpoint.newLabApiEndpoint;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiArray.arrayOf;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
@@ -52,9 +60,36 @@ public class LabApiEndpointBuilder {
 	@Nonnull private final PropertyDescriptorToOpenApiOperationPathParameterTransformer operationPathParameterBuilderTransformer;
 
 	@Nonnull
-	public OpenApiLabApiDataEndpoint buildListCatalogsEndpoint() {
-		return newLabDataEndpoint()
+	public OpenApiLabApiEndpoint buildOpenApiSpecificationEndpoint() {
+		return newLabApiEndpoint()
+			.method(HttpMethod.GET)
+			.operationId(RestRootDescriptor.OPEN_API_SPECIFICATION.operation())
+			.description(RestRootDescriptor.OPEN_API_SPECIFICATION.description())
+			.successResponse(nonNull(DataTypesConverter.getOpenApiScalar(String.class)))
+			.handler(OpenApiSpecificationHandler::new)
+			.build();
+	}
+
+	@Nonnull
+	public OpenApiLabApiEndpoint buildGetCatalogSchemaEndpoint() {
+		return newLabApiEndpoint()
 			.path(p -> p
+				.staticItem(SCHEMA_API_URL_PREFIX)
+				.staticItem("catalogs")
+				.paramItem(CatalogsHeaderDescriptor.NAME.to(operationPathParameterBuilderTransformer)))
+			.method(HttpMethod.GET)
+			.operationId("getCatalogSchema")
+			.description("Returns catalog schema.")
+			.successResponse(nonNull(typeRefTo(CatalogSchemaDescriptor.THIS.name())))
+			.handler(GetCatalogSchemaHandler::new)
+			.build();
+	}
+
+	@Nonnull
+	public OpenApiLabApiEndpoint buildListCatalogsEndpoint() {
+		return newLabApiEndpoint()
+			.path(p -> p
+				.staticItem(DATA_API_URL_PREFIX)
 				.staticItem("catalogs"))
 			.method(HttpMethod.GET)
 			.operationId("getCatalogs")
@@ -65,9 +100,10 @@ public class LabApiEndpointBuilder {
 	}
 
 	@Nonnull
-	public OpenApiLabApiDataEndpoint buildQueryEntitiesEndpoint() {
-		return newLabDataEndpoint()
+	public OpenApiLabApiEndpoint buildQueryEntitiesEndpoint() {
+		return newLabApiEndpoint()
 			.path(p -> p
+				.staticItem(DATA_API_URL_PREFIX)
 				.staticItem("catalogs")
 				.paramItem(CatalogsHeaderDescriptor.NAME.to(operationPathParameterBuilderTransformer))
 				.staticItem("collections")
@@ -76,7 +112,7 @@ public class LabApiEndpointBuilder {
 			.operationId("queryEntities")
 			.description("Returns all entities from collection.")
 			.requestBody(typeRefTo(QueryEntitiesRequestBodyDescriptor.THIS.name()))
-			.successResponse(nonNull(typeRefTo("FullResponse")))
+			.successResponse(nonNull(typeRefTo(GenericResponseDescriptor.THIS.name())))
 			.handler(QueryEntitiesHandler::new)
 			.build();
 	}

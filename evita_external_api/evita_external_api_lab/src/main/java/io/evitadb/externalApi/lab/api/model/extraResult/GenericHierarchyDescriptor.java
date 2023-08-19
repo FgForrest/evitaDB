@@ -21,33 +21,19 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.catalog.dataApi.model;
+package io.evitadb.externalApi.lab.api.model.extraResult;
 
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
-import io.evitadb.externalApi.api.model.PropertyDescriptor;
-
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * This is helper descriptor for aggregate of implementations of data chunk for OpenAPI.
+ * Generic equivalent of {@link HierarchyDescriptor}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface DataChunkAggregateDescriptor {
+public interface GenericHierarchyDescriptor extends HierarchyDescriptor {
 
-	PropertyDescriptor DISCRIMINATOR = PropertyDescriptor.builder()
-		.name("type")
-		.description("""
-			Contains information about type of returned page object
-			""")
-		.type(nonNull(String.class))
-		.build();
-
-
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("*DataChunk")
-		.description("""
-			Returns either `page` or `strip` of records according to pagination rules in input query.
-			""")
+	ObjectDescriptor THIS = ObjectDescriptor.extend(HierarchyDescriptor.THIS)
+		.name("Hierarchy")
 		.build();
 }

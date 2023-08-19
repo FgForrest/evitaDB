@@ -25,7 +25,7 @@ package io.evitadb.externalApi.lab.api.openApi;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.lab.api.resolver.endpoint.LabRestHandlingContext;
+import io.evitadb.externalApi.lab.api.resolver.endpoint.LabApiHandlingContext;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpoint;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.ParameterLocation;
@@ -56,17 +56,20 @@ import static io.swagger.v3.oas.models.PathItem.HttpMethod.*;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class OpenApiLabApiDataEndpoint extends OpenApiEndpoint<LabRestHandlingContext> {
+public class OpenApiLabApiEndpoint extends OpenApiEndpoint<LabApiHandlingContext> {
 
-	private OpenApiLabApiDataEndpoint(@Nonnull PathItem.HttpMethod method,
-	                                  @Nonnull UriPath path,
-	                                  @Nonnull String operationId,
-	                                  @Nonnull String description,
-	                                  @Nullable String deprecationNotice,
-	                                  @Nonnull List<OpenApiEndpointParameter> parameters,
-	                                  @Nullable OpenApiSimpleType requestBody,
-	                                  @Nonnull OpenApiSimpleType successResponse,
-	                                  @Nonnull Function<LabRestHandlingContext, RestEndpointHandler<?, LabRestHandlingContext>> handlerBuilder) {
+	public static final String SCHEMA_API_URL_PREFIX = "schema";
+	public static final String DATA_API_URL_PREFIX = "data";
+
+	private OpenApiLabApiEndpoint(@Nonnull PathItem.HttpMethod method,
+	                              @Nonnull UriPath path,
+	                              @Nonnull String operationId,
+	                              @Nonnull String description,
+	                              @Nullable String deprecationNotice,
+	                              @Nonnull List<OpenApiEndpointParameter> parameters,
+	                              @Nullable OpenApiSimpleType requestBody,
+	                              @Nonnull OpenApiSimpleType successResponse,
+	                              @Nonnull Function<LabApiHandlingContext, RestEndpointHandler<?, LabApiHandlingContext>> handlerBuilder) {
 		super(method, path, false, operationId, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
 	}
 
@@ -74,17 +77,17 @@ public class OpenApiLabApiDataEndpoint extends OpenApiEndpoint<LabRestHandlingCo
 	 * Creates builder for new data endpoint.
 	 */
 	@Nonnull
-	public static Builder newLabDataEndpoint() {
+	public static Builder newLabApiEndpoint() {
 		return new Builder();
 	}
 
 	@Nonnull
 	@Override
-	public RestEndpointHandler<?, LabRestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
-	                                                                @Nonnull Evita evita,
-	                                                                @Nonnull OpenAPI openApi,
-	                                                                @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping) {
-		final LabRestHandlingContext context = new LabRestHandlingContext(
+	public RestEndpointHandler<?, LabApiHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
+	                                                               @Nonnull Evita evita,
+	                                                               @Nonnull OpenAPI openApi,
+	                                                               @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping) {
+		final LabApiHandlingContext context = new LabApiHandlingContext(
 			objectMapper,
 			evita,
 			openApi,
@@ -97,7 +100,7 @@ public class OpenApiLabApiDataEndpoint extends OpenApiEndpoint<LabRestHandlingCo
 	public static class Builder {
 
 		@Nullable private PathItem.HttpMethod method;
-		@Nullable private UriPath path;
+		@Nullable private UriPath path = newPath().getPath();
 
 		@Nullable private String operationId;
 		@Nullable private String description;
@@ -107,7 +110,7 @@ public class OpenApiLabApiDataEndpoint extends OpenApiEndpoint<LabRestHandlingCo
 		@Nullable private OpenApiSimpleType requestBody;
 		@Nullable private OpenApiSimpleType successResponse;
 
-		@Nullable private Function<LabRestHandlingContext, RestEndpointHandler<?, LabRestHandlingContext>> handlerBuilder;
+		@Nullable private Function<LabApiHandlingContext, RestEndpointHandler<?, LabApiHandlingContext>> handlerBuilder;
 
 		private Builder() {
 			this.parameters = new LinkedList<>();
@@ -129,9 +132,7 @@ public class OpenApiLabApiDataEndpoint extends OpenApiEndpoint<LabRestHandlingCo
 		@Nonnull
 		public Builder path(@Nonnull UnaryOperator<PathBuilder> pathBuilderFunction) {
 			// prepare new data path
-			PathBuilder pathBuilder = newPath()
-				.staticItem("data");
-			pathBuilder = pathBuilderFunction.apply(pathBuilder);
+			final PathBuilder pathBuilder = pathBuilderFunction.apply(newPath());
 
 			this.path = pathBuilder.getPath();
 			this.parameters.addAll(pathBuilder.getPathParameters());
@@ -216,13 +217,13 @@ public class OpenApiLabApiDataEndpoint extends OpenApiEndpoint<LabRestHandlingCo
 		 * Sets handler builder.
 		 */
 		@Nonnull
-		public Builder handler(@Nonnull Function<LabRestHandlingContext, RestEndpointHandler<?, LabRestHandlingContext>> handlerBuilder) {
+		public Builder handler(@Nonnull Function<LabApiHandlingContext, RestEndpointHandler<?, LabApiHandlingContext>> handlerBuilder) {
 			this.handlerBuilder = handlerBuilder;
 			return this;
 		}
 
 		@Nonnull
-		public OpenApiLabApiDataEndpoint build() {
+		public OpenApiLabApiEndpoint build() {
 			Assert.isPremiseValid(
 				path != null,
 				() -> new OpenApiBuildingError("Missing endpoint path.")
@@ -264,7 +265,7 @@ public class OpenApiLabApiDataEndpoint extends OpenApiEndpoint<LabRestHandlingCo
 				() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing handler.")
 			);
 
-			return new OpenApiLabApiDataEndpoint(
+			return new OpenApiLabApiEndpoint(
 				method,
 				path,
 				operationId,

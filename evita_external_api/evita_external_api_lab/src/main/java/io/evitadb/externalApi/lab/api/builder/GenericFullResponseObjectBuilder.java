@@ -24,21 +24,26 @@
 package io.evitadb.externalApi.lab.api.builder;
 
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.RecordPageDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.RecordStripDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.AttributeHistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryDescriptor;
-import io.evitadb.externalApi.lab.api.model.entity.GenericRestEntityDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.DataChunkAggregateDescriptor;
+import io.evitadb.externalApi.lab.api.model.GenericDataChunkUnionDescriptor;
+import io.evitadb.externalApi.lab.api.model.GenericRecordPageDescriptor;
+import io.evitadb.externalApi.lab.api.model.GenericRecordStripDescriptor;
+import io.evitadb.externalApi.lab.api.model.GenericResponseDescriptor;
+import io.evitadb.externalApi.lab.api.model.entity.GenericEntityDescriptor;
+import io.evitadb.externalApi.lab.api.model.extraResult.GenericAttributeHistogramDescriptor;
+import io.evitadb.externalApi.lab.api.model.extraResult.GenericExtraResultsDescriptor;
+import io.evitadb.externalApi.lab.api.model.extraResult.GenericFacetSummaryDescriptor;
+import io.evitadb.externalApi.lab.api.model.extraResult.GenericFacetSummaryDescriptor.GenericFacetGroupStatisticsDescriptor;
+import io.evitadb.externalApi.lab.api.model.extraResult.GenericFacetSummaryDescriptor.GenericFacetStatisticsDescriptor;
+import io.evitadb.externalApi.lab.api.model.extraResult.GenericHierarchyDescriptor;
+import io.evitadb.externalApi.lab.api.model.extraResult.GenericLevelInfoDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.DataChunkUnionDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiDictionaryTransformer;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiObjectTransformer;
@@ -75,9 +80,8 @@ public class GenericFullResponseObjectBuilder {
 	public void buildCommonTypes() {
 		buildingContext.registerType(BucketDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(HistogramDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(AttributeHistogramDescriptor.THIS
+		buildingContext.registerType(GenericAttributeHistogramDescriptor.THIS
 			.to(dictionaryBuilderTransformer)
-			.name("AttributeHistogram")
 			.valueType(typeRefTo(HistogramDescriptor.THIS.name()))
 			.build());
 		buildingContext.registerType(QueryTelemetryDescriptor.THIS.to(objectBuilderTransformer).build());
@@ -97,24 +101,22 @@ public class GenericFullResponseObjectBuilder {
 
 	@Nonnull
 	private OpenApiTypeReference buildFullResponseObject() {
-		final OpenApiObject.Builder responseObjectBuilder = ResponseDescriptor.THIS
+		final OpenApiObject.Builder responseObjectBuilder = GenericResponseDescriptor.THIS
 			.to(objectBuilderTransformer)
-			.name("Response")
-			.property(ResponseDescriptor.RECORD_PAGE.to(propertyBuilderTransformer).type(nonNull(typeRefTo("DataChunk"))))
-			.property(ResponseDescriptor.EXTRA_RESULTS.to(propertyBuilderTransformer).type(nonNull(typeRefTo("ExtraResults"))));
+			.property(GenericResponseDescriptor.RECORD_PAGE.to(propertyBuilderTransformer).type(nonNull(typeRefTo(GenericDataChunkUnionDescriptor.THIS.name()))))
+			.property(GenericResponseDescriptor.EXTRA_RESULTS.to(propertyBuilderTransformer).type(nonNull(typeRefTo(GenericExtraResultsDescriptor.THIS.name()))));
 
 		return buildingContext.registerType(responseObjectBuilder.build());
 	}
 
 	@Nonnull
 	private OpenApiTypeReference buildDataChunkObject() {
-		final OpenApiUnion dataChunkObject = DataChunkAggregateDescriptor.THIS
+		final OpenApiUnion dataChunkObject = GenericDataChunkUnionDescriptor.THIS
 			.to(unionBuilderTransformer)
-			.name("DataChunk")
 			.type(OpenApiObjectUnionType.ONE_OF)
-			.discriminator(DataChunkAggregateDescriptor.DISCRIMINATOR.name())
-			.object(typeRefTo("RecordPage"))
-			.object(typeRefTo("RecordStrip"))
+			.discriminator(DataChunkUnionDescriptor.DISCRIMINATOR.name())
+			.object(typeRefTo(GenericRecordPageDescriptor.THIS.name()))
+			.object(typeRefTo(GenericRecordStripDescriptor.THIS.name()))
 			.build();
 
 		return buildingContext.registerType(dataChunkObject);
@@ -122,15 +124,14 @@ public class GenericFullResponseObjectBuilder {
 
 	@Nonnull
 	private OpenApiTypeReference buildRecordPageObject() {
-		final OpenApiObject recordPageObject = RecordPageDescriptor.THIS
+		final OpenApiObject recordPageObject = GenericRecordPageDescriptor.THIS
 			.to(objectBuilderTransformer)
-			.name("RecordPage")
 			.property(DataChunkDescriptor.DATA
 				.to(propertyBuilderTransformer)
-				.type(nonNull(arrayOf(typeRefTo(GenericRestEntityDescriptor.THIS_GLOBAL.name())))))
-			.property(DataChunkAggregateDescriptor.DISCRIMINATOR
+				.type(nonNull(arrayOf(typeRefTo(GenericEntityDescriptor.THIS_GLOBAL.name())))))
+			.property(DataChunkUnionDescriptor.DISCRIMINATOR
 				.to(propertyBuilderTransformer)
-				.type(nonNull(typeRefTo("DataChunk"))))
+				.type(nonNull(typeRefTo(GenericDataChunkUnionDescriptor.THIS.name()))))
 			.build();
 
 		return buildingContext.registerType(recordPageObject);
@@ -138,15 +139,14 @@ public class GenericFullResponseObjectBuilder {
 
 	@Nonnull
 	private OpenApiTypeReference buildRecordStripObject() {
-		final OpenApiObject recordStripObject = RecordStripDescriptor.THIS
+		final OpenApiObject recordStripObject = GenericRecordStripDescriptor.THIS
 			.to(objectBuilderTransformer)
-			.name("RecordStrip")
 			.property(DataChunkDescriptor.DATA
 				.to(propertyBuilderTransformer)
-				.type(nonNull(arrayOf(typeRefTo(GenericRestEntityDescriptor.THIS_GLOBAL.name())))))
-			.property(DataChunkAggregateDescriptor.DISCRIMINATOR
+				.type(nonNull(arrayOf(typeRefTo(GenericEntityDescriptor.THIS_GLOBAL.name())))))
+			.property(DataChunkUnionDescriptor.DISCRIMINATOR
 				.to(propertyBuilderTransformer)
-				.type(nonNull(typeRefTo("DataChunk"))))
+				.type(nonNull(typeRefTo(GenericDataChunkUnionDescriptor.THIS.name()))))
 			.build();
 
 		return buildingContext.registerType(recordStripObject);
@@ -155,19 +155,18 @@ public class GenericFullResponseObjectBuilder {
 
 	@Nonnull
 	private OpenApiTypeReference buildExtraResultsObject() {
-		final OpenApiObject.Builder extraResultObjectBuilder = ExtraResultsDescriptor.THIS
+		final OpenApiObject.Builder extraResultObjectBuilder = GenericExtraResultsDescriptor.THIS
 			.to(objectBuilderTransformer)
-			.name("ExtraResults")
 			.property(ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM.to(propertyBuilderTransformer)
-				.type(typeRefTo("AttributeHistogram"))
+				.type(typeRefTo(GenericAttributeHistogramDescriptor.THIS.name()))
 				.build())
 			.property(ExtraResultsDescriptor.PRICE_HISTOGRAM.to(propertyBuilderTransformer).build())
 			.property(ExtraResultsDescriptor.FACET_SUMMARY
 				.to(propertyBuilderTransformer)
-				.type(typeRefTo("FacetSummary")))
+				.type(typeRefTo(GenericFacetSummaryDescriptor.THIS.name())))
 			.property(ExtraResultsDescriptor.HIERARCHY
 				.to(propertyBuilderTransformer)
-				.type(typeRefTo("Hierarchy")))
+				.type(typeRefTo(GenericHierarchyDescriptor.THIS.name())))
 			.property(ExtraResultsDescriptor.QUERY_TELEMETRY.to(propertyBuilderTransformer).build());
 
 		return buildingContext.registerType(extraResultObjectBuilder.build());
@@ -175,10 +174,9 @@ public class GenericFullResponseObjectBuilder {
 
 	@Nonnull
 	private OpenApiTypeReference buildFacetSummaryObject() {
-		final OpenApiDictionary facetSummaryObject = FacetSummaryDescriptor.THIS
+		final OpenApiDictionary facetSummaryObject = GenericFacetSummaryDescriptor.THIS
 			.to(dictionaryBuilderTransformer)
-			.name("FacetSummary")
-			.valueType(typeRefTo("FacetGroupStatistics"))
+			.valueType(typeRefTo(GenericFacetGroupStatisticsDescriptor.THIS.name()))
 			.build();
 
 		return buildingContext.registerType(facetSummaryObject);
@@ -186,15 +184,14 @@ public class GenericFullResponseObjectBuilder {
 
 	@Nonnull
 	private OpenApiTypeReference buildFacetGroupStatisticsObject() {
-		final OpenApiObject facetGroupStatisticsObject = FacetGroupStatisticsDescriptor.THIS
+		final OpenApiObject facetGroupStatisticsObject = GenericFacetGroupStatisticsDescriptor.THIS
 			.to(objectBuilderTransformer)
-			.name("FacetGroupStatistics")
 			.property(FacetGroupStatisticsDescriptor.GROUP_ENTITY
 				.to(propertyBuilderTransformer)
-				.type(typeRefTo(GenericRestEntityDescriptor.THIS_GLOBAL.name())))
+				.type(typeRefTo(GenericEntityDescriptor.THIS_GLOBAL.name())))
 			.property(FacetGroupStatisticsDescriptor.FACET_STATISTICS
 				.to(propertyBuilderTransformer)
-				.type(nonNull(arrayOf(typeRefTo(GenericRestEntityDescriptor.THIS_GLOBAL.name())))))
+				.type(nonNull(arrayOf(typeRefTo(GenericFacetStatisticsDescriptor.THIS.name())))))
 			.build();
 
 		return buildingContext.registerType(facetGroupStatisticsObject);
@@ -202,12 +199,11 @@ public class GenericFullResponseObjectBuilder {
 
 	@Nonnull
 	private OpenApiTypeReference buildFacetStatisticsObject() {
-		final OpenApiObject facetStatisticsObject = FacetStatisticsDescriptor.THIS
+		final OpenApiObject facetStatisticsObject = GenericFacetStatisticsDescriptor.THIS
 			.to(objectBuilderTransformer)
-			.name("FacetStatistics")
 			.property(FacetStatisticsDescriptor.FACET_ENTITY
 				.to(propertyBuilderTransformer)
-				.type(typeRefTo(GenericRestEntityDescriptor.THIS_GLOBAL.name())))
+				.type(typeRefTo(GenericEntityDescriptor.THIS_GLOBAL.name())))
 			.build();
 
 		return buildingContext.registerType(facetStatisticsObject);
@@ -215,10 +211,9 @@ public class GenericFullResponseObjectBuilder {
 
 	@Nonnull
 	private OpenApiTypeReference buildHierarchyObject() {
-		final OpenApiDictionary hierarchyStatisticsObject = HierarchyDescriptor.THIS
+		final OpenApiDictionary hierarchyStatisticsObject = GenericHierarchyDescriptor.THIS
 			.to(dictionaryBuilderTransformer)
-			.name("Hierarchy")
-			.valueType(arrayOf(typeRefTo("LevelInfo")))
+			.valueType(arrayOf(typeRefTo(GenericLevelInfoDescriptor.THIS.name())))
 			.build();
 
 		return buildingContext.registerType(hierarchyStatisticsObject);
@@ -226,17 +221,14 @@ public class GenericFullResponseObjectBuilder {
 
 	@Nonnull
 	private OpenApiTypeReference buildLevelInfoObject() {
-		final String objectName = "LevelInfo";
-
-		final OpenApiObject selfLevelInfoObject = LevelInfoDescriptor.THIS
+		final OpenApiObject selfLevelInfoObject = GenericLevelInfoDescriptor.THIS
 			.to(objectBuilderTransformer)
-			.name(objectName)
 			.property(LevelInfoDescriptor.ENTITY
 				.to(propertyBuilderTransformer)
-				.type(nonNull(typeRefTo(GenericRestEntityDescriptor.THIS_GLOBAL.name()))))
+				.type(nonNull(typeRefTo(GenericEntityDescriptor.THIS_GLOBAL.name()))))
 			.property(LevelInfoDescriptor.CHILDREN
 				.to(propertyBuilderTransformer)
-				.type(nonNull(arrayOf(typeRefTo(objectName)))))
+				.type(nonNull(arrayOf(typeRefTo(GenericLevelInfoDescriptor.THIS.name())))))
 			.build();
 
 		return buildingContext.registerType(selfLevelInfoObject);

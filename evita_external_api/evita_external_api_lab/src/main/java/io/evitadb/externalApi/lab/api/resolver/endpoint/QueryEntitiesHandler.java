@@ -25,6 +25,7 @@ package io.evitadb.externalApi.lab.api.resolver.endpoint;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryParser;
 import io.evitadb.api.query.parser.DefaultQueryParser;
@@ -52,8 +53,10 @@ import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -62,13 +65,13 @@ import java.util.Set;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j
-public class QueryEntitiesHandler extends JsonRestHandler<EvitaResponse<EntityClassifier>, LabRestHandlingContext> {
+public class QueryEntitiesHandler extends JsonRestHandler<EvitaResponse<EntityClassifier>, LabApiHandlingContext> {
 
 	@Nonnull private final QueryParser queryParser;
 	@Nonnull private final GenericEntityJsonSerializer entityJsonSerializer;
 	@Nonnull private final ExtraResultsJsonSerializer extraResultsJsonSerializer;
 
-	public QueryEntitiesHandler(@Nonnull LabRestHandlingContext restApiHandlingContext) {
+	public QueryEntitiesHandler(@Nonnull LabApiHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
 		this.queryParser = new DefaultQueryParser();
 		this.entityJsonSerializer = new GenericEntityJsonSerializer(restApiHandlingContext);
@@ -79,23 +82,24 @@ public class QueryEntitiesHandler extends JsonRestHandler<EvitaResponse<EntityCl
 		);
 	}
 
+	@Nullable
+	@Override
+	protected Optional<EvitaSessionContract> createSession(@Nonnull RestEndpointExchange exchange) {
+		final Map<String, Object> parameters = getParametersFromRequest(exchange);
+		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
+		final CatalogContract catalog = restApiHandlingContext.getCatalog(catalogName, ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION)
+			.orElseThrow(() -> new RestInternalError("Catalog `" + catalogName + "` does not exist."));
+
+		return Optional.of(restApiHandlingContext.getEvita().createReadOnlySession(catalog.getName()));
+	}
+
 	@Nonnull
 	@Override
 	protected EndpointResponse<EvitaResponse<EntityClassifier>> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Query query = resolveQuery(exchange);
 		log.debug("Generated evitaDB query for entity query is `{}`.", query);
 
-		final Map<String, Object> parameters = getParametersFromRequest(exchange);
-		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
-		final CatalogContract catalog = restApiHandlingContext.getCatalog(catalogName, ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION)
-			.orElseThrow(() -> new RestInternalError("Catalog `" + catalogName + "` does not exist."));
-
-		final EvitaResponse<EntityClassifier> response = restApiHandlingContext.getEvita().queryCatalog(
-			catalog.getName(),
-			session -> {
-				return session.query(query, EntityClassifier.class);
-			}
-		);
+		final EvitaResponse<EntityClassifier> response = exchange.session().query(query, EntityClassifier.class);
 		return new SuccessEndpointResponse<>(response);
 	}
 

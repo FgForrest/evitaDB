@@ -36,7 +36,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface GenericRestEntityDescriptor extends RestEntityDescriptor {
+public interface GenericEntityDescriptor extends RestEntityDescriptor {
 
 	PropertyDescriptor ATTRIBUTES = PropertyDescriptor.extend(AttributesProviderDescriptor.ATTRIBUTES)
 		.type(nullable(GenericObject.class))

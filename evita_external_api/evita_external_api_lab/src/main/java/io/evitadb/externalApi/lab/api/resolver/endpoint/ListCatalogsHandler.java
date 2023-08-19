@@ -42,12 +42,12 @@ import java.util.Set;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ListCatalogsHandler extends JsonRestHandler<Collection<CatalogContract>, LabRestHandlingContext> {
+public class ListCatalogsHandler extends JsonRestHandler<Collection<CatalogContract>, LabApiHandlingContext> {
 
 	@Nonnull
 	private final CatalogJsonSerializer catalogJsonSerializer;
 
-	public ListCatalogsHandler(@Nonnull LabRestHandlingContext restApiHandlingContext) {
+	public ListCatalogsHandler(@Nonnull LabApiHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
 		this.catalogJsonSerializer = new CatalogJsonSerializer(restApiHandlingContext);
 	}

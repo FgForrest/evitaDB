@@ -42,14 +42,14 @@ import java.util.Optional;
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class LabRestHandlingContext extends RestHandlingContext {
+public class LabApiHandlingContext extends RestHandlingContext {
 
 
-	public LabRestHandlingContext(@Nonnull ObjectMapper objectMapper,
-	                              @Nonnull Evita evita,
-	                              @Nonnull OpenAPI openApi,
-	                              @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping,
-	                              @Nonnull Operation endpointOperation) {
+	public LabApiHandlingContext(@Nonnull ObjectMapper objectMapper,
+	                             @Nonnull Evita evita,
+	                             @Nonnull OpenAPI openApi,
+	                             @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping,
+	                             @Nonnull Operation endpointOperation) {
 		super(objectMapper, evita, openApi, enumMapping, endpointOperation, false);
 	}
 

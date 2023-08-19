@@ -77,4 +77,8 @@ module evita.external.api.rest {
 	exports io.evitadb.externalApi.rest.api.catalog.dataApi.dto to evita.external.api.lab;
 	exports io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer to evita.external.api.lab;
 	exports io.evitadb.externalApi.rest.api.system.resolver.serializer to evita.external.api.lab;
+	exports io.evitadb.externalApi.rest.api.catalog.schemaApi.builder to evita.external.api.lab;
+	exports io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer to evita.external.api.lab;
+	exports io.evitadb.externalApi.rest.api.resolver.endpoint to evita.external.api.lab;
+	exports io.evitadb.externalApi.rest.api.dataType to evita.external.api.lab;
 }

@@ -29,10 +29,10 @@ import io.evitadb.externalApi.http.CorsFilter;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
 import io.evitadb.externalApi.lab.api.LabApiBuilder;
 import io.evitadb.externalApi.lab.configuration.LabConfig;
+import io.evitadb.externalApi.lab.io.LabExceptionHandler;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.io.CorsEndpoint;
 import io.evitadb.externalApi.rest.io.RestEndpointHandler;
-import io.evitadb.externalApi.rest.io.RestExceptionHandler;
 import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.utils.StringUtils;
 import io.undertow.Handlers;
@@ -55,7 +55,7 @@ import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
 @Slf4j
 public class LabManager {
 
-	private static final String LAB_API_URL_PREFIX = "api";
+	public static final String LAB_API_URL_PREFIX = "api";
 
 	/**
 	 * Common object mapper for endpoints
@@ -119,7 +119,7 @@ public class LabManager {
 			path.toString(),
 			new BlockingHandler(
 				new CorsFilter(
-					new RestExceptionHandler(
+					new LabExceptionHandler(
 						objectMapper,
 						handler
 					),

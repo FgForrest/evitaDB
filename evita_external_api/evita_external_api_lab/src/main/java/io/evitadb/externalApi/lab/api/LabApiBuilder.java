@@ -28,7 +28,9 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogUnionDescriptor;
 import io.evitadb.externalApi.api.system.model.CorruptedCatalogDescriptor;
+import io.evitadb.externalApi.lab.api.builder.GenericCatalogSchemaObjectBuilder;
 import io.evitadb.externalApi.lab.api.builder.GenericEntityObjectBuilder;
+import io.evitadb.externalApi.lab.api.builder.GenericEntitySchemaObjectBuilder;
 import io.evitadb.externalApi.lab.api.builder.GenericFullResponseObjectBuilder;
 import io.evitadb.externalApi.lab.api.builder.LabApiBuildingContext;
 import io.evitadb.externalApi.lab.api.builder.LabApiEndpointBuilder;
@@ -58,12 +60,16 @@ public class LabApiBuilder extends FinalRestBuilder<LabApiBuildingContext> {
 	@Nonnull private final GenericEntityObjectBuilder entityObjectBuilder;
 	@Nonnull private final GenericFullResponseObjectBuilder fullResponseObjectBuilder;
 
+	@Nonnull private final GenericCatalogSchemaObjectBuilder catalogSchemaObjectBuilder;
+	@Nonnull private final GenericEntitySchemaObjectBuilder entitySchemaObjectBuilder;
+
 	/**
 	 * Creates new builder.
 	 */
 	public LabApiBuilder(@Nonnull LabConfig labConfig, @Nonnull Evita evita) {
 		super(new LabApiBuildingContext(labConfig, evita));
 		this.endpointBuilder = new LabApiEndpointBuilder(operationPathParameterBuilderTransformer);
+
 		this.entityObjectBuilder = new GenericEntityObjectBuilder(
 			buildingContext,
 			propertyBuilderTransformer,
@@ -75,6 +81,20 @@ public class LabApiBuilder extends FinalRestBuilder<LabApiBuildingContext> {
 			objectBuilderTransformer,
 			unionBuilderTransformer,
 			dictionaryBuilderTransformer
+		);
+
+		this.catalogSchemaObjectBuilder = new GenericCatalogSchemaObjectBuilder(
+			buildingContext,
+			objectBuilderTransformer,
+			dictionaryBuilderTransformer,
+			propertyBuilderTransformer
+		);
+		this.entitySchemaObjectBuilder = new GenericEntitySchemaObjectBuilder(
+			buildingContext,
+			objectBuilderTransformer,
+			unionBuilderTransformer,
+			dictionaryBuilderTransformer,
+			propertyBuilderTransformer
 		);
 	}
 
@@ -91,19 +111,32 @@ public class LabApiBuilder extends FinalRestBuilder<LabApiBuildingContext> {
 	}
 
 	private void buildCommonTypes() {
-		buildingContext.registerType(ErrorDescriptor.THIS.to(objectBuilderTransformer).build());
+		// common
 		buildingContext.registerType(NameVariantsDescriptor.THIS.to(objectBuilderTransformer).build());
+
+		// data api
+		buildingContext.registerType(ErrorDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(CatalogDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(CorruptedCatalogDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(buildCatalogUnion());
 		entityObjectBuilder.buildCommonTypes();
 		fullResponseObjectBuilder.buildCommonTypes();
 		buildingContext.registerType(QueryEntitiesRequestBodyDescriptor.THIS.to(objectBuilderTransformer).build());
+
+		// schema api
+		catalogSchemaObjectBuilder.buildCommonTypes();
+		entitySchemaObjectBuilder.buildCommonTypes();
 	}
 
 	private void buildEndpoints() {
+		buildingContext.registerEndpoint(endpointBuilder.buildOpenApiSpecificationEndpoint());
+
+		// data api
 		buildingContext.registerEndpoint(endpointBuilder.buildListCatalogsEndpoint());
 		buildingContext.registerEndpoint(endpointBuilder.buildQueryEntitiesEndpoint());
+
+		// schema api
+		buildingContext.registerEndpoint(endpointBuilder.buildGetCatalogSchemaEndpoint());
 	}
 
 	@Nonnull

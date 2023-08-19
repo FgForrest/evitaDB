@@ -21,44 +21,39 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.lab.api.builder;
+package io.evitadb.externalApi.lab.api.resolver.endpoint;
 
-import io.evitadb.core.Evita;
-import io.evitadb.externalApi.lab.configuration.LabConfig;
-import io.evitadb.externalApi.rest.api.builder.RestBuildingContext;
-import io.swagger.v3.oas.models.servers.Server;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.externalApi.http.EndpointResponse;
+import io.evitadb.externalApi.http.SuccessEndpointResponse;
+import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.undertow.util.Methods;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.util.Arrays;
-import java.util.List;
-
-import static io.evitadb.externalApi.lab.LabManager.LAB_API_URL_PREFIX;
+import java.util.Set;
 
 /**
- * This context contains objects which are used (and shared) during building REST API for evitaLab management.
+ * Handles request for fetching entity schema
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class LabApiBuildingContext extends RestBuildingContext {
+@Slf4j
+public class GetCatalogSchemaHandler extends CatalogSchemaHandler {
 
-	private static final String OPEN_API_TITLE = "Web services for managing evitaDB.";
+	public GetCatalogSchemaHandler(@Nonnull LabApiHandlingContext labApiHandlingContext) {
+		super(labApiHandlingContext);
+	}
 
-	public LabApiBuildingContext(@Nonnull LabConfig labConfig, @Nonnull Evita evita) {
-		super(labConfig, evita);
+	@Override
+	@Nonnull
+	protected EndpointResponse<CatalogSchemaContract> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+		return new SuccessEndpointResponse<>(exchange.session().getCatalogSchema());
 	}
 
 	@Nonnull
 	@Override
-	protected List<Server> buildOpenApiServers() {
-		return Arrays.stream(restConfig.getBaseUrls())
-			.map(baseUrl -> new Server()
-				.url(baseUrl + LAB_API_URL_PREFIX))
-			.toList();
-	}
-
-	@Nonnull
-	@Override
-	protected String getOpenApiTitle() {
-		return OPEN_API_TITLE;
+	public Set<String> getSupportedHttpMethods() {
+		return Set.of(Methods.GET_STRING);
 	}
 }

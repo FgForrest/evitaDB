@@ -26,7 +26,7 @@ package io.evitadb.externalApi.lab.api.resolver.serializer;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.externalApi.lab.api.model.entity.GenericRestEntityDescriptor;
+import io.evitadb.externalApi.lab.api.model.entity.GenericEntityDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import lombok.extern.slf4j.Slf4j;
@@ -58,7 +58,7 @@ public class GenericEntityJsonSerializer extends EntityJsonSerializer {
 				.collect(Collectors.toCollection(TreeSet::new))
 				.forEach(it -> serializeReferencesWithSameName(referencesObject, entity, it));
 
-			rootNode.putIfAbsent(GenericRestEntityDescriptor.REFERENCES.name(), referencesObject);
+			rootNode.putIfAbsent(GenericEntityDescriptor.REFERENCES.name(), referencesObject);
 		}
 	}
 }
