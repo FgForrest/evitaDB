@@ -290,7 +290,7 @@ class DefaultQueryParserTest {
                                     associatedDataContentAll(),
                                     priceContentAll(),
                                     referenceContentAll(),
-                                    dataInLocales()
+                                    dataInLocalesAll()
                          		)
                          	)
                          )
