@@ -5835,9 +5835,15 @@ public interface QueryConstraints {
 	 * 
 	 * ```
 	 * hierarchyContent()
-	 * hierarchyContent(CATEGORY)
-	 * hierarchyContent(CATEGORY, 'stocks', entityBody())
-	 * hierarchyContent(CATEGORY, stopAt(distance(4)), entityBody())
+	 * hierarchyContent('stocks', entityBody())
+	 * hierarchyContent('stocks', stopAt(distance(4)), entityBody())
+	 * ```
+	 * 
+	 * If you need to fetch hierarchy for referenced entities - you need to wrap the `hierarchyContent` inside
+	 * the `referenceContent` requirement as follows:
+	 * 
+	 * ```
+	 * referenceContent('categories', hierarchyContent())
 	 * ```
 	*/
 	@Nonnull
@@ -5854,9 +5860,15 @@ public interface QueryConstraints {
 	 * 
 	 * ```
 	 * hierarchyContent()
-	 * hierarchyContent(CATEGORY)
-	 * hierarchyContent(CATEGORY, 'stocks', entityBody())
-	 * hierarchyContent(CATEGORY, stopAt(distance(4)), entityBody())
+	 * hierarchyContent('stocks', entityBody())
+	 * hierarchyContent('stocks', stopAt(distance(4)), entityBody())
+	 * ```
+	 * 
+	 * If you need to fetch hierarchy for referenced entities - you need to wrap the `hierarchyContent` inside
+	 * the `referenceContent` requirement as follows:
+	 * 
+	 * ```
+	 * referenceContent('categories', hierarchyContent())
 	 * ```
 	*/
 	@Nonnull
@@ -5873,9 +5885,15 @@ public interface QueryConstraints {
 	 * 
 	 * ```
 	 * hierarchyContent()
-	 * hierarchyContent(CATEGORY)
-	 * hierarchyContent(CATEGORY, 'stocks', entityBody())
-	 * hierarchyContent(CATEGORY, stopAt(distance(4)), entityBody())
+	 * hierarchyContent('stocks', entityBody())
+	 * hierarchyContent('stocks', stopAt(distance(4)), entityBody())
+	 * ```
+	 * 
+	 * If you need to fetch hierarchy for referenced entities - you need to wrap the `hierarchyContent` inside
+	 * the `referenceContent` requirement as follows:
+	 * 
+	 * ```
+	 * referenceContent('categories', hierarchyContent())
 	 * ```
 	*/
 	@Nonnull
@@ -5892,9 +5910,15 @@ public interface QueryConstraints {
 	 * 
 	 * ```
 	 * hierarchyContent()
-	 * hierarchyContent(CATEGORY)
-	 * hierarchyContent(CATEGORY, 'stocks', entityBody())
-	 * hierarchyContent(CATEGORY, stopAt(distance(4)), entityBody())
+	 * hierarchyContent('stocks', entityBody())
+	 * hierarchyContent('stocks', stopAt(distance(4)), entityBody())
+	 * ```
+	 * 
+	 * If you need to fetch hierarchy for referenced entities - you need to wrap the `hierarchyContent` inside
+	 * the `referenceContent` requirement as follows:
+	 * 
+	 * ```
+	 * referenceContent('categories', hierarchyContent())
 	 * ```
 	*/
 	@Nonnull
