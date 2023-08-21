@@ -117,6 +117,7 @@
 		<bouncyCastle.version>1.70</bouncyCastle.version>
 		<!--Compatible versions with gRPC could be found here: https://github.com/grpc/grpc-java/blob/master/SECURITY.md#netty -->
 		<nettyHandler.version>4.1.94.Final</nettyHandler.version>
+		<swagger.version>2.2.15</swagger.version>
 	</properties>
 
 	<modules>
@@ -171,6 +172,16 @@
 			<dependency>
 				<groupId>com.fasterxml.jackson.core</groupId>
 				<artifactId>jackson-core</artifactId>
+				<version>${jackson.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.fasterxml.jackson.core</groupId>
+				<artifactId>jackson-annotations</artifactId>
+				<version>${jackson.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.fasterxml.jackson.datatype</groupId>
+				<artifactId>jackson-datatype-jsr310</artifactId>
 				<version>${jackson.version}</version>
 			</dependency>
 			<dependency>
