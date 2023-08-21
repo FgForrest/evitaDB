@@ -24,11 +24,11 @@
 package io.evitadb.externalApi.rest.api;
 
 import io.evitadb.externalApi.rest.io.RestEndpointHandler;
+import io.evitadb.externalApi.utils.UriPath;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.undertow.util.HttpString;
 
 import javax.annotation.Nonnull;
-import java.nio.file.Path;
 import java.util.List;
 
 /**
@@ -38,7 +38,7 @@ import java.util.List;
  */
 public record Rest(@Nonnull OpenAPI openApi, @Nonnull List<Endpoint> endpoints) {
 
-	public record Endpoint(@Nonnull Path path,
+	public record Endpoint(@Nonnull UriPath path,
 	                       @Nonnull HttpString method,
 	                       @Nonnull RestEndpointHandler<?, ?> handler) {}
 }

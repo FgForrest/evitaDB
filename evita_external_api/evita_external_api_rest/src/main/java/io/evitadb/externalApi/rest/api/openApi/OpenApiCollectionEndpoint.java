@@ -32,6 +32,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.Collect
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.ParameterLocation;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.externalApi.rest.io.RestEndpointHandler;
+import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
@@ -39,7 +40,6 @@ import io.swagger.v3.oas.models.PathItem;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.nio.file.Path;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -70,7 +70,7 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 	private OpenApiCollectionEndpoint(@Nonnull CatalogSchemaContract catalogSchema,
 	                                  @Nonnull EntitySchemaContract entitySchema,
 	                                  @Nonnull PathItem.HttpMethod method,
-	                                  @Nonnull Path path,
+	                                  @Nonnull UriPath path,
 	                                  boolean localized,
 	                                  @Nonnull String operationId,
 	                                  @Nonnull String description,
@@ -119,7 +119,7 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 		@Nonnull private final EntitySchemaContract entitySchema;
 
 		@Nullable private PathItem.HttpMethod method;
-		@Nullable private Path path;
+		@Nullable private UriPath path;
 		private boolean localized;
 
 		@Nullable private String operationId;
@@ -176,7 +176,7 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 			pathBuilder = pathBuilderFunction.apply(pathBuilder);
 
 			this.localized = localized;
-			this.path = pathBuilder.getPath();
+			this.path = pathBuilder.getPathBuilder();
 			this.parameters.addAll(pathBuilder.getPathParameters());
 			return this;
 		}

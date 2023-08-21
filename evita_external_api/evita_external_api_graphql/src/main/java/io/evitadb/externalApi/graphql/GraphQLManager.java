@@ -41,6 +41,7 @@ import io.evitadb.externalApi.graphql.io.GraphQLHandler;
 import io.evitadb.externalApi.http.CorsFilter;
 import io.evitadb.externalApi.http.CorsPreflightHandler;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
+import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 import io.undertow.Handlers;
@@ -52,7 +53,6 @@ import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -121,7 +121,7 @@ public class GraphQLManager {
 		);
 
 		try {
-			final String catalogDataApiPath = buildCatalogDataApiPath(catalog.getSchema());
+			final UriPath catalogDataApiPath = buildCatalogDataApiPath(catalog.getSchema());
 			final GraphQL catalogDataApiGraphQL = new CatalogGraphQLBuilder(
 				evita,
 				catalog,
@@ -133,7 +133,7 @@ public class GraphQLManager {
 			);
 			registerGraphQLEndpoint(registeredDataApiGraphQL);
 
-			final String catalogSchemaApiPath = buildCatalogSchemaApiPath(catalog.getSchema());
+			final UriPath catalogSchemaApiPath = buildCatalogSchemaApiPath(catalog.getSchema());
 			final GraphQL catalogSchemaApiGraphQL = new CatalogGraphQLBuilder(
 				evita,
 				catalog,
@@ -186,11 +186,11 @@ public class GraphQLManager {
 	public void unregisterCatalog(@Nonnull String catalogName) {
 		final RegisteredCatalog registeredCatalog = registeredCatalogs.remove(catalogName);
 		if (registeredCatalog != null) {
-			graphQLRouter.remove(Methods.POST, registeredCatalog.dataApi().path());
-			graphQLRouter.remove(Methods.POST, registeredCatalog.schemaApi().path());
+			graphQLRouter.remove(Methods.POST, registeredCatalog.dataApi().path().toString());
+			graphQLRouter.remove(Methods.POST, registeredCatalog.schemaApi().path().toString());
 
-			graphQLRouter.remove(Methods.OPTIONS, registeredCatalog.dataApi().path());
-			graphQLRouter.remove(Methods.OPTIONS, registeredCatalog.schemaApi().path());
+			graphQLRouter.remove(Methods.OPTIONS, registeredCatalog.dataApi().path().toString());
+			graphQLRouter.remove(Methods.OPTIONS, registeredCatalog.schemaApi().path().toString());
 		}
 	}
 
@@ -199,7 +199,7 @@ public class GraphQLManager {
 	 */
 	private void registerSystemApi() {
 		registerGraphQLEndpoint(new RegisteredGraphQLApi(
-			"/system",
+			UriPath.of("/", "system"),
 			new AtomicReference<>(new SystemGraphQLBuilder(evita).build(graphQLConfig))
 		));
 	}
@@ -211,7 +211,7 @@ public class GraphQLManager {
 		// actual GraphQL handler
 		graphQLRouter.add(
 			Methods.POST,
-			registeredGraphQLApi.path(),
+			registeredGraphQLApi.path().toString(),
 			new BlockingHandler(
 				new CorsFilter(
 					new GraphQLExceptionHandler(
@@ -225,7 +225,7 @@ public class GraphQLManager {
 		// CORS pre-flight handler for the GraphQL handler
 		graphQLRouter.add(
 			Methods.OPTIONS,
-			registeredGraphQLApi.path(),
+			registeredGraphQLApi.path().toString(),
 			new BlockingHandler(
 				new CorsFilter(
 					new CorsPreflightHandler(
@@ -243,21 +243,21 @@ public class GraphQLManager {
 	 * Unified way of building catalog's URL path from its name.
 	 */
 	@Nonnull
-	private String buildCatalogDataApiPath(@Nonnull CatalogSchemaContract catalogSchema) {
-		return Path.of(catalogSchema.getNameVariants().get(URL_NAME_NAMING_CONVENTION)).toString();
+	private UriPath buildCatalogDataApiPath(@Nonnull CatalogSchemaContract catalogSchema) {
+		return UriPath.of(catalogSchema.getNameVariants().get(URL_NAME_NAMING_CONVENTION));
 	}
 
 	/**
 	 * Unified way of building catalog's URL path from its name.
 	 */
 	@Nonnull
-	private String buildCatalogSchemaApiPath(@Nonnull CatalogSchemaContract catalogSchema) {
-		return Path.of(catalogSchema.getNameVariants().get(URL_NAME_NAMING_CONVENTION), "schema").toString();
+	private UriPath buildCatalogSchemaApiPath(@Nonnull CatalogSchemaContract catalogSchema) {
+		return UriPath.of(buildCatalogDataApiPath(catalogSchema), "schema");
 	}
 
 	private record RegisteredCatalog(@Nonnull RegisteredGraphQLApi dataApi,
 	                                 @Nonnull RegisteredGraphQLApi schemaApi) {}
 
-	private record RegisteredGraphQLApi(@Nonnull String path,
+	private record RegisteredGraphQLApi(@Nonnull UriPath path,
 	                                    @Nonnull AtomicReference<GraphQL> graphQLReference) {}
 }
