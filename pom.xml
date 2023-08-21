@@ -103,17 +103,17 @@
 	<properties>
 		<java.version>17</java.version>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<slf4j.version>2.0.1</slf4j.version>
-		<logback.version>1.4.4</logback.version>
+		<slf4j.version>2.0.7</slf4j.version>
+		<logback.version>1.4.11</logback.version>
 		<kryo.version>5.0.3</kryo.version>
-		<jackson.version>2.14.0</jackson.version>
-		<roaringbitmap.version>0.9.25</roaringbitmap.version>
-		<junit.jupiter.version>5.9.1</junit.jupiter.version>
+		<jackson.version>2.15.2</jackson.version>
+		<roaringbitmap.version>0.9.47</roaringbitmap.version>
+		<junit.jupiter.version>5.10.0</junit.jupiter.version>
 		<maven.compiler.version>3.10.1</maven.compiler.version>
 		<maven.toolchains.version>3.0.0</maven.toolchains.version>
 		<jboss.version>3.5.0.Final</jboss.version>
 		<lombok.version>1.18.24</lombok.version>
-		<grpc.version>1.53.0</grpc.version>
+		<grpc.version>1.57.2</grpc.version>
 		<bouncyCastle.version>1.70</bouncyCastle.version>
 		<!--Compatible versions with gRPC could be found here: https://github.com/grpc/grpc-java/blob/master/SECURITY.md#netty -->
 		<nettyHandler.version>4.1.94.Final</nettyHandler.version>
