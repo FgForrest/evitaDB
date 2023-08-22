@@ -28,6 +28,8 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.UUID;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * The client mirror of the server side {@link NamedSubscription}. It keeps the assigned subscription id and serves
@@ -39,31 +41,30 @@ import java.util.UUID;
 public class ClientSubscription implements NamedSubscription {
 	private final UUID id;
 
+	/**
+	 * Consumer to be called to cancel the subscription.
+	 */
+	private final Consumer<UUID> canceller;
+	/**
+	 * Consumer to be called to request more data.
+	 */
+	private final BiConsumer<UUID, Long> requester;
+
 	@Nonnull
 	@Override
 	public UUID id() {
 		return id;
 	}
 
-	/**
-	 *
-	 * @param n the increment of demand; a value of {@code
-	 * Long.MAX_VALUE} may be considered as effectively unbounded
-	 */
+
 	@Override
 	public void request(long n) {
-		/* TODO TPO - send request for how many requests should be sent to a client */
+		requester.accept(id, n);
 	}
 
 	@Override
 	public void cancel() {
-		/* TODO TPO - original implementation */
-		/*activeSystemCaptures.remove(uuid);
-		return EvitaServiceGrpc.newBlockingStub(this.cdcChannel).unregisterSystemChangeCapture(
-			GrpcUnregisterSystemChangeCaptureRequest.newBuilder()
-				.setUuid(uuid.toString())
-				.build()
-		).getSuccess();*/
+		canceller.accept(id);
 	}
 
 }

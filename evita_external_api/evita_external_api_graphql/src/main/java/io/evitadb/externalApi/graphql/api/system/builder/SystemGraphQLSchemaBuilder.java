@@ -27,7 +27,6 @@ import graphql.schema.*;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.cdc.CaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureObserver;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.CorruptedCatalog;
@@ -119,20 +118,20 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 					final SubmissionPublisher<ChangeSystemCapture> publisher = new SubmissionPublisher<>(evita.getExecutor(), 5, (subscriber, throwable) -> {
 						// todo lho what here?
 					});
-					evita.registerSystemChangeCapture(
-						new ChangeSystemCaptureRequest(CaptureContent.HEADER),
-						new ChangeSystemCaptureObserver() {
-							@Override
-							public void onChange(@Nonnull ChangeSystemCapture event) {
-								publisher.submit(event);
-							}
-
-							@Override
-							public void onTermination() {
-								publisher.close(); // todo lho ?
-							}
-						}
-					);
+//					evita.registerSystemChangeCapture(
+//						new ChangeSystemCaptureRequest(CaptureContent.HEADER),
+//						new ChangeSystemCaptureObserver() {
+//							@Override
+//							public void onChange(@Nonnull ChangeSystemCapture event) {
+//								publisher.submit(event);
+//							}
+//
+//							@Override
+//							public void onTermination() {
+//								publisher.close(); // todo lho ?
+//							}
+//						}
+//					);
 					return publisher;
 				}
 			}

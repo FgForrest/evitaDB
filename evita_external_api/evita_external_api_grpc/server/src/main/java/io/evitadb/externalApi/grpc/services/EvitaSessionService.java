@@ -846,15 +846,16 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			}
 		};
 
-		final ChangeDataCaptureRequest changeDataCaptureRequest = new ChangeDataCaptureRequest(
-			toCaptureArea(request.getArea()),
-			toCaptureSite(request),
-			toCaptureContent(request.getContent()),
-			/* TODO TPO - REDESIGN */
-			0L // toCaptureSince(request.getSince())
-		);
+		// todo lho
+//		final ChangeDataCaptureRequest changeDataCaptureRequest = new ChangeDataCaptureRequest(
+//			toCaptureArea(request.getArea()),
+//			toCaptureSite(request),
+//			toCaptureContent(request.getContent()),
+//			/* TODO TPO - REDESIGN */
+//			0L // toCaptureSince(request.getSince())
+//		);
 
-		uuidRef.set(session.registerChangeDataCapture(changeDataCaptureRequest, changeDataCaptureObserver));
+//		uuidRef.set(session.registerChangeDataCapture(changeDataCaptureRequest, changeDataCaptureObserver));
 
 		activeDataObservers.put(uuidRef.get(), changeDataCaptureObserver);
 

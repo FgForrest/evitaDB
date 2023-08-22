@@ -36,16 +36,14 @@ import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.exception.UnexpectedResultException;
-import io.evitadb.api.mock.MockCatalogStructuralChangeObserver;
+import io.evitadb.api.mock.MockCatalogStructuralChangeSubscriber;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
-import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.CaptureContent;
-import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
-import io.evitadb.api.requestResponse.cdc.SchemaSite;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
@@ -92,12 +90,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Flow;
-import java.util.concurrent.Flow.Publisher;
-import java.util.concurrent.Flow.Subscriber;
-import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntFunction;
@@ -121,9 +114,7 @@ class EvitaTest implements EvitaTestSupport {
 	private static final Currency CURRENCY_EUR = Currency.getInstance("EUR");
 	private static final String PRICE_LIST_BASIC = "basic";
 	private static final String PRICE_LIST_VIP = "vip";
-	private final MockCatalogStructuralChangeObserver observer = new MockCatalogStructuralChangeObserver(
-		new ChangeSystemCaptureRequest(UUID.randomUUID(), CaptureContent.BODY)
-	);
+	private final MockCatalogStructuralChangeSubscriber subscriber = new MockCatalogStructuralChangeSubscriber();
 	private Evita evita;
 
 	@BeforeEach
@@ -133,16 +124,18 @@ class EvitaTest implements EvitaTestSupport {
 			getEvitaConfiguration()
 		);
 		evita.defineCatalog(TEST_CATALOG);
-		evita.subscribe(observer);
-		evita.updateCatalog(
-			TEST_CATALOG,
-			session -> {
-				session.registerChangeDataCapture(
-					new ChangeDataCaptureRequest(CaptureArea.SCHEMA, new SchemaSite(), CaptureContent.BODY, 0L),
-					observer
-				);
-			}
-		);
+
+		evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.BODY)).subscribe(subscriber);
+		// todo lho
+//		evita.updateCatalog(
+//			TEST_CATALOG,
+//			session -> {
+//				session.registerChangeDataCapture(
+//					new ChangeDataCaptureRequest(CaptureArea.SCHEMA, new SchemaSite(), CaptureContent.BODY, 0L),
+//					subscriber
+//				);
+//			}
+//		);
 	}
 
 	@AfterEach
@@ -152,65 +145,142 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	@Test
-	void observerProposal() {
-		final Publisher<ChangeSystemCapture> systemHeaderPublisher = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
-		final Publisher<ChangeSystemCapture> systemBodyPublisher = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.BODY));
+	void shouldNotifyBasicSubscriber() {
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
 
-		systemHeaderPublisher.subscribe(new Subscriber<ChangeSystemCapture>() {
+		// subscriber is registered and wants one event when it happens
+		final MockCatalogStructuralChangeSubscriber subscriber = new MockCatalogStructuralChangeSubscriber(1);
+		publisher.subscribe(subscriber);
 
-			private Subscription subscription;
+		evita.defineCatalog("newCatalog1");
 
-			@Override
-			public void onSubscribe(Subscription subscription) {
-				this.subscription = subscription;
-				this.subscription.request(1);
-			}
+		// subscriber received one requested event
+		assertEquals(1, subscriber.getCatalogCreated("newCatalog1"));
 
-			@Override
-			public void onNext(ChangeSystemCapture item) {
-				handleItem(item);
-				// don't want another data, therefore no additional request is made... evitaDB observer will close
-				// automatically this subscription, potentially entire publisher if no other subscriptions are registered
-			}
+		evita.defineCatalog("newCatalog2");
 
-			@Override
-			public void onError(Throwable throwable) {
-				throwable.printStackTrace();
-			}
+		// subscriber didn't ask for more events, so it didn't receive any new events
+		assertEquals(1, subscriber.getCatalogCreated("newCatalog1"));
+		assertEquals(0, subscriber.getCatalogCreated("newCatalog2"));
 
-			@Override
-			public void onComplete() {
-				System.out.println("closed");
-			}
-		});
+		// subscriber wants more events now
+		subscriber.request(1);
 
-		systemBodyPublisher.subscribe(new Subscriber<ChangeSystemCapture>() {
+		evita.defineCatalog("newCatalog3");
 
-			private Subscription subscription;
+		// subscriber received the new requested event
+		assertEquals(1, subscriber.getCatalogCreated("newCatalog1"));
+		assertEquals(0, subscriber.getCatalogCreated("newCatalog2"));
+		assertEquals(1, subscriber.getCatalogCreated("newCatalog3"));
 
-			@Override
-			public void onSubscribe(Subscription subscription) {
-				this.subscription = subscription;
-				this.subscription.request(1);
-			}
+		// subscriber should receive 2 future events
+		subscriber.request(2);
 
-			@Override
-			public void onNext(ChangeSystemCapture item) {
-				handleItem(item);
-				// requesting another item in loop, the publisher will stay open
-				this.subscription.request(1);
-			}
+		evita.defineCatalog("newCatalog4");
+		assertEquals(1, subscriber.getCatalogCreated("newCatalog4"));
+		evita.defineCatalog("newCatalog5");
+		assertEquals(1, subscriber.getCatalogCreated("newCatalog5"));
 
-			@Override
-			public void onError(Throwable throwable) {
-				throwable.printStackTrace();
-			}
+		// subscriber requested 2 events, this is third one, so it should be ignored
+		evita.defineCatalog("newCatalog6");
+		assertEquals(0, subscriber.getCatalogCreated("newCatalog6"));
+	}
 
-			@Override
-			public void onComplete() {
-				System.out.println("closed");
-			}
-		});
+	@Test
+	void shouldNotifyLateSubscribers() {
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
+
+		// first subscriber is registered at the start, but it's not ready to receive events yet
+		final MockCatalogStructuralChangeSubscriber subscriberWithDelayedRequest = new MockCatalogStructuralChangeSubscriber(0);
+		publisher.subscribe(subscriberWithDelayedRequest);
+
+		// should be ignored by both subscribers
+		evita.defineCatalog("newCatalog1");
+
+		// second subscriber is registered later but ready to receive events
+		final MockCatalogStructuralChangeSubscriber subscriberWithDelayedRegistration = new MockCatalogStructuralChangeSubscriber(1);
+		publisher.subscribe(subscriberWithDelayedRegistration);
+
+		// first subscriber is ready to receive events now, should get one
+		subscriberWithDelayedRequest.request(1);
+
+		evita.defineCatalog("newCatalog2");
+
+		// both should receive one late event
+		assertEquals(1, subscriberWithDelayedRequest.getCatalogCreated("newCatalog2"));
+		assertEquals(1, subscriberWithDelayedRegistration.getCatalogCreated("newCatalog2"));
+	}
+
+	@Test
+	void shouldNotifyMultipleSubscriberWithDifferentRequests() {
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
+
+		// subscribers want first future events
+		final MockCatalogStructuralChangeSubscriber subscriber1 = new MockCatalogStructuralChangeSubscriber(1);
+		final MockCatalogStructuralChangeSubscriber subscriber2 = new MockCatalogStructuralChangeSubscriber(1);
+		publisher.subscribe(subscriber1);
+		publisher.subscribe(subscriber2);
+
+		// first events should be received by both subscribers
+		evita.defineCatalog("newCatalog1");
+		assertEquals(1, subscriber1.getCatalogCreated("newCatalog1"));
+		assertEquals(1, subscriber2.getCatalogCreated("newCatalog1"));
+
+		// the next event is desired only by first subscriber
+		subscriber1.request(1);
+		evita.defineCatalog("newCatalog2");
+		assertEquals(1, subscriber1.getCatalogCreated("newCatalog2"));
+		assertEquals(0, subscriber2.getCatalogCreated("newCatalog2"));
+
+		// the next event is desired only by second subscriber
+		subscriber2.request(1);
+		evita.defineCatalog("newCatalog3");
+		assertEquals(0, subscriber1.getCatalogCreated("newCatalog3"));
+		assertEquals(1, subscriber2.getCatalogCreated("newCatalog3"));
+	}
+
+	@Test
+	void shouldNotifyMultiplePublishers() {
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
+		final MockCatalogStructuralChangeSubscriber subscriber1 = new MockCatalogStructuralChangeSubscriber(1);
+		publisher1.subscribe(subscriber1);
+
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
+		final MockCatalogStructuralChangeSubscriber subscriber2 = new MockCatalogStructuralChangeSubscriber(1);
+		publisher2.subscribe(subscriber2);
+
+		evita.defineCatalog("newCatalog1");
+		assertEquals(1, subscriber1.getCatalogCreated("newCatalog1"));
+		assertEquals(1, subscriber2.getCatalogCreated("newCatalog1"));
+	}
+
+	@Test
+	void shouldNotifySubscribersOnTerminatingEvents() {
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
+		final MockCatalogStructuralChangeSubscriber subscriber1 = new MockCatalogStructuralChangeSubscriber(1);
+		publisher1.subscribe(subscriber1);
+
+		// should get receive ack from publisher on cancel
+		subscriber1.cancel();
+		assertEquals(1, subscriber1.getCompleted());
+
+		// should not receive any new events
+		evita.defineCatalog("newCatalog1");
+		assertEquals(0, subscriber1.getCatalogCreated("newCatalog1"));
+
+		// should not be able to cancel itself multiple times
+		assertThrows(EvitaInvalidUsageException.class, subscriber1::cancel);
+
+		final MockCatalogStructuralChangeSubscriber subscriber2 = new MockCatalogStructuralChangeSubscriber(1);
+		publisher1.subscribe(subscriber2);
+
+		// should notify subscribers about termination
+		publisher1.close();
+		assertEquals(1, subscriber2.getCompleted());
+
+		// should do nothing on multiple closes
+		publisher1.close();
+		assertEquals(1, subscriber2.getCompleted());
 	}
 
 	@Test
@@ -647,6 +717,8 @@ class EvitaTest implements EvitaTestSupport {
 
 	@Test
 	void shouldCreateAndDropCatalog() {
+		subscriber.reset();
+
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -660,6 +732,8 @@ class EvitaTest implements EvitaTestSupport {
 		);
 
 		evita.deleteCatalogIfExists(TEST_CATALOG);
+
+		assertEquals(1, subscriber.getCatalogDeleted(TEST_CATALOG));
 
 		assertFalse(evita.getCatalogNames().contains(TEST_CATALOG));
 	}
@@ -755,15 +829,15 @@ class EvitaTest implements EvitaTestSupport {
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
-		observer.reset();
+		subscriber.reset();
 
 		evita.updateCatalog(TEST_CATALOG, session -> {
 			session.renameCollection(Entities.PRODUCT, Entities.STORE);
 			assertEquals(Entities.STORE, session.getEntitySchemaOrThrow(Entities.STORE).getName());
 		});
 
-		assertEquals(1, observer.getEntityCollectionCreated(TEST_CATALOG, Entities.STORE));
-		assertEquals(1, observer.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
+		assertEquals(1, subscriber.getEntityCollectionCreated(TEST_CATALOG, Entities.STORE));
+		assertEquals(1, subscriber.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
 
 		evita.queryCatalog(TEST_CATALOG, session -> {
 			assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
@@ -801,14 +875,14 @@ class EvitaTest implements EvitaTestSupport {
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
-		observer.reset();
+		subscriber.reset();
 
 		evita.updateCatalog(TEST_CATALOG, session -> {
 			session.replaceCollection(Entities.CATEGORY, Entities.PRODUCT);
 		});
 
-		assertEquals(1, observer.getEntityCollectionSchemaUpdated(TEST_CATALOG, Entities.CATEGORY));
-		assertEquals(1, observer.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
+		assertEquals(1, subscriber.getEntityCollectionSchemaUpdated(TEST_CATALOG, Entities.CATEGORY));
+		assertEquals(1, subscriber.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
 
 		evita.queryCatalog(TEST_CATALOG, session -> {
 			assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
@@ -827,15 +901,15 @@ class EvitaTest implements EvitaTestSupport {
 			session.goLiveAndClose();
 		});
 
-		observer.reset();
+		subscriber.reset();
 
 		evita.updateCatalog(TEST_CATALOG, session -> {
 			session.renameCollection(Entities.PRODUCT, Entities.STORE);
 			assertEquals(Entities.STORE, session.getEntitySchemaOrThrow(Entities.STORE).getName());
 		});
 
-		assertEquals(1, observer.getEntityCollectionCreated(TEST_CATALOG, Entities.STORE));
-		assertEquals(1, observer.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
+		assertEquals(1, subscriber.getEntityCollectionCreated(TEST_CATALOG, Entities.STORE));
+		assertEquals(1, subscriber.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
 
 		evita.queryCatalog(TEST_CATALOG, session -> {
 			assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
@@ -853,14 +927,14 @@ class EvitaTest implements EvitaTestSupport {
 			session.goLiveAndClose();
 		});
 
-		observer.reset();
+		subscriber.reset();
 
 		evita.updateCatalog(TEST_CATALOG, session -> {
 			session.replaceCollection(Entities.CATEGORY, Entities.PRODUCT);
 		});
 
-		assertEquals(1, observer.getEntityCollectionSchemaUpdated(TEST_CATALOG, Entities.CATEGORY));
-		assertEquals(1, observer.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
+		assertEquals(1, subscriber.getEntityCollectionSchemaUpdated(TEST_CATALOG, Entities.CATEGORY));
+		assertEquals(1, subscriber.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
 
 		evita.queryCatalog(TEST_CATALOG, session -> {
 			assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));

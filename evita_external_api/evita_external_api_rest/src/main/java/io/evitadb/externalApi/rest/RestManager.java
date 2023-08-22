@@ -105,7 +105,8 @@ public class RestManager {
 		// register initial endpoints
 		registerSystemApi();
 
-		evita.subscribe(observer);
+		// todo lho
+//		evita.subscribe(observer);
 		this.evita.getCatalogs().forEach(catalog -> registerCatalog(catalog.getName()));
 		corsEndpoints.forEach((path, endpoint) -> restRouter.add("OPTIONS", path.toString(), endpoint.toHandler()));
 
@@ -130,13 +131,14 @@ public class RestManager {
 			!registeredCatalogEndpoints.containsKey(catalogName),
 			() -> new OpenApiInternalError("Catalog `" + catalogName + "` has been already registered.")
 		);
-		catalog.registerChangeDataCapture(
-			new ChangeDataCaptureRequest(
-				CaptureArea.SCHEMA, new SchemaSite(Operation.values()), CaptureContent.HEADER,
-				catalog.getLastCommittedTransactionId()
-			),
-			observer
-		);
+		// todo
+//		catalog.registerChangeDataCapture(
+//			new ChangeDataCaptureRequest(
+//				CaptureArea.SCHEMA, new SchemaSite(Operation.values()), CaptureContent.HEADER,
+//				catalog.getLastCommittedTransactionId()
+//			),
+//			observer
+//		);
 
 		final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(restConfig, evita, catalog);
 		final Rest builtRest = catalogRestBuilder.build();

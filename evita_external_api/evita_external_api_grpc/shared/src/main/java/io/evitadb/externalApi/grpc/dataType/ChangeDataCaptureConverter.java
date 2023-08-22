@@ -86,7 +86,7 @@ public class ChangeDataCaptureConverter {
 	public static ChangeSystemCapture toChangeSystemCapture(GrpcChangeSystemCapture grpcChangeSystemCapture) {
 		/* TODO TPO - redesign */
 		return new ChangeSystemCapture(
-			UUID.randomUUID(),
+//			UUID.randomUUID(),
 			grpcChangeSystemCapture.getCatalog(),
 			toOperation(grpcChangeSystemCapture.getOperation()),
 			null

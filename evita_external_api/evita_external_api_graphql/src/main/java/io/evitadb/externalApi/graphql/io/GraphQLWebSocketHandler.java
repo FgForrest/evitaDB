@@ -159,7 +159,7 @@ public class GraphQLWebSocketHandler extends WebSocketProtocolHandshakeHandler {
 									.join();
 
 								final Publisher<ExecutionResult> publisher = result.getData();
-								publisher.subscribe(new Subscriber<ExecutionResult>() {
+								publisher.subscribe(new Subscriber<>() {
 
 									private Subscription subscription;
 
@@ -183,6 +183,7 @@ public class GraphQLWebSocketHandler extends WebSocketProtocolHandshakeHandler {
 									@SneakyThrows
 									@Override
 									public void onError(Throwable e) {
+										subscription.cancel();
 										session.getSubscriptions().remove(id);
 										final String error = objectMapper.writeValueAsString(GraphQLWebSocketMessage.error(id, List.of(new EvitaGraphQLError(e.getMessage(), null, null, null))));
 										WebSockets.sendText(error, channel, null);
@@ -191,6 +192,7 @@ public class GraphQLWebSocketHandler extends WebSocketProtocolHandshakeHandler {
 									@SneakyThrows
 									@Override
 									public void onComplete() {
+										// todo lho this is not implement by server?
 										session.getSubscriptions().remove(id);
 										final String completion = objectMapper.writeValueAsString(GraphQLWebSocketMessage.complete(id));
 										WebSockets.sendText(completion, channel, null);
@@ -207,6 +209,7 @@ public class GraphQLWebSocketHandler extends WebSocketProtocolHandshakeHandler {
 //								final String completion = objectMapper.writeValueAsString(GraphQLWebSocketMessage.complete(id));
 //								WebSockets.sendText(completion, channel, null);
 							} catch (Exception e) {
+								// todo lho should there be call to cancel subscription from publisher?
 								session.getSubscriptions().remove(id);
 								final String error = objectMapper.writeValueAsString(GraphQLWebSocketMessage.error(id, List.of(new EvitaGraphQLError(e.getMessage(), null, null, null))));
 								WebSockets.sendText(error, channel, null);

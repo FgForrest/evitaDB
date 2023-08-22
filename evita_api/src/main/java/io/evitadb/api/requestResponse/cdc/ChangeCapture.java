@@ -23,26 +23,10 @@
 
 package io.evitadb.api.requestResponse.cdc;
 
-import io.evitadb.api.requestResponse.mutation.Mutation;
-
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.util.UUID;
-
 /**
- * Record represents a CDC event that is sent to the subscriber if it matches to the request he made.
+ * TODO lho docs
  *
- * @param cdcRequestId the ID of the request that caused this event to be sent
- * @param catalog the catalog name
- * @param operation the operation that was performed
- * @param body optional body of the operation when it is requested by the {@link ChangeSystemCaptureRequest#content()}
- *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, 2023
  */
-public record ChangeSystemCapture(
-	/* TODO TPO - this field was added */
-//	@Nonnull UUID cdcRequestId,
-	@Nonnull String catalog,
-	@Nonnull Operation operation,
-	@Nullable Mutation body
-) implements ChangeCapture {}
+public interface ChangeCapture {
+}

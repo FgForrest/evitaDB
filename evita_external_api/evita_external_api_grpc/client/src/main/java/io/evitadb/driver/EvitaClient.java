@@ -29,6 +29,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.exception.InstanceTerminatedException;
+import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
@@ -36,8 +37,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
 import io.evitadb.driver.cdc.ClientSubscription;
-import io.evitadb.driver.cdc.SystemChangePublisher;
-import io.evitadb.driver.cdc.ClientSystemResponseObserver;
+import io.evitadb.driver.cdc.ClientChangeCaptureProcessor;
 import io.evitadb.driver.certificate.ClientCertificateManager;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientNotTerminatedInTimeException;
@@ -46,6 +46,7 @@ import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceBlockingStub;
+import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceFutureStub;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
@@ -58,6 +59,7 @@ import io.evitadb.utils.UUIDUtil;
 import io.grpc.ManagedChannel;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
+import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.netty.NettyChannelBuilder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -236,56 +238,20 @@ public class EvitaClient implements EvitaContract {
 		this.executor.prestartAllCoreThreads();
 	}
 
-	/*@Override
-	public void subscribe(@Nullable Subscriber<? super ChangeSystemCapture> subscriber) throws NullPointerException, IllegalArgumentException {*/
-		/* TODO TPO - original implementation */
-
-		/*final AtomicReference<UUID> uuid = new AtomicReference<>();
-		final Iterator<GrpcRegisterSystemChangeCaptureResponse> responseIterator = EvitaServiceGrpc.newBlockingStub(this.cdcChannel)
-			.registerSystemChangeCapture(
-				GrpcRegisterSystemChangeCaptureRequest.newBuilder()
-					.setContent(EvitaEnumConverter.toGrpcCaptureContent(request.content()))
-					.build()
-			);
-		this.executor.execute(() -> responseIterator.forEachRemaining(it -> {
-			if (it.getResponseType() == GrpcCaptureResponseType.ACKNOWLEDGEMENT) {
-				uuid.set(UUID.fromString(it.getUuid()));
-				activeSystemCaptures.add(uuid.get());
-			} else {
-				callback.onChange(toChangeSystemCapture(it.getCapture()));
-			}
-		}));
-		while (uuid.get() == null) {
-
-		}
-		return uuid.get();*/
-	//}
-
-	/*@Override
-	public boolean extendSubscription(@Nonnull UUID subscriptionId, @Nonnull ChangeSystemCaptureRequest additionalRequest) {
-		*//* TODO TPO - implement please *//*
-		return false;
-	}
-
 	@Override
-	public boolean limitSubscription(@Nonnull UUID subscriptionId, @Nonnull UUID cdcRequestId) {
-		*//* TODO TPO - implement please *//*
-		return false;
-	}*/
-
-	@Override
-	public Flow.Publisher<ChangeSystemCapture> registerSystemChangeCapture(@Nonnull ChangeSystemCaptureRequest request) {
+	public ChangeCapturePublisher<ChangeSystemCapture> registerSystemChangeCapture(@Nonnull ChangeSystemCaptureRequest request) {
 		final EvitaServiceGrpc.EvitaServiceStub stub = EvitaServiceGrpc.newStub(this.cdcChannel);
 
-		final ClientSystemResponseObserver clientResponseObserver = new ClientSystemResponseObserver();
-
+		final ClientChangeCaptureProcessor clientResponseObserver = new ClientChangeCaptureProcessor();
+		// todo lho wrap this into executeWithEvitaService
 		stub.registerSystemChangeCapture(
-				GrpcRegisterSystemChangeCaptureRequest.newBuilder()
-						.setContent(EvitaEnumConverter.toGrpcCaptureContent(request.content()))
-						.build(),
-		clientResponseObserver);
+			GrpcRegisterSystemChangeCaptureRequest.newBuilder()
+				.setContent(EvitaEnumConverter.toGrpcCaptureContent(request.content()))
+				.build(),
+			clientResponseObserver
+		);
 
-		return new SystemChangePublisher(clientResponseObserver);
+		return clientResponseObserver;
 	}
 
 	@Nonnull

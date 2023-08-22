@@ -38,10 +38,10 @@ import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
+import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureSubscriber;
-import io.evitadb.api.requestResponse.cdc.NamedSubscription;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
@@ -95,7 +95,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow.Publisher;
-import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -459,6 +458,7 @@ public final class Evita implements EvitaContract {
 			it.remove();
 			log.info("Catalog {} successfully terminated.", catalog.getName());
 		}
+		this.changeObserver.close();
 
 		this.executor.shutdown();
 	}
@@ -486,40 +486,9 @@ public final class Evita implements EvitaContract {
 	}
 
 	@Override
-	public Publisher<ChangeSystemCapture> registerSystemChangeCapture(@Nonnull ChangeSystemCaptureRequest request) {
-		// TODO JNO: the observer would store registered publishers and emit captures via them. Clients would subscribe to them
-		//  and they wouldn't bother with UUIDs, explicit closing or extending via IDs. They would simply request another publisher.
-		//  When wouldn't request another data via the subscription, the observer would automatically close the publisher
-		//  similarly to how it is done now in the observer. Of course, it would need to be able to handle multiple subscriptions
-		//  to single publisher. Basically a single publisher would just encapsulate the single request into separate unit (from clients POV).
-		return changeObserver.registerObserver(request);
+	public ChangeCapturePublisher<ChangeSystemCapture> registerSystemChangeCapture(@Nonnull ChangeSystemCaptureRequest request) {
+		return changeObserver.registerPublisher(request);
 	}
-
-//	@Override
-//	public void subscribe(@Nullable Subscriber<? super ChangeSystemCapture> subscriber)
-//		throws NullPointerException, IllegalArgumentException
-//	{
-//		if (subscriber instanceof ChangeSystemCaptureSubscriber changeSystemCaptureObserver) {
-//			changeObserver.registerObserver(changeSystemCaptureObserver);
-//		} else {
-//			throw new IllegalArgumentException("Subscriber must implement ChangeSystemCaptureObserver interface!");
-//		}
-//	}
-
-//	@Override
-//	public boolean extendSubscription(@Nonnull UUID subscriptionId, @Nonnull ChangeSystemCaptureRequest additionalRequest) {
-//		return changeObserver.extendSubscription(subscriptionId, additionalRequest);
-//	}
-//
-//	@Override
-//	public boolean limitSubscription(@Nonnull UUID subscriptionId, @Nonnull UUID cdcRequestId) {
-//		return changeObserver.limitSubscription(subscriptionId, cdcRequestId);
-//	}
-//
-//	@Nonnull
-//	public Optional<NamedSubscription> getSubscriptionById(@Nonnull UUID id) {
-//		return changeObserver.getSubscriptionById(id);
-//	}
 
 	/*
 		PRIVATE METHODS
@@ -562,7 +531,7 @@ public final class Evita implements EvitaContract {
 				}
 			}
 		);
-		changeObserver.notifyObservers(catalogName, Operation.CREATE, () -> createCatalogSchema);
+		changeObserver.notifyPublishers(catalogName, Operation.CREATE, () -> createCatalogSchema);
 	}
 
 	/**
@@ -611,17 +580,17 @@ public final class Evita implements EvitaContract {
 			// now rewrite the original catalog with renamed contents so that the observers could access it
 			final CatalogContract previousCatalog = this.catalogs.put(catalogNameToBeReplaced, replacedCatalog);
 
-			changeObserver.notifyObservers(
+			changeObserver.notifyPublishers(
 				catalogNameToBeReplacedWith, Operation.REMOVE,
 				() -> modifyCatalogSchemaName
 			);
 			if (previousCatalog == null) {
-				changeObserver.notifyObservers(
+				changeObserver.notifyPublishers(
 					catalogNameToBeReplaced, Operation.CREATE,
 					() -> modifyCatalogSchemaName
 				);
 			} else {
-				changeObserver.notifyObservers(
+				changeObserver.notifyPublishers(
 					catalogNameToBeReplaced, Operation.UPDATE, () -> modifyCatalogSchemaName
 				);
 			}
@@ -649,7 +618,7 @@ public final class Evita implements EvitaContract {
 		} else {
 			doWithPretendingCatalogStillPresent(
 				catalogToRemove,
-				() -> changeObserver.notifyObservers(catalogName, Operation.REMOVE, () -> removeCatalogSchema)
+				() -> changeObserver.notifyPublishers(catalogName, Operation.REMOVE, () -> removeCatalogSchema)
 			);
 			catalogToRemove.terminate();
 			catalogToRemove.delete();

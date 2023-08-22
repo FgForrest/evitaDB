@@ -21,9 +21,8 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.cdc;
+package io.evitadb.api.requestResponse.cdc;
 
-import io.evitadb.api.requestResponse.cdc.NamedSubscription;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -37,8 +36,10 @@ import java.util.function.Consumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+// todo lho dont like this in api
 @RequiredArgsConstructor
-class ServerSubscription implements NamedSubscription {
+public class SubscriptionImpl implements NamedSubscription {
+	// todo lho we should need the id only in serversubscription, so these two could be merged to server subscription (maybe i need it on client side too)
 	/**
 	 * Unique identifier of this subscription.
 	 */

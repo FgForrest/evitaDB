@@ -111,7 +111,8 @@ public class GraphQLManager {
 		// register initial endpoints
 		registerSystemApi();
 
-		evita.subscribe(observer);
+		// todo lho
+//		evita.subscribe(observer);
 		this.evita.getCatalogs().forEach(catalog -> registerCatalog(catalog.getName()));
 
 		log.info("Built GraphQL API in " + StringUtils.formatPreciseNano(System.currentTimeMillis() - buildingStartTime));
@@ -135,13 +136,14 @@ public class GraphQLManager {
 			!registeredCatalogs.containsKey(catalogName),
 			() -> new GraphQLInternalError("Catalog `" + catalogName + "` has been already registered.")
 		);
-		catalog.registerChangeDataCapture(
-			new ChangeDataCaptureRequest(
-				CaptureArea.SCHEMA, new SchemaSite(Operation.values()), CaptureContent.HEADER,
-				catalog.getLastCommittedTransactionId()
-			),
-			observer
-		);
+		// todo lho
+//		catalog.registerChangeDataCapture(
+//			new ChangeDataCaptureRequest(
+//				CaptureArea.SCHEMA, new SchemaSite(Operation.values()), CaptureContent.HEADER,
+//				catalog.getLastCommittedTransactionId()
+//			),
+//			observer
+//		);
 
 		try {
 			final UriPath catalogDataApiPath = buildCatalogDataApiPath(catalog.getSchema());

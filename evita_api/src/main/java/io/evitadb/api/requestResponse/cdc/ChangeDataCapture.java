@@ -45,12 +45,12 @@ import java.util.UUID;
  */
 public record ChangeDataCapture(
 	/* TODO TPO - this field was added */
-	@Nonnull UUID cdcRequestId,
+//	@Nonnull UUID cdcRequestId,
 	@Nonnull CaptureArea area,
 	@Nonnull String catalog,
 	@Nullable String entityType,
 	@Nullable Integer version,
 	@Nonnull Operation operation,
 	@Nullable Mutation body
-) {
+) implements ChangeCapture {
 }

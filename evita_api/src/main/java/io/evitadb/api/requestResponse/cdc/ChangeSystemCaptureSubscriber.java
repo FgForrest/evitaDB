@@ -33,6 +33,7 @@ import java.util.concurrent.Flow.Subscription;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+// todo lho remove
 public interface ChangeSystemCaptureSubscriber extends Subscriber<ChangeSystemCapture> {
 
 	/**
@@ -44,7 +45,8 @@ public interface ChangeSystemCaptureSubscriber extends Subscriber<ChangeSystemCa
 	 */
 	@Nonnull
 	default ChangeSystemCaptureRequest initialSystemCaptureRequest() {
-		return new ChangeSystemCaptureRequest(UUID.randomUUID(), CaptureContent.HEADER);
+		// todo lho
+		return new ChangeSystemCaptureRequest(/*UUID.randomUUID(), */CaptureContent.HEADER);
 	}
 
 	/**

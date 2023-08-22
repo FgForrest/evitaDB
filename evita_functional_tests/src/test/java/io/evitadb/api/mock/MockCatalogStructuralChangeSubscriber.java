@@ -23,27 +23,28 @@
 
 package io.evitadb.api.mock;
 
-import io.evitadb.api.requestResponse.cdc.CaptureArea;
-import io.evitadb.api.requestResponse.cdc.ChangeDataCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureObserver;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureSubscriber;
-import io.evitadb.api.requestResponse.cdc.Operation;
-import io.evitadb.utils.Assert;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
 
 /**
- * This observer allows to test {@link ChangeSystemCaptureSubscriber} and {@link ChangeDataCaptureObserver} behaviour.
+ * This observer allows to test {@link Subscriber} behaviour.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class MockCatalogStructuralChangeObserver implements ChangeSystemCaptureSubscriber, ChangeDataCaptureObserver {
+public class MockCatalogStructuralChangeSubscriber implements Subscriber<ChangeSystemCapture> {
+
+	private final int initialRequestCount;
+	private Subscription subscription;
+
 	private final Map<String, Integer> catalogCreated = new HashMap<>();
 	private final Map<String, Integer> catalogUpdated = new HashMap<>();
 	private final Map<String, Integer> catalogDeleted = new HashMap<>();
@@ -51,14 +52,15 @@ public class MockCatalogStructuralChangeObserver implements ChangeSystemCaptureS
 	private final Map<EntityCollectionCatalogRecord, Integer> entityCollectionCreated = new HashMap<>();
 	private final Map<EntityCollectionCatalogRecord, Integer> entityCollectionUpdated = new HashMap<>();
 	private final Map<EntityCollectionCatalogRecord, Integer> entityCollectionDeleted = new HashMap<>();
-	private final ChangeSystemCaptureRequest captureRequest;
+	@Getter private int completed = 0;
+	@Getter private int errors = 0;
 
-	public MockCatalogStructuralChangeObserver() {
-		this.captureRequest = null;
+	public MockCatalogStructuralChangeSubscriber() {
+		this(Integer.MAX_VALUE);
 	}
 
-	public MockCatalogStructuralChangeObserver(ChangeSystemCaptureRequest captureRequest) {
-		this.captureRequest = captureRequest;
+	public MockCatalogStructuralChangeSubscriber(int initialRequestCount) {
+		this.initialRequestCount = initialRequestCount;
 	}
 
 	public void reset() {
@@ -100,15 +102,10 @@ public class MockCatalogStructuralChangeObserver implements ChangeSystemCaptureS
 		return entityCollectionUpdated.getOrDefault(new EntityCollectionCatalogRecord(catalogName, entityType), 0);
 	}
 
-	@Nonnull
-	@Override
-	public ChangeSystemCaptureRequest initialSystemCaptureRequest() {
-		return captureRequest == null ? ChangeSystemCaptureSubscriber.super.initialSystemCaptureRequest() : captureRequest;
-	}
-
 	@Override
 	public void onSubscribe(Subscription subscription) {
-		subscription.request(Long.MAX_VALUE);
+		this.subscription = subscription;
+		this.subscription.request(initialRequestCount);
 	}
 
 	@Override
@@ -125,48 +122,21 @@ public class MockCatalogStructuralChangeObserver implements ChangeSystemCaptureS
 
 	@Override
 	public void onError(Throwable throwable) {
+		errors++;
 		throw new RuntimeException(throwable);
 	}
 
 	@Override
 	public void onComplete() {
-		// do nothing
+		completed++;
 	}
 
-	@Override
-	public void onTransactionCommit(long transactionId, @Nonnull Collection<ChangeDataCapture> events) {
-		for (ChangeDataCapture event : events) {
-			if (event.area() == CaptureArea.SCHEMA) {
-				if (event.entityType() != null) {
-					switch (event.operation()) {
-						case CREATE -> entityCollectionCreated
-							.compute(
-								new EntityCollectionCatalogRecord(event.catalog(), event.entityType()),
-								(entityCollectionRecord, counter) -> counter == null ? 1 : counter + 1
-							);
-						case UPDATE -> entityCollectionUpdated
-							.compute(
-								new EntityCollectionCatalogRecord(event.catalog(), event.entityType()),
-								(entityCollectionRecord, counter) -> counter == null ? 1 : counter + 1
-							);
-						case REMOVE -> entityCollectionDeleted
-							.compute(
-								new EntityCollectionCatalogRecord(event.catalog(), event.entityType()),
-								(entityCollectionRecord, counter) -> counter == null ? 1 : counter + 1
-							);
-					}
-				} else {
-					Assert.isTrue(event.operation() == Operation.UPDATE, "Only UPDATE operation is supported for catalog schema!");
-					catalogSchemaUpdated
-						.compute(event.catalog(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
-				}
-			}
-		}
+	public void request(long n) {
+		subscription.request(n);
 	}
 
-	@Override
-	public void onTermination() {
-		// do nothing - no resources needs to be released
+	public void cancel() {
+		subscription.cancel();
 	}
 
 	private record EntityCollectionCatalogRecord(@Nonnull String catalogName, @Nonnull String entityType) {
