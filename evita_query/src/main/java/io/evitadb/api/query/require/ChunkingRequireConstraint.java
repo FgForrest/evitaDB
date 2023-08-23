@@ -21,35 +21,14 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.query.filter;
+package io.evitadb.api.query.require;
 
-import io.evitadb.api.query.AttributeConstraint;
-import io.evitadb.api.query.FilterConstraint;
-
-import javax.annotation.Nonnull;
-import java.io.Serial;
-import java.io.Serializable;
+import io.evitadb.api.query.RequireConstraint;
 
 /**
- * Represents base query leaf accepting only filtering constraints and having first argument attribute name.
+ * This interface marks all requirements that chunk the response into multiple parts.
  *
- * @author Jan Novotný, FG Forrest a.s. (c) 2021
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-abstract class AbstractAttributeFilterConstraintLeaf extends AbstractFilterConstraintLeaf
-	implements AttributeConstraint<FilterConstraint>, IndexUsingConstraint {
-	@Serial private static final long serialVersionUID = 3153809771456358624L;
-
-	protected AbstractAttributeFilterConstraintLeaf(Serializable... arguments) {
-		super(arguments);
-	}
-
-	/**
-	 * Returns attribute name that needs to be examined.
-	 */
-	@Override
-	@Nonnull
-	public String getAttributeName() {
-		return (String) getArguments()[0];
-	}
-
+public interface ChunkingRequireConstraint extends RequireConstraint {
 }

@@ -42,6 +42,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
 
@@ -314,6 +316,20 @@ public class Hierarchy implements EvitaResponseExtraResult {
 
 		public LevelInfo(LevelInfo levelInfo, List<LevelInfo> children) {
 			this(levelInfo.entity, levelInfo.queriedEntityCount, levelInfo.childrenCount, children);
+		}
+
+		/**
+		 * Returns the list of self and all children of this level info that match the passed predicate.
+		 *
+		 * @param predicate predicate to match
+		 * @return stream of all children that match the predicate including self
+		 */
+		@Nonnull
+		public Stream<LevelInfo> collectAll(@Nonnull Predicate<LevelInfo> predicate) {
+			return Stream.concat(
+				Stream.of(this).filter(predicate),
+				children.stream().flatMap(it -> it.collectAll(predicate))
+			);
 		}
 
 		@Override
