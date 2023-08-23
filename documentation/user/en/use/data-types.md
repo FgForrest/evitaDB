@@ -3,7 +3,7 @@ title: Data types
 perex: |
     The article gives an introduction to data types in EvitaDB query language, including basic and complex types,
     and provides code examples to demonstrate their usage.
-date: "17.1.2023"
+date: "23.8.2023"
 author: "Ing. Jan Novotný"
 proofreading: "done"
 ---
@@ -65,6 +65,8 @@ evitaDB data types are limited to following list:
     formatted as language tag `'cs-CZ'`
 - [Currency](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Currency.html), 
     formatted as `'CZK'`
+- [UUID](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/UUID.html),
+    formatted as `2fbbfcf2-d4bb-4db9-9658-acf1d287cbe9`
 
 </LanguageSpecific>
 <LanguageSpecific to="graphql,rest">
@@ -112,6 +114,8 @@ is how they are formatted. evitaDB data types are limited to following list:
     formatted as language tag `"cs-CZ"`
 - [Currency](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Currency.html), 
     formatted as `"CZK"`
+- [UUID](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/UUID.html),
+    formatted as `"2fbbfcf2-d4bb-4db9-9658-acf1d287cbe9"`
 
 </LanguageSpecific>
 

@@ -55,6 +55,7 @@ import java.time.OffsetDateTime;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Supplier;
 
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiConstants.*;
@@ -98,6 +99,7 @@ public class OpenApiScalar implements OpenApiSimpleType {
 		SCALAR_SCHEMA_MAPPINGS.put(ComplexDataObject.class, OpenApiScalar::createGenericObjectSchema);
 		SCALAR_SCHEMA_MAPPINGS.put(Locale.class, OpenApiScalar::createLocaleSchema);
 		SCALAR_SCHEMA_MAPPINGS.put(Currency.class, OpenApiScalar::createCurrencySchema);
+		SCALAR_SCHEMA_MAPPINGS.put(UUID.class, OpenApiScalar::createUuidSchema);
 		SCALAR_SCHEMA_MAPPINGS.put(Any.class, OpenApiScalar::createAnySchema);
 		SCALAR_SCHEMA_MAPPINGS.put(GenericObject.class, OpenApiScalar::createGenericObjectSchema);
 	}
@@ -293,6 +295,18 @@ public class OpenApiScalar implements OpenApiSimpleType {
 			.format(FORMAT_CURRENCY)
 			.example("CZK");
 		return currencySchema;
+	}
+
+	/**
+	 * Creates schema for {@link UUID}
+	 */
+	@Nonnull
+	private static Schema<?> createUuidSchema() {
+		final Schema<?> uuidSchema = new StringSchema();
+		uuidSchema
+			.format(FORMAT_UUID)
+			.example("01081e6f-851f-46b1-9f8f-075b582b5d2e");
+		return uuidSchema;
 	}
 
 	/**

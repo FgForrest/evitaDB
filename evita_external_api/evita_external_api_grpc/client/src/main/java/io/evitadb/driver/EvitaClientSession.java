@@ -405,7 +405,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		assertRequestMakesSense(query, expectedType);
 		final String entityTypeByExpectedType = ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType);
 
-		final StringWithParameters stringWithParameters = query.toStringWithParameterExtraction();
+		final StringWithParameters stringWithParameters = query.normalizeQuery().toStringWithParameterExtraction();
 		final GrpcQueryResponse grpcResponse = executeWithEvitaSessionService(evitaSessionService ->
 			evitaSessionService.query(
 				GrpcQueryRequest.newBuilder()
@@ -974,7 +974,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	public int deleteEntities(@Nonnull Query query) {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
-			final StringWithParameters stringWithParameters = query.toStringWithParameterExtraction();
+			final StringWithParameters stringWithParameters = query.normalizeQuery().toStringWithParameterExtraction();
 			final GrpcDeleteEntitiesResponse grpcResponse = executeWithEvitaSessionService(evitaSessionService ->
 				evitaSessionService.deleteEntities(
 					GrpcDeleteEntitiesRequest
@@ -1005,7 +1005,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 				null,
 				this.proxyFactory::createEntityProxy
 			);
-			final StringWithParameters stringWithParameters = query.toStringWithParameterExtraction();
+			final StringWithParameters stringWithParameters = query.normalizeQuery().toStringWithParameterExtraction();
 			final GrpcDeleteEntitiesResponse grpcResponse = executeWithEvitaSessionService(evitaSessionService ->
 				evitaSessionService.deleteEntities(
 					GrpcDeleteEntitiesRequest
@@ -1162,7 +1162,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		assertActive();
 		assertRequestMakesSense(query, expectedType);
 
-		final StringWithParameters stringWithParameters = query.toStringWithParameterExtraction();
+		final StringWithParameters stringWithParameters = query.normalizeQuery().toStringWithParameterExtraction();
 		final GrpcQueryListResponse grpcResponse = executeWithEvitaSessionService(evitaSessionService ->
 			evitaSessionService.queryList(
 				GrpcQueryRequest.newBuilder()
@@ -1266,7 +1266,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		assertActive();
 		assertRequestMakesSense(query, expectedType);
 
-		final StringWithParameters stringWithParameters = query.toStringWithParameterExtraction();
+		final StringWithParameters stringWithParameters = query.normalizeQuery().toStringWithParameterExtraction();
 		final GrpcQueryOneResponse grpcResponse = executeWithEvitaSessionService(evitaSessionService ->
 			evitaSessionService.queryOne(
 				GrpcQueryRequest.newBuilder()

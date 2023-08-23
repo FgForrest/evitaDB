@@ -532,6 +532,8 @@ public class DataGenerator {
 				value = generateRandomLocalTime(fakerToUse);
 			} else if (Currency.class.equals(type)) {
 				value = pickRandomOneFromSet(fakerToUse, CURRENCIES_SET);
+			} else if (UUID.class.equals(type)) {
+				value = new UUID(fakerToUse.random().nextLong(), fakerToUse.random().nextLong());
 			} else if (Locale.class.equals(type)) {
 				value = pickRandomOneFromSet(fakerToUse, LOCALES_SET);
 			} else if (DateTimeRange.class.equals(type)) {
