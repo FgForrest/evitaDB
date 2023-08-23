@@ -61,6 +61,7 @@ import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Currency;
 import java.util.Locale;
+import java.util.UUID;
 
 /**
  * This class is used to convert any of the {@link EvitaDataTypes#getSupportedDataTypes()} types to {@link GrpcEvitaDataTypes}
@@ -109,6 +110,7 @@ public class EvitaDataTypesConverter {
 			case BYTE_NUMBER_RANGE -> (T) toByteNumberRange(value.getIntegerNumberRangeValue());
 			case LOCALE -> (T) toLocale(value.getLocaleValue());
 			case CURRENCY -> (T) toCurrency(value.getCurrencyValue());
+			case UUID -> (T) toUuid(value.getUuidValue());
 
 			case STRING_ARRAY -> (T) toStringArray(value.getStringArrayValue());
 			case BYTE_ARRAY -> (T) toByteArray(value.getIntegerArrayValue());
@@ -130,6 +132,7 @@ public class EvitaDataTypesConverter {
 			case BYTE_NUMBER_RANGE_ARRAY -> (T) toByteNumberRangeArray(value.getIntegerNumberRangeArrayValue());
 			case LOCALE_ARRAY -> (T) toLocaleArray(value.getLocaleArrayValue());
 			case CURRENCY_ARRAY -> (T) toCurrencyArray(value.getCurrencyArrayValue());
+			case UUID_ARRAY -> (T) toUuidArray(value.getUuidArrayValue());
 
 			default ->
 				throw new EvitaInternalError("Unsupported Evita data type in gRPC API `" + value.getValueCase() + "`.");
@@ -225,6 +228,8 @@ public class EvitaDataTypesConverter {
 			builder.setLocaleValue(toGrpcLocale(localeValue));
 		} else if (value instanceof Currency currencyValue) {
 			builder.setCurrencyValue(toGrpcCurrency(currencyValue));
+		} else if (value instanceof UUID uuidValue) {
+			builder.setUuidValue(toGrpcUuid(uuidValue));
 		} else if (value instanceof byte[] byteArrayValues) {
 			builder.setIntegerArrayValue(toGrpcByteArray(byteArrayValues));
 		} else if (value instanceof short[] shortArrayValues) {
@@ -277,6 +282,8 @@ public class EvitaDataTypesConverter {
 			builder.setLocaleArrayValue(toGrpcLocaleArray(localeArrayValues));
 		} else if (value instanceof Currency[] currencyArrayValues) {
 			builder.setCurrencyArrayValue(toGrpcCurrencyArray(currencyArrayValues));
+		} else if (value instanceof UUID[] uuidArrayValues) {
+			builder.setUuidArrayValue(toGrpcUuidArray(uuidArrayValues));
 		} else {
 			throw new EvitaInvalidUsageException("Unsupported Evita data type in gRPC API '" + value.getClass().getName() + "'.");
 		}
@@ -451,6 +458,8 @@ public class EvitaDataTypesConverter {
 			return GrpcEvitaDataType.LOCALE;
 		} else if (dataType.equals(Currency.class)) {
 			return GrpcEvitaDataType.CURRENCY;
+		} else if (dataType.equals(UUID.class)) {
+			return GrpcEvitaDataType.UUID;
 		} else if (dataType.equals(String[].class)) {
 			return GrpcEvitaDataType.STRING_ARRAY;
 		} else if (dataType.equals(Character[].class)) {
@@ -503,6 +512,8 @@ public class EvitaDataTypesConverter {
 			return GrpcEvitaDataType.LOCALE_ARRAY;
 		} else if (dataType.equals(Currency[].class)) {
 			return GrpcEvitaDataType.CURRENCY_ARRAY;
+		} else if (dataType.equals(UUID[].class)) {
+			return GrpcEvitaDataType.UUID_ARRAY;
 		} else {
 			throw new EvitaInvalidUsageException("Unsupported Evita data type in gRPC API `" + dataType.getName() + "`.");
 		}
@@ -603,6 +614,22 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static Currency[] toCurrencyArray(@Nonnull GrpcCurrencyArray arrayValue) {
 		return arrayValue.getValueList().stream().map(EvitaDataTypesConverter::toCurrency).toArray(Currency[]::new);
+	}
+
+	/**
+	 * This method is used to convert a {@link GrpcUuid} to {@link UUID}.
+	 *
+	 * @param uuid value to be converted
+	 * @return {@link UUID} instance
+	 */
+	@Nonnull
+	public static UUID toUuid(@Nonnull GrpcUuid uuid) {
+		return new UUID(uuid.getMostSignificantBits(), uuid.getLeastSignificantBits());
+	}
+
+	@Nonnull
+	public static UUID[] toUuidArray(@Nonnull GrpcUuidArray arrayValue) {
+		return arrayValue.getValueList().stream().map(EvitaDataTypesConverter::toUuid).toArray(UUID[]::new);
 	}
 
 	/**
@@ -1243,4 +1270,26 @@ public class EvitaDataTypesConverter {
 		Arrays.stream(currencyArrayValues).map(EvitaDataTypesConverter::toGrpcCurrency).forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
+
+	/**
+	 * This method is used to convert a {@link UUID} to {@link GrpcUuid}.
+	 *
+	 * @param uuid value to be converted
+	 * @return {@link GrpcUuid} value
+	 */
+	@Nonnull
+	public static GrpcUuid toGrpcUuid(@Nonnull UUID uuid) {
+		return GrpcUuid.newBuilder()
+			.setMostSignificantBits(uuid.getMostSignificantBits())
+			.setLeastSignificantBits(uuid.getLeastSignificantBits())
+			.build();
+	}
+
+	@Nonnull
+	public static GrpcUuidArray toGrpcUuidArray(@Nonnull UUID[] uuidArrayValues) {
+		final GrpcUuidArray.Builder valueBuilder = GrpcUuidArray.newBuilder();
+		Arrays.stream(uuidArrayValues).map(EvitaDataTypesConverter::toGrpcUuid).forEach(valueBuilder::addValue);
+		return valueBuilder.build();
+	}
+	
 }

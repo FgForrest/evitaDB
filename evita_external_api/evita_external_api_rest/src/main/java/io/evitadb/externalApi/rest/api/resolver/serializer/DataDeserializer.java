@@ -62,6 +62,7 @@ import java.util.Currency;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
@@ -156,6 +157,7 @@ public class DataDeserializer {
 			LocalDate.class.isAssignableFrom(targetClass) ||
 			LocalTime.class.isAssignableFrom(targetClass) ||
 			Currency.class.isAssignableFrom(targetClass) ||
+			UUID.class.isAssignableFrom(targetClass) ||
 			BigDecimal.class.isAssignableFrom(targetClass) ||
 			Long.class.isAssignableFrom(targetClass) ||
 			long.class.isAssignableFrom(targetClass) ||
@@ -429,6 +431,7 @@ public class DataDeserializer {
 				case OpenApiConstants.FORMAT_LOCAL_TIME -> LocalTime.class;
 				case OpenApiConstants.FORMAT_LOCAL_DATE_TIME -> LocalDateTime.class;
 				case OpenApiConstants.FORMAT_CURRENCY -> Currency.class;
+				case OpenApiConstants.FORMAT_UUID -> UUID.class;
 				case OpenApiConstants.FORMAT_LOCALE -> Locale.class;
 				case OpenApiConstants.FORMAT_CHAR -> Character.class;
 				case OpenApiConstants.FORMAT_DECIMAL -> BigDecimal.class;

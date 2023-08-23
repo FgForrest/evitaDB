@@ -372,6 +372,7 @@ valueToken
     | FLOAT_NUMBER_RANGE                                                                                  # floatNumberRangeValueToken
     | INT_NUMBER_RANGE                                                                                    # intNumberRangeValueToken
     | DATE_TIME_RANGE                                                                                     # dateTimeRangeValueToken
+    | UUID                                                                                                # uuidValueToken
     | ENUM                                                                                                # enumValueToken
     ;
 
@@ -410,6 +411,8 @@ FLOAT_NUMBER_RANGE : '[' FLOAT? ',' FLOAT? ']' ;
 INT_NUMBER_RANGE : '[' INT? ',' INT? ']' ;
 
 DATE_TIME_RANGE : '[' OFFSET_DATE_TIME? ',' OFFSET_DATE_TIME? ']' ;
+
+UUID : [a-z0-9]+ '-' [a-z0-9]+ '-' [a-z0-9]+ '-' [a-z0-9]+ '-' [a-z0-9]+;
 
 ENUM : [A-Z]+ ('_' [A-Z]+)* ;
 

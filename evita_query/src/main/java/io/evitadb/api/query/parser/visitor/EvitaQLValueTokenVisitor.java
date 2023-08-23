@@ -28,7 +28,6 @@ import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.Value;
 import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ByteNumberRange;
@@ -53,7 +52,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Supplier;
+
+import static io.evitadb.api.query.parser.grammar.EvitaQLParser.*;
 
 /**
  * <p>Implementation of {@link EvitaQLVisitor} for parsing all values: parameters, literals and their variadic variants.
@@ -135,6 +137,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
             ByteNumberRange.class,
             Locale.class,
             Currency.class,
+            UUID.class,
             Enum.class
         );
     }
@@ -161,7 +164,8 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
             LongNumberRange.class,
             IntegerNumberRange.class,
             ShortNumberRange.class,
-            ByteNumberRange.class
+            ByteNumberRange.class,
+            UUID.class
         );
     }
 
@@ -174,7 +178,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
 
 
     @Override
-    public Value visitPositionalParameterVariadicValueTokens(@Nonnull EvitaQLParser.PositionalParameterVariadicValueTokensContext ctx) {
+    public Value visitPositionalParameterVariadicValueTokens(@Nonnull PositionalParameterVariadicValueTokensContext ctx) {
         return parse(
             ctx,
             () -> {
@@ -185,7 +189,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitNamedParameterVariadicValueTokens(@Nonnull EvitaQLParser.NamedParameterVariadicValueTokensContext ctx) {
+    public Value visitNamedParameterVariadicValueTokens(@Nonnull NamedParameterVariadicValueTokensContext ctx) {
         return parse(
             ctx,
             () -> {
@@ -196,7 +200,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitExplicitVariadicValueTokens(@Nonnull EvitaQLParser.ExplicitVariadicValueTokensContext ctx) {
+    public Value visitExplicitVariadicValueTokens(@Nonnull ExplicitVariadicValueTokensContext ctx) {
         return parse(
             ctx,
             () -> new Value(
@@ -209,7 +213,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitPositionalParameterValueToken(@Nonnull EvitaQLParser.PositionalParameterValueTokenContext ctx) {
+    public Value visitPositionalParameterValueToken(@Nonnull PositionalParameterValueTokenContext ctx) {
         return parse(
             ctx,
             () -> {
@@ -221,7 +225,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitNamedParameterValueToken(@Nonnull EvitaQLParser.NamedParameterValueTokenContext ctx) {
+    public Value visitNamedParameterValueToken(@Nonnull NamedParameterValueTokenContext ctx) {
         return parse(
             ctx,
             () -> {
@@ -233,7 +237,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitIntValueToken(@Nonnull EvitaQLParser.IntValueTokenContext ctx) {
+    public Value visitIntValueToken(@Nonnull IntValueTokenContext ctx) {
         return parse(
             ctx,
             Long.class,
@@ -242,7 +246,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitStringValueToken(@Nonnull EvitaQLParser.StringValueTokenContext ctx) {
+    public Value visitStringValueToken(@Nonnull StringValueTokenContext ctx) {
         return parse(
             ctx,
             String.class,
@@ -251,7 +255,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitFloatValueToken(@Nonnull EvitaQLParser.FloatValueTokenContext ctx) {
+    public Value visitFloatValueToken(@Nonnull FloatValueTokenContext ctx) {
         return parse(
             ctx,
             BigDecimal.class,
@@ -260,7 +264,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitBooleanValueToken(@Nonnull EvitaQLParser.BooleanValueTokenContext ctx) {
+    public Value visitBooleanValueToken(@Nonnull BooleanValueTokenContext ctx) {
         return parse(
             ctx,
             Boolean.class,
@@ -269,7 +273,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitDateValueToken(@Nonnull EvitaQLParser.DateValueTokenContext ctx) {
+    public Value visitDateValueToken(@Nonnull DateValueTokenContext ctx) {
         return parse(
             ctx,
             LocalDate.class,
@@ -278,7 +282,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitTimeValueToken(@Nonnull EvitaQLParser.TimeValueTokenContext ctx) {
+    public Value visitTimeValueToken(@Nonnull TimeValueTokenContext ctx) {
         return parse(
             ctx,
             LocalTime.class,
@@ -287,7 +291,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitDateTimeValueToken(@Nonnull EvitaQLParser.DateTimeValueTokenContext ctx) {
+    public Value visitDateTimeValueToken(@Nonnull DateTimeValueTokenContext ctx) {
         return parse(
             ctx,
             LocalDateTime.class,
@@ -296,7 +300,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitOffsetDateTimeValueToken(@Nonnull EvitaQLParser.OffsetDateTimeValueTokenContext ctx) {
+    public Value visitOffsetDateTimeValueToken(@Nonnull OffsetDateTimeValueTokenContext ctx) {
         return parse(
             ctx,
             OffsetDateTime.class,
@@ -305,7 +309,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitEnumValueToken(@Nonnull EvitaQLParser.EnumValueTokenContext ctx) {
+    public Value visitEnumValueToken(@Nonnull EnumValueTokenContext ctx) {
         assertLiteralIsAllowed(ctx);
         assertSubclassOfDataTypeIsAllowed(ctx, Enum.class);
 
@@ -315,7 +319,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitFloatNumberRangeValueToken(@Nonnull EvitaQLParser.FloatNumberRangeValueTokenContext ctx) {
+    public Value visitFloatNumberRangeValueToken(@Nonnull FloatNumberRangeValueTokenContext ctx) {
         return parse(
             ctx,
             BigDecimalNumberRange.class,
@@ -324,7 +328,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitIntNumberRangeValueToken(@Nonnull EvitaQLParser.IntNumberRangeValueTokenContext ctx) {
+    public Value visitIntNumberRangeValueToken(@Nonnull IntNumberRangeValueTokenContext ctx) {
         return parse(
             ctx,
             LongNumberRange.class,
@@ -333,11 +337,20 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitDateTimeRangeValueToken(@Nonnull EvitaQLParser.DateTimeRangeValueTokenContext ctx) {
+    public Value visitDateTimeRangeValueToken(@Nonnull DateTimeRangeValueTokenContext ctx) {
         return parse(
             ctx,
             DateTimeRange.class,
             () -> DateTimeRange.fromString(ctx.getText())
+        );
+    }
+
+    @Override
+    public Value visitUuidValueToken(@Nonnull UuidValueTokenContext ctx) {
+        return parse(
+            ctx,
+            UUID.class,
+            () -> java.util.UUID.fromString(ctx.getText())
         );
     }
 
