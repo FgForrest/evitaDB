@@ -59,6 +59,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiArray.arrayOf;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiEnum.enumFrom;
@@ -167,6 +168,17 @@ class DataDeserializerTest {
 		final Object deserialized = dataDeserializer.deserializeValue(scalarFrom(Currency.class).toSchema(), new String[]{"CZK"});
 		if (deserialized instanceof Currency val) {
 			assertEquals(Currency.getInstance("CZK"), val);
+		} else {
+			fail();
+		}
+	}
+
+	@Test
+	void shouldDeserializeUuid() {
+		final UUID uuid = UUID.randomUUID();
+		final Object deserialized = dataDeserializer.deserializeValue(scalarFrom(UUID.class).toSchema(), new String[]{uuid.toString()});
+		if (deserialized instanceof UUID val) {
+			assertEquals(uuid, val);
 		} else {
 			fail();
 		}

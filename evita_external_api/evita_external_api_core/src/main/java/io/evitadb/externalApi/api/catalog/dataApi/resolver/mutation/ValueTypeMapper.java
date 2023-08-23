@@ -45,6 +45,7 @@ import java.util.Collections;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
@@ -100,6 +101,8 @@ public class ValueTypeMapper implements Function<Object, Class<? extends Seriali
 		registerTypeMapping(mappings, Locale[].class);
 		registerTypeMapping(mappings, Currency.class);
 		registerTypeMapping(mappings, Currency[].class);
+		registerTypeMapping(mappings, UUID.class);
+		registerTypeMapping(mappings, UUID[].class);
 		registerTypeMapping(mappings, ComplexDataObject.class);
 		VALUE_TYPE_MAPPINGS = Collections.unmodifiableMap(mappings);
 	}

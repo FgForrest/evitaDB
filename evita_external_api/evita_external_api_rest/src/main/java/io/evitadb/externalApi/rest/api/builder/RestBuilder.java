@@ -30,9 +30,9 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.ShortNumberRange;
+import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiDictionaryTransformer;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiObjectTransformer;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiUnionTransformer;
-import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiDictionaryTransformer;
 import io.evitadb.externalApi.rest.api.model.PropertyDataTypeDescriptorToOpenApiTypeTransformer;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiOperationPathParameterTransformer;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiOperationQueryParameterTransformer;
@@ -48,6 +48,7 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.Currency;
 import java.util.Locale;
+import java.util.UUID;
 
 import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.SCALAR_ENUM;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiEnum.newEnum;
@@ -131,6 +132,8 @@ public abstract class RestBuilder<C extends RestBuildingContext> {
 		scalarEnumBuilder.item(DataTypeSerializer.serialize(Locale[].class));
 		scalarEnumBuilder.item(DataTypeSerializer.serialize(Currency.class));
 		scalarEnumBuilder.item(DataTypeSerializer.serialize(Currency[].class));
+		scalarEnumBuilder.item(DataTypeSerializer.serialize(UUID.class));
+		scalarEnumBuilder.item(DataTypeSerializer.serialize(UUID[].class));
 		scalarEnumBuilder.item(DataTypeSerializer.serialize(ComplexDataObject.class));
 
 		return scalarEnumBuilder.build();
