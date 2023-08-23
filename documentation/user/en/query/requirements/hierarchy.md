@@ -194,7 +194,7 @@ hierarchyOfReference(
         transitively):
 
         - **LEAVE_EMPTY**: empty hierarchical nodes will remain in computed data structures 
-        - **REMOVE_EMPTY**: empty hierarchical nodes are omitted from computed data structures
+        - **REMOVE_EMPTY**: empty hierarchical nodes are omitted from computed data structures (default behaviour)
     </dd>
     <dt>orderConstraint:any</dt>
     <dd>
