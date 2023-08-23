@@ -251,6 +251,13 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitAttributeInRangeConstraint(EvitaQLParser.AttributeInRangeConstraintContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code attributeInRangeNowConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitAttributeInRangeNowConstraint(EvitaQLParser.AttributeInRangeNowConstraintContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code entityPrimaryKeyInSetConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
 	 * @param ctx the parse tree

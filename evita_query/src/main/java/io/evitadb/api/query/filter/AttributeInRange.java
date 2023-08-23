@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query.filter;
 
+import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
@@ -44,6 +45,7 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
+import java.util.Optional;
 
 /**
  * This `inRange` is query that compares value of the attribute with name passed in first argument with the date
@@ -90,7 +92,7 @@ import java.time.OffsetDateTime;
 		arraysSupported = true
 	)
 )
-public class AttributeInRange extends AbstractAttributeFilterConstraintLeaf implements IndexUsingConstraint {
+public class AttributeInRange extends AbstractAttributeFilterConstraintLeaf implements IndexUsingConstraint, ConstraintWithSuffix {
 	@Serial private static final long serialVersionUID = -6018832750772234247L;
 
 	private AttributeInRange(Serializable... arguments) {
@@ -157,6 +159,12 @@ public class AttributeInRange extends AbstractAttributeFilterConstraintLeaf impl
 		} else {
 			return null;
 		}
+	}
+
+	@Nonnull
+	@Override
+	public Optional<String> getSuffixIfApplied() {
+		return getArguments().length == 1 ? Optional.of("Now") : Optional.empty();
 	}
 
 	@Nonnull

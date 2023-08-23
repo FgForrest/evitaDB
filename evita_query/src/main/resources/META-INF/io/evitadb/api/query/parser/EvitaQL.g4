@@ -63,6 +63,7 @@ filterConstraint
     | 'attributeIsNull'                     args = classifierArgs                                           # attributeIsNullConstraint
     | 'attributeIsNotNull'                  args = classifierArgs                                           # attributeIsNotNullConstraint
     | 'attributeInRange'                    args = classifierWithValueArgs                                  # attributeInRangeConstraint
+    | 'attributeInRangeNow'                 args = classifierArgs                                           # attributeInRangeNowConstraint
     | 'entityPrimaryKeyInSet'               args = valueListArgs                                            # entityPrimaryKeyInSetConstraint
     | 'entityLocaleEquals'                  args = valueArgs                                                # entityLocaleEqualsConstraint
     | 'priceInCurrency'                     args = valueArgs                                                # priceInCurrencyConstraint
