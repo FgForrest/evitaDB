@@ -399,6 +399,18 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitAttributeInRangeConstraint(EvitaQLParser.AttributeInRangeConstraintContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code attributeInRangeNowConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterAttributeInRangeNowConstraint(EvitaQLParser.AttributeInRangeNowConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code attributeInRangeNowConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitAttributeInRangeNowConstraint(EvitaQLParser.AttributeInRangeNowConstraintContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code entityPrimaryKeyInSetConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
 	 * @param ctx the parse tree
