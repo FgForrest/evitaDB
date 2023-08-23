@@ -360,6 +360,7 @@ public class EvitaDataTypesConverter {
 			case BYTE_NUMBER_RANGE -> ByteNumberRange.class;
 			case LOCALE -> Locale.class;
 			case CURRENCY -> Currency.class;
+			case UUID -> UUID.class;
 			case STRING_ARRAY -> String[].class;
 			case BYTE_ARRAY -> Byte[].class;
 			case SHORT_ARRAY -> Short[].class;
@@ -380,6 +381,7 @@ public class EvitaDataTypesConverter {
 			case BYTE_NUMBER_RANGE_ARRAY -> ByteNumberRange[].class;
 			case LOCALE_ARRAY -> Locale[].class;
 			case CURRENCY_ARRAY -> Currency[].class;
+			case UUID_ARRAY -> UUID[].class;
 			default ->
 				throw new EvitaInternalError("Unsupported Evita data type in gRPC API `" + dataType.getValueDescriptor() + "`.");
 		};
