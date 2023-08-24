@@ -29,7 +29,6 @@ import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureSubscriber;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
@@ -40,8 +39,6 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.Flow.Publisher;
-import java.util.concurrent.Flow.Subscriber;
 import java.util.function.Consumer;
 import java.util.function.Function;
 

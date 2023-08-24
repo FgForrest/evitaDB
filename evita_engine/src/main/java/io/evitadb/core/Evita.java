@@ -41,7 +41,6 @@ import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureSubscriber;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;

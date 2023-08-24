@@ -21,26 +21,28 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.cdc;
+package io.evitadb.driver.service;
 
-import javax.annotation.Nonnull;
-import java.util.UUID;
-import java.util.concurrent.Flow.Subscription;
+import io.grpc.ManagedChannel;
+
+import javax.annotation.concurrent.NotThreadSafe;
 
 /**
- * Subscription extension that allows to identify the subscription by its {@link UUID} identification.
+ * Abstracts the logic of supplying an instance of a channel to a gRPC service.
+ * It's not thread safe and a single instance should be used only during a single service call.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface NamedSubscription extends Subscription {
+@NotThreadSafe
+public interface ChannelSupplier {
 
 	/**
-	 * Returns the ID assigned by the server to this subscription. This ID can be used to identify the subscription
-	 * among other subscriptions on the server.
-	 *
-	 * @return the ID assigned by the server to this subscription
+	 * Get a channel instance ready to use.
 	 */
-	@Nonnull
-	UUID id();
+	ManagedChannel getChannel();
 
+	/**
+	 * Release the channel instance from {@link #getChannel()}
+	 */
+	void releaseChannel();
 }

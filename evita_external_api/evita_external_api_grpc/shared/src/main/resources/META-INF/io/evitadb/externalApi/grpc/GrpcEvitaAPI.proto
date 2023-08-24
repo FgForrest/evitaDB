@@ -110,19 +110,8 @@ message GrpcRegisterSystemChangeCaptureRequest {
 }
 
 message GrpcRegisterSystemChangeCaptureResponse {
-  /*string uuid = 1;
-  GrpcChangeSystemCapture capture = 2;
-  GrpcCaptureResponseType responseType = 3;*/
   GrpcChangeSystemCapture capture = 1;
 }
-
-/*message GrpcUnregisterSystemChangeCaptureRequest {
-  string uuid = 1;
-}
-
-message GrpcUnregisterSystemChangeCaptureResponse {
-  bool success = 1;
-}*/
 
 // This service contains RPCs that could be called by gRPC clients on evitaDB. Main purpose of this service is to provide
 // a way to create sessions and catalogs, and to update the catalog.
@@ -151,5 +140,4 @@ service EvitaService {
   rpc Update(GrpcUpdateEvitaRequest) returns (google.protobuf.Empty);
 
   rpc RegisterSystemChangeCapture(GrpcRegisterSystemChangeCaptureRequest) returns (stream GrpcRegisterSystemChangeCaptureResponse);
-  //rpc UnregisterSystemChangeCapture(GrpcUnregisterSystemChangeCaptureRequest) returns (GrpcUnregisterSystemChangeCaptureResponse);
 }

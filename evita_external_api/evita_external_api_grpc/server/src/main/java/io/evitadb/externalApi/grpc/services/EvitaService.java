@@ -30,12 +30,8 @@ import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
-import io.evitadb.api.requestResponse.cdc.NamedSubscription;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.grpc.cdc.ServerSystemResponseObserver;
-import io.evitadb.externalApi.grpc.cdc.SystemChangeSubscriber;
-import io.evitadb.externalApi.grpc.dataType.ChangeDataCaptureConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
@@ -47,15 +43,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Publisher;
-import java.util.concurrent.Flow.Subscriber;
-import java.util.concurrent.Flow.Subscription;
 
-import static io.evitadb.externalApi.grpc.dataType.ChangeDataCaptureConverter.toChangeSystemCapture;
-import static io.evitadb.externalApi.grpc.dataType.ChangeDataCaptureConverter.toGrpcChangeSystemCapture;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toCaptureContent;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCatalogState;
 
@@ -278,40 +267,14 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 
 	@Override
 	public void registerSystemChangeCapture(GrpcRegisterSystemChangeCaptureRequest request, StreamObserver<GrpcRegisterSystemChangeCaptureResponse> responseObserver) {
-		final Publisher<ChangeSystemCapture> publisher = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(toCaptureContent(request.getContent())));
+		final Publisher<ChangeSystemCapture> publisher = evita.registerSystemChangeCapture(
+			new ChangeSystemCaptureRequest(toCaptureContent(request.getContent()))
+		);
 
-		final ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse> observer = ((ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse>) responseObserver);
+		final ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse> observer =
+			((ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse>) responseObserver);
 
-		publisher.subscribe(new Subscriber<>() {
-
-			private Subscription subscription;
-
-			@Override
-			public void onSubscribe(Subscription subscription) {
-				this.subscription = subscription;
-				// netty channel builder doesn't allow for manual flow control using these requests, but we need to initialize somehow
-				/*observer.setOnReadyHandler(() -> */subscription.request(1)/*)*/;
-				observer.setOnCancelHandler(subscription::cancel);
-			}
-
-			@Override
-			public void onNext(ChangeSystemCapture item) {
-				observer.onNext(GrpcRegisterSystemChangeCaptureResponse.newBuilder()
-					.setCapture(ChangeDataCaptureConverter.toGrpcChangeSystemCapture(item))
-					.build());
-				// netty channel builder doesn't allow for manual flow control using these requests
-				subscription.request(1);
-			}
-
-			@Override
-			public void onError(Throwable throwable) {
-				observer.onError(throwable);
-			}
-
-			@Override
-			public void onComplete() {
-				observer.onCompleted();
-			}
-		});
+		publisher.subscribe(new ServerChangeSystemCaptureSubscriber(observer));
 	}
+
 }

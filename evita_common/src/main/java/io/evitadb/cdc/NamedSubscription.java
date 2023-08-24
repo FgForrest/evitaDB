@@ -21,25 +21,25 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.cdc;
+package io.evitadb.cdc;
 
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.UUID;
+import java.util.concurrent.Flow.Subscription;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
- * Server-side subscription implementation to a CDC stream.
+ * Subscription implementation to a CDC stream for both client and server side.
  * Internal use only.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-// todo lho dont like this in api
 @RequiredArgsConstructor
-public class SubscriptionImpl implements NamedSubscription {
-	// todo lho we should need the id only in serversubscription, so these two could be merged to server subscription (maybe i need it on client side too)
+public class NamedSubscription implements Subscription {
+
 	/**
 	 * Unique identifier of this subscription.
 	 */
@@ -54,7 +54,6 @@ public class SubscriptionImpl implements NamedSubscription {
 	private final BiConsumer<UUID, Long> requester;
 
 	@Nonnull
-	@Override
 	public UUID id() {
 		return id;
 	}

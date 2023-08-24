@@ -36,17 +36,20 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBu
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
+import io.evitadb.driver.cdc.ClientChangeSystemCapturePublisher;
 import io.evitadb.driver.cdc.ClientSubscription;
-import io.evitadb.driver.cdc.ClientChangeCaptureProcessor;
 import io.evitadb.driver.certificate.ClientCertificateManager;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientNotTerminatedInTimeException;
 import io.evitadb.driver.pooling.ChannelPool;
+import io.evitadb.driver.service.ChannelSupplier;
+import io.evitadb.driver.service.PooledChannelSupplier;
+import io.evitadb.driver.service.SharedChannelSupplier;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceBlockingStub;
-import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceFutureStub;
+import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceStub;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
@@ -59,7 +62,6 @@ import io.evitadb.utils.UUIDUtil;
 import io.grpc.ManagedChannel;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
-import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.netty.NettyChannelBuilder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -67,8 +69,19 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -135,21 +148,56 @@ public class EvitaClient implements EvitaContract {
 	private final List<ClientSubscription> activeSubscriptions = new ArrayList<>(8);
 
 	/**
+	 * Method that is called within the {@link EvitaClientSession} to apply the wanted blocking logic on a channel retrieved
+	 * from a channel pool.
+	 *
+	 * @param logic function that holds a logic passed by the caller
+	 * @param <T>   return type of the function
+	 * @return result of the applied function
+	 */
+	private <T> T executeWithBlockingEvitaService(@Nonnull Function<EvitaServiceBlockingStub, T> logic) {
+		return executeWithEvitaService(
+			new PooledChannelSupplier(this.channelPool),
+			EvitaServiceGrpc::newBlockingStub,
+			logic
+		);
+	}
+
+	/**
+	 * Method that is called within the {@link EvitaClientSession} to apply the wanted streaming logic on the shared
+	 * streaming channel.
+	 *
+	 * @param logic function that holds a logic passed by the caller
+	 */
+	private void executeWithStreamingEvitaService(@Nonnull Consumer<EvitaServiceStub> logic) {
+		executeWithEvitaService(
+			new SharedChannelSupplier(this.cdcChannel),
+			EvitaServiceGrpc::newStub,
+			stub -> {
+				logic.accept(stub);
+				return null;
+			}
+		);
+	}
+
+	/**
 	 * Method that is called within the {@link EvitaClientSession} to apply the wanted logic on a channel retrieved
 	 * from a channel pool.
 	 *
-	 * @param evitaServiceBlockingStub function that holds a logic passed by the caller
+	 * @param logic function that holds a logic passed by the caller
 	 * @param <T>                      return type of the function
 	 * @return result of the applied function
 	 */
-	private <T> T executeWithEvitaService(@Nonnull Function<EvitaServiceBlockingStub, T> evitaServiceBlockingStub) {
+	private <S, T> T executeWithEvitaService(@Nonnull ChannelSupplier channelSupplier,
+	                                         @Nonnull Function<ManagedChannel, S> stubBuilder,
+	                                         @Nonnull Function<S, T> logic) {
 		return executeWithClientAndRequestId(
 			configuration.clientId(),
 			UUIDUtil.randomUUID().toString(),
 			() -> {
-				final ManagedChannel managedChannel = this.channelPool.getChannel();
+				final ManagedChannel managedChannel = channelSupplier.getChannel();
 				try {
-					return evitaServiceBlockingStub.apply(EvitaServiceGrpc.newBlockingStub(managedChannel));
+					return logic.apply(stubBuilder.apply(managedChannel));
 				} catch (StatusRuntimeException statusRuntimeException) {
 					final Code statusCode = statusRuntimeException.getStatus().getCode();
 					final String description = ofNullable(statusRuntimeException.getStatus().getDescription())
@@ -183,7 +231,7 @@ public class EvitaClient implements EvitaContract {
 						e
 					);
 				} finally {
-					this.channelPool.releaseChannel(managedChannel);
+					channelSupplier.releaseChannel();
 				}
 			}
 		);
@@ -240,18 +288,17 @@ public class EvitaClient implements EvitaContract {
 
 	@Override
 	public ChangeCapturePublisher<ChangeSystemCapture> registerSystemChangeCapture(@Nonnull ChangeSystemCaptureRequest request) {
-		final EvitaServiceGrpc.EvitaServiceStub stub = EvitaServiceGrpc.newStub(this.cdcChannel);
-
-		final ClientChangeCaptureProcessor clientResponseObserver = new ClientChangeCaptureProcessor();
-		// todo lho wrap this into executeWithEvitaService
-		stub.registerSystemChangeCapture(
-			GrpcRegisterSystemChangeCaptureRequest.newBuilder()
-				.setContent(EvitaEnumConverter.toGrpcCaptureContent(request.content()))
-				.build(),
-			clientResponseObserver
+		// todo jno: use this as an inspiration for the implementation of the catalog changes
+		final ClientChangeSystemCapturePublisher clientPublisher = new ClientChangeSystemCapturePublisher();
+		executeWithStreamingEvitaService(stub ->
+			stub.registerSystemChangeCapture(
+				GrpcRegisterSystemChangeCaptureRequest.newBuilder()
+					.setContent(EvitaEnumConverter.toGrpcCaptureContent(request.content()))
+					.build(),
+				clientPublisher
+			)
 		);
-
-		return clientResponseObserver;
+		return clientPublisher;
 	}
 
 	@Nonnull
@@ -278,7 +325,7 @@ public class EvitaClient implements EvitaContract {
 
 		if (traits.isReadWrite()) {
 			if (traits.isBinary()) {
-				grpcResponse = executeWithEvitaService(evitaService ->
+				grpcResponse = executeWithBlockingEvitaService(evitaService ->
 					evitaService.createBinaryReadWriteSession(
 						GrpcEvitaSessionRequest.newBuilder()
 							.setCatalogName(traits.catalogName())
@@ -287,7 +334,7 @@ public class EvitaClient implements EvitaContract {
 					)
 				);
 			} else {
-				grpcResponse = executeWithEvitaService(evitaService ->
+				grpcResponse = executeWithBlockingEvitaService(evitaService ->
 					evitaService.createReadWriteSession(
 						GrpcEvitaSessionRequest.newBuilder()
 							.setCatalogName(traits.catalogName())
@@ -298,7 +345,7 @@ public class EvitaClient implements EvitaContract {
 			}
 		} else {
 			if (traits.isBinary()) {
-				grpcResponse = executeWithEvitaService(evitaService ->
+				grpcResponse = executeWithBlockingEvitaService(evitaService ->
 					evitaService.createBinaryReadOnlySession(
 						GrpcEvitaSessionRequest.newBuilder()
 							.setCatalogName(traits.catalogName())
@@ -307,7 +354,7 @@ public class EvitaClient implements EvitaContract {
 					)
 				);
 			} else {
-				grpcResponse = executeWithEvitaService(evitaService ->
+				grpcResponse = executeWithBlockingEvitaService(evitaService ->
 					evitaService.createReadOnlySession(
 						GrpcEvitaSessionRequest.newBuilder()
 							.setCatalogName(traits.catalogName())
@@ -364,7 +411,7 @@ public class EvitaClient implements EvitaContract {
 	@Override
 	public Set<String> getCatalogNames() {
 		assertActive();
-		final GrpcCatalogNamesResponse grpcResponse = executeWithEvitaService(evitaService -> evitaService.getCatalogNames(Empty.newBuilder().build()));
+		final GrpcCatalogNamesResponse grpcResponse = executeWithBlockingEvitaService(evitaService -> evitaService.getCatalogNames(Empty.newBuilder().build()));
 		return new LinkedHashSet<>(
 			grpcResponse.getCatalogNamesList()
 		);
@@ -389,7 +436,7 @@ public class EvitaClient implements EvitaContract {
 			.setCatalogName(catalogName)
 			.setNewCatalogName(newCatalogName)
 			.build();
-		final GrpcRenameCatalogResponse grpcResponse = executeWithEvitaService(evitaService -> evitaService.renameCatalog(request));
+		final GrpcRenameCatalogResponse grpcResponse = executeWithBlockingEvitaService(evitaService -> evitaService.renameCatalog(request));
 		final boolean success = grpcResponse.getSuccess();
 		if (success) {
 			this.entitySchemaCache.remove(catalogName);
@@ -404,7 +451,7 @@ public class EvitaClient implements EvitaContract {
 			.setCatalogNameToBeReplacedWith(catalogNameToBeReplacedWith)
 			.setCatalogNameToBeReplaced(catalogNameToBeReplaced)
 			.build();
-		final GrpcReplaceCatalogResponse grpcResponse = executeWithEvitaService(evitaService -> evitaService.replaceCatalog(request));
+		final GrpcReplaceCatalogResponse grpcResponse = executeWithBlockingEvitaService(evitaService -> evitaService.replaceCatalog(request));
 		final boolean success = grpcResponse.getSuccess();
 		if (success) {
 			this.entitySchemaCache.remove(catalogNameToBeReplaced);
@@ -419,7 +466,7 @@ public class EvitaClient implements EvitaContract {
 		final GrpcDeleteCatalogIfExistsRequest request = GrpcDeleteCatalogIfExistsRequest.newBuilder()
 			.setCatalogName(catalogName)
 			.build();
-		final GrpcDeleteCatalogIfExistsResponse grpcResponse = executeWithEvitaService(evitaService -> evitaService.deleteCatalogIfExists(request));
+		final GrpcDeleteCatalogIfExistsResponse grpcResponse = executeWithBlockingEvitaService(evitaService -> evitaService.deleteCatalogIfExists(request));
 		final boolean success = grpcResponse.getSuccess();
 		if (success) {
 			this.entitySchemaCache.remove(catalogName);
@@ -438,7 +485,7 @@ public class EvitaClient implements EvitaContract {
 		final GrpcUpdateEvitaRequest request = GrpcUpdateEvitaRequest.newBuilder()
 			.addAllSchemaMutations(grpcSchemaMutations)
 			.build();
-		executeWithEvitaService(evitaService -> evitaService.update(request));
+		executeWithBlockingEvitaService(evitaService -> evitaService.update(request));
 	}
 
 	@Override

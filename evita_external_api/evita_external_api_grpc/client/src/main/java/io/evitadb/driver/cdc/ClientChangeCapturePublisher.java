@@ -27,10 +27,9 @@ import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.requestResponse.cdc.ChangeCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
-import io.evitadb.api.requestResponse.cdc.SubscriptionImpl;
+import io.evitadb.cdc.NamedSubscription;
+import io.evitadb.driver.exception.PublisherClosedByClientException;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest;
-import io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse;
 import io.evitadb.utils.Assert;
 import io.grpc.stub.ClientCallStreamObserver;
 import io.grpc.stub.ClientResponseObserver;
@@ -42,22 +41,48 @@ import java.util.UUID;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static io.evitadb.externalApi.grpc.dataType.ChangeDataCaptureConverter.toChangeSystemCapture;
 import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
 
 /**
- * TODO LHO: docs
+ * Client-side implementation of {@link ChangeCapturePublisher} that is used to publish {@link ChangeSystemCapture}s
+ * received from the server using the {@link ClientCallStreamObserver}. It basically just delegates the bulk of received
+ * captures to subscribers that requested them.
+ *
+ * <h3>How it works</h3>
+ * <p>
+ * It manages subscribers on its own (it doesn't send any info about them to the server), the server just knows about a single
+ * observer (this publisher, of course, there may be multiple different concurrent publishers) which receives all captures
+ * defined by an initial request.
+ * <p>
+ * The publisher doesn't have any buffer of captures (there is only buffer on the network side of the gRPC implementation),
+ * therefore, if a client doesn't request another captures right away in the {@link Subscriber#onNext(Object)} callback,
+ * it may not receive all captures in a consumed sequence of captures (there may be holes). On the other hand, subscriber
+ * may stop requesting captures at any time, and start requesting them again later without publisher closing the subscriber.
+ *
+ * <h3>Back-pressure</h3>
+ * <p>
+ * Because the used underlying {@link io.grpc.netty.NettyChannelBuilder} doesn't allow for proper manual flow control
+ * using {@link ClientCallStreamObserver#request(int)}, we have fallback to using auto flow control between a client and
+ * server, and the back-pressure is handled on the client side by this publisher. This means that the server will always
+ * send all captures to the backend of client, but if no subscriber requests more captures, the publisher will not just
+ * throw them away. More specifically, the connection is using a back-pressure mechanism with the above-mentioned mechanism
+ * but is not interconnected with the back-pressure used in the client side subscribers.
+ *
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class ClientChangeCaptureProcessor implements ChangeCapturePublisher<ChangeSystemCapture>, ClientResponseObserver<GrpcRegisterSystemChangeCaptureRequest, GrpcRegisterSystemChangeCaptureResponse> {
+public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ, RES> implements ChangeCapturePublisher<C>, ClientResponseObserver<REQ, RES> {
 
     private State state = State.NEW;
-    private final Map<UUID, ManagedSubscription<ChangeSystemCapture>> subscriptions = createConcurrentHashMap(1);
+    private final Map<UUID, ManagedSubscription<C>> subscriptions = createConcurrentHashMap(1);
 
-    private ClientCallStreamObserver<GrpcRegisterSystemChangeCaptureRequest> observer;
+    /**
+     * Accepts captures from server.
+     */
+    private ClientCallStreamObserver<REQ> serverObserver;
 
     @Override
-    public void subscribe(Subscriber<? super ChangeSystemCapture> subscriber) {
+    public void subscribe(Subscriber<? super C> subscriber) {
         assertActive();
 
         Assert.notNull(subscriber, "Subscriber cannot be null.");
@@ -66,7 +91,7 @@ public class ClientChangeCaptureProcessor implements ChangeCapturePublisher<Chan
             "Subscriber is already subscribed to this publisher."
         );
 
-        final SubscriptionImpl subscription = new SubscriptionImpl(
+        final NamedSubscription subscription = new NamedSubscription(
             this::cancelSubscription,
             this::requestCapturesForSubscription
         );
@@ -78,21 +103,22 @@ public class ClientChangeCaptureProcessor implements ChangeCapturePublisher<Chan
     }
 
     @Override
-    public void beforeStart(ClientCallStreamObserver<GrpcRegisterSystemChangeCaptureRequest> observer) {
+    public void beforeStart(ClientCallStreamObserver<REQ> observer) {
         assertNew();
-        this.observer = observer;
-        observer.disableAutoRequestWithInitial(1);
+        // netty channel builder doesn't allow for manual flow control (it ignores calling request(n))
+        // so we fallback to auto flow control
+        this.serverObserver = observer;
         this.state = State.ACTIVE;
     }
 
     @Override
-    public void onNext(GrpcRegisterSystemChangeCaptureResponse grpcRegisterSystemChangeCaptureResponse) {
+    public void onNext(RES itemResponse) {
         assertActive();
 
-        final ChangeSystemCapture capture = toChangeSystemCapture(grpcRegisterSystemChangeCaptureResponse.getCapture());
+        final C capture = deserializeCaptureResponse(itemResponse);
 
         // multicast the capture to all subscribers that requested more captures
-        for (ManagedSubscription<ChangeSystemCapture> managedSubscription : subscriptions.values()) {
+        for (ManagedSubscription<C> managedSubscription : subscriptions.values()) {
             if (managedSubscription.requestCounter().get() == 0) {
                 // subscriber doesn't want to receive anymore at the moment, but may change its mind later
                 continue;
@@ -100,16 +126,21 @@ public class ClientChangeCaptureProcessor implements ChangeCapturePublisher<Chan
             managedSubscription.requestCounter().decrementAndGet();
             managedSubscription.subscriber().onNext(capture);
         }
-        // netty channel builder doesn't allow for manual flow control using these requests
-        observer.request(1);
     }
 
     @Override
     public void onError(Throwable throwable) {
         assertActive();
-        subscriptions.values().forEach(managedSubscription -> managedSubscription.subscriber().onError(throwable));
-        subscriptions.clear();
-        state = State.CLOSED;
+        if (throwable.getCause() instanceof PublisherClosedByClientException) {
+            // this is expected, we closed the publisher manually
+            // apparently, gRPC server doesn't know if cancellation was initiated by the client or by some network error
+            onCompleted();
+        } else {
+            // on unknown error, proceed with standard error handling
+            subscriptions.values().forEach(managedSubscription -> managedSubscription.subscriber().onError(throwable));
+            subscriptions.clear();
+            state = State.CLOSED;
+        }
     }
 
     @Override
@@ -123,10 +154,15 @@ public class ClientChangeCaptureProcessor implements ChangeCapturePublisher<Chan
     @Override
     public void close() {
         if (state != State.CLOSED) {
-            // this will trigger the `onComplete` callback and close this publisher
-            observer.cancel("Closed manually by client.", null);
+            // this will eventually trigger the `onComplete` callback (through `onError` callback) and close this publisher
+            serverObserver.cancel("Closed manually by client.", new PublisherClosedByClientException());
         }
     }
+
+    /**
+     * Takes the response from the server representing a single capture and deserializes it into a specific {@link ChangeCapture}.
+     */
+    protected abstract C deserializeCaptureResponse(RES itemResponse);
 
     /**
      * Requests more captures for the given subscription.
@@ -136,8 +172,11 @@ public class ClientChangeCaptureProcessor implements ChangeCapturePublisher<Chan
      */
     private void requestCapturesForSubscription(@Nonnull UUID subscriptionId, long n) {
         assertActive();
-        subscriptions.get(subscriptionId).requestCounter().addAndGet(n);
-        this.observer.request(Math.toIntExact(n));
+        final ManagedSubscription<C> managedSubscription = subscriptions.get(subscriptionId);
+        if (managedSubscription == null) {
+            throw new EvitaInvalidUsageException("Subscription with id " + subscriptionId + " does not exist. The subscription may have been cancelled.");
+        }
+        managedSubscription.requestCounter().addAndGet(n);
     }
 
     /**
@@ -146,7 +185,10 @@ public class ClientChangeCaptureProcessor implements ChangeCapturePublisher<Chan
      * @param subscriptionId subscription id
      */
     private void cancelSubscription(@Nonnull UUID subscriptionId) {
-        final ManagedSubscription<ChangeSystemCapture> managedSubscription = subscriptions.get(subscriptionId);
+        final ManagedSubscription<C> managedSubscription = subscriptions.get(subscriptionId);
+        if (managedSubscription == null) {
+            throw new EvitaInvalidUsageException("Subscription with id " + subscriptionId + " does not exist. The subscription may have been cancelled.");
+        }
         managedSubscription.subscriber().onComplete();
         subscriptions.remove(subscriptionId);
     }
@@ -169,6 +211,9 @@ public class ClientChangeCaptureProcessor implements ChangeCapturePublisher<Chan
         }
     }
 
+    /**
+     * State of a publisher.
+     */
     private enum State {
         /**
          * Initial state. Before it has been connected to the server.
@@ -184,6 +229,10 @@ public class ClientChangeCaptureProcessor implements ChangeCapturePublisher<Chan
         CLOSED
     }
 
+    /**
+     * Holds a reference to a single subscriber. The {@link #requestCounter()} is used for back-pressure implementation
+     * on the client side. The publisher will not send more captures to the subscriber if the counter is zero.
+     */
     private record ManagedSubscription<T extends ChangeCapture>(@Nonnull Subscriber<? super T> subscriber,
                                                                 @Nonnull AtomicLong requestCounter) {}
 }

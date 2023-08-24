@@ -249,8 +249,8 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 
 		final MockCatalogStructuralChangeSubscriber subscriber = new MockCatalogStructuralChangeSubscriber();
 		final EvitaClient evitaClient = new EvitaClient(evitaClientConfiguration);
-//		evitaClient.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.BODY)).subscribe(subscriber);
-		// todo lho
+		evitaClient.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.BODY)).subscribe(subscriber);
+		// todo jno: reimplement
 //		evitaClient.updateCatalog(
 //			TEST_CATALOG,
 //			session -> {
@@ -530,7 +530,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 
 
 	@Test
-	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldNotifyBasicSubscriber(EvitaClient evitaClient) {
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher = evitaClient.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
 
@@ -570,6 +570,13 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		// subscriber requested 2 events, this is third one, so it should be ignored
 		evitaClient.defineCatalog("newCatalog6");
 		assertEquals(0, subscriber.getCatalogCreated("newCatalog6"));
+
+		evitaClient.deleteCatalogIfExists("newCatalog1");
+		evitaClient.deleteCatalogIfExists("newCatalog2");
+		evitaClient.deleteCatalogIfExists("newCatalog3");
+		evitaClient.deleteCatalogIfExists("newCatalog4");
+		evitaClient.deleteCatalogIfExists("newCatalog5");
+		evitaClient.deleteCatalogIfExists("newCatalog6");
 	}
 
 	@Test
@@ -596,6 +603,9 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		// both should receive one late event
 		assertEquals(1, subscriberWithDelayedRequest.getCatalogCreated("newCatalog2"));
 		assertEquals(1, subscriberWithDelayedRegistration.getCatalogCreated("newCatalog2"));
+
+		evitaClient.deleteCatalogIfExists("newCatalog1");
+		evitaClient.deleteCatalogIfExists("newCatalog2");
 	}
 
 	@Test
@@ -625,6 +635,10 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		evitaClient.defineCatalog("newCatalog3");
 		assertEquals(0, subscriber1.getCatalogCreated("newCatalog3"));
 		assertEquals(1, subscriber2.getCatalogCreated("newCatalog3"));
+
+		evitaClient.deleteCatalogIfExists("newCatalog1");
+		evitaClient.deleteCatalogIfExists("newCatalog2");
+		evitaClient.deleteCatalogIfExists("newCatalog3");
 	}
 
 	@Test
@@ -641,6 +655,8 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		evitaClient.defineCatalog("newCatalog1");
 		assertEquals(1, subscriber1.getCatalogCreated("newCatalog1"));
 		assertEquals(1, subscriber2.getCatalogCreated("newCatalog1"));
+
+		evitaClient.deleteCatalogIfExists("newCatalog1");
 	}
 
 	@Test
@@ -666,11 +682,19 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 
 		// should notify subscribers about termination
 		publisher1.close();
+		// the assert is called right before the onComplete callback is called, so we need to wait a bit
+		try {
+			Thread.sleep(100);
+		} catch (InterruptedException e) {
+			throw new RuntimeException(e);
+		}
 		assertEquals(1, subscriber2.getCompleted());
 
 		// should do nothing on multiple closes
 		publisher1.close();
 		assertEquals(1, subscriber2.getCompleted());
+
+		evitaClient.deleteCatalogIfExists("newCatalog1");
 	}
 
 	@Test
@@ -722,19 +746,17 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		subscriber.reset();
 
 		final String newCatalogName = "newCatalog";
-		try {
-			final CatalogSchemaContract newCatalog = evitaClient.defineCatalog(newCatalogName);
-			final Set<String> catalogNames = evitaClient.getCatalogNames();
+		final CatalogSchemaContract newCatalog = evitaClient.defineCatalog(newCatalogName);
+		final Set<String> catalogNames = evitaClient.getCatalogNames();
 
-
-			assertEquals(2, catalogNames.size());
-			assertTrue(catalogNames.contains(TEST_CATALOG));
-			assertTrue(catalogNames.contains(newCatalogName));
-		} finally {
-			evitaClient.deleteCatalogIfExists(newCatalogName);
-		}
+		assertEquals(2, catalogNames.size());
+		assertTrue(catalogNames.contains(TEST_CATALOG));
+		assertTrue(catalogNames.contains(newCatalogName));
 
 		assertEquals(1, subscriber.getCatalogCreated(newCatalogName));
+
+		evitaClient.deleteCatalogIfExists(newCatalogName);
+
 		assertEquals(1, subscriber.getCatalogDeleted(newCatalogName));
 	}
 

@@ -28,12 +28,11 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.UUID;
 
 /**
  * Record represents a CDC event that is sent to the subscriber if it matches to the request he made.
  *
- * @param cdcRequestId the ID of the request that caused this event to be sent
+ * @param index        the index of the event in the ordered CDC log
  * @param area         the area of the operation
  * @param catalog      the catalog name
  * @param entityType   the {@link EntitySchema#getName()} of the entity or its schema that was affected by the operation
@@ -44,8 +43,7 @@ import java.util.UUID;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public record ChangeDataCapture(
-	/* TODO TPO - this field was added */
-//	@Nonnull UUID cdcRequestId,
+	long index,
 	@Nonnull CaptureArea area,
 	@Nonnull String catalog,
 	@Nullable String entityType,

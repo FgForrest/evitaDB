@@ -21,17 +21,19 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.cdc;
+package io.evitadb.core.cdc;
 
 import io.evitadb.api.exception.InstanceTerminatedException;
+import io.evitadb.api.requestResponse.cdc.ChangeCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.cdc.NamedSubscription;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Flow.Subscriber;
@@ -41,7 +43,17 @@ import java.util.function.Consumer;
 import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
 
 /**
- * TODO lho docs
+ * Server-side implementation of the {@link ChangeCapturePublisher}. Basically, it delegates captures from internal
+ * evitaDB observer to the subscribers with back-pressure implementation.
+ *
+ * <p>
+ * It supports multiple concurrent subscribers. The captures are multicasted to all subscribers that are able to receive
+ * more captures.
+ *
+ * <p>
+ * This publisher doesn't magically know about captures, all captures that should be sent to subscribers must be explicitly handed
+ * to this publisher using the {@link #notifySubscribers(ChangeCapture)}. This publisher handles the rest of the
+ * delegation to subscribers.
  *
  * @author Lukáš Hornych, 2023
  */
@@ -53,7 +65,7 @@ public class DelegatingChangeCapturePublisher<T extends ChangeCapture> implement
 	private final Consumer<DelegatingChangeCapturePublisher<T>> terminationCallback;
 
 	private boolean active = true;
-	private final Map<UUID, ManagedSubscription<T>> subscriptions = new HashMap<>();
+	private final Map<UUID, ManagedSubscription<T>> subscriptions = createConcurrentHashMap(1);
 
 	public DelegatingChangeCapturePublisher(@Nonnull ChangeSystemCaptureRequest request) {
 		this(request, it -> {});
@@ -69,7 +81,7 @@ public class DelegatingChangeCapturePublisher<T extends ChangeCapture> implement
 			"Subscriber is already subscribed to this publisher."
 		);
 
-		final SubscriptionImpl subscription = new SubscriptionImpl(
+		final NamedSubscription subscription = new NamedSubscription(
 			this::cancelSubscription,
 			this::requestCapturesForSubscription
 		);

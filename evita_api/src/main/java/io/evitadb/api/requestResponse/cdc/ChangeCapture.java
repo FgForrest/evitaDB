@@ -24,9 +24,15 @@
 package io.evitadb.api.requestResponse.cdc;
 
 /**
- * TODO lho docs
+ * CDC event that is sent to the subscriber if it matches to the request he made.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public interface ChangeCapture {
+
+	/**
+	 * Returns the index of the event in the ordered CDC log.
+	 */
+	// todo jno: feel free to reimplement this... this is the way how we could track if the subscriber received all events
+	long index();
 }

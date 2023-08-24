@@ -29,8 +29,6 @@ import io.evitadb.api.requestResponse.cdc.CaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureSubscriber;
-import io.evitadb.api.requestResponse.cdc.DelegatingChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 
@@ -43,7 +41,7 @@ import java.util.concurrent.Flow.Publisher;
 import java.util.function.Supplier;
 
 /**
- * Main implementation class handling notification of all requested {@link ChangeSystemCaptureSubscriber}s.
+ * Main implementation class handling notification of all created {@link ChangeCapturePublisher}s.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -91,12 +89,14 @@ public class SystemChangeObserver implements AutoCloseable {
 			final ChangeSystemCaptureRequest request = publisher.getRequest();
 			if (request.content() == CaptureContent.BODY) {
 				if (captureBody == null) {
-					captureBody = new ChangeSystemCapture(catalog, operation, eventSupplier.get());
+					// todo jno: implement CDC indexes
+					captureBody = new ChangeSystemCapture(0, catalog, operation, eventSupplier.get());
 				}
 				publisher.notifySubscribers(captureBody);
 			} else {
 				if (captureHeader == null) {
-					captureHeader = new ChangeSystemCapture(catalog, operation, null);
+					// todo jno: implement CDC indexes
+					captureHeader = new ChangeSystemCapture(0, catalog, operation, null);
 				}
 				publisher.notifySubscribers(captureHeader);
 			}

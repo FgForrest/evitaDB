@@ -23,7 +23,7 @@
 
 package io.evitadb.driver.cdc;
 
-import io.evitadb.api.requestResponse.cdc.NamedSubscription;
+import io.evitadb.cdc.NamedSubscription;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
