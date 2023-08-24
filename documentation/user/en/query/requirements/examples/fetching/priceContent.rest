@@ -1,0 +1,25 @@
+POST /rest/evita/product/query
+
+{
+  "filterBy" : {
+    "entityPrimaryKeyInSet" : [
+      103885
+    ],
+    "priceInCurrency" : "EUR",
+    "priceInPriceLists" : [
+      "employee-basic-price",
+      "basic"
+    ]
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code",
+        "name"
+      ],
+      "priceContentRespectingFilter" : [
+        "reference"
+      ]
+    }
+  }
+}

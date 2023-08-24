@@ -8,7 +8,7 @@ query(
     require(
         entityFetch(
             attributeContent('code', 'name'),
-            priceContent(RESPECTING_FILTER)
+            priceContentRespectingFilter('reference')
         )
     )
 )
