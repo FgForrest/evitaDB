@@ -623,7 +623,7 @@ satisfied by the entity.
 
 <LanguageSpecific to="evitaql,java,rest">
 
-## Data in locales all
+### Data in locales all
 
 ```evitaql-syntax
 dataInLocalesAll()
