@@ -895,7 +895,7 @@ The query returns the following list of prices of the `Product` entity:
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="recordPage">[The result of an entity fetched with its selected prices](/documentation/user/en/query/requirements/examples/fetching/priceContent.evitaql.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with its selected prices](/documentation/user/en/query/requirements/examples/fetching/priceContent.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 <LanguageSpecific to="rest">
@@ -953,7 +953,7 @@ The query returns the following list of prices of the `Product` entity:
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="recordPage">[The result of an entity fetched with its selected prices and reference price](/documentation/user/en/query/requirements/examples/fetching/priceContentRespectingFilter.evitaql.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with its selected prices and reference price](/documentation/user/en/query/requirements/examples/fetching/priceContentRespectingFilter.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 <LanguageSpecific to="rest">
@@ -996,7 +996,7 @@ The query returns the following list of prices of the `Product` entity:
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="recordPage">[The result of an entity fetched with all its prices](/documentation/user/en/query/requirements/examples/fetching/priceContentAll.evitaql.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with all its prices](/documentation/user/en/query/requirements/examples/fetching/priceContentAll.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 <LanguageSpecific to="rest">
