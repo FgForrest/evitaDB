@@ -909,7 +909,7 @@ equivalent to using the [`priceContentRespectingFilter`](#price-content-respecti
 
 </Note>
 
-## Price content respecting filter
+### Price content respecting filter
 
 ```evitaql-syntax
 priceContent(   
@@ -967,7 +967,7 @@ the price in the *reference* price lists requested by the `priceContent` require
 
 </Note>
 
-## Price content all
+### Price content all
 
 ```evitaql-syntax
 priceContentAll()
