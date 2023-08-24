@@ -855,7 +855,7 @@ priceContent(
         enum allowing you to specify whether to fetch all, selected or no price records for the entity:
 
         - **NONE**: no prices will be fetched for the entity (even if the filter contains a price constraint) 
-        - **RESPECTING_FILTER**: only a prices in price lists selected by a filter constraint will be fetched (default behaviour)
+        - **RESPECTING_FILTER**: only a prices in price lists selected by a filter constraint will be fetched
         - **ALL**: all prices of the entity will be fetched (regardless of the price constraint in a filter)
     </dd>
     <dt>argument:string*</dt>
@@ -868,17 +868,17 @@ priceContent(
 The `priceContent` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceContent.java</SourceClass>)
 requirement allows you to access the information about the prices of the entity.
 
-By default, the `priceContent` requirement fetches only the prices that are selected by the 
-[`priceInPriceLists`](../filtering/price.md#price-in-price-lists) constraint. If the enum `NONE` is specified, no prices
-are returned at all, if the enum `ALL` is specified, all prices of the entity are returned regardless of 
-the `priceInPriceLists` constraint in the filter (the constraint still controls whether the entity is returned at all).
+If the `RESPECTING_FILTER` mode is used, the `priceContent` requirement will only retrieve the prices selected by 
+the [`priceInPriceLists`](../filtering/price.md#price-in-price-lists) constraint. If the enum `NONE` is specified, no 
+prices are returned at all, if the enum `ALL` is specified, all prices of the entity are returned regardless of the 
+`priceInPriceLists` constraint in the filter (the constraint still controls whether the entity is returned at all).
 
 You can also add additional price lists to the list of price lists passed in the `priceInPriceLists` constraint by
 specifying the price list names as string arguments to the `priceContent` requirement. This is useful if you want to
 fetch non-indexed prices of the entity that cannot (and are not intended to) be used to filter the entities, but you
 still want to fetch them to display in the UI for the user.
 
-To get an entity with prices that you filter by and a `reference' price on top of it, use the following query:
+To get an entity with prices that you filter by, use the following query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Getting entity with prices and reference price](/documentation/user/en/query/requirements/examples/fetching/priceContent.evitaql)
@@ -895,7 +895,7 @@ The query returns the following list of prices of the `Product` entity:
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="recordPage">[The result of an entity fetched with its selected prices](/documentation/user/en/query/requirements/examples/fetching/priceContent.evitaql.json.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with its selected prices](/documentation/user/en/query/requirements/examples/fetching/priceContent.evitaql.md)</MDInclude>
 
 </LanguageSpecific>
 <LanguageSpecific to="rest">
@@ -904,8 +904,109 @@ The query returns the following list of prices of the `Product` entity:
 
 </LanguageSpecific>
 
-As you can see, the prices for the filtered price lists *employee-basic-price* and *basic* are returned, as well as 
+As you can see, the prices for the filtered price lists *employee-basic-price* and *basic* are returned. This query is 
+equivalent to using the [`priceContentRespectingFilter`](#price-content-respecting-filter) alias.
+
+</Note>
+
+## Price content respecting filter
+
+```evitaql-syntax
+priceContent(   
+    argument:string*
+)
+```
+
+<dl>
+    <dt>argument:string*</dt>
+    <dd>
+        optional one or more string arguments representing price list names to add to the list of price lists passed in 
+        a filter price constraint, which together form a set of price lists for which to fetch prices for the entity
+    </dd>
+</dl>
+
+The `priceContentRespectingFilter` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceContent.java</SourceClass>)
+requirement allows you to access the information about the prices of the entity. It fetches only the prices selected by
+the [`priceInPriceLists`](../filtering/price.md#price-in-price-lists) constraint.
+
+You can also add additional price lists to the list of price lists passed in the `priceInPriceLists` constraint by
+specifying the price list names as string arguments to the `priceContent` requirement. This is useful if you want to
+fetch non-indexed prices of the entity that cannot (and are not intended to) be used to filter the entities, but you
+still want to fetch them to display in the UI for the user.
+
+This requirement is only a variation of the generic [`priceContent`](#price-content) requirement.
+
+To get an entity with prices that you filter by and a *reference* price on top of it, use the following query:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+[Getting entity with filtered prices and reference price](/documentation/user/en/query/requirements/examples/fetching/priceContentRespectingFilter.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with its selected prices and reference price
+</NoteTitle>
+
+The query returns the following list of prices of the `Product` entity:
+
+<LanguageSpecific to="evitaql,java">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with its selected prices and reference price](/documentation/user/en/query/requirements/examples/fetching/priceContentRespectingFilter.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with its selected prices and reference price](/documentation/user/en/query/requirements/examples/fetching/priceContentRespectingFilter.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+As you can see, the prices for the filtered price lists *employee-basic-price* and *basic* are returned, as well as
 the price in the *reference* price lists requested by the `priceContent` requirement.
+
+</Note>
+
+## Price content all
+
+```evitaql-syntax
+priceContentAll()
+```
+
+The `priceContentAll` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceContent.java</SourceClass>)
+requirement allows you to access all of the entity's price information regardless of the filtering constraints specified
+in the query.
+
+This requirement is only a variation of the generic [`priceContent`](#price-content) requirement.
+
+To get an entity with all of the entity's prices, use the following query:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+[Getting entity with prices and reference price](/documentation/user/en/query/requirements/examples/fetching/priceContentAll.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with all its prices
+</NoteTitle>
+
+The query returns the following list of prices of the `Product` entity:
+
+<LanguageSpecific to="evitaql,java">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with all its prices](/documentation/user/en/query/requirements/examples/fetching/priceContentAll.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with all its prices](/documentation/user/en/query/requirements/examples/fetching/priceContentAll.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+As you can see, all prices of the entity are returned in all available currencies - not only the filtered price lists 
+*employee-basic-price* and *basic*. Thanks to `priceContentAll` you have an overview of all prices of the entity.
 
 </Note>
 
