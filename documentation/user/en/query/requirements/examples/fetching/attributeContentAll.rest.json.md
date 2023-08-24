@@ -6,12 +6,12 @@
       "type" : "Brand",
       "version" : 1,
       "allLocales" : [
+        "de",
         "en",
         "cs"
       ],
       "attributes" : {
         "global" : {
-          "breadCrumb" : "",
           "changed" : "2023-06-25T21:36:22+02:00",
           "code" : "samsung",
           "order" : 0,

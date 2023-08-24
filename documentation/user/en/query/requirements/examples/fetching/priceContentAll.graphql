@@ -17,7 +17,13 @@
         attributes {
           code
         }
-        priceForSale {
+        prices {
+          priceId
+          priceList
+          currency
+          innerRecordId
+          sellable
+          validity
           priceWithoutTax
           priceWithTax
           taxRate

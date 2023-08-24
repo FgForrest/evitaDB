@@ -6,6 +6,7 @@
       "type" : "Brand",
       "version" : 1,
       "allLocales" : [
+        "de",
         "en",
         "cs"
       ],
@@ -15,6 +16,10 @@
             {
               "locale" : "cs",
               "url" : "/cs/samsung"
+            },
+            {
+              "locale" : "de",
+              "url" : "/de/samsung"
             },
             {
               "locale" : "en",

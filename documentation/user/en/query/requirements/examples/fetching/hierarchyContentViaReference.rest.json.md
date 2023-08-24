@@ -9,7 +9,9 @@
         "en"
       ],
       "allLocales" : [
-        "en"
+        "de",
+        "en",
+        "cs"
       ],
       "categories" : [
         {
@@ -18,12 +20,10 @@
             "primaryKey" : 66486,
             "type" : "Category",
             "version" : 1,
-            "parent" : 66481,
             "parentEntity" : {
               "primaryKey" : 66481,
               "type" : "Category",
               "version" : 1,
-              "parent" : 66468,
               "parentEntity" : {
                 "primaryKey" : 66468,
                 "type" : "Category",
@@ -32,7 +32,9 @@
                   "en"
                 ],
                 "allLocales" : [
-                  "en"
+                  "de",
+                  "en",
+                  "cs"
                 ],
                 "attributes" : {
                   "global" : {
@@ -49,7 +51,9 @@
                 "en"
               ],
               "allLocales" : [
-                "en"
+                "de",
+                "en",
+                "cs"
               ],
               "attributes" : {
                 "global" : {
@@ -66,7 +70,9 @@
               "en"
             ],
             "allLocales" : [
-              "en"
+              "de",
+              "en",
+              "cs"
             ],
             "attributes" : {
               "global" : {

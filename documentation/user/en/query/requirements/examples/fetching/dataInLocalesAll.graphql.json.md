@@ -9,6 +9,9 @@
       "attributesDe" : {
         "name" : "Samsung"
       },
+      "attributesEn" : {
+        "name" : "Samsung"
+      },
       "attributesCs" : {
         "name" : "Samsung"
       }

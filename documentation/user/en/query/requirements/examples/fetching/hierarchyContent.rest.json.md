@@ -5,7 +5,6 @@
       "primaryKey" : 66486,
       "type" : "Category",
       "version" : 1,
-      "parent" : 66481,
       "parentEntity" : {
         "primaryKey" : 66481,
         "type" : "Category",
@@ -15,7 +14,9 @@
         }
       },
       "allLocales" : [
-        "en"
+        "de",
+        "en",
+        "cs"
       ]
     }
   ],

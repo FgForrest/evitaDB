@@ -154,7 +154,7 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 	 * Returns true if the attributes in specified locale were fetched along with the entity.
 	 */
 	public boolean wasFetched(@Nonnull Locale locale) {
-		return this.locales != null && this.locales.isEmpty() || this.locales.contains(locale);
+		return this.locales != null && (this.locales.isEmpty() || this.locales.contains(locale));
 	}
 
 	/**

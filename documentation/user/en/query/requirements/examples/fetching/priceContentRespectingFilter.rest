@@ -16,7 +16,9 @@ POST /rest/evita/product/query
       "attributeContent" : [
         "code"
       ],
-      "priceContentRespectingFilter" : [ ]
+      "priceContentRespectingFilter" : [
+        "reference"
+      ]
     }
   }
 }
