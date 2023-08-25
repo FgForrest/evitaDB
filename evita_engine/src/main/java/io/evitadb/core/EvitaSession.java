@@ -28,6 +28,8 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.EvitaSessionTerminationCallback;
+import io.evitadb.api.SchemaPostProcessor;
+import io.evitadb.api.SchemaPostProcessorCapturingResult;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityClassInvalidException;
@@ -57,7 +59,6 @@ import io.evitadb.api.requestResponse.data.mutation.price.PriceMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
-import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer;
 import io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer.AnalysisResult;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
@@ -87,7 +88,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -95,6 +95,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer.insertMissingCreateEntitySchemaMutations;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -333,19 +334,31 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return executeInTransactionIfPossible(session -> {
 			final ClassSchemaAnalyzer classSchemaAnalyzer = new ClassSchemaAnalyzer(modelClass, reflectionLookup);
 			final AnalysisResult analysisResult = classSchemaAnalyzer.analyze(this);
-			updateCatalogSchema(analysisResult.mutations());
+			updateCatalogSchema(
+				insertMissingCreateEntitySchemaMutations(
+					analysisResult.mutations(),
+					entityType -> getEntitySchema(entityType).isPresent()
+				)
+			);
 			return getEntitySchemaOrThrow(analysisResult.entityType());
 		});
 	}
 
 	@Nonnull
 	@Override
-	public SealedEntitySchema defineEntitySchemaFromModelClass(@Nonnull Class<?> modelClass, @Nonnull BiConsumer<CatalogSchemaBuilder, EntitySchemaBuilder> postProcessor) {
+	public SealedEntitySchema defineEntitySchemaFromModelClass(@Nonnull Class<?> modelClass, @Nonnull SchemaPostProcessor postProcessor) {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
 			final ClassSchemaAnalyzer classSchemaAnalyzer = new ClassSchemaAnalyzer(modelClass, reflectionLookup, postProcessor);
 			final AnalysisResult analysisResult = classSchemaAnalyzer.analyze(this);
-			updateCatalogSchema(analysisResult.mutations());
+			final LocalCatalogSchemaMutation[] schemaMutation = insertMissingCreateEntitySchemaMutations(
+				analysisResult.mutations(),
+				entityType -> getEntitySchema(entityType).isPresent()
+			);
+			if (postProcessor instanceof SchemaPostProcessorCapturingResult capturingResult) {
+				capturingResult.captureResult(schemaMutation);
+			}
+			updateCatalogSchema(schemaMutation);
 			return getEntitySchemaOrThrow(analysisResult.entityType());
 		});
 	}

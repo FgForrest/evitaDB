@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema;
 
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.SchemaPostProcessor;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaClassInvalidException;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedData;
@@ -39,6 +40,8 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBu
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -67,6 +70,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -103,7 +107,7 @@ public class ClassSchemaAnalyzer {
 	/**
 	 * The consumer that should be called after schemas has been altered but just before the changes has been applied.
 	 */
-	private final BiConsumer<CatalogSchemaBuilder, EntitySchemaBuilder> postProcessor;
+	private final SchemaPostProcessor postProcessor;
 	/**
 	 * Contains all attributes that were already defined within the model class.
 	 */
@@ -424,7 +428,7 @@ public class ClassSchemaAnalyzer {
 	public ClassSchemaAnalyzer(
 		@Nonnull Class<?> modelClass,
 		@Nonnull ReflectionLookup reflectionLookup,
-		@Nonnull BiConsumer<CatalogSchemaBuilder, EntitySchemaBuilder> postProcessor
+		@Nonnull SchemaPostProcessor postProcessor
 	) {
 		this.modelClass = modelClass;
 		this.reflectionLookup = reflectionLookup;
@@ -487,7 +491,7 @@ public class ClassSchemaAnalyzer {
 
 				// if the schema consumer is available invoke it
 				ofNullable(postProcessor)
-					.ifPresent(it -> it.accept(catalogBuilder, entityBuilder));
+					.ifPresent(it -> it.postProcess(catalogBuilder, entityBuilder));
 
 				// define evolution mode - if no currencies or locales definition were found - let them fill up in runtime
 				entityBuilder.verifySchemaButAllow(entityAnnotation.allowedEvolution());
@@ -1092,6 +1096,31 @@ public class ClassSchemaAnalyzer {
 			this(entityType, EMPTY_MUTATIONS);
 		}
 
+	}
+
+	/**
+	 * Method inserts missing create entity schema mutations into the given mutations when {@link ModifyEntitySchemaMutation}
+	 * is encountered and the referring entity schema is missing.
+	 *
+	 * @param mutations mutations to be updated
+	 * @param schemaExistsPredicate predicate that should return true if entity schema of particular name already exists
+	 * @return updated mutations
+	 */
+	public static LocalCatalogSchemaMutation[] insertMissingCreateEntitySchemaMutations(@Nonnull LocalCatalogSchemaMutation[] mutations, @Nonnull Predicate<String> schemaExistsPredicate) {
+		return Arrays.stream(mutations)
+			.flatMap(it -> {
+				if (it instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation) {
+					final String entityType = modifyEntitySchemaMutation.getEntityType();
+					if (!schemaExistsPredicate.test(entityType)) {
+						return Stream.of(
+							new CreateEntitySchemaMutation(entityType),
+							modifyEntitySchemaMutation
+						);
+					}
+				}
+				return Stream.of(it);
+			})
+			.toArray(LocalCatalogSchemaMutation[]::new);
 	}
 
 }

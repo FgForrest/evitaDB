@@ -27,6 +27,8 @@ import com.google.protobuf.Empty;
 import com.google.protobuf.Int32Value;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.SchemaPostProcessor;
+import io.evitadb.api.SchemaPostProcessorCapturingResult;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
@@ -62,7 +64,6 @@ import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
-import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer;
 import io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer.AnalysisResult;
 import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
@@ -113,7 +114,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -122,6 +122,7 @@ import java.util.regex.Matcher;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.require;
+import static io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer.insertMissingCreateEntitySchemaMutations;
 import static io.evitadb.driver.EvitaClient.ERROR_MESSAGE_PATTERN;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
@@ -313,7 +314,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 			session -> {
 				final ClassSchemaAnalyzer classSchemaAnalyzer = new ClassSchemaAnalyzer(modelClass, reflectionLookup);
 				final AnalysisResult analysisResult = classSchemaAnalyzer.analyze(this);
-				updateCatalogSchema(analysisResult.mutations());
+				final LocalCatalogSchemaMutation[] schemaMutations = insertMissingCreateEntitySchemaMutations(
+					analysisResult.mutations(),
+					entityType -> getEntitySchema(entityType).isPresent()
+				);
+				updateCatalogSchema(schemaMutations);
 				return getEntitySchemaOrThrow(analysisResult.entityType());
 			}
 		);
@@ -321,13 +326,20 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
-	public SealedEntitySchema defineEntitySchemaFromModelClass(@Nonnull Class<?> modelClass, @Nonnull BiConsumer<CatalogSchemaBuilder, EntitySchemaBuilder> postProcessor) {
+	public SealedEntitySchema defineEntitySchemaFromModelClass(@Nonnull Class<?> modelClass, @Nonnull SchemaPostProcessor postProcessor) {
 		assertActive();
 		return executeInTransactionIfPossible(
 			session -> {
 				final ClassSchemaAnalyzer classSchemaAnalyzer = new ClassSchemaAnalyzer(modelClass, reflectionLookup, postProcessor);
 				final AnalysisResult analysisResult = classSchemaAnalyzer.analyze(this);
-				updateCatalogSchema(analysisResult.mutations());
+				final LocalCatalogSchemaMutation[] schemaMutations = insertMissingCreateEntitySchemaMutations(
+					analysisResult.mutations(),
+					entityType -> getEntitySchema(entityType).isPresent()
+				);
+				if (postProcessor instanceof SchemaPostProcessorCapturingResult capturingResult) {
+					capturingResult.captureResult(schemaMutations);
+				}
+				updateCatalogSchema(schemaMutations);
 				return getEntitySchemaOrThrow(analysisResult.entityType());
 			}
 		);
