@@ -24,8 +24,6 @@
 package io.evitadb.externalApi.grpc.services;
 
 import io.evitadb.api.requestResponse.cdc.ChangeCapture;
-import io.evitadb.externalApi.grpc.dataType.ChangeDataCaptureConverter;
-import io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse;
 import io.grpc.stub.ServerCallStreamObserver;
 import lombok.RequiredArgsConstructor;
 

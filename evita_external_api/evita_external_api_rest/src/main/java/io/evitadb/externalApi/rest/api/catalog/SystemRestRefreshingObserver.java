@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.rest.api.catalog;
 
-import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.externalApi.rest.RestManager;
 import lombok.RequiredArgsConstructor;
@@ -38,7 +37,7 @@ import java.util.concurrent.Flow.Subscription;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class CatalogRestRefreshingObserver implements Subscriber<ChangeCatalogCapture> {
+public class SystemRestRefreshingObserver implements Subscriber<ChangeSystemCapture> {
 
 	@Nonnull private final RestManager restManager;
 	private Subscription subscription;
@@ -50,8 +49,7 @@ public class CatalogRestRefreshingObserver implements Subscriber<ChangeCatalogCa
 	}
 
 	@Override
-	public void onNext(ChangeCatalogCapture item) {
-		// todo lho: check how was this implemented in the old code, but it will be probably correct, implement it in GQL aswell
+	public void onNext(ChangeSystemCapture item) {
 		switch (item.operation()) {
 			case CREATE -> restManager.registerCatalog(item.catalog());
 			case UPDATE -> restManager.refreshCatalog(item.catalog());

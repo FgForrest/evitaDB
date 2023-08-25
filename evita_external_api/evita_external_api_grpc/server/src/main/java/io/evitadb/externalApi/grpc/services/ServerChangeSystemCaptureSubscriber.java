@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.grpc.services;
 
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
-import io.evitadb.externalApi.grpc.dataType.ChangeDataCaptureConverter;
+import io.evitadb.externalApi.grpc.dataType.ChangeCatalogCaptureConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse;
 import io.grpc.stub.ServerCallStreamObserver;
 
@@ -45,7 +45,7 @@ public class ServerChangeSystemCaptureSubscriber extends ServerChangeCaptureSubs
 	@Override
 	protected GrpcRegisterSystemChangeCaptureResponse serializeCapture(@Nonnull ChangeSystemCapture capture) {
 		return GrpcRegisterSystemChangeCaptureResponse.newBuilder()
-			.setCapture(ChangeDataCaptureConverter.toGrpcChangeSystemCapture(capture))
+			.setCapture(ChangeCatalogCaptureConverter.toGrpcChangeSystemCapture(capture))
 			.build();
 	}
 }

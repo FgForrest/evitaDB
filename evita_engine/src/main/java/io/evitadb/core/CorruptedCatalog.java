@@ -31,13 +31,15 @@ import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
-import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureObserver;
-import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.core.exception.CatalogCorruptedException;
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.FileUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -186,12 +188,7 @@ public final class CorruptedCatalog implements CatalogContract {
 
 	@Nonnull
 	@Override
-	public UUID registerChangeDataCapture(@Nonnull ChangeDataCaptureRequest request, @Nonnull ChangeDataCaptureObserver callback) {
-		throw new CatalogCorruptedException(this);
-	}
-
-	@Override
-	public boolean unregisterChangeDataCapture(@Nonnull UUID uuid) {
+	public ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(@Nonnull ChangeCatalogCaptureRequest request) {
 		throw new CatalogCorruptedException(this);
 	}
 }

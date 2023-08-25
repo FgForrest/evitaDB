@@ -27,7 +27,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * Record describing the capture request for the {@link java.util.concurrent.Flow.Subscriber} of {@link ChangeDataCapture}s.
+ * Record describing the capture request for the {@link java.util.concurrent.Flow.Subscriber} of {@link ChangeCatalogCapture}s.
  * The request contains the recipe for the messages that the subscriber is interested in, and that are sent to it by
  * {@link ChangeCapturePublisher}.
  *
@@ -39,7 +39,7 @@ import javax.annotation.Nullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public record ChangeDataCaptureRequest(
+public record ChangeCatalogCaptureRequest(
 	@Nullable CaptureArea area,
 	@Nullable CaptureSite site,
 	@Nonnull CaptureContent content,

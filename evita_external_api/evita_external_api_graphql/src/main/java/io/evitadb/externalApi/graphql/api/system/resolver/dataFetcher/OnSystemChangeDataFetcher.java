@@ -21,29 +21,31 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.cdc;
+package io.evitadb.externalApi.graphql.api.system.resolver.dataFetcher;
+
+import graphql.schema.DataFetchingEnvironment;
+import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.core.Evita;
 
 import javax.annotation.Nonnull;
-import java.util.Collection;
+import java.util.concurrent.Flow.Publisher;
 
 /**
- * TODO JNO - redesign me
+ * TODO lho docs
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, 2023
  */
-public interface ChangeDataCaptureObserver {
+public class OnSystemChangeDataFetcher extends ChangeCaptureDataFetcher<ChangeSystemCapture> {
 
-	/**
-	 * TODO JNO - document me
-	 * @param transactionId
-	 * @param events
-	 */
-	void onTransactionCommit(long transactionId, @Nonnull Collection<ChangeDataCapture> events);
+	public OnSystemChangeDataFetcher(@Nonnull Evita evita) {
+		super(evita);
+	}
 
-	/**
-	 * Method is called just before the catalog is deleted or evitaDB instance is terminated.
-	 * It allows the client to terminate the resources associated with this observer.
-	 */
-	void onTermination();
-
+	@Nonnull
+	@Override
+	protected Publisher<ChangeSystemCapture> createPublisher(@Nonnull DataFetchingEnvironment environment) {
+		return evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
+	}
 }

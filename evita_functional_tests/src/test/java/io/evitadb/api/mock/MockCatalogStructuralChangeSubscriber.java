@@ -23,10 +23,7 @@
 
 package io.evitadb.api.mock;
 
-import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureObserver;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureSubscriber;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;

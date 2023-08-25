@@ -8,34 +8,16 @@ public interface GrpcRegisterSystemChangeCaptureResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
-   * <pre>
-   *string uuid = 1;
-   *GrpcChangeSystemCapture capture = 2;
-   *GrpcCaptureResponseType responseType = 3;
-   * </pre>
-   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
    * @return Whether the capture field is set.
    */
   boolean hasCapture();
   /**
-   * <pre>
-   *string uuid = 1;
-   *GrpcChangeSystemCapture capture = 2;
-   *GrpcCaptureResponseType responseType = 3;
-   * </pre>
-   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
    * @return The capture.
    */
   io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture getCapture();
   /**
-   * <pre>
-   *string uuid = 1;
-   *GrpcChangeSystemCapture capture = 2;
-   *GrpcCaptureResponseType responseType = 3;
-   * </pre>
-   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureOrBuilder getCaptureOrBuilder();

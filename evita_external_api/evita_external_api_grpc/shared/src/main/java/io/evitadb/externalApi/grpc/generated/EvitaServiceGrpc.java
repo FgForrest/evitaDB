@@ -552,9 +552,6 @@ public final class EvitaServiceGrpc {
     }
 
     /**
-     * <pre>
-     *rpc UnregisterSystemChangeCapture(GrpcUnregisterSystemChangeCaptureRequest) returns (GrpcUnregisterSystemChangeCaptureResponse);
-     * </pre>
      */
     public void registerSystemChangeCapture(io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse> responseObserver) {
@@ -791,9 +788,6 @@ public final class EvitaServiceGrpc {
     }
 
     /**
-     * <pre>
-     *rpc UnregisterSystemChangeCapture(GrpcUnregisterSystemChangeCaptureRequest) returns (GrpcUnregisterSystemChangeCaptureResponse);
-     * </pre>
      */
     public void registerSystemChangeCapture(io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse> responseObserver) {
@@ -931,9 +925,6 @@ public final class EvitaServiceGrpc {
     }
 
     /**
-     * <pre>
-     *rpc UnregisterSystemChangeCapture(GrpcUnregisterSystemChangeCaptureRequest) returns (GrpcUnregisterSystemChangeCaptureResponse);
-     * </pre>
      */
     public java.util.Iterator<io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse> registerSystemChangeCapture(
         io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest request) {

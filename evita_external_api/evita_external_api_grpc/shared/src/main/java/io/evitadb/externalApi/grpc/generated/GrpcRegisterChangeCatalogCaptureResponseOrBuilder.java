@@ -3,8 +3,8 @@
 
 package io.evitadb.externalApi.grpc.generated;
 
-public interface GrpcRegisterChangeDataCaptureResponseOrBuilder extends
-    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse)
+public interface GrpcRegisterChangeCatalogCaptureResponseOrBuilder extends
+    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse)
     com.google.protobuf.MessageOrBuilder {
 
   /**
@@ -20,27 +20,27 @@ public interface GrpcRegisterChangeDataCaptureResponseOrBuilder extends
       getUuidBytes();
 
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture> 
       getCaptureList();
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture getCapture(int index);
+  io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture getCapture(int index);
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
    */
   int getCaptureCount();
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeDataCaptureOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder> 
       getCaptureOrBuilderList();
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcChangeDataCaptureOrBuilder getCaptureOrBuilder(
+  io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder getCaptureOrBuilder(
       int index);
 
   /**

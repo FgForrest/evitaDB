@@ -96,12 +96,6 @@ private static final long serialVersionUID = 0L;
   public static final int CAPTURE_FIELD_NUMBER = 1;
   private io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture_;
   /**
-   * <pre>
-   *string uuid = 1;
-   *GrpcChangeSystemCapture capture = 2;
-   *GrpcCaptureResponseType responseType = 3;
-   * </pre>
-   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
    * @return Whether the capture field is set.
    */
@@ -110,12 +104,6 @@ private static final long serialVersionUID = 0L;
     return capture_ != null;
   }
   /**
-   * <pre>
-   *string uuid = 1;
-   *GrpcChangeSystemCapture capture = 2;
-   *GrpcCaptureResponseType responseType = 3;
-   * </pre>
-   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
    * @return The capture.
    */
@@ -124,12 +112,6 @@ private static final long serialVersionUID = 0L;
     return capture_ == null ? io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture.getDefaultInstance() : capture_;
   }
   /**
-   * <pre>
-   *string uuid = 1;
-   *GrpcChangeSystemCapture capture = 2;
-   *GrpcCaptureResponseType responseType = 3;
-   * </pre>
-   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
    */
   @java.lang.Override
@@ -456,12 +438,6 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture, io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureOrBuilder> captureBuilder_;
     /**
-     * <pre>
-     *string uuid = 1;
-     *GrpcChangeSystemCapture capture = 2;
-     *GrpcCaptureResponseType responseType = 3;
-     * </pre>
-     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
      * @return Whether the capture field is set.
      */
@@ -469,12 +445,6 @@ private static final long serialVersionUID = 0L;
       return captureBuilder_ != null || capture_ != null;
     }
     /**
-     * <pre>
-     *string uuid = 1;
-     *GrpcChangeSystemCapture capture = 2;
-     *GrpcCaptureResponseType responseType = 3;
-     * </pre>
-     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
      * @return The capture.
      */
@@ -486,12 +456,6 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <pre>
-     *string uuid = 1;
-     *GrpcChangeSystemCapture capture = 2;
-     *GrpcCaptureResponseType responseType = 3;
-     * </pre>
-     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
      */
     public Builder setCapture(io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture value) {
@@ -508,12 +472,6 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <pre>
-     *string uuid = 1;
-     *GrpcChangeSystemCapture capture = 2;
-     *GrpcCaptureResponseType responseType = 3;
-     * </pre>
-     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
      */
     public Builder setCapture(
@@ -528,12 +486,6 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <pre>
-     *string uuid = 1;
-     *GrpcChangeSystemCapture capture = 2;
-     *GrpcCaptureResponseType responseType = 3;
-     * </pre>
-     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
      */
     public Builder mergeCapture(io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture value) {
@@ -552,12 +504,6 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <pre>
-     *string uuid = 1;
-     *GrpcChangeSystemCapture capture = 2;
-     *GrpcCaptureResponseType responseType = 3;
-     * </pre>
-     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
      */
     public Builder clearCapture() {
@@ -572,12 +518,6 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <pre>
-     *string uuid = 1;
-     *GrpcChangeSystemCapture capture = 2;
-     *GrpcCaptureResponseType responseType = 3;
-     * </pre>
-     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture.Builder getCaptureBuilder() {
@@ -586,12 +526,6 @@ private static final long serialVersionUID = 0L;
       return getCaptureFieldBuilder().getBuilder();
     }
     /**
-     * <pre>
-     *string uuid = 1;
-     *GrpcChangeSystemCapture capture = 2;
-     *GrpcCaptureResponseType responseType = 3;
-     * </pre>
-     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureOrBuilder getCaptureOrBuilder() {
@@ -603,12 +537,6 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <pre>
-     *string uuid = 1;
-     *GrpcChangeSystemCapture capture = 2;
-     *GrpcCaptureResponseType responseType = 3;
-     * </pre>
-     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

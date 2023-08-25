@@ -27,7 +27,7 @@ import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse;
 
-import static io.evitadb.externalApi.grpc.dataType.ChangeDataCaptureConverter.toChangeSystemCapture;
+import static io.evitadb.externalApi.grpc.dataType.ChangeCatalogCaptureConverter.toChangeSystemCapture;
 
 /**
  * Implementation of {@link ClientChangeCapturePublisher} for the {@link ChangeSystemCapture}.

@@ -50,6 +50,7 @@ import io.evitadb.externalApi.graphql.api.system.model.SystemRootDescriptor;
 import io.evitadb.externalApi.graphql.api.system.resolver.dataFetcher.CatalogDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.dataFetcher.CatalogsDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.dataFetcher.LivenessDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.dataFetcher.OnSystemChangeDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.CreateCatalogMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.DeleteCatalogIfExistsMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.RenameCatalogMutatingDataFetcher;
@@ -112,29 +113,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 				.name("onSystemChange")
 				.type(GraphQLTypeReference.typeRef("ChangeSystemCapture"))
 				.build(),
-			new DataFetcher<Publisher<ChangeSystemCapture>>() {
-				@Override
-				public Publisher<ChangeSystemCapture> get(DataFetchingEnvironment environment) throws Exception {
-					final SubmissionPublisher<ChangeSystemCapture> publisher = new SubmissionPublisher<>(evita.getExecutor(), 5, (subscriber, throwable) -> {
-						// todo lho what here?
-					});
-//					evita.registerSystemChangeCapture(
-//						new ChangeSystemCaptureRequest(CaptureContent.HEADER),
-//						new ChangeSystemCaptureObserver() {
-//							@Override
-//							public void onChange(@Nonnull ChangeSystemCapture event) {
-//								publisher.submit(event);
-//							}
-//
-//							@Override
-//							public void onTermination() {
-//								publisher.close(); // todo lho ?
-//							}
-//						}
-//					);
-					return publisher;
-				}
-			}
+			new OnSystemChangeDataFetcher(evita)
 		));
 
 		return buildingContext.buildGraphQLSchema();

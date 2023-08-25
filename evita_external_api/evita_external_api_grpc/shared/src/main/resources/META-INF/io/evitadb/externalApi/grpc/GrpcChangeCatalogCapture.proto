@@ -17,7 +17,7 @@ message GrpcChangeSystemCapture {
   GrpcTopLevelCatalogSchemaMutation mutation = 3;
 }
 
-message GrpcChangeDataCapture {
+message GrpcChangeCatalogCapture {
   GrpcCaptureArea area = 1;
   string catalog = 2;
   string entityType = 3;

@@ -16,7 +16,7 @@ import "GrpcLocalMutation.proto";
 import "GrpcEntityMutation.proto";
 import "GrpcCatalogSchemaMutation.proto";
 import "GrpcCatalogSchemaMutations.proto";
-import "GrpcChangeDataCapture.proto";
+import "GrpcChangeCatalogCapture.proto";
 
 // Response to GetCatalogState request.
 message GrpcCatalogStateResponse {
@@ -435,7 +435,7 @@ message QueryParam {
   }
 }
 
-message GrpcRegisterChangeDataCaptureRequest {
+message GrpcRegisterChangeCatalogCaptureRequest {
   GrpcCaptureArea area = 1;
   oneof site {
     GrpcSchemaSite schemaSite = 2;
@@ -445,15 +445,11 @@ message GrpcRegisterChangeDataCaptureRequest {
   GrpcCaptureSince since = 5;
 }
 
-message GrpcRegisterChangeDataCaptureResponse {
+message GrpcRegisterChangeCatalogCaptureResponse {
   string uuid = 1;
-  repeated GrpcChangeDataCapture capture = 2;
+  repeated GrpcChangeCatalogCapture capture = 2;
   int64 transactionalId = 3;
   GrpcCaptureResponseType responseType = 4;
-}
-
-message GrpcUnregisterChangeDataCaptureRequest {
-  string uuid = 1;
 }
 
 // This service contains RPCs that could be called by gRPC clients on evitaDB's catalog by usage of a before created session.
@@ -520,6 +516,5 @@ service EvitaSessionService {
   // Procedure that closes a transaction.
   rpc CloseTransaction(GrpcCloseTransactionRequest) returns (google.protobuf.Empty);
 
-  rpc RegisterChangeDataCapture(GrpcRegisterChangeDataCaptureRequest) returns (stream GrpcRegisterChangeDataCaptureResponse);
-  rpc UnregisterChangeDataCapture(GrpcUnregisterChangeDataCaptureRequest) returns (google.protobuf.Empty);
+  rpc RegisterChangeCatalogCapture(GrpcRegisterChangeCatalogCaptureRequest) returns (stream GrpcRegisterChangeCatalogCaptureResponse);
 }

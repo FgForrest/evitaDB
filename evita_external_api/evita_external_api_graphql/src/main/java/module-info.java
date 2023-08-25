@@ -54,6 +54,7 @@ module evita.external.api.graphql {
 	requires com.fasterxml.jackson.databind;
 	requires undertow.core;
 	requires com.graphqljava;
+	requires org.reactivestreams;
 
 	requires evita.api;
 	requires evita.common;

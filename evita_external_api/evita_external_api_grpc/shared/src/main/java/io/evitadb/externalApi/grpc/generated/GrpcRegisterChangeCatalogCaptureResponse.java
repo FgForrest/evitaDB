@@ -4,18 +4,18 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
- * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse}
+ * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse}
  */
-public final class GrpcRegisterChangeDataCaptureResponse extends
+public final class GrpcRegisterChangeCatalogCaptureResponse extends
     com.google.protobuf.GeneratedMessageV3 implements
-    // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse)
-    GrpcRegisterChangeDataCaptureResponseOrBuilder {
+    // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse)
+    GrpcRegisterChangeCatalogCaptureResponseOrBuilder {
 private static final long serialVersionUID = 0L;
-  // Use GrpcRegisterChangeDataCaptureResponse.newBuilder() to construct.
-  private GrpcRegisterChangeDataCaptureResponse(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
+  // Use GrpcRegisterChangeCatalogCaptureResponse.newBuilder() to construct.
+  private GrpcRegisterChangeCatalogCaptureResponse(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
     super(builder);
   }
-  private GrpcRegisterChangeDataCaptureResponse() {
+  private GrpcRegisterChangeCatalogCaptureResponse() {
     uuid_ = "";
     capture_ = java.util.Collections.emptyList();
     responseType_ = 0;
@@ -25,7 +25,7 @@ private static final long serialVersionUID = 0L;
   @SuppressWarnings({"unused"})
   protected java.lang.Object newInstance(
       UnusedPrivateParameter unused) {
-    return new GrpcRegisterChangeDataCaptureResponse();
+    return new GrpcRegisterChangeCatalogCaptureResponse();
   }
 
   @java.lang.Override
@@ -33,7 +33,7 @@ private static final long serialVersionUID = 0L;
   getUnknownFields() {
     return this.unknownFields;
   }
-  private GrpcRegisterChangeDataCaptureResponse(
+  private GrpcRegisterChangeCatalogCaptureResponse(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
@@ -60,11 +60,11 @@ private static final long serialVersionUID = 0L;
           }
           case 18: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              capture_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture>();
+              capture_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture>();
               mutable_bitField0_ |= 0x00000001;
             }
             capture_.add(
-                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture.parser(), extensionRegistry));
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.parser(), extensionRegistry));
             break;
           }
           case 24: {
@@ -102,15 +102,15 @@ private static final long serialVersionUID = 0L;
   }
   public static final com.google.protobuf.Descriptors.Descriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcRegisterChangeDataCaptureResponse_descriptor;
+    return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcRegisterChangeCatalogCaptureResponse_descriptor;
   }
 
   @java.lang.Override
   protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internalGetFieldAccessorTable() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcRegisterChangeDataCaptureResponse_fieldAccessorTable
+    return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcRegisterChangeCatalogCaptureResponse_fieldAccessorTable
         .ensureFieldAccessorsInitialized(
-            io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse.class, io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse.Builder.class);
+            io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse.class, io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse.Builder.class);
   }
 
   public static final int UUID_FIELD_NUMBER = 1;
@@ -152,41 +152,41 @@ private static final long serialVersionUID = 0L;
   }
 
   public static final int CAPTURE_FIELD_NUMBER = 2;
-  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture> capture_;
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture> capture_;
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
    */
   @java.lang.Override
-  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture> getCaptureList() {
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture> getCaptureList() {
     return capture_;
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeDataCaptureOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder> 
       getCaptureOrBuilderList() {
     return capture_;
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
    */
   @java.lang.Override
   public int getCaptureCount() {
     return capture_.size();
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture getCapture(int index) {
+  public io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture getCapture(int index) {
     return capture_.get(index);
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcChangeDataCaptureOrBuilder getCaptureOrBuilder(
+  public io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder getCaptureOrBuilder(
       int index) {
     return capture_.get(index);
   }
@@ -281,10 +281,10 @@ private static final long serialVersionUID = 0L;
     if (obj == this) {
      return true;
     }
-    if (!(obj instanceof io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse)) {
+    if (!(obj instanceof io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse)) {
       return super.equals(obj);
     }
-    io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse other = (io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse) obj;
+    io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse other = (io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse) obj;
 
     if (!getUuid()
         .equals(other.getUuid())) return false;
@@ -320,69 +320,69 @@ private static final long serialVersionUID = 0L;
     return hash;
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse parseFrom(
       java.nio.ByteBuffer data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse parseFrom(
       java.nio.ByteBuffer data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse parseFrom(
       com.google.protobuf.ByteString data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse parseFrom(
       com.google.protobuf.ByteString data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse parseFrom(byte[] data)
+  public static io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse parseFrom(byte[] data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse parseFrom(
       byte[] data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse parseFrom(java.io.InputStream input)
+  public static io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse parseFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse parseFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse parseDelimitedFrom(java.io.InputStream input)
+  public static io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse parseDelimitedFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse parseDelimitedFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse parseDelimitedFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse parseFrom(
       com.google.protobuf.CodedInputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse parseFrom(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
@@ -395,7 +395,7 @@ private static final long serialVersionUID = 0L;
   public static Builder newBuilder() {
     return DEFAULT_INSTANCE.toBuilder();
   }
-  public static Builder newBuilder(io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse prototype) {
+  public static Builder newBuilder(io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse prototype) {
     return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
   }
   @java.lang.Override
@@ -411,26 +411,26 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
-   * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse}
+   * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse}
    */
   public static final class Builder extends
       com.google.protobuf.GeneratedMessageV3.Builder<Builder> implements
-      // @@protoc_insertion_point(builder_implements:io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse)
-      io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponseOrBuilder {
+      // @@protoc_insertion_point(builder_implements:io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse)
+      io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponseOrBuilder {
     public static final com.google.protobuf.Descriptors.Descriptor
         getDescriptor() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcRegisterChangeDataCaptureResponse_descriptor;
+      return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcRegisterChangeCatalogCaptureResponse_descriptor;
     }
 
     @java.lang.Override
     protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
         internalGetFieldAccessorTable() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcRegisterChangeDataCaptureResponse_fieldAccessorTable
+      return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcRegisterChangeCatalogCaptureResponse_fieldAccessorTable
           .ensureFieldAccessorsInitialized(
-              io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse.class, io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse.Builder.class);
+              io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse.class, io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse.Builder.class);
     }
 
-    // Construct using io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse.newBuilder()
+    // Construct using io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse.newBuilder()
     private Builder() {
       maybeForceBuilderInitialization();
     }
@@ -467,17 +467,17 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public com.google.protobuf.Descriptors.Descriptor
         getDescriptorForType() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcRegisterChangeDataCaptureResponse_descriptor;
+      return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcRegisterChangeCatalogCaptureResponse_descriptor;
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse getDefaultInstanceForType() {
-      return io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse.getDefaultInstance();
+    public io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse getDefaultInstanceForType() {
+      return io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse.getDefaultInstance();
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse build() {
-      io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse result = buildPartial();
+    public io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse build() {
+      io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse result = buildPartial();
       if (!result.isInitialized()) {
         throw newUninitializedMessageException(result);
       }
@@ -485,8 +485,8 @@ private static final long serialVersionUID = 0L;
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse buildPartial() {
-      io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse result = new io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse(this);
+    public io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse buildPartial() {
+      io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse result = new io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse(this);
       int from_bitField0_ = bitField0_;
       result.uuid_ = uuid_;
       if (captureBuilder_ == null) {
@@ -538,16 +538,16 @@ private static final long serialVersionUID = 0L;
     }
     @java.lang.Override
     public Builder mergeFrom(com.google.protobuf.Message other) {
-      if (other instanceof io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse) {
-        return mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse)other);
+      if (other instanceof io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse) {
+        return mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse)other);
       } else {
         super.mergeFrom(other);
         return this;
       }
     }
 
-    public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse other) {
-      if (other == io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse.getDefaultInstance()) return this;
+    public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse other) {
+      if (other == io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse.getDefaultInstance()) return this;
       if (!other.getUuid().isEmpty()) {
         uuid_ = other.uuid_;
         onChanged();
@@ -599,11 +599,11 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws java.io.IOException {
-      io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse parsedMessage = null;
+      io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse parsedMessage = null;
       try {
         parsedMessage = PARSER.parsePartialFrom(input, extensionRegistry);
       } catch (com.google.protobuf.InvalidProtocolBufferException e) {
-        parsedMessage = (io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse) e.getUnfinishedMessage();
+        parsedMessage = (io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse) e.getUnfinishedMessage();
         throw e.unwrapIOException();
       } finally {
         if (parsedMessage != null) {
@@ -690,22 +690,22 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture> capture_ =
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture> capture_ =
       java.util.Collections.emptyList();
     private void ensureCaptureIsMutable() {
       if (!((bitField0_ & 0x00000001) != 0)) {
-        capture_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture>(capture_);
+        capture_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture>(capture_);
         bitField0_ |= 0x00000001;
        }
     }
 
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture, io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeDataCaptureOrBuilder> captureBuilder_;
+        io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder> captureBuilder_;
 
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture> getCaptureList() {
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture> getCaptureList() {
       if (captureBuilder_ == null) {
         return java.util.Collections.unmodifiableList(capture_);
       } else {
@@ -713,7 +713,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public int getCaptureCount() {
       if (captureBuilder_ == null) {
@@ -723,9 +723,9 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture getCapture(int index) {
+    public io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture getCapture(int index) {
       if (captureBuilder_ == null) {
         return capture_.get(index);
       } else {
@@ -733,10 +733,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public Builder setCapture(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture value) {
+        int index, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture value) {
       if (captureBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
@@ -750,10 +750,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public Builder setCapture(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture.Builder builderForValue) {
+        int index, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder builderForValue) {
       if (captureBuilder_ == null) {
         ensureCaptureIsMutable();
         capture_.set(index, builderForValue.build());
@@ -764,9 +764,9 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
-    public Builder addCapture(io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture value) {
+    public Builder addCapture(io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture value) {
       if (captureBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
@@ -780,10 +780,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public Builder addCapture(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture value) {
+        int index, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture value) {
       if (captureBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
@@ -797,10 +797,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public Builder addCapture(
-        io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture.Builder builderForValue) {
+        io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder builderForValue) {
       if (captureBuilder_ == null) {
         ensureCaptureIsMutable();
         capture_.add(builderForValue.build());
@@ -811,10 +811,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public Builder addCapture(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture.Builder builderForValue) {
+        int index, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder builderForValue) {
       if (captureBuilder_ == null) {
         ensureCaptureIsMutable();
         capture_.add(index, builderForValue.build());
@@ -825,10 +825,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public Builder addAllCapture(
-        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture> values) {
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture> values) {
       if (captureBuilder_ == null) {
         ensureCaptureIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
@@ -840,7 +840,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public Builder clearCapture() {
       if (captureBuilder_ == null) {
@@ -853,7 +853,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public Builder removeCapture(int index) {
       if (captureBuilder_ == null) {
@@ -866,16 +866,16 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture.Builder getCaptureBuilder(
+    public io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder getCaptureBuilder(
         int index) {
       return getCaptureFieldBuilder().getBuilder(index);
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcChangeDataCaptureOrBuilder getCaptureOrBuilder(
+    public io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder getCaptureOrBuilder(
         int index) {
       if (captureBuilder_ == null) {
         return capture_.get(index);  } else {
@@ -883,9 +883,9 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeDataCaptureOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder> 
          getCaptureOrBuilderList() {
       if (captureBuilder_ != null) {
         return captureBuilder_.getMessageOrBuilderList();
@@ -894,33 +894,33 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture.Builder addCaptureBuilder() {
+    public io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder addCaptureBuilder() {
       return getCaptureFieldBuilder().addBuilder(
-          io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture.getDefaultInstance());
+          io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.getDefaultInstance());
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture.Builder addCaptureBuilder(
+    public io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder addCaptureBuilder(
         int index) {
       return getCaptureFieldBuilder().addBuilder(
-          index, io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture.getDefaultInstance());
+          index, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.getDefaultInstance());
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture capture = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder> 
          getCaptureBuilderList() {
       return getCaptureFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture, io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeDataCaptureOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder> 
         getCaptureFieldBuilder() {
       if (captureBuilder_ == null) {
         captureBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
-            io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture, io.evitadb.externalApi.grpc.generated.GrpcChangeDataCapture.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeDataCaptureOrBuilder>(
+            io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder>(
                 capture_,
                 ((bitField0_ & 0x00000001) != 0),
                 getParentForChildren(),
@@ -1027,41 +1027,41 @@ private static final long serialVersionUID = 0L;
     }
 
 
-    // @@protoc_insertion_point(builder_scope:io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse)
+    // @@protoc_insertion_point(builder_scope:io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse)
   }
 
-  // @@protoc_insertion_point(class_scope:io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse)
-  private static final io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse DEFAULT_INSTANCE;
+  // @@protoc_insertion_point(class_scope:io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse)
+  private static final io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse DEFAULT_INSTANCE;
   static {
-    DEFAULT_INSTANCE = new io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse();
+    DEFAULT_INSTANCE = new io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse();
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse getDefaultInstance() {
+  public static io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse getDefaultInstance() {
     return DEFAULT_INSTANCE;
   }
 
-  private static final com.google.protobuf.Parser<GrpcRegisterChangeDataCaptureResponse>
-      PARSER = new com.google.protobuf.AbstractParser<GrpcRegisterChangeDataCaptureResponse>() {
+  private static final com.google.protobuf.Parser<GrpcRegisterChangeCatalogCaptureResponse>
+      PARSER = new com.google.protobuf.AbstractParser<GrpcRegisterChangeCatalogCaptureResponse>() {
     @java.lang.Override
-    public GrpcRegisterChangeDataCaptureResponse parsePartialFrom(
+    public GrpcRegisterChangeCatalogCaptureResponse parsePartialFrom(
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws com.google.protobuf.InvalidProtocolBufferException {
-      return new GrpcRegisterChangeDataCaptureResponse(input, extensionRegistry);
+      return new GrpcRegisterChangeCatalogCaptureResponse(input, extensionRegistry);
     }
   };
 
-  public static com.google.protobuf.Parser<GrpcRegisterChangeDataCaptureResponse> parser() {
+  public static com.google.protobuf.Parser<GrpcRegisterChangeCatalogCaptureResponse> parser() {
     return PARSER;
   }
 
   @java.lang.Override
-  public com.google.protobuf.Parser<GrpcRegisterChangeDataCaptureResponse> getParserForType() {
+  public com.google.protobuf.Parser<GrpcRegisterChangeCatalogCaptureResponse> getParserForType() {
     return PARSER;
   }
 
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureResponse getDefaultInstanceForType() {
+  public io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse getDefaultInstanceForType() {
     return DEFAULT_INSTANCE;
   }
 

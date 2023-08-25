@@ -42,7 +42,7 @@ import javax.annotation.Nullable;
  * @param body         optional body of the operation when it is requested by the {@link ChangeSystemCaptureRequest#content()}
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public record ChangeDataCapture(
+public record ChangeCatalogCapture(
 	long index,
 	@Nonnull CaptureArea area,
 	@Nonnull String catalog,

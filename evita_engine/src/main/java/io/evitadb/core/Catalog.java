@@ -39,8 +39,9 @@ import io.evitadb.api.proxy.impl.UnsatisfiedDependencyFactory;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
-import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureObserver;
-import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
@@ -197,7 +198,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 */
 	private final SequenceService sequenceService = new SequenceService();
 	/**
-	 * Change observer that is used to notify all registered {@link ChangeDataCaptureObserver} about changes in the
+	 * Change observer that is used to notify all registered {@link io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher} about changes in the
 	 * catalog.
 	 */
 	private final CatalogChangeObserver changeObserver;
@@ -819,15 +820,12 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		this.entityCollectionsByPrimaryKey.removeLayer(transactionalLayer);
 	}
 
+	// todo jno reimplement
 	@Nonnull
 	@Override
-	public UUID registerChangeDataCapture(@Nonnull ChangeDataCaptureRequest request, @Nonnull ChangeDataCaptureObserver callback) {
-		return changeObserver.registerObserver(this, request, callback);
-	}
-
-	@Override
-	public boolean unregisterChangeDataCapture(@Nonnull UUID uuid) {
-		return changeObserver.unregisterObserver(uuid);
+	public ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(@Nonnull ChangeCatalogCaptureRequest request) {
+//		return changeObserver.registerObserver(this, request, callback);
+		throw new EvitaInternalError("Not implemented yet!");
 	}
 
 	/**

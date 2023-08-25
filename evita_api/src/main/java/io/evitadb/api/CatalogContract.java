@@ -29,8 +29,9 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
-import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureObserver;
-import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -223,17 +224,9 @@ public interface CatalogContract {
 	/**
 	 * TODO JNO - document me
 	 */
+	// todo jno: reimplement to publishers
 	@Nonnull
-	UUID registerChangeDataCapture(
-		@Nonnull ChangeDataCaptureRequest request,
-		@Nonnull ChangeDataCaptureObserver callback
-	);
-
-	/**
-	 * TODO JNO - document me
-	 * @param uuid
-	 */
-	boolean unregisterChangeDataCapture(@Nonnull UUID uuid);
+	ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(@Nonnull ChangeCatalogCaptureRequest request);
 
 	/**
 	 * Changes state of the catalog from {@link CatalogState#WARMING_UP} to {@link CatalogState#ALIVE}.

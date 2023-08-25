@@ -25,9 +25,8 @@ package io.evitadb.core.cdc;
 
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.CaptureSite;
-import io.evitadb.api.requestResponse.cdc.ChangeDataCapture;
-import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureObserver;
-import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.DataSite;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.cdc.SchemaSite;
@@ -66,11 +65,10 @@ public class CatalogChangeObserver {
 	@Nonnull
 	public UUID registerObserver(
 		@Nonnull Catalog catalog,
-		@Nonnull ChangeDataCaptureRequest request,
-		@Nonnull ChangeDataCaptureObserver callback
+		@Nonnull ChangeCatalogCaptureRequest request
 	) {
 		final UUID uuid = UUIDUtil.randomUUID();
-		final RequestWithObserver requestWithObserver = new RequestWithObserver(uuid, request, callback);
+		final RequestWithObserver requestWithObserver = new RequestWithObserver(uuid, request/*, callback*/);
 		catalogObservers.put(uuid, requestWithObserver);
 		final CaptureArea[] areas = request.area() == null ?
 			CaptureArea.values() : new CaptureArea[]{request.area()};
@@ -105,15 +103,17 @@ public class CatalogChangeObserver {
 		}
 	}
 
-	@Nullable
-	public ChangeDataCaptureObserver getObserver(@Nonnull UUID uuid) {
-		return catalogObservers.get(uuid).observer();
-	}
+	// todo jno: reimplement
+//	@Nullable
+//	public ChangeDataCaptureObserver getObserver(@Nonnull UUID uuid) {
+//		return catalogObservers.get(uuid).observer();
+//	}
 
 	private record RequestWithObserver(
 		@Nonnull UUID uuid,
-		@Nonnull ChangeDataCaptureRequest request,
-		@Nonnull ChangeDataCaptureObserver observer
+		@Nonnull ChangeCatalogCaptureRequest request
+		// todo jno: reimplement
+//		@Nonnull ChangeDataCaptureObserver observer
 	) {
 
 	}
@@ -125,7 +125,7 @@ public class CatalogChangeObserver {
 
 		public void registerObserver(
 			@Nonnull Catalog catalog,
-			@Nonnull ChangeDataCaptureRequest request,
+			@Nonnull ChangeCatalogCaptureRequest request,
 			@Nonnull RequestWithObserver requestWithObserver
 		) {
 			final CaptureSite site = request.site() == null ? SchemaSite.ALL : request.site();
@@ -194,19 +194,21 @@ public class CatalogChangeObserver {
 			@Nonnull Mutation mutation,
 			@Nonnull CatalogChangeCaptureBlock captureBlock
 		) {
-			ChangeDataCapture captureHeader = null;
-			ChangeDataCapture captureBody = null;
+			ChangeCatalogCapture captureHeader = null;
+			ChangeCatalogCapture captureBody = null;
 			for (RequestWithObserver observer : genericObservers) {
-				final ChangeDataCaptureRequest request = observer.request();
+				final ChangeCatalogCaptureRequest request = observer.request();
 				switch (request.content()) {
 					case HEADER -> {
 						captureHeader = captureHeader == null ?
-							new ChangeDataCapture(CaptureArea.SCHEMA, catalog, entityType, version, operation, null) : captureHeader;
+							// todo jno implement counter
+							new ChangeCatalogCapture(0, CaptureArea.SCHEMA, catalog, entityType, version, operation, null) : captureHeader;
 						captureBlock.notify(observer.uuid(), captureHeader);
 					}
 					case BODY -> {
 						captureBody = captureBody == null ?
-							new ChangeDataCapture(CaptureArea.SCHEMA, catalog, entityType, version, operation, mutation) : captureBody;
+							// todo jno implement counter
+							new ChangeCatalogCapture(0, CaptureArea.SCHEMA, catalog, entityType, version, operation, mutation) : captureBody;
 						captureBlock.notify(observer.uuid(), captureBody);
 					}
 				}
@@ -215,16 +217,18 @@ public class CatalogChangeObserver {
 				final List<RequestWithObserver> observers = entityTypeObservers.get(entityTypePk);
 				if (observers != null) {
 					for (RequestWithObserver observer : observers) {
-						final ChangeDataCaptureRequest request = observer.request();
+						final ChangeCatalogCaptureRequest request = observer.request();
 						switch (request.content()) {
 							case HEADER -> {
 								captureHeader = captureHeader == null ?
-									new ChangeDataCapture(CaptureArea.SCHEMA, catalog, entityType, version, operation, null) : captureHeader;
+									// todo jno implement counter
+									new ChangeCatalogCapture(0, CaptureArea.SCHEMA, catalog, entityType, version, operation, null) : captureHeader;
 								captureBlock.notify(observer.uuid(), captureHeader);
 							}
 							case BODY -> {
 								captureBody = captureBody == null ?
-									new ChangeDataCapture(CaptureArea.SCHEMA, catalog, entityType, version, operation, mutation) : captureBody;
+									// todo jno implement counter
+									new ChangeCatalogCapture(0, CaptureArea.SCHEMA, catalog, entityType, version, operation, mutation) : captureBody;
 								captureBlock.notify(observer.uuid(), captureBody);
 							}
 						}
@@ -241,7 +245,7 @@ public class CatalogChangeObserver {
 
 		public void registerObserver(
 			@Nonnull Catalog catalog,
-			@Nonnull ChangeDataCaptureRequest request,
+			@Nonnull ChangeCatalogCaptureRequest request,
 			@Nonnull RequestWithObserver requestWithObserver
 		) {
 			final CaptureSite site = request.site() == null ? DataSite.ALL : request.site();
@@ -370,18 +374,19 @@ public class CatalogChangeObserver {
 
 		public void notifyObservers(String catalog, Operation operation, String entityType, Integer version, Mutation mutation, CatalogChangeCaptureBlock captureBlock) {
 			final ClassifierType classifierType = mutation instanceof LocalMutation<?, ?> localMutation ? localMutation.getClassifierType() : ClassifierType.ENTITY;
-			final AtomicReference<ChangeDataCapture> captureHeader = new AtomicReference<>();
-			final AtomicReference<ChangeDataCapture> captureBody = new AtomicReference<>();
+			final AtomicReference<ChangeCatalogCapture> captureHeader = new AtomicReference<>();
+			final AtomicReference<ChangeCatalogCapture> captureBody = new AtomicReference<>();
 
 			final Consumer<RequestWithObserver> notify = requestWithObserver -> {
-				final ChangeDataCaptureRequest request = requestWithObserver.request();
+				final ChangeCatalogCaptureRequest request = requestWithObserver.request();
 				switch (request.content()) {
 					case HEADER -> {
 						captureBlock.notify(
 							requestWithObserver.uuid(),
 							captureHeader.updateAndGet(
 								cdc -> cdc == null ?
-									new ChangeDataCapture(CaptureArea.DATA, catalog, entityType, version, operation, null) :
+									// todo jno implement counter
+									new ChangeCatalogCapture(0, CaptureArea.DATA, catalog, entityType, version, operation, null) :
 									cdc
 							)
 						);
@@ -391,7 +396,8 @@ public class CatalogChangeObserver {
 							requestWithObserver.uuid(),
 							captureBody.updateAndGet(
 								cdc -> cdc == null ?
-									new ChangeDataCapture(CaptureArea.DATA, catalog, entityType, version, operation, mutation) :
+									// todo jno implement counter
+									new ChangeCatalogCapture(0, CaptureArea.DATA, catalog, entityType, version, operation, mutation) :
 									cdc
 							)
 						);

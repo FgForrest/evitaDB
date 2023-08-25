@@ -130,8 +130,8 @@ class EvitaTest implements EvitaTestSupport {
 //		evita.updateCatalog(
 //			TEST_CATALOG,
 //			session -> {
-//				session.registerChangeDataCapture(
-//					new ChangeDataCaptureRequest(CaptureArea.SCHEMA, new SchemaSite(), CaptureContent.BODY, 0L),
+//				session.registerChangeCatalogCapture(
+//					new ChangeCatalogCaptureRequest(CaptureArea.SCHEMA, new SchemaSite(), CaptureContent.BODY, 0L),
 //					subscriber
 //				);
 //			}

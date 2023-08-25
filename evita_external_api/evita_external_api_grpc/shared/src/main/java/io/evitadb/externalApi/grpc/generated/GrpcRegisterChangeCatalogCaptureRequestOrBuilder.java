@@ -3,8 +3,8 @@
 
 package io.evitadb.externalApi.grpc.generated;
 
-public interface GrpcRegisterChangeDataCaptureRequestOrBuilder extends
-    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureRequest)
+public interface GrpcRegisterChangeCatalogCaptureRequestOrBuilder extends
+    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRequest)
     com.google.protobuf.MessageOrBuilder {
 
   /**
@@ -74,5 +74,5 @@ public interface GrpcRegisterChangeDataCaptureRequestOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcCaptureSinceOrBuilder getSinceOrBuilder();
 
-  public io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureRequest.SiteCase getSiteCase();
+  public io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRequest.SiteCase getSiteCase();
 }

@@ -21,26 +21,25 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.catalog;
+package io.evitadb.externalApi.graphql.api.catalog;
 
-import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
-import io.evitadb.externalApi.rest.RestManager;
+import io.evitadb.externalApi.graphql.GraphQLManager;
 import lombok.RequiredArgsConstructor;
 
-import javax.annotation.Nonnull;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
 
 /**
- * This observer allows to react on changes in Catalog's structure and reload OpenAPI and REST handlers if necessary.
+ * Updates GraphQL API endpoints and their GraphQL instances based on Evita updates.
  *
- * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+// TOBEDONE LHO: consider more efficient GraphQL schema updating when only part of Evita schema is updated
 @RequiredArgsConstructor
-public class CatalogRestRefreshingObserver implements Subscriber<ChangeCatalogCapture> {
+public class SystemGraphQLRefreshingObserver implements Subscriber<ChangeSystemCapture> {
 
-	@Nonnull private final RestManager restManager;
+	private final GraphQLManager graphQLManager;
 	private Subscription subscription;
 
 	@Override
@@ -50,12 +49,11 @@ public class CatalogRestRefreshingObserver implements Subscriber<ChangeCatalogCa
 	}
 
 	@Override
-	public void onNext(ChangeCatalogCapture item) {
-		// todo lho: check how was this implemented in the old code, but it will be probably correct, implement it in GQL aswell
+	public void onNext(ChangeSystemCapture item) {
 		switch (item.operation()) {
-			case CREATE -> restManager.registerCatalog(item.catalog());
-			case UPDATE -> restManager.refreshCatalog(item.catalog());
-			case REMOVE -> restManager.unregisterCatalog(item.catalog());
+			case CREATE -> graphQLManager.registerCatalog(item.catalog());
+			case UPDATE -> graphQLManager.refreshCatalog(item.catalog());
+			case REMOVE -> graphQLManager.unregisterCatalog(item.catalog());
 		}
 		subscription.request(1);
 	}

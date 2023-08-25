@@ -28,7 +28,8 @@ import graphql.GraphQL;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.CaptureContent;
-import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.cdc.SchemaSite;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -37,6 +38,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.graphql.api.catalog.CatalogGraphQLBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.CatalogGraphQLRefreshingObserver;
+import io.evitadb.externalApi.graphql.api.catalog.SystemGraphQLRefreshingObserver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.CatalogDataApiGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.CatalogSchemaApiGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.system.SystemGraphQLBuilder;
@@ -57,9 +59,6 @@ import io.undertow.server.RoutingHandler;
 import io.undertow.server.handlers.BlockingHandler;
 import io.undertow.util.Headers;
 import io.undertow.util.Methods;
-import io.undertow.websockets.WebSocketConnectionCallback;
-import io.undertow.websockets.core.WebSocketChannel;
-import io.undertow.websockets.spi.WebSocketHttpExchange;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -94,10 +93,6 @@ public class GraphQLManager {
 	 */
 	@Nonnull private final RoutingHandler graphQLRouter = Handlers.routing();
 	/**
-	 * Observer for refreshing GraphQL API endpoints
-	 */
-	@Nonnull private final CatalogGraphQLRefreshingObserver observer = new CatalogGraphQLRefreshingObserver(this);
-	/**
 	 * Already registered catalogs (corresponds to existing endpoints as well)
 	 */
 	@Nonnull private final Map<String, RegisteredCatalog> registeredCatalogs = createHashMap(20);
@@ -108,11 +103,12 @@ public class GraphQLManager {
 
 		final long buildingStartTime = System.currentTimeMillis();
 
+		// listen to any evita catalog changes
+		evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER))
+			.subscribe(new SystemGraphQLRefreshingObserver(this));
+
 		// register initial endpoints
 		registerSystemApi();
-
-		// todo lho
-//		evita.subscribe(observer);
 		this.evita.getCatalogs().forEach(catalog -> registerCatalog(catalog.getName()));
 
 		log.info("Built GraphQL API in " + StringUtils.formatPreciseNano(System.currentTimeMillis() - buildingStartTime));
@@ -136,14 +132,12 @@ public class GraphQLManager {
 			!registeredCatalogs.containsKey(catalogName),
 			() -> new GraphQLInternalError("Catalog `" + catalogName + "` has been already registered.")
 		);
-		// todo lho
-//		catalog.registerChangeDataCapture(
-//			new ChangeDataCaptureRequest(
-//				CaptureArea.SCHEMA, new SchemaSite(Operation.values()), CaptureContent.HEADER,
-//				catalog.getLastCommittedTransactionId()
-//			),
-//			observer
-//		);
+		catalog.registerChangeCatalogCapture(
+			new ChangeCatalogCaptureRequest(
+				CaptureArea.SCHEMA, new SchemaSite(Operation.values()), CaptureContent.HEADER,
+				catalog.getLastCommittedTransactionId()
+			)
+		).subscribe(new CatalogGraphQLRefreshingObserver(this));
 
 		try {
 			final UriPath catalogDataApiPath = buildCatalogDataApiPath(catalog.getSchema());

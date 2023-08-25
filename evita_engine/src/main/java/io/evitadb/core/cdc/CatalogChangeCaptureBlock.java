@@ -23,8 +23,7 @@
 
 package io.evitadb.core.cdc;
 
-import io.evitadb.api.requestResponse.cdc.ChangeDataCapture;
-import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureObserver;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -42,29 +41,30 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CatalogChangeCaptureBlock {
 	private final CatalogChangeObserver changeObserver;
-	private final Map<UUID, List<ChangeDataCapture>> notifications = new HashMap<>(32);
+	private final Map<UUID, List<ChangeCatalogCapture>> notifications = new HashMap<>(32);
 
-	public void notify(@Nonnull UUID uuid, @Nonnull ChangeDataCapture captureHeader) {
+	public void notify(@Nonnull UUID uuid, @Nonnull ChangeCatalogCapture captureHeader) {
 		notifications.compute(
 			uuid,
-			(uuid1, changeDataCaptures) -> {
-				if (changeDataCaptures == null) {
-					changeDataCaptures = new LinkedList<>();
+			(uuid1, changeCatalogCaptures) -> {
+				if (changeCatalogCaptures == null) {
+					changeCatalogCaptures = new LinkedList<>();
 				}
-				changeDataCaptures.add(captureHeader);
-				return changeDataCaptures;
+				changeCatalogCaptures.add(captureHeader);
+				return changeCatalogCaptures;
 			}
 		);
 	}
 
 	public void finish() {
 		notifications.forEach(
-			(uuid, changeDataCaptures) -> {
-				final ChangeDataCaptureObserver observer = changeObserver.getObserver(uuid);
-				if (observer != null) {
-					// TODO JNO - implement transaction commit
-					observer.onTransactionCommit(0L, changeDataCaptures);
-				}
+			(uuid, changeCatalogCaptures) -> {
+				// todo jno: reimplement
+//				final ChangeDataCaptureObserver observer = changeObserver.getObserver(uuid);
+//				if (observer != null) {
+//					// TODO JNO - implement transaction commit
+//					observer.onTransactionCommit(0L, changeDataCaptures);
+//				}
 			}
 		);
 	}

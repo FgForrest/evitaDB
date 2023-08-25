@@ -23,18 +23,12 @@
 
 package io.evitadb.externalApi.graphql.api.catalog;
 
-import io.evitadb.api.requestResponse.cdc.CaptureArea;
-import io.evitadb.api.requestResponse.cdc.ChangeDataCapture;
-import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureObserver;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureSubscriber;
 import io.evitadb.externalApi.graphql.GraphQLManager;
-import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
-import javax.annotation.Nonnull;
-import java.util.Collection;
-import java.util.Objects;
+import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
 
 /**
@@ -44,39 +38,26 @@ import java.util.concurrent.Flow.Subscription;
  */
 // TOBEDONE LHO: consider more efficient GraphQL schema updating when only part of Evita schema is updated
 @RequiredArgsConstructor
-public class CatalogGraphQLRefreshingObserver implements ChangeSystemCaptureSubscriber, ChangeDataCaptureObserver {
+public class CatalogGraphQLRefreshingObserver implements Subscriber<ChangeCatalogCapture> {
+
 	private final GraphQLManager graphQLManager;
-
-	@Override
-	public void onTransactionCommit(long transactionId, @Nonnull Collection<ChangeDataCapture> events) {
-		String catalogUpdated = null;
-		for (ChangeDataCapture event : events) {
-			if (event.area() == CaptureArea.SCHEMA) {
-				Assert.isTrue(
-					catalogUpdated == null || Objects.equals(catalogUpdated, event.catalog()),
-					"Transactions are expected to always contain events from the same catalog."
-				);
-				catalogUpdated = event.catalog();
-			}
-		}
-
-		if (catalogUpdated != null) {
-			graphQLManager.refreshCatalog(catalogUpdated);
-		}
-	}
+	private Subscription subscription;
 
 	@Override
 	public void onSubscribe(Subscription subscription) {
-		subscription.request(Long.MAX_VALUE);
+		this.subscription = subscription;
+		this.subscription.request(1);
 	}
 
 	@Override
-	public void onNext(ChangeSystemCapture item) {
+	public void onNext(ChangeCatalogCapture item) {
+		// todo lho check
 		switch (item.operation()) {
 			case CREATE -> graphQLManager.registerCatalog(item.catalog());
 			case UPDATE -> graphQLManager.refreshCatalog(item.catalog());
 			case REMOVE -> graphQLManager.unregisterCatalog(item.catalog());
 		}
+		subscription.request(1);
 	}
 
 	@Override
@@ -86,11 +67,6 @@ public class CatalogGraphQLRefreshingObserver implements ChangeSystemCaptureSubs
 
 	@Override
 	public void onComplete() {
-		// do nothing, there are no resources to free
-	}
-
-	@Override
-	public void onTermination() {
 		// do nothing, there are no resources to free
 	}
 }

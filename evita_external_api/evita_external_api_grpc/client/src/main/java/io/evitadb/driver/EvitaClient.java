@@ -37,7 +37,6 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
 import io.evitadb.driver.cdc.ClientChangeSystemCapturePublisher;
-import io.evitadb.driver.cdc.ClientSubscription;
 import io.evitadb.driver.certificate.ClientCertificateManager;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientNotTerminatedInTimeException;
@@ -145,7 +144,8 @@ public class EvitaClient implements EvitaContract {
 
 	private final ManagedChannel cdcChannel;
 
-	private final List<ClientSubscription> activeSubscriptions = new ArrayList<>(8);
+	// todo jno: reimplement to publishers
+//	private final List<ClientSubscription> activeSubscriptions = new ArrayList<>(8);
 
 	/**
 	 * Method that is called within the {@link EvitaClientSession} to apply the wanted blocking logic on a channel retrieved
@@ -536,7 +536,8 @@ public class EvitaClient implements EvitaContract {
 			this.activeSessions.values().forEach(EvitaSessionContract::close);
 			this.activeSessions.clear();
 			this.channelPool.shutdown();
-			this.activeSubscriptions.forEach(ClientSubscription::cancel);
+			// todo jno: reimplement to publishers
+//			this.activeSubscriptions.forEach(ClientSubscription::cancel);
 			this.cdcChannel.shutdownNow();
 			this.terminationCallback.run();
 		}

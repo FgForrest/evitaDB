@@ -47,8 +47,9 @@ import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
 import io.evitadb.api.query.require.Strip;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.EvitaResponse;
-import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureObserver;
-import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -170,17 +171,9 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	/**
 	 * TODO JNO - document me
 	 */
+	// todo jno: implement
 	@Nonnull
-	UUID registerChangeDataCapture(
-		@Nonnull ChangeDataCaptureRequest request,
-		@Nonnull ChangeDataCaptureObserver callback
-	);
-
-	/**
-	 * TODO JNO - document me
-	 * @param uuid
-	 */
-	void unregisterChangeDataCapture(@Nonnull UUID uuid);
+	ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(@Nonnull ChangeCatalogCaptureRequest request);
 
 	/**
 	 * Method creates new a new entity schema and collection for it in the catalog this session is tied to. It returns

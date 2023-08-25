@@ -25,7 +25,7 @@ package io.evitadb.externalApi.grpc.dataType;
 
 import com.google.protobuf.Int32Value;
 import io.evitadb.api.requestResponse.cdc.CaptureSite;
-import io.evitadb.api.requestResponse.cdc.ChangeDataCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.DataSite;
 import io.evitadb.api.requestResponse.cdc.Operation;
@@ -42,7 +42,7 @@ import io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture;
 import io.evitadb.externalApi.grpc.generated.GrpcDataSite;
 import io.evitadb.externalApi.grpc.generated.GrpcEntityMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation;
-import io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeDataCaptureRequest;
+import io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcSchemaSite;
 import io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
@@ -55,13 +55,12 @@ import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTop
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 
 import java.util.Arrays;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toCaptureArea;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toOperation;
 
-public class ChangeDataCaptureConverter {
+public class ChangeCatalogCaptureConverter {
 	private static final SchemaMutationConverter<TopLevelCatalogSchemaMutation, GrpcTopLevelCatalogSchemaMutation> TOP_LEVEL_CATALOG_SCHEMA_MUTATION_CONVERTER = new DelegatingTopLevelCatalogSchemaMutationConverter();
 	private static final SchemaMutationConverter<LocalCatalogSchemaMutation, GrpcLocalCatalogSchemaMutation> LOCAL_CATALOG_SCHEMA_MUTATION_CONVERTER =
 		new DelegatingLocalCatalogSchemaMutationConverter();
@@ -87,6 +86,7 @@ public class ChangeDataCaptureConverter {
 		/* TODO TPO - redesign */
 		return new ChangeSystemCapture(
 //			UUID.randomUUID(),
+			0,
 			grpcChangeSystemCapture.getCatalog(),
 			toOperation(grpcChangeSystemCapture.getOperation()),
 			null
@@ -94,30 +94,30 @@ public class ChangeDataCaptureConverter {
 		);
 	}
 
-	public static GrpcChangeDataCapture toGrpcChangeDataCapture(ChangeDataCapture changeDataCapture) {
+	public static GrpcChangeDataCapture toGrpcChangeDataCapture(ChangeCatalogCapture changeCatalogCapture) {
 		final GrpcChangeDataCapture.Builder builder = GrpcChangeDataCapture.newBuilder();
-		if (changeDataCapture.body() instanceof EntityMutation entityMutation) {
+		if (changeCatalogCapture.body() instanceof EntityMutation entityMutation) {
 			builder.setEntityMutation(ENTITY_MUTATION_CONVERTER.convert(entityMutation));
-		} else if (changeDataCapture.body() instanceof LocalMutation<?, ?> localMutation) {
+		} else if (changeCatalogCapture.body() instanceof LocalMutation<?, ?> localMutation) {
 			builder.setLocalMutation(ENTITY_LOCAL_MUTATION_CONVERTER.convert(localMutation));
-		} else if (changeDataCapture.body() instanceof EntitySchemaMutation entitySchemaMutation) {
+		} else if (changeCatalogCapture.body() instanceof EntitySchemaMutation entitySchemaMutation) {
 			builder.setEntitySchemaMutation(ENTITY_SCHEMA_MUTATION_CONVERTER.convert(entitySchemaMutation));
-		} else if (changeDataCapture.body() instanceof LocalCatalogSchemaMutation localCatalogSchemaMutation) {
+		} else if (changeCatalogCapture.body() instanceof LocalCatalogSchemaMutation localCatalogSchemaMutation) {
 			builder.setCatalogSchemaMutation(LOCAL_CATALOG_SCHEMA_MUTATION_CONVERTER.convert(localCatalogSchemaMutation));
 		}
 
-		if (changeDataCapture.version() != null) {
-			builder.setVersion(Int32Value.newBuilder().setValue(changeDataCapture.version()).build());
+		if (changeCatalogCapture.version() != null) {
+			builder.setVersion(Int32Value.newBuilder().setValue(changeCatalogCapture.version()).build());
 		}
 
 		return builder
-			.setCatalog(changeDataCapture.catalog())
-			.setEntityType(changeDataCapture.entityType())
-			.setOperation(EvitaEnumConverter.toGrpcOperation(changeDataCapture.operation()))
+			.setCatalog(changeCatalogCapture.catalog())
+			.setEntityType(changeCatalogCapture.entityType())
+			.setOperation(EvitaEnumConverter.toGrpcOperation(changeCatalogCapture.operation()))
 			.build();
 	}
 
-	public static ChangeDataCapture toChangeDataCapture(GrpcChangeDataCapture grpcChangeDataCapture) {
+	public static ChangeCatalogCapture toChangeDataCapture(GrpcChangeDataCapture grpcChangeDataCapture) {
 		final Mutation mutation = switch (grpcChangeDataCapture.getBodyCase()) {
 			case ENTITYMUTATION ->
 				ENTITY_MUTATION_CONVERTER.convert(grpcChangeDataCapture.getEntityMutation());
@@ -129,7 +129,9 @@ public class ChangeDataCaptureConverter {
 				LOCAL_CATALOG_SCHEMA_MUTATION_CONVERTER.convert(grpcChangeDataCapture.getCatalogSchemaMutation());
 			case BODY_NOT_SET -> null;
 		};
-		return new ChangeDataCapture(
+		return new ChangeCatalogCapture(
+			// todo jno/tpo: implement counter
+			0,
 			toCaptureArea(grpcChangeDataCapture.getArea()),
 			grpcChangeDataCapture.getCatalog(),
 			grpcChangeDataCapture.getEntityType(),
@@ -139,7 +141,7 @@ public class ChangeDataCaptureConverter {
 		);
 	}
 
-	public static CaptureSite toCaptureSite(GrpcRegisterChangeDataCaptureRequest grpcRegisterChangeDataCaptureRequest) {
+	public static CaptureSite toCaptureSite(GrpcRegisterChangeCatalogCaptureRequest grpcRegisterChangeDataCaptureRequest) {
 		return switch (grpcRegisterChangeDataCaptureRequest.getSiteCase()) {
 			case DATASITE -> new DataSite(
 				grpcRegisterChangeDataCaptureRequest.getDataSite().getEntityType(),

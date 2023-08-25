@@ -51,10 +51,9 @@ import io.evitadb.api.requestResponse.EvitaEntityResponse;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
-import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureObserver;
-import io.evitadb.api.requestResponse.cdc.ChangeDataCaptureRequest;
-import io.evitadb.api.requestResponse.cdc.DataSite;
-import io.evitadb.api.requestResponse.cdc.SchemaSite;
+import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
@@ -85,13 +84,11 @@ import io.evitadb.driver.service.PooledChannelSupplier;
 import io.evitadb.driver.service.SharedChannelSupplier;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.externalApi.grpc.dataType.ChangeDataCaptureConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc.EvitaSessionServiceStub;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.externalApi.grpc.query.QueryConverter;
-import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.ResponseConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingEntityMutationConverter;
@@ -118,7 +115,6 @@ import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -131,7 +127,6 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Matcher;
-import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
@@ -340,57 +335,51 @@ public class EvitaClientSession implements EvitaSessionContract {
 		}
 	}
 
+	// todo jno: reimplement
 	@Nonnull
 	@Override
-	public UUID registerChangeDataCapture(@Nonnull ChangeDataCaptureRequest request, @Nonnull ChangeDataCaptureObserver callback) {
-		final AtomicReference<UUID> uuid = new AtomicReference<>();
-		final GrpcRegisterChangeDataCaptureRequest.Builder builder = GrpcRegisterChangeDataCaptureRequest.newBuilder();
-		if (request.site() instanceof DataSite dataSite) {
-			builder.setDataSite(ChangeDataCaptureConverter.toGrpcDataSite(dataSite));
-		} else if (request.site() instanceof SchemaSite schemaSite) {
-			builder.setSchemaSite(ChangeDataCaptureConverter.toGrpcSchemaSite(schemaSite));
-		}
-
-		SessionIdHolder.setSessionId(getCatalogName(), getId().toString());
-		final Iterator<GrpcRegisterChangeDataCaptureResponse> responseIterator = EvitaSessionServiceGrpc.newBlockingStub(cdcChannel)
-			.registerChangeDataCapture(builder
-				.setArea(EvitaEnumConverter.toGrpcCaptureArea(request.area()))
-				.setContent(EvitaEnumConverter.toGrpcCaptureContent(request.content()))
-				/* TODO TPO - redesign */
-				/*.setSince(ChangeDataCaptureConverter.toGrpcCaptureSince(request.since()))*/
-				.build()
-			);
-
-		this.executor.execute(() -> responseIterator.forEachRemaining(it -> {
-			if (it.getResponseType() == GrpcCaptureResponseType.ACKNOWLEDGEMENT) {
-				uuid.set(UUID.fromString(it.getUuid()));
-				activeDataCaptures.add(uuid.get());
-			} else {
-				callback.onTransactionCommit(
-					it.getTransactionalId(),
-					it.getCaptureList().stream().map(ChangeDataCaptureConverter::toChangeDataCapture).collect(Collectors.toList())
-				);
-			}
-		}));
-
-		while (uuid.get() == null) {
-
-		}
-		SessionIdHolder.reset();
-		return uuid.get();
+	public ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(@Nonnull ChangeCatalogCaptureRequest request) {
+		throw new EvitaInternalError("Not implemented yet");
 	}
-
-	@Override
-	public void unregisterChangeDataCapture(@Nonnull UUID uuid) {
-		SessionIdHolder.setSessionId(getCatalogName(), getId().toString());
-		activeDataCaptures.remove(uuid);
-		EvitaSessionServiceGrpc.newBlockingStub(cdcChannel).unregisterChangeDataCapture(
-			GrpcUnregisterChangeDataCaptureRequest.newBuilder()
-				.setUuid(uuid.toString())
-				.build()
-		);
-		SessionIdHolder.reset();
-	}
+//	@Nonnull
+//	@Override
+//	public UUID registerChangeDataCapture(@Nonnull ChangeDataCaptureRequest request, @Nonnull ChangeDataCaptureObserver callback) {
+//		final AtomicReference<UUID> uuid = new AtomicReference<>();
+//		final GrpcRegisterChangeDataCaptureRequest.Builder builder = GrpcRegisterChangeDataCaptureRequest.newBuilder();
+//		if (request.site() instanceof DataSite dataSite) {
+//			builder.setDataSite(ChangeDataCaptureConverter.toGrpcDataSite(dataSite));
+//		} else if (request.site() instanceof SchemaSite schemaSite) {
+//			builder.setSchemaSite(ChangeDataCaptureConverter.toGrpcSchemaSite(schemaSite));
+//		}
+//
+//		SessionIdHolder.setSessionId(getCatalogName(), getId().toString());
+//		final Iterator<GrpcRegisterChangeDataCaptureResponse> responseIterator = EvitaSessionServiceGrpc.newBlockingStub(cdcChannel)
+//			.registerChangeDataCapture(builder
+//				.setArea(EvitaEnumConverter.toGrpcCaptureArea(request.area()))
+//				.setContent(EvitaEnumConverter.toGrpcCaptureContent(request.content()))
+//				/* TODO TPO - redesign */
+//				/*.setSince(ChangeDataCaptureConverter.toGrpcCaptureSince(request.since()))*/
+//				.build()
+//			);
+//
+//		this.executor.execute(() -> responseIterator.forEachRemaining(it -> {
+//			if (it.getResponseType() == GrpcCaptureResponseType.ACKNOWLEDGEMENT) {
+//				uuid.set(UUID.fromString(it.getUuid()));
+//				activeDataCaptures.add(uuid.get());
+//			} else {
+//				callback.onTransactionCommit(
+//					it.getTransactionalId(),
+//					it.getCaptureList().stream().map(ChangeDataCaptureConverter::toChangeDataCapture).collect(Collectors.toList())
+//				);
+//			}
+//		}));
+//
+//		while (uuid.get() == null) {
+//
+//		}
+//		SessionIdHolder.reset();
+//		return uuid.get();
+//	}
 
 	@Nonnull
 	@Override

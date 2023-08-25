@@ -7,7 +7,7 @@ option csharp_namespace = "EvitaDB";
 import "google/protobuf/empty.proto";
 import "GrpcEnums.proto";
 import "GrpcCatalogSchemaMutation.proto";
-import "GrpcChangeDataCapture.proto";
+import "GrpcChangeCatalogCapture.proto";
 
 // Request to create a session inside of a catalog.
 message GrpcEvitaSessionRequest {
