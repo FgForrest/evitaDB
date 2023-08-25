@@ -32,6 +32,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.SortableAttributeCompo
 import io.evitadb.externalApi.lab.api.model.GenericAttributeSchemaUnionDescriptor;
 import io.evitadb.externalApi.lab.api.model.GenericEntitySchemaDescriptor;
 import io.evitadb.externalApi.lab.api.model.entity.GenericAssociatedDataSchemasDescriptor;
+import io.evitadb.externalApi.lab.api.model.entity.GenericAttributeSchemasDescriptor;
 import io.evitadb.externalApi.lab.api.model.entity.GenericReferenceSchemasDescriptor;
 import io.evitadb.externalApi.lab.api.model.entity.GenericSortableAttributeCompoundSchemasDescriptor;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiDictionaryTransformer;
@@ -99,8 +100,18 @@ public class GenericEntitySchemaObjectBuilder {
 	private OpenApiProperty buildAttributeSchemasProperty() {
 		return GenericEntitySchemaDescriptor.ATTRIBUTES
 			.to(propertyBuilderTransformer)
-			.type(nonNull(typeRefTo(GenericAttributeSchemaUnionDescriptor.THIS.name())))
+			.type(nonNull(buildAttributeSchemasObject()))
 			.build();
+	}
+
+	@Nonnull
+	private OpenApiTypeReference buildAttributeSchemasObject() {
+		final OpenApiDictionary attributeSchemasObjectBuilder = GenericAttributeSchemasDescriptor.THIS
+			.to(dictionaryBuilderTransformer)
+			.valueType(nonNull(typeRefTo(GenericAttributeSchemaUnionDescriptor.THIS.name())))
+			.build();
+
+		return buildingContext.registerType(attributeSchemasObjectBuilder);
 	}
 
 	@Nonnull
