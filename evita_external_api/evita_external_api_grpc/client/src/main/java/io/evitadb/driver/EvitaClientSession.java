@@ -262,7 +262,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Override
 	public SealedCatalogSchema getCatalogSchema() {
 		assertActive();
-		return schemaCache.getLatestCatalogSchema(this::fetchCatalogSchema, this::getEntitySchemaOrThrow);
+		return schemaCache.getLatestCatalogSchema(
+			this::fetchCatalogSchema,
+			entityType -> this.getEntitySchema(entityType).orElse(null)
+		);
 	}
 
 	@Nonnull
