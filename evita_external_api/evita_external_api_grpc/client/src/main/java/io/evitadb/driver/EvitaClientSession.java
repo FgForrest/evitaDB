@@ -122,7 +122,6 @@ import java.util.regex.Matcher;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.require;
-import static io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer.insertMissingCreateEntitySchemaMutations;
 import static io.evitadb.driver.EvitaClient.ERROR_MESSAGE_PATTERN;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
@@ -314,11 +313,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			session -> {
 				final ClassSchemaAnalyzer classSchemaAnalyzer = new ClassSchemaAnalyzer(modelClass, reflectionLookup);
 				final AnalysisResult analysisResult = classSchemaAnalyzer.analyze(this);
-				final LocalCatalogSchemaMutation[] schemaMutations = insertMissingCreateEntitySchemaMutations(
-					analysisResult.mutations(),
-					entityType -> getEntitySchema(entityType).isPresent()
-				);
-				updateCatalogSchema(schemaMutations);
+				updateCatalogSchema(analysisResult.mutations());
 				return getEntitySchemaOrThrow(analysisResult.entityType());
 			}
 		);
@@ -332,14 +327,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 			session -> {
 				final ClassSchemaAnalyzer classSchemaAnalyzer = new ClassSchemaAnalyzer(modelClass, reflectionLookup, postProcessor);
 				final AnalysisResult analysisResult = classSchemaAnalyzer.analyze(this);
-				final LocalCatalogSchemaMutation[] schemaMutations = insertMissingCreateEntitySchemaMutations(
-					analysisResult.mutations(),
-					entityType -> getEntitySchema(entityType).isPresent()
-				);
 				if (postProcessor instanceof SchemaPostProcessorCapturingResult capturingResult) {
-					capturingResult.captureResult(schemaMutations);
+					capturingResult.captureResult(analysisResult.mutations());
 				}
-				updateCatalogSchema(schemaMutations);
+				updateCatalogSchema(analysisResult.mutations());
 				return getEntitySchemaOrThrow(analysisResult.entityType());
 			}
 		);

@@ -36,9 +36,11 @@ import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
 import io.evitadb.api.requestResponse.data.annotation.Reference;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
+import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
+import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
@@ -449,14 +451,18 @@ public class ClassSchemaAnalyzer {
 			final CatalogSchemaBuilder catalogBuilder = session.getCatalogSchema().openForWrite();
 			final List<Entity> entityAnnotations = reflectionLookup.getClassAnnotations(modelClass, Entity.class);
 			// use only the most specific annotation only
-			if (entityAnnotations.size() > 0) {
+			if (!entityAnnotations.isEmpty()) {
 				final Entity entityAnnotation = entityAnnotations.get(0);
 				// locate / create the entity schema
 				entityName.set(getNameOrElse(entityAnnotation.name(), modelClass::getSimpleName));
 				final EntitySchemaBuilder entityBuilder = session.getEntitySchema(entityName.get())
 					.map(SealedEntitySchema::openForWrite)
-					.orElseGet(() -> session.defineEntitySchema(entityName.get()))
-					.cooperatingWith(() -> catalogBuilder);
+					.map(it -> it.cooperatingWith(() -> catalogBuilder))
+					.orElseGet(() -> {
+						final AtomicReference<EntitySchemaBuilder> capture = new AtomicReference<>();
+						catalogBuilder.withEntitySchema(entityName.get(), capture::set);
+						return capture.get();
+					});
 
 				if (!entityAnnotation.description().isBlank()) {
 					entityBuilder.withDescription(entityAnnotation.description());
@@ -1096,31 +1102,6 @@ public class ClassSchemaAnalyzer {
 			this(entityType, EMPTY_MUTATIONS);
 		}
 
-	}
-
-	/**
-	 * Method inserts missing create entity schema mutations into the given mutations when {@link ModifyEntitySchemaMutation}
-	 * is encountered and the referring entity schema is missing.
-	 *
-	 * @param mutations mutations to be updated
-	 * @param schemaExistsPredicate predicate that should return true if entity schema of particular name already exists
-	 * @return updated mutations
-	 */
-	public static LocalCatalogSchemaMutation[] insertMissingCreateEntitySchemaMutations(@Nonnull LocalCatalogSchemaMutation[] mutations, @Nonnull Predicate<String> schemaExistsPredicate) {
-		return Arrays.stream(mutations)
-			.flatMap(it -> {
-				if (it instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation) {
-					final String entityType = modifyEntitySchemaMutation.getEntityType();
-					if (!schemaExistsPredicate.test(entityType)) {
-						return Stream.of(
-							new CreateEntitySchemaMutation(entityType),
-							modifyEntitySchemaMutation
-						);
-					}
-				}
-				return Stream.of(it);
-			})
-			.toArray(LocalCatalogSchemaMutation[]::new);
 	}
 
 }

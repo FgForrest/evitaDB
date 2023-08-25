@@ -95,7 +95,6 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer.insertMissingCreateEntitySchemaMutations;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -334,12 +333,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return executeInTransactionIfPossible(session -> {
 			final ClassSchemaAnalyzer classSchemaAnalyzer = new ClassSchemaAnalyzer(modelClass, reflectionLookup);
 			final AnalysisResult analysisResult = classSchemaAnalyzer.analyze(this);
-			updateCatalogSchema(
-				insertMissingCreateEntitySchemaMutations(
-					analysisResult.mutations(),
-					entityType -> getEntitySchema(entityType).isPresent()
-				)
-			);
+			updateCatalogSchema(analysisResult.mutations());
 			return getEntitySchemaOrThrow(analysisResult.entityType());
 		});
 	}
@@ -351,14 +345,10 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return executeInTransactionIfPossible(session -> {
 			final ClassSchemaAnalyzer classSchemaAnalyzer = new ClassSchemaAnalyzer(modelClass, reflectionLookup, postProcessor);
 			final AnalysisResult analysisResult = classSchemaAnalyzer.analyze(this);
-			final LocalCatalogSchemaMutation[] schemaMutation = insertMissingCreateEntitySchemaMutations(
-				analysisResult.mutations(),
-				entityType -> getEntitySchema(entityType).isPresent()
-			);
 			if (postProcessor instanceof SchemaPostProcessorCapturingResult capturingResult) {
-				capturingResult.captureResult(schemaMutation);
+				capturingResult.captureResult(analysisResult.mutations());
 			}
-			updateCatalogSchema(schemaMutation);
+			updateCatalogSchema(analysisResult.mutations());
 			return getEntitySchemaOrThrow(analysisResult.entityType());
 		});
 	}
