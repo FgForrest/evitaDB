@@ -377,7 +377,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 			// if the mutation implements entity schema mutation apply it on the appropriate schema
 			if (theMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation) {
 				final String entityType = modifyEntitySchemaMutation.getEntityType();
-				final EntityCollection entityCollection = getOrCreateCollectionForEntity(entityType, session);
+				final EntityCollection entityCollection = getCollectionForEntityOrThrowException(entityType);
 				entityCollection.updateSchema(updatedSchema, modifyEntitySchemaMutation.getSchemaMutations());
 			} else if (theMutation instanceof RemoveEntitySchemaMutation removeEntitySchemaMutation) {
 				final EntityCollection collectionToRemove = entityCollections.remove(removeEntitySchemaMutation.getName());

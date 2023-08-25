@@ -7,10 +7,10 @@
         "relatedFiles" : null,
         "code" : "samsung",
         "visibility" : "VISIBLE",
-        "breadCrumb" : "",
+        "breadCrumb" : null,
         "validity" : null,
-        "status" : "ACTIVE",
         "changed" : "2023-06-25T21:36:22+02:00",
+        "status" : "ACTIVE",
         "order" : 0
       }
     }

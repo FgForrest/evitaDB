@@ -2614,7 +2614,7 @@ public interface QueryConstraints {
 	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
 	 *        structures
 	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
-	 *        structures
+	 *        structures (default behavior)
 	 * 
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
 	 *   hierarchy data structure
@@ -2658,7 +2658,7 @@ public interface QueryConstraints {
 	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
 	 *        structures
 	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
-	 *        structures
+	 *        structures (default behavior)
 	 * 
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
 	 *   hierarchy data structure
@@ -2703,7 +2703,7 @@ public interface QueryConstraints {
 	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
 	 *        structures
 	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
-	 *        structures
+	 *        structures (default behavior)
 	 * 
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
 	 *   hierarchy data structure
@@ -2754,7 +2754,7 @@ public interface QueryConstraints {
 	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
 	 *        structures
 	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
-	 *        structures
+	 *        structures (default behavior)
 	 * 
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
 	 *   hierarchy data structure
@@ -2807,7 +2807,7 @@ public interface QueryConstraints {
 	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
 	 *        structures
 	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
-	 *        structures
+	 *        structures (default behavior)
 	 * 
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
 	 *   hierarchy data structure
@@ -2851,7 +2851,7 @@ public interface QueryConstraints {
 	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
 	 *        structures
 	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
-	 *        structures
+	 *        structures (default behavior)
 	 * 
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
 	 *   hierarchy data structure
@@ -2896,7 +2896,7 @@ public interface QueryConstraints {
 	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
 	 *        structures
 	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
-	 *        structures
+	 *        structures (default behavior)
 	 * 
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
 	 *   hierarchy data structure
@@ -2951,7 +2951,7 @@ public interface QueryConstraints {
 	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
 	 *        structures
 	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
-	 *        structures
+	 *        structures (default behavior)
 	 * 
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
 	 *   hierarchy data structure
