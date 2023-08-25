@@ -40,6 +40,7 @@ import io.undertow.server.HttpHandler;
 import io.undertow.server.RoutingHandler;
 import io.undertow.server.handlers.BlockingHandler;
 import io.undertow.util.HttpString;
+import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -78,6 +79,7 @@ public class LabManager {
 		final long buildingStartTime = System.currentTimeMillis();
 
 		registerLabApi();
+		corsEndpoints.forEach((path, endpoint) -> labRouter.add(Methods.OPTIONS, path.toString(), endpoint.toHandler()));
 
 		log.info("Built Lab in " + StringUtils.formatPreciseNano(System.currentTimeMillis() - buildingStartTime));
 	}

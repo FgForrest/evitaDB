@@ -33,6 +33,7 @@ import io.evitadb.externalApi.lab.api.model.GenericAttributeSchemaUnionDescripto
 import io.evitadb.externalApi.lab.api.model.GenericEntitySchemaDescriptor;
 import io.evitadb.externalApi.lab.api.model.entity.GenericAssociatedDataSchemasDescriptor;
 import io.evitadb.externalApi.lab.api.model.entity.GenericAttributeSchemasDescriptor;
+import io.evitadb.externalApi.lab.api.model.entity.GenericReferenceSchemaDescriptor;
 import io.evitadb.externalApi.lab.api.model.entity.GenericReferenceSchemasDescriptor;
 import io.evitadb.externalApi.lab.api.model.entity.GenericSortableAttributeCompoundSchemasDescriptor;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiDictionaryTransformer;
@@ -70,10 +71,12 @@ public class GenericEntitySchemaObjectBuilder {
 		buildingContext.registerType(AttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(GlobalAttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(buildAttributeSchemaUnion());
+		buildingContext.registerType(buildAttributeSchemasObject());
 		buildingContext.registerType(AttributeElementDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(SortableAttributeCompoundSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(buildSortableAttributeCompoundSchemasObject());
 		buildingContext.registerType(AssociatedDataSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ReferenceSchemaDescriptor.THIS_GENERIC.to(objectBuilderTransformer).build());
+		buildingContext.registerType(buildReferenceSchemaObject());
 		buildingContext.registerType(buildEntitySchemaObject());
 	}
 
@@ -100,18 +103,16 @@ public class GenericEntitySchemaObjectBuilder {
 	private OpenApiProperty buildAttributeSchemasProperty() {
 		return GenericEntitySchemaDescriptor.ATTRIBUTES
 			.to(propertyBuilderTransformer)
-			.type(nonNull(buildAttributeSchemasObject()))
+			.type(nonNull(typeRefTo(GenericAttributeSchemasDescriptor.THIS.name())))
 			.build();
 	}
 
 	@Nonnull
-	private OpenApiTypeReference buildAttributeSchemasObject() {
-		final OpenApiDictionary attributeSchemasObjectBuilder = GenericAttributeSchemasDescriptor.THIS
+	private OpenApiDictionary buildAttributeSchemasObject() {
+		return GenericAttributeSchemasDescriptor.THIS
 			.to(dictionaryBuilderTransformer)
 			.valueType(nonNull(typeRefTo(GenericAttributeSchemaUnionDescriptor.THIS.name())))
 			.build();
-
-		return buildingContext.registerType(attributeSchemasObjectBuilder);
 	}
 
 	@Nonnull
@@ -129,18 +130,16 @@ public class GenericEntitySchemaObjectBuilder {
 	private OpenApiProperty buildSortableAttributeCompoundSchemasProperty() {
 		return GenericEntitySchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS
 			.to(propertyBuilderTransformer)
-			.type(nonNull(buildSortableAttributeCompoundSchemasObject()))
+			.type(nonNull(typeRefTo(GenericSortableAttributeCompoundSchemasDescriptor.THIS.name())))
 			.build();
 	}
 
 	@Nonnull
-	private OpenApiTypeReference buildSortableAttributeCompoundSchemasObject() {
-		final OpenApiDictionary objectBuilder = GenericSortableAttributeCompoundSchemasDescriptor.THIS
+	private OpenApiDictionary buildSortableAttributeCompoundSchemasObject() {
+		return GenericSortableAttributeCompoundSchemasDescriptor.THIS
 			.to(dictionaryBuilderTransformer)
 			.valueType(nonNull(typeRefTo(SortableAttributeCompoundSchemaDescriptor.THIS.name())))
 			.build();
-
-		return buildingContext.registerType(objectBuilder);
 	}
 
 	@Nonnull
@@ -173,9 +172,22 @@ public class GenericEntitySchemaObjectBuilder {
 	private OpenApiTypeReference buildReferenceSchemasObject() {
 		final OpenApiDictionary referenceSchemasObjectBuilder = GenericReferenceSchemasDescriptor.THIS
 			.to(dictionaryBuilderTransformer)
-			.valueType(nonNull(typeRefTo(ReferenceSchemaDescriptor.THIS_GENERIC.name())))
+			.valueType(nonNull(typeRefTo(GenericReferenceSchemaDescriptor.THIS.name())))
 			.build();
 
 		return buildingContext.registerType(referenceSchemasObjectBuilder);
+	}
+
+	@Nonnull
+	private OpenApiObject buildReferenceSchemaObject() {
+		return GenericReferenceSchemaDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.property(GenericReferenceSchemaDescriptor.ATTRIBUTES
+				.to(propertyBuilderTransformer)
+				.type(nonNull(typeRefTo(GenericAttributeSchemasDescriptor.THIS.name()))))
+			.property(GenericReferenceSchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS
+				.to(propertyBuilderTransformer)
+				.type(nonNull(typeRefTo(GenericSortableAttributeCompoundSchemasDescriptor.THIS.name()))))
+			.build();
 	}
 }

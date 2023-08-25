@@ -93,7 +93,7 @@ public class RestManager {
 		// register initial endpoints
 		registerSystemApi();
 		this.evita.getCatalogs().forEach(catalog -> registerCatalog(catalog.getName()));
-		corsEndpoints.forEach((path, endpoint) -> restRouter.add("OPTIONS", path.toString(), endpoint.toHandler()));
+		corsEndpoints.forEach((path, endpoint) -> restRouter.add(Methods.OPTIONS, path.toString(), endpoint.toHandler()));
 
 		log.info("Built REST API in " + StringUtils.formatPreciseNano(System.currentTimeMillis() - buildingStartTime));
 	}

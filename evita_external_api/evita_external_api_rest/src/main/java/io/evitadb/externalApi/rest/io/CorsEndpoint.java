@@ -64,10 +64,7 @@ public class CorsEndpoint {
 	@Nonnull
 	public HttpHandler toHandler() {
 		return new BlockingHandler(
-			new CorsFilter(
-				new CorsPreflightHandler(allowedOrigins, allowedMethods, allowedHeaders),
-				allowedOrigins
-			)
+			new CorsPreflightHandler(allowedOrigins, allowedMethods, allowedHeaders)
 		);
 	}
 }
