@@ -140,7 +140,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	/**
 	 * This instance contains the {@link EntityIndex} set that is used to resolve passed query filter.
 	 */
-	@Getter private final TargetIndexes indexSetToUse;
+	@Getter private final TargetIndexes<EntityIndex> indexSetToUse;
 	/**
 	 * Reference to the collector of requirements for entity prefetch phase.
 	 */

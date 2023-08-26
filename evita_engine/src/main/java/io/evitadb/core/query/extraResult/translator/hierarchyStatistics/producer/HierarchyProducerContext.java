@@ -37,6 +37,7 @@ import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.function.IntBiFunction;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 
@@ -64,7 +65,7 @@ public record HierarchyProducerContext(
 	@Nullable ReferenceSchemaContract referenceSchema,
 	@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 	@Nullable HierarchyFilterConstraint hierarchyFilter,
-	@Nonnull EntityIndex entityIndex,
+	@Nonnull GlobalEntityIndex entityIndex,
 	@Nullable PrefetchRequirementCollector prefetchRequirementCollector,
 	@Nonnull IntBiFunction<StatisticsBase, Formula> directlyQueriedEntitiesFormulaProducer,
 	@Nullable Function<StatisticsBase, HierarchyFilteringPredicate> hierarchyFilterPredicateProducer,

@@ -23,8 +23,6 @@
 
 package io.evitadb.core.query.extraResult.translator.facet;
 
-import com.carrotsearch.hppc.IntHashSet;
-import com.carrotsearch.hppc.IntSet;
 import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.FilterGroupBy;
@@ -54,16 +52,10 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
-import java.util.function.BinaryOperator;
-import java.util.function.Function;
 import java.util.function.IntPredicate;
-import java.util.function.Supplier;
-import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 import static io.evitadb.utils.Assert.isTrue;
@@ -103,8 +95,8 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 				)
 			);
 		// collect all facet statistics
-		final TargetIndexes indexSetToUse = extraResultPlanner.getIndexSetToUse();
-		final List<Map<String, FacetReferenceIndex>> facetIndexes = indexSetToUse.getIndexesOfType(EntityIndex.class)
+		final TargetIndexes<EntityIndex> indexSetToUse = extraResultPlanner.getIndexSetToUse();
+		final List<Map<String, FacetReferenceIndex>> facetIndexes = indexSetToUse.getIndexes()
 			.stream()
 			.map(EntityIndex::getFacetingEntities)
 			.collect(Collectors.toList());
@@ -203,40 +195,4 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		);
 	}
 
-	/**
-	 * Collector helps to accumulate arrays of possible duplicated integers in {@link IntSet}.
-	 */
-	private static class IntArrayToIntSetCollector implements Collector<int[], IntHashSet, IntSet> {
-
-		@Override
-		public Supplier<IntHashSet> supplier() {
-			return IntHashSet::new;
-		}
-
-		@Override
-		public BiConsumer<IntHashSet, int[]> accumulator() {
-			return (acc, recs) -> Arrays.stream(recs).forEach(acc::add);
-		}
-
-		@Override
-		public BinaryOperator<IntHashSet> combiner() {
-			return (left, right) -> {
-				left.addAll(right);
-				return left;
-			};
-		}
-
-		@Override
-		public Function<IntHashSet, IntSet> finisher() {
-			return acc -> acc;
-		}
-
-		@Override
-		public Set<Characteristics> characteristics() {
-			return Set.of(
-				Characteristics.UNORDERED,
-				Characteristics.CONCURRENT
-			);
-		}
-	}
 }

@@ -1,0 +1,37 @@
+{
+  queryProduct(
+    filterBy: {
+      attributeCodeEquals: "samsung-galaxy-watch-4"
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+        }
+        groups {
+          referencedPrimaryKey
+          referencedEntity {
+            primaryKey
+            attributes {
+              code
+            }
+            tags {
+              referencedPrimaryKey
+              referencedEntity {
+                primaryKey
+                attributes {
+                  code
+                }
+                categories {
+                  referencedPrimaryKey
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
