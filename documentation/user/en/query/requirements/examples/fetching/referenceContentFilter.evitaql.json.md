@@ -13,7 +13,8 @@
             "groupEntity": {
               "primaryKey": 66518,
               "attributes": {
-                "code": "display-type"
+                "code": "display-type",
+                "isVisibleInDetail": true
               }
             },
             "referencedKey": 103869,
@@ -29,7 +30,8 @@
             "groupEntity": {
               "primaryKey": 66520,
               "attributes": {
-                "code": "number-of-cpu-cores"
+                "code": "number-of-cpu-cores",
+                "isVisibleInDetail": true
               }
             },
             "referencedKey": 103870,
@@ -45,7 +47,8 @@
             "groupEntity": {
               "primaryKey": 66515,
               "attributes": {
-                "code": "rear-camera-resoluti"
+                "code": "rear-camera-resoluti",
+                "isVisibleInDetail": true
               }
             },
             "referencedKey": 103871,
@@ -61,7 +64,8 @@
             "groupEntity": {
               "primaryKey": 66547,
               "attributes": {
-                "code": "camera-properties"
+                "code": "camera-properties",
+                "isVisibleInDetail": true
               }
             },
             "referencedKey": 103872,
@@ -77,7 +81,8 @@
             "groupEntity": {
               "primaryKey": 66547,
               "attributes": {
-                "code": "camera-properties"
+                "code": "camera-properties",
+                "isVisibleInDetail": true
               }
             },
             "referencedKey": 103873,
@@ -93,7 +98,8 @@
             "groupEntity": {
               "primaryKey": 66516,
               "attributes": {
-                "code": "front-camera-resolut"
+                "code": "front-camera-resolut",
+                "isVisibleInDetail": true
               }
             },
             "referencedKey": 103874,
@@ -109,7 +115,8 @@
             "groupEntity": {
               "primaryKey": 114007,
               "attributes": {
-                "code": "height-merge"
+                "code": "height-merge",
+                "isVisibleInDetail": true
               }
             },
             "referencedKey": 103875,
@@ -125,7 +132,8 @@
             "groupEntity": {
               "primaryKey": 114008,
               "attributes": {
-                "code": "width-merge"
+                "code": "width-merge",
+                "isVisibleInDetail": true
               }
             },
             "referencedKey": 103876,
@@ -141,7 +149,8 @@
             "groupEntity": {
               "primaryKey": 67915,
               "attributes": {
-                "code": "thickness"
+                "code": "thickness",
+                "isVisibleInDetail": true
               }
             },
             "referencedKey": 103877,
@@ -157,7 +166,8 @@
             "groupEntity": {
               "primaryKey": 114009,
               "attributes": {
-                "code": "weight-merge"
+                "code": "weight-merge",
+                "isVisibleInDetail": true
               }
             },
             "referencedKey": 103878,
@@ -173,7 +183,8 @@
             "groupEntity": {
               "primaryKey": 67917,
               "attributes": {
-                "code": "battery-capacity"
+                "code": "battery-capacity",
+                "isVisibleInDetail": true
               }
             },
             "referencedKey": 103879,
@@ -189,7 +200,8 @@
             "groupEntity": {
               "primaryKey": 66514,
               "attributes": {
-                "code": "operating-system"
+                "code": "operating-system",
+                "isVisibleInDetail": true
               }
             },
             "referencedKey": 103880,
@@ -205,7 +217,8 @@
             "groupEntity": {
               "primaryKey": 66462,
               "attributes": {
-                "code": "processor"
+                "code": "processor",
+                "isVisibleInDetail": true
               }
             },
             "referencedKey": 103881,
@@ -221,7 +234,8 @@
             "groupEntity": {
               "primaryKey": 66521,
               "attributes": {
-                "code": "cpu-frequency"
+                "code": "cpu-frequency",
+                "isVisibleInDetail": true
               }
             },
             "referencedKey": 103882,
@@ -237,7 +251,8 @@
             "groupEntity": {
               "primaryKey": 66522,
               "attributes": {
-                "code": "graphic-card"
+                "code": "graphic-card",
+                "isVisibleInDetail": true
               }
             },
             "referencedKey": 103883,
@@ -253,7 +268,8 @@
             "groupEntity": {
               "primaryKey": 66533,
               "attributes": {
-                "code": "connector"
+                "code": "connector",
+                "isVisibleInDetail": true
               }
             },
             "referencedKey": 103884,
