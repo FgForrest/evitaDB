@@ -115,6 +115,7 @@ you might encounter, and we'll try to fix them as soon as possible.
     - **server**: gRPC server  
     - **shared**: shared classes between client & server (generated gRPC stubs)
   - **evita_external_api_rest**: implementation of REST API
+  - **evita_external_api_lab**: GUI client and its API
 - **evita_functional_tests**: test suite verifying functional correctness of standard and edge cases of the API on a
   small amount of data, this library also contains unit tests for evita_db
 - **evita_performance_tests**: test suite executing most common operations on real world data that generates performance
