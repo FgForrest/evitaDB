@@ -115,7 +115,7 @@ public class OrderByVisitor implements ConstraintVisitor {
 	 * is not used to resolve entire query filter.
 	 */
 	@Getter @Nonnull
-	private final List<TargetIndexes> targetIndexes;
+	private final List<TargetIndexes<?>> targetIndexes;
 	/**
 	 * Reference to the collector of requirements for entity prefetch phase.
 	 */
@@ -137,7 +137,7 @@ public class OrderByVisitor implements ConstraintVisitor {
 
 	public OrderByVisitor(
 		@Nonnull QueryContext queryContext,
-		@Nonnull List<TargetIndexes> targetIndexes,
+		@Nonnull List<TargetIndexes<?>> targetIndexes,
 		@Nonnull PrefetchRequirementCollector prefetchRequirementCollector,
 		@Nonnull Formula filteringFormula
 	) {
@@ -149,7 +149,7 @@ public class OrderByVisitor implements ConstraintVisitor {
 
 	public OrderByVisitor(
 		@Nonnull QueryContext queryContext,
-		@Nonnull List<TargetIndexes> targetIndexes,
+		@Nonnull List<TargetIndexes<?>> targetIndexes,
 		@Nonnull PrefetchRequirementCollector prefetchRequirementCollector,
 		@Nonnull Formula filteringFormula,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor) {

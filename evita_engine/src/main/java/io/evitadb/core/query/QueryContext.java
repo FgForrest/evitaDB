@@ -106,6 +106,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 
 import static java.util.Optional.ofNullable;
 
@@ -240,10 +241,6 @@ public class QueryContext {
 	 * to mark the group id involved in special relation handling.
 	 */
 	private final Map<FacetRelationTuple, FilteringFormulaPredicate> facetRelationTuples = new HashMap<>();
-	/**
-	 * Internal flag that singalizes the query context is already within `computingOnce` scope.
-	 */
-	private boolean computingOnce;
 	/**
 	 * Cached version of {@link EntitySchemaContract} for {@link #entityType}.
 	 */
@@ -587,9 +584,15 @@ public class QueryContext {
 	 * Returns {@link EntityIndex} of external entity type by its key and entity type.
 	 */
 	@Nullable
-	public EntityIndex getIndex(@Nonnull String entityType, @Nonnull EntityIndexKey entityIndexKey) {
-		return getEntityCollectionOrThrowException(entityType, "access entity index")
+	public <T extends EntityIndex> T getIndex(@Nonnull String entityType, @Nonnull EntityIndexKey entityIndexKey, @Nonnull Class<T> indexType) {
+		final EntityIndex entityIndex = getEntityCollectionOrThrowException(entityType, "access entity index")
 			.getIndexByKeyIfExists(entityIndexKey);
+		Assert.isPremiseValid(
+			entityIndex == null || indexType.isInstance(entityIndex),
+			() -> "Expected index of type " + indexType + " but got " + entityIndex.getClass() + "!"
+		);
+		//noinspection unchecked
+		return (T) entityIndex;
 	}
 
 	/**
@@ -796,8 +799,7 @@ public class QueryContext {
 	 */
 	@Nonnull
 	public Optional<GlobalEntityIndex> getGlobalEntityIndexIfExists(@Nonnull String entityType) {
-		return ofNullable(getIndex(entityType, GLOBAL_INDEX_KEY))
-			.map(GlobalEntityIndex.class::cast);
+		return ofNullable(getIndex(entityType, GLOBAL_INDEX_KEY, GlobalEntityIndex.class));
 	}
 
 	/**
@@ -923,32 +925,32 @@ public class QueryContext {
 	public Formula computeOnlyOnce(
 		@Nonnull List<EntityIndex> entityIndexes,
 		@Nonnull FilterConstraint constraint,
-		@Nonnull Supplier<Formula> formulaSupplier
+		@Nonnull Supplier<Formula> formulaSupplier,
+		long... additionalCacheKeys
 	) {
-		if (computingOnce) {
-			return formulaSupplier.get();
-		} else {
-			try {
-				computingOnce = true;
-				if (parentContext == null) {
-					if (internalCache == null) {
-						internalCache = new HashMap<>();
-					}
-					return internalCache.computeIfAbsent(
-						new InternalCacheKey(
-							entityIndexes.stream().mapToLong(EntityIndex::getId).toArray(),
-							constraint
-						),
-						cnt -> formulaSupplier.get()
-					);
-				} else {
-					return parentContext.computeOnlyOnce(
-						entityIndexes, constraint, formulaSupplier
-					);
-				}
-			} finally {
-				computingOnce = false;
+		if (parentContext == null) {
+			if (internalCache == null) {
+				internalCache = new HashMap<>();
 			}
+			final InternalCacheKey cacheKey = new InternalCacheKey(
+				LongStream.concat(
+					entityIndexes.stream().mapToLong(EntityIndex::getId),
+					Arrays.stream(additionalCacheKeys).map(Math::negateExact)
+				).toArray(),
+				constraint
+			);
+			final Formula cachedResult = internalCache.get(cacheKey);
+			if (cachedResult == null) {
+				final Formula computedResult = formulaSupplier.get();
+				internalCache.put(cacheKey, computedResult);
+				return computedResult;
+			} else {
+				return cachedResult;
+			}
+		} else {
+			return parentContext.computeOnlyOnce(
+				entityIndexes, constraint, formulaSupplier, additionalCacheKeys
+			);
 		}
 	}
 
@@ -1286,6 +1288,13 @@ public class QueryContext {
 			return result;
 		}
 
+		@Override
+		public String toString() {
+			return "InternalCacheKey{" +
+				"indexKeys=" + Arrays.toString(indexKeys) +
+				", constraint=" + constraint +
+				'}';
+		}
 	}
 
 }
