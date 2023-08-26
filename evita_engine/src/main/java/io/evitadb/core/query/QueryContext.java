@@ -241,10 +241,6 @@ public class QueryContext {
 	 */
 	private final Map<FacetRelationTuple, FilteringFormulaPredicate> facetRelationTuples = new HashMap<>();
 	/**
-	 * Internal flag that singalizes the query context is already within `computingOnce` scope.
-	 */
-	private boolean computingOnce;
-	/**
 	 * Cached version of {@link EntitySchemaContract} for {@link #entityType}.
 	 */
 	private EntitySchemaContract entitySchema;
@@ -925,30 +921,26 @@ public class QueryContext {
 		@Nonnull FilterConstraint constraint,
 		@Nonnull Supplier<Formula> formulaSupplier
 	) {
-		if (computingOnce) {
-			return formulaSupplier.get();
-		} else {
-			try {
-				computingOnce = true;
-				if (parentContext == null) {
-					if (internalCache == null) {
-						internalCache = new HashMap<>();
-					}
-					return internalCache.computeIfAbsent(
-						new InternalCacheKey(
-							entityIndexes.stream().mapToLong(EntityIndex::getId).toArray(),
-							constraint
-						),
-						cnt -> formulaSupplier.get()
-					);
-				} else {
-					return parentContext.computeOnlyOnce(
-						entityIndexes, constraint, formulaSupplier
-					);
-				}
-			} finally {
-				computingOnce = false;
+		if (parentContext == null) {
+			if (internalCache == null) {
+				internalCache = new HashMap<>();
 			}
+			final InternalCacheKey cacheKey = new InternalCacheKey(
+				entityIndexes.stream().mapToLong(EntityIndex::getId).toArray(),
+				constraint
+			);
+			final Formula cachedResult = internalCache.get(cacheKey);
+			if (cachedResult == null) {
+				final Formula computedResult = formulaSupplier.get();
+				internalCache.put(cacheKey, computedResult);
+				return computedResult;
+			} else {
+				return cachedResult;
+			}
+		} else {
+			return parentContext.computeOnlyOnce(
+				entityIndexes, constraint, formulaSupplier
+			);
 		}
 	}
 
@@ -1286,6 +1278,13 @@ public class QueryContext {
 			return result;
 		}
 
+		@Override
+		public String toString() {
+			return "InternalCacheKey{" +
+				"indexKeys=" + Arrays.toString(indexKeys) +
+				", constraint=" + constraint +
+				'}';
+		}
 	}
 
 }

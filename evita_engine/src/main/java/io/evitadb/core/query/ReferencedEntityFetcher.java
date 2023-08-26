@@ -105,6 +105,8 @@ import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.evitadb.api.query.QueryConstraints.and;
+import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.core.query.extraResult.translator.hierarchyStatistics.AbstractHierarchyTranslator.stopAtConstraintToPredicate;
 import static java.util.Optional.ofNullable;
 
@@ -442,7 +444,15 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		} else {
 			final FilterByVisitor theFilterByVisitor = getFilterByVisitor(queryContext, filterByVisitor);
 			final List<EntityIndex> referencedEntityIndexes = theFilterByVisitor.getReferencedRecordEntityIndexes(
-				new ReferenceHaving(referenceSchema.getName(), filterBy.getChildren())
+				new ReferenceHaving(
+					referenceSchema.getName(),
+					and(
+						ArrayUtils.mergeArrays(
+							new FilterConstraint[] {entityPrimaryKeyInSet(allReferencedEntityIds)},
+							filterBy.getChildren()
+						)
+					)
+				)
 			);
 
 			if (referencedEntityIndexes.isEmpty()) {
