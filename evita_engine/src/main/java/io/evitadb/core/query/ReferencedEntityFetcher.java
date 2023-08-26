@@ -31,7 +31,6 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
-import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.ReferenceHaving;
@@ -71,8 +70,8 @@ import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor.OrderingDescriptor;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator;
-import io.evitadb.index.EntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -443,7 +442,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			return allReferencedEntityIds;
 		} else {
 			final FilterByVisitor theFilterByVisitor = getFilterByVisitor(queryContext, filterByVisitor);
-			final List<EntityIndex> referencedEntityIndexes = theFilterByVisitor.getReferencedRecordEntityIndexes(
+			final List<ReducedEntityIndex> referencedEntityIndexes = theFilterByVisitor.getReferencedRecordEntityIndexes(
 				new ReferenceHaving(
 					referenceSchema.getName(),
 					and(
@@ -462,7 +461,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				final IntSet referencedPrimaryKeys = new IntHashSet(referencedEntityIndexes.size());
 				final Formula entityPrimaryKeyFormula = new ConstantFormula(new BaseBitmap(entityPrimaryKeys));
 				final IntSet foundReferencedIds = new IntHashSet(referencedEntityIndexes.size());
-				for (EntityIndex referencedEntityIndex : referencedEntityIndexes) {
+				Formula lastIndexFormula = null;
+				Bitmap lastResult = null;
+				for (ReducedEntityIndex referencedEntityIndex : referencedEntityIndexes) {
 					final ReferenceKey indexDiscriminator = (ReferenceKey) referencedEntityIndex.getIndexKey().getDiscriminator();
 					final int referencedPrimaryKey = indexDiscriminator.primaryKey();
 					foundReferencedIds.add(referencedPrimaryKey);
@@ -472,15 +473,23 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						referenceSchema,
 						theFilterByVisitor,
 						filterBy,
-						filterConstraint -> new And(new EntityPrimaryKeyInSet(referencedPrimaryKey), filterConstraint),
+						null,
 						entityNestedQueryComparator,
 						EntityPrimaryKeyInSet.class
 					);
 
-					final Bitmap matchingPrimaryKeys = FormulaFactory.and(
-						resultFormula,
-						entityPrimaryKeyFormula
-					).compute();
+					final Bitmap matchingPrimaryKeys;
+					if (lastIndexFormula == resultFormula) {
+						matchingPrimaryKeys = lastResult;
+					} else {
+						final Formula combinedFormula = FormulaFactory.and(
+							resultFormula,
+							entityPrimaryKeyFormula
+						);
+						matchingPrimaryKeys = combinedFormula.compute();
+						lastIndexFormula = resultFormula;
+						lastResult = matchingPrimaryKeys;
+					}
 
 					if (matchingPrimaryKeys.isEmpty()) {
 						validityMappingOptional.ifPresent(it -> it.forbid(referencedPrimaryKey));
@@ -515,7 +524,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	@SafeVarargs
 	@Nullable
 	private static Formula computeResultWithPassedIndex(
-		@Nonnull EntityIndex index,
+		@Nonnull ReducedEntityIndex index,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull FilterBy filterBy,
@@ -525,8 +534,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	) {
 		// compute the result formula in the initialized context
 		final String referenceName = referenceSchema.getName();
-		final ProcessingScope processingScope = filterByVisitor.getProcessingScope();
+		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
 		final Formula filterFormula = filterByVisitor.executeInContext(
+			ReducedEntityIndex.class,
 			Collections.singletonList(index),
 			ReferenceContent.ALL_REFERENCES,
 			processingScope.getEntitySchema(),

@@ -112,7 +112,7 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 			filterByVisitor.getSchema().getReferenceOrThrowException(referenceName),
 			"Reference name validation (will never be printed)."
 		);
-		final TargetIndexes targetIndexes = filterByVisitor.findTargetIndexSet(hierarchyWithinConstraint);
+		final TargetIndexes<?> targetIndexes = filterByVisitor.findTargetIndexSet(hierarchyWithinConstraint);
 		if (targetIndexes == null) {
 			final Formula hierarchyNodesFormula = hierarchyNodesFormulaSupplier.get();
 			final QueryContext queryContext = filterByVisitor.getQueryContext();
@@ -134,9 +134,10 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 		} else {
 			// the exclusion was already evaluated when the target indexes were initialized
 			return FormulaFactory.or(
-				targetIndexes.getIndexesOfType(EntityIndex.class)
+				targetIndexes.getIndexes()
 					.stream()
 					.filter(Objects::nonNull)
+					.map(EntityIndex.class::cast)
 					.map(EntityIndex::getAllPrimaryKeysFormula)
 					.toArray(Formula[]::new)
 			);

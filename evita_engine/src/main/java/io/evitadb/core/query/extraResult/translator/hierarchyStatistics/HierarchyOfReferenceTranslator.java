@@ -41,9 +41,10 @@ import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -90,7 +91,7 @@ public class HierarchyOfReferenceTranslator
 				() -> new EntityIsNotHierarchicalException(referenceName, entityType));
 
 			final HierarchyFilterConstraint hierarchyWithin = evitaRequest.getHierarchyWithin(referenceName);
-			final EntityIndex globalIndex = extraResultPlanner.getGlobalEntityIndex(entityType);
+			final GlobalEntityIndex globalIndex = extraResultPlanner.getGlobalEntityIndex(entityType);
 			final Sorter sorter = hierarchyOfReference.getOrderBy()
 				.map(
 					it -> extraResultPlanner.createSorter(
@@ -113,7 +114,7 @@ public class HierarchyOfReferenceTranslator
 				// we need to access EntityIndexType.REFERENCED_HIERARCHY_NODE of the queried type to access
 				// entity primary keys that are referencing the hierarchy entity
 				(nodeId, statisticsBase) ->
-					ofNullable(extraResultPlanner.getIndex(queriedEntityType, createReferencedHierarchyIndexKey(referenceName, nodeId)))
+					ofNullable(extraResultPlanner.getIndex(queriedEntityType, createReferencedHierarchyIndexKey(referenceName, nodeId), ReducedEntityIndex.class))
 						.map(hierarchyIndex -> {
 							final FilterBy filter = statisticsBase == StatisticsBase.COMPLETE_FILTER ?
 								extraResultPlanner.getFilterByWithoutHierarchyFilter(referenceSchema) :
@@ -123,7 +124,9 @@ public class HierarchyOfReferenceTranslator
 							} else {
 								return createFilterFormula(
 									extraResultPlanner.getQueryContext(),
-									filter, hierarchyIndex,
+									filter,
+									ReducedEntityIndex.class,
+									hierarchyIndex,
 									extraResultPlanner.getAttributeSchemaAccessor()
 								);
 							}

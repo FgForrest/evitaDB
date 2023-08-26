@@ -35,7 +35,7 @@ import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
-import io.evitadb.index.EntityIndex;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate.SelfTraversingPredicate;
 import lombok.Getter;
@@ -103,6 +103,7 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 			if (referenceSchema == null) {
 				theFormula = queryContext.analyse(
 					theFilterByVisitor.executeInContext(
+						GlobalEntityIndex.class,
 						Collections.singletonList(queryContext.getGlobalEntityIndex()),
 						null,
 						queryContext.getSchema(),
@@ -164,7 +165,7 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	 */
 	public FilteringFormulaHierarchyEntityPredicate(
 		@Nonnull QueryContext queryContext,
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull GlobalEntityIndex entityIndex,
 		@Nonnull FilterBy filterBy,
 		@Nullable ReferenceSchemaContract referenceSchema
 	) {
@@ -188,6 +189,7 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 			// now analyze the filter by in a nested context with exchanged primary entity index
 			final Formula theFormula = queryContext.analyse(
 				theFilterByVisitor.executeInContext(
+					GlobalEntityIndex.class,
 					Collections.singletonList(entityIndex),
 					null,
 					entityIndex.getEntitySchema(),
