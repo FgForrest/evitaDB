@@ -1390,7 +1390,7 @@ combination and which parameter values are merely informative, use the following
 ##### The result of an entity fetched with parameter references and their attributes
 </NoteTitle>
 
-The returned `Product` entity will contain references to parameter values and for each of it it specifies the type
+The returned `Product` entity will contain references to parameter values and for each of it, it specifies the type
 of the relation between the product and the parameter value:
 
 <LanguageSpecific to="evitaql,java">
@@ -1452,3 +1452,41 @@ referenceContentAllWithAttributes(
         constraints that allows you to fetch the entities in a graph-like manner to an "infinite" depth
     </dd>
 </dl>
+
+The `referenceContentAllWithAttributes` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceContent.java</SourceClass>)
+is a variation of the [`referenceContent`](#reference-content) requirement that allows you to access the information
+about the references the entity has towards other entities (either managed by evitaDB itself or by any other external
+system) and the attributes set on those references. The `referenceContentWithAttributes` allows you to specify the list
+of attributes to fetch, but by default it fetches all attributes on the reference. It doesn't allow you to specify 
+the reference names - because it targets all of them, and so you can specify the constraints and the attributes that are
+shared by all of the references. This constraint is only useful in exploration scenarios.
+
+For detail information, see the [`referenceContent`](#reference-content) requirement chapter.
+
+To obtain an entity with all the references and their attributes, use the following query:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+[Getting entity with all of the references and their attributes](/documentation/user/en/query/requirements/examples/fetching/referenceContentAllWithAttributes.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with all the references and their attributes
+</NoteTitle>
+
+The returned `Product` entity will contain all the references and the attributes set on this relation:
+
+<LanguageSpecific to="evitaql,java">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with all references](/documentation/user/en/query/requirements/examples/fetching/referenceContentAllWithAttributes.evitaql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with all references](/documentation/user/en/query/requirements/examples/fetching/referenceContentAllWithAttributes.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+</Note>
