@@ -10,8 +10,6 @@ author: 'Ing. Jan Novotný'
 proofreading: 'needed'
 ---
 
-**Work still in progress**
-
 <LanguageSpecific to="evitaql,java,rest">
 
 If no content requirement is used in the query, the result will contain only the primary key of the entity. While this
@@ -1025,7 +1023,9 @@ referenceContent(
 <dl>
     <dt>argument:string+</dt>
     <dd>
-        mandatory one or more string arguments representing the names of the references to fetch for the entity
+        mandatory one or more string arguments representing the names of the references to fetch for the entity;
+        if more than one name is given in the argument, any corresponding constraints in the same `referenceContent` 
+        container will apply to all of them
     </dd>
     <dt>filterConstraint:any</dt>
     <dd>
@@ -1157,10 +1157,19 @@ The tag category is not an entity managed by evitaDB and that's why we retrieve 
 
 #### Filtering references
 
-Sometimes your entities will have a lot of references, and don't need all of them in certain scenarios. For example,
-your product has got a lot of parameters, but on product detail page you need to fetch only those that are part of
-group which contains an attribute *isVisibleInDetail* set to *TRUE*. To fetch only those parameters, use the following
-query:
+Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case, you 
+can use the filter constraint to filter out the references you don't need.
+
+<Note type="info">
+The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need to
+specify a [`referenceHaving`](../filtering/references.md#reference-having) constraint. However, if you need to declare 
+constraints on referenced entity attributes, you must wrap them in the [`entityHaving`](../filtering/references.md#entity-having) 
+container constraint.
+</Note>
+
+For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that are 
+part of group which contains an attribute *isVisibleInDetail* set to *TRUE*.To fetch only those parameters, use the 
+following query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Getting entity parameter values visible on detail page](/documentation/user/en/query/requirements/examples/fetching/referenceContentFilter.evitaql)
@@ -1192,6 +1201,46 @@ As you can see only the parameters of the groups having *isVisibleInDetail* set 
 </Note>
 
 #### Ordering references
+
+By default, the references are ordered by the primary key of the referenced entity. If you want to order the references 
+by a different property - either the attribute set on the reference itself or the property of the referenced entity - 
+you can use the order constraint inside the `referenceContent` requirement.
+
+<Note type="info">
+The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need to
+specify a [`referenceHaving`](../filtering/references.md#reference-having) constraint. However, if you need to declare 
+constraints on referenced entity attributes, you must wrap them in the [`entityHaving`](../filtering/references.md#entity-having) 
+container constraint.
+</Note>
+
+Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following 
+query:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+[Getting entity parameter values ordered by name](/documentation/user/en/query/requirements/examples/fetching/referenceContentOrder.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with referenced parameter ordered by name
+</NoteTitle>
+
+The returned `Product' entity will contain a list of all parameters in the expected order:
+
+<LanguageSpecific to="evitaql,java">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with referenced parameter ordered by name](/documentation/user/en/query/requirements/examples/fetching/referenceContentOrder.evitaql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with referenced parameter ordered by name](/documentation/user/en/query/requirements/examples/fetching/referenceContentOrder.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+</Note>
 
 ### Reference content all
 
