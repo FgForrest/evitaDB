@@ -56,7 +56,7 @@ api:
       allowedOrigins: ${api.endpoints.system.allowedOrigins:null}
     lab:
       enabled: ${api.endpoints.lab.enabled:true}
-      host: ${api.endpoints.lab.host:localhost:5558}
+      host: ${api.endpoints.lab.host:localhost:5555}
       allowedOrigins: ${api.endpoints.lab.allowedOrigins:null}
       gui:
         enabled: ${api.endpoints.lab.gui.enabled:true}

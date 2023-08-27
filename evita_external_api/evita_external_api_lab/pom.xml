@@ -46,4 +46,20 @@
 			<version>${project.parent.version}</version>
 		</dependency>
 	</dependencies>
+
+	<build>
+		<plugins>
+			<!-- downloads the latest release of evitaLab GUI -->
+			<plugin>
+				<groupId>com.googlecode.maven-download-plugin</groupId>
+				<artifactId>download-maven-plugin</artifactId>
+				<version>1.7.1</version>
+				<configuration>
+					<url>https://github.com/lukashornych/evitalab/releases/download/latest/dist.zip</url>
+					<unpack>true</unpack>
+					<outputDirectory>${project.basedir}/src/main/resources/META-INF/lab/gui</outputDirectory>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
 </project>

@@ -25,10 +25,12 @@ package io.evitadb.externalApi.lab;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.core.Evita;
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.http.CorsFilter;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
 import io.evitadb.externalApi.lab.api.LabApiBuilder;
 import io.evitadb.externalApi.lab.configuration.LabConfig;
+import io.evitadb.externalApi.lab.gui.resolver.GuiHandler;
 import io.evitadb.externalApi.lab.io.LabExceptionHandler;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.io.CorsEndpoint;
@@ -39,12 +41,18 @@ import io.undertow.Handlers;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.RoutingHandler;
 import io.undertow.server.handlers.BlockingHandler;
+import io.undertow.server.handlers.resource.FileResourceManager;
+import io.undertow.server.handlers.resource.ResourceHandler;
+import io.undertow.server.handlers.resource.ResourceManager;
 import io.undertow.util.HttpString;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.io.File;
+import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
 
@@ -79,9 +87,15 @@ public class LabManager {
 		final long buildingStartTime = System.currentTimeMillis();
 
 		registerLabApi();
+		registerLabGui();
 		corsEndpoints.forEach((path, endpoint) -> labRouter.add(Methods.OPTIONS, path.toString(), endpoint.toHandler()));
 
 		log.info("Built Lab in " + StringUtils.formatPreciseNano(System.currentTimeMillis() - buildingStartTime));
+	}
+
+	@Nonnull
+	public HttpHandler getLabRouter() {
+		return new PathNormalizingHandler(labRouter);
 	}
 
 	/**
@@ -93,37 +107,47 @@ public class LabManager {
 		builtLabApi.endpoints().forEach(this::registerLabApiEndpoint);
 	}
 
-	@Nonnull
-	public HttpHandler getLabRouter() {
-		return new PathNormalizingHandler(labRouter);
-	}
-
 	/**
 	 * Creates new lab API endpoint on specified path with specified {@link Rest} instance.
 	 */
 	private void registerLabApiEndpoint(@Nonnull Rest.Endpoint endpoint) {
-		registerLabEndpoint(
-			endpoint.method(),
-			UriPath.of("/", LAB_API_URL_PREFIX, endpoint.path()),
-			endpoint.handler()
-		);
-	}
+		final UriPath path = UriPath.of("/", LAB_API_URL_PREFIX, endpoint.path());
 
-	/**
-	 * Registers endpoints into router. Also, CORS endpoint is created automatically for this endpoint.
-	 */
-	private void registerLabEndpoint(@Nonnull HttpString method, @Nonnull UriPath path, @Nonnull RestEndpointHandler<?, ?> handler) {
 		final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(path, p -> new CorsEndpoint(labConfig));
-		corsEndpoint.addMetadataFromHandler(handler);
+		corsEndpoint.addMetadataFromHandler(endpoint.handler());
 
 		labRouter.add(
-			method,
+			endpoint.method(),
 			path.toString(),
 			new BlockingHandler(
 				new CorsFilter(
 					new LabExceptionHandler(
 						objectMapper,
-						handler
+						endpoint.handler()
+					),
+					labConfig.getAllowedOrigins()
+				)
+			)
+		);
+	}
+
+	/**
+	 * Creates new endpoint for serving lab GUI static files from fs.
+	 */
+	private void registerLabGui() {
+		final UriPath endpointPath = UriPath.of("/", "*");
+
+		final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(endpointPath, p -> new CorsEndpoint(labConfig));
+		corsEndpoint.addMetadata(Set.of(Methods.GET.toString()), true, true);
+
+		labRouter.add(
+			Methods.GET,
+			endpointPath.toString(),
+			new BlockingHandler(
+				new CorsFilter(
+					new LabExceptionHandler(
+						objectMapper,
+						GuiHandler.create()
 					),
 					labConfig.getAllowedOrigins()
 				)

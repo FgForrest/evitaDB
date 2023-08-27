@@ -52,11 +52,21 @@ public class CorsEndpoint {
 	}
 
 	public void addMetadataFromHandler(@Nonnull RestEndpointHandler<?, ?> handler) {
-		allowedMethods.addAll(handler.getSupportedHttpMethods());
-		if (!handler.getSupportedRequestContentTypes().isEmpty()) {
+		addMetadata(
+			handler.getSupportedHttpMethods(),
+			!handler.getSupportedRequestContentTypes().isEmpty(),
+			!handler.getSupportedResponseContentTypes().isEmpty()
+		);
+	}
+
+	public void addMetadata(@Nonnull Set<String> supportedHttpMethods,
+	                        boolean supportsRequestContentType,
+	                        boolean supportsResponseContentType) {
+		allowedMethods.addAll(supportedHttpMethods);
+		if (supportsRequestContentType) {
 			allowedHeaders.add(Headers.CONTENT_TYPE_STRING);
 		}
-		if (!handler.getSupportedResponseContentTypes().isEmpty()) {
+		if (supportsResponseContentType) {
 			allowedHeaders.add(Headers.ACCEPT_STRING);
 		}
 	}
