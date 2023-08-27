@@ -1280,6 +1280,42 @@ referenceContentAll(
     </dd>
 </dl>
 
+The `referenceContentAll` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceContent.java</SourceClass>)
+is a variation of the [`referenceContent`](#reference-content) requirement that allows you to access the information
+about the references the entity has towards other entities (either managed by evitaDB itself or by any other external
+system). The `referenceContentAll` is a shortcut that simply targets all references defined for the entity. It can be
+used to quickly discover all the possible references of an entity.
+
+For detail information, see the [`referenceContent`](#reference-content) requirement chapter.
+
+To get an entity with all the references available, use the following query:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+[Getting entity with all references](/documentation/user/en/query/requirements/examples/fetching/referenceContentAll.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with all references
+</NoteTitle>
+
+The returned `Product` entity will contain primary keys and codes of all its references:
+
+<LanguageSpecific to="evitaql,java">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with all references](/documentation/user/en/query/requirements/examples/fetching/referenceContentAll.evitaql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with all references](/documentation/user/en/query/requirements/examples/fetching/referenceContentAll.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+</Note>
+
 ### Reference content with attributes
 
 ```evitaql-syntax
