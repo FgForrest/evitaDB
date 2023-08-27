@@ -56,7 +56,10 @@ entityFetch(
             <li>[priceContent](#price-content)</li>
             <li>[priceContentAll](#price-content-all)</li>
             <li>[priceContentRespectingFilter](#price-content-respecting-filter)</li>
-            <li>[referenceContent/referenceContentWithAttributes/referenceContentAll/referenceContentAllWithAttributes](#reference-content)</li>
+            <li>[referenceContent](#reference-content)</li>
+            <li>[referenceContentAll](#reference-content-all)</li>
+            <li>[referenceContentWithAttributes](#reference-content-with-attributes)</li>
+            <li>[referenceContentAllWithAttributes](#reference-content-all-with-attributes)</li>
         </ul>
     </dd>
 </dl>
@@ -1364,6 +1367,47 @@ referenceContentWithAttributes(
         constraints that allows you to fetch the entities in a graph-like manner to an "infinite" depth
     </dd>
 </dl>
+
+The `referenceContentWithAttributes` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceContent.java</SourceClass>)
+is a variation of the [`referenceContent`](#reference-content) requirement that allows you to access the information
+about the references the entity has towards other entities (either managed by evitaDB itself or by any other external
+system) and the attributes set on those references. The `referenceContentWithAttributes` allows you to specify the list 
+of attributes to fetch, but by default it fetches all attributes on the reference.
+
+For detail information, see the [`referenceContent`](#reference-content) requirement chapter.
+
+To obtain an entity with reference to a parameter value that reveals which association defines the unique product-variant 
+combination and which parameter values are merely informative, use the following query:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+[Getting entity with references and their attributes](/documentation/user/en/query/requirements/examples/fetching/referenceContentWithAttributes.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with parameter references and their attributes
+</NoteTitle>
+
+The returned `Product` entity will contain references to parameter values and for each of it it specifies the type
+of the relation between the product and the parameter value:
+
+<LanguageSpecific to="evitaql,java">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with all references](/documentation/user/en/query/requirements/examples/fetching/referenceContentWithAttributes.evitaql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with all references](/documentation/user/en/query/requirements/examples/fetching/referenceContentWithAttributes.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+As you can see, the *cellular-true*, *display-size-10-2*, *ram-memory-4*, *rom-memory-256* and *color-yellow* parameter 
+values define the product variant, while the other parameters only describe the additional properties of the product.
+
+</Note>
 
 ### Reference content all with attributes
 
