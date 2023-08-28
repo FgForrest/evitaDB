@@ -38,7 +38,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 public class CShell {
-    private static final String VALIDATOR_ZIP_URL = "https://evitadb.io/download/Validator"+(isWindows() ? "-win" : "")+".zip";
+    private static final String VALIDATOR_ZIP_URL = "https://github.com/FgForrest/evitaDB-C-Sharp-client/releases/download/latest/Validator"+(isWindows() ? "-win" : "")+".zip";
     private static final Path VALIDATOR_TEMP_FOLDER_PATH = Path.of(System.getProperty("java.io.tmpdir"), "evita-query-validator");
     private static final String VALIDATOR_PATH = Path.of(VALIDATOR_TEMP_FOLDER_PATH.toString(), "Validator" + getExtensionForOs()).toString();
     private static final Pattern COMPILE = Pattern.compile("\\p{C}");
