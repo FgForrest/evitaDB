@@ -27,21 +27,17 @@ import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.requestResponse.cdc.ChangeCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
-import io.evitadb.cdc.NamedSubscription;
 import io.evitadb.driver.exception.PublisherClosedByClientException;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.utils.Assert;
 import io.grpc.stub.ClientCallStreamObserver;
 import io.grpc.stub.ClientResponseObserver;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.util.Map;
-import java.util.UUID;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscriber;
-import java.util.concurrent.atomic.AtomicLong;
-
-import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
+import java.util.concurrent.SubmissionPublisher;
 
 /**
  * Client-side implementation of {@link ChangeCapturePublisher} that is used to publish {@link ChangeSystemCapture}s
@@ -70,11 +66,23 @@ import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+// todo lho bidirectional
 @RequiredArgsConstructor
-public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ, RES> implements ChangeCapturePublisher<C>, ClientResponseObserver<REQ, RES> {
+public abstract class ClientChangeCaptureProcessor<C extends ChangeCapture, REQ, RES>
+    extends SubmissionPublisher<C> implements ChangeCapturePublisher<C>, ClientResponseObserver<REQ, RES> {
 
-    private State state = State.NEW;
-    private final Map<UUID, ManagedSubscription<C>> subscriptions = createConcurrentHashMap(1);
+    @Nonnull private final Executor executor;
+
+    @Nonnull private State state = State.NEW;
+    private SubmissionPublisher<C> clientPublisher;
+    /**
+     * We want to allow only one subscriber per publisher instance to have complete control over buffer overflow
+     * as the {@link SubmissionPublisher} doesn't allow offering items only to some subscribers when some are overflowed.
+     * This should be less of an issue on the client-side as the client may block the gRPC thread, but we want to be consistent
+     * with the evitaDB embeddable implementation.
+     */
+    private boolean hasSubscriber = false;
+
 
     /**
      * Accepts captures from server.
@@ -85,29 +93,23 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
     public void subscribe(Subscriber<? super C> subscriber) {
         assertActive();
 
-        Assert.notNull(subscriber, "Subscriber cannot be null.");
-        Assert.isTrue(
-            subscriptions.values().stream().noneMatch(managedSubscription -> managedSubscription.subscriber() == subscriber),
-            "Subscriber is already subscribed to this publisher."
-        );
-
-        final NamedSubscription subscription = new NamedSubscription(
-            this::cancelSubscription,
-            this::requestCapturesForSubscription
-        );
-        subscriptions.put(
-            subscription.id(),
-            new ManagedSubscription<>(subscriber, new AtomicLong(0))
-        );
-        subscriber.onSubscribe(subscription);
+        if (hasSubscriber) {
+            throw new EvitaInvalidUsageException("Only one subscriber is allowed.");
+        }
+        clientPublisher.subscribe(subscriber);
+        hasSubscriber = true;
     }
 
     @Override
     public void beforeStart(ClientCallStreamObserver<REQ> observer) {
         assertNew();
+
         // netty channel builder doesn't allow for manual flow control (it ignores calling request(n))
         // so we fallback to auto flow control
         this.serverObserver = observer;
+        // for now, we will use default buffer size as we don't have any information about what number to use otherwise
+        this.clientPublisher = new SubmissionPublisher<>(executor, Flow.defaultBufferSize());
+
         this.state = State.ACTIVE;
     }
 
@@ -116,16 +118,8 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
         assertActive();
 
         final C capture = deserializeCaptureResponse(itemResponse);
-
-        // multicast the capture to all subscribers that requested more captures
-        for (ManagedSubscription<C> managedSubscription : subscriptions.values()) {
-            if (managedSubscription.requestCounter().get() == 0) {
-                // subscriber doesn't want to receive anymore at the moment, but may change its mind later
-                continue;
-            }
-            managedSubscription.requestCounter().decrementAndGet();
-            managedSubscription.subscriber().onNext(capture);
-        }
+        // the blocking submit call should be ok here, the gRPC connection should wait before sending request for more items
+        clientPublisher.submit(capture);
     }
 
     @Override
@@ -136,19 +130,14 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
             // apparently, gRPC server doesn't know if cancellation was initiated by the client or by some network error
             onCompleted();
         } else {
-            // on unknown error, proceed with standard error handling
-            subscriptions.values().forEach(managedSubscription -> managedSubscription.subscriber().onError(throwable));
-            subscriptions.clear();
-            state = State.CLOSED;
+            clientPublisher.closeExceptionally(throwable);
         }
     }
 
     @Override
     public void onCompleted() {
         assertActive();
-        subscriptions.values().forEach(managedSubscription -> managedSubscription.subscriber().onComplete());
-        subscriptions.clear();
-        state = State.CLOSED;
+        clientPublisher.close();
     }
 
     @Override
@@ -163,35 +152,6 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
      * Takes the response from the server representing a single capture and deserializes it into a specific {@link ChangeCapture}.
      */
     protected abstract C deserializeCaptureResponse(RES itemResponse);
-
-    /**
-     * Requests more captures for the given subscription.
-     *
-     * @param subscriptionId subscription id
-     * @param n number of captures to request
-     */
-    private void requestCapturesForSubscription(@Nonnull UUID subscriptionId, long n) {
-        assertActive();
-        final ManagedSubscription<C> managedSubscription = subscriptions.get(subscriptionId);
-        if (managedSubscription == null) {
-            throw new EvitaInvalidUsageException("Subscription with id " + subscriptionId + " does not exist. The subscription may have been cancelled.");
-        }
-        managedSubscription.requestCounter().addAndGet(n);
-    }
-
-    /**
-     * Cancels the given subscription. It will not receive any more captures.
-     *
-     * @param subscriptionId subscription id
-     */
-    private void cancelSubscription(@Nonnull UUID subscriptionId) {
-        final ManagedSubscription<C> managedSubscription = subscriptions.get(subscriptionId);
-        if (managedSubscription == null) {
-            throw new EvitaInvalidUsageException("Subscription with id " + subscriptionId + " does not exist. The subscription may have been cancelled.");
-        }
-        managedSubscription.subscriber().onComplete();
-        subscriptions.remove(subscriptionId);
-    }
 
     /**
      * Verifies this instance is still new and not initialized.
@@ -228,11 +188,4 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
          */
         CLOSED
     }
-
-    /**
-     * Holds a reference to a single subscriber. The {@link #requestCounter()} is used for back-pressure implementation
-     * on the client side. The publisher will not send more captures to the subscriber if the counter is zero.
-     */
-    private record ManagedSubscription<T extends ChangeCapture>(@Nonnull Subscriber<? super T> subscriber,
-                                                                @Nonnull AtomicLong requestCounter) {}
 }

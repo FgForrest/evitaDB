@@ -165,7 +165,7 @@ public final class Evita implements EvitaContract {
 	 * Change observer that is used to notify all registered {@link ChangeSystemCaptureSubscriber} about changes in the
 	 * catalogs.
 	 */
-	private final SystemChangeObserver changeObserver = new SystemChangeObserver();
+	private final SystemChangeObserver changeObserver;
 	/**
 	 * Java based scheduled executor service.
 	 */
@@ -223,6 +223,7 @@ public final class Evita implements EvitaContract {
 			new HeapMemoryCacheSupervisor(configuration.cache(), scheduler) : NoCacheSupervisor.INSTANCE;
 		this.reflectionLookup = new ReflectionLookup(configuration.cache().reflection());
 		final Path[] directories = FileUtils.listDirectories(configuration.storage().storageDirectoryOrDefault());
+		this.changeObserver = new SystemChangeObserver(executor);
 		this.catalogs = CollectionUtils.createConcurrentHashMap(directories.length);
 		final CountDownLatch startUpLatch = new CountDownLatch(directories.length);
 		for (Path directory : directories) {

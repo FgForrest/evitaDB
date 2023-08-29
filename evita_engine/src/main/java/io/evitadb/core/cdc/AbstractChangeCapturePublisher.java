@@ -26,12 +26,12 @@ package io.evitadb.core.cdc;
 import io.evitadb.api.requestResponse.cdc.ChangeCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureRequest;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import java.util.UUID;
 import java.util.concurrent.Executor;
-import java.util.concurrent.SubmissionPublisher;
-import java.util.concurrent.TimeUnit;
-import java.util.function.BiPredicate;
+import java.util.concurrent.Flow.Subscriber;
 import java.util.function.Consumer;
 
 /**
@@ -50,24 +50,41 @@ import java.util.function.Consumer;
  *
  * @author Lukáš Hornych, 2023
  */
-public class DelegatingChangeCapturePublisher
-	<C extends ChangeCapture, R extends ChangeCaptureRequest>
-	extends AbstractChangeCapturePublisher<DelegatingChangeCapturePublisher<C, R>, C, R> {
+public abstract class AbstractChangeCapturePublisher
+	<P extends AbstractChangeCapturePublisher<P, C, R>, C extends ChangeCapture, R extends ChangeCaptureRequest>
+	implements ChangeCapturePublisher<C> {
 
-	public DelegatingChangeCapturePublisher(@Nonnull Executor executor, @Nonnull R request) {
+	@Getter @Nonnull private final UUID id = UUID.randomUUID();
+	@Getter @Nonnull private final R request;
+	@Nonnull private final Consumer<P> terminationCallback;
+	@Nonnull protected final BufferedPublisher<C> delegate;
+
+	private boolean active = true;
+
+	protected AbstractChangeCapturePublisher(@Nonnull Executor executor, @Nonnull R request) {
 		this(executor, request, it -> {});
 	}
 
-	public DelegatingChangeCapturePublisher(@Nonnull Executor executor,
-	                                        @Nonnull R request,
-	                                        @Nonnull Consumer<DelegatingChangeCapturePublisher<C, R>> terminationCallback) {
-		super(executor, request, terminationCallback);
+	protected AbstractChangeCapturePublisher(@Nonnull Executor executor,
+	                                         @Nonnull R request,
+	                                         @Nonnull Consumer<P> terminationCallback) {
+		this.request = request;
+		this.terminationCallback = terminationCallback;
+		this.delegate = new BufferedPublisher<>(executor);
 	}
-	/**
-	 * Tries to {@link SubmissionPublisher#offer(Object, long, TimeUnit, BiPredicate)} and returns immediately,
-	 * even if subscriber is saturated.
-	 */
-	public int tryOffer(C item) {
-		return delegate.offer(item, 0, TimeUnit.MILLISECONDS, null);
+
+	@Override
+	public void subscribe(Subscriber<? super C> subscriber) {
+		delegate.subscribe(subscriber);
+	}
+
+	@Override
+	public void close() {
+		if (active) {
+			delegate.close();
+			//noinspection unchecked
+			terminationCallback.accept((P) this);
+			active = false;
+		}
 	}
 }

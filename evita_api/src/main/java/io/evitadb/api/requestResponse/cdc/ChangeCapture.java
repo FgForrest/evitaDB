@@ -28,7 +28,7 @@ package io.evitadb.api.requestResponse.cdc;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface ChangeCapture {
+public sealed interface ChangeCapture permits ChangeSystemCapture, ChangeCatalogCapture {
 
 	/**
 	 * Returns the index of the event in the ordered CDC log.

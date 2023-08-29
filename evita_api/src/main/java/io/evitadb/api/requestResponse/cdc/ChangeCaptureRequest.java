@@ -23,26 +23,12 @@
 
 package io.evitadb.api.requestResponse.cdc;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-
 /**
- * Record describing the capture request for the {@link ChangeCapturePublisher} of {@link ChangeCatalogCapture}s.
+ * Record describing the capture request for the {@link ChangeCapturePublisher} of specific {@link ChangeCapture}s.
  * The request contains the recipe for the messages that the subscriber is interested in, and that are sent to it by
  * {@link ChangeCapturePublisher}.
  *
- * @param area               the requested area of the capture
- * @param site               the filter for the events to be sent, limits the amount of events sent to the subscriber
- * @param content            the requested content of the capture, by default only the header information is sent
- * @param sinceTransactionId specifies the initial capture point for the CDC stream, it must always provide a last
- *                           known transaction id from the client point of view
- *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public record ChangeCatalogCaptureRequest(
-	@Nullable CaptureArea area,
-	@Nullable CaptureSite site,
-	@Nonnull CaptureContent content,
-	long sinceTransactionId
-) implements ChangeCaptureRequest {
+public sealed interface ChangeCaptureRequest permits ChangeSystemCaptureRequest, ChangeCatalogCaptureRequest {
 }

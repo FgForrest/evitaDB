@@ -21,20 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.cdc;
+package io.evitadb.core.cdc;
+
+import io.evitadb.api.requestResponse.cdc.ChangeCapture;
 
 import javax.annotation.Nonnull;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Flow;
+import java.util.concurrent.SubmissionPublisher;
 
 /**
- * Record describing the capture request for the {@link ChangeCapturePublisher} of {@link ChangeSystemCapture}s.
- * The request contains the recipe for the messages that the subscriber is interested in, and that are sent to it by
- * {@link ChangeCapturePublisher}.
+ * TODO lho docs
  *
- * @param content the requested content of the capture, by default only the header information is sent
- *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, 2023
  */
-public record ChangeSystemCaptureRequest(
-	@Nonnull CaptureContent content
-) implements ChangeCaptureRequest {
+class BufferedPublisher<C extends ChangeCapture> extends SubmissionPublisher<C> {
+
+	public BufferedPublisher(@Nonnull Executor executor) {
+		// for now, we will use default buffer size as we don't have any information about what number to use otherwise
+		super(executor, Flow.defaultBufferSize());
+	}
 }

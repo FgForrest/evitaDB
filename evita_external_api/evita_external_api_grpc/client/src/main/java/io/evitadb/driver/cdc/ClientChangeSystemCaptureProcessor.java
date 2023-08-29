@@ -27,15 +27,22 @@ import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse;
 
+import javax.annotation.Nonnull;
+import java.util.concurrent.Executor;
+
 import static io.evitadb.externalApi.grpc.dataType.ChangeCatalogCaptureConverter.toChangeSystemCapture;
 
 /**
- * Implementation of {@link ClientChangeCapturePublisher} for the {@link ChangeSystemCapture}.
+ * Implementation of {@link ClientChangeCaptureProcessor} for the {@link ChangeSystemCapture}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 // todo jno: implement similar publisher for catalog captures
-public class ClientChangeSystemCapturePublisher extends ClientChangeCapturePublisher<ChangeSystemCapture, GrpcRegisterSystemChangeCaptureRequest, GrpcRegisterSystemChangeCaptureResponse> {
+public class ClientChangeSystemCaptureProcessor extends ClientChangeCaptureProcessor<ChangeSystemCapture, GrpcRegisterSystemChangeCaptureRequest, GrpcRegisterSystemChangeCaptureResponse> {
+
+	public ClientChangeSystemCaptureProcessor(@Nonnull Executor executor) {
+		super(executor);
+	}
 
 	@Override
 	protected ChangeSystemCapture deserializeCaptureResponse(GrpcRegisterSystemChangeCaptureResponse itemResponse) {

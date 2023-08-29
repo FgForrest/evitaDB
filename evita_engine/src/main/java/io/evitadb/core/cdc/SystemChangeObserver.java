@@ -31,21 +31,29 @@ import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Flow.Publisher;
 import java.util.function.Supplier;
+
+import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
 
 /**
  * Main implementation class handling notification of all created {@link ChangeCapturePublisher}s.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@RequiredArgsConstructor
+@Slf4j
 public class SystemChangeObserver implements AutoCloseable {
+
+	private final Executor executor;
 
 	/**
 	 * Whether this observer is still active and can fire new events.
@@ -55,7 +63,7 @@ public class SystemChangeObserver implements AutoCloseable {
 	/**
 	 * Index keeping all registered {@link DelegatingChangeCapturePublisher}s.
 	 */
-	private final Map<UUID, DelegatingChangeCapturePublisher<ChangeSystemCapture>> systemObservers = new ConcurrentHashMap<>();
+	private final Map<UUID, DelegatingChangeCapturePublisher<ChangeSystemCapture, ChangeSystemCaptureRequest>> systemObservers = createConcurrentHashMap(20);
 
 	/**
 	 * Registers a new subscriber with a first request.
@@ -65,7 +73,8 @@ public class SystemChangeObserver implements AutoCloseable {
 	 */
 	public ChangeCapturePublisher<ChangeSystemCapture> registerPublisher(@Nonnull ChangeSystemCaptureRequest request) {
 		assertActive();
-		final DelegatingChangeCapturePublisher<ChangeSystemCapture> publisher = new DelegatingChangeCapturePublisher<>(
+		final DelegatingChangeCapturePublisher<ChangeSystemCapture, ChangeSystemCaptureRequest> publisher = new DelegatingChangeCapturePublisher<>(
+			executor,
 			request,
 			it -> systemObservers.remove(it.getId())
 		);
@@ -85,20 +94,24 @@ public class SystemChangeObserver implements AutoCloseable {
 
 		ChangeSystemCapture captureHeader = null;
 		ChangeSystemCapture captureBody = null;
-		for (DelegatingChangeCapturePublisher<ChangeSystemCapture> publisher : systemObservers.values()) {
+		for (DelegatingChangeCapturePublisher<ChangeSystemCapture, ChangeSystemCaptureRequest> publisher : systemObservers.values()) {
 			final ChangeSystemCaptureRequest request = publisher.getRequest();
+			boolean offerFailed;
 			if (request.content() == CaptureContent.BODY) {
 				if (captureBody == null) {
 					// todo jno: implement CDC indexes
 					captureBody = new ChangeSystemCapture(0, catalog, operation, eventSupplier.get());
 				}
-				publisher.notifySubscribers(captureBody);
+				offerFailed = publisher.tryOffer(captureBody) < 0;
 			} else {
 				if (captureHeader == null) {
 					// todo jno: implement CDC indexes
 					captureHeader = new ChangeSystemCapture(0, catalog, operation, null);
 				}
-				publisher.notifySubscribers(captureHeader);
+				offerFailed = publisher.tryOffer(captureHeader) < 0;
+			}
+			if (offerFailed) {
+				log.warn("Publisher `" + publisher.getId() + "` is saturated, cannot accept more captures at the moment. Skipping this publisher...");
 			}
 		}
 	}
@@ -107,9 +120,9 @@ public class SystemChangeObserver implements AutoCloseable {
 	public void close() {
 		if (active) {
 			active = false;
-			final Iterator<DelegatingChangeCapturePublisher<ChangeSystemCapture>> publisherIterator = systemObservers.values().iterator();
+			final Iterator<DelegatingChangeCapturePublisher<ChangeSystemCapture, ChangeSystemCaptureRequest>> publisherIterator = systemObservers.values().iterator();
 			while (publisherIterator.hasNext()) {
-				final DelegatingChangeCapturePublisher<ChangeSystemCapture> publisher = publisherIterator.next();
+				final DelegatingChangeCapturePublisher<ChangeSystemCapture, ChangeSystemCaptureRequest> publisher = publisherIterator.next();
 				publisher.close();
 				publisherIterator.remove();
 			}

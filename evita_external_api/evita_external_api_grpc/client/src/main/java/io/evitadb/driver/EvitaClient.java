@@ -36,7 +36,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBu
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
-import io.evitadb.driver.cdc.ClientChangeSystemCapturePublisher;
+import io.evitadb.driver.cdc.ClientChangeSystemCaptureProcessor;
 import io.evitadb.driver.certificate.ClientCertificateManager;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientNotTerminatedInTimeException;
@@ -68,7 +68,6 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -289,7 +288,7 @@ public class EvitaClient implements EvitaContract {
 	@Override
 	public ChangeCapturePublisher<ChangeSystemCapture> registerSystemChangeCapture(@Nonnull ChangeSystemCaptureRequest request) {
 		// todo jno: use this as an inspiration for the implementation of the catalog changes
-		final ClientChangeSystemCapturePublisher clientPublisher = new ClientChangeSystemCapturePublisher();
+		final ClientChangeSystemCaptureProcessor clientPublisher = new ClientChangeSystemCaptureProcessor();
 		executeWithStreamingEvitaService(stub ->
 			stub.registerSystemChangeCapture(
 				GrpcRegisterSystemChangeCaptureRequest.newBuilder()

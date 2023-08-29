@@ -43,7 +43,8 @@ import java.util.concurrent.Flow.Subscriber;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface ChangeCapturePublisher<T extends ChangeCapture> extends Publisher<T>, AutoCloseable {
+public interface ChangeCapturePublisher<C extends ChangeCapture>
+	extends Publisher<C>, AutoCloseable {
 
 	/**
 	 * When the publisher is closed, no new subscribers can be subscribed and no new captures can be sent to the subscribers.
