@@ -23,17 +23,32 @@
 
 package io.evitadb.externalApi.lab.gui.resolver;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
+import io.evitadb.externalApi.graphql.GraphQLProvider;
+import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
+import io.evitadb.externalApi.lab.LabManager;
+import io.evitadb.externalApi.lab.configuration.GuiConfig;
+import io.evitadb.externalApi.lab.configuration.LabConfig;
+import io.evitadb.externalApi.lab.gui.dto.EvitaDBConnection;
+import io.evitadb.externalApi.rest.RestProvider;
+import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.server.handlers.resource.ClassPathResourceManager;
 import io.undertow.server.handlers.resource.Resource;
 import io.undertow.server.handlers.resource.ResourceHandler;
 import io.undertow.server.handlers.resource.ResourceManager;
 import io.undertow.server.handlers.resource.ResourceSupplier;
+import io.undertow.util.Headers;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Optional;
 
 /**
  * Serves static files of lab GUI from fs.
@@ -42,17 +57,89 @@ import java.io.IOException;
  */
 public class GuiHandler extends ResourceHandler {
 
-	private GuiHandler(ResourceSupplier resourceSupplier) {
+	private static final String EVITALAB_READONLY_COOKIE = "evitalab_readonly";
+	private static final String EVITALAB_PRECONFIGURED_CONNECTIONS_COOKIE = "evitalab_pconnections";
+
+	@Nonnull private final LabConfig labConfig;
+	@Nonnull private final ApiOptions apiOptions;
+	@Nonnull private final ObjectMapper objectMapper;
+
+	private GuiHandler(@Nonnull ResourceSupplier resourceSupplier,
+					   @Nonnull LabConfig labConfig,
+					   @Nonnull ApiOptions apiOptions,
+	                   @Nonnull ObjectMapper objectMapper) {
 		super(resourceSupplier);
+		this.labConfig = labConfig;
+		this.apiOptions = apiOptions;
+		this.objectMapper = objectMapper;
 	}
 
 	@Nonnull
-	public static GuiHandler create() {
+	public static GuiHandler create(@Nonnull LabConfig labConfig,
+	                                @Nonnull ApiOptions apiOptions,
+	                                @Nonnull ObjectMapper objectMapper) {
 		try (final ResourceManager rm = new ClassPathResourceManager(GuiHandler.class.getClassLoader(), "META-INF/lab/gui/dist")) {
-			return new GuiHandler(new GuiResourceSupplier(rm));
+			return new GuiHandler(new GuiResourceSupplier(rm), labConfig, apiOptions, objectMapper);
 		} catch (IOException e) {
 			throw new ExternalApiInternalError("Failed to load GUI resources.", e);
 		}
+	}
+
+	@Override
+	public void handleRequest(HttpServerExchange exchange) throws Exception {
+		passReadOnlyFlag(exchange);
+		passPreconfiguredEvitaDBConnections(exchange);
+		super.handleRequest(exchange);
+	}
+
+	/**
+	 * Sends a {@link #EVITALAB_READONLY_COOKIE} cookie to the evitaLab with {@link GuiConfig#isReadOnly()} flag.
+	 * If true, the evitaLab GUI will be in read-only mode.
+	 */
+	private void passReadOnlyFlag(@Nonnull HttpServerExchange exchange) {
+		if (labConfig.getGui().isReadOnly()) {
+			exchange.getResponseHeaders().add(
+				Headers.SET_COOKIE,
+				createCookie(EVITALAB_READONLY_COOKIE, "true")
+			);
+		}
+	}
+
+	/**
+	 * Sends a {@link #EVITALAB_PRECONFIGURED_CONNECTIONS_COOKIE} cookie to the evitaLab with preconfigured
+	 * evitaDB connections.
+	 */
+	private void passPreconfiguredEvitaDBConnections(@Nonnull HttpServerExchange exchange) throws IOException {
+		final List<EvitaDBConnection> preconfiguredConnections = resolvePreconfiguredEvitaDBConnections();
+		final String serializedSelfConnection = objectMapper.writeValueAsString(preconfiguredConnections);
+
+		exchange.getResponseHeaders().add(
+			Headers.SET_COOKIE,
+			createCookie(EVITALAB_PRECONFIGURED_CONNECTIONS_COOKIE, serializedSelfConnection)
+		);
+	}
+
+	@Nonnull
+	private List<EvitaDBConnection> resolvePreconfiguredEvitaDBConnections() {
+		final List<EvitaDBConnection> preconfiguredConnections = labConfig.getGui().getPreconfiguredConnections();
+		if (preconfiguredConnections != null) {
+			return preconfiguredConnections;
+		}
+
+		final RestConfig restConfig = (RestConfig) apiOptions.endpoints().get(RestProvider.CODE);
+		final GraphQLConfig graphQLConfig = (GraphQLConfig) apiOptions.endpoints().get(GraphQLProvider.CODE);
+		final EvitaDBConnection selfConnection = new EvitaDBConnection(
+			"evitaDB",
+			labConfig.getBaseUrls()[0] + LabManager.LAB_API_URL_PREFIX,
+			Optional.ofNullable(restConfig).map(it -> it.getBaseUrls()[0]).orElse(null),
+			Optional.ofNullable(graphQLConfig).map(it -> it.getBaseUrls()[0]).orElse(null)
+		);
+		return List.of(selfConnection);
+	}
+
+	@Nonnull
+	private String createCookie(@Nonnull String name, @Nonnull String value) {
+		return name + "=" + URLEncoder.encode(value, StandardCharsets.UTF_8) + "; SameSite=Strict";
 	}
 
 	@RequiredArgsConstructor

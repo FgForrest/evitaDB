@@ -25,7 +25,7 @@ package io.evitadb.externalApi.lab;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.core.Evita;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.CorsFilter;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
 import io.evitadb.externalApi.lab.api.LabApiBuilder;
@@ -34,23 +34,16 @@ import io.evitadb.externalApi.lab.gui.resolver.GuiHandler;
 import io.evitadb.externalApi.lab.io.LabExceptionHandler;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.io.CorsEndpoint;
-import io.evitadb.externalApi.rest.io.RestEndpointHandler;
 import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.utils.StringUtils;
 import io.undertow.Handlers;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.RoutingHandler;
 import io.undertow.server.handlers.BlockingHandler;
-import io.undertow.server.handlers.resource.FileResourceManager;
-import io.undertow.server.handlers.resource.ResourceHandler;
-import io.undertow.server.handlers.resource.ResourceManager;
-import io.undertow.util.HttpString;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.io.File;
-import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
@@ -72,6 +65,7 @@ public class LabManager {
 	@Nonnull private final ObjectMapper objectMapper = new ObjectMapper();
 
 	@Nonnull private final Evita evita;
+	@Nonnull private final ApiOptions apiOptions;
 	@Nonnull private final LabConfig labConfig;
 
 	/**
@@ -80,8 +74,9 @@ public class LabManager {
 	@Nonnull private final RoutingHandler labRouter = Handlers.routing();
 	@Nonnull private final Map<UriPath, CorsEndpoint> corsEndpoints = createConcurrentHashMap(20);
 
-	public LabManager(@Nonnull Evita evita, @Nonnull LabConfig labConfig) {
+	public LabManager(@Nonnull Evita evita, @Nonnull ApiOptions apiOptions, @Nonnull LabConfig labConfig) {
 		this.evita = evita;
+		this.apiOptions = apiOptions;
 		this.labConfig = labConfig;
 
 		final long buildingStartTime = System.currentTimeMillis();
@@ -147,7 +142,7 @@ public class LabManager {
 				new CorsFilter(
 					new LabExceptionHandler(
 						objectMapper,
-						GuiHandler.create()
+						GuiHandler.create(labConfig, apiOptions, objectMapper)
 					),
 					labConfig.getAllowedOrigins()
 				)

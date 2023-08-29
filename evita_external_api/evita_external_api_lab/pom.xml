@@ -42,6 +42,11 @@
 		</dependency>
 		<dependency>
 			<groupId>${project.parent.groupId}</groupId>
+			<artifactId>evita_external_api_graphql</artifactId>
+			<version>${project.parent.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.parent.groupId}</groupId>
 			<artifactId>evita_external_api_rest</artifactId>
 			<version>${project.parent.version}</version>
 		</dependency>
