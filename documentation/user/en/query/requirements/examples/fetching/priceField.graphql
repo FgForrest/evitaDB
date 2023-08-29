@@ -22,6 +22,11 @@
           priceWithTax
           taxRate
         }
+        referencePrice: price(priceList: "basic") {
+          priceWithoutTax
+          priceWithTax
+          taxRate
+        }
       }
     }
   }

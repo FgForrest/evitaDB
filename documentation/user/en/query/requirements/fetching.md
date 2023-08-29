@@ -842,6 +842,8 @@ chapter.
 
 ## Price content
 
+<LanguageSpecific to="evitaql,java,rest">
+
 ```evitaql-syntax
 priceContent(
     argument:enum(NONE|RESPECTING_FILTER|ALL),
@@ -1010,6 +1012,148 @@ As you can see, all prices of the entity are returned in all available currencie
 *employee-basic-price* and *basic*. Thanks to `priceContentAll` you have an overview of all prices of the entity.
 
 </Note>
+
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+To fetch price information for an entity, there are several different fields available within an entity: `priceForSale`, `price` and `prices`.
+All of these fields return same price objects, but each has a different purpose and returns slightly different data.
+
+The price object returns several data that can be formatted by the server for you to display to the user. More specifically,
+the concrete price numbers within the price object can be fetched formatted according to specified locale and can even
+contain the currency symbol. This is controlled by the arguments `formatted` and `withCurrency` on respective price object fields.
+The locale is either resolved from context of the query 
+(either from localized unique attribute in the filter or from `entityLocaleEquals` constraint in the filter) or can be specified
+directly on the parent price field by the `locale` argument.
+
+### Price for sale
+
+The `priceForSale` field returns a single price object that represents the price of sale for the entity. 
+By default, this price is [computed based on input filter constraints](../filtering/price.md), more specifically: 
+`priceInPriceLists`, `priceInCurrency` and `priceValidIn`. This is expected to be the most common use case, because
+it also filters returned entities by these conditions. 
+
+<SourceCodeTabs langSpecificTabOnly>
+[Getting entity with price for sale](/documentation/user/en/query/requirements/examples/fetching/priceForSaleField.graphql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with its price for sale based on filter constraints
+</NoteTitle>
+
+The query returns the following price for sale of the `Product` entity:
+
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with its price for sale](/documentation/user/en/query/requirements/examples/fetching/priceForSaleField.graphql.json.md)</MDInclude>
+
+As you can see, the price for sale matching the filter constraints is returned.
+
+</Note>
+
+Alternatively, if you don't want to filter entities by the filter price constraints, but you still want to compute and fetch
+specific price for sale, you can specify which price for sale you want to compute by the `priceList`, `currency` and 
+`validIn`/`validNow` arguments directly on the `priceForSale` fields. You can even combine these two approaches,
+in such a case the arguments on the `priceForSale` fields simply override corresponding price constraints used in filter.
+Theoretically, you can then filter entities by different price conditions than you use to compute the returned price for sale.
+
+<SourceCodeTabs langSpecificTabOnly>
+[Getting entity with price for sale based on custom arguments](/documentation/user/en/query/requirements/examples/fetching/priceForSaleFieldWithArguments.graphql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with its price for sale based on custom arguments
+</NoteTitle>
+
+The query returns the following price for sale of the `Product` entity:
+
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with its price for sale](/documentation/user/en/query/requirements/examples/fetching/priceForSaleFieldWithArguments.graphql.json.md)</MDInclude>
+
+As you can see, the price for sale matching the custom arguments is returned.
+
+</Note>
+
+### Price
+
+The `price` field returns a single specific price (even non-sellable) based on passed arguments: `priceList` and `currency`.
+This is useful if you want to fetch, for example, a reference non-sellable price to display alongside the main price for sale
+of the entity. If more prices are found for the specified price list and currency, the first currently valid one is returned.
+
+The `currency` field can be omitted if there is a `priceInCurrency` constraint in the filter, however, the `priceList` argument is
+required. The idea behind this is that you probably would want to same currency for all prices in the result, but you probably
+don't want the reference price to be in the same price list as the main price for sale price, because that would most probably
+return same prices. 
+
+<SourceCodeTabs langSpecificTabOnly>
+[Getting entity with price for sale as well as reference price](/documentation/user/en/query/requirements/examples/fetching/priceField.graphql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with its price for sale and reference price
+</NoteTitle>
+
+The query returns the following price for sale and reference price of the `Product` entity:
+
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with its price for sale and reference price](/documentation/user/en/query/requirements/examples/fetching/priceField.graphql.json.md)</MDInclude>
+
+As you can see, the price for sale as well as custom reference price are returned.
+
+</Note>
+
+### Prices
+
+The `prices` field returns all prices of the entity. Both sellable and non-sellable. 
+
+<SourceCodeTabs langSpecificTabOnly>
+[Getting entity with all prices](/documentation/user/en/query/requirements/examples/fetching/pricesField.graphql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with all its prices
+</NoteTitle>
+
+The query returns the following list of all prices of the `Product` entity:
+
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with all its prices](/documentation/user/en/query/requirements/examples/fetching/pricesField.graphql.json.md)</MDInclude>
+
+As you can see, the price list is returned.
+
+</Note>
+
+However, if you need only a specific list of prices, you can filter the returned prices with `priceLists` and `currency` arguments.
+Unlike the other price fields, this field doesn't fall back to data from filter constraints because that would make it 
+difficult to return all prices without any filters.
+
+<SourceCodeTabs langSpecificTabOnly>
+[Getting entity with filtered all prices](/documentation/user/en/query/requirements/examples/fetching/pricesFieldFiltered.graphql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with filtered all its prices
+</NoteTitle>
+
+The query returns the following list of all prices of the `Product` entity:
+
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with all its prices](/documentation/user/en/query/requirements/examples/fetching/pricesFieldFiltered.graphql.json.md)</MDInclude>
+
+As you can see, the filtered price list is returned.
+
+</Note>
+
+</LanguageSpecific>
 
 ## Reference content
 
