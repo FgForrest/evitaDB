@@ -47,6 +47,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDes
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
+import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -73,7 +74,7 @@ public class ExtraResultsJsonSerializer {
 
 	private final Map<String, String> referenceNameToFieldName;
 
-	public ExtraResultsJsonSerializer(@Nonnull CatalogRestHandlingContext restHandlingContext,
+	public ExtraResultsJsonSerializer(@Nonnull RestHandlingContext restHandlingContext,
 	                                  @Nonnull EntityJsonSerializer entityJsonSerializer,
 	                                  @Nonnull Map<String, String> referenceNameToFieldName) {
 		this.entityJsonSerializer = entityJsonSerializer;

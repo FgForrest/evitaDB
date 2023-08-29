@@ -28,8 +28,7 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor for header arguments of {@link SystemRootDescriptor#GET_CATALOG}
- * query.
+ * Descriptor for header arguments of catalog endpoints.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */

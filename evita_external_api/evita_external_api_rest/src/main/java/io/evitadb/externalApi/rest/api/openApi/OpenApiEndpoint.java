@@ -229,16 +229,16 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 
 		@Nonnull
 		private UriPath.Builder pathBuilder = UriPath.builder();
-		@Getter(AccessLevel.PROTECTED)
+		@Getter
 		private final List<OpenApiEndpointParameter> pathParameters = new LinkedList<>();
 
 		@Nonnull
-		protected UriPath getPathBuilder() {
+		public UriPath getPath() {
 			return this.pathBuilder.build();
 		}
 
 		@Nonnull
-		protected static PathBuilder newPath() {
+		public static PathBuilder newPath() {
 			return new PathBuilder();
 		}
 

@@ -41,6 +41,7 @@
 	    <module>evita_external_api_grpc/shared</module>
 	    <module>evita_external_api_rest</module>
 	    <module>evita_external_api_system</module>
+	    <module>evita_external_api_lab</module>
     </modules>
 
     <dependencyManagement>
