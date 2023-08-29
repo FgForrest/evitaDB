@@ -51,12 +51,8 @@ public class CatalogRestRefreshingObserver implements Subscriber<ChangeCatalogCa
 
 	@Override
 	public void onNext(ChangeCatalogCapture item) {
-		// todo lho: check how was this implemented in the old code, but it will be probably correct, implement it in GQL aswell
-		switch (item.operation()) {
-			case CREATE -> restManager.registerCatalog(item.catalog());
-			case UPDATE -> restManager.refreshCatalog(item.catalog());
-			case REMOVE -> restManager.unregisterCatalog(item.catalog());
-		}
+		// todo lho: make use of the lastId when implemented?
+		restManager.registerCatalog(item.catalog());
 		subscription.request(1);
 	}
 

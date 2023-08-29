@@ -51,12 +51,8 @@ public class CatalogGraphQLRefreshingObserver implements Subscriber<ChangeCatalo
 
 	@Override
 	public void onNext(ChangeCatalogCapture item) {
-		// todo lho check
-		switch (item.operation()) {
-			case CREATE -> graphQLManager.registerCatalog(item.catalog());
-			case UPDATE -> graphQLManager.refreshCatalog(item.catalog());
-			case REMOVE -> graphQLManager.unregisterCatalog(item.catalog());
-		}
+		// todo lho: make use of the lastId when implemented?
+		graphQLManager.registerCatalog(item.catalog());
 		subscription.request(1);
 	}
 

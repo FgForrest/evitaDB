@@ -130,12 +130,13 @@ public class RestManager {
 			!registeredCatalogEndpoints.containsKey(catalogName),
 			() -> new OpenApiInternalError("Catalog `" + catalogName + "` has been already registered.")
 		);
-		catalog.registerChangeCatalogCapture(
-			new ChangeCatalogCaptureRequest(
-				CaptureArea.SCHEMA, new SchemaSite(Operation.values()), CaptureContent.HEADER,
-				catalog.getLastCommittedTransactionId()
-			)
-		).subscribe(new CatalogRestRefreshingObserver(this));
+		// todo jno: uncomment this after the catalog captures are implemented
+//		catalog.registerChangeCatalogCapture(
+//			new ChangeCatalogCaptureRequest(
+//				CaptureArea.SCHEMA, new SchemaSite(Operation.values()), CaptureContent.HEADER,
+//				catalog.getLastCommittedTransactionId()
+//			)
+//		).subscribe(new CatalogRestRefreshingObserver(this));
 
 		final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(restConfig, evita, catalog);
 		final Rest builtRest = catalogRestBuilder.build();
