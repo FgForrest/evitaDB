@@ -85,6 +85,7 @@ public class UriPath implements Comparable<UriPath> {
 	public static class Builder {
 		private static final String PATH_SEPARATOR = "/";
 		private static final Pattern PATH_PARAM_PATTERN = Pattern.compile("\\{(.*)}");
+		private static final Pattern WILDCARD_PATTERN = Pattern.compile("\\*");
 		private static final Pattern SUB_PATH_PATTERN = Pattern.compile("^(/)?(.+(?:/.+)+)$");
 
 		@Nonnull private final List<String> parts;
@@ -114,6 +115,12 @@ public class UriPath implements Comparable<UriPath> {
 				return this;
 			}
 
+			final Matcher wildcardMatcher = WILDCARD_PATTERN.matcher(part);
+			if (wildcardMatcher.matches()) {
+				this.parts.add("*");
+				return this;
+			}
+
 			final Matcher pathParamMatcher = PATH_PARAM_PATTERN.matcher(part);
 			if (pathParamMatcher.matches()) {
 				validatePart(pathParamMatcher.group(1));
@@ -121,6 +128,7 @@ public class UriPath implements Comparable<UriPath> {
 				validatePart(part);
 			}
 			this.parts.add(part);
+
 			return this;
 		}
 

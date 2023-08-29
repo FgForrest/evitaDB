@@ -63,6 +63,18 @@ public record PropertyDescriptor(@Nonnull String name,
 		this(name, description, null, null);
 	}
 
+	/**
+	 * Creates new descriptor extending all properties of specified one.
+	 */
+	@Nonnull
+	public static PropertyDescriptorBuilder extend(@Nonnull PropertyDescriptor propertyDescriptor) {
+		return builder()
+			.name(propertyDescriptor.name())
+			.description(propertyDescriptor.description())
+			.type(propertyDescriptor.type())
+			.defaultValue(propertyDescriptor.defaultValue());
+	}
+
 	@Nonnull
 	public String description(@Nonnull Object... args) {
 		return String.format(this.description, args);

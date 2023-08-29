@@ -30,14 +30,14 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.resolver.serializer.DataTypeSerializer;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
+import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -59,7 +59,7 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 	@Nonnull
 	private final EntitySchemaJsonSerializer entitySchemaJsonSerializer;
 
-	public CatalogSchemaJsonSerializer(@Nonnull CatalogRestHandlingContext restHandlingContext) {
+	public CatalogSchemaJsonSerializer(@Nonnull RestHandlingContext restHandlingContext) {
 		super(new ObjectJsonSerializer(restHandlingContext.getObjectMapper()));
 		this.entitySchemaJsonSerializer = new EntitySchemaJsonSerializer(restHandlingContext);
 	}
@@ -86,7 +86,7 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 	}
 
 	@Nonnull
-	private ObjectNode serializeAttributeSchemas(@Nonnull AttributeSchemaProvider<? extends AttributeSchemaContract> attributeSchemaProvider) {
+	protected ObjectNode serializeAttributeSchemas(@Nonnull AttributeSchemaProvider<? extends AttributeSchemaContract> attributeSchemaProvider) {
 		final Collection<? extends AttributeSchemaContract> attributeSchemas = attributeSchemaProvider.getAttributes().values();
 
 		final ObjectNode attributeSchemasMap = objectJsonSerializer.objectNode();

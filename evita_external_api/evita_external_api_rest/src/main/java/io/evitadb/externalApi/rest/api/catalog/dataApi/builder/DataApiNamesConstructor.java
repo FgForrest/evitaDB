@@ -36,7 +36,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.DataChunkAggregateDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.DataChunkUnionDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.HierarchyOfDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
@@ -98,7 +98,7 @@ public class DataApiNamesConstructor {
 
 	@Nonnull
 	public static String constructEntityDataChunkAggregateObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
-		return DataChunkAggregateDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema);
+		return DataChunkUnionDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema);
 	}
 
 	@Nonnull

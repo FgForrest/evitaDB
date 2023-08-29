@@ -762,7 +762,13 @@ public class EntityConverter {
 				);
 			this.groupIndex = grpcReference.stream()
 				.filter(GrpcReference::hasGroupReferencedEntity)
-				.map(it -> toEntity(entitySchemaFetcher, evitaRequest, it.getGroupReferencedEntity(), SealedEntity.class))
+				.map(it -> {
+					final RequirementContext fetchCtx = Optional.ofNullable(evitaRequest.getReferenceEntityFetch().get(it.getReferenceName()))
+						.orElse(evitaRequest.getDefaultReferenceRequirement());
+					final GrpcSealedEntity referencedEntity = it.getGroupReferencedEntity();
+					final EvitaRequest referenceRequest = evitaRequest.deriveCopyWith(referencedEntity.getEntityType(), fetchCtx.entityGroupFetch());
+					return toEntity(entitySchemaFetcher, referenceRequest, referencedEntity, SealedEntity.class);
+				})
 				.collect(
 					Collectors.toMap(
 						it -> new EntityReference(it.getType(), it.getPrimaryKey()),

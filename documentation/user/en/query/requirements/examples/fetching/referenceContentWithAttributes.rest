@@ -1,0 +1,31 @@
+POST /rest/evita/product/query
+
+{
+  "filterBy" : {
+    "entityPrimaryKeyInSet" : [
+      105703
+    ]
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ],
+      "referenceParameterValuesContentWithAttributes" : {
+        "attributeContent" : [
+          "variant"
+        ],
+        "entityFetch" : {
+          "attributeContent" : [
+            "code"
+          ]
+        },
+        "entityGroupFetch" : {
+          "attributeContent" : [
+            "code"
+          ]
+        }
+      }
+    }
+  }
+}

@@ -63,4 +63,22 @@ module evita.external.api.rest {
 	exports io.evitadb.externalApi.rest.io;
 	exports io.evitadb.externalApi.rest.configuration;
 
+	// these shouldn't be publicly exported, but they are used by the lab module which extends this module
+	exports io.evitadb.externalApi.rest.api.builder to evita.external.api.lab;
+	exports io.evitadb.externalApi.rest.api.openApi to evita.external.api.lab;
+	exports io.evitadb.externalApi.rest.exception to evita.external.api.lab;
+	exports io.evitadb.externalApi.rest.api.model to evita.external.api.lab;
+	exports io.evitadb.externalApi.rest.api to evita.external.api.lab;
+	exports io.evitadb.externalApi.rest.api.resolver.serializer to evita.external.api.lab;
+	exports io.evitadb.externalApi.rest.api.catalog.dataApi.builder to evita.external.api.lab;
+	exports io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity to evita.external.api.lab;
+	exports io.evitadb.externalApi.rest.api.catalog.dataApi.model to evita.external.api.lab;
+	exports io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult to evita.external.api.lab;
+	exports io.evitadb.externalApi.rest.api.catalog.dataApi.dto to evita.external.api.lab;
+	exports io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer to evita.external.api.lab;
+	exports io.evitadb.externalApi.rest.api.system.resolver.serializer to evita.external.api.lab;
+	exports io.evitadb.externalApi.rest.api.catalog.schemaApi.builder to evita.external.api.lab;
+	exports io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer to evita.external.api.lab;
+	exports io.evitadb.externalApi.rest.api.resolver.endpoint to evita.external.api.lab;
+	exports io.evitadb.externalApi.rest.api.dataType to evita.external.api.lab;
 }

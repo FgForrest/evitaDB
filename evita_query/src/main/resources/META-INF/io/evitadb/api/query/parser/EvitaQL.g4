@@ -433,6 +433,8 @@ ARGS_DELIMITER : ',' ;
  * Miscellaneous tokens
  */
 
+COMMENT : '//' ~[\r\n]* -> channel(HIDDEN) ;
+
 WHITESPACE : [ \r\t\n]+ -> channel(HIDDEN) ;
 
 UNEXPECTED_CHAR : . ;
