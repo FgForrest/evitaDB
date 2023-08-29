@@ -37,6 +37,7 @@ module evita.external.api.lab {
 	provides ExternalApiProviderRegistrar with LabProviderRegistrar;
 
 	exports io.evitadb.externalApi.lab.configuration;
+	exports io.evitadb.externalApi.lab;
 
 	requires static jsr305;
 	requires static lombok;

@@ -126,8 +126,8 @@ public class GuiHandler extends ResourceHandler {
 			return preconfiguredConnections;
 		}
 
-		final RestConfig restConfig = (RestConfig) apiOptions.endpoints().get(RestProvider.CODE);
-		final GraphQLConfig graphQLConfig = (GraphQLConfig) apiOptions.endpoints().get(GraphQLProvider.CODE);
+		final RestConfig restConfig = apiOptions.getEndpointConfiguration(RestProvider.CODE);
+		final GraphQLConfig graphQLConfig = apiOptions.getEndpointConfiguration(GraphQLProvider.CODE);
 		final EvitaDBConnection selfConnection = new EvitaDBConnection(
 			"evitaDB",
 			labConfig.getBaseUrls()[0] + LabManager.LAB_API_URL_PREFIX,
