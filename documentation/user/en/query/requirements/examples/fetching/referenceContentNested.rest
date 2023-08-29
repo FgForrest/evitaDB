@@ -1,0 +1,29 @@
+POST /rest/evita/product/query
+
+{
+  "filterBy" : {
+    "attributeCodeEquals" : "samsung-galaxy-watch-4"
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ],
+      "referenceGroupsContent" : {
+        "entityFetch" : {
+          "attributeContent" : [
+            "code"
+          ],
+          "referenceTagsContent" : {
+            "entityFetch" : {
+              "attributeContent" : [
+                "code"
+              ],
+              "referenceCategoriesContent" : { }
+            }
+          }
+        }
+      }
+    }
+  }
+}

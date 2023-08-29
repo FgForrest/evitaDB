@@ -44,6 +44,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.index.EntityIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import lombok.Getter;
 import org.mockito.Mockito;
@@ -68,7 +69,8 @@ public class TestFilterByVisitor extends FilterByVisitor {
 
 	public TestFilterByVisitor(CatalogSchemaContract catalogSchema, EntitySchemaContract entitySchema, Query query, Map<Integer, Entity> entities) {
 		super(
-			new ProcessingScope(
+			new ProcessingScope<>(
+				EntityIndex.class,
 				Collections.emptyList(),
 				AttributeContent.ALL_ATTRIBUTES,
 				entitySchema, null, null,

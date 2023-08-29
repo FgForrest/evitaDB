@@ -16,6 +16,10 @@
             "url" : "/cs/samsung"
           },
           {
+            "locale" : "de",
+            "url" : "/de/samsung"
+          },
+          {
             "locale" : "en",
             "url" : "/en/samsung"
           }

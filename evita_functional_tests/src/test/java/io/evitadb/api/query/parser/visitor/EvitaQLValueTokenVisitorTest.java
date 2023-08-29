@@ -48,6 +48,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static io.evitadb.dataType.EvitaDataTypes.formatValue;
 import static org.junit.jupiter.api.Assertions.*;
@@ -73,13 +74,13 @@ class EvitaQLValueTokenVisitorTest {
     @Test
     void shouldCreateVisitorWithAllComparableDataTypes() {
         final EvitaQLValueTokenVisitor visitor = EvitaQLValueTokenVisitor.withComparableTypesAllowed();
-        assertEquals(18, visitor.allowedDataTypes.size());
+        assertEquals(19, visitor.allowedDataTypes.size());
     }
 
     @Test
     void shouldCreateVisitorWithAllDataTypes() {
         final EvitaQLValueTokenVisitor visitor = EvitaQLValueTokenVisitor.withAllDataTypesAllowed();
-        assertEquals(21, visitor.allowedDataTypes.size());
+        assertEquals(22, visitor.allowedDataTypes.size());
     }
 
     @Test
@@ -520,6 +521,21 @@ class EvitaQLValueTokenVisitorTest {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("WITH_TAX", String.class));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("withTax"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("_WITH-TAX"));
+    }
+
+    @Test
+    void shouldParseUuidLiteral() {
+        final Value value1 = parseValueUnsafe("2fbbfcf2-d4bb-4db9-9658-acf1d287cbe9");
+        assertEquals(UUID.class, value1.getType());
+        assertEquals(UUID.fromString("2fbbfcf2-d4bb-4db9-9658-acf1d287cbe9"), value1.asUuid());
+    }
+
+    @Test
+    void shouldNotParseUuidLiteral() {
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValue("'2fbbfcf2-d4bb-4db9-9658-acf1d287cbe9'"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValue("2fbbfcf2-d4bb-4db9-9658-acf1d287c%be9"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValue("2fbbfcf2-d4bb-4db9-9658-acf1d287Cbe9"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("2fbbfcf2-d4bb-4db9", String.class));
     }
 
     /**

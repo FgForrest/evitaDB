@@ -227,47 +227,51 @@ enum GrpcEvitaDataType {
   LOCALE = 18;
   // Represents Currency data type.
   CURRENCY = 19;
+  // Represents UUID data type.
+  UUID = 20;
 
   // Represents string array data type.
-  STRING_ARRAY = 20;
+  STRING_ARRAY = 50;
   // Represents byte array data type.
-  BYTE_ARRAY = 21;
+  BYTE_ARRAY = 51;
   // Represents short array data type.
-  SHORT_ARRAY = 22;
+  SHORT_ARRAY = 52;
   // Represents integer array data type.
-  INTEGER_ARRAY = 23;
+  INTEGER_ARRAY = 53;
   // Represents long array data type.
-  LONG_ARRAY = 24;
+  LONG_ARRAY = 54;
   // Represents boolean array data type.
-  BOOLEAN_ARRAY = 25;
+  BOOLEAN_ARRAY = 55;
   // Represents character array data type.
-  CHARACTER_ARRAY = 26;
+  CHARACTER_ARRAY = 56;
   // Represents BigDecimal array data type.
-  BIG_DECIMAL_ARRAY = 27;
+  BIG_DECIMAL_ARRAY = 57;
   // Represents OffsetDateTime array data type.
-  OFFSET_DATE_TIME_ARRAY = 28;
+  OFFSET_DATE_TIME_ARRAY = 58;
   // Represents LocalDateTime array data type.
-  LOCAL_DATE_TIME_ARRAY = 29;
+  LOCAL_DATE_TIME_ARRAY = 59;
   // Represents LocalDate array data type.
-  LOCAL_DATE_ARRAY = 30;
+  LOCAL_DATE_ARRAY = 60;
   // Represents LocalTime array data type.
-  LOCAL_TIME_ARRAY = 31;
+  LOCAL_TIME_ARRAY = 61;
   // Represents DateTimeRange array data type.
-  DATE_TIME_RANGE_ARRAY = 32;
+  DATE_TIME_RANGE_ARRAY = 62;
   // Represents BigDecimalNumberRange array data type.
-  BIG_DECIMAL_NUMBER_RANGE_ARRAY = 33;
+  BIG_DECIMAL_NUMBER_RANGE_ARRAY = 63;
   // Represents LongNumberRange array data type.
-  LONG_NUMBER_RANGE_ARRAY = 34;
+  LONG_NUMBER_RANGE_ARRAY = 64;
   // Represents IntegerNumberRange array data type.
-  INTEGER_NUMBER_RANGE_ARRAY = 35;
+  INTEGER_NUMBER_RANGE_ARRAY = 65;
   // Represents ShortNumberRange array data type.
-  SHORT_NUMBER_RANGE_ARRAY = 36;
+  SHORT_NUMBER_RANGE_ARRAY = 66;
   // Represents ByteNumberRange array data type.
-  BYTE_NUMBER_RANGE_ARRAY = 37;
+  BYTE_NUMBER_RANGE_ARRAY = 67;
   // Represents Locale array data type.
-  LOCALE_ARRAY = 38;
+  LOCALE_ARRAY = 68;
   // Represents Currency array data type.
-  CURRENCY_ARRAY = 39;
+  CURRENCY_ARRAY = 69;
+  // Represents UUID array data type.
+  UUID_ARRAY = 70;
 }
 
 // This enum contains all supported data types of AssociatedData.
@@ -309,45 +313,57 @@ message GrpcEvitaAssociatedDataDataType {
     SHORT_RANGE = 16;
     // Represents ByteNumberRange data type.
     BYTE_RANGE = 17;
+    // Represents Locale data type.
+    LOCALE = 18;
+    // Represents Currency data type.
+    CURRENCY = 19;
+    // Represents UUID data type.
+    UUID = 20;
     // Represents ComplexDataObject data type.
-    COMPLEX_DATA_OBJECT = 18;
+    COMPLEX_DATA_OBJECT = 21;
 
     // Represents string array data type.
-    STRING_ARRAY = 19;
+    STRING_ARRAY = 50;
     // Represents byte array data type.
-    BYTE_ARRAY = 20;
+    BYTE_ARRAY = 51;
     // Represents short array data type.
-    SHORT_ARRAY = 21;
+    SHORT_ARRAY = 52;
     // Represents integer array data type.
-    INTEGER_ARRAY = 22;
+    INTEGER_ARRAY = 53;
     // Represents long array data type.
-    LONG_ARRAY = 23;
+    LONG_ARRAY = 54;
     // Represents boolean array data type.
-    BOOLEAN_ARRAY = 24;
+    BOOLEAN_ARRAY = 55;
     // Represents character array data type.
-    CHARACTER_ARRAY = 25;
+    CHARACTER_ARRAY = 56;
     // Represents BigDecimal array data type.
-    BIG_DECIMAL_ARRAY = 26;
+    BIG_DECIMAL_ARRAY = 57;
     // Represents OffsetDateTime array data type.
-    OFFSET_DATE_TIME_ARRAY = 27;
+    OFFSET_DATE_TIME_ARRAY = 58;
     // Represents LocalDateTime array data type.
-    LOCAL_DATE_TIME_ARRAY = 28;
+    LOCAL_DATE_TIME_ARRAY = 59;
     // Represents LocalDate array data type.
-    LOCAL_DATE_ARRAY = 29;
+    LOCAL_DATE_ARRAY = 60;
     // Represents LocalTime array data type.
-    LOCAL_TIME_ARRAY = 30;
+    LOCAL_TIME_ARRAY = 61;
     // Represents DateTimeRange array data type.
-    DATE_TIME_RANGE_ARRAY = 31;
+    DATE_TIME_RANGE_ARRAY = 62;
     // Represents BigDecimalNumberRange array data type.
-    BIG_DECIMAL_RANGE_ARRAY = 32;
+    BIG_DECIMAL_RANGE_ARRAY = 63;
     // Represents LongNumberRange array data type.
-    LONG_RANGE_ARRAY = 33;
+    LONG_RANGE_ARRAY = 64;
     // Represents IntegerNumberRange array data type.
-    INTEGER_RANGE_ARRAY = 34;
+    INTEGER_RANGE_ARRAY = 65;
     // Represents ShortNumberRange array data type.
-    SHORT_RANGE_ARRAY = 35;
+    SHORT_RANGE_ARRAY = 66;
     // Represents ByteNumberRange array data type.
-    BYTE_RANGE_ARRAY = 36;
+    BYTE_RANGE_ARRAY = 67;
+    // Represents Locale array data type.
+    LOCALE_ARRAY = 68;
+    // Represents Currency array data type.
+    CURRENCY_ARRAY = 69;
+    // Represents UUID array data type.
+    UUID_ARRAY = 70;
   }
 }
 

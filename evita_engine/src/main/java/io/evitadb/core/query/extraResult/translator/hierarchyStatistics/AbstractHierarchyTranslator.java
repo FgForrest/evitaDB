@@ -49,6 +49,7 @@ import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 
@@ -94,7 +95,7 @@ public abstract class AbstractHierarchyTranslator {
 		@Nonnull TraversalDirection direction,
 		@Nonnull HierarchyStopAt stopAt,
 		@Nonnull QueryContext queryContext,
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull GlobalEntityIndex entityIndex,
 		@Nullable ReferenceSchemaContract referenceSchema
 	) {
 		final HierarchyStopAtRequireConstraint filter = stopAt.getStopAtDefinition();
@@ -144,10 +145,11 @@ public abstract class AbstractHierarchyTranslator {
 	 * {@link HierarchyStatisticsProducer}.
 	 */
 	@Nonnull
-	protected Formula createFilterFormula(
+	protected <T extends EntityIndex> Formula createFilterFormula(
 		@Nonnull QueryContext queryContext,
 		@Nonnull FilterBy filterBy,
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull Class<T> indexType,
+		@Nonnull T entityIndex,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor
 	) {
 		try {
@@ -167,6 +169,7 @@ public abstract class AbstractHierarchyTranslator {
 			// now analyze the filter by in a nested context with exchanged primary entity index
 			final Formula theFormula = queryContext.analyse(
 				theFilterByVisitor.executeInContext(
+					indexType,
 					Collections.singletonList(entityIndex),
 					null,
 					entityIndex.getEntitySchema(),

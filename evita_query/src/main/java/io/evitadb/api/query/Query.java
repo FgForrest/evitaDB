@@ -69,12 +69,14 @@ public class Query implements Serializable {
 	@Nullable private final FilterBy filterBy;
 	@Nullable private final OrderBy orderBy;
 	@Nullable private final Require require;
+	private boolean normalized;
 
 	private Query(@Nullable Collection collection, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable Require require) {
 		this.collection = collection;
 		this.filterBy = filterBy;
 		this.orderBy = orderBy;
 		this.require = require;
+		this.normalized = false;
 	}
 
 	/*
@@ -189,14 +191,24 @@ public class Query implements Serializable {
 		@Nullable UnaryOperator<Constraint<?>> orderConstraintTranslator,
 		@Nullable UnaryOperator<Constraint<?>> requireConstraintTranslator
 	) {
+		// avoid costly normalization on already normalized query
+		if (normalized) {
+			return this;
+		}
+
 		final FilterBy normalizedFilter = filterBy == null ? null : (FilterBy) purify(filterBy, filterConstraintTranslator);
 		final OrderBy normalizedOrder = orderBy == null ? null : (OrderBy) purify(orderBy, orderConstraintTranslator);
 		final Require normalizedRequire = require == null ? null : (Require) purify(require, requireConstraintTranslator);
 
+		// if normalized constraint are same as originals, this query is in normalized form
 		if (Objects.equals(filterBy, normalizedFilter) && Objects.equals(orderBy, normalizedOrder) && Objects.equals(require, normalizedRequire)) {
+			this.normalized = true;
 			return this;
 		} else {
-			return query(collection, normalizedFilter, normalizedOrder, normalizedRequire);
+			// otherwise create leaner query in normalized form
+			final Query normalizedQuery = new Query(collection, normalizedFilter, normalizedOrder, normalizedRequire);
+			normalizedQuery.normalized = true;
+			return normalizedQuery;
 		}
 	}
 

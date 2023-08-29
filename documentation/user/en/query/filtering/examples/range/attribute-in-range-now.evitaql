@@ -1,0 +1,11 @@
+query(
+    collection('Product'),
+    filterBy(
+        attributeInRangeNow('validity')
+    ),
+    require(
+       entityFetch(
+           attributeContent('code')
+       )
+    )
+)

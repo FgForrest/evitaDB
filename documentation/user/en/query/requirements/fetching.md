@@ -10,8 +10,6 @@ author: 'Ing. Jan Novotný'
 proofreading: 'needed'
 ---
 
-**Work still in progress**
-
 <LanguageSpecific to="evitaql,java,rest">
 
 If no content requirement is used in the query, the result will contain only the primary key of the entity. While this
@@ -55,8 +53,13 @@ entityFetch(
             <li>[dataInLocales](#data-in-locales)</li>
             <li>[dataInLocalesAll](#data-in-locales-all)</li>
             <li>[hierarchyContent](#hierarchy-content)</li>
-            <li>[priceContent/priceContentAll/priceContentRespectingFilter](#price-content)</li>
-            <li>[referenceContent/referenceContentWithAttributes/referenceContentAll/referenceContentAllWithAttributes](#reference-content)</li>
+            <li>[priceContent](#price-content)</li>
+            <li>[priceContentAll](#price-content-all)</li>
+            <li>[priceContentRespectingFilter](#price-content-respecting-filter)</li>
+            <li>[referenceContent](#reference-content)</li>
+            <li>[referenceContentAll](#reference-content-all)</li>
+            <li>[referenceContentWithAttributes](#reference-content-with-attributes)</li>
+            <li>[referenceContentAllWithAttributes](#reference-content-all-with-attributes)</li>
         </ul>
     </dd>
 </dl>
@@ -621,7 +624,7 @@ satisfied by the entity.
 
 <LanguageSpecific to="evitaql,java,rest">
 
-## Data in locales all
+### Data in locales all
 
 ```evitaql-syntax
 dataInLocalesAll()
@@ -838,4 +841,652 @@ chapter.
 </LanguageSpecific>
 
 ## Price content
+
+```evitaql-syntax
+priceContent(
+    argument:enum(NONE|RESPECTING_FILTER|ALL),
+    argument:string*
+)
+```
+
+<dl>
+    <dt>argument:enum(NONE|RESPECTING_FILTER|ALL)</dt>
+    <dd>
+        optional argument of type <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceContentMode.java</SourceClass>
+        enum allowing you to specify whether to fetch all, selected or no price records for the entity:
+
+        - **NONE**: no prices will be fetched for the entity (even if the filter contains a price constraint) 
+        - **RESPECTING_FILTER**: only a prices in price lists selected by a filter constraint will be fetched
+        - **ALL**: all prices of the entity will be fetched (regardless of the price constraint in a filter)
+    </dd>
+    <dt>argument:string*</dt>
+    <dd>
+        optional one or more string arguments representing price list names to add to the list of price lists passed in 
+        a filter price constraint, which together form a set of price lists for which to fetch prices for the entity
+    </dd>
+</dl>
+
+The `priceContent` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceContent.java</SourceClass>)
+requirement allows you to access the information about the prices of the entity.
+
+If the `RESPECTING_FILTER` mode is used, the `priceContent` requirement will only retrieve the prices selected by 
+the [`priceInPriceLists`](../filtering/price.md#price-in-price-lists) constraint. If the enum `NONE` is specified, no 
+prices are returned at all, if the enum `ALL` is specified, all prices of the entity are returned regardless of the 
+`priceInPriceLists` constraint in the filter (the constraint still controls whether the entity is returned at all).
+
+You can also add additional price lists to the list of price lists passed in the `priceInPriceLists` constraint by
+specifying the price list names as string arguments to the `priceContent` requirement. This is useful if you want to
+fetch non-indexed prices of the entity that cannot (and are not intended to) be used to filter the entities, but you
+still want to fetch them to display in the UI for the user.
+
+To get an entity with prices that you filter by, use the following query:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+[Getting entity with prices and reference price](/documentation/user/en/query/requirements/examples/fetching/priceContent.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with its selected prices
+</NoteTitle>
+
+The query returns the following list of prices of the `Product` entity:
+
+<LanguageSpecific to="evitaql,java">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with its selected prices](/documentation/user/en/query/requirements/examples/fetching/priceContent.evitaql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with its selected prices](/documentation/user/en/query/requirements/examples/fetching/priceContent.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+As you can see, the prices for the filtered price lists *employee-basic-price* and *basic* are returned. This query is 
+equivalent to using the [`priceContentRespectingFilter`](#price-content-respecting-filter) alias.
+
+</Note>
+
+### Price content respecting filter
+
+```evitaql-syntax
+priceContent(   
+    argument:string*
+)
+```
+
+<dl>
+    <dt>argument:string*</dt>
+    <dd>
+        optional one or more string arguments representing price list names to add to the list of price lists passed in 
+        a filter price constraint, which together form a set of price lists for which to fetch prices for the entity
+    </dd>
+</dl>
+
+The `priceContentRespectingFilter` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceContent.java</SourceClass>)
+requirement allows you to access the information about the prices of the entity. It fetches only the prices selected by
+the [`priceInPriceLists`](../filtering/price.md#price-in-price-lists) constraint.
+
+You can also add additional price lists to the list of price lists passed in the `priceInPriceLists` constraint by
+specifying the price list names as string arguments to the `priceContent` requirement. This is useful if you want to
+fetch non-indexed prices of the entity that cannot (and are not intended to) be used to filter the entities, but you
+still want to fetch them to display in the UI for the user.
+
+This requirement is only a variation of the generic [`priceContent`](#price-content) requirement.
+
+To get an entity with prices that you filter by and a *reference* price on top of it, use the following query:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+[Getting entity with filtered prices and reference price](/documentation/user/en/query/requirements/examples/fetching/priceContentRespectingFilter.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with its selected prices and reference price
+</NoteTitle>
+
+The query returns the following list of prices of the `Product` entity:
+
+<LanguageSpecific to="evitaql,java">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with its selected prices and reference price](/documentation/user/en/query/requirements/examples/fetching/priceContentRespectingFilter.evitaql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with its selected prices and reference price](/documentation/user/en/query/requirements/examples/fetching/priceContentRespectingFilter.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+As you can see, the prices for the filtered price lists *employee-basic-price* and *basic* are returned, as well as
+the price in the *reference* price lists requested by the `priceContent` requirement.
+
+</Note>
+
+### Price content all
+
+```evitaql-syntax
+priceContentAll()
+```
+
+The `priceContentAll` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceContent.java</SourceClass>)
+requirement allows you to access all of the entity's price information regardless of the filtering constraints specified
+in the query.
+
+This requirement is only a variation of the generic [`priceContent`](#price-content) requirement.
+
+To get an entity with all of the entity's prices, use the following query:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+[Getting entity with prices and reference price](/documentation/user/en/query/requirements/examples/fetching/priceContentAll.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with all its prices
+</NoteTitle>
+
+The query returns the following list of prices of the `Product` entity:
+
+<LanguageSpecific to="evitaql,java">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with all its prices](/documentation/user/en/query/requirements/examples/fetching/priceContentAll.evitaql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with all its prices](/documentation/user/en/query/requirements/examples/fetching/priceContentAll.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+As you can see, all prices of the entity are returned in all available currencies - not only the filtered price lists 
+*employee-basic-price* and *basic*. Thanks to `priceContentAll` you have an overview of all prices of the entity.
+
+</Note>
+
 ## Reference content
+
+```evitaql-syntax
+referenceContent(   
+    argument:string+,
+    filterConstraint:any,
+    orderConstraint:any,
+    requireConstraint:entityFetch,
+    requireConstraint:entityGroupFetch
+)
+```
+
+<dl>
+    <dt>argument:string+</dt>
+    <dd>
+        mandatory one or more string arguments representing the names of the references to fetch for the entity;
+        if more than one name is given in the argument, any corresponding constraints in the same `referenceContent` 
+        container will apply to all of them
+    </dd>
+    <dt>filterConstraint:any</dt>
+    <dd>
+        optional filter constraint that allows you to filter the references to be fetched for the entity; 
+        the filter constraint is targeted at the reference attributes, so if you want to filter by properties of the referenced
+        entity, you must use the [`entityHaving`](../filtering/references.md#entity-having) constraint
+    </dd>
+    <dt>orderConstraint:any</dt>
+    <dd>
+        optional ordering constraint that allows you to sort the fetched references; the ordering constraint is targeted 
+        at the reference attributes, so if you want to order by properties of the referenced entity, you must use the
+        [`entityProperty`](../ordering/references.md#entity-property) constraint
+    </dd>
+    <dt>requireConstraint:entityFetch</dt>
+    <dd>
+        optional requirement constraint that allows you to fetch the referenced entity body; the `entityFetch` 
+        constraint can contain nested `referenceContent` with an additional `entityFetch` / `entityGroupFetch` 
+        constraints that allows you to fetch the entities in a graph-like manner to an "infinite" depth
+    </dd>
+    <dt>requireConstraint:entityGroupFetch</dt>
+    <dd>
+        optional requirement constraint that allows you to fetch the referenced entity group body; the `entityGroupFetch` 
+        constraint can contain nested `referenceContent` with an additional `entityFetch` / `entityGroupFetch` 
+        constraints that allows you to fetch the entities in a graph-like manner to an "infinite" depth
+    </dd>
+</dl>
+
+The `referenceContent` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceContent.java</SourceClass>)
+requirement allows you to access the information about the references the entity has towards other entities (either
+managed by evitaDB itself or by any other external system). This variant of `referenceContent` doesn't return 
+the attributes set on the reference itself - if you need those attributes, use the [`referenceContentWithAttributes`](#reference-content-with-attributes)
+variant of it.
+
+To get an entity with reference to categories and brand, use the following query:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+[Getting entity category and brand references](/documentation/user/en/query/requirements/examples/fetching/referenceContent.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with category and brand references
+</NoteTitle>
+
+The returned `Product` entity will contain primary keys of all categories and brand it references:
+
+<LanguageSpecific to="evitaql,java">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with category and brand references](/documentation/user/en/query/requirements/examples/fetching/referenceContent.evitaql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with category and brand references](/documentation/user/en/query/requirements/examples/fetching/referenceContent.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+</Note>
+
+#### Referenced entity (group) fetching
+
+In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies and 
+the bodies of the groups the references refer to. One such common scenario is fetching the parameters of a product:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+[Getting entity parameter values](/documentation/user/en/query/requirements/examples/fetching/referenceContentBodies.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with referenced parameter bodies and group bodies
+</NoteTitle>
+
+The returned `Product` entity will contain a list of all parameter codes it references and the code of the group to 
+which each parameter belongs:
+
+<LanguageSpecific to="evitaql,java">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with referenced parameter bodies and group bodies](/documentation/user/en/query/requirements/examples/fetching/referenceContentBodies.evitaql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with referenced parameter bodies and group bodies](/documentation/user/en/query/requirements/examples/fetching/referenceContentBodies.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+The example lists only a *code* attribute for each referenced entity and group for brevity, but you can retrieve any of 
+their content - associated data, prices, hierarchies, or nested references as well.
+
+</Note>
+
+To demonstrate graph-like fetching of multiple referenced levels, let's fetch a product with its group assignment and 
+for each group fetch the group's tags and for each tag fetch the tag's category name. The query contains 4 levels of 
+related entities: product → group → tag → tag category. The query looks like this:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+[Getting entity groups and their tags](/documentation/user/en/query/requirements/examples/fetching/referenceContentNested.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with referenced groups, their tags and tag categories
+</NoteTitle>
+
+The returned `Product` entity will contain a list of all groups it references, for each group a list of all its tags and
+for each tag its category assignment:
+
+<LanguageSpecific to="evitaql,java">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with referenced parameter bodies and group bodies](/documentation/user/en/query/requirements/examples/fetching/referenceContentNested.evitaql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with referenced parameter bodies and group bodies](/documentation/user/en/query/requirements/examples/fetching/referenceContentNested.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+The tag category is not an entity managed by evitaDB and that's why we retrieve only its primary key. 
+
+</Note>
+
+#### Filtering references
+
+Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case, you 
+can use the filter constraint to filter out the references you don't need.
+
+<Note type="info">
+The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need to
+specify a [`referenceHaving`](../filtering/references.md#reference-having) constraint. However, if you need to declare 
+constraints on referenced entity attributes, you must wrap them in the [`entityHaving`](../filtering/references.md#entity-having) 
+container constraint.
+</Note>
+
+For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that are 
+part of group which contains an attribute *isVisibleInDetail* set to *TRUE*.To fetch only those parameters, use the 
+following query:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+[Getting entity parameter values visible on detail page](/documentation/user/en/query/requirements/examples/fetching/referenceContentFilter.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with referenced parameter bodies that belong to group visible on detail page
+</NoteTitle>
+
+The returned `Product` entity will contain a list of all parameter codes it references and the code of the group to
+which each parameter belongs:
+
+<LanguageSpecific to="evitaql,java">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with referenced parameter bodies that belong to group visible on detail page](/documentation/user/en/query/requirements/examples/fetching/referenceContentFilter.evitaql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with referenced parameter bodies that belong to group visible on detail page](/documentation/user/en/query/requirements/examples/fetching/referenceContentFilter.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+As you can see only the parameters of the groups having *isVisibleInDetail* set to *TRUE* are returned.
+
+</Note>
+
+#### Ordering references
+
+By default, the references are ordered by the primary key of the referenced entity. If you want to order the references 
+by a different property - either the attribute set on the reference itself or the property of the referenced entity - 
+you can use the order constraint inside the `referenceContent` requirement.
+
+<Note type="info">
+The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need to
+specify a [`referenceHaving`](../filtering/references.md#reference-having) constraint. However, if you need to declare 
+constraints on referenced entity attributes, you must wrap them in the [`entityHaving`](../filtering/references.md#entity-having) 
+container constraint.
+</Note>
+
+Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following 
+query:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+[Getting entity parameter values ordered by name](/documentation/user/en/query/requirements/examples/fetching/referenceContentOrder.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with referenced parameter ordered by name
+</NoteTitle>
+
+The returned `Product' entity will contain a list of all parameters in the expected order:
+
+<LanguageSpecific to="evitaql,java">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with referenced parameter ordered by name](/documentation/user/en/query/requirements/examples/fetching/referenceContentOrder.evitaql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with referenced parameter ordered by name](/documentation/user/en/query/requirements/examples/fetching/referenceContentOrder.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+</Note>
+
+### Reference content all
+
+```evitaql-syntax
+referenceContentAll(   
+    filterConstraint:any,
+    orderConstraint:any,
+    requireConstraint:entityFetch,
+    requireConstraint:entityGroupFetch
+)
+```
+
+<dl>
+    <dt>filterConstraint:any</dt>
+    <dd>
+        optional filter constraint that allows you to filter the references to be fetched for the entity; 
+        the filter constraint is targeted at the reference attributes, so if you want to filter by properties of the referenced
+        entity, you must use the [`entityHaving`](../filtering/references.md#entity-having) constraint
+    </dd>
+    <dt>orderConstraint:any</dt>
+    <dd>
+        optional ordering constraint that allows you to sort the fetched references; the ordering constraint is targeted 
+        at the reference attributes, so if you want to order by properties of the referenced entity, you must use the
+        [`entityProperty`](../ordering/references.md#entity-property) constraint
+    </dd>
+    <dt>requireConstraint:entityFetch</dt>
+    <dd>
+        optional requirement constraint that allows you to fetch the referenced entity body; the `entityFetch` 
+        constraint can contain nested `referenceContent` with an additional `entityFetch` / `entityGroupFetch` 
+        constraints that allows you to fetch the entities in a graph-like manner to an "infinite" depth
+    </dd>
+    <dt>requireConstraint:entityGroupFetch</dt>
+    <dd>
+        optional requirement constraint that allows you to fetch the referenced entity group body; the `entityGroupFetch` 
+        constraint can contain nested `referenceContent` with an additional `entityFetch` / `entityGroupFetch` 
+        constraints that allows you to fetch the entities in a graph-like manner to an "infinite" depth
+    </dd>
+</dl>
+
+The `referenceContentAll` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceContent.java</SourceClass>)
+is a variation of the [`referenceContent`](#reference-content) requirement that allows you to access the information
+about the references the entity has towards other entities (either managed by evitaDB itself or by any other external
+system). The `referenceContentAll` is a shortcut that simply targets all references defined for the entity. It can be
+used to quickly discover all the possible references of an entity.
+
+For detail information, see the [`referenceContent`](#reference-content) requirement chapter.
+
+To get an entity with all the references available, use the following query:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+[Getting entity with all references](/documentation/user/en/query/requirements/examples/fetching/referenceContentAll.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with all references
+</NoteTitle>
+
+The returned `Product` entity will contain primary keys and codes of all its references:
+
+<LanguageSpecific to="evitaql,java">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with all references](/documentation/user/en/query/requirements/examples/fetching/referenceContentAll.evitaql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with all references](/documentation/user/en/query/requirements/examples/fetching/referenceContentAll.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+</Note>
+
+### Reference content with attributes
+
+```evitaql-syntax
+referenceContentWithAttributes(   
+    argument:string+,
+    filterConstraint:any,
+    orderConstraint:any,
+    requireConstraint:attributeContent,
+    requireConstraint:entityFetch,
+    requireConstraint:entityGroupFetch
+)
+```
+
+<dl>
+    <dt>argument:string+</dt>
+    <dd>
+        mandatory one or more string arguments representing the names of the references to fetch for the entity
+    </dd>
+    <dt>filterConstraint:any</dt>
+    <dd>
+        optional filter constraint that allows you to filter the references to be fetched for the entity; 
+        the filter constraint is targeted at the reference attributes, so if you want to filter by properties of the referenced
+        entity, you must use the [`entityHaving`](../filtering/references.md#entity-having) constraint
+    </dd>
+    <dt>orderConstraint:any</dt>
+    <dd>
+        optional ordering constraint that allows you to sort the fetched references; the ordering constraint is targeted 
+        at the reference attributes, so if you want to order by properties of the referenced entity, you must use the
+        [`entityProperty`](../ordering/references.md#entity-property) constraint
+    </dd>
+    <dt>requireConstraint:attributeContent</dt>
+    <dd>
+        optional requirement constraint that allows you to limit the set of reference attributes to be fetched;
+        if no `attributeContent` constraint is specified, all attributes of the reference will be fetched
+    </dd>
+    <dt>requireConstraint:entityFetch</dt>
+    <dd>
+        optional requirement constraint that allows you to fetch the referenced entity body; the `entityFetch` 
+        constraint can contain nested `referenceContent` with an additional `entityFetch` / `entityGroupFetch` 
+        constraints that allows you to fetch the entities in a graph-like manner to an "infinite" depth
+    </dd>
+    <dt>requireConstraint:entityGroupFetch</dt>
+    <dd>
+        optional requirement constraint that allows you to fetch the referenced entity group body; the `entityGroupFetch` 
+        constraint can contain nested `referenceContent` with an additional `entityFetch` / `entityGroupFetch` 
+        constraints that allows you to fetch the entities in a graph-like manner to an "infinite" depth
+    </dd>
+</dl>
+
+The `referenceContentWithAttributes` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceContent.java</SourceClass>)
+is a variation of the [`referenceContent`](#reference-content) requirement that allows you to access the information
+about the references the entity has towards other entities (either managed by evitaDB itself or by any other external
+system) and the attributes set on those references. The `referenceContentWithAttributes` allows you to specify the list 
+of attributes to fetch, but by default it fetches all attributes on the reference.
+
+For detail information, see the [`referenceContent`](#reference-content) requirement chapter.
+
+To obtain an entity with reference to a parameter value that reveals which association defines the unique product-variant 
+combination and which parameter values are merely informative, use the following query:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+[Getting entity with references and their attributes](/documentation/user/en/query/requirements/examples/fetching/referenceContentWithAttributes.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with parameter references and their attributes
+</NoteTitle>
+
+The returned `Product` entity will contain references to parameter values and for each of it, it specifies the type
+of the relation between the product and the parameter value:
+
+<LanguageSpecific to="evitaql,java">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with all references](/documentation/user/en/query/requirements/examples/fetching/referenceContentWithAttributes.evitaql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with all references](/documentation/user/en/query/requirements/examples/fetching/referenceContentWithAttributes.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+As you can see, the *cellular-true*, *display-size-10-2*, *ram-memory-4*, *rom-memory-256* and *color-yellow* parameter 
+values define the product variant, while the other parameters only describe the additional properties of the product.
+
+</Note>
+
+### Reference content all with attributes
+
+```evitaql-syntax
+referenceContentAllWithAttributes(   
+    filterConstraint:any,
+    orderConstraint:any,
+    requireConstraint:attributeContent,
+    requireConstraint:entityFetch,
+    requireConstraint:entityGroupFetch
+)
+```
+
+<dl>
+    <dt>filterConstraint:any</dt>
+    <dd>
+        optional filter constraint that allows you to filter the references to be fetched for the entity; 
+        the filter constraint is targeted at the reference attributes, so if you want to filter by properties of the referenced
+        entity, you must use the [`entityHaving`](../filtering/references.md#entity-having) constraint
+    </dd>
+    <dt>orderConstraint:any</dt>
+    <dd>
+        optional ordering constraint that allows you to sort the fetched references; the ordering constraint is targeted 
+        at the reference attributes, so if you want to order by properties of the referenced entity, you must use the
+        [`entityProperty`](../ordering/references.md#entity-property) constraint
+    </dd>
+    <dt>requireConstraint:attributeContent</dt>
+    <dd>
+        optional requirement constraint that allows you to limit the set of reference attributes to be fetched;
+        if no `attributeContent` constraint is specified, all attributes of the reference will be fetched
+    </dd>
+    <dt>requireConstraint:entityFetch</dt>
+    <dd>
+        optional requirement constraint that allows you to fetch the referenced entity body; the `entityFetch` 
+        constraint can contain nested `referenceContent` with an additional `entityFetch` / `entityGroupFetch` 
+        constraints that allows you to fetch the entities in a graph-like manner to an "infinite" depth
+    </dd>
+    <dt>requireConstraint:entityGroupFetch</dt>
+    <dd>
+        optional requirement constraint that allows you to fetch the referenced entity group body; the `entityGroupFetch` 
+        constraint can contain nested `referenceContent` with an additional `entityFetch` / `entityGroupFetch` 
+        constraints that allows you to fetch the entities in a graph-like manner to an "infinite" depth
+    </dd>
+</dl>
+
+The `referenceContentAllWithAttributes` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceContent.java</SourceClass>)
+is a variation of the [`referenceContent`](#reference-content) requirement that allows you to access the information
+about the references the entity has towards other entities (either managed by evitaDB itself or by any other external
+system) and the attributes set on those references. The `referenceContentWithAttributes` allows you to specify the list
+of attributes to fetch, but by default it fetches all attributes on the reference. It doesn't allow you to specify 
+the reference names - because it targets all of them, and so you can specify the constraints and the attributes that are
+shared by all of the references. This constraint is only useful in exploration scenarios.
+
+For detail information, see the [`referenceContent`](#reference-content) requirement chapter.
+
+To obtain an entity with all the references and their attributes, use the following query:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+[Getting entity with all of the references and their attributes](/documentation/user/en/query/requirements/examples/fetching/referenceContentAllWithAttributes.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with all the references and their attributes
+</NoteTitle>
+
+The returned `Product` entity will contain all the references and the attributes set on this relation:
+
+<LanguageSpecific to="evitaql,java">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with all references](/documentation/user/en/query/requirements/examples/fetching/referenceContentAllWithAttributes.evitaql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with all references](/documentation/user/en/query/requirements/examples/fetching/referenceContentAllWithAttributes.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+</Note>

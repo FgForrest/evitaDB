@@ -15,8 +15,8 @@
           visibility
           breadCrumb
           validity
-          status
           changed
+          status
           order
         }
       }

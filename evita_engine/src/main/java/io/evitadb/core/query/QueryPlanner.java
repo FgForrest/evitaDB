@@ -55,6 +55,7 @@ import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.Index;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -238,15 +239,15 @@ public class QueryPlanner {
 	 * one formula is created. From all of those formulas only single one is selected, the one with least estimated cost.
 	 */
 	@Nonnull
-	private static List<QueryPlanBuilder> createFilterFormula(
+	private static <T extends Index<?>> List<QueryPlanBuilder> createFilterFormula(
 		@Nonnull QueryContext queryContext,
-		@Nonnull IndexSelectionResult indexSelectionResult
+		@Nonnull IndexSelectionResult<T> indexSelectionResult
 	) {
 		final LinkedList<QueryPlanBuilder> result = new LinkedList<>();
 		queryContext.pushStep(QueryPhase.PLANNING_FILTER);
 		try {
 			final boolean debugCachedVariantTrees = queryContext.isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES);
-			for (TargetIndexes targetIndex : indexSelectionResult.targetIndexes()) {
+			for (TargetIndexes<T> targetIndex : indexSelectionResult.targetIndexes()) {
 				queryContext.pushStep(QueryPhase.PLANNING_FILTER_ALTERNATIVE);
 				Formula adeptFormula = null;
 				try {
@@ -411,7 +412,7 @@ public class QueryPlanner {
 	 */
 	private static List<QueryPlanBuilder> createSorter(
 		@Nonnull QueryContext queryContext,
-		@Nonnull List<TargetIndexes> targetIndexes,
+		@Nonnull List<TargetIndexes<?>> targetIndexes,
 		@Nonnull List<QueryPlanBuilder> builders
 	) {
 		queryContext.pushStep(QueryPhase.PLANNING_SORT);
