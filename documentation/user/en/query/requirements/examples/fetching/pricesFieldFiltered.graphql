@@ -3,11 +3,6 @@
     filterBy: {
       entityPrimaryKeyInSet: [
         103885
-      ],
-      priceInCurrency: EUR,
-      priceInPriceLists: [
-        "employee-basic-price",
-        "basic"
       ]
     }
   ) {
@@ -17,13 +12,8 @@
         attributes {
           code
         }
-        prices {
-          priceId
+        prices(priceLists: "basic", currency: EUR) {
           priceList
-          currency
-          innerRecordId
-          sellable
-          validity
           priceWithoutTax
           priceWithTax
           taxRate

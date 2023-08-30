@@ -42,6 +42,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.DataChunkType;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.CollectionDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.EntityUnion;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
+import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiEnumTransformer;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiConstants;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEnum;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
@@ -52,12 +53,16 @@ import io.evitadb.externalApi.rest.api.openApi.OpenApiUnion;
 import io.evitadb.externalApi.rest.api.resolver.serializer.DataTypeSerializer;
 
 import javax.annotation.Nonnull;
+import java.util.Currency;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
-import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_CURRENCY_ENUM;
-import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_LOCALE_ENUM;
+import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.CURRENCY_ENUM;
+import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.LOCALE_ENUM;
 import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.ASSOCIATED_DATA_SCALAR_ENUM;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructEntityListRequestBodyObjectName;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructEntityQueryRequestBodyObjectName;
@@ -166,6 +171,9 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 	}
 
 	private void buildCommonTypes() {
+		buildLocaleEnum().ifPresent(buildingContext::registerCustomEnumIfAbsent);
+		buildCurrencyEnum().ifPresent(buildingContext::registerCustomEnumIfAbsent);
+
 		buildingContext.registerType(buildAssociatedDataScalarEnum());
 		buildingContext.registerType(enumFrom(DataChunkType.class));
 
@@ -234,26 +242,6 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 	 */
 	@Nonnull
 	private CollectionDataApiRestBuildingContext setupForCollection(@Nonnull EntitySchemaContract entitySchema) {
-		if (!entitySchema.getLocales().isEmpty()) {
-			final OpenApiEnum.Builder localeEnumBuilder = newEnum()
-				.name(ENTITY_LOCALE_ENUM.name(entitySchema))
-				.description(ENTITY_LOCALE_ENUM.description())
-				.format(OpenApiConstants.FORMAT_LOCALE);
-			entitySchema.getLocales().forEach(l -> localeEnumBuilder.item(l.toLanguageTag()));
-
-			buildingContext.registerCustomEnumIfAbsent(localeEnumBuilder.build());
-		}
-
-		if (!entitySchema.getCurrencies().isEmpty()) {
-			final OpenApiEnum.Builder currencyEnumBuilder = newEnum()
-				.name(ENTITY_CURRENCY_ENUM.name(entitySchema))
-				.description(ENTITY_CURRENCY_ENUM.description())
-				.format(OpenApiConstants.FORMAT_CURRENCY);
-			entitySchema.getCurrencies().forEach(c -> currencyEnumBuilder.item(c.toString()));
-
-			buildingContext.registerCustomEnumIfAbsent(currencyEnumBuilder.build());
-		}
-
 		final CollectionDataApiRestBuildingContext collectionBuildingContext = new CollectionDataApiRestBuildingContext(
 			buildingContext,
 			entitySchema
@@ -385,4 +373,39 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 			.build();
 	}
 
+	@Nonnull
+	private Optional<OpenApiEnum> buildLocaleEnum() {
+		if (buildingContext.getSupportedLocales().isEmpty()) {
+			return Optional.empty();
+		}
+
+		final OpenApiEnum localeEnum = LOCALE_ENUM
+			.to(new ObjectDescriptorToOpenApiEnumTransformer(
+				buildingContext.getSupportedLocales().stream()
+					.map(Locale::toLanguageTag)
+					.collect(Collectors.toSet())
+			))
+			.format(OpenApiConstants.FORMAT_LOCALE)
+			.build();
+
+		return Optional.of(localeEnum);
+	}
+
+	@Nonnull
+	private Optional<OpenApiEnum> buildCurrencyEnum() {
+		if (buildingContext.getSupportedCurrencies().isEmpty()) {
+			return Optional.empty();
+		}
+
+		final OpenApiEnum currencyEnum = CURRENCY_ENUM
+			.to(new ObjectDescriptorToOpenApiEnumTransformer(
+				buildingContext.getSupportedCurrencies().stream()
+					.map(Currency::toString)
+					.collect(Collectors.toSet())
+			))
+			.format(OpenApiConstants.FORMAT_CURRENCY)
+			.build();
+
+		return Optional.of(currencyEnum);
+	}
 }

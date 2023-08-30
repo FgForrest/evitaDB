@@ -21,40 +21,39 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.model;
+package io.evitadb.externalApi.rest.api.model;
 
-import graphql.schema.GraphQLEnumType;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptorTransformer;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiEnum;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.util.Map;
 import java.util.Set;
 
 /**
- * Transforms API-independent {@link ObjectDescriptor} to {@link GraphQLEnumType}.
+ * Transforms API-independent {@link ObjectDescriptor} to {@link OpenApiEnum}.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class ObjectDescriptorToGraphQLEnumTypeTransformer implements ObjectDescriptorTransformer<GraphQLEnumType.Builder> {
+public class ObjectDescriptorToOpenApiEnumTransformer implements ObjectDescriptorTransformer<OpenApiEnum.Builder> {
 
 	/**
 	 * Serialized enum values to as items.
 	 */
-	@Nonnull private final Set<Map.Entry<String, ?>> enumValues;
+	@Nonnull private final Set<String> enumValues;
 
 	@Override
-	public GraphQLEnumType.Builder apply(@Nonnull ObjectDescriptor objectDescriptor) {
-		final GraphQLEnumType.Builder enumBuilder = GraphQLEnumType.newEnum();
+	public OpenApiEnum.Builder apply(@Nonnull ObjectDescriptor objectDescriptor) {
+		final OpenApiEnum.Builder enumBuilder = OpenApiEnum.newEnum();
 
 		if (objectDescriptor.isNameStatic()) {
 			enumBuilder.name(objectDescriptor.name());
 		}
 		enumBuilder.description(objectDescriptor.description());
 
-		enumValues.forEach(v -> enumBuilder.value(v.getKey(), v.getValue()));
+		enumValues.forEach(enumBuilder::item);
 
 		return enumBuilder;
 	}
