@@ -49,6 +49,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 /**
  * Serves static files of lab GUI from fs.
@@ -59,6 +60,8 @@ public class GuiHandler extends ResourceHandler {
 
 	private static final String EVITALAB_READONLY_COOKIE = "evitalab_readonly";
 	private static final String EVITALAB_PRECONFIGURED_CONNECTIONS_COOKIE = "evitalab_pconnections";
+
+	private static final Pattern ASSETS_PATTERN = Pattern.compile("/assets/[a-zA-Z0-9\\-]+\\.[a-z0-9]+");
 
 	@Nonnull private final LabConfig labConfig;
 	@Nonnull private final ApiOptions apiOptions;
@@ -155,7 +158,7 @@ public class GuiHandler extends ResourceHandler {
 				return resourceManager.getResource("index.html");
 			} else if (path.equals("/favicon.ico")) {
 				return resourceManager.getResource("favicon.ico");
-			} else if (path.startsWith("/assets")) {
+			} else if (ASSETS_PATTERN.matcher(path).matches()) {
 				return resourceManager.getResource(path);
 			} else {
 				return null;
