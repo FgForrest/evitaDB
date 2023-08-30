@@ -35,6 +35,7 @@ import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import java.util.Currency;
 import java.util.Locale;
 import java.util.Set;
 
@@ -47,15 +48,10 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
  */
 public class CatalogGraphQLSchemaBuildingContext extends GraphQLSchemaBuildingContext {
 
-	@Getter
-	@Nonnull
-	private final CatalogContract catalog;
-	@Getter
-	@Nonnull
-	private final Set<Locale> supportedLocales;
-	@Getter
-	@Nonnull
-	private final Set<EntitySchemaContract> entitySchemas;
+	@Getter @Nonnull private final CatalogContract catalog;
+	@Getter @Nonnull private final Set<Locale> supportedLocales;
+	@Getter @Nonnull private final Set<Currency> supportedCurrencies;
+	@Getter @Nonnull private final Set<EntitySchemaContract> entitySchemas;
 
 	public CatalogGraphQLSchemaBuildingContext(@Nonnull GraphQLConfig config,
 	                                           @Nonnull Evita evita,
@@ -63,6 +59,7 @@ public class CatalogGraphQLSchemaBuildingContext extends GraphQLSchemaBuildingCo
 		super(config, evita);
 		this.catalog = catalog;
 		this.supportedLocales = createHashSet(20);
+		this.supportedCurrencies = createHashSet(20);
 
 		this.entitySchemas = evita.queryCatalog(catalog.getName(), session -> {
 			final Set<String> collections = session.getAllEntityTypes();
@@ -71,6 +68,7 @@ public class CatalogGraphQLSchemaBuildingContext extends GraphQLSchemaBuildingCo
 				final SealedEntitySchema entitySchema = session.getEntitySchema(c)
 					.orElseThrow(() -> new EvitaInternalError("Entity `" + c + "` schema unexpectedly not found!"));
 				supportedLocales.addAll(entitySchema.getLocales());
+				supportedCurrencies.addAll(entitySchema.getCurrencies());
 				schemas.add(entitySchema);
 			});
 			return schemas;
