@@ -34,21 +34,18 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
-import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
-import io.evitadb.index.EntityIndex;
+import io.evitadb.index.ReducedEntityIndex;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 import static io.evitadb.utils.Assert.isTrue;
 import static java.util.Optional.empty;
@@ -60,7 +57,6 @@ import static java.util.Optional.of;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class ReferenceHavingTranslator implements FilteringConstraintTranslator<ReferenceHaving>, SelfTraversingTranslator {
-	private static final Formula[] EMPTY_FORMULA = new Formula[0];
 
 	@Nonnull
 	@Override
@@ -71,20 +67,13 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, entitySchema));
 		isTrue(referenceSchema.isIndexed(), () -> new ReferenceNotIndexedException(referenceName, entitySchema));
 
-		final List<EntityIndex> referencedEntityIndexes = getTargetIndexes(
+		final Supplier<List<ReducedEntityIndex>> referencedEntityIndexesSupplier = () -> getTargetIndexes(
 			filterByVisitor, referenceHaving
 		);
-		if (referencedEntityIndexes.isEmpty()) {
-			return EmptyFormula.INSTANCE;
-		} else {
-			return filterByVisitor.computeOnlyOnce(
-				referencedEntityIndexes,
-				referenceHaving,
-				() -> applySearchOnIndexes(
-					referenceHaving, filterByVisitor, entitySchema, referenceSchema, referencedEntityIndexes
-				)
-			);
-		}
+
+		return applySearchOnIndexes(
+			referenceHaving, filterByVisitor, entitySchema, referenceSchema, referencedEntityIndexesSupplier
+		);
 	}
 
 	@Nonnull
@@ -93,39 +82,32 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull List<EntityIndex> referencedEntityIndexes
+		@Nonnull Supplier<List<ReducedEntityIndex>> referencedEntityIndexSupplier
 	) {
-		final List<Formula> referencedEntityFormulas = new ArrayList<>(referencedEntityIndexes.size());
-		for (EntityIndex referencedEntityIndex : referencedEntityIndexes) {
-			final ProcessingScope processingScope = filterByVisitor.getProcessingScope();
-			final String referenceName = referenceSchema.getName();
-			referencedEntityFormulas.add(
-				filterByVisitor.executeInContextAndIsolatedFormulaStack(
-					Collections.singletonList(referencedEntityIndex),
-					ReferenceContent.ALL_REFERENCES,
-					entitySchema,
-					referenceSchema,
-					processingScope.getNestedQueryFormulaEnricher(),
-					processingScope.getEntityNestedQueryComparator(),
-					processingScope.withReferenceSchemaAccessor(referenceName),
-					(entityContract, attributeName, locale) -> entityContract.getReferences(referenceName)
-						.stream()
-						.map(it -> it.getAttributeValue(attributeName, locale)),
-					() -> {
-						getFilterByFormula(filterConstraint).ifPresent(it -> it.accept(filterByVisitor));
-						final Formula[] collectedFormulas = filterByVisitor.getCollectedFormulasOnCurrentLevel();
-						return switch (collectedFormulas.length) {
-							case 0 -> filterByVisitor.getSuperSetFormula();
-							case 1 -> collectedFormulas[0];
-							default -> new OrFormula(collectedFormulas);
-						};
-					},
-					EntityPrimaryKeyInSet.class
-				)
-			);
-		}
-		return FormulaFactory.or(
-			referencedEntityFormulas.toArray(EMPTY_FORMULA)
+		final String referenceName = referenceSchema.getName();
+		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
+		return filterByVisitor.executeInContextAndIsolatedFormulaStack(
+			ReducedEntityIndex.class,
+			referencedEntityIndexSupplier,
+			ReferenceContent.ALL_REFERENCES,
+			entitySchema,
+			referenceSchema,
+			processingScope.getNestedQueryFormulaEnricher(),
+			processingScope.getEntityNestedQueryComparator(),
+			processingScope.withReferenceSchemaAccessor(referenceName),
+			(entityContract, attributeName, locale) -> entityContract.getReferences(referenceName)
+				.stream()
+				.map(it -> it.getAttributeValue(attributeName, locale)),
+			() -> {
+				getFilterByFormula(filterConstraint).ifPresent(it -> it.accept(filterByVisitor));
+				final Formula[] collectedFormulas = filterByVisitor.getCollectedFormulasOnCurrentLevel();
+				return switch (collectedFormulas.length) {
+					case 0 -> filterByVisitor.getSuperSetFormula();
+					case 1 -> collectedFormulas[0];
+					default -> new OrFormula(collectedFormulas);
+				};
+			},
+			EntityPrimaryKeyInSet.class
 		);
 	}
 
@@ -142,16 +124,17 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 	}
 
 	@Nonnull
-	private static List<EntityIndex> getTargetIndexes(
+	private static List<ReducedEntityIndex> getTargetIndexes(
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull ReferenceHaving referenceHaving
 	) {
-		final TargetIndexes targetIndexes = filterByVisitor.findTargetIndexSet(referenceHaving);
-		final List<EntityIndex> referencedEntityIndexes;
+		final TargetIndexes<?> targetIndexes = filterByVisitor.findTargetIndexSet(referenceHaving);
+		final List<ReducedEntityIndex> referencedEntityIndexes;
 		if (targetIndexes == null) {
 			referencedEntityIndexes = filterByVisitor.getReferencedRecordEntityIndexes(referenceHaving);
 		} else {
-			referencedEntityIndexes = targetIndexes.getIndexesOfType(EntityIndex.class);
+			//noinspection unchecked
+			referencedEntityIndexes = (List<ReducedEntityIndex>) targetIndexes.getIndexes();
 		}
 		return referencedEntityIndexes;
 	}

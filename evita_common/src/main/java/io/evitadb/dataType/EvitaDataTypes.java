@@ -135,6 +135,13 @@ public class EvitaDataTypes {
 			throw new InconvertibleDataTypeException(requestedType, unknownObject);
 		}
 	};
+	private static final BiFunction<Class<?>, Serializable, UUID> UUID_FUNCTION = (requestedType, unknownObject) -> {
+		try {
+			return UUID.fromString(unknownObject.toString());
+		} catch (IllegalArgumentException ignored) {
+			throw new InconvertibleDataTypeException(requestedType, unknownObject);
+		}
+	};
 	private static final BiFunction<Class<?>, Serializable, Locale> LOCALE_FUNCTION = (requestedType, unknownObject) -> {
 		if (unknownObject instanceof Locale) {
 			return (Locale) unknownObject;
@@ -502,6 +509,7 @@ public class EvitaDataTypes {
 		queryDataTypes.add(ByteNumberRange.class);
 		queryDataTypes.add(Locale.class);
 		queryDataTypes.add(Currency.class);
+		queryDataTypes.add(UUID.class);
 		SUPPORTED_QUERY_DATA_TYPES = Collections.unmodifiableSet(queryDataTypes);
 
 		final LinkedHashMap<Class<?>, Class<?>> primitiveWrappers = new LinkedHashMap<>();
@@ -674,6 +682,8 @@ public class EvitaDataTypes {
 			return CHAR_STRING_DELIMITER + value.toString() + CHAR_STRING_DELIMITER;
 		} else if (value instanceof Enum) {
 			return value.toString();
+		} else if (value instanceof UUID) {
+			return CHAR_STRING_DELIMITER + value.toString() + CHAR_STRING_DELIMITER;
 		} else if (value == null) {
 			throw new EvitaInternalError(
 				"Null argument value should never ever happen. Null values are excluded in constructor of the class!"
@@ -747,6 +757,8 @@ public class EvitaDataTypes {
 			return 0;
 		} else if (unknownObject instanceof Currency) {
 			return 0;
+		} else if (unknownObject instanceof UUID) {
+			return MemoryMeasuringConstants.OBJECT_HEADER_SIZE + 2 * MemoryMeasuringConstants.LONG_SIZE;
 		} else if (unknownObject instanceof final ComplexDataObject complexDataObject) {
 			return MemoryMeasuringConstants.REFERENCE_SIZE + complexDataObject.estimateSize();
 		} else if (unknownObject instanceof final DataItem dataItem) {
@@ -794,6 +806,8 @@ public class EvitaDataTypes {
 			result = LOCALE_FUNCTION.apply(requestedType, unknownObject);
 		} else if (Currency.class.isAssignableFrom(requestedType)) {
 			result = CURRENCY_FUNCTION.apply(requestedType, unknownObject);
+		} else if (UUID.class.isAssignableFrom(requestedType)) {
+			result = UUID_FUNCTION.apply(requestedType, unknownObject);
 		} else if (requestedType.isEnum()) {
 			//noinspection unchecked,rawtypes
 			result = Enum.valueOf((Class<? extends Enum>) requestedType, unknownObject.toString());

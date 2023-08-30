@@ -28,14 +28,11 @@ import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
-import io.evitadb.index.IndexKey;
 import lombok.Data;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * This data transfer object encapsulates set of {@link EntityIndex} that relate to specific {@link FilterConstraint}.
@@ -45,26 +42,25 @@ import java.util.Objects;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Data
-public class TargetIndexes {
-	public static final TargetIndexes EMPTY = new TargetIndexes("EMPTY", Collections.emptyList());
+public class TargetIndexes<T extends Index<?>> {
+	public static final TargetIndexes<EntityIndex> EMPTY = new TargetIndexes<>("EMPTY", EntityIndex.class, Collections.emptyList());
 	private final String indexDescription;
 	private final FilterConstraint representedConstraint;
-	private final List<Index<?>> indexes;
-	private Class<? extends Index<?>> lastAccessedIndexType;
-	private List<? extends Index<?>> lastAccessedIndexResult;
+	private final Class<T> indexType;
+	private final List<T> indexes;
 
-	public TargetIndexes(@Nonnull String indexDescription, @Nonnull List<? extends Index<?>> indexes) {
+	public TargetIndexes(@Nonnull String indexDescription, @Nonnull Class<T> indexType, @Nonnull List<T> indexes) {
 		this.indexDescription = indexDescription;
 		this.representedConstraint = null;
-		this.indexes = new ArrayList<>(indexes.size());
-		this.indexes.addAll(indexes);
+		this.indexType = indexType;
+		this.indexes = indexes;
 	}
 
-	public TargetIndexes(@Nonnull String indexDescription, @Nonnull FilterConstraint representedConstraint, @Nonnull List<? extends Index<?>> indexes) {
+	public TargetIndexes(@Nonnull String indexDescription, @Nonnull FilterConstraint representedConstraint, @Nonnull Class<T> indexType, @Nonnull List<T> indexes) {
 		this.indexDescription = indexDescription;
 		this.representedConstraint = representedConstraint;
-		this.indexes = new ArrayList<>(indexes.size());
-		this.indexes.addAll(indexes);
+		this.indexType = indexType;
+		this.indexes = indexes;
 	}
 
 	/**
@@ -98,17 +94,6 @@ public class TargetIndexes {
 	 */
 	public boolean isCatalogIndex() {
 		return this.indexes.size() == 1 && this.indexes.get(0) instanceof CatalogIndex;
-	}
-
-	/**
-	 * Returns type safe collection of indexes of particular type.
-	 */
-	public <S extends IndexKey, T extends Index<S>> List<T> getIndexesOfType(@Nonnull Class<T> indexType) {
-		if (!Objects.equals(this.lastAccessedIndexType, indexType)) {
-			this.lastAccessedIndexResult = this.indexes.stream().filter(indexType::isInstance).map(indexType::cast).toList();
-		}
-		//noinspection unchecked
-		return (List<T>) this.lastAccessedIndexResult;
 	}
 
 }

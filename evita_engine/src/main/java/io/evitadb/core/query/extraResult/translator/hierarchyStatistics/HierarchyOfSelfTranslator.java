@@ -41,7 +41,7 @@ import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.index.EntityIndex;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
@@ -74,7 +74,7 @@ public class HierarchyOfSelfTranslator
 		// prepare shared data from the context
 		final EvitaRequest evitaRequest = extraResultPlanner.getEvitaRequest();
 		final HierarchyFilterConstraint hierarchyWithin = evitaRequest.getHierarchyWithin(null);
-		final EntityIndex globalIndex = extraResultPlanner.getGlobalEntityIndex(queriedEntityType);
+		final GlobalEntityIndex globalIndex = extraResultPlanner.getGlobalEntityIndex(queriedEntityType);
 		final Sorter sorter = hierarchyOfSelf.getOrderBy()
 			.map(
 				it -> extraResultPlanner.createSorter(
@@ -117,7 +117,9 @@ public class HierarchyOfSelfTranslator
 						filter,
 						() -> createFilterFormula(
 							extraResultPlanner.getQueryContext(),
-							filter, globalIndex,
+							filter,
+							GlobalEntityIndex.class,
+							globalIndex,
 							extraResultPlanner.getAttributeSchemaAccessor()
 						)
 					);
@@ -139,7 +141,9 @@ public class HierarchyOfSelfTranslator
 						filter,
 						() -> createFilterFormula(
 							extraResultPlanner.getQueryContext(),
-							filter, globalIndex,
+							filter,
+							GlobalEntityIndex.class,
+							globalIndex,
 							extraResultPlanner.getAttributeSchemaAccessor()
 						)
 					);

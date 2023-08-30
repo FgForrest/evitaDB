@@ -83,14 +83,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static graphql.schema.GraphQLArgument.newArgument;
-import static graphql.schema.GraphQLEnumType.newEnum;
 import static graphql.schema.GraphQLList.list;
 import static graphql.schema.GraphQLNonNull.nonNull;
 import static graphql.schema.GraphQLTypeReference.typeRef;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.ARGUMENT_NAME_NAMING_CONVENTION;
-import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.CATALOG_LOCALE_ENUM;
-import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_CURRENCY_ENUM;
-import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_LOCALE_ENUM;
+import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.CURRENCY_ENUM;
+import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.LOCALE_ENUM;
 import static io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars.INT;
 
 /**
@@ -163,7 +161,8 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	private void buildCommonTypes() {
-		buildCatalogEnum().ifPresent(buildingContext::registerCustomEnumIfAbsent);
+		buildLocaleEnum().ifPresent(buildingContext::registerCustomEnumIfAbsent);
+		buildCurrencyEnum().ifPresent(buildingContext::registerCustomEnumIfAbsent);
 
 		final GraphQLEnumType scalarEnum = buildScalarEnum();
 		buildingContext.registerType(scalarEnum);
@@ -218,24 +217,6 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	 */
 	@Nonnull
 	private CollectionGraphQLSchemaBuildingContext setupForCollection(@Nonnull EntitySchemaContract entitySchema) {
-		if (!entitySchema.getLocales().isEmpty()) {
-			final String localeEnumName = ENTITY_LOCALE_ENUM.name(entitySchema);
-			final GraphQLEnumType.Builder localeEnumBuilder = newEnum()
-				.name(localeEnumName)
-				.description(CatalogDataApiRootDescriptor.ENTITY_LOCALE_ENUM.description());
-			entitySchema.getLocales().forEach(l -> localeEnumBuilder.value(transformLocaleToGraphQLEnumString(l), l));
-			buildingContext.registerCustomEnumIfAbsent(localeEnumBuilder.build());
-		}
-
-		if (!entitySchema.getCurrencies().isEmpty()) {
-			final String currencyEnumName = ENTITY_CURRENCY_ENUM.name(entitySchema);
-			final GraphQLEnumType.Builder currencyEnumBuilder = newEnum()
-				.name(currencyEnumName)
-				.description(CatalogDataApiRootDescriptor.ENTITY_CURRENCY_ENUM.description());
-			entitySchema.getCurrencies().forEach(c -> currencyEnumBuilder.value(c.toString(), c));
-			buildingContext.registerCustomEnumIfAbsent(currencyEnumBuilder.build());
-		}
-
 		final CollectionGraphQLSchemaBuildingContext collectionBuildingContext = new CollectionGraphQLSchemaBuildingContext(
 			buildingContext,
 			entitySchema
@@ -369,7 +350,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		if (!entitySchema.getLocales().isEmpty()) {
 			singleEntityFieldBuilder.argument(GetEntityHeaderDescriptor.LOCALE
 				.to(argumentBuilderTransformer)
-				.type(typeRef(ENTITY_LOCALE_ENUM.name(entitySchema))));
+				.type(typeRef(LOCALE_ENUM.name())));
 		}
 
 		// build price arguments
@@ -377,7 +358,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			singleEntityFieldBuilder
 				.argument(GetEntityHeaderDescriptor.PRICE_IN_CURRENCY
 					.to(argumentBuilderTransformer)
-					.type(typeRef(ENTITY_CURRENCY_ENUM.name(entitySchema))))
+					.type(typeRef(CURRENCY_ENUM.name())))
 				.argument(GetEntityHeaderDescriptor.PRICE_IN_PRICE_LISTS
 					.to(argumentBuilderTransformer))
 				.argument(GetEntityHeaderDescriptor.PRICE_VALID_IN
@@ -549,12 +530,12 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private Optional<GraphQLEnumType> buildCatalogEnum() {
+	private Optional<GraphQLEnumType> buildLocaleEnum() {
 		if (buildingContext.getSupportedLocales().isEmpty()) {
 			return Optional.empty();
 		}
 
-		final GraphQLEnumType catalogLocaleEnum = CATALOG_LOCALE_ENUM
+		final GraphQLEnumType localeEnum = LOCALE_ENUM
 			.to(new ObjectDescriptorToGraphQLEnumTypeTransformer(
 				buildingContext.getSupportedLocales().stream()
 					.map(locale -> Map.entry(transformLocaleToGraphQLEnumString(locale), locale))
@@ -562,6 +543,23 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			))
 			.build();
 
-		return Optional.of(catalogLocaleEnum);
+		return Optional.of(localeEnum);
+	}
+
+	@Nonnull
+	private Optional<GraphQLEnumType> buildCurrencyEnum() {
+		if (buildingContext.getSupportedCurrencies().isEmpty()) {
+			return Optional.empty();
+		}
+
+		final GraphQLEnumType currencyEnum = CURRENCY_ENUM
+			.to(new ObjectDescriptorToGraphQLEnumTypeTransformer(
+				buildingContext.getSupportedCurrencies().stream()
+					.map(currency -> Map.entry(currency.toString(), currency))
+					.collect(Collectors.toSet())
+			))
+			.build();
+
+		return Optional.of(currencyEnum);
 	}
 }

@@ -45,6 +45,7 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.Currency;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.StreamSupport;
 
@@ -211,6 +212,17 @@ public class Value {
             return EvitaDataTypes.toTargetType(asSpecificType(String.class), Currency.class);
         } else {
             throw new EvitaInvalidUsageException("Expected currency or string value but got `" + actualValue.getClass().getName() + "`.");
+        }
+    }
+
+    @Nonnull
+    public UUID asUuid() {
+        if (actualValue instanceof UUID) {
+            return asSpecificType(UUID.class);
+        } else if (actualValue instanceof String) {
+            return EvitaDataTypes.toTargetType(asSpecificType(String.class), UUID.class);
+        } else {
+            throw new EvitaInvalidUsageException("Expected UUID or string value but got `" + actualValue.getClass().getName() + "`.");
         }
     }
 

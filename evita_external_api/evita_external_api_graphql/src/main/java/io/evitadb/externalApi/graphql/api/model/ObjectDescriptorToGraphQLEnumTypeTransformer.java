@@ -33,9 +33,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * TODO lho docs
+ * Transforms API-independent {@link ObjectDescriptor} to {@link GraphQLEnumType}.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
 public class ObjectDescriptorToGraphQLEnumTypeTransformer implements ObjectDescriptorTransformer<GraphQLEnumType.Builder> {

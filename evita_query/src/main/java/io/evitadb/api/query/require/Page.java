@@ -56,7 +56,7 @@ import java.util.Optional;
 	name = "page",
 	shortDescription = "The constraint specifies which page of found entities will be returned."
 )
-public class Page extends AbstractRequireConstraintLeaf implements GenericConstraint<RequireConstraint> {
+public class Page extends AbstractRequireConstraintLeaf implements GenericConstraint<RequireConstraint>, ChunkingRequireConstraint {
 	@Serial private static final long serialVersionUID = 1300354074537839696L;
 
 	private Page(Serializable... arguments) {

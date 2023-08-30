@@ -41,22 +41,16 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  */
 public interface CatalogDataApiRootDescriptor extends CatalogRootDescriptor {
 
-    ObjectDescriptor ENTITY_LOCALE_ENUM = ObjectDescriptor.builder()
-        .name("*Locale")
-        .description("""
-            Enum of all available locales in `%s` collection.
-            """)
-        .build();
-    ObjectDescriptor ENTITY_CURRENCY_ENUM = ObjectDescriptor.builder()
-        .name("*Currency")
-        .description("""
-            Enum of all available currencies in `%s` collection.
-            """)
-        .build();
-    ObjectDescriptor CATALOG_LOCALE_ENUM = ObjectDescriptor.builder()
+    ObjectDescriptor LOCALE_ENUM = ObjectDescriptor.builder()
         .name("CatalogLocale")
         .description("""
             Enum of all available locales in a catalog.
+            """)
+        .build();
+    ObjectDescriptor CURRENCY_ENUM = ObjectDescriptor.builder()
+        .name("CatalogCurrency")
+        .description("""
+            Enum of all available currencies in a catalog.
             """)
         .build();
 

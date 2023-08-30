@@ -54,3 +54,9 @@ api:
       mTLS:
         enabled: ${api.endpoints.gRPC.mTLS.enabled:false}
         allowedClientCertificatePaths: ${api.endpoints.gRPC.mTLS.allowedClientCertificatesPaths:[]}
+    lab:
+      enabled: ${api.endpoints.lab.enabled:true}
+      host: ${api.endpoints.lab.host:localhost:5555}
+      allowedOrigins: ${api.endpoints.lab.allowedOrigins:null}
+      gui:
+        enabled: false

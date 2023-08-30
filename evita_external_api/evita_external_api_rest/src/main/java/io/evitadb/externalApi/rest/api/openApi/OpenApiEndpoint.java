@@ -31,6 +31,7 @@ import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.Paramete
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.externalApi.rest.io.RestEndpointHandler;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
+import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
@@ -50,7 +51,6 @@ import lombok.ToString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.nio.file.Path;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -83,7 +83,7 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 	private static final String STATUS_CODE_BAD_REQUEST = String.valueOf(StatusCodes.BAD_REQUEST);
 
 	@Nonnull @Getter protected final HttpMethod method;
-	@Nonnull @Getter protected final Path path;
+	@Nonnull @Getter protected final UriPath path;
 	/**
 	 * Whether the endpoint contains locale parameter in path, and thus defines default locale for entire endpoint.
 	 */
@@ -228,20 +228,24 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 	public static class PathBuilder {
 
 		@Nonnull
-		@Getter(AccessLevel.PROTECTED)
-		private Path path = Path.of("");
-		@Getter(AccessLevel.PROTECTED)
+		private UriPath.Builder pathBuilder = UriPath.builder();
+		@Getter
 		private final List<OpenApiEndpointParameter> pathParameters = new LinkedList<>();
 
 		@Nonnull
-		protected static PathBuilder newPath() {
+		public UriPath getPath() {
+			return this.pathBuilder.build();
+		}
+
+		@Nonnull
+		public static PathBuilder newPath() {
 			return new PathBuilder();
 		}
 
 		@Nonnull
 		public PathBuilder staticItem(@Nullable String staticItem) {
 			if (staticItem != null && !staticItem.isEmpty()) {
-				this.path = this.path.resolve(staticItem);
+				this.pathBuilder.part(staticItem);
 			}
 			return this;
 		}
@@ -253,7 +257,7 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 					paramItem.getLocation().equals(ParameterLocation.PATH),
 					() -> new OpenApiBuildingError("Path only supports path parameters.")
 				);
-				this.path = this.path.resolve("{" + paramItem.getName() + "}");
+				this.pathBuilder.part("{" + paramItem.getName() + "}");
 				this.pathParameters.add(paramItem);
 			}
 			return this;

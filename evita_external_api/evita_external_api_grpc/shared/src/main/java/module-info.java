@@ -28,7 +28,7 @@ module evita.external.api.grpc.shared {
 	requires static jsr305;
 	requires com.fasterxml.jackson.databind;
 	requires grpc.workaround.build;
-	requires com.google.protobuf;
+	requires protobuf.java;
 
 	requires evita.common;
 	requires evita.api;

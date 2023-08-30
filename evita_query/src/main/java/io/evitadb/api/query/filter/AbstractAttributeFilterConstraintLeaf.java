@@ -46,6 +46,7 @@ abstract class AbstractAttributeFilterConstraintLeaf extends AbstractFilterConst
 	/**
 	 * Returns attribute name that needs to be examined.
 	 */
+	@Override
 	@Nonnull
 	public String getAttributeName() {
 		return (String) getArguments()[0];

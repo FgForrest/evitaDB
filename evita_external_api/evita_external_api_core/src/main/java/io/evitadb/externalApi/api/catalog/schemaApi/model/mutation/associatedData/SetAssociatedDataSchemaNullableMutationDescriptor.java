@@ -49,7 +49,7 @@ public interface SetAssociatedDataSchemaNullableMutationDescriptor extends Assoc
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("AssociatedDataSchemaMutationDescriptor")
+		.name("AssociatedDataSchemaMutation")
 		.description("""
 			Mutation is responsible for setting value to a `AssociatedDataSchema.nullable`
 			in `EntitySchema`.

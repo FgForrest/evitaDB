@@ -12,6 +12,7 @@ module evita.external.api.core {
 	exports io.evitadb.externalApi.configuration;
 	exports io.evitadb.externalApi.exception;
 	exports io.evitadb.externalApi.http;
+	exports io.evitadb.externalApi.utils;
 	exports io.evitadb.externalApi.api.catalog.dataApi.builder.constraint;
 	exports io.evitadb.externalApi.api.catalog.dataApi.constraint;
 	exports io.evitadb.externalApi.api.catalog.dataApi.dto;

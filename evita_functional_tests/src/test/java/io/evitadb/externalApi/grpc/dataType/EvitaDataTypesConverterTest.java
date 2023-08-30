@@ -51,6 +51,7 @@ import java.util.Arrays;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -203,6 +204,11 @@ class EvitaDataTypesConverterTest {
 			currencyValue,
 			EvitaDataTypesConverter.toEvitaValue(EvitaDataTypesConverter.toGrpcEvitaValue(currencyValue))
 		);
+		final UUID uuidValue = UUID.randomUUID();
+		assertEquals(
+			uuidValue,
+			EvitaDataTypesConverter.toEvitaValue(EvitaDataTypesConverter.toGrpcEvitaValue(uuidValue))
+		);
 
 		assertEquals(
 			complexDataObjectValue,
@@ -335,6 +341,11 @@ class EvitaDataTypesConverterTest {
 		assertArrayEquals(
 			currencyValue,
 			EvitaDataTypesConverter.toEvitaValue(EvitaDataTypesConverter.toGrpcEvitaValue(currencyValue))
+		);
+		final UUID[] uuidValue = new UUID[] { UUID.randomUUID(), UUID.randomUUID() };
+		assertArrayEquals(
+			uuidValue,
+			EvitaDataTypesConverter.toEvitaValue(EvitaDataTypesConverter.toGrpcEvitaValue(uuidValue))
 		);
 	}
 

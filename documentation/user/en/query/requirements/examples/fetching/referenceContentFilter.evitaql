@@ -1,0 +1,30 @@
+query(
+    collection('Product'),
+    filterBy(
+        entityPrimaryKeyInSet(103885)
+    ),
+    require(
+        entityFetch(
+            attributeContent('code'),
+            referenceContent(
+                'parameterValues',
+                filterBy(
+                    entityHaving(
+                        referenceHaving(
+                            'parameter',
+                            entityHaving(
+                                attributeEquals('isVisibleInDetail', true)
+                            )
+                        )
+                    )
+                ),
+                entityFetch(
+                    attributeContent('code')
+                ),
+                entityGroupFetch(
+                    attributeContent('code', 'isVisibleInDetail')
+                )
+            )
+        )
+    )
+)

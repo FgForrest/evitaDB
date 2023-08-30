@@ -66,6 +66,13 @@ message GrpcCurrency {
   string code = 1;
 }
 
+// Structure for representing UUID objects.
+message GrpcUuid {
+  // Value that supports storing a UUID.
+  int64 mostSignificantBits = 1;
+  int64 leastSignificantBits = 2;
+}
+
 // Structure for universal representation of DateTime objects with an offset.
 message GrpcOffsetDateTime {
   // The date and time of the object internally represented by unix timestamp.
@@ -158,6 +165,12 @@ message GrpcCurrencyArray {
   repeated GrpcCurrency value = 1;
 }
 
+// Wrapper for representing an array of UUIDs.
+message GrpcUuidArray {
+  // Value that supports storing a UUID array.
+  repeated GrpcUuid value = 1;
+}
+
 // Wrapper for representing an array of FacetStatisticsDepth enums.
 message GrpcFacetStatisticsDepthArray {
   // Value that supports storing a FacetStatisticsDepth array.
@@ -234,37 +247,41 @@ message GrpcEvitaValue {
     GrpcLocale localeValue = 11;
     // Currency value.
     GrpcCurrency currencyValue = 12;
+    // UUID value.
+    GrpcUuid uuidValue = 13;
 
     // Array of string values.
-    GrpcStringArray stringArrayValue = 13;
+    GrpcStringArray stringArrayValue = 50;
     // Array of integer values.
-    GrpcIntegerArray integerArrayValue = 14;
+    GrpcIntegerArray integerArrayValue = 51;
     // Array of long values.
-    GrpcLongArray longArrayValue = 15;
+    GrpcLongArray longArrayValue = 52;
     // Array of boolean values.
-    GrpcBooleanArray booleanArrayValue = 16;
+    GrpcBooleanArray booleanArrayValue = 53;
     // Array of BigDecimal values.
-    GrpcBigDecimalArray bigDecimalArrayValue = 17;
+    GrpcBigDecimalArray bigDecimalArrayValue = 54;
     // Array of DateTimeRange values.
-    GrpcDateTimeRangeArray dateTimeRangeArrayValue = 18;
+    GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;
     // Array of IntegerNumberRange values.
-    GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 19;
+    GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;
     // Array of LongNumberRange values.
-    GrpcLongNumberRangeArray longNumberRangeArrayValue = 20;
+    GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;
     // Array of BigDecimalNumberRange values.
-    GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 21;
+    GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;
     // Array of OffsetDateTime values.
-    GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 22;
+    GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;
     // Array of Locale values.
-    GrpcLocaleArray localeArrayValue = 23;
+    GrpcLocaleArray localeArrayValue = 60;
     // Array of Currency values.
-    GrpcCurrencyArray currencyArrayValue = 24;
+    GrpcCurrencyArray currencyArrayValue = 61;
+    // Array of UUID values.
+    GrpcUuidArray uuidArrayValue = 62;
   }
   // The type of the stored value.
-  GrpcEvitaDataType type = 30;
+  GrpcEvitaDataType type = 100;
   // Contains version of this value and gets increased with any entity type update. Allows to execute
   //			optimistic locking i.e. avoiding parallel modifications.
-  google.protobuf.Int32Value version = 31;
+  google.protobuf.Int32Value version = 101;
 }
 
 // Structure that holds AssociatedData value. Might be one of the supported data types or a JSON string that will be
