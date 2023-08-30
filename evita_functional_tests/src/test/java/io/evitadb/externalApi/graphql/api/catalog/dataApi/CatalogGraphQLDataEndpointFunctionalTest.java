@@ -168,7 +168,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 						parentBuilder
 							.e(GraphQLEntityDescriptor.ALL_LOCALES.name(), parent.getAllLocales()
 								.stream()
-								.map(Locale::toLanguageTag)
+								.map(Locale::toString)
 								.toList())
 							.e(GraphQLEntityDescriptor.ATTRIBUTES.name(), map()
 								.e(ATTRIBUTE_CODE, parent.getAttribute(ATTRIBUTE_CODE)));
