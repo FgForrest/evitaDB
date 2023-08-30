@@ -25,6 +25,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
 
 import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetchingEnvironment;
+import io.evitadb.api.ClientContext;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
@@ -87,10 +88,11 @@ public class ListEntitiesDataFetcher extends ReadDataFetcher<DataFetcherResult<L
     @Nonnull private final OrderConstraintResolver orderConstraintResolver;
     @Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 
-    public ListEntitiesDataFetcher(@Nullable Executor executor,
+    public ListEntitiesDataFetcher(@Nonnull ClientContext clientContext,
+                                   @Nullable Executor executor,
                                    @Nonnull CatalogSchemaContract catalogSchema,
                                    @Nonnull EntitySchemaContract entitySchema) {
-        super(executor);
+        super(clientContext, executor);
         this.entitySchema = entitySchema;
 
         this.filterConstraintResolver = new FilterConstraintResolver(catalogSchema);

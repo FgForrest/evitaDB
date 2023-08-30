@@ -107,7 +107,7 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 	private BuiltFieldDescriptor buildCatalogSchemaField() {
 		return new BuiltFieldDescriptor(
 			CatalogSchemaApiRootDescriptor.GET_CATALOG_SCHEMA.to(staticEndpointBuilderTransformer).build(),
-			new CatalogSchemaDataFetcher(buildingContext.getEvitaExecutor().orElse(null))
+			new CatalogSchemaDataFetcher(buildingContext.getEvita(), buildingContext.getEvitaExecutor().orElse(null))
 		);
 	}
 

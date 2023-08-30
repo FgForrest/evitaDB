@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher;
 
 import graphql.schema.DataFetchingEnvironment;
+import io.evitadb.api.ClientContext;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
@@ -44,8 +45,8 @@ import java.util.function.Function;
  */
 public class ReferenceSchemaGroupTypeNameVariantsDataFetcher extends ReadDataFetcher<Map<NamingConvention, String>> {
 
-	public ReferenceSchemaGroupTypeNameVariantsDataFetcher(@Nullable Executor executor) {
-		super(executor);
+	public ReferenceSchemaGroupTypeNameVariantsDataFetcher(@Nonnull ClientContext clientContext, @Nullable Executor executor) {
+		super(clientContext, executor);
 	}
 
 	@Nullable

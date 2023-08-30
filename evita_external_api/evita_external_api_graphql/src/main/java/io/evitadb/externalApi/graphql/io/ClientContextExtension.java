@@ -21,36 +21,30 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.system.resolver.dataFetcher;
-
-import graphql.schema.DataFetchingEnvironment;
-import io.evitadb.api.CatalogContract;
-import io.evitadb.api.ClientContext;
-import io.evitadb.core.Evita;
-import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
+package io.evitadb.externalApi.graphql.io;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.util.Collection;
-import java.util.concurrent.Executor;
+import java.util.UUID;
 
 /**
- * Returns all catalog DTOs.
+ * DTO for passing client context information from client for entire GQL request execution.
  *
+ * @see io.evitadb.api.ClientContext
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class CatalogsDataFetcher extends ReadDataFetcher<Collection<CatalogContract>> {
+public record ClientContextExtension(@Nonnull String clientId,
+                                     @Nonnull String requestId) {
 
-    @Nonnull private final Evita evita;
+	public static final String UNKNOWN_CLIENT_ID = "unknownGraphQLClient";
 
-    public CatalogsDataFetcher(@Nullable Executor executor, @Nonnull Evita evita) {
-        super(evita, executor);
-        this.evita = evita;
-    }
+	static final String CLIENT_CONTEXT_EXTENSION = "clientContext";
+	static final String CLIENT_ID = "clientId";
+	static final String REQUEST_ID = "requestId";
 
-    @Override
-    @Nonnull
-    public Collection<CatalogContract> doGet(@Nonnull DataFetchingEnvironment environment) {
-        return evita.getCatalogs();
-    }
+	/**
+	 * Client didn't sent any client context information, but we want to still classify the usage somehow.
+	 */
+	public static ClientContextExtension unknown() {
+		return new ClientContextExtension(UNKNOWN_CLIENT_ID, UUID.randomUUID().toString());
+	}
 }

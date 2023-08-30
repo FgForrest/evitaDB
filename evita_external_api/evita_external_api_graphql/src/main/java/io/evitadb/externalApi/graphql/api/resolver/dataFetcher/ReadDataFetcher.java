@@ -25,12 +25,14 @@ package io.evitadb.externalApi.graphql.api.resolver.dataFetcher;
 
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
+import io.evitadb.api.ClientContext;
 import io.evitadb.thread.ShortRunningSupplier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -45,6 +47,10 @@ import java.util.concurrent.Executor;
 public abstract class ReadDataFetcher<T> implements DataFetcher<Object> {
 
 	/**
+	 * Client context provider. We need to pass the current client context to the async data fetcher.
+	 */
+	@Nonnull private final ClientContext clientContext;
+	/**
 	 * Executor responsible for executing data fetcher asynchronously. If null, data fetcher will work synchronously.
 	 */
 	@Nullable private final Executor executor;
@@ -56,8 +62,15 @@ public abstract class ReadDataFetcher<T> implements DataFetcher<Object> {
 			log.debug("No executor for processing data fetcher `" + getClass().getName() + "`, processing synchronously.");
 			return doGet(environment);
 		}
+
+		final Optional<String> currentClientId = clientContext.getClientId();
+		final Optional<String> currentRequestId = clientContext.getRequestId();
 		return CompletableFuture.supplyAsync(
-			new ShortRunningSupplier<>(() -> doGet(environment)),
+			new ShortRunningSupplier<>(() -> clientContext.executeWithClientAndRequestId(
+				currentClientId.orElse(null),
+				currentRequestId.orElse(null),
+				() -> doGet(environment)
+			)),
 			executor
 		);
 	}
@@ -65,6 +78,6 @@ public abstract class ReadDataFetcher<T> implements DataFetcher<Object> {
 	/**
 	 * Actual data fetching logic.
 	 */
-	@Nonnull
+	@Nullable
 	protected abstract T doGet(@Nonnull DataFetchingEnvironment environment);
 }

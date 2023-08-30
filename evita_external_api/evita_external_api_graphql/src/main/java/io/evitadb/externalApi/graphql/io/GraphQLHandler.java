@@ -34,6 +34,7 @@ import graphql.execution.UnknownOperationException;
 import graphql.schema.CoercingParseValueException;
 import graphql.schema.CoercingSerializeException;
 import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
@@ -56,6 +57,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.LinkedHashSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
@@ -74,6 +76,9 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
 @RequiredArgsConstructor
 public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange, GraphQLResponse<?>> {
 
+    /**
+     * Set of GraphQL exceptions that are caused by invalid user input and thus shouldn't return server error.
+     */
     private static final Set<Class<? extends GraphQLException>> GRAPHQL_USER_ERRORS = Set.of(
         CoercingSerializeException.class,
         CoercingParseValueException.class,
@@ -84,6 +89,8 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange, Gra
 
     @Nonnull
     private final ObjectMapper objectMapper;
+    @Nonnull
+    private final Evita evita;
     @Nonnull
     private final EvitaConfiguration evitaConfiguration;
     @Nonnull
@@ -102,7 +109,12 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange, Gra
     @Nonnull
     protected EndpointResponse<GraphQLResponse<?>> doHandleRequest(@Nonnull GraphQLEndpointExchange exchange) {
         final GraphQLRequest graphQLRequest = parseRequestBody(exchange, GraphQLRequest.class);
-        final GraphQLResponse<?> graphQLResponse = executeRequest(graphQLRequest);
+        final ClientContextExtension clientContext = graphQLRequest.clientContextExtension();
+        final GraphQLResponse<?> graphQLResponse = evita.executeWithClientAndRequestId(
+            clientContext.clientId(),
+            clientContext.requestId(),
+            () -> executeRequest(graphQLRequest)
+        );
         return new SuccessEndpointResponse<>(graphQLResponse);
     }
 

@@ -28,6 +28,7 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.model.CatalogQueryHeaderDescriptor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -38,19 +39,22 @@ import java.util.concurrent.Executor;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Slf4j
 public class CatalogDataFetcher extends ReadDataFetcher<CatalogContract> {
 
     private final Evita evita;
 
     public CatalogDataFetcher(@Nullable Executor executor, @Nonnull Evita evita) {
-        super(executor);
+        super(evita, executor);
         this.evita = evita;
     }
 
-    @Nonnull
+    @Nullable
     @Override
     public CatalogContract doGet(@Nonnull DataFetchingEnvironment environment) {
+        log.info("Client id:" + evita.getClientId().orElse(null));
         final String catalogName = environment.getArgument(CatalogQueryHeaderDescriptor.NAME.name());
-        return evita.getCatalogInstanceOrThrowException(catalogName);
+        return evita.getCatalogInstance(catalogName)
+            .orElse(null);
     }
 }

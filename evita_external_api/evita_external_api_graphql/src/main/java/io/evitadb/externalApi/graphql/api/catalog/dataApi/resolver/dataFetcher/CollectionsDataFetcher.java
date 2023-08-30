@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
 
 import graphql.schema.DataFetchingEnvironment;
+import io.evitadb.api.ClientContext;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
@@ -40,8 +41,8 @@ import java.util.concurrent.Executor;
  */
 public class CollectionsDataFetcher extends ReadDataFetcher<Set<String>> {
 
-    public CollectionsDataFetcher(@Nullable Executor executor) {
-        super(executor);
+    public CollectionsDataFetcher(@Nonnull ClientContext clientContext, @Nullable Executor executor) {
+        super(clientContext, executor);
     }
 
     @Nonnull

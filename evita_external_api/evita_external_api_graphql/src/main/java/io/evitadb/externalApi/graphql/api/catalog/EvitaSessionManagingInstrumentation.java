@@ -27,7 +27,7 @@ import graphql.ExecutionResult;
 import graphql.execution.ExecutionContext;
 import graphql.execution.instrumentation.Instrumentation;
 import graphql.execution.instrumentation.InstrumentationState;
-import graphql.execution.instrumentation.SimpleInstrumentation;
+import graphql.execution.instrumentation.SimplePerformantInstrumentation;
 import graphql.execution.instrumentation.parameters.InstrumentationExecutionParameters;
 import graphql.language.OperationDefinition;
 import io.evitadb.api.EvitaContract;
@@ -50,7 +50,7 @@ import java.util.concurrent.CompletableFuture;
  */
 @NotThreadSafe
 @RequiredArgsConstructor
-public class EvitaSessionManagingInstrumentation extends SimpleInstrumentation {
+public class EvitaSessionManagingInstrumentation extends SimplePerformantInstrumentation {
 
     @Nonnull
     private final EvitaContract evita;

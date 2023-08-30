@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
 
 import graphql.schema.DataFetchingEnvironment;
+import io.evitadb.api.ClientContext;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
@@ -42,8 +43,10 @@ public class CollectionSizeDataFetcher extends ReadDataFetcher<Integer> {
 
 	@Nonnull private final EntitySchemaContract entitySchema;
 
-	public CollectionSizeDataFetcher(@Nullable Executor executor, @Nonnull EntitySchemaContract entitySchema) {
-		super(executor);
+	public CollectionSizeDataFetcher(@Nonnull ClientContext clientContext,
+	                                 @Nullable Executor executor,
+	                                 @Nonnull EntitySchemaContract entitySchema) {
+		super(clientContext, executor);
 		this.entitySchema = entitySchema;
 	}
 
