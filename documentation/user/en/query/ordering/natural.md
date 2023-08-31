@@ -35,6 +35,7 @@ and the direction of the ordering.
 To sort products by the number of their sales (the best-selling products first), we can use the following query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [List of products sorted by number attribute](/documentation/user/en/query/ordering/examples/natural/attribute-natural-non-localized.evitaql)
 </SourceCodeTabs>
 
@@ -69,6 +70,7 @@ If you want to sort products by their name, which is a localized attribute, you 
 constraint in the `filterBy` part of the query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [List of products sorted by localized attribute](/documentation/user/en/query/ordering/examples/natural/attribute-natural-localized.evitaql)
 </SourceCodeTabs>
 
@@ -108,6 +110,7 @@ by the second (but only those where the first attribute is missing). If two enti
 attribute, they are not sorted by the second attribute, but by the primary key (in ascending order).
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [List of products sorted by multiple attributes](/documentation/user/en/query/ordering/examples/natural/attribute-natural-multiple.evitaql)
 </SourceCodeTabs>
 

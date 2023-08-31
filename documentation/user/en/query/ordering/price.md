@@ -32,6 +32,7 @@ To sort products by their selling price (currently considering only `basic` pric
 the following query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [List of products sorted by selling price](/documentation/user/en/query/ordering/examples/price/price-natural.evitaql)
 </SourceCodeTabs>
 
