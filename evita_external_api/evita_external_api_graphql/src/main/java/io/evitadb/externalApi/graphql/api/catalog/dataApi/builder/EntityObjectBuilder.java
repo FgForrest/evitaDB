@@ -377,7 +377,7 @@ public class EntityObjectBuilder {
 	private BuiltFieldDescriptor buildEntityAttributesField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
 	                                                        @Nonnull EntityObjectVariant version) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-		final GraphQLType attributesObject = switch (version) {
+		final GraphQLOutputType attributesObject = switch (version) {
 			case DEFAULT -> buildAttributesObject(
 				entitySchema.getAttributes().values(),
 				AttributesDescriptor.THIS.name(entitySchema),
@@ -389,7 +389,7 @@ public class EntityObjectBuilder {
 
 		final GraphQLFieldDefinition.Builder attributesFieldBuilder = GraphQLEntityDescriptor.ATTRIBUTES
 			.to(fieldBuilderTransformer)
-			.type(nonNull(attributesObject));
+			.type(attributesObject);
 
 		if (!entitySchema.getLocales().isEmpty()) {
 			attributesFieldBuilder.argument(AttributesFieldHeaderDescriptor.LOCALE
@@ -456,7 +456,7 @@ public class EntityObjectBuilder {
 	private BuiltFieldDescriptor buildEntityAssociatedDataField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
 	                                                            @Nonnull EntityObjectVariant version) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-		final GraphQLType associatedDataObject = switch (version) {
+		final GraphQLOutputType associatedDataObject = switch (version) {
 			case DEFAULT -> buildAssociatedDataObject(collectionBuildingContext);
 			case NON_HIERARCHICAL -> typeRef(AssociatedDataDescriptor.THIS.name(collectionBuildingContext.getSchema()));
 			default -> throw new GraphQLSchemaBuildingError("Unsupported version `" + version + "`.");
@@ -464,7 +464,7 @@ public class EntityObjectBuilder {
 
 		final GraphQLFieldDefinition.Builder associatedDataFieldBuilder = GraphQLEntityDescriptor.ASSOCIATED_DATA
 			.to(fieldBuilderTransformer)
-			.type(nonNull(associatedDataObject));
+			.type(associatedDataObject);
 
 		if (!entitySchema.getLocales().isEmpty()) {
 			associatedDataFieldBuilder.argument(AssociatedDataFieldHeaderDescriptor.LOCALE
@@ -626,7 +626,7 @@ public class EntityObjectBuilder {
 
 		final GraphQLFieldDefinition attributesField = ReferenceDescriptor.ATTRIBUTES
 			.to(fieldBuilderTransformer)
-			.type(nonNull(attributesObject))
+			.type(attributesObject)
 			.build();
 
 		return new BuiltFieldDescriptor(
