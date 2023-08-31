@@ -44,14 +44,21 @@ api:                                              # [see API configuration](#api
       certificate: null
       privateKey: null
       privateKeyPassword: null
-  endpoints:                                      
+  endpoints:
+    system:                                       # [see System API configuration](#system-api-configuration)
+      enabled: true
+      host: localhost:5557
+      tlsEnabled: false
+      allowedOrigins: null
     graphQL:                                      # [see GraphQL API configuration](#graphql-api-configuration)
       enabled: true
       host: localhost:5555
+      tlsEnabled: true
       allowedOrigins: null
     rest:                                         # [see REST API configuration](#rest-api-configuration)
       enabled: true
       host: localhost:5555
+      tlsEnabled: true
       allowedOrigins: null
     gRPC:                                         # [see gRPC API configuration](#grpc-api-configuration)
       enabled: true
@@ -59,10 +66,6 @@ api:                                              # [see API configuration](#api
       mTLS:
         enabled: false
         allowedClientCertificatePaths: []
-    system:                                       # [see System API configuration](#system-api-configuration)
-      enabled: true
-      host: localhost:5557
-      allowedOrigins: null
 ```
 
 <Note type="info">
@@ -372,7 +375,10 @@ This section of the configuration allows you to selectively enable, disable, and
 
 ### TLS configuration
 
-TLS support is enabled by default and cannot be disabled. It's configured in the `certificate` subsection of the `api`.
+TLS support is enabled by default for most APIs but can be disabled individually per API in API configs.
+Note that if you set that each API has different TLS settings, each API must have its own port.
+
+Common configuration is in the `certificate` subsection of the `api`.
 It allows configuring these settings:
 
 <dl>
@@ -442,6 +448,12 @@ provide an unsecured connection for security reasons.
         <p>It specifies the host and port that the GraphQL API should listen on. The value may be identical to the REST 
         API, but not to the gRPC or System API.</p>
     </dd>
+    <dt>tlsEnabled</dt>
+    <dd>
+        <p>**Default:** `true`</p>
+        <p>Whether the [TLS](./tls.md) should be enabled for the GraphQL API. If multiple APIs share the same port, 
+        all such APIs need to have set the same `tlsEnabled` value, or each API must have its own port.</p>
+    </dd>
     <dt>allowedOrigins</dt>
     <dd>
         <p>**Default:** `null`</p>
@@ -464,6 +476,12 @@ provide an unsecured connection for security reasons.
         <p>**Default:** `localhost:5555`</p>
         <p>It specifies the host and port that the GraphQL API should listen on. The value may be identical to the GraphQL 
         API, but not to the gRPC or System API.</p>
+    </dd>
+    <dt>tlsEnabled</dt>
+    <dd>
+        <p>**Default:** `true`</p>
+        <p>Whether the [TLS](./tls.md) should be enabled for the REST API. If multiple APIs share the same port, 
+        all such APIs need to have set the same `tlsEnabled` value, or each API must have its own port.</p>
     </dd>
     <dt>allowedOrigins</dt>
     <dd>
@@ -530,6 +548,12 @@ more information.
         <p>The system endpoint allows anyone to view public <Term location="/documentation/user/en/operate/tls.md">certificate authority</Term> 
         <Term location="/documentation/user/en/operate/tls.md">certificate</Term> and it also provides information for 
         [default `mTLS` implementation](tls.md#default-mtls-behaviour-not-secure).</p>
+    </dd>
+    <dt>tlsEnabled</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>Whether the [TLS](./tls.md) should be enabled for the System API. If multiple APIs share the same port, 
+        all such APIs need to have set the same `tlsEnabled` value, or each API must have its own port.</p>
     </dd>
     <dt>allowedOrigins</dt>
     <dd>
