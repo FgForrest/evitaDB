@@ -51,6 +51,7 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -163,9 +164,12 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 							final ReferenceOwnerTranslatingFormula outputFormula = new ReferenceOwnerTranslatingFormula(
 								globalEntityIndex,
 								nestedQueryFormula,
-								it -> ofNullable(filterByVisitor.getReferencedEntityIndex(entitySchema, referenceSchema, it))
-									.map(EntityIndex::getAllPrimaryKeys)
-									.orElse(EmptyBitmap.INSTANCE)
+								it -> {
+									// leave the return here, so that we can easily debug it
+									return ofNullable(filterByVisitor.getReferencedEntityIndex(entitySchema, referenceSchema, it))
+										.map(EntityIndex::getAllPrimaryKeys)
+										.orElse(EmptyBitmap.INSTANCE);
+								}
 							);
 							return new DeferredFormula(
 								new FormulaWrapper(
@@ -181,7 +185,13 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 								)
 							);
 						},
-						2L
+						2L,
+						// we need to add exact pointers to the entity schema and reference schema, which play role
+						// in the lambda evaluation
+						NumberUtils.join(
+							System.identityHashCode(entitySchema),
+							System.identityHashCode(referenceSchema)
+						)
 					);
 				}
 			}

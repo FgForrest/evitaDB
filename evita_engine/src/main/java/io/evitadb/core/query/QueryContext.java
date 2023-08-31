@@ -220,7 +220,7 @@ public class QueryContext {
 	/**
 	 * Internal cache currently server sor caching the computed formulas of nested queries.
 	 *
-	 * @see #computeOnlyOnce(List, FilterConstraint, Supplier)  for more details
+	 * @see #computeOnlyOnce(List, FilterConstraint, Supplier, long...)   for more details
 	 */
 	private Map<InternalCacheKey, Formula> internalCache;
 	/**
