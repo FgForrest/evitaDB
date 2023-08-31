@@ -72,7 +72,7 @@ public interface ClientContext {
 	 */
 	default void executeWithClientAndRequestId(
 		@Nonnull String clientId,
-		@Nonnull String requestId,
+		@Nullable String requestId,
 		@Nonnull Runnable lambda
 	) {
 		Deque<Context> context = CLIENT_CONTEXT.get();
@@ -151,7 +151,7 @@ public interface ClientContext {
 	 */
 	default <T> T executeWithClientAndRequestId(
 		@Nonnull String clientId,
-		@Nonnull String requestId,
+		@Nullable String requestId,
 		@Nonnull Supplier<T> lambda
 	) {
 		Deque<Context> context = CLIENT_CONTEXT.get();

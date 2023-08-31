@@ -52,7 +52,9 @@ public class CatalogDataFetcher extends ReadDataFetcher<CatalogContract> {
     @Nullable
     @Override
     public CatalogContract doGet(@Nonnull DataFetchingEnvironment environment) {
-        log.info("Client id:" + evita.getClientId().orElse(null));
+        log.info("client id " + evita.getClientId().orElse(null));
+        log.info("req id " + evita.getRequestId().orElse(null));
+
         final String catalogName = environment.getArgument(CatalogQueryHeaderDescriptor.NAME.name());
         return evita.getCatalogInstance(catalogName)
             .orElse(null);

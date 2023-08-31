@@ -60,7 +60,7 @@ public abstract class EndpointHandler<E extends EndpointExchange, R> implements 
 	private static final String CONTENT_TYPE_CHARSET = "; charset=UTF-8";
 
 	@Override
-	public void handleRequest(HttpServerExchange serverExchange) throws Exception {
+	public void handleRequest(HttpServerExchange serverExchange) {
 		validateRequest(serverExchange);
 
 		try (final E exchange = createEndpointExchange(

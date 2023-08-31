@@ -46,6 +46,7 @@ import javax.annotation.Nullable;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
@@ -58,6 +59,10 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 @Slf4j
 public abstract class RestEndpointHandler<R, CTX extends RestHandlingContext> extends EndpointHandler<RestEndpointExchange, R> {
 
+    public static final String DEFAULT_CLIENT_ID = "unknownRestClient";
+    private static final String CLIENT_ID_HEADER = "X-EvitaDB-ClientID";
+    private static final String REQUEST_ID_HEADER = "X-EvitaDB-RequestID";
+
     @Nonnull
     protected final CTX restApiHandlingContext;
     @Nonnull
@@ -68,6 +73,49 @@ public abstract class RestEndpointHandler<R, CTX extends RestHandlingContext> ex
         this.dataDeserializer = new DataDeserializer(
             this.restApiHandlingContext.getOpenApi(),
             this.restApiHandlingContext.getEnumMapping()
+        );
+    }
+
+    @Override
+    public void handleRequest(HttpServerExchange serverExchange) {
+        handleRequestWithClientContext(serverExchange);
+    }
+
+    /**
+     * Process every request with client context, so we can classify it in evitaDB.
+     */
+    private void handleRequestWithClientContext(@Nonnull HttpServerExchange serverExchange) {
+        String clientId;
+        try {
+            clientId = Optional.ofNullable(serverExchange.getRequestHeaders().get(CLIENT_ID_HEADER))
+                .map(it -> {
+                    if (it.isEmpty()) {
+                        return null;
+                    }
+                    return it.getFirst();
+                })
+                .orElse(DEFAULT_CLIENT_ID);
+        } catch (NoSuchElementException e) {
+            clientId = DEFAULT_CLIENT_ID;
+        }
+        String requestId = null;
+        try {
+            requestId = Optional.ofNullable(serverExchange.getRequestHeaders().get(REQUEST_ID_HEADER))
+                .map(it -> {
+                    if (it.isEmpty()) {
+                        return null;
+                    }
+                    return it.getFirst();
+                })
+                .orElse(null);
+        } catch (NoSuchElementException e) {
+            // do nothing, we don't have to have request id
+        }
+
+        restApiHandlingContext.getEvita().executeWithClientAndRequestId(
+            clientId,
+            requestId,
+            () -> super.handleRequest(serverExchange)
         );
     }
 

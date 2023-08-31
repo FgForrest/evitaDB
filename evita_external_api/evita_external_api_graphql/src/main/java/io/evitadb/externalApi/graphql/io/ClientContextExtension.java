@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.graphql.io;
 
 import javax.annotation.Nonnull;
-import java.util.UUID;
+import javax.annotation.Nullable;
 
 /**
  * DTO for passing client context information from client for entire GQL request execution.
@@ -33,18 +33,24 @@ import java.util.UUID;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public record ClientContextExtension(@Nonnull String clientId,
-                                     @Nonnull String requestId) {
+                                     @Nullable String requestId) {
 
-	public static final String UNKNOWN_CLIENT_ID = "unknownGraphQLClient";
+	public static final String DEFAULT_CLIENT_ID = "unknownGraphQLClient";
 
 	static final String CLIENT_CONTEXT_EXTENSION = "clientContext";
 	static final String CLIENT_ID = "clientId";
 	static final String REQUEST_ID = "requestId";
 
+	public ClientContextExtension(@Nullable String clientId,
+								  @Nullable String requestId) {
+		this.clientId = clientId != null ? clientId : DEFAULT_CLIENT_ID;
+		this.requestId = requestId;
+	}
+
 	/**
-	 * Client didn't sent any client context information, but we want to still classify the usage somehow.
+	 * Client didn't send any client context information, but we want to still classify the usage somehow.
 	 */
 	public static ClientContextExtension unknown() {
-		return new ClientContextExtension(UNKNOWN_CLIENT_ID, UUID.randomUUID().toString());
+		return new ClientContextExtension(DEFAULT_CLIENT_ID, null);
 	}
 }
