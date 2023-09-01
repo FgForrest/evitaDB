@@ -25,6 +25,7 @@ package io.evitadb.core.query.indexSelection;
 
 import io.evitadb.api.query.filter.IndexUsingConstraint;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.Index;
 
 import java.util.List;
 
@@ -41,7 +42,7 @@ import java.util.List;
  *                                             constraints using already limited subset from the entity index.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public record IndexSelectionResult(List<TargetIndexes> targetIndexes, boolean targetIndexQueriedByOtherConstraints) {
+public record IndexSelectionResult<T extends Index<?>>(List<TargetIndexes<T>> targetIndexes, boolean targetIndexQueriedByOtherConstraints) {
 	/**
 	 * Returns true if this DTO contains NO reference to the target indexes.
 	 */

@@ -37,11 +37,15 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.Hier
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyParentsHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyRequireHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
+import io.evitadb.test.client.query.graphql.GraphQLOutputFieldsBuilder.Argument;
+import io.evitadb.test.client.query.graphql.GraphQLOutputFieldsBuilder.ArgumentSupplier;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
 
@@ -73,25 +77,25 @@ public class HierarchyOfConverter extends RequireConverter {
 		fieldsBuilder.addObjectField(ExtraResultsDescriptor.HIERARCHY, hierarchyBuilder -> {
 			// self hierarchy
 			if (hierarchyOfSelf != null) {
-				final Consumer<GraphQLOutputFieldsBuilder> argumentsBuilder = hierarchyOfSelf.getOrderBy()
-					.map(orderBy -> (Consumer<GraphQLOutputFieldsBuilder>) (hierarchyOfSelfArgumentsBuilder -> hierarchyOfSelfArgumentsBuilder
-						.addFieldArgument(
+				final ArgumentSupplier[] arguments = hierarchyOfSelf.getOrderBy()
+					.map(orderBy -> new ArgumentSupplier[] {
+						offset -> new Argument(
 							HierarchyOfSelfHeaderDescriptor.ORDER_BY,
-							offset -> convertOrderConstraint(new EntityDataLocator(entityType), orderBy, offset).orElse(null)
+							convertOrderConstraint(new EntityDataLocator(entityType), orderBy, offset).orElse(null)
 						)
-					))
-					.orElse(null);
+					})
+					.orElse(new ArgumentSupplier[0]);
 
 				hierarchyBuilder.addObjectField(
 					HierarchyDescriptor.SELF,
-					argumentsBuilder,
 					hierarchyOfSelfBuilder -> buildHierarchyRequirementsFields(
 						hierarchyOfSelfBuilder,
 						locale,
 						entityType,
 						new HierarchyDataLocator(entityType),
 						hierarchyOfSelf.getRequirements()
-					)
+					),
+					arguments
 				);
 			}
 
@@ -103,37 +107,43 @@ public class HierarchyOfConverter extends RequireConverter {
 						.get()
 						.getReferencedEntityType();
 
-					Consumer<GraphQLOutputFieldsBuilder> argumentsBuilder = null;
+					final List<ArgumentSupplier> arguments = new ArrayList<>(2);
 					if (hierarchyOfReference.getOrderBy().isPresent() ||
 						hierarchyOfReference.getEmptyHierarchicalEntityBehaviour() != EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY) {
-						argumentsBuilder = hierarchyOfReferenceArgumentsBuilder -> {
-							hierarchyOfReference.getOrderBy()
-								.ifPresent(orderBy -> {
-									hierarchyOfReferenceArgumentsBuilder.addFieldArgument(
-										HierarchyOfReferenceHeaderDescriptor.ORDER_BY,
-										offset -> convertOrderConstraint(new EntityDataLocator(referencedEntityType), orderBy, offset).orElse(null)
-									);
-								});
+						if (hierarchyOfReference.getOrderBy().isPresent()) {
+							arguments.add(
+								offset -> new Argument(
+									HierarchyOfReferenceHeaderDescriptor.ORDER_BY,
+									convertOrderConstraint(
+										new EntityDataLocator(referencedEntityType),
+										hierarchyOfReference.getOrderBy().get(),
+										offset
+									)
+										.orElse(null)
+								)
+							);
+						}
 
-							if (hierarchyOfReference.getEmptyHierarchicalEntityBehaviour() != EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY) {
-								hierarchyOfReferenceArgumentsBuilder.addFieldArgument(
+						if (hierarchyOfReference.getEmptyHierarchicalEntityBehaviour() != EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY) {
+							arguments.add(
+								__ -> new Argument(
 									HierarchyOfReferenceHeaderDescriptor.EMPTY_HIERARCHICAL_ENTITY_BEHAVIOUR,
-									__ -> hierarchyOfReference.getEmptyHierarchicalEntityBehaviour().name()
-								);
-							}
-						};
+									hierarchyOfReference.getEmptyHierarchicalEntityBehaviour().name()
+								)
+							);
+						}
 					}
 
 					hierarchyBuilder.addObjectField(
 						StringUtils.toCamelCase(referenceName),
-						argumentsBuilder,
 						hierarchyOfReferenceBuilder -> buildHierarchyRequirementsFields(
 							hierarchyOfReferenceBuilder,
 							locale,
 							referencedEntityType,
 							new HierarchyDataLocator(entityType, referenceName),
 							hierarchyOfReference.getRequirements()
-						)
+						),
+						arguments.toArray(ArgumentSupplier[]::new)
 					);
 				}
 			}
@@ -167,26 +177,25 @@ public class HierarchyOfConverter extends RequireConverter {
 									 @Nonnull String hierarchyEntityType,
 	                                 @Nonnull HierarchyDataLocator hierarchyDataLocator,
 	                                 @Nonnull HierarchyChildren children) {
-		Consumer<GraphQLOutputFieldsBuilder> argumentsBuilder = null;
-		if (children.getStopAt().isPresent() ||
-			(children.getStatistics().isPresent() && children.getStatistics().get().getStatisticsBase() != StatisticsBase.WITHOUT_USER_FILTER)) {
-			argumentsBuilder = childrenArgumentsBuilder -> {
-				children.getStopAt().ifPresent(getStopAtArgumentBuilder(hierarchyDataLocator, childrenArgumentsBuilder));
-				children.getStatistics().ifPresent(getStatisticsArgumentBuilder(childrenArgumentsBuilder));
-			};
+		final List<ArgumentSupplier> arguments = new ArrayList<>(2);
+		if (children.getStopAt().isPresent()) {
+			arguments.add(getStopAtArgument(children.getStopAt().get(), hierarchyDataLocator));
+		}
+		if (children.getStatistics().isPresent() && children.getStatistics().get().getStatisticsBase() != StatisticsBase.WITHOUT_USER_FILTER) {
+			arguments.add(getStatisticsArgument(children.getStatistics().get()));
 		}
 
 		hierarchyOfBuilder.addObjectField(
 			children.getOutputName(),
 			HierarchyOfDescriptor.CHILDREN,
-			argumentsBuilder,
 			childrenBuilder -> buildLevelInfoFields(
 				childrenBuilder,
 				hierarchyEntityType,
 				locale,
 				children.getEntityFetch().orElse(null),
 				children.getStatistics().orElse(null)
-			)
+			),
+			arguments.toArray(ArgumentSupplier[]::new)
 		);
 	}
 
@@ -195,28 +204,32 @@ public class HierarchyOfConverter extends RequireConverter {
 	                                 @Nonnull String hierarchyEntityType,
 	                                 @Nonnull HierarchyDataLocator hierarchyDataLocator,
 	                                 @Nonnull HierarchyFromNode fromNode) {
-		Consumer<GraphQLOutputFieldsBuilder> argumentsBuilder = fromNodeArgumentsBuilder -> {
-			fromNodeArgumentsBuilder.addFieldArgument(
+		final List<ArgumentSupplier> arguments = new ArrayList<>(3);
+		arguments.add(
+			offset -> new Argument(
 				HierarchyFromNodeHeaderDescriptor.NODE,
-				offset -> convertRequireConstraint(hierarchyDataLocator, fromNode.getFromNode(), offset)
+				convertRequireConstraint(hierarchyDataLocator, fromNode.getFromNode(), offset)
 					.orElseThrow(() -> new IllegalStateException("Missing required node constraint"))
-			);
-
-			fromNode.getStopAt().ifPresent(getStopAtArgumentBuilder(hierarchyDataLocator, fromNodeArgumentsBuilder));
-			fromNode.getStatistics().ifPresent(getStatisticsArgumentBuilder(fromNodeArgumentsBuilder));
-		};
+			)
+		);
+		if (fromNode.getStopAt().isPresent()) {
+			arguments.add(getStopAtArgument(fromNode.getStopAt().get(), hierarchyDataLocator));
+		}
+		if (fromNode.getStatistics().isPresent() && fromNode.getStatistics().get().getStatisticsBase() != StatisticsBase.WITHOUT_USER_FILTER) {
+			arguments.add(getStatisticsArgument(fromNode.getStatistics().get()));
+		}
 
 		hierarchyOfBuilder.addObjectField(
 			fromNode.getOutputName(),
 			HierarchyOfDescriptor.FROM_NODE,
-			argumentsBuilder,
 			fromNodeBuilder -> buildLevelInfoFields(
 				fromNodeBuilder,
 				hierarchyEntityType,
 				locale,
 				fromNode.getEntityFetch().orElse(null),
 				fromNode.getStatistics().orElse(null)
-			)
+			),
+			arguments.toArray(ArgumentSupplier[]::new)
 		);
 	}
 
@@ -225,26 +238,25 @@ public class HierarchyOfConverter extends RequireConverter {
 	                                 @Nonnull String hierarchyEntityType,
 	                                 @Nonnull HierarchyDataLocator hierarchyDataLocator,
 	                                 @Nonnull HierarchyFromRoot fromRoot) {
-		Consumer<GraphQLOutputFieldsBuilder> argumentsBuilder = null;
-		if (fromRoot.getStopAt().isPresent() ||
-			(fromRoot.getStatistics().isPresent() && fromRoot.getStatistics().get().getStatisticsBase() != StatisticsBase.WITHOUT_USER_FILTER)) {
-			argumentsBuilder = childrenArgumentsBuilder -> {
-				fromRoot.getStopAt().ifPresent(getStopAtArgumentBuilder(hierarchyDataLocator, childrenArgumentsBuilder));
-				fromRoot.getStatistics().ifPresent(getStatisticsArgumentBuilder(childrenArgumentsBuilder));
-			};
+		final List<ArgumentSupplier> arguments = new ArrayList<>(2);
+		if (fromRoot.getStopAt().isPresent()) {
+			arguments.add(getStopAtArgument(fromRoot.getStopAt().get(), hierarchyDataLocator));
+		}
+		if (fromRoot.getStatistics().isPresent() && fromRoot.getStatistics().get().getStatisticsBase() != StatisticsBase.WITHOUT_USER_FILTER) {
+			arguments.add(getStatisticsArgument(fromRoot.getStatistics().get()));
 		}
 
 		hierarchyOfBuilder.addObjectField(
 			fromRoot.getOutputName(),
 			HierarchyOfDescriptor.FROM_ROOT,
-			argumentsBuilder,
 			fromRootBuilder -> buildLevelInfoFields(
 				fromRootBuilder,
 				hierarchyEntityType,
 				locale,
 				fromRoot.getEntityFetch().orElse(null),
 				fromRoot.getStatistics().orElse(null)
-			)
+			),
+			arguments.toArray(ArgumentSupplier[]::new)
 		);
 	}
 
@@ -253,45 +265,45 @@ public class HierarchyOfConverter extends RequireConverter {
 	                                @Nonnull String hierarchyEntityType,
 	                                @Nonnull HierarchyDataLocator hierarchyDataLocator,
 	                                @Nonnull HierarchyParents parents) {
-		Consumer<GraphQLOutputFieldsBuilder> argumentsBuilder = null;
-		if (parents.getSiblings().isPresent() ||
-			parents.getStopAt().isPresent() ||
-			(parents.getStatistics().isPresent() && parents.getStatistics().get().getStatisticsBase() != StatisticsBase.WITHOUT_USER_FILTER)) {
-			argumentsBuilder = parentsArgumentsBuilder -> {
-				parents.getSiblings().ifPresent(siblings -> {
-					Assert.isPremiseValid(
-						siblings.getStatistics().isEmpty() &&
-							siblings.getEntityFetch().isEmpty(),
-						"Custom statistics and entityFetch for siblings inside parents is not supported in GraphQL"
-					);
+		final List<ArgumentSupplier> arguments = new ArrayList<>(3);
+		if (parents.getSiblings().isPresent()) {
+			final HierarchySiblings siblings = parents.getSiblings().get();
+			Assert.isPremiseValid(
+				siblings.getStatistics().isEmpty() &&
+					siblings.getEntityFetch().isEmpty(),
+				"Custom statistics and entityFetch for siblings inside parents is not supported in GraphQL"
+			);
 
-					final ObjectNode siblingsArgument = jsonNodeFactory.objectNode();
+			final ObjectNode siblingsArgument = jsonNodeFactory.objectNode();
+			siblings.getStopAt()
+				.flatMap(stopAt -> requireConstraintToJsonConverter.convert(hierarchyDataLocator, stopAt))
+				.ifPresent(constraint -> siblingsArgument.putIfAbsent(HierarchyRequireHeaderDescriptor.STOP_AT.name(), constraint.value()));
 
-					siblings.getStopAt()
-						.flatMap(stopAt -> requireConstraintToJsonConverter.convert(hierarchyDataLocator, stopAt))
-						.ifPresent(constraint -> siblingsArgument.putIfAbsent(HierarchyRequireHeaderDescriptor.STOP_AT.name(), constraint.value()));
-
-					parentsArgumentsBuilder.addFieldArgument(
-						HierarchyParentsHeaderDescriptor.SIBLINGS,
-						offset -> inputJsonPrinter.print(offset, siblingsArgument).stripLeading()
-					);
-				});
-				parents.getStopAt().ifPresent(getStopAtArgumentBuilder(hierarchyDataLocator, parentsArgumentsBuilder));
-				parents.getStatistics().ifPresent(getStatisticsArgumentBuilder(parentsArgumentsBuilder));
-			};
+			arguments.add(
+				offset -> new Argument(
+					HierarchyParentsHeaderDescriptor.SIBLINGS,
+					inputJsonPrinter.print(offset, siblingsArgument).stripLeading()
+				)
+			);
+		}
+		if (parents.getStopAt().isPresent()) {
+			arguments.add(getStopAtArgument(parents.getStopAt().get(), hierarchyDataLocator));
+		}
+		if (parents.getStatistics().isPresent() && parents.getStatistics().get().getStatisticsBase() != StatisticsBase.WITHOUT_USER_FILTER) {
+			arguments.add(getStatisticsArgument(parents.getStatistics().get()));
 		}
 
 		hierarchyOfBuilder.addObjectField(
 			parents.getOutputName(),
 			HierarchyOfDescriptor.PARENTS,
-			argumentsBuilder,
 			parentsBuilder -> buildLevelInfoFields(
 				parentsBuilder,
 				hierarchyEntityType,
 				locale,
 				parents.getEntityFetch().orElse(null),
 				parents.getStatistics().orElse(null)
-			)
+			),
+			arguments.toArray(ArgumentSupplier[]::new)
 		);
 	}
 
@@ -300,48 +312,43 @@ public class HierarchyOfConverter extends RequireConverter {
 	                                 @Nonnull String hierarchyEntityType,
 	                                 @Nonnull HierarchyDataLocator hierarchyDataLocator,
 	                                 @Nonnull HierarchySiblings siblings) {
-		Consumer<GraphQLOutputFieldsBuilder> argumentsBuilder = null;
-		if (siblings.getStopAt().isPresent() ||
-			(siblings.getStatistics().isPresent() && siblings.getStatistics().get().getStatisticsBase() != StatisticsBase.WITHOUT_USER_FILTER)) {
-			argumentsBuilder = siblingsArgumentsBuilder -> {
-				siblings.getStopAt().ifPresent(getStopAtArgumentBuilder(hierarchyDataLocator, siblingsArgumentsBuilder));
-				siblings.getStatistics().ifPresent(getStatisticsArgumentBuilder(siblingsArgumentsBuilder));
-			};
+		final List<ArgumentSupplier> arguments = new ArrayList<>(2);
+		if (siblings.getStopAt().isPresent()) {
+			arguments.add(getStopAtArgument(siblings.getStopAt().get(), hierarchyDataLocator));
+		}
+		if (siblings.getStatistics().isPresent() && siblings.getStatistics().get().getStatisticsBase() != StatisticsBase.WITHOUT_USER_FILTER) {
+			arguments.add(getStatisticsArgument(siblings.getStatistics().get()));
 		}
 
 		hierarchyOfBuilder.addObjectField(
 			siblings.getOutputName(),
 			HierarchyOfDescriptor.SIBLINGS,
-			argumentsBuilder,
 			siblingsBuilder -> buildLevelInfoFields(
 				siblingsBuilder,
 				hierarchyEntityType,
 				locale,
 				siblings.getEntityFetch().orElse(null),
 				siblings.getStatistics().orElse(null)
-			)
+			),
+			arguments.toArray(ArgumentSupplier[]::new)
 		);
 	}
 
 	@Nonnull
-	private Consumer<HierarchyStopAt> getStopAtArgumentBuilder(@Nonnull HierarchyDataLocator hierarchyDataLocator,
-	                                                           @Nonnull GraphQLOutputFieldsBuilder argumentsBuilder) {
-		return stopAt -> argumentsBuilder.addFieldArgument(
+	private ArgumentSupplier getStopAtArgument(@Nonnull HierarchyStopAt stopAt,
+	                                           @Nonnull HierarchyDataLocator hierarchyDataLocator) {
+		return offset -> new Argument(
 			HierarchyRequireHeaderDescriptor.STOP_AT,
-			offset -> convertRequireConstraint(hierarchyDataLocator, stopAt, offset).orElse(null)
+			convertRequireConstraint(hierarchyDataLocator, stopAt, offset).orElse(null)
 		);
 	}
 
 	@Nonnull
-	private Consumer<HierarchyStatistics> getStatisticsArgumentBuilder(@Nonnull GraphQLOutputFieldsBuilder argumentsBuilder) {
-		return statistics -> {
-			if (statistics.getStatisticsBase() != StatisticsBase.WITHOUT_USER_FILTER) {
-				argumentsBuilder.addFieldArgument(
-					HierarchyRequireHeaderDescriptor.STATISTICS_BASE,
-					indentation -> statistics.getStatisticsBase().name()
-				);
-			}
-		};
+	private ArgumentSupplier getStatisticsArgument(@Nonnull HierarchyStatistics statistics) {
+		return __ -> new Argument(
+			HierarchyRequireHeaderDescriptor.STATISTICS_BASE,
+			statistics.getStatisticsBase().name()
+		);
 	}
 
 	private void buildLevelInfoFields(@Nonnull GraphQLOutputFieldsBuilder levelInfoBuilder,

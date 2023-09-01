@@ -26,6 +26,7 @@ package io.evitadb.externalApi.rest.api.builder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.api.Rest.Endpoint;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiComplexType;
@@ -34,9 +35,9 @@ import io.evitadb.externalApi.rest.api.openApi.OpenApiEnum;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiReferenceValidator;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.api.resolver.serializer.BigDecimalSerializer;
-import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
+import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VersionUtils;
 import io.swagger.v3.oas.models.Components;
@@ -53,7 +54,6 @@ import io.undertow.util.HttpString;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -73,7 +73,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  */
 public abstract class RestBuildingContext {
 
-	@Nonnull protected final RestConfig restConfig;
+	@Nonnull protected final AbstractApiConfiguration restConfig;
 	@Getter @Nonnull private final Evita evita;
 
 	/**
@@ -84,14 +84,14 @@ public abstract class RestBuildingContext {
 	private final ObjectMapper objectMapper;
 
 	@Nonnull private final Map<String, OpenApiComplexType> registeredTypes = createHashMap(100);
-	private final Map<Path, Map<HttpMethod, OpenApiEndpoint<?>>> registeredEndpoints = createHashMap(100);
+	private final Map<UriPath, Map<HttpMethod, OpenApiEndpoint<?>>> registeredEndpoints = createHashMap(100);
 	/**
 	 * Holds all globally registered custom enums that will be inserted into GraphQL schema.
 	 */
 	@Nonnull
 	private final Map<String, Class<? extends Enum<?>>> registeredCustomEnums = createHashMap(32);
 
-	protected RestBuildingContext(@Nonnull RestConfig restConfig, @Nonnull Evita evita) {
+	protected RestBuildingContext(@Nonnull AbstractApiConfiguration restConfig, @Nonnull Evita evita) {
 		this.restConfig = restConfig;
 		this.evita = evita;
 		this.objectMapper = setupObjectMapper();

@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AssociatedDataFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
+import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -48,14 +49,27 @@ public class AssociatedDataDataFetcher implements DataFetcher<DataFetcherResult<
     @Override
     public DataFetcherResult<AssociatedDataContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
         final EntityQueryContext context = environment.getLocalContext();
-        final EntityDecorator entity = environment.getSource();
-        Locale desiredLocale = environment.getArgumentOrDefault(AssociatedDataFieldHeaderDescriptor.LOCALE.name(), context.getDesiredLocale());
+        final AssociatedDataContract associatedData = environment.getSource(); // because entity implements AssociatedDataContract
+
+        final Locale customLocale = environment.getArgumentOrDefault(AssociatedDataFieldHeaderDescriptor.LOCALE.name(), context.getDesiredLocale());
+        if (customLocale != null && !associatedData.getAssociatedDataLocales().contains(customLocale)) {
+            // This entity doesn't have associated data for given custom locale, so we don't want to try to fetch individual
+            // associated data. It would be pointless as there are no associated data and would result in GQL error because
+            // some associated data may be non-nullable
+            return DataFetcherResult.<AssociatedDataContract>newResult().build();
+        }
+
+        Locale desiredLocale = customLocale;
         if (desiredLocale == null) {
             // try implicit locale if no explicit locale was set
-            desiredLocale = entity.getImplicitLocale();
+            if (associatedData instanceof final EntityDecorator entity) {
+                desiredLocale = entity.getImplicitLocale();
+            } else {
+                throw new GraphQLInternalError("Unsupported source `" + associatedData.getClass().getName() + "`.");
+            }
         }
         return DataFetcherResult.<AssociatedDataContract>newResult()
-            .data(environment.getSource()) // because entity implements AssociatedDataContract
+            .data(associatedData)
             .localContext(context.toBuilder()
                 .desiredLocale(desiredLocale)
                 .build())

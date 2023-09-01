@@ -32,6 +32,7 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import java.util.List;
 import java.util.Locale;
 
+import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.LOCALE_ENUM;
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
@@ -69,7 +70,7 @@ public interface EntityDescriptor extends VersionedDescriptor, AttributesProvide
         .description("""
             Contains set of requested locales for this particular entity.
             """)
-        .type(nonNull(Locale[].class))
+        .type(nonNullListRef(() -> LOCALE_ENUM))
         .build();
     PropertyDescriptor ALL_LOCALES = PropertyDescriptor.builder()
         .name("allLocales")
@@ -77,7 +78,7 @@ public interface EntityDescriptor extends VersionedDescriptor, AttributesProvide
             Contains set of all locales that were used for localized attributes or associated data of
             this particular entity.
             """)
-        .type(nonNull(Locale[].class))
+        .type(nonNullListRef(() -> LOCALE_ENUM))
         .build();
     PropertyDescriptor ASSOCIATED_DATA = PropertyDescriptor.builder()
         .name("associatedData")

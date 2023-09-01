@@ -1,0 +1,11 @@
+query(
+    collection('Category'),
+    filterBy(
+        attributeEquals('code', 'smartwatches')
+    ),
+    require(
+        entityFetch(
+            hierarchyContent()
+        )
+    )
+)

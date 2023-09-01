@@ -45,7 +45,7 @@ import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.function.IntBiFunction;
-import io.evitadb.index.EntityIndex;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.hierarchy.HierarchyVisitor;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
@@ -148,7 +148,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nullable HierarchyFilterConstraint hierarchyWithin,
-		@Nonnull EntityIndex targetIndex,
+		@Nonnull GlobalEntityIndex targetIndex,
 		@Nullable PrefetchRequirementCollector prefetchRequirementCollector,
 		@Nonnull IntBiFunction<StatisticsBase, Formula> directlyQueriedEntitiesFormulaProducer,
 		@Nullable Function<StatisticsBase, HierarchyFilteringPredicate> hierarchyFilterPredicateProducer,

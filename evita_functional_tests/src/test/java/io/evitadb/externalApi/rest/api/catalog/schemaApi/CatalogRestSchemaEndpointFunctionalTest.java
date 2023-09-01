@@ -60,10 +60,10 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
-abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpointFunctionalTest {
+public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpointFunctionalTest {
 
 	@Nonnull
-	protected static CatalogSchemaContract getCatalogSchemaFromTestData(@Nonnull Evita evita) {
+	public static CatalogSchemaContract getCatalogSchemaFromTestData(@Nonnull Evita evita) {
 		return evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -83,8 +83,8 @@ abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpointFunct
 	}
 
 	@Nonnull
-	protected static Map<String, Object> createCatalogSchemaDto(@Nonnull Evita evita,
-	                                                            @Nonnull CatalogSchemaContract catalogSchema) {
+	public static Map<String, Object> createCatalogSchemaDto(@Nonnull Evita evita,
+	                                                         @Nonnull CatalogSchemaContract catalogSchema) {
 		final Set<String> entityTypes = evita.queryCatalog(
 			catalogSchema.getName(),
 			EvitaSessionContract::getAllEntityTypes

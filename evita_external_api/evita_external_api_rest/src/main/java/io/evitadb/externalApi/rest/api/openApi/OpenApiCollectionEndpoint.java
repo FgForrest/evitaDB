@@ -32,6 +32,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.Collect
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.ParameterLocation;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.externalApi.rest.io.RestEndpointHandler;
+import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
@@ -39,7 +40,6 @@ import io.swagger.v3.oas.models.PathItem;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.nio.file.Path;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -48,7 +48,7 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION;
-import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_LOCALE_ENUM;
+import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.LOCALE_ENUM;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiEndpoint.PathBuilder.newPath;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.newPathParameter;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
@@ -70,7 +70,7 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 	private OpenApiCollectionEndpoint(@Nonnull CatalogSchemaContract catalogSchema,
 	                                  @Nonnull EntitySchemaContract entitySchema,
 	                                  @Nonnull PathItem.HttpMethod method,
-	                                  @Nonnull Path path,
+	                                  @Nonnull UriPath path,
 	                                  boolean localized,
 	                                  @Nonnull String operationId,
 	                                  @Nonnull String description,
@@ -119,7 +119,7 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 		@Nonnull private final EntitySchemaContract entitySchema;
 
 		@Nullable private PathItem.HttpMethod method;
-		@Nullable private Path path;
+		@Nullable private UriPath path;
 		private boolean localized;
 
 		@Nullable private String operationId;
@@ -168,7 +168,7 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 				pathBuilder.paramItem(newPathParameter()
 					.name(EndpointHeaderDescriptor.LOCALIZED.name())
 					.description(EndpointHeaderDescriptor.LOCALIZED.description())
-					.type(typeRefTo(ENTITY_LOCALE_ENUM.name(entitySchema)))
+					.type(typeRefTo(LOCALE_ENUM.name()))
 					.build());
 			}
 			pathBuilder.staticItem(entitySchema.getNameVariant(URL_NAME_NAMING_CONVENTION));

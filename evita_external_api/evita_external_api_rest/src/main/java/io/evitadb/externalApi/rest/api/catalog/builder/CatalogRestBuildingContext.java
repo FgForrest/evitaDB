@@ -26,6 +26,7 @@ package io.evitadb.externalApi.rest.api.catalog.builder;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.api.ExternalApiNamingConventions;
@@ -39,7 +40,9 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Currency;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import static io.evitadb.utils.CollectionUtils.createHashSet;
@@ -52,6 +55,8 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
 public class CatalogRestBuildingContext extends RestBuildingContext {
 
 	@Getter @Nonnull private final CatalogContract catalog;
+	@Getter @Nonnull private final Set<Locale> supportedLocales;
+	@Getter @Nonnull private final Set<Currency> supportedCurrencies;
 	@Getter @Nonnull private final Set<EntitySchemaContract> entitySchemas;
 
 	/**
@@ -67,15 +72,19 @@ public class CatalogRestBuildingContext extends RestBuildingContext {
 	public CatalogRestBuildingContext(@Nonnull RestConfig restConfig, @Nonnull Evita evita, @Nonnull CatalogContract catalog) {
 		super(restConfig, evita);
 		this.catalog = catalog;
+		this.supportedLocales = createHashSet(20);
+		this.supportedCurrencies = createHashSet(20);
+
 		this.entitySchemas = evita.queryCatalog(catalog.getName(), session -> {
 			final Set<String> collections = session.getAllEntityTypes();
 			final Set<EntitySchemaContract> schemas = createHashSet(collections.size());
-			collections.forEach(
-				c -> schemas.add(
-					session.getEntitySchema(c)
-						.orElseThrow(() -> new EvitaInternalError("Schema for `" + c + "` entity type unexpectedly not found!"))
-				)
-			);
+			collections.forEach(c -> {
+				final SealedEntitySchema entitySchema = session.getEntitySchema(c)
+					.orElseThrow(() -> new EvitaInternalError("Schema for `" + c + "` entity type unexpectedly not found!"));
+				supportedLocales.addAll(entitySchema.getLocales());
+				supportedCurrencies.addAll(entitySchema.getCurrencies());
+				schemas.add(entitySchema);
+			});
 			return schemas;
 		});
 

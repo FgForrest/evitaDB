@@ -435,8 +435,8 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			SealedEntity.class
 		);
 
-		assertTrue(rootEntity.getParent().isEmpty());
-		assertEquals(rootEntity.getPrimaryKey(), entityInTree.getParent().orElseThrow());
+		assertTrue(rootEntity.getParentEntity().isEmpty());
+		assertEquals(rootEntity.getPrimaryKey(), entityInTree.getParentEntity().orElseThrow().getPrimaryKey());
 
 		// remove existing parent reference
 		final Map<String, Object> expectedBodyWithoutParent = map()

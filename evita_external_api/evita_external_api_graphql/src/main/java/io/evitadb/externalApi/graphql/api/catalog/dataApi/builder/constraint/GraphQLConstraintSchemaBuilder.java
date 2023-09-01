@@ -66,8 +66,8 @@ import static graphql.schema.GraphQLInputObjectType.newInputObject;
 import static graphql.schema.GraphQLList.list;
 import static graphql.schema.GraphQLNonNull.nonNull;
 import static graphql.schema.GraphQLTypeReference.typeRef;
-import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_CURRENCY_ENUM;
-import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_LOCALE_ENUM;
+import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.CURRENCY_ENUM;
+import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.LOCALE_ENUM;
 
 /**
  * Implementation of {@link ConstraintSchemaBuilder} for GraphQL API.
@@ -170,14 +170,14 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 			if (Locale.class.equals(valueParameterType) || Locale.class.equals(valueParameterType.getComponentType())) {
 				// if locale data type is explicitly defined, we expect that such locale is schema-defined locale
 				return DataTypesConverter.wrapGraphQLComponentType(
-					typeRef(ENTITY_LOCALE_ENUM.name(sharedContext.getEntitySchemaOrThrowException(buildContext.dataLocator().entityType()))),
+					typeRef(LOCALE_ENUM.name()),
 					valueParameterType,
 					canBeRequired && valueParameter.required()
 				);
 			} else if (Currency.class.equals(valueParameterType) || Currency.class.equals(valueParameterType.getComponentType())) {
 				// if currency data type is explicitly defined, we expect that such currency is schema-defined currency
 				return DataTypesConverter.wrapGraphQLComponentType(
-					typeRef(ENTITY_CURRENCY_ENUM.name(sharedContext.getEntitySchemaOrThrowException(buildContext.dataLocator().entityType()))),
+					typeRef(CURRENCY_ENUM.name()),
 					valueParameterType,
 					canBeRequired && valueParameter.required()
 				);

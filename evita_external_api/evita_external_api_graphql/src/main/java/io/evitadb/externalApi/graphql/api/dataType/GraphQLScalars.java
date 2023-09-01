@@ -168,6 +168,13 @@ public class GraphQLScalars {
         .coercing(CURRENCY_COERCING)
         .build();
 
+    public static final Coercing<?, ?> UUID_COERCING = new UuidCoercing();
+    public static final GraphQLScalarType UUID = newScalar()
+        .name("UUID")
+        .description("UUID in string format.")
+        .coercing(UUID_COERCING)
+        .build();
+
     public static final Coercing<?, ?> OBJECT_COERCING = new ObjectCoercing();
     public static final GraphQLScalarType COMPLEX_DATA_OBJECT = newScalar()
         .name("ComplexDataObject")

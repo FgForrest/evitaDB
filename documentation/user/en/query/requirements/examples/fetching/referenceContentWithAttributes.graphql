@@ -1,0 +1,36 @@
+{
+  queryProduct(
+    filterBy: {
+      entityPrimaryKeyInSet: [
+        105703
+      ]
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+        }
+        parameterValues {
+          referencedPrimaryKey
+          attributes {
+            variant
+          }
+          referencedEntity {
+            primaryKey
+            attributes {
+              code
+            }
+          }
+          groupEntity {
+            primaryKey
+            attributes {
+              code
+            }
+          }
+        }
+      }
+    }
+  }
+}

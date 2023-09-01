@@ -31,6 +31,7 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 
@@ -44,6 +45,7 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 	@Nonnull
 	@Override
 	public Formula translate(@Nonnull EntityPrimaryKeyInSet entityPrimaryKeyInSet, @Nonnull FilterByVisitor filterByVisitor) {
+		Assert.notNull(filterByVisitor.getSchema(), "Schema must be known!");
 		final BaseBitmap requiredBitmap = new BaseBitmap(entityPrimaryKeyInSet.getPrimaryKeys());
 		return filterByVisitor.applyOnIndexes(
 			entityIndex -> new AndFormula(

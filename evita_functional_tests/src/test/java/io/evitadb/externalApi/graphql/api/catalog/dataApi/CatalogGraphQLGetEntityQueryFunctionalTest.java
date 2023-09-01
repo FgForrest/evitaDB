@@ -31,9 +31,11 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.EvitaSessionManagingInstrumentation;
+import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.test.Entities;
+import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.tester.GraphQLTester;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
@@ -68,6 +70,13 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 
 	private static final String GET_PRODUCT_PATH = "data.getProduct";
 	private static final String GET_CATEGORY_PATH = "data.getCategory";
+
+	private static final String GRAPHQL_THOUSAND_PRODUCTS_FOR_EMPTY_GET = GRAPHQL_THOUSAND_PRODUCTS + "forEmptyGet";
+
+	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_EMPTY_GET, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)
+	protected DataCarrier setUpForEmptyGet(Evita evita) {
+		return super.setUpData(evita, 0);
+	}
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
@@ -108,7 +117,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 						.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 						.e(EntityDescriptor.LOCALES.name(), List.of())
-						.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
+						.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toString(), Locale.ENGLISH.toString()))
 						.e(EntityDescriptor.ATTRIBUTES.name(), map()
 							.e(TYPENAME_FIELD, AttributesDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 							.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE, String.class))
@@ -200,8 +209,8 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 					map()
 						.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithCode.getPrimaryKey())
 						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-						.e(EntityDescriptor.LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag()))
-						.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
+						.e(EntityDescriptor.LOCALES.name(), List.of(CZECH_LOCALE.toString()))
+						.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toString(), Locale.ENGLISH.toString()))
 						.e(EntityDescriptor.ATTRIBUTES.name(), map()
 							.e(ATTRIBUTE_CODE, codeAttribute)
 							.e(ATTRIBUTE_NAME, entityWithCode.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE))
@@ -290,6 +299,48 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 	}
 
 	@Test
+	@UseDataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_EMPTY_GET, destroyAfterTest = true)
+	@DisplayName("Should return empty attributes and associated data for missing locale")
+	void shouldReturnEmptyAttributesAndAssociatedDataForMissingLocale(Evita evita, GraphQLTester tester) {
+		// insert new entity without locale
+		final int primaryKey = insertMinimalEmptyProduct(tester);
+
+		// verify that GQL can return null on `attributes`/`associatedData` field for missing locale even though
+		// inner data may be non-nullable
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    getProduct(primaryKey: %d) {
+	                        primaryKey
+	                        attributes(locale: en) {
+                                name
+                                code
+                            },
+                            associatedData(locale: en) {
+								labels
+                            }
+	                    }
+	                }
+					""",
+				primaryKey
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				GET_PRODUCT_PATH,
+				equalTo(
+					map()
+						.e(EntityDescriptor.PRIMARY_KEY.name(), primaryKey)
+						.e(EntityDescriptor.ATTRIBUTES.name(), null)
+						.e(EntityDescriptor.ASSOCIATED_DATA.name(), null)
+						.build()
+				)
+			);
+	}
+
+	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return single product by localized attribute")
 	void shouldReturnSingleProductByLocalizedAttribute(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
@@ -325,8 +376,8 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 					map()
 						.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithUrl.getPrimaryKey())
 						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-						.e(EntityDescriptor.LOCALES.name(), List.of(Locale.ENGLISH.toLanguageTag()))
-						.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
+						.e(EntityDescriptor.LOCALES.name(), List.of(Locale.ENGLISH.toString()))
+						.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toString(), Locale.ENGLISH.toString()))
 						.e(EntityDescriptor.ATTRIBUTES.name(), map()
 							.e(ATTRIBUTE_URL, urlAttribute)
 							.build())
@@ -393,7 +444,6 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 						parentPrimaryKey
 						parents {
 							primaryKey
-							parentPrimaryKey
 						}
 					}
 				}
@@ -441,7 +491,6 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 						parentPrimaryKey
 						parents {
 							primaryKey
-							parentPrimaryKey
 							allLocales
 							attributes {
 								code
@@ -495,7 +544,6 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 							}
 					    ) {
 							primaryKey
-							parentPrimaryKey
 						}
 					}
 				}
@@ -557,7 +605,6 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 								parentPrimaryKey
 								parents {
 									primaryKey
-									parentPrimaryKey
 								}
 							}
 						}
@@ -626,7 +673,6 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 								parentPrimaryKey
 								parents {
 									primaryKey
-									parentPrimaryKey
 									allLocales
 									attributes {
 										code
@@ -701,7 +747,6 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 									}
 							    ) {
 									primaryKey
-									parentPrimaryKey
 								}
 							}
 						}

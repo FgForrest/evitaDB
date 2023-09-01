@@ -50,6 +50,7 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.Currency;
 import java.util.Locale;
+import java.util.UUID;
 
 import static graphql.schema.GraphQLEnumType.newEnum;
 import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.ASSOCIATED_DATA_SCALAR_ENUM;
@@ -141,6 +142,8 @@ public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContex
 		registerScalarValue(scalarBuilder, Locale[].class);
 		registerScalarValue(scalarBuilder, Currency.class);
 		registerScalarValue(scalarBuilder, Currency[].class);
+		registerScalarValue(scalarBuilder, UUID.class);
+		registerScalarValue(scalarBuilder, UUID[].class);
 		registerScalarValue(scalarBuilder, ComplexDataObject.class);
 
 		return scalarBuilder.build();

@@ -32,6 +32,7 @@ import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.ParameterLocation;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.externalApi.rest.io.RestEndpointHandler;
+import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
@@ -39,7 +40,6 @@ import io.swagger.v3.oas.models.PathItem;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.nio.file.Path;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -64,7 +64,7 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<CatalogRestHandlingC
 
 	private OpenApiCatalogEndpoint(@Nonnull CatalogSchemaContract catalogSchema,
 	                               @Nonnull PathItem.HttpMethod method,
-	                               @Nonnull Path path,
+	                               @Nonnull UriPath path,
 								   boolean localized,
 								   @Nonnull String operationId,
 	                               @Nonnull String description,
@@ -108,7 +108,7 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<CatalogRestHandlingC
 		@Nonnull private final CatalogSchemaContract catalogSchema;
 
 		@Nullable private PathItem.HttpMethod method;
-		@Nullable private Path path;
+		@Nullable private UriPath path;
 		private boolean localized;
 
 		@Nullable private String operationId;

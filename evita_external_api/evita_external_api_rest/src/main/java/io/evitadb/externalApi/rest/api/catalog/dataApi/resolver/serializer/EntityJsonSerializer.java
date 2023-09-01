@@ -38,14 +38,13 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.data.structure.AssociatedData;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.RestEntityDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAssociatedDataDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAttributesDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
+import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NamingConvention;
 import lombok.extern.slf4j.Slf4j;
@@ -63,10 +62,10 @@ import java.util.stream.Collectors;
 @Slf4j
 public class EntityJsonSerializer {
 
-	private final CatalogRestHandlingContext restHandlingContext;
-	private final ObjectJsonSerializer objectJsonSerializer;
+	protected final RestHandlingContext restHandlingContext;
+	protected final ObjectJsonSerializer objectJsonSerializer;
 
-	public EntityJsonSerializer(@Nonnull CatalogRestHandlingContext restHandlingContext) {
+	public EntityJsonSerializer(@Nonnull RestHandlingContext restHandlingContext) {
 		this.restHandlingContext = restHandlingContext;
 		this.objectJsonSerializer = new ObjectJsonSerializer(restHandlingContext.getObjectMapper());
 	}
@@ -133,7 +132,6 @@ public class EntityJsonSerializer {
 		rootNode.put(RestEntityDescriptor.VERSION.name(), entity.version());
 
 		if (entity.parentAvailable()) {
-			entity.getParent().ifPresent(pk -> rootNode.put(RestEntityDescriptor.PARENT.name(), pk));
 			entity.getParentEntity().ifPresent(parent -> rootNode.putIfAbsent(RestEntityDescriptor.PARENT_ENTITY.name(), serialize(parent)));
 		}
 
@@ -228,7 +226,7 @@ public class EntityJsonSerializer {
 	/**
 	 * Serialize references
 	 */
-	private void serializeReferences(@Nonnull ObjectNode rootNode, @Nonnull EntityContract entity) {
+	protected void serializeReferences(@Nonnull ObjectNode rootNode, @Nonnull EntityContract entity) {
 		if (entity.referencesAvailable() && !entity.getReferences().isEmpty()) {
 			entity.getReferences()
 				.stream()
@@ -241,7 +239,7 @@ public class EntityJsonSerializer {
 	/**
 	 * Serialize references of same name
 	 */
-	private void serializeReferencesWithSameName(@Nonnull ObjectNode rootNode,
+	protected void serializeReferencesWithSameName(@Nonnull ObjectNode rootNode,
 	                                             @Nonnull EntityContract entity,
 	                                             @Nonnull String referenceName) {
 		final Collection<ReferenceContract> groupedReferences = entity.getReferences(referenceName);

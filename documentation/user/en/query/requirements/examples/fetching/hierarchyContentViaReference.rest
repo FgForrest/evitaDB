@@ -1,0 +1,28 @@
+POST /rest/evita/product/query
+
+{
+  "filterBy" : {
+    "attributeCodeEquals" : "amazfit-gtr-3",
+    "entityLocaleEquals" : "en"
+  },
+  "require" : {
+    "entityFetch" : {
+      "referenceCategoriesContent" : {
+        "entityFetch" : {
+          "attributeContent" : [
+            "code",
+            "name"
+          ],
+          "hierarchyContent" : {
+            "entityFetch" : {
+              "attributeContent" : [
+                "code",
+                "name"
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

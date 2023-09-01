@@ -151,6 +151,28 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 	}
 
 	/**
+	 * Returns true if the attributes in specified locale were fetched along with the entity.
+	 */
+	public boolean wasFetched(@Nonnull Locale locale) {
+		return this.locales != null && (this.locales.isEmpty() || this.locales.contains(locale));
+	}
+
+	/**
+	 * Returns true if the attribute of particular name was fetched along with the entity.
+	 */
+	public boolean wasFetched(@Nonnull String attributeName) {
+		return requiresEntityAttributes && (attributeSet.isEmpty() || attributeSet.contains(attributeName));
+	}
+
+	/**
+	 * Returns true if the attribute of particular name was in specified locale were fetched along with the entity.
+	 */
+	public boolean wasFetched(@Nonnull String attributeName, @Nonnull Locale locale) {
+		return (requiresEntityAttributes && (attributeSet.isEmpty() || attributeSet.contains(attributeName))) &&
+			(this.locales != null && this.locales.isEmpty() || this.locales.contains(locale));
+	}
+
+	/**
 	 * Method verifies that attributes were fetched with the entity.
 	 */
 	public void checkFetched() throws ContextMissingException {

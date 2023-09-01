@@ -238,7 +238,7 @@ public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctio
 		@Nullable Locale locale
 	) {
 		final SealedEntity originalCategory = originalCategories.get(category.getId());
-		if (originalCategory.getParent().isEmpty()) {
+		if (originalCategory.getParentEntity().isEmpty()) {
 			assertNull(category.getParentId());
 			assertTrue(category.getParentIdIfPresent().isEmpty());
 			assertNull(category.getParentEntityReference());
@@ -246,7 +246,7 @@ public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctio
 			assertNull(category.getParentEntity());
 			assertTrue(category.getParentEntityIfPresent().isEmpty());
 		} else {
-			final int expectedParentId = originalCategory.getParent().getAsInt();
+			final int expectedParentId = originalCategory.getParentEntity().get().getPrimaryKey();
 			assertEquals(
 				expectedParentId,
 				category.getParentId()
@@ -258,6 +258,14 @@ public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctio
 			assertEquals(
 				new EntityReference(Entities.CATEGORY, expectedParentId),
 				category.getParentEntityReference()
+			);
+			assertEquals(
+				expectedParentId,
+				category.getParentEntityClassifier().getPrimaryKey()
+			);
+			assertEquals(
+				expectedParentId,
+				category.getParentEntityClassifierWithParent().getPrimaryKey()
 			);
 			assertEquals(
 				Optional.of(new EntityReference(Entities.CATEGORY, expectedParentId)),
@@ -974,6 +982,23 @@ public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctio
 			originalCategories,
 			null, true
 		);
+	}
+
+	@DisplayName("Should not throw exception when accessing optional non-fetched data")
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldNotThrowExceptionWhenAccessingOptionalNonFetchedData(
+		EvitaSessionContract evitaSession
+	) {
+		final ProductInterface product = evitaSession.getEntity(ProductInterface.class, 1).orElse(null);
+		assertTrue(product.getOptionallyAvailable().isEmpty());
+		assertTrue(product.getReferencedFileSetIfPresent().isEmpty());
+		assertTrue(product.getCategoriesIfFetched().isEmpty());
+		assertTrue(product.getPriceForSaleIfPresent().isEmpty());
+		assertTrue(product.getBasicPriceIfPresent().isEmpty());
+
+		final CategoryInterface category = evitaSession.getEntity(CategoryInterface.class, 1).orElse(null);
+		assertTrue(category.getParentEntityIfPresent().isEmpty());
 	}
 
 	@DisplayName("Should delete entity")

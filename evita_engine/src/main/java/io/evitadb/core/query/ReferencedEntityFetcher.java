@@ -31,7 +31,6 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
-import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.ReferenceHaving;
@@ -41,6 +40,7 @@ import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -70,8 +70,8 @@ import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor.OrderingDescriptor;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator;
-import io.evitadb.index.EntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -95,7 +95,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -105,6 +104,8 @@ import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.evitadb.api.query.QueryConstraints.and;
+import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.core.query.extraResult.translator.hierarchyStatistics.AbstractHierarchyTranslator.stopAtConstraintToPredicate;
 import static java.util.Optional.ofNullable;
 
@@ -441,8 +442,16 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			return allReferencedEntityIds;
 		} else {
 			final FilterByVisitor theFilterByVisitor = getFilterByVisitor(queryContext, filterByVisitor);
-			final List<EntityIndex> referencedEntityIndexes = theFilterByVisitor.getReferencedRecordEntityIndexes(
-				new ReferenceHaving(referenceSchema.getName(), filterBy.getChildren())
+			final List<ReducedEntityIndex> referencedEntityIndexes = theFilterByVisitor.getReferencedRecordEntityIndexes(
+				new ReferenceHaving(
+					referenceSchema.getName(),
+					and(
+						ArrayUtils.mergeArrays(
+							new FilterConstraint[] {entityPrimaryKeyInSet(allReferencedEntityIds)},
+							filterBy.getChildren()
+						)
+					)
+				)
 			);
 
 			if (referencedEntityIndexes.isEmpty()) {
@@ -452,7 +461,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				final IntSet referencedPrimaryKeys = new IntHashSet(referencedEntityIndexes.size());
 				final Formula entityPrimaryKeyFormula = new ConstantFormula(new BaseBitmap(entityPrimaryKeys));
 				final IntSet foundReferencedIds = new IntHashSet(referencedEntityIndexes.size());
-				for (EntityIndex referencedEntityIndex : referencedEntityIndexes) {
+				Formula lastIndexFormula = null;
+				Bitmap lastResult = null;
+				for (ReducedEntityIndex referencedEntityIndex : referencedEntityIndexes) {
 					final ReferenceKey indexDiscriminator = (ReferenceKey) referencedEntityIndex.getIndexKey().getDiscriminator();
 					final int referencedPrimaryKey = indexDiscriminator.primaryKey();
 					foundReferencedIds.add(referencedPrimaryKey);
@@ -462,15 +473,23 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						referenceSchema,
 						theFilterByVisitor,
 						filterBy,
-						filterConstraint -> new And(new EntityPrimaryKeyInSet(referencedPrimaryKey), filterConstraint),
+						null,
 						entityNestedQueryComparator,
 						EntityPrimaryKeyInSet.class
 					);
 
-					final Bitmap matchingPrimaryKeys = FormulaFactory.and(
-						resultFormula,
-						entityPrimaryKeyFormula
-					).compute();
+					final Bitmap matchingPrimaryKeys;
+					if (lastIndexFormula == resultFormula) {
+						matchingPrimaryKeys = lastResult;
+					} else {
+						final Formula combinedFormula = FormulaFactory.and(
+							resultFormula,
+							entityPrimaryKeyFormula
+						);
+						matchingPrimaryKeys = combinedFormula.compute();
+						lastIndexFormula = resultFormula;
+						lastResult = matchingPrimaryKeys;
+					}
 
 					if (matchingPrimaryKeys.isEmpty()) {
 						validityMappingOptional.ifPresent(it -> it.forbid(referencedPrimaryKey));
@@ -505,7 +524,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	@SafeVarargs
 	@Nullable
 	private static Formula computeResultWithPassedIndex(
-		@Nonnull EntityIndex index,
+		@Nonnull ReducedEntityIndex index,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull FilterBy filterBy,
@@ -515,8 +534,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	) {
 		// compute the result formula in the initialized context
 		final String referenceName = referenceSchema.getName();
-		final ProcessingScope processingScope = filterByVisitor.getProcessingScope();
+		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
 		final Formula filterFormula = filterByVisitor.executeInContext(
+			ReducedEntityIndex.class,
 			Collections.singletonList(index),
 			ReferenceContent.ALL_REFERENCES,
 			processingScope.getEntitySchema(),
@@ -681,8 +701,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					entityDecorator.getParentWithoutCheckingPredicate()
 						.stream()
 						.toArray() :
-					richEnoughEntity.getParent()
+					richEnoughEntity.getParentEntity()
 						.stream()
+						.mapToInt(EntityClassifier::getPrimaryKey)
 						.toArray()
 			);
 		}
@@ -731,13 +752,11 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				queryContext,
 				entityCollection,
 				entities.stream()
-					.map(it ->
-						it instanceof EntityDecorator entityDecorator ?
-							entityDecorator.getParentWithoutCheckingPredicate() :
-							it.getParent()
+					.flatMapToInt(
+						it -> it instanceof EntityDecorator entityDecorator ?
+							entityDecorator.getParentWithoutCheckingPredicate().stream() :
+							it.getParentEntity().map(EntityClassifier::getPrimaryKey).stream().mapToInt(__ -> __)
 					)
-					.filter(OptionalInt::isPresent)
-					.mapToInt(OptionalInt::getAsInt)
 					.toArray()
 			);
 		}
@@ -1055,8 +1074,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		return Entity.decorate(
 			entityDecorator,
 			entityReference.getParentEntity()
-				.map(parentEntity -> replaceWithSealedEntities((EntityReferenceWithParent) parentEntity, parentBodies))
-				.orElse(null),
+				.map(parentEntity -> (EntityClassifierWithParent) replaceWithSealedEntities((EntityReferenceWithParent) parentEntity, parentBodies))
+				.orElse(EntityClassifierWithParent.CONCEALED_ENTITY),
 			entityDecorator.getLocalePredicate(),
 			new HierarchySerializablePredicate(true),
 			entityDecorator.getAttributePredicate(),

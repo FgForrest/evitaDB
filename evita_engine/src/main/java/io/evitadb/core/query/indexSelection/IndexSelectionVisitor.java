@@ -45,10 +45,12 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
 
@@ -83,17 +85,19 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 		if (entityIndex.isPresent()) {
 			final EntityIndex eix = entityIndex.get();
 			this.targetIndexes.add(
-				new TargetIndexes(
+				new TargetIndexes<>(
 					eix.getIndexKey().getType().name(),
+					EntityIndex.class,
 					Collections.singletonList(eix)
 				)
 			);
 		} else {
 			queryContext.getIndex(CatalogIndexKey.INSTANCE)
 				.ifPresent(it -> this.targetIndexes.add(
-						new TargetIndexes(
+						new TargetIndexes<>(
 							it.getIndexKey().toString(),
-							Collections.singletonList(it)
+							CatalogIndex.class,
+							Collections.singletonList((CatalogIndex) it)
 						)
 					)
 				);
@@ -169,10 +173,11 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					}
 					// add indexes as potential target indexes
 					this.targetIndexes.add(
-						new TargetIndexes(
+						new TargetIndexes<>(
 							EntityIndexType.REFERENCED_HIERARCHY_NODE.name() +
 								" composed of " + requestedHierarchyNodes.size() + " indexes",
 							constraint,
+							EntityIndex.class,
 							theTargetIndexes
 						)
 					);
@@ -187,14 +192,15 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 	 * are related to respective entity type and id. This may significantly limit the scope that needs to be examined.
 	 */
 	private void addReferenceIndexOption(@Nonnull ReferenceHaving constraint) {
-		final List<EntityIndex> theTargetIndexes = getFilterByVisitor().getReferencedRecordEntityIndexes(constraint);
+		final List<ReducedEntityIndex> theTargetIndexes = getFilterByVisitor().getReferencedRecordEntityIndexes(constraint);
 
 		// add indexes as potential target indexes
 		this.targetIndexes.add(
-			new TargetIndexes(
+			new TargetIndexes<>(
 				EntityIndexType.REFERENCED_ENTITY.name() +
 					" composed of " + theTargetIndexes.size() + " indexes",
 				constraint,
+				ReducedEntityIndex.class,
 				theTargetIndexes
 			)
 		);

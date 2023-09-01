@@ -26,6 +26,13 @@ message GrpcEntityReference {
   int32 version = 3;
 }
 
+message GrpcEntityReferenceWithParent {
+  string entityType = 1;
+  int32 primaryKey = 2;
+  int32 version = 3;
+  GrpcEntityReferenceWithParent parent = 4;
+}
+
 // Based on our experience we've designed following data model for handling entities in evitaDB. Model is rather complex
 // but was designed to limit amount of data fetched from database and minimize an amount of data that are indexed and subject
 // to search.
@@ -45,10 +52,10 @@ message GrpcSealedEntity {
   int32 schemaVersion = 4;
   // Primary key of parent entity.
   google.protobuf.Int32Value parent = 5;
-  // A list of hierarchical tree of parent entity references.
-  repeated GrpcEntityReference parentReference = 6;
-  // A list of hierarchical tree of parent entities.
-  repeated GrpcSealedEntity parentEntity = 7;
+  // A parent entity reference with its parent hierarchy chain.
+  GrpcEntityReferenceWithParent parentReference = 6;
+  // A parent entity with its parent hierarchy chain.
+  GrpcSealedEntity parentEntity = 7;
   // Contains global attributes.
   map<string, GrpcEvitaValue> globalAttributes = 8;
   // Contains localized attributes.

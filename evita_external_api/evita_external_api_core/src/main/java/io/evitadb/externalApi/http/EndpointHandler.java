@@ -69,8 +69,9 @@ public abstract class EndpointHandler<E extends EndpointExchange, R> implements 
 				getRequestBodyContentType(serverExchange).orElse(null),
 				getPreferredResponseContentType(serverExchange).orElse(null)
 			)) {
-			final EndpointResponse<R> response = doHandleRequest(exchange);
+			beforeRequestHandled(exchange);
 
+			final EndpointResponse<R> response = doHandleRequest(exchange);
 			if (response instanceof NotFoundEndpointResponse) {
 				throw new HttpExchangeException(StatusCodes.NOT_FOUND, "Requested resource wasn't found.");
 			} else if (response instanceof SuccessEndpointResponse<R> successResponse) {
@@ -92,11 +93,21 @@ public abstract class EndpointHandler<E extends EndpointExchange, R> implements 
 		}
 	}
 
+	/**
+	 * Creates new instance of endpoint exchange for given HTTP server exchange.
+	 */
 	@Nonnull
 	protected abstract E createEndpointExchange(@Nonnull HttpServerExchange serverExchange,
 												@Nonnull String method,
 	                                            @Nullable String requestBodyMediaType,
 	                                            @Nullable String preferredResponseMediaType);
+
+	/**
+	 * Hook method called before actual endpoint handling logic is executed. Default implementation does nothing.
+	 */
+	protected void beforeRequestHandled(@Nonnull E exchange) {
+		// default implementation does nothing
+	}
 
 	/**
 	 * Actual endpoint logic.
