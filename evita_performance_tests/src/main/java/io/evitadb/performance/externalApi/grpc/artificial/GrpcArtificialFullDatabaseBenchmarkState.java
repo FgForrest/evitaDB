@@ -68,8 +68,6 @@ public class GrpcArtificialFullDatabaseBenchmarkState extends GrpcArtificialBenc
 	@Setup(Level.Trial)
 	@Override
 	public void setUp() {
-		super.setUp();
-
 		final ReadyReadEvita readyReadEvita = generateReadTestDataset(
 			dataGenerator,
 			PRODUCT_COUNT,
@@ -103,6 +101,8 @@ public class GrpcArtificialFullDatabaseBenchmarkState extends GrpcArtificialBenc
 			List.of(new GrpcProviderRegistrar(), new SystemProviderRegistrar())
 		);
 		server.start();
+
+		super.setUp();
 	}
 
 	/**
