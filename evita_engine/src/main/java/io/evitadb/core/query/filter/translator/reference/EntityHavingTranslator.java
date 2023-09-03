@@ -47,14 +47,17 @@ import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -118,70 +121,80 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 		);
 		final FilterConstraint filterConstraint = entityHaving.getChild();
 		if (filterConstraint != null) {
-			return filterByVisitor.applyOnIndexes(
-				entityIndex -> {
-					final ProcessingScope processingScope = filterByVisitor.getProcessingScope();
-					final Function<FilterConstraint, FilterConstraint> enricher = processingScope.getNestedQueryFormulaEnricher();
-					final FilterBy combinedFilterBy = new FilterBy(enricher.apply(filterConstraint));
-					final Supplier<String> nestedQueryDescription = () -> "Reference `" + referenceSchema.getName() + "`, " +
-						"entity `" + referencedEntityType + "`: " +
-						Arrays.stream(combinedFilterBy.getChildren()).map(Object::toString).collect(Collectors.joining(", "));
+			final ProcessingScope processingScope = filterByVisitor.getProcessingScope();
+			final Function<FilterConstraint, FilterConstraint> enricher = processingScope.getNestedQueryFormulaEnricher();
+			final FilterBy combinedFilterBy = new FilterBy(enricher.apply(filterConstraint));
+			final Supplier<String> nestedQueryDescription = () -> "Reference `" + referenceSchema.getName() + "`, " +
+				"entity `" + referencedEntityType + "`: " +
+				Arrays.stream(combinedFilterBy.getChildren()).map(Object::toString).collect(Collectors.joining(", "));
 
-					final Formula nestedQueryFormula = filterByVisitor.computeOnlyOnce(
-						Collections.singletonList(entityIndex),
+			final Optional<GlobalEntityIndex> globalIndexIfExists = referencedEntityCollection.getGlobalIndexIfExists();
+			if (globalIndexIfExists.isPresent()) {
+				final GlobalEntityIndex globalEntityIndex = globalIndexIfExists.get();
+				final Formula nestedQueryFormula = filterByVisitor.computeOnlyOnce(
+					Collections.singletonList(globalEntityIndex),
+					combinedFilterBy,
+					() -> {
+						try {
+							filterByVisitor.pushStep(
+								QueryPhase.PLANNING_FILTER_NESTED_QUERY,
+								nestedQueryDescription
+							);
+							return getNestedQueryFormula(
+								filterByVisitor,
+								referencedEntityType,
+								referencedEntityCollection,
+								combinedFilterBy,
+								processingScope.getEntityNestedQueryComparator()
+							);
+						} finally {
+							filterByVisitor.popStep();
+						}
+					},
+					1L
+				);
+
+				if (ReferencedTypeEntityIndex.class.isAssignableFrom(processingScope.getIndexType())) {
+					return nestedQueryFormula;
+				} else {
+					return filterByVisitor.computeOnlyOnce(
+						Collections.singletonList(globalEntityIndex),
 						combinedFilterBy,
 						() -> {
-							try {
-								filterByVisitor.pushStep(
-									QueryPhase.PLANNING_FILTER_NESTED_QUERY,
-									nestedQueryDescription
-								);
-								return getNestedQueryFormula(
-									filterByVisitor,
-									referencedEntityType,
-									referencedEntityCollection,
-									combinedFilterBy,
-									processingScope.getEntityNestedQueryComparator()
-								);
-							} finally {
-								filterByVisitor.popStep();
-							}
-						}
-					);
-					final Formula outputFormula;
-					if (entityIndex instanceof ReferencedTypeEntityIndex) {
-						outputFormula = nestedQueryFormula;
-					} else {
-						outputFormula = new ReferenceOwnerTranslatingFormula(
-							referencedEntityCollection.getGlobalIndex(),
-							nestedQueryFormula,
-							it -> ofNullable(filterByVisitor.getReferencedEntityIndex(entitySchema, referenceSchema, it))
-								.map(EntityIndex::getAllPrimaryKeys)
-								.orElse(EmptyBitmap.INSTANCE)
-						);
-					}
-					return filterByVisitor.computeOnlyOnce(
-						Collections.singletonList(entityIndex),
-						entityHaving,
-						() -> {
-							final QueryContext queryContext = filterByVisitor.getQueryContext();
+							final ReferenceOwnerTranslatingFormula outputFormula = new ReferenceOwnerTranslatingFormula(
+								globalEntityIndex,
+								nestedQueryFormula,
+								it -> {
+									// leave the return here, so that we can easily debug it
+									return ofNullable(filterByVisitor.getReferencedEntityIndex(entitySchema, referenceSchema, it))
+										.map(EntityIndex::getAllPrimaryKeys)
+										.orElse(EmptyBitmap.INSTANCE);
+								}
+							);
 							return new DeferredFormula(
 								new FormulaWrapper(
 									outputFormula,
 									formula -> {
 										try {
-											queryContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, nestedQueryDescription);
+											filterByVisitor.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, nestedQueryDescription);
 											return formula.compute();
 										} finally {
-											queryContext.popStep();
+											filterByVisitor.popStep();
 										}
 									}
 								)
 							);
-						}
+						},
+						2L,
+						// we need to add exact pointers to the entity schema and reference schema, which play role
+						// in the lambda evaluation
+						NumberUtils.join(
+							System.identityHashCode(entitySchema),
+							System.identityHashCode(referenceSchema)
+						)
 					);
 				}
-			);
+			}
 		}
 		return EmptyFormula.INSTANCE;
 	}

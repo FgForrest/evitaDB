@@ -1,0 +1,18 @@
+```json
+{
+  "data" : {
+    "queryProduct" : {
+      "recordPage" : {
+        "data" : [
+          {
+            "primaryKey" : 105703,
+            "attributes" : {
+              "code" : "apple-ipad-10-2-10th-generation-2022-6"
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+```

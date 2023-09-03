@@ -43,6 +43,7 @@ import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.filter.AttributeSpecialValue.NULL;
@@ -237,6 +238,12 @@ class EvitaQLFilterConstraintVisitorTest {
 
         final FilterConstraint constraint4 = parseFilterConstraint("attributeEquals(@name,@value)", Map.of("name", "a", "value", "c"));
         assertEquals(attributeEquals("a", "c"), constraint4);
+
+        final FilterConstraint constraint5 = parseFilterConstraintUnsafe("attributeEquals('a', 2fbbfcf2-d4bb-4db9-9658-acf1d287cbe9)");
+        assertEquals(attributeEquals("a", UUID.fromString("2fbbfcf2-d4bb-4db9-9658-acf1d287cbe9")), constraint5);
+
+        final FilterConstraint constraint6 = parseFilterConstraint("attributeEquals(@name,@value)", Map.of("name", "a", "value", UUID.fromString("2fbbfcf2-d4bb-4db9-9658-acf1d287cbe9")));
+        assertEquals(attributeEquals("a", UUID.fromString("2fbbfcf2-d4bb-4db9-9658-acf1d287cbe9")), constraint6);
     }
 
     @Test
@@ -701,6 +708,9 @@ class EvitaQLFilterConstraintVisitorTest {
 
         final FilterConstraint constraint7 = parseFilterConstraint("attributeInRange(@name,@value)", Map.of("name", "a", "value", 500L));
         assertEquals(attributeInRange("a", 500L), constraint7);
+
+        final FilterConstraint constraint8 = parseFilterConstraintUnsafe("attributeInRangeNow('a')");
+        assertEquals(attributeInRangeNow("a"), constraint8);
     }
 
     @Test
@@ -711,7 +721,6 @@ class EvitaQLFilterConstraintVisitorTest {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInRange"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInRange()"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInRange(1)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInRange('a')"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInRange('a','b')"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInRange('a',2021-02-15)"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInRange('a',1,2)"));

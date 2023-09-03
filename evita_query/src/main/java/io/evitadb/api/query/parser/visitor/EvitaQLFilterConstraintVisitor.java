@@ -28,6 +28,7 @@ import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.parser.Value;
 import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.AttributeInRangeNowConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 
 import javax.annotation.Nonnull;
@@ -354,9 +355,19 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 				} else {
 					throw new EvitaQLInvalidQueryError(
 						ctx,
-						"Filter constraint `attributeInRange` only supports number and date time values."
-					);
+						"Filter constraint `attributeInRange` requires arguments!");
 				}
+			}
+		);
+	}
+
+	@Override
+	public FilterConstraint visitAttributeInRangeNowConstraint(AttributeInRangeNowConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> {
+				final String attributeName = ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier();
+				return new AttributeInRange(attributeName);
 			}
 		);
 	}

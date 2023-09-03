@@ -1,0 +1,38 @@
+{
+  queryProduct(
+    filterBy: {
+      entityPrimaryKeyInSet: [
+        103885
+      ],
+      entityLocaleEquals: en
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          name
+        }
+        parameterValues(
+          orderBy: [
+          {
+            entityProperty: [
+              {
+                attributeNameNatural: ASC
+              }
+            ]
+          }
+        ]
+        ) {
+          referencedPrimaryKey
+          referencedEntity {
+            primaryKey
+            attributes {
+              name
+            }
+          }
+        }
+      }
+    }
+  }
+}

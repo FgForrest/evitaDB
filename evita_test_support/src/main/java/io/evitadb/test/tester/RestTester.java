@@ -45,7 +45,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.restassured.RestAssured.given;
 
 /**
- * Simple tester utility for easier testing of GraphQL API. It uses REST Assured library as backend but test doesn't have
+ * Simple tester utility for easier testing of REST API. It uses REST Assured library as backend but test doesn't have
  * to configure each request with URL, headers, POST method and so on.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022

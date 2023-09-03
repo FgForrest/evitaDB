@@ -81,7 +81,7 @@ public abstract class RestEndpointFunctionalTest {
 	}
 
 	@Nullable
-	protected Object serializeToJsonValue(@Nullable Object value) {
+	protected static Object serializeToJsonValue(@Nullable Object value) {
 		if (value == null) {
 			return null;
 		}

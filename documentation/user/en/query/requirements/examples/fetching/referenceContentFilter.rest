@@ -1,0 +1,40 @@
+POST /rest/evita/product/query
+
+{
+  "filterBy" : {
+    "entityPrimaryKeyInSet" : [
+      103885
+    ]
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ],
+      "referenceParameterValuesContent" : {
+        "entityFetch" : {
+          "attributeContent" : [
+            "code"
+          ]
+        },
+        "entityGroupFetch" : {
+          "attributeContent" : [
+            "code",
+            "isVisibleInDetail"
+          ]
+        },
+        "filterBy" : {
+          "entityHaving" : {
+            "referenceParameterHaving" : [
+              {
+                "entityHaving" : {
+                  "attributeIsVisibleInDetailEquals" : true
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

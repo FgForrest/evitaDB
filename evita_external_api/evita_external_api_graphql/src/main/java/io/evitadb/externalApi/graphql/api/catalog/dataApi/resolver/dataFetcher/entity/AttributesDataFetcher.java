@@ -50,20 +50,29 @@ public class AttributesDataFetcher implements DataFetcher<DataFetcherResult<Attr
     @Override
     public DataFetcherResult<AttributesContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
         final EntityQueryContext context = environment.getLocalContext();
-        Locale desiredLocale = environment.getArgumentOrDefault(AttributesFieldHeaderDescriptor.LOCALE.name(), context.getDesiredLocale());
+        final AttributesContract attributes = environment.getSource(); // because entity implements AttributesContract
+
+        final Locale customLocale = environment.getArgumentOrDefault(AttributesFieldHeaderDescriptor.LOCALE.name(), context.getDesiredLocale());
+        if (customLocale != null && !attributes.getAttributeLocales().contains(customLocale)) {
+            // This entity doesn't have attributes for given custom locale, so we don't want to try to fetch individual
+            // attributes. It would be pointless as there are no attributes and would result in GQL error because some attributes
+            // may be non-nullable
+            return DataFetcherResult.<AttributesContract>newResult().build();
+        }
+
+        Locale desiredLocale = customLocale;
         if (desiredLocale == null) {
             // try implicit locale if no explicit locale was set
-            final Object source = environment.getSource();
-            if (source instanceof final EntityDecorator entity) {
+            if (attributes instanceof final EntityDecorator entity) {
                 desiredLocale = entity.getImplicitLocale();
-            } else if (source instanceof final ReferenceDecorator reference) {
+            } else if (attributes instanceof final ReferenceDecorator reference) {
                 desiredLocale = reference.getAttributePredicate().getImplicitLocale();
             } else {
-                throw new GraphQLInternalError("Unsupported source `" + source.getClass().getName() + "`.");
+                throw new GraphQLInternalError("Unsupported source `" + attributes.getClass().getName() + "`.");
             }
         }
         return DataFetcherResult.<AttributesContract>newResult()
-            .data(environment.getSource()) // because entity implements AttributesContract
+            .data(attributes)
             .localContext(context.toBuilder()
                 .desiredLocale(desiredLocale)
                 .build())

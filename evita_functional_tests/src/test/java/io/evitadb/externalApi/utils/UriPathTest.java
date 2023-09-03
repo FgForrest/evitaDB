@@ -39,6 +39,7 @@ public class UriPathTest {
 	@Test
 	void shouldBuildUriPathFromArrayOfParts() {
 		assertEquals("test1/test2", UriPath.of("test1", "test2").toString());
+		assertEquals("test1/*", UriPath.of("test1", "*").toString());
 		assertEquals("test1/{param1}", UriPath.of("test1", "{param1}").toString());
 		assertEquals("/test1/{param1}", UriPath.of("/", "test1", "{param1}").toString());
 		assertEquals("/test1/{param1}", UriPath.of("/test1", "{param1}").toString());
@@ -51,6 +52,7 @@ public class UriPathTest {
 	@Test
 	void shouldBuildUriPathFromBuilder() {
 		assertEquals("test1/test2", UriPath.builder().part("test1").part("test2").build().toString());
+		assertEquals("test1/*", UriPath.builder().part("test1").part("*").build().toString());
 		assertEquals("test1/{param1}", UriPath.builder().part("test1").part("{param1}").build().toString());
 		assertEquals("/test1/{param1}", UriPath.builder().part("/").part("test1").part("{param1}").build().toString());
 		assertEquals("/test1/{param1}", UriPath.builder().part("/test1").part("{param1}").build().toString());

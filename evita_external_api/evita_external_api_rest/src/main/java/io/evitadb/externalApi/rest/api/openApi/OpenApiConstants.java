@@ -48,6 +48,7 @@ public class OpenApiConstants {
 	public static final String FORMAT_INT_32 = "int32";
 	public static final String FORMAT_INT_64 = "int64";
 	public static final String FORMAT_CURRENCY = "iso-4217";
+	public static final String FORMAT_UUID = "uuid";
 	public static final String FORMAT_BYTE = "int8";
 	public static final String FORMAT_CHAR = "char";
 	public static final String FORMAT_DECIMAL = "decimal";

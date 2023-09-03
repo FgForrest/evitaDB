@@ -71,6 +71,7 @@ import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.util.Currency;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -142,6 +143,34 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	void tearDown() {
 		evita.close();
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_INDEXING_TEST);
+	}
+
+	@Test
+	void shouldAllowCreatingCatalogAndEntityCollectionsInPrototypingMode() {
+		final String someCatalogName = "differentCatalog";
+		try {
+			evita.defineCatalog(someCatalogName);
+
+			assertTrue(evita.getCatalogNames().contains(someCatalogName));
+			evita.updateCatalog(
+				someCatalogName,
+				session -> {
+					session.createNewEntity("Brand", 1)
+						.setAttribute("name", Locale.ENGLISH, "Lenovo")
+						.upsertVia(session);
+
+					final Optional<SealedEntitySchema> brand = session.getEntitySchema("Brand");
+					assertTrue(brand.isPresent());
+
+					final Optional<AttributeSchemaContract> nameAttribute = brand.get().getAttribute("name");
+					assertTrue(nameAttribute.isPresent());
+					assertTrue(nameAttribute.get().isLocalized());
+				}
+			);
+
+		} finally {
+			evita.deleteCatalogIfExists(someCatalogName);
+		}
 	}
 
 	@Test

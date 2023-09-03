@@ -43,9 +43,9 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.SortableAttributeCompoundSchemaDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.resolver.serializer.DataTypeSerializer;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
+import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -65,7 +65,7 @@ import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_N
 @Slf4j
 public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 
-	public EntitySchemaJsonSerializer(@Nonnull CatalogRestHandlingContext restHandlingContext) {
+	public EntitySchemaJsonSerializer(@Nonnull RestHandlingContext restHandlingContext) {
 		super(new ObjectJsonSerializer(restHandlingContext.getObjectMapper()));
 	}
 

@@ -228,6 +228,13 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitAttributeInRangeConstraint(EvitaQLParser.AttributeInRangeConstraintContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code attributeInRangeNowConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitAttributeInRangeNowConstraint(EvitaQLParser.AttributeInRangeNowConstraintContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code entityPrimaryKeyInSetConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
 	 * @param ctx the parse tree
@@ -1499,6 +1506,13 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitDateTimeRangeValueToken(EvitaQLParser.DateTimeRangeValueTokenContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code uuidValueToken}
+	 * labeled alternative in {@link EvitaQLParser#valueToken}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitUuidValueToken(EvitaQLParser.UuidValueTokenContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code enumValueToken}
 	 * labeled alternative in {@link EvitaQLParser#valueToken}.

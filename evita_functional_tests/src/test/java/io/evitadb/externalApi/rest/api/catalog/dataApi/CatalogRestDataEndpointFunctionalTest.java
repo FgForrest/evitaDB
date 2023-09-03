@@ -71,27 +71,27 @@ import static io.evitadb.test.builder.MapBuilder.map;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
-abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctionalTest implements ExternalApiFunctionTestsSupport {
+public abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctionalTest implements ExternalApiFunctionTestsSupport {
 
 	@Nonnull
-	protected List<Map<String, Object>> createEntityDtos(@Nonnull List<? extends EntityClassifier> entityClassifiers) {
+	public static List<Map<String, Object>> createEntityDtos(@Nonnull List<? extends EntityClassifier> entityClassifiers) {
 		return createEntityDtos(entityClassifiers, false);
 	}
 
 	@Nonnull
-	protected List<Map<String, Object>> createEntityDtos(@Nonnull List<? extends EntityClassifier> entityClassifiers, boolean localized) {
+	public static List<Map<String, Object>> createEntityDtos(@Nonnull List<? extends EntityClassifier> entityClassifiers, boolean localized) {
 		return entityClassifiers.stream()
 			.map(it -> createEntityDto(it, localized))
 			.toList();
 	}
 
 	@Nullable
-	protected Map<String, Object> createEntityDto(@Nullable EntityClassifier entityClassifier) {
+	public static Map<String, Object> createEntityDto(@Nullable EntityClassifier entityClassifier) {
 		return createEntityDto(entityClassifier, false);
 	}
 
 	@Nullable
-	protected Map<String, Object> createEntityDto(@Nullable EntityClassifier entityClassifier, boolean localized) {
+	public static Map<String, Object> createEntityDto(@Nullable EntityClassifier entityClassifier, boolean localized) {
 		if (entityClassifier == null) {
 			return null;
 		}
@@ -114,7 +114,7 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 		return dto.build();
 	}
 
-	private void createEntityBodyDto(@Nonnull MapBuilder entityDto, @Nonnull SealedEntity entity, boolean localized) {
+	public static void createEntityBodyDto(@Nonnull MapBuilder entityDto, @Nonnull SealedEntity entity, boolean localized) {
 		entityDto.e(EntityDescriptor.VERSION.name(), entity.version());
 
 		if (entity.parentAvailable()) {
@@ -132,7 +132,7 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 		}
 	}
 
-	private void createAttributesDto(@Nonnull MapBuilder parentDto,
+	public static void createAttributesDto(@Nonnull MapBuilder parentDto,
 	                                 @Nonnull Set<Locale> locales,
 	                                 @Nonnull AttributesContract attributes,
 	                                 boolean localized) {
@@ -171,7 +171,7 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 		}
 	}
 
-	private MapBuilder createAttributesOfLangDto(@Nonnull AttributesContract attributes,
+	public static MapBuilder createAttributesOfLangDto(@Nonnull AttributesContract attributes,
 	                                             @Nonnull Collection<AttributesContract.AttributeKey> attributeKeys,
 	                                             @Nullable Locale locale) {
 		final MapBuilder dto = map();
@@ -196,7 +196,7 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 		return dto;
 	}
 
-	private void createAssociatedDataDto(@Nonnull MapBuilder parentDto,
+	public static void createAssociatedDataDto(@Nonnull MapBuilder parentDto,
 	                                     @Nonnull Set<Locale> locales,
 	                                     @Nonnull AssociatedDataContract associatedData,
 	                                     boolean localized) {
@@ -235,7 +235,7 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 		}
 	}
 
-	private MapBuilder createAssociatedDataOfLangDto(@Nonnull AssociatedDataContract associatedData,
+	public static MapBuilder createAssociatedDataOfLangDto(@Nonnull AssociatedDataContract associatedData,
 	                                                 @Nonnull Collection<AssociatedDataKey> associatedDataKeys,
 	                                                 @Nullable Locale locale) {
 		final MapBuilder dto = map();
@@ -260,7 +260,7 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 		return dto;
 	}
 
-	private void createPricesDto(@Nonnull MapBuilder entityDto,
+	public static void createPricesDto(@Nonnull MapBuilder entityDto,
 	                             @Nonnull EntityContract entity) {
 		if (entity.pricesAvailable()) {
 			if (!entity.getPrices().isEmpty()) {
@@ -279,7 +279,7 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 	}
 
 	@Nonnull
-	private MapBuilder createEntityPriceDto(@Nonnull PriceContract price) {
+	public static MapBuilder createEntityPriceDto(@Nonnull PriceContract price) {
 		return map()
 			.e(PriceDescriptor.PRICE_ID.name(), price.priceId())
 			.e(PriceDescriptor.PRICE_LIST.name(), price.priceList())
@@ -290,11 +290,11 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 			.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString())
 			.e(PriceDescriptor.TAX_RATE.name(), price.taxRate().toString())
 			.e(PriceDescriptor.VALIDITY.name(), Optional.ofNullable(price.validity())
-				.map(this::serializeToJsonValue)
+				.map(RestEndpointFunctionalTest::serializeToJsonValue)
 				.orElse(null));
 	}
 
-	private void createReferencesDto(@Nonnull MapBuilder entityDto,
+	public static void createReferencesDto(@Nonnull MapBuilder entityDto,
 	                                 @Nonnull SealedEntity entity,
 	                                 boolean localized) {
 		if (entity.referencesAvailable() && !entity.getReferences().isEmpty()) {
@@ -306,7 +306,7 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 		}
 	}
 
-	private void createReferencesOfNameDto(@Nonnull MapBuilder entityDto,
+	public static void createReferencesOfNameDto(@Nonnull MapBuilder entityDto,
 	                                       @Nonnull SealedEntity entity,
 	                                       @Nonnull String referenceName,
 	                                       boolean localized) {
@@ -337,7 +337,7 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 	}
 
 	@Nonnull
-	private MapBuilder createReferenceDto(@Nonnull Set<Locale> locales, @Nonnull ReferenceContract reference, boolean localized) {
+	public static MapBuilder createReferenceDto(@Nonnull Set<Locale> locales, @Nonnull ReferenceContract reference, boolean localized) {
 		final MapBuilder dto = map()
 			.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), reference.getReferencedPrimaryKey());
 

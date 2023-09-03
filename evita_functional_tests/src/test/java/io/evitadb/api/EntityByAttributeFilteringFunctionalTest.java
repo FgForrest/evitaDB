@@ -101,6 +101,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 	private static final String ATTRIBUTE_SIZE = "size";
 	private static final String ATTRIBUTE_CREATED = "created";
 	private static final String ATTRIBUTE_CURRENCY = "currency";
+	private static final String ATTRIBUTE_UUID = "uuid";
 	private static final String ATTRIBUTE_LOCALE = "localizedInto";
 	private static final String ATTRIBUTE_MANUFACTURED = "manufactured";
 	private static final String ATTRIBUTE_COMBINED_PRIORITY = "combinedPriority";
@@ -257,6 +258,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 								.withAttribute(ATTRIBUTE_CREATED, OffsetDateTime.class, whichIs -> whichIs.filterable().sortable())
 								.withAttribute(ATTRIBUTE_MANUFACTURED, LocalDate.class, whichIs -> whichIs.filterable().sortable())
 								.withAttribute(ATTRIBUTE_CURRENCY, Currency.class, whichIs -> whichIs.filterable())
+								.withAttribute(ATTRIBUTE_UUID, UUID.class, whichIs -> whichIs.unique())
 								.withAttribute(ATTRIBUTE_LOCALE, Locale.class, whichIs -> whichIs.filterable())
 								.withSortableAttributeCompound(
 									ATTRIBUTE_COMBINED_PRIORITY,
@@ -915,6 +917,40 @@ public class EntityByAttributeFilteringFunctionalTest {
 					sealedEntity ->
 						ofNullable(sealedEntity.getAttribute(ATTRIBUTE_CURRENCY))
 							.map(currencyAttribute::equals)
+							.orElse(false),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities by equals to attribute (UUID)")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesByAttributeEqualToUuid(Evita evita, List<SealedEntity> originalProductEntities) {
+		final UUID uuidAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_UUID);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeEquals(ATTRIBUTE_UUID, uuidAttribute)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity ->
+						ofNullable(sealedEntity.getAttribute(ATTRIBUTE_UUID))
+							.map(uuidAttribute::equals)
 							.orElse(false),
 					result.getRecordData()
 				);
@@ -2219,7 +2255,10 @@ public class EntityByAttributeFilteringFunctionalTest {
 			evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
-					final SealedEntity alteredProduct = originalProductEntities.get(0);
+					final SealedEntity alteredProduct = originalProductEntities.stream()
+						.filter(it -> it.getAttributeArray(ATTRIBUTE_SIZE) != null)
+						.findFirst()
+						.orElseThrow();
 					formerAttribute.set(alteredProduct.getAttributeArray(ATTRIBUTE_SIZE));
 					updatedProductId.set(alteredProduct.getPrimaryKey());
 					session.upsertEntity(

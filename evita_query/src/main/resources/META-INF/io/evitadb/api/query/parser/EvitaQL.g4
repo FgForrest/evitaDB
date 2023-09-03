@@ -63,6 +63,7 @@ filterConstraint
     | 'attributeIsNull'                     args = classifierArgs                                           # attributeIsNullConstraint
     | 'attributeIsNotNull'                  args = classifierArgs                                           # attributeIsNotNullConstraint
     | 'attributeInRange'                    args = classifierWithValueArgs                                  # attributeInRangeConstraint
+    | 'attributeInRangeNow'                 args = classifierArgs                                           # attributeInRangeNowConstraint
     | 'entityPrimaryKeyInSet'               args = valueListArgs                                            # entityPrimaryKeyInSetConstraint
     | 'entityLocaleEquals'                  args = valueArgs                                                # entityLocaleEqualsConstraint
     | 'priceInCurrency'                     args = valueArgs                                                # priceInCurrencyConstraint
@@ -372,6 +373,7 @@ valueToken
     | FLOAT_NUMBER_RANGE                                                                                  # floatNumberRangeValueToken
     | INT_NUMBER_RANGE                                                                                    # intNumberRangeValueToken
     | DATE_TIME_RANGE                                                                                     # dateTimeRangeValueToken
+    | UUID                                                                                                # uuidValueToken
     | ENUM                                                                                                # enumValueToken
     ;
 
@@ -411,6 +413,8 @@ INT_NUMBER_RANGE : '[' INT? ',' INT? ']' ;
 
 DATE_TIME_RANGE : '[' OFFSET_DATE_TIME? ',' OFFSET_DATE_TIME? ']' ;
 
+UUID : [a-z0-9]+ '-' [a-z0-9]+ '-' [a-z0-9]+ '-' [a-z0-9]+ '-' [a-z0-9]+;
+
 ENUM : [A-Z]+ ('_' [A-Z]+)* ;
 
 
@@ -428,6 +432,8 @@ ARGS_DELIMITER : ',' ;
 /**
  * Miscellaneous tokens
  */
+
+COMMENT : '//' ~[\r\n]* -> channel(HIDDEN) ;
 
 WHITESPACE : [ \r\t\n]+ -> channel(HIDDEN) ;
 

@@ -124,7 +124,7 @@ public class EntityConverter {
 						QueryConstraints.entityFetch(
 							ArrayUtils.mergeArrays(
 								it.getRequirements(),
-								new EntityContentRequire[] { QueryConstraints.hierarchyContent() }
+								new EntityContentRequire[]{QueryConstraints.hierarchyContent()}
 							)
 						)
 					)
@@ -212,6 +212,24 @@ public class EntityConverter {
 		@Nonnull SealedEntitySchema entitySchema,
 		@Nonnull GrpcReference grpcReference
 	) {
+		final GroupEntityReference group;
+		if (grpcReference.hasGroupReferencedEntityReference()) {
+			group = new GroupEntityReference(
+				grpcReference.getGroupReferencedEntityReference().getEntityType(),
+				grpcReference.getGroupReferencedEntityReference().getPrimaryKey(),
+				grpcReference.getGroupReferencedEntityReference().getVersion(),
+				false
+			);
+		} else if (grpcReference.hasGroupReferencedEntity()) {
+			group = new GroupEntityReference(
+				grpcReference.getGroupReferencedEntity().getEntityType(),
+				grpcReference.getGroupReferencedEntity().getPrimaryKey(),
+				grpcReference.getGroupReferencedEntity().getVersion(),
+				false
+			);
+		} else {
+			group = null;
+		}
 		return new Reference(
 			entitySchema,
 			grpcReference.getVersion(),
@@ -223,14 +241,7 @@ public class EntityConverter {
 				grpcReference.getReferencedEntityReference().getEntityType() :
 				grpcReference.getReferencedEntity().getEntityType(),
 			EvitaEnumConverter.toCardinality(grpcReference.getReferenceCardinality()),
-			grpcReference.hasGroupReferencedEntity() ?
-				new GroupEntityReference(
-					grpcReference.getGroupReferencedEntityReference().getEntityType(),
-					grpcReference.getGroupReferencedEntityReference().getPrimaryKey(),
-					grpcReference.getGroupReferencedEntityReference().getVersion(),
-					false
-				) :
-				null,
+			group,
 			toAttributeValues(
 				grpcReference.getGlobalAttributesMap(),
 				grpcReference.getLocalizedAttributesMap()
@@ -751,11 +762,18 @@ public class EntityConverter {
 				);
 			this.groupIndex = grpcReference.stream()
 				.filter(GrpcReference::hasGroupReferencedEntity)
-				.map(it -> toEntity(entitySchemaFetcher, evitaRequest, it.getGroupReferencedEntity(), SealedEntity.class))
+				.map(it -> {
+					final RequirementContext fetchCtx = Optional.ofNullable(evitaRequest.getReferenceEntityFetch().get(it.getReferenceName()))
+						.orElse(evitaRequest.getDefaultReferenceRequirement());
+					final GrpcSealedEntity referencedEntity = it.getGroupReferencedEntity();
+					final EvitaRequest referenceRequest = evitaRequest.deriveCopyWith(referencedEntity.getEntityType(), fetchCtx.entityGroupFetch());
+					return toEntity(entitySchemaFetcher, referenceRequest, referencedEntity, SealedEntity.class);
+				})
 				.collect(
 					Collectors.toMap(
 						it -> new EntityReference(it.getType(), it.getPrimaryKey()),
-						Function.identity()
+						Function.identity(),
+						(sealedEntity, sealedEntity2) -> sealedEntity
 					)
 				);
 		}

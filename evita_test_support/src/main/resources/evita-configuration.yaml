@@ -38,15 +38,18 @@ api:
     system:
       enabled: ${api.endpoints.system.enabled:true}
       host: ${api.endpoints.system.host:localhost:5557}
+      tlsEnabled: ${api.endpoints.system.tlsEnabled:false}
       allowedOrigins: ${api.endpoints.system.allowedOrigins:null}
     graphQL:
       enabled: ${api.endpoints.graphQL.enabled:true}
       host: ${api.endpoints.graphQL.host:localhost:5555}
+      tlsEnabled: ${api.endpoints.graphQL.tlsEnabled:true}
       allowedOrigins: ${api.endpoints.graphQL.allowedOrigins:null}
       parallelize: ${api.endpoints.graphQL.parallelize:true}
     rest:
       enabled: ${api.endpoints.rest.enabled:true}
       host: ${api.endpoints.rest.host:localhost:5555}
+      tlsEnabled: ${api.endpoints.rest.tlsEnabled:true}
       allowedOrigins: ${api.endpoints.rest.allowedOrigins:null}
     gRPC:
       enabled: ${api.endpoints.gRPC.enabled:true}
@@ -54,3 +57,10 @@ api:
       mTLS:
         enabled: ${api.endpoints.gRPC.mTLS.enabled:false}
         allowedClientCertificatePaths: ${api.endpoints.gRPC.mTLS.allowedClientCertificatesPaths:[]}
+    lab:
+      enabled: ${api.endpoints.lab.enabled:true}
+      tlsEnabled: ${api.endpoints.lab.tlsEnabled:true}
+      host: ${api.endpoints.lab.host:localhost:5555}
+      allowedOrigins: ${api.endpoints.lab.allowedOrigins:null}
+      gui:
+        enabled: false

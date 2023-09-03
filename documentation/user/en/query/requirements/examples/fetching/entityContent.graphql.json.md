@@ -1,12 +1,13 @@
 ```json
 {
-  "data": [
+  "data" : [
     {
-      "primaryKey": 64703,
-      "type": "Brand",
-      "version": 1,
-      "locales": [ ],
-      "allLocales": [
+      "primaryKey" : 64703,
+      "type" : "Brand",
+      "version" : 1,
+      "locales" : [ ],
+      "allLocales" : [
+        "de",
         "en",
         "cs"
       ]

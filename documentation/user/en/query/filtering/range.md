@@ -37,6 +37,7 @@ The value is within the range if it is equal to the start or end of the range or
 the range.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Products valid for December '23](/documentation/user/en/query/filtering/examples/range/attribute-in-range.evitaql)
 </SourceCodeTabs>
 
@@ -71,3 +72,33 @@ products that have no date/time range attribute at all.
 </LanguageSpecific>
 
 </Note>
+
+## Attribute in range now
+
+```evitaql-syntax
+attributeInRangeNow(
+    argument:string!
+)
+``` 
+
+<dl>
+    <dt>argument:string!</dt>
+    <dd>
+        the name of the [entity attribute](../../use/schema.md#attributes) whose [number range](../../use/data-types.md#numberrange) 
+        or [datetime range](../../use/data-types.md#datetimerange) value starts, ends, or encloses the value 
+        in the second argument
+    </dd>
+</dl>
+
+The `attributeInRangeNow` checks whether the current date and time is within the range of the attribute value.
+Current date and time is within the range if it is equal to the start or end of the range or if it is between the start 
+and end of the range.
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Products valid now](/documentation/user/en/query/filtering/examples/range/attribute-in-range-now.evitaql)
+</SourceCodeTabs>
+
+Returns a list of products with a *valid* date/time range that includes the current date and time. The result of 
+the example query cannot be listed here because it depends on the current date and time and may change from time to 
+time.

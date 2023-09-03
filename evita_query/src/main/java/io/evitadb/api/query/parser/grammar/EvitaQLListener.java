@@ -376,6 +376,18 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitAttributeInRangeConstraint(EvitaQLParser.AttributeInRangeConstraintContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code attributeInRangeNowConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterAttributeInRangeNowConstraint(EvitaQLParser.AttributeInRangeNowConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code attributeInRangeNowConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitAttributeInRangeNowConstraint(EvitaQLParser.AttributeInRangeNowConstraintContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code entityPrimaryKeyInSetConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
 	 * @param ctx the parse tree
@@ -2535,6 +2547,18 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitDateTimeRangeValueToken(EvitaQLParser.DateTimeRangeValueTokenContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code uuidValueToken}
+	 * labeled alternative in {@link EvitaQLParser#valueToken}.
+	 * @param ctx the parse tree
+	 */
+	void enterUuidValueToken(EvitaQLParser.UuidValueTokenContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code uuidValueToken}
+	 * labeled alternative in {@link EvitaQLParser#valueToken}.
+	 * @param ctx the parse tree
+	 */
+	void exitUuidValueToken(EvitaQLParser.UuidValueTokenContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code enumValueToken}
 	 * labeled alternative in {@link EvitaQLParser#valueToken}.

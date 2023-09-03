@@ -54,7 +54,7 @@ import java.util.Optional;
 	name = "strip",
 	shortDescription = "The constraint specifies which strip (subset) of found entities will be returned."
 )
-public class Strip extends AbstractRequireConstraintLeaf implements GenericConstraint<RequireConstraint> {
+public class Strip extends AbstractRequireConstraintLeaf implements GenericConstraint<RequireConstraint>, ChunkingRequireConstraint {
 	@Serial private static final long serialVersionUID = 1300354074537839696L;
 
 	private Strip(Serializable... arguments) {

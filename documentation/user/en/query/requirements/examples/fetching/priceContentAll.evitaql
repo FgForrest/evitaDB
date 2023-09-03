@@ -1,0 +1,14 @@
+query(
+    collection('Product'),
+    filterBy(
+        entityPrimaryKeyInSet(103885),
+        priceInCurrency('EUR'),
+        priceInPriceLists('employee-basic-price', 'basic')
+    ),
+    require(
+        entityFetch(
+            attributeContent('code'),
+            priceContentAll()
+        )
+    )
+)

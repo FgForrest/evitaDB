@@ -50,9 +50,11 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.configuration.ApiOptions;
@@ -518,6 +520,35 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 				.withDescription("Some description.")
 				.updateVia(evitaClient.createReadWriteSession(someCatalogName));
 			assertTrue(evitaClient.getCatalogNames().contains(someCatalogName));
+		} finally {
+			evitaClient.deleteCatalogIfExists(someCatalogName);
+		}
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldAllowCreatingCatalogAndEntityCollectionsInPrototypingMode(EvitaClient evitaClient) {
+		final String someCatalogName = "differentCatalog";
+		try {
+			evitaClient.defineCatalog(someCatalogName);
+
+			assertTrue(evitaClient.getCatalogNames().contains(someCatalogName));
+			evitaClient.updateCatalog(
+				someCatalogName,
+				session -> {
+					session.createNewEntity("Brand", 1)
+						.setAttribute("name", Locale.ENGLISH, "Lenovo")
+						.upsertVia(session);
+
+					final Optional<SealedEntitySchema> brand = session.getEntitySchema("Brand");
+					assertTrue(brand.isPresent());
+
+					final Optional<AttributeSchemaContract> nameAttribute = brand.get().getAttribute("name");
+					assertTrue(nameAttribute.isPresent());
+					assertTrue(nameAttribute.get().isLocalized());
+				}
+			);
+
 		} finally {
 			evitaClient.deleteCatalogIfExists(someCatalogName);
 		}

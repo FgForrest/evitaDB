@@ -58,6 +58,7 @@ public class ListCatalogsHandler extends JsonRestHandler<Collection<CatalogContr
 		final Collection<CatalogContract> catalogs = restApiHandlingContext.getEvita().getCatalogs();
 		return new SuccessEndpointResponse<>(catalogs);
 	}
+
 	@Nonnull
 	@Override
 	public Set<String> getSupportedHttpMethods() {
