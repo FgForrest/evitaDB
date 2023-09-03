@@ -530,7 +530,9 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 	void shouldAllowCreatingCatalogAndEntityCollectionsInPrototypingMode(EvitaClient evitaClient) {
 		final String someCatalogName = "differentCatalog";
 		try {
-			evitaClient.defineCatalog(someCatalogName);
+			evitaClient.defineCatalog(someCatalogName)
+				.withDescription("This is a tutorial catalog.")
+				.updateViaNewSession(evitaClient);
 
 			assertTrue(evitaClient.getCatalogNames().contains(someCatalogName));
 			evitaClient.updateCatalog(
@@ -546,6 +548,51 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 					final Optional<AttributeSchemaContract> nameAttribute = brand.get().getAttribute("name");
 					assertTrue(nameAttribute.isPresent());
 					assertTrue(nameAttribute.get().isLocalized());
+
+					// now create an example category tree
+					session.createNewEntity("Category", 10)
+						.setAttribute("name", Locale.ENGLISH, "Electronics")
+						.upsertVia(session);
+
+					session.createNewEntity("Category", 11)
+						.setAttribute("name", Locale.ENGLISH, "Laptops")
+						// laptops will be a child category of electronics
+						.setParent(10)
+						.upsertVia(session);
+
+					// finally, create a product
+					session.createNewEntity("Product")
+						// with a few attributes
+						.setAttribute("name", Locale.ENGLISH, "ThinkPad P15 Gen 1")
+						.setAttribute("cores", 8)
+						.setAttribute("graphics", "NVIDIA Quadro RTX 4000 with Max-Q Design")
+						// and price for sale
+						.setPrice(
+							1, "basic",
+							Currency.getInstance("USD"),
+							new BigDecimal("1420"), new BigDecimal("20"), new BigDecimal("1704"),
+							true
+						)
+						// link it to the manufacturer
+						.setReference(
+							"brand", "Brand",
+							Cardinality.EXACTLY_ONE,
+							1
+						)
+						// and to the laptop category
+						.setReference(
+							"categories", "Category",
+							Cardinality.ZERO_OR_MORE,
+							11
+						)
+						.upsertVia(session);
+
+					final Optional<SealedEntitySchema> product = session.getEntitySchema("Product");
+					assertTrue(product.isPresent());
+
+					final Optional<AttributeSchemaContract> productNameAttribute = product.get().getAttribute("name");
+					assertTrue(productNameAttribute.isPresent());
+					assertTrue(productNameAttribute.get().isLocalized());
 				}
 			);
 
