@@ -819,7 +819,17 @@ public class EvitaClientSession implements EvitaSessionContract {
 	public EntityBuilder createNewEntity(@Nonnull String entityType) {
 		assertActive();
 		return executeInTransactionIfPossible(
-			session -> new InitialEntityBuilder(getEntitySchemaOrThrow(entityType), null)
+			session -> {
+				final EntitySchemaContract entitySchema;
+				if (getCatalogSchema().getCatalogEvolutionMode().contains(CatalogEvolutionMode.ADDING_ENTITY_TYPES)) {
+					entitySchema = getEntitySchema(entityType)
+						.map(EntitySchemaContract.class::cast)
+						.orElseGet(() -> EntitySchema._internalBuild(entityType));
+				} else {
+					entitySchema = getEntitySchemaOrThrow(entityType);
+				}
+				return new InitialEntityBuilder(entitySchema, null);
+			}
 		);
 	}
 
