@@ -58,6 +58,7 @@ import static io.swagger.v3.oas.models.PathItem.HttpMethod.*;
  */
 public class OpenApiLabApiEndpoint extends OpenApiEndpoint<LabApiHandlingContext> {
 
+	public static final String SYSTEM_API_URL_PREFIX = "system";
 	public static final String SCHEMA_API_URL_PREFIX = "schema";
 	public static final String DATA_API_URL_PREFIX = "data";
 

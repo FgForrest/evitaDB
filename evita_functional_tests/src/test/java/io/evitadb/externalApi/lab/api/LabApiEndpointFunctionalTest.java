@@ -31,6 +31,7 @@ import io.evitadb.externalApi.ExternalApiFunctionTestsSupport;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
 import io.evitadb.externalApi.lab.LabProvider;
+import io.evitadb.externalApi.rest.api.system.model.LivenessDescriptor;
 import io.evitadb.externalApi.rest.api.testSuite.RestEndpointFunctionalTest;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
@@ -90,6 +91,25 @@ class LabApiEndpointFunctionalTest extends RestEndpointFunctionalTest implements
 			.executeAndThen()
 			.statusCode(200)
 			.body(notNullValue());
+	}
+
+	@Test
+	@UseDataSet(LAB_API_THOUSAND_PRODUCTS)
+	@DisplayName("Should be alive")
+	void shouldBeAlive(Evita evita, LabApiTester tester) {
+		tester.test(LAB_API_URL)
+			.urlPathSuffix("/system/liveness")
+			.httpMethod(Request.METHOD_GET)
+			.executeAndThen()
+			.statusCode(200)
+			.body(
+				"",
+				equalTo(
+					map()
+						.e(LivenessDescriptor.ALIVE.name(), true)
+						.build()
+				)
+			);
 	}
 
 	@Test
