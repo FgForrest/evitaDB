@@ -35,7 +35,7 @@ import javax.annotation.Nullable;
 public record ClientContextExtension(@Nonnull String clientId,
                                      @Nullable String requestId) {
 
-	public static final String DEFAULT_CLIENT_ID = "unknownGraphQLClient";
+	public static final String DEFAULT_CLIENT_ID = "unknown-graphql-client";
 
 	static final String CLIENT_CONTEXT_EXTENSION = "clientContext";
 	static final String CLIENT_ID = "clientId";

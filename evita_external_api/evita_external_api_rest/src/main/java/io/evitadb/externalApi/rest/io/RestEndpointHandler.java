@@ -59,7 +59,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 @Slf4j
 public abstract class RestEndpointHandler<R, CTX extends RestHandlingContext> extends EndpointHandler<RestEndpointExchange, R> {
 
-    public static final String DEFAULT_CLIENT_ID = "unknownRestClient";
+    public static final String DEFAULT_CLIENT_ID = "unknown-rest-client";
     private static final String CLIENT_ID_HEADER = "X-EvitaDB-ClientID";
     private static final String REQUEST_ID_HEADER = "X-EvitaDB-RequestID";
 

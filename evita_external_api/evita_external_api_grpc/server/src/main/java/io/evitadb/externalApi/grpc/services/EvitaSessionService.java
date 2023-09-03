@@ -76,6 +76,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCatalogState;
 import static io.evitadb.externalApi.grpc.requestResponse.schema.CatalogSchemaConverter.convert;
@@ -105,7 +106,12 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	public void getCatalogSchema(Empty request, StreamObserver<GrpcCatalogSchemaResponse> responseObserver) {
 		final EvitaSessionContract session = ServerSessionInterceptor.SESSION.get();
 
-		final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
+		final SealedCatalogSchema catalogSchema = session.executeWithClientAndRequestId(
+			ServerSessionInterceptor.CLIENT_ID.get(),
+			ServerSessionInterceptor.REQUEST_ID.get(),
+			session::getCatalogSchema
+		);
+
 		responseObserver.onNext(
 			GrpcCatalogSchemaResponse.newBuilder()
 				.setCatalogSchema(convert(catalogSchema))
@@ -120,7 +126,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	@Override
 	public void getCatalogState(Empty request, StreamObserver<GrpcCatalogStateResponse> responseObserver) {
 		final EvitaSessionContract session = ServerSessionInterceptor.SESSION.get();
-		final CatalogState catalogState = session.getCatalogState();
+		final CatalogState catalogState = session.executeWithClientAndRequestId(
+			ServerSessionInterceptor.CLIENT_ID.get(),
+			ServerSessionInterceptor.REQUEST_ID.get(),
+			session::getCatalogState
+		);
 		responseObserver.onNext(
 			GrpcCatalogStateResponse.newBuilder()
 				.setState(toGrpcCatalogState(catalogState))
@@ -137,8 +147,12 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		final EvitaSessionContract session = ServerSessionInterceptor.SESSION.get();
 
 		final Builder responseBuilder = GrpcEntitySchemaResponse.newBuilder();
-		session.getEntitySchema(request.getEntityType())
-			.ifPresent(it -> responseBuilder.setEntitySchema(EntitySchemaConverter.convert(it)));
+		session.executeWithClientAndRequestId(
+			ServerSessionInterceptor.CLIENT_ID.get(),
+			ServerSessionInterceptor.REQUEST_ID.get(),
+			() -> session.getEntitySchema(request.getEntityType())
+				.ifPresent(it -> responseBuilder.setEntitySchema(EntitySchemaConverter.convert(it)))
+		);
 		responseObserver.onNext(
 			responseBuilder.build()
 		);
@@ -155,10 +169,14 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	public void getAllEntityTypes(@Nullable Empty request, @Nonnull StreamObserver<GrpcEntityTypesResponse> responseObserver) {
 		final EvitaSessionContract session = ServerSessionInterceptor.SESSION.get();
 
-		responseObserver.onNext(
-			GrpcEntityTypesResponse.newBuilder()
-				.addAllEntityTypes(session.getAllEntityTypes())
-				.build()
+		session.executeWithClientAndRequestId(
+			ServerSessionInterceptor.CLIENT_ID.get(),
+			ServerSessionInterceptor.REQUEST_ID.get(),
+			() -> responseObserver.onNext(
+				GrpcEntityTypesResponse.newBuilder()
+					.addAllEntityTypes(session.getAllEntityTypes())
+					.build()
+			)
 		);
 
 		responseObserver.onCompleted();
@@ -174,10 +192,14 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	public void getEntityCollectionSize(@Nonnull GrpcEntityCollectionSizeRequest request, @Nonnull StreamObserver<GrpcEntityCollectionSizeResponse> responseObserver) {
 		final EvitaSessionContract session = ServerSessionInterceptor.SESSION.get();
 
-		responseObserver.onNext(
-			GrpcEntityCollectionSizeResponse.newBuilder()
-				.setSize(session.getEntityCollectionSize(request.getEntityType()))
-				.build()
+		session.executeWithClientAndRequestId(
+			ServerSessionInterceptor.CLIENT_ID.get(),
+			ServerSessionInterceptor.REQUEST_ID.get(),
+			() -> responseObserver.onNext(
+				GrpcEntityCollectionSizeResponse.newBuilder()
+					.setSize(session.getEntityCollectionSize(request.getEntityType()))
+					.build()
+			)
 		);
 
 		responseObserver.onCompleted();
@@ -193,10 +215,14 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	public void deleteCollection(@Nonnull GrpcDeleteCollectionRequest request, @Nonnull StreamObserver<GrpcDeleteCollectionResponse> responseObserver) {
 		final EvitaSessionContract session = ServerSessionInterceptor.SESSION.get();
 
-		handleTransactionCall(session, s -> responseObserver.onNext(
-			GrpcDeleteCollectionResponse.newBuilder()
-				.setDeleted(s.deleteCollection(request.getEntityType()))
-				.build()
+		handleTransactionCall(session, s -> s.executeWithClientAndRequestId(
+			ServerSessionInterceptor.CLIENT_ID.get(),
+			ServerSessionInterceptor.REQUEST_ID.get(),
+			() -> responseObserver.onNext(
+				GrpcDeleteCollectionResponse.newBuilder()
+					.setDeleted(s.deleteCollection(request.getEntityType()))
+					.build()
+			)
 		));
 		responseObserver.onCompleted();
 	}
@@ -215,7 +241,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		if (session == null) {
 			success = false;
 		} else {
-			success = session.goLiveAndClose();
+			success = session.executeWithClientAndRequestId(
+				ServerSessionInterceptor.CLIENT_ID.get(),
+				ServerSessionInterceptor.REQUEST_ID.get(),
+				session::goLiveAndClose
+			);
 		}
 
 		final GrpcGoLiveAndCloseResponse response = GrpcGoLiveAndCloseResponse.newBuilder()
@@ -246,7 +276,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				responseObserver
 			);
 
-		entity = session.getEntity(request.getEntityType(), request.getPrimaryKey(), entityContentRequires);
+		entity = session.executeWithClientAndRequestId(
+			ServerSessionInterceptor.CLIENT_ID.get(),
+			ServerSessionInterceptor.REQUEST_ID.get(),
+			() -> session.getEntity(request.getEntityType(), request.getPrimaryKey(), entityContentRequires)
+		);
 		final GrpcEntityResponse.Builder evitaEntityResponseBuilder = GrpcEntityResponse.newBuilder();
 		entity.ifPresent(it -> evitaEntityResponseBuilder.setEntity(EntityConverter.toGrpcSealedEntity(it)));
 		responseObserver.onNext(evitaEntityResponseBuilder.build());
@@ -261,7 +295,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			.stream()
 			.map(CATALOG_SCHEMA_MUTATION_CONVERTER::convert)
 			.toArray(LocalCatalogSchemaMutation[]::new);
-		final int newSchemaVersion = session.updateCatalogSchema(schemaMutations);
+		final int newSchemaVersion = session.executeWithClientAndRequestId(
+			ServerSessionInterceptor.CLIENT_ID.get(),
+			ServerSessionInterceptor.REQUEST_ID.get(),
+			() -> session.updateCatalogSchema(schemaMutations)
+		);
 
 		final GrpcUpdateCatalogSchemaResponse response = GrpcUpdateCatalogSchemaResponse.newBuilder()
 			.setVersion(newSchemaVersion)
@@ -278,7 +316,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			.stream()
 			.map(CATALOG_SCHEMA_MUTATION_CONVERTER::convert)
 			.toArray(LocalCatalogSchemaMutation[]::new);
-		final SealedCatalogSchema newCatalogSchema = session.updateAndFetchCatalogSchema(schemaMutations);
+		final SealedCatalogSchema newCatalogSchema = session.executeWithClientAndRequestId(
+			ServerSessionInterceptor.CLIENT_ID.get(),
+			ServerSessionInterceptor.REQUEST_ID.get(),
+			() -> session.updateAndFetchCatalogSchema(schemaMutations)
+		);
 
 		final GrpcUpdateAndFetchCatalogSchemaResponse response = GrpcUpdateAndFetchCatalogSchemaResponse.newBuilder()
 			.setCatalogSchema(convert(newCatalogSchema))
@@ -291,7 +333,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	public void defineEntitySchema(@Nonnull GrpcDefineEntitySchemaRequest request, @Nonnull StreamObserver<GrpcDefineEntitySchemaResponse> responseObserver) {
 		final EvitaSessionContract session = ServerSessionInterceptor.SESSION.get();
 
-		final EntitySchemaBuilder entitySchemaBuilder = session.defineEntitySchema(request.getEntityType());
+		final EntitySchemaBuilder entitySchemaBuilder = session.executeWithClientAndRequestId(
+			ServerSessionInterceptor.CLIENT_ID.get(),
+			ServerSessionInterceptor.REQUEST_ID.get(),
+			() -> session.defineEntitySchema(request.getEntityType())
+		);
 
 		final GrpcDefineEntitySchemaResponse response = GrpcDefineEntitySchemaResponse.newBuilder()
 			.setEntitySchema(EntitySchemaConverter.convert(entitySchemaBuilder.toInstance()))
@@ -305,7 +351,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		final EvitaSessionContract session = ServerSessionInterceptor.SESSION.get();
 
 		final ModifyEntitySchemaMutation schemaMutation = ENTITY_SCHEMA_MUTATION_CONVERTER.convert(request.getSchemaMutation());
-		final int newSchemaVersion = session.updateEntitySchema(schemaMutation);
+		final int newSchemaVersion = session.executeWithClientAndRequestId(
+			ServerSessionInterceptor.CLIENT_ID.get(),
+			ServerSessionInterceptor.REQUEST_ID.get(),
+			() -> session.updateEntitySchema(schemaMutation)
+		);
 
 		final GrpcUpdateEntitySchemaResponse response = GrpcUpdateEntitySchemaResponse.newBuilder()
 			.setVersion(newSchemaVersion)
@@ -319,7 +369,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		final EvitaSessionContract session = ServerSessionInterceptor.SESSION.get();
 
 		final ModifyEntitySchemaMutation schemaMutation = ENTITY_SCHEMA_MUTATION_CONVERTER.convert(request.getSchemaMutation());
-		final SealedEntitySchema newEntitySchema = session.updateAndFetchEntitySchema(schemaMutation);
+		final SealedEntitySchema newEntitySchema = session.executeWithClientAndRequestId(
+			ServerSessionInterceptor.CLIENT_ID.get(),
+			ServerSessionInterceptor.REQUEST_ID.get(),
+			() -> session.updateAndFetchEntitySchema(schemaMutation)
+		);
 
 		final GrpcUpdateAndFetchEntitySchemaResponse response = GrpcUpdateAndFetchEntitySchemaResponse.newBuilder()
 			.setEntitySchema(EntitySchemaConverter.convert(newEntitySchema))
@@ -352,14 +406,22 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				);
 
 			if (ArrayUtils.isEmpty(entityContentRequires)) {
-				final EntityReference entityReference = session.upsertEntity(entityMutation);
+				final EntityReference entityReference = session.executeWithClientAndRequestId(
+					ServerSessionInterceptor.CLIENT_ID.get(),
+					ServerSessionInterceptor.REQUEST_ID.get(),
+					() -> session.upsertEntity(entityMutation)
+				);
 				builder.setEntityReference(GrpcEntityReference.newBuilder()
 					.setEntityType(entityReference.getType())
 					.setPrimaryKey(entityReference.getPrimaryKey())
 					.build()
 				);
 			} else {
-				final SealedEntity updatedEntity = session.upsertAndFetchEntity(entityMutation, entityContentRequires);
+				final SealedEntity updatedEntity = session.executeWithClientAndRequestId(
+					ServerSessionInterceptor.CLIENT_ID.get(),
+					ServerSessionInterceptor.REQUEST_ID.get(),
+					() -> session.upsertAndFetchEntity(entityMutation, entityContentRequires)
+				);
 				builder.setEntity(EntityConverter.toGrpcSealedEntity(updatedEntity));
 			}
 		});
@@ -393,9 +455,17 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		final boolean deleted;
 		if (ArrayUtils.isEmpty(entityContentRequires)) {
 			entity = empty();
-			deleted = session.deleteEntity(entityType, primaryKey);
+			deleted = session.executeWithClientAndRequestId(
+				ServerSessionInterceptor.CLIENT_ID.get(),
+				ServerSessionInterceptor.REQUEST_ID.get(),
+				() -> session.deleteEntity(entityType, primaryKey)
+			);
 		} else {
-			entity = session.deleteEntity(entityType, primaryKey, entityContentRequires);
+			entity = session.executeWithClientAndRequestId(
+				ServerSessionInterceptor.CLIENT_ID.get(),
+				ServerSessionInterceptor.REQUEST_ID.get(),
+				() -> session.deleteEntity(entityType, primaryKey, entityContentRequires)
+			);
 			deleted = entity.isPresent();
 		}
 
@@ -426,7 +496,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	@Override
 	public void renameCollection(@Nonnull GrpcRenameCollectionRequest request, @Nonnull StreamObserver<GrpcRenameCollectionResponse> responseObserver) {
 		final EvitaInternalSessionContract session = ServerSessionInterceptor.SESSION.get();
-		final boolean renamed = session.renameCollection(request.getEntityType(), request.getNewName());
+		final boolean renamed = session.executeWithClientAndRequestId(
+			ServerSessionInterceptor.CLIENT_ID.get(),
+			ServerSessionInterceptor.REQUEST_ID.get(),
+			() -> session.renameCollection(request.getEntityType(), request.getNewName())
+		);
 
 		final GrpcRenameCollectionResponse response = GrpcRenameCollectionResponse.newBuilder()
 			.setRenamed(renamed)
@@ -445,7 +519,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	@Override
 	public void replaceCollection(GrpcReplaceCollectionRequest request, StreamObserver<GrpcReplaceCollectionResponse> responseObserver) {
 		final EvitaInternalSessionContract session = ServerSessionInterceptor.SESSION.get();
-		final boolean replaced = session.replaceCollection(request.getEntityTypeToBeReplaced(), request.getEntityTypeToBeReplacedWith());
+		final boolean replaced = session.executeWithClientAndRequestId(
+			ServerSessionInterceptor.CLIENT_ID.get(),
+			ServerSessionInterceptor.REQUEST_ID.get(),
+			() -> session.replaceCollection(request.getEntityTypeToBeReplaced(), request.getEntityTypeToBeReplacedWith())
+		);
 
 		final GrpcReplaceCollectionResponse response = GrpcReplaceCollectionResponse.newBuilder()
 			.setReplaced(replaced)
@@ -482,11 +560,19 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 
 		if (ArrayUtils.isEmpty(entityContentRequires)) {
 			deletedHierarchy = new DeletedHierarchy<>(
-				session.deleteEntityAndItsHierarchy(entityType, primaryKey),
+				session.executeWithClientAndRequestId(
+					ServerSessionInterceptor.CLIENT_ID.get(),
+					ServerSessionInterceptor.REQUEST_ID.get(),
+					() -> session.deleteEntityAndItsHierarchy(entityType, primaryKey)
+				),
 				null
 			);
 		} else {
-			deletedHierarchy = session.deleteEntityAndItsHierarchy(entityType, primaryKey, entityContentRequires);
+			deletedHierarchy = session.executeWithClientAndRequestId(
+				ServerSessionInterceptor.CLIENT_ID.get(),
+				ServerSessionInterceptor.REQUEST_ID.get(),
+				() -> session.deleteEntityAndItsHierarchy(entityType, primaryKey, entityContentRequires)
+			);
 		}
 
 		final GrpcDeleteEntityAndItsHierarchyResponse.Builder response = GrpcDeleteEntityAndItsHierarchyResponse
@@ -522,10 +608,18 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			final SealedEntity[] deletedEntityBodies;
 			if (query.getRequire() == null ||
 				FinderVisitor.findConstraints(query.getRequire(), EntityFetch.class::isInstance).isEmpty()) {
-				deletedEntities = session.deleteEntities(query);
+				deletedEntities = session.executeWithClientAndRequestId(
+					ServerSessionInterceptor.CLIENT_ID.get(),
+					ServerSessionInterceptor.REQUEST_ID.get(),
+					() -> session.deleteEntities(query)
+				);
 				deletedEntityBodies = null;
 			} else {
-				deletedEntityBodies = session.deleteSealedEntitiesAndReturnBodies(query);
+				deletedEntityBodies = session.executeWithClientAndRequestId(
+					ServerSessionInterceptor.CLIENT_ID.get(),
+					ServerSessionInterceptor.REQUEST_ID.get(),
+					() -> session.deleteSealedEntitiesAndReturnBodies(query)
+				);
 				deletedEntities = deletedEntityBodies.length;
 			}
 
@@ -571,7 +665,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				EvitaRequest.CONVERSION_NOT_SUPPORTED
 			);
 
-			final EvitaResponse<EntityClassifier> evitaResponse = session.query(evitaRequest);
+			final EvitaResponse<EntityClassifier> evitaResponse = session.executeWithClientAndRequestId(
+				ServerSessionInterceptor.CLIENT_ID.get(),
+				ServerSessionInterceptor.REQUEST_ID.get(),
+				(Supplier<EvitaResponse<EntityClassifier>>) () -> session.query(evitaRequest)
+			);
 			final GrpcQueryResponse.Builder entityBuilder = GrpcQueryResponse.newBuilder();
 			final DataChunk<EntityClassifier> recordPage = evitaResponse.getRecordPage();
 			final GrpcDataChunk.Builder dataChunkBuilder = GrpcDataChunk.newBuilder()
@@ -658,20 +756,24 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 
 		if (query != null) {
 			final GrpcQueryOneResponse.Builder responseBuilder = GrpcQueryOneResponse.newBuilder();
-			session.queryOne(query, EntityClassifier.class).ifPresent(responseEntity -> {
-				if (responseEntity instanceof final EntityReference entityReference) {
-					responseBuilder.setEntityReference(GrpcEntityReference.newBuilder()
-						.setEntityType(entityReference.getType())
-						.setPrimaryKey(entityReference.getPrimaryKey())
-						.build());
-				} else if (responseEntity instanceof final SealedEntity sealedEntity) {
-					responseBuilder.setSealedEntity(EntityConverter.toGrpcSealedEntity(sealedEntity));
-				} else if (responseEntity instanceof final BinaryEntity binaryEntity) {
-					responseBuilder.setBinaryEntity(EntityConverter.toGrpcBinaryEntity(binaryEntity));
-				} else {
-					throw new EvitaInternalError("Unsupported entity class `" + responseEntity.getClass().getName() + "`.");
-				}
-			});
+			session.executeWithClientAndRequestId(
+				ServerSessionInterceptor.CLIENT_ID.get(),
+				ServerSessionInterceptor.REQUEST_ID.get(),
+				() -> session.queryOne(query, EntityClassifier.class).ifPresent(responseEntity -> {
+					if (responseEntity instanceof final EntityReference entityReference) {
+						responseBuilder.setEntityReference(GrpcEntityReference.newBuilder()
+							.setEntityType(entityReference.getType())
+							.setPrimaryKey(entityReference.getPrimaryKey())
+							.build());
+					} else if (responseEntity instanceof final SealedEntity sealedEntity) {
+						responseBuilder.setSealedEntity(EntityConverter.toGrpcSealedEntity(sealedEntity));
+					} else if (responseEntity instanceof final BinaryEntity binaryEntity) {
+						responseBuilder.setBinaryEntity(EntityConverter.toGrpcBinaryEntity(binaryEntity));
+					} else {
+						throw new EvitaInternalError("Unsupported entity class `" + responseEntity.getClass().getName() + "`.");
+					}
+				})
+			);
 			responseObserver.onNext(responseBuilder.build());
 		}
 		responseObserver.onCompleted();
@@ -702,7 +804,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				null,
 				EvitaRequest.CONVERSION_NOT_SUPPORTED
 			);
-			final List<EntityClassifier> responseEntities = session.queryList(evitaRequest);
+			final List<EntityClassifier> responseEntities = session.executeWithClientAndRequestId(
+				ServerSessionInterceptor.CLIENT_ID.get(),
+				ServerSessionInterceptor.REQUEST_ID.get(),
+				() -> session.queryList(evitaRequest)
+			);
 			final GrpcQueryListResponse.Builder responseBuilder = GrpcQueryListResponse.newBuilder();
 			final EntityFetch entityFetchRequirement = evitaRequest.getEntityRequirement();
 			if (entityFetchRequirement != null) {
@@ -739,7 +845,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	public void close(@Nonnull Empty request, @Nonnull StreamObserver<Empty> responseObserver) {
 		final EvitaSessionContract session = ServerSessionInterceptor.SESSION.get();
 		if (session != null) {
-			session.close();
+			session.executeWithClientAndRequestId(
+				ServerSessionInterceptor.CLIENT_ID.get(),
+				ServerSessionInterceptor.REQUEST_ID.get(),
+				session::close
+			);
 		}
 		responseObserver.onNext(Empty.getDefaultInstance());
 		responseObserver.onCompleted();
@@ -755,7 +865,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	@Override
 	public void openTransaction(@Nonnull Empty request, @Nonnull StreamObserver<GrpcOpenTransactionResponse> responseObserver) {
 		final EvitaSessionContract session = ServerSessionInterceptor.SESSION.get();
-		final long txId = session.openTransaction();
+		final long txId = session.executeWithClientAndRequestId(
+			ServerSessionInterceptor.CLIENT_ID.get(),
+			ServerSessionInterceptor.REQUEST_ID.get(),
+			session::openTransaction
+		);
 		responseObserver.onNext(
 			GrpcOpenTransactionResponse
 				.newBuilder()
@@ -779,7 +893,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		if (request.getRollback()) {
 			session.setRollbackOnly();
 		}
-		session.closeTransaction();
+		session.executeWithClientAndRequestId(
+			ServerSessionInterceptor.CLIENT_ID.get(),
+			ServerSessionInterceptor.REQUEST_ID.get(),
+			session::closeTransaction
+		);
 		responseObserver.onNext(Empty.getDefaultInstance());
 		responseObserver.onCompleted();
 	}
@@ -794,7 +912,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 */
 	private void handleTransactionCall(@Nonnull EvitaSessionContract session, @Nonnull Consumer<EvitaSessionContract> logic) {
 		try {
-			session.execute(logic);
+			session.executeWithClientAndRequestId(
+				ServerSessionInterceptor.CLIENT_ID.get(),
+				ServerSessionInterceptor.REQUEST_ID.get(),
+				() -> session.execute(logic)
+			);
 		} catch (UnexpectedTransactionStateException ex) {
 			logic.accept(session);
 		}
