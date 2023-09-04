@@ -41,6 +41,7 @@ import io.evitadb.externalApi.rest.api.builder.FinalRestBuilder;
 import io.evitadb.externalApi.rest.api.model.ErrorDescriptor;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObjectUnionType;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiUnion;
+import io.evitadb.externalApi.rest.api.system.model.LivenessDescriptor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -116,6 +117,7 @@ public class LabApiBuilder extends FinalRestBuilder<LabApiBuildingContext> {
 
 		// data api
 		buildingContext.registerType(ErrorDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(LivenessDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(CatalogDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(CorruptedCatalogDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(buildCatalogUnion());
@@ -130,6 +132,7 @@ public class LabApiBuilder extends FinalRestBuilder<LabApiBuildingContext> {
 
 	private void buildEndpoints() {
 		buildingContext.registerEndpoint(endpointBuilder.buildOpenApiSpecificationEndpoint());
+		buildingContext.registerEndpoint(endpointBuilder.buildLivenessEndpoint());
 
 		// data api
 		buildingContext.registerEndpoint(endpointBuilder.buildListCatalogsEndpoint());
