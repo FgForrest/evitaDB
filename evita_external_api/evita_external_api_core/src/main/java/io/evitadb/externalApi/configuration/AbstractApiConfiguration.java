@@ -66,7 +66,7 @@ public abstract class AbstractApiConfiguration {
 	 * flag is to allow accessing the system API, from where the client obtains to access all of evita's APIs. All of
 	 * evita's APIs are always secured at least by TLS encryption, in gRPC is also an option to use mTLS.
 	 */
-	@Getter private final boolean forceUnencrypted;
+	@Getter private final boolean tlsEnabled;
 
 	private static InetAddress getByName(@Nonnull String host) {
 		try {
@@ -82,7 +82,7 @@ public abstract class AbstractApiConfiguration {
 
 	protected AbstractApiConfiguration() {
 		this.enabled = true;
-		this.forceUnencrypted = false;
+		this.tlsEnabled = true;
 		this.host = new HostDefinition[]{
 			new HostDefinition(getByName("0.0.0.0"), DEFAULT_PORT)
 		};
@@ -94,18 +94,18 @@ public abstract class AbstractApiConfiguration {
 	 *                (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5556`
 	 */
 	protected AbstractApiConfiguration(@Nullable Boolean enabled, @Nonnull String host) {
-		this(enabled, host, false);
+		this(enabled, host, true);
 	}
 
 	/**
 	 * @param enabled          enables the particular API
 	 * @param host             defines the hostname and port the endpoints will listen on, use constant `localhost` for loopback
 	 *                         (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5556`
-	 * @param forceUnencrypted forces the API to run without TLS encryption
+	 * @param tlsEnabled       allows the API to run with TLS encryption
 	 */
-	protected AbstractApiConfiguration(@Nullable Boolean enabled, @Nonnull String host, boolean forceUnencrypted) {
+	protected AbstractApiConfiguration(@Nullable Boolean enabled, @Nonnull String host, @Nullable Boolean tlsEnabled) {
 		this.enabled = Optional.ofNullable(enabled).orElse(true);
-		this.forceUnencrypted = forceUnencrypted;
+		this.tlsEnabled = Optional.ofNullable(tlsEnabled).orElse(true);
 		this.host = Arrays.stream(host.split(","))
 			.flatMap(it -> {
 				final Matcher matcher = HOST_PATTERN.matcher(it);
@@ -127,7 +127,7 @@ public abstract class AbstractApiConfiguration {
 	@Nonnull
 	public String[] getBaseUrls() {
 		return Arrays.stream(getHost())
-			.map(it -> (isForceUnencrypted() ? "http://" : "https://")
+			.map(it -> (isTlsEnabled() ? "https://" : "http://")
 				+ it.hostName() + ":" + it.port() +
 				(this instanceof ApiWithSpecificPrefix withSpecificPrefix ? "/" + withSpecificPrefix.getPrefix() + "/" : "/"))
 			.toArray(String[]::new);

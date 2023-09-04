@@ -46,6 +46,7 @@ the name of the function, followed by a set of arguments in parentheses. You can
 in those arguments. An example of such a query might look like this:
 
 <SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
+
 [EvitaQL example](/documentation/user/en/use/api/example/evita-query-example.java)
 </SourceCodeTabs>
 
@@ -91,6 +92,7 @@ This is an example of how the query is composed and how evitaDB is called. The e
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/QueryConstraints.java</SourceClass>.
 
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java">
+
 [Java query example](/documentation/user/en/use/api/example/java-query-example.java)
 </SourceCodeTabs>
 
@@ -99,6 +101,7 @@ This is an example of how the query is composed and how evitaDB is called. The e
 The query may also contain "dirty" parts - that is, null constraints and unnecessary parts:
 
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java">
+
 [Java dirty query example](/documentation/user/en/use/api/example/java-dirty-query-example.java)
 </SourceCodeTabs>
 
@@ -144,6 +147,7 @@ represented by the
 interface.
 
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java">
+
 [Default query example](/documentation/user/en/use/api/example/default-query-example.java)
 </SourceCodeTabs>
 
@@ -161,6 +165,7 @@ will then contain entities in the form of
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass>.
 
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java">
+
 [Fetching example](/documentation/user/en/use/api/example/fetching-example.java)
 </SourceCodeTabs>
 
@@ -176,6 +181,7 @@ Although there are simpler variants for querying entities, the typical method is
 The next example documents fetching the second page of products in a category with calculated facet statistics:
 
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java">
+
 [Fetching example](/documentation/user/en/use/api/example/query-example.java)
 </SourceCodeTabs>
 
@@ -196,6 +202,7 @@ method and specify a set of additional require constraints that should be satisf
 enforced by database design, enriching an entity object returns a new instance of the entity.
 
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java">
+
 [Lazy loading example](/documentation/user/en/use/api/example/lazy-fetch-example.java)
 </SourceCodeTabs>
 
@@ -255,6 +262,7 @@ These simplified queries are primarily intended to be used when developing or ex
 as they provide quick access to entities.
 
 <SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+
 [Java query example](/documentation/user/en/use/api/example/graphql-get-query-example.java)
 </SourceCodeTabs>
 
@@ -265,6 +273,7 @@ These queries are meant to be used as a quick way/shortcut to get a list of enti
 requirements are needed.
 
 <SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+
 [Java query example](/documentation/user/en/use/api/example/graphql-list-query-example.java)
 </SourceCodeTabs>
 
@@ -275,6 +284,7 @@ the other two query types. However, in addition to entity bodies, you can retrie
 one query.
 
 <SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+
 [Java query example](/documentation/user/en/use/api/example/graphql-full-query-example.java)
 </SourceCodeTabs>
 
@@ -300,6 +310,7 @@ These simplified endpoints are primarily intended to be used when developing or 
 as they provide quick access to entities.
 
 <SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+
 [Java query example](/documentation/user/en/use/api/example/rest-get-query-example.rest)
 </SourceCodeTabs>
 
@@ -310,6 +321,7 @@ These queries are meant to be used as a quick way/shortcut to get a list of enti
 requirements are needed.
 
 <SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+
 [Java query example](/documentation/user/en/use/api/example/rest-list-query-example.rest)
 </SourceCodeTabs>
 
@@ -320,6 +332,7 @@ the other two endpoint types. However, in additions to entity bodies, you receiv
 one query.
 
 <SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+
 [Java query example](/documentation/user/en/use/api/example/rest-full-query-example.rest)
 </SourceCodeTabs>
 

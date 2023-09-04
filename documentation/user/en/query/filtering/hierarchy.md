@@ -73,6 +73,7 @@ The most straightforward usage is filtering the hierarchical entities themselves
 To list all nested categories of *Accessories* category issue this query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Transitive category listing](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-simple.evitaql)
 </SourceCodeTabs>
 
@@ -121,6 +122,7 @@ and passing category primary key.
 Yes, it can. Although, it's apparently one of the edge cases, it's possible. This query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Multiple category listing](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-multi.evitaql)
 </SourceCodeTabs>
 
@@ -189,6 +191,7 @@ The most common use case from the e-commerce world is a product that is assigned
 products in the *Accessories* category of our [demo dataset](../../get-started/query-our-dataset), we issue the following query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Product listing from *Accessories* category](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-simple.evitaql)
 </SourceCodeTabs>
 
@@ -268,6 +271,7 @@ would point to non-existent parent nodes, such hierarchy nodes are called [orpha
 and do not satisfy any hierarchy query.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Category listing](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-root-simple.evitaql)
 </SourceCodeTabs>
 
@@ -334,6 +338,7 @@ The most common use case from the e-commerce world is a product that is assigned
 products assigned to any category of our [demo dataset](../../get-started/query-our-dataset), we issue the following query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Product listing assigned to a category](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-root-reference-simple.evitaql)
 </SourceCodeTabs>
 
@@ -390,6 +395,7 @@ parent node to be returned. In the case of the `hierarchyWithinRoot` constraint,
 top root - so only the top-level categories are returned.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Top categories listing](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-top-categories.evitaql)
 </SourceCodeTabs>
 
@@ -423,6 +429,7 @@ top root - so only the top-level categories are returned.
 In the case of the `hierarchyWithin` the result will contain direct children of the filtered category (or categories).
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Accessories children categories listing](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-direct-categories.evitaql)
 </SourceCodeTabs>
 
@@ -465,6 +472,7 @@ So we can only list products that are directly related to a certain category - i
 *Accessories* category assigned:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Products directly assigned to Accessories category](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-direct-categories.evitaql)
 </SourceCodeTabs>
 
@@ -472,6 +480,7 @@ So we can only list products that are directly related to a certain category - i
 some of its subcategories. Let's try the *Smartwatches* subcategory:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Products directly assigned to Smartwatches category](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-direct-categories-smart.evitaql)
 </SourceCodeTabs>
 
@@ -524,6 +533,7 @@ the result. In the case of the `hierarchyWithinRoot` constraint, the parent is a
 constraint makes no sense.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Category listing excluding parent](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-excluding-root.evitaql)
 </SourceCodeTabs>
 
@@ -571,6 +581,7 @@ in *Keyboard* category using `hierarchyWithin` constraint, we obtain **20 items*
 is used:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Products in subcategories of Keyboard category](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-excluding-root.evitaql)
 </SourceCodeTabs>
 
@@ -657,6 +668,7 @@ at 01:00 AM on October 1, 2023.
 ![Accessories category listing with validity constraint](assets/accessories-category-listing-validity.png "Accessories category listing with validity constraint")
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Category listing excluding parent](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-having.evitaql)
 </SourceCodeTabs>
 
@@ -702,6 +714,7 @@ Let's use again our example with *Christmas electronics* that is valid only betw
 products available at 01:00 AM on October 1, 2023, issue a following query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Category listing excluding parent](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-having.evitaql)
 </SourceCodeTabs>
 
@@ -738,6 +751,7 @@ You can see that Christmas products like *Retlux Blue christmas lightning*, *Ret
 When you change the date and time in range constraint for *validity* attribute to 2nd December:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Category listing excluding parent](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-having-december.evitaql)
 </SourceCodeTabs>
 
@@ -838,6 +852,7 @@ the *Wireless headphones* subcategory.
 ![Accessories category listing excluding *Wireless headphones* subcategory](assets/accessories-category-listing-excluding.png "Accessories category listing excluding *Wireless headphones* subcategory")
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Category listing excluding parent](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-excluding.evitaql)
 </SourceCodeTabs>
 
@@ -882,6 +897,7 @@ available in the *Accessories* category except those related to the *Wireless He
 issue the following query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Category listing excluding parent](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-except.evitaql)
 </SourceCodeTabs>
 

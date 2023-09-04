@@ -23,23 +23,29 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.core.Evita;
 import io.evitadb.externalApi.ExternalApiFunctionTestsSupport;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.testSuite.GraphQLEndpointFunctionalTest;
 import io.evitadb.test.Entities;
+import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.builder.MapBuilder;
+import io.evitadb.test.extension.DataCarrier;
+import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
 import java.text.NumberFormat;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.Deque;
@@ -48,8 +54,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
@@ -58,6 +66,87 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEndpointFunctionalTest implements ExternalApiFunctionTestsSupport {
+
+	/**
+	 * Inserts product with only mandatory attributes so it passes validation, otherwise it's empty.
+	 */
+	protected int insertMinimalEmptyProduct(GraphQLTester tester) {
+		return tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                mutation {
+	                    upsertProduct(
+                            entityExistence: MUST_NOT_EXIST,
+                            mutations: [
+                                {
+                                    upsertAttributeMutation: {
+                                        name: "code",
+                                        value: "pwoa"
+                                    },
+                                },
+                                {
+                                    upsertAttributeMutation: {
+										name: "visible",
+										value: true
+									},
+								},
+                                {
+									upsertAttributeMutation: {
+										name: "created",
+										value: "%s"
+									},
+								},
+                                {
+									upsertAttributeMutation: {
+										name: "priority",
+										value: 1
+									},
+								},
+                                {
+									upsertAttributeMutation: {
+										name: "size",
+										value: [[1,2]]
+									},
+								},
+                                {
+									upsertAttributeMutation: {
+										name: "manufactured",
+										value: "%s"
+									}
+                                },
+                                {
+                                    insertReferenceMutation: {
+                                        name: "PARAMETER"
+                                        primaryKey: 1
+                                    }
+                                },
+                                {
+                                    referenceAttributeMutation: {
+										name: "PARAMETER",
+										primaryKey: 1,
+										attributeMutation: {
+											upsertAttributeMutation: {
+												name: "marketShare",
+												value: "1.1"
+											}
+										}
+                                    }
+                                }
+                            ]
+                        ) {
+	                        primaryKey
+	                    }
+	                }
+					""",
+				OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
+				OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.extract()
+			.path("data.upsertProduct.primaryKey");
+	}
 
 	@Nonnull
 	protected Map<String, Object> createEntityDtoWithFormattedPriceForSale(@Nonnull SealedEntity entity) {

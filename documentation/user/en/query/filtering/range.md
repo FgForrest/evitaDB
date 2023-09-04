@@ -37,6 +37,7 @@ The value is within the range if it is equal to the start or end of the range or
 the range.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Products valid for December '23](/documentation/user/en/query/filtering/examples/range/attribute-in-range.evitaql)
 </SourceCodeTabs>
 
@@ -94,6 +95,7 @@ Current date and time is within the range if it is equal to the start or end of 
 and end of the range.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Products valid now](/documentation/user/en/query/filtering/examples/range/attribute-in-range-now.evitaql)
 </SourceCodeTabs>
 

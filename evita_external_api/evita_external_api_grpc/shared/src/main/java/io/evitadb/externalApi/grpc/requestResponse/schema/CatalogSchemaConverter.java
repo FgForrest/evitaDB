@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.grpc.requestResponse.schema;
 
 import com.google.protobuf.StringValue;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -69,6 +70,10 @@ public class CatalogSchemaConverter {
 
 		if (catalogSchema.getDescription() != null) {
 			builder.setDescription(StringValue.of(catalogSchema.getDescription()));
+		}
+
+		for (CatalogEvolutionMode catalogEvolutionMode : catalogSchema.getCatalogEvolutionMode()) {
+			builder.addCatalogEvolutionMode(EvitaEnumConverter.toGrpcCatalogEvolutionMode(catalogEvolutionMode));
 		}
 
 		return builder.build();

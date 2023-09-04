@@ -132,6 +132,7 @@ After that you can create a new session and try any of the evitaQL queries descr
 [the reference documentation](../query/basics.md):
 
 <SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
+
 [Query the demo server](/documentation/user/en/get-started/example/query-demo-server.java)
 </SourceCodeTabs>
 
@@ -183,6 +184,7 @@ After that you can send GraphQL requests to that URL and try any of the GraphQL 
 [the reference documentation](../query/basics.md):
 
 <SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+
 [Query the demo server](/documentation/user/en/get-started/example/query-demo-server.graphql)
 </SourceCodeTabs>
 
@@ -212,6 +214,7 @@ After that you can send REST requests to different variants of that URL and try 
 [the reference documentation](../query/basics.md):
 
 <SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+
 [Query the demo server](/documentation/user/en/get-started/example/query-demo-server.rest)
 </SourceCodeTabs>
 

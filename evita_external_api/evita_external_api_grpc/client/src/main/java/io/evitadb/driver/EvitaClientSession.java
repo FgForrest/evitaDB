@@ -64,8 +64,10 @@ import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer;
 import io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer.AnalysisResult;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -265,6 +267,37 @@ public class EvitaClientSession implements EvitaSessionContract {
 		return schemaCache.getLatestCatalogSchema(
 			this::fetchCatalogSchema,
 			entityType -> this.getEntitySchema(entityType).orElse(null)
+		);
+	}
+
+	/**
+	 * This method is internal and is a special form of {@link #getCatalogSchema()} that can handle the situation when
+	 * this particular session is already closed and opens a new temporary one for accessing the schemas on the server
+	 * side when necessary.
+	 *
+	 * @param evita - reference to the {@link EvitaClient} instance that is used to open a new temporary session when necessary
+	 * @return {@link SealedCatalogSchema} of the catalog targeted by this session
+	 */
+	@Nonnull
+	public SealedCatalogSchema getCatalogSchema(@Nonnull EvitaClient evita) {
+		assertActive();
+		return schemaCache.getLatestCatalogSchema(
+			() -> isActive() ?
+				this.fetchCatalogSchema() :
+				evita.queryCatalog(
+					catalogName,
+					session -> {
+						return ((EvitaClientSession)session).fetchCatalogSchema();
+					}
+				),
+			entityType -> isActive() ?
+				this.getEntitySchema(entityType).orElse(null) :
+				evita.queryCatalog(
+					catalogName,
+					session -> {
+						return session.getEntitySchema(entityType).orElse(null);
+					}
+				)
 		);
 	}
 
@@ -817,7 +850,17 @@ public class EvitaClientSession implements EvitaSessionContract {
 	public EntityBuilder createNewEntity(@Nonnull String entityType) {
 		assertActive();
 		return executeInTransactionIfPossible(
-			session -> new InitialEntityBuilder(getEntitySchemaOrThrow(entityType), null)
+			session -> {
+				final EntitySchemaContract entitySchema;
+				if (getCatalogSchema().getCatalogEvolutionMode().contains(CatalogEvolutionMode.ADDING_ENTITY_TYPES)) {
+					entitySchema = getEntitySchema(entityType)
+						.map(EntitySchemaContract.class::cast)
+						.orElseGet(() -> EntitySchema._internalBuild(entityType));
+				} else {
+					entitySchema = getEntitySchemaOrThrow(entityType);
+				}
+				return new InitialEntityBuilder(entitySchema, null);
+			}
 		);
 	}
 
@@ -826,7 +869,17 @@ public class EvitaClientSession implements EvitaSessionContract {
 	public EntityBuilder createNewEntity(@Nonnull String entityType, int primaryKey) {
 		assertActive();
 		return executeInTransactionIfPossible(
-			session -> new InitialEntityBuilder(getEntitySchemaOrThrow(entityType), primaryKey)
+			session -> {
+				final EntitySchemaContract entitySchema;
+				if (getCatalogSchema().getCatalogEvolutionMode().contains(CatalogEvolutionMode.ADDING_ENTITY_TYPES)) {
+					entitySchema = getEntitySchema(entityType)
+						.map(EntitySchemaContract.class::cast)
+						.orElseGet(() -> EntitySchema._internalBuild(entityType));
+				} else {
+					entitySchema = getEntitySchemaOrThrow(entityType);
+				}
+				return new InitialEntityBuilder(entitySchema, primaryKey);
+			}
 		);
 	}
 
