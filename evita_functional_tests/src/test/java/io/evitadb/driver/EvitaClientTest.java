@@ -603,6 +603,75 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldAllowCreatingCatalogAndEntityCollectionsSchemas(EvitaClient evitaClient) {
+		final String someCatalogName = "differentCatalog";
+		try {
+			evitaClient.defineCatalog(someCatalogName)
+				.withDescription("This is a tutorial catalog.")
+				// define brand schema
+				.withEntitySchema(
+					"Brand",
+					whichIs -> whichIs.withDescription("A manufacturer of products.")
+						.withAttribute(
+							"name", String.class,
+							thatIs -> thatIs.localized().filterable().sortable()
+						)
+				)
+				// define category schema
+				.withEntitySchema(
+					"Category",
+					whichIs -> whichIs.withDescription("A category of products.")
+						.withAttribute(
+							"name", String.class,
+							thatIs -> thatIs.localized().filterable().sortable()
+						)
+						.withHierarchy()
+				)
+				// define product schema
+				.withEntitySchema(
+					"Product",
+					whichIs -> whichIs.withDescription("A product in inventory.")
+						.withAttribute(
+							"name", String.class,
+							thatIs -> thatIs.localized().filterable().sortable()
+						)
+						.withAttribute(
+							"cores", Integer.class,
+							thatIs -> thatIs.withDescription("Number of CPU cores.")
+								.filterable()
+						)
+						.withAttribute(
+							"graphics", String.class,
+							thatIs -> thatIs.withDescription("Graphics card.")
+								.filterable()
+						)
+						.withPrice()
+						.withReferenceToEntity(
+							"brand", "Brand", Cardinality.EXACTLY_ONE,
+							thatIs -> thatIs.indexed()
+						)
+						.withReferenceToEntity(
+							"categories", "Category", Cardinality.ZERO_OR_MORE,
+							thatIs -> thatIs.indexed()
+						)
+				)
+				// and now push all the definitions (mutations) to the server
+				.updateViaNewSession(evitaClient);
+
+			assertTrue(evitaClient.getCatalogNames().contains(someCatalogName));
+			evitaClient.queryCatalog(someCatalogName, session -> {
+				final Set<String> allEntityTypes = session.getAllEntityTypes();
+				assertTrue(allEntityTypes.contains("Brand"));
+				assertTrue(allEntityTypes.contains("Category"));
+				assertTrue(allEntityTypes.contains("Product"));
+			});
+		} finally {
+			evitaClient.deleteCatalogIfExists(someCatalogName);
+		}
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldBeAbleToRunParallelClients(EvitaClient evitaClient) {
 		final EvitaClient anotherParallelClient = new EvitaClient(evitaClient.getConfiguration());
 		shouldListCatalogNames(anotherParallelClient);
