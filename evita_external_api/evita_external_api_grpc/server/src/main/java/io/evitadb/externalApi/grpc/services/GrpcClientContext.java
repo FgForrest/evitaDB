@@ -29,13 +29,13 @@ import io.evitadb.externalApi.utils.ExternalApiClientContext;
 import javax.annotation.Nonnull;
 
 /**
- * TODO lho docs
+ * Implementation of {@link ExternalApiClientContext} for gRPC API.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public class GrpcClientContext extends ExternalApiClientContext {
 
-	private static final String PROTOCOL = "grpc";
+	private static final String PROTOCOL = "GRPC";
 
 	public GrpcClientContext(@Nonnull ClientContext internalClientContext) {
 		super(internalClientContext);

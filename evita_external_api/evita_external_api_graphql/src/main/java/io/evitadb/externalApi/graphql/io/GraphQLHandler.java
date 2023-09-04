@@ -57,7 +57,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.LinkedHashSet;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
@@ -73,7 +72,6 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
  * @author Lukáš Hornych, FG Forrest a.s. 2022
  */
 @Slf4j
-@RequiredArgsConstructor
 public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange, GraphQLResponse<?>> {
 
     /**
@@ -90,11 +88,20 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange, Gra
     @Nonnull
     private final ObjectMapper objectMapper;
     @Nonnull
-    private final Evita evita;
+    private final GraphQLClientContext clientContext;
     @Nonnull
     private final EvitaConfiguration evitaConfiguration;
     @Nonnull
     private final AtomicReference<GraphQL> graphQL;
+
+    public GraphQLHandler(@Nonnull ObjectMapper objectMapper,
+                          @Nonnull Evita evita,
+                          @Nonnull AtomicReference<GraphQL> graphQL) {
+        this.objectMapper = objectMapper;
+        this.clientContext = new GraphQLClientContext(evita);
+        this.evitaConfiguration = evita.getConfiguration();
+        this.graphQL = graphQL;
+    }
 
     @Nonnull
     @Override
@@ -109,10 +116,11 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange, Gra
     @Nonnull
     protected EndpointResponse<GraphQLResponse<?>> doHandleRequest(@Nonnull GraphQLEndpointExchange exchange) {
         final GraphQLRequest graphQLRequest = parseRequestBody(exchange, GraphQLRequest.class);
-        final ClientContextExtension clientContext = graphQLRequest.clientContextExtension();
-        final GraphQLResponse<?> graphQLResponse = evita.executeWithClientAndRequestId(
-            clientContext.clientId(),
-            clientContext.requestId(),
+        final ClientContextExtension clientContextExtension = graphQLRequest.clientContextExtension();
+        final GraphQLResponse<?> graphQLResponse = clientContext.executeWithClientAndRequestId(
+            exchange.serverExchange().getSourceAddress(),
+            clientContextExtension.clientId(),
+            clientContextExtension.requestId(),
             () -> executeRequest(graphQLRequest)
         );
         return new SuccessEndpointResponse<>(graphQLResponse);

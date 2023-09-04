@@ -21,16 +21,29 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.grpc.constants;
+package io.evitadb.externalApi.graphql.io;
+
+import io.evitadb.api.ClientContext;
+import io.evitadb.externalApi.utils.ExternalApiClientContext;
+
+import javax.annotation.Nonnull;
 
 /**
- * TODO lho docs
+ * Implementation of {@link ExternalApiClientContext} for GraphQL API.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface ServerGrpcHeaders extends GrpcHeaders {
-	/**
-	 * Constant string representing client address (IP address) that is used to identify the client.
-	 */
-	String CLIENT_ADDRESS_HEADER = "clientAddress";
+public class GraphQLClientContext extends ExternalApiClientContext {
+
+	private static final String PROTOCOL = "GQL";
+
+	public GraphQLClientContext(@Nonnull ClientContext internalClientContext) {
+		super(internalClientContext);
+	}
+
+	@Nonnull
+	@Override
+	protected String getProtocol() {
+		return PROTOCOL;
+	}
 }

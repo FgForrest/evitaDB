@@ -51,7 +51,7 @@ import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.CATALOG_NAME_HEA
 import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.CLIENT_ID_HEADER;
 import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.REQUEST_ID_HEADER;
 import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.SESSION_ID_HEADER;
-import static io.evitadb.externalApi.grpc.constants.ServerGrpcHeaders.CLIENT_ADDRESS_HEADER;
+import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.CLIENT_ADDRESS_HEADER;
 
 /**
  * This class is used to intercept calls to gRPC services by setting a session to

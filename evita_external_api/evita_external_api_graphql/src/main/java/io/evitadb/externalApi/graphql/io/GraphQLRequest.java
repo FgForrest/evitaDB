@@ -61,7 +61,7 @@ public record GraphQLRequest(@Nonnull String query,
 
     /**
      * Returns client context extensions from sent extensions. If no client context extension is sent, the
-     * {@link ClientContextExtension#unknown()} is returned, so we can at least somehow classify the request.
+     * {@link ClientContextExtension#empty()} is returned, so we can at least somehow classify the request.
      */
     @Nonnull
     public ClientContextExtension clientContextExtension() {
@@ -79,7 +79,7 @@ public record GraphQLRequest(@Nonnull String query,
                 (String) it.get(ClientContextExtension.CLIENT_ID),
                 (String) it.get(ClientContextExtension.REQUEST_ID)
             ))
-            .orElse(ClientContextExtension.unknown());
+            .orElse(ClientContextExtension.empty());
     }
 
     /**

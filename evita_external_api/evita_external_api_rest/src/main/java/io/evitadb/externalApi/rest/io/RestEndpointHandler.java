@@ -59,7 +59,6 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 @Slf4j
 public abstract class RestEndpointHandler<R, CTX extends RestHandlingContext> extends EndpointHandler<RestEndpointExchange, R> {
 
-    public static final String DEFAULT_CLIENT_ID = "unknown-rest-client";
     private static final String CLIENT_ID_HEADER = "X-EvitaDB-ClientID";
     private static final String REQUEST_ID_HEADER = "X-EvitaDB-RequestID";
 
@@ -85,34 +84,11 @@ public abstract class RestEndpointHandler<R, CTX extends RestHandlingContext> ex
      * Process every request with client context, so we can classify it in evitaDB.
      */
     private void handleRequestWithClientContext(@Nonnull HttpServerExchange serverExchange) {
-        String clientId;
-        try {
-            clientId = Optional.ofNullable(serverExchange.getRequestHeaders().get(CLIENT_ID_HEADER))
-                .map(it -> {
-                    if (it.isEmpty()) {
-                        return null;
-                    }
-                    return it.getFirst();
-                })
-                .orElse(DEFAULT_CLIENT_ID);
-        } catch (NoSuchElementException e) {
-            clientId = DEFAULT_CLIENT_ID;
-        }
-        String requestId = null;
-        try {
-            requestId = Optional.ofNullable(serverExchange.getRequestHeaders().get(REQUEST_ID_HEADER))
-                .map(it -> {
-                    if (it.isEmpty()) {
-                        return null;
-                    }
-                    return it.getFirst();
-                })
-                .orElse(null);
-        } catch (NoSuchElementException e) {
-            // do nothing, we don't have to have request id
-        }
+        final String clientId = serverExchange.getRequestHeaders().getFirst(CLIENT_ID_HEADER);
+        final String requestId = serverExchange.getRequestHeaders().getFirst(REQUEST_ID_HEADER);
 
-        restApiHandlingContext.getEvita().executeWithClientAndRequestId(
+        restApiHandlingContext.getClientContext().executeWithClientAndRequestId(
+            serverExchange.getSourceAddress(),
             clientId,
             requestId,
             () -> super.handleRequest(serverExchange)

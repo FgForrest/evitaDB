@@ -21,27 +21,29 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.io;
+package io.evitadb.externalApi.rest.io;
 
-import javax.annotation.Nullable;
+import io.evitadb.api.ClientContext;
+import io.evitadb.externalApi.utils.ExternalApiClientContext;
+
+import javax.annotation.Nonnull;
 
 /**
- * DTO for passing client context information from client for entire GQL request execution.
+ * Implementation of {@link ExternalApiClientContext} for REST API.
  *
- * @see io.evitadb.api.ClientContext
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public record ClientContextExtension(@Nullable String clientId,
-                                     @Nullable String requestId) {
+public class RestClientContext extends ExternalApiClientContext {
 
-	static final String CLIENT_CONTEXT_EXTENSION = "clientContext";
-	static final String CLIENT_ID = "clientId";
-	static final String REQUEST_ID = "requestId";
+	private static final String PROTOCOL = "REST";
 
-	/**
-	 * Client didn't send any client context information, but we want to still classify the usage somehow.
-	 */
-	public static ClientContextExtension empty() {
-		return new ClientContextExtension(null, null);
+	public RestClientContext(@Nonnull ClientContext internalClientContext) {
+		super(internalClientContext);
+	}
+
+	@Nonnull
+	@Override
+	protected String getProtocol() {
+		return PROTOCOL;
 	}
 }

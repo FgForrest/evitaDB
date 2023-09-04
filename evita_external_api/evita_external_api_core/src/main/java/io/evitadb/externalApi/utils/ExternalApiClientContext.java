@@ -34,9 +34,11 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 /**
- * TODO lho docs
+ * Bridge between client-send IDs and internal evitaDB client context for external APIs.
+ * This exists because we want to sanitize client inputs and log more detailed info about clients.
+ * This bridge takes client-sent IDs, transforms them and delegates them to the internal {@link ClientContext}.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
 public abstract class ExternalApiClientContext  {
@@ -54,13 +56,14 @@ public abstract class ExternalApiClientContext  {
 	/**
 	 * Method executes the `lambda` function within the scope of client-defined context.
 	 *
-	 * @param clientId  string that will be constant per a connected client,
-	 *                  example values: Next.JS Middleware, evitaDB console etc.
-	 * @param requestId a randomized token - preferably UUID that will connect all queries and mutations issued by the client
-	 *                  in a single unit of work, that is controlled by the client (not the server); there might be different
-	 *                  request ids within single evita session and also there might be same request id among multiple different
-	 *                  evita sessions
-	 * @param lambda    function to be executed
+	 * @param clientAddress network address of the client
+	 * @param clientId      string that will be constant per a connected client,
+	 *                      example values: Next.JS Middleware, evitaDB console etc.
+	 * @param requestId     a randomized token - preferably UUID that will connect all queries and mutations issued by the client
+	 *                      in a single unit of work, that is controlled by the client (not the server); there might be different
+	 *                      request ids within single evita session and also there might be same request id among multiple different
+	 *                      evita sessions
+	 * @param lambda        function to be executed
 	 */
 	public void executeWithClientAndRequestId(@Nonnull SocketAddress clientAddress,
 	                                          @Nullable String clientId,
@@ -76,13 +79,14 @@ public abstract class ExternalApiClientContext  {
 	/**
 	 * Method executes the `lambda` function within the scope of client-defined context and returns its result.
 	 *
-	 * @param clientId  string that will be constant per a connected client,
-	 *                  example values: Next.JS Middleware, evitaDB console etc.
-	 * @param requestId a randomized token - preferably UUID that will connect all queries and mutations issued by the client
-	 *                  in a single unit of work, that is controlled by the client (not the server); there might be different
-	 *                  request ids within single evita session and also there might be same request id among multiple different
-	 *                  evita sessions
-	 * @param lambda    function to be executed
+	 * @param clientAddress network address of the client
+	 * @param clientId      string that will be constant per a connected client,
+	 *                      example values: Next.JS Middleware, evitaDB console etc.
+	 * @param requestId     a randomized token - preferably UUID that will connect all queries and mutations issued by the client
+	 *                      in a single unit of work, that is controlled by the client (not the server); there might be different
+	 *                      request ids within single evita session and also there might be same request id among multiple different
+	 *                      evita sessions
+	 * @param lambda        function to be executed
 	 * @return result of the lambda function
 	 */
 	public <T> T executeWithClientAndRequestId(@Nonnull SocketAddress clientAddress,
@@ -103,12 +107,25 @@ public abstract class ExternalApiClientContext  {
 	@Nonnull
 	protected abstract String getProtocol();
 
-	@Nonnull
-	private String sanitizeId(@Nonnull String idFromClient) {
+	/**
+	 * Sanitizes client-sent ID.
+	 */
+	@Nullable
+	private String sanitizeId(@Nullable String idFromClient) {
+		if (idFromClient == null) {
+			return null;
+		}
 		return ID_FORBIDDEN_CHARACTERS.matcher(idFromClient)
 			.replaceAll("-");
 	}
 
+	/**
+	 * Converts client-sent ID to internal client ID.
+	 *
+	 * @param clientAddress network address of the client
+	 * @param clientIdFromClient client-sent client ID
+	 * @return more detailed client ID for internal use
+	 */
 	@Nonnull
 	private String convertClientId(@Nonnull SocketAddress clientAddress, @Nullable String clientIdFromClient) {
 		return String.format(
