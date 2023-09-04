@@ -43,6 +43,7 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.net.SocketAddress;
 import java.util.Optional;
 import java.util.Set;
 
@@ -50,6 +51,7 @@ import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.CATALOG_NAME_HEA
 import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.CLIENT_ID_HEADER;
 import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.REQUEST_ID_HEADER;
 import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.SESSION_ID_HEADER;
+import static io.evitadb.externalApi.grpc.constants.ServerGrpcHeaders.CLIENT_ADDRESS_HEADER;
 
 /**
  * This class is used to intercept calls to gRPC services by setting a session to
@@ -85,7 +87,8 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 	 */
 	public static final Context.Key<EvitaInternalSessionContract> SESSION = Context.key(SESSION_ID_HEADER);
 	public static final Context.Key<String> REQUEST_ID = Context.key(REQUEST_ID_HEADER);
-	public static final Context.Key<String> CLIENT_ID = Context.Key(CLIENT_ID_HEADER);
+	public static final Context.Key<String> CLIENT_ID = Context.key(CLIENT_ID_HEADER);
+	public static final Context.Key<SocketAddress> CLIENT_ADDRESS = Context.key(CLIENT_ADDRESS_HEADER);
 	/**
 	 * Reference to the {@link EvitaContract} instance.
 	 */
@@ -121,9 +124,12 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 		final Metadata.Key<String> requestMetadata = Metadata.Key.of(REQUEST_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER);
 		final String clientId = metadata.get(clientMetadata);
 		final String requestId = metadata.get(requestMetadata);
+		final SocketAddress clientAddress = serverCall.getAttributes().get(Grpc.TRANSPORT_ATTR_REMOTE_ADDR);
 
-		final String cId = clientId == null ? "unknown-grpc-client" : clientId;
-		Context context = Context.current().withValue(CLIENT_ID, cId).withValue(REQUEST_ID, requestId);
+		Context context = Context.current()
+			.withValue(CLIENT_ID, clientId)
+			.withValue(REQUEST_ID, requestId)
+			.withValue(CLIENT_ADDRESS, clientAddress);
 		if (activeSession.isPresent()) {
 			context = context.withValue(SESSION, activeSession.get());
 		}
