@@ -50,6 +50,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
@@ -307,7 +308,8 @@ public class TestDataGenerator {
 			/* all is strictly verified */
 			.verifySchemaStrictly()
 			/* stores are not organized in the tree */
-			.withoutHierarchy();
+			.withoutHierarchy()
+			.withLocale(CZECH_LOCALE, Locale.ENGLISH);
 
 		/* finally apply schema changes */
 		return schemaBuilder.toInstance();

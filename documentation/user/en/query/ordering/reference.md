@@ -51,6 +51,7 @@ To sort products related to a "Sony" brand by the `orderInBrand` attribute set o
 following query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [List of "Sony" products ordered by priority](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural.evitaql)
 </SourceCodeTabs>
 
@@ -103,6 +104,7 @@ Let's extend our previous example so that it returns products that refer not onl
 brand "Google":
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [List of "Sony" or "Google" products ordered by priority](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-multiple.evitaql)
 </SourceCodeTabs>
 
@@ -151,6 +153,7 @@ This behaviour is best illustrated by a following example. Let's list products i
 by the `orderInCategory` attribute on the reference to the category:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [List products in "Accessories" category ordered by priority](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-hierarchy.evitaql)
 </SourceCodeTabs>
 
@@ -224,6 +227,7 @@ In other words, if the `Product` entity has multiple references to `Parameter` e
 by, for example, the `priority` or `name` attribute of the `Parameter` entity. Let's see an example:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Get product with parameters ordered by their priority](/documentation/user/en/query/ordering/examples/reference/entity-property.evitaql)
 </SourceCodeTabs>
 

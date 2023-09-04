@@ -349,8 +349,12 @@ public class EvitaClient implements EvitaContract {
 		if (!getCatalogNames().contains(catalogName)) {
 			update(new CreateCatalogSchemaMutation(catalogName));
 		}
-		return queryCatalog(catalogName, EvitaSessionContract::getCatalogSchema)
-			.openForWrite();
+		return queryCatalog(
+			catalogName,
+			session -> {
+				return ((EvitaClientSession) session).getCatalogSchema(this);
+			}
+		).openForWrite();
 	}
 
 	@Override

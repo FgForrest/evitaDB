@@ -32,10 +32,12 @@ import io.evitadb.externalApi.lab.api.openApi.OpenApiLabApiEndpoint;
 import io.evitadb.externalApi.lab.api.resolver.endpoint.GetCatalogSchemaHandler;
 import io.evitadb.externalApi.lab.api.resolver.endpoint.ListCatalogsHandler;
 import io.evitadb.externalApi.lab.api.resolver.endpoint.QueryEntitiesHandler;
+import io.evitadb.externalApi.lab.api.resolver.endpoint.LivenessHandler;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiOperationPathParameterTransformer;
 import io.evitadb.externalApi.rest.api.model.RestRootDescriptor;
 import io.evitadb.externalApi.rest.api.resolver.endpoint.OpenApiSpecificationHandler;
+import io.evitadb.externalApi.rest.api.system.model.LivenessDescriptor;
 import io.swagger.v3.oas.models.PathItem.HttpMethod;
 import lombok.RequiredArgsConstructor;
 
@@ -43,6 +45,7 @@ import javax.annotation.Nonnull;
 
 import static io.evitadb.externalApi.lab.api.openApi.OpenApiLabApiEndpoint.DATA_API_URL_PREFIX;
 import static io.evitadb.externalApi.lab.api.openApi.OpenApiLabApiEndpoint.SCHEMA_API_URL_PREFIX;
+import static io.evitadb.externalApi.lab.api.openApi.OpenApiLabApiEndpoint.SYSTEM_API_URL_PREFIX;
 import static io.evitadb.externalApi.lab.api.openApi.OpenApiLabApiEndpoint.newLabApiEndpoint;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiArray.arrayOf;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
@@ -67,6 +70,20 @@ public class LabApiEndpointBuilder {
 			.description(RestRootDescriptor.OPEN_API_SPECIFICATION.description())
 			.successResponse(nonNull(DataTypesConverter.getOpenApiScalar(String.class)))
 			.handler(OpenApiSpecificationHandler::new)
+			.build();
+	}
+
+	@Nonnull
+	public OpenApiLabApiEndpoint buildLivenessEndpoint() {
+		return newLabApiEndpoint()
+			.path(p -> p
+				.staticItem(SYSTEM_API_URL_PREFIX)
+				.staticItem("liveness"))
+			.method(HttpMethod.GET)
+			.operationId("getLiveness")
+			.description("Whether lab API is alive.")
+			.successResponse(nonNull(typeRefTo(LivenessDescriptor.THIS.name())))
+			.handler(LivenessHandler::new)
 			.build();
 	}
 

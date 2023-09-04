@@ -37,6 +37,7 @@ It's case-sensitive, works with national characters (since we're working with UT
 match of the searched string anywhere in the attribute value.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Products having a `epix` string in the `code` attribute](/documentation/user/en/query/filtering/examples/string/attribute-contains.evitaql)
 </SourceCodeTabs>
 
@@ -97,6 +98,7 @@ It's case-sensitive, works with national characters (since we're working with UT
 match of the search string at the beginning of the attribute value.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Products having a `garmin` string at the beginning of the `code` attribute](/documentation/user/en/query/filtering/examples/string/attribute-starts-with.evitaql)
 </SourceCodeTabs>
 
@@ -157,6 +159,7 @@ It's case-sensitive, works with national characters (since we're working with UT
 match of the search string at the end of the attribute value.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Products having a `solar` string at the end of the `code` attribute](/documentation/user/en/query/filtering/examples/string/attribute-ends-with.evitaql)
 </SourceCodeTabs>
 

@@ -100,6 +100,7 @@ The `page` requirement is the most natural and commonly used requirement for the
 To get the second page of the query result, use the following query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Second page of results retrieval example](/documentation/user/en/query/requirements/examples/paging/page.evitaql)
 </SourceCodeTabs>
 
@@ -210,6 +211,7 @@ that position, and you want to correctly fetch records for the 5th page, you nee
 the following query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Non-uniform strip of results retrieval example](/documentation/user/en/query/requirements/examples/paging/strip.evitaql)
 </SourceCodeTabs>
 

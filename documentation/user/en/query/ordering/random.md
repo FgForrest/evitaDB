@@ -17,6 +17,7 @@ random()
 The constraint makes the order of the entities in the result random and does not take any arguments.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Entities sorted randomly](/documentation/user/en/query/ordering/examples/random/random.evitaql)
 </SourceCodeTabs>
 

@@ -110,6 +110,7 @@ In this form, the user submits the query to the server, which parses the string 
 the requested query, ready for execution by the database.
 
 <SourceCodeTabs requires="/documentation/user/en/use/connectors/examples/channel-and-session-creation.java">
+
 [Example of creating gRPC channel and a service operating upon it and executing a query](/documentation/user/en/use/connectors/examples/grpc-client-query-call.java)
 </SourceCodeTabs>
 
@@ -131,6 +132,7 @@ Yes, there is, and you will not see this kind of usage in our integration tests.
 original type-safe form:
 
 <SourceCodeTabs requires="/documentation/user/en/use/connectors/examples/channel-and-session-creation.java">
+
 [Example of alternative gRPC query invocation](/documentation/user/en/use/connectors/examples/grpc-optimized-client-query-call.java)
 </SourceCodeTabs>
 

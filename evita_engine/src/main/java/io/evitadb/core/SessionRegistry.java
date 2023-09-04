@@ -28,6 +28,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ConcurrentInitializationException;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -96,11 +97,14 @@ final class SessionRegistry {
 					activeSession.setRollbackOnly();
 				}
 				activeSession.close();
-				activeSessionsCounter.decrementAndGet();
 				log.info("There is still active session {} - terminating.", activeSession.getId());
 			}
 			sessionIt.remove();
 		}
+		Assert.isPremiseValid(
+			activeSessionsCounter.get() == 0,
+			"Some of the sessions didn't decrement the session counter!"
+		);
 	}
 
 	/**
