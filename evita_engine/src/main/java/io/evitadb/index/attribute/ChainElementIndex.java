@@ -327,7 +327,6 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 		} else {
 			final int[] movedChain;
 			final int movedChainHeadPk;
-			final int movedChainTailPk;
 
 			final ChainElementState predecessorState = this.elementStates.get(predecessor.predecessorId());
 			final TransactionalUnorderedIntArray predecessorChain = this.chains.get(predecessorState.inChainOfHeadWithPrimaryKey());
@@ -340,14 +339,12 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 					movedChain = existingChain.removeRange(index, existingChain.getLength());
 					// append only the sub-chain to the predecessor chain
 					predecessorChain.appendAll(movedChain);
-					movedChainTailPk = movedChain[movedChain.length - 1];
 				} else {
 					// the element is the head of the chain, discard the chain completely
 					this.chains.remove(existingState.inChainOfHeadWithPrimaryKey());
 					// and fully merge with predecessor chain
 					movedChain = existingChain.getArray();
 					predecessorChain.appendAll(movedChain);
-					movedChainTailPk = existingChain.getLastRecordId();
 				}
 			} else {
 				// if the element is in the body of the chain and is already successor of the predecessor
@@ -360,13 +357,11 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 					movedChain = existingChain.removeRange(index, existingChain.getLength());
 					movedChainHeadPk = primaryKey;
 					this.chains.put(primaryKey, new TransactionalUnorderedIntArray(movedChain));
-					movedChainTailPk = movedChain[movedChain.length - 1];
 				} else if (existingState.inChainOfHeadWithPrimaryKey() == predecessorState.inChainOfHeadWithPrimaryKey()) {
 					// the element is the head of the chain
 					// we just need to change the state and predecessor, since the chain is already correct
 					movedChainHeadPk = existingState.inChainOfHeadWithPrimaryKey();
 					movedChain = null;
-					movedChainTailPk = existingChain.getLastRecordId();
 				} else {
 					// we need to append the sub-chain to the predecessor chain which is already occupied by other chain
 					// we need to promote the longer chain and register the conflicting successor chain
@@ -381,7 +376,6 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 						movedChain = existingChain.getArray();
 						movedChainHeadPk = predecessorState.inChainOfHeadWithPrimaryKey();
 						predecessorChain.appendAll(movedChain);
-						movedChainTailPk = movedChain[movedChain.length - 1];
 						// setup the new head of the chain for the tail part of split chain
 						this.chains.put(splitPks[0], new TransactionalUnorderedIntArray(splitPks));
 						reclassifyChain(splitPks[0], splitPks);
@@ -389,7 +383,6 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 						// leave the current chain be - we need to switch the state to SUCCESSOR only
 						movedChain = null;
 						movedChainHeadPk = existingState.inChainOfHeadWithPrimaryKey();
-						movedChainTailPk = existingChain.getLastRecordId();
 					}
 				}
 			}
