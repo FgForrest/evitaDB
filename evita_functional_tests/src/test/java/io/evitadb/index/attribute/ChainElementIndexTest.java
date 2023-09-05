@@ -64,7 +64,7 @@ class ChainElementIndexTest {
 		for (int pk : order) {
 			final Predecessor predecessor = PREDECESSOR_MAP.get(pk);
 			System.out.println("Adding " + pk + " with predecessor " + predecessor + ".");
-			index.addPredecessor(pk, predecessor);
+			index.upsertPredecessor(pk, predecessor);
 		}
 
 		assertTrue(index.isConsistent());
@@ -77,14 +77,14 @@ class ChainElementIndexTest {
 	void shouldTryReordering(int[] order) {
 		// fill the index initially with the expected chain
 		for (int pk : EXPECTED_CHAIN) {
-			index.addPredecessor(pk, PREDECESSOR_MAP.get(pk));
+			index.upsertPredecessor(pk, PREDECESSOR_MAP.get(pk));
 		}
 		// now reorder randomly
 		for (int i = 0; i < order.length; i++) {
 			int pk = order[i];
 			final Predecessor predecessor = i == 0 ? new Predecessor() : new Predecessor(order[i - 1]);
 			System.out.println("Adding " + pk + " with predecessor " + predecessor + ".");
-			index.addPredecessor(pk, predecessor);
+			index.upsertPredecessor(pk, predecessor);
 		}
 
 		assertTrue(index.isConsistent(), "Index is inconsistent.");
@@ -96,17 +96,32 @@ class ChainElementIndexTest {
 	void shouldBreakCircularDependency() {
 		// fill the index initially with the expected chain
 		for (int pk : EXPECTED_CHAIN) {
-			index.addPredecessor(pk, PREDECESSOR_MAP.get(pk));
+			index.upsertPredecessor(pk, PREDECESSOR_MAP.get(pk));
 		}
 		// now reorder randomly
-		index.addPredecessor(1, new Predecessor(3));
-		index.addPredecessor(2, new Predecessor(4));
-		index.addPredecessor(5, new Predecessor(2));
-		index.addPredecessor(4, new Predecessor(1));
-		index.addPredecessor(3, new Predecessor());
+		index.upsertPredecessor(1, new Predecessor(3));
+		index.upsertPredecessor(2, new Predecessor(4));
+		index.upsertPredecessor(5, new Predecessor(2));
+		index.upsertPredecessor(4, new Predecessor(1));
+		index.upsertPredecessor(3, new Predecessor());
 
 		assertTrue(index.isConsistent(), "Index is inconsistent.");
 		assertArrayEquals(new int[] {3, 1, 4, 2, 5}, index.getChainFormula().compute().getArray());
+	}
+
+	@DisplayName("When adding a new element to the middle of the chain and then correcting it, the index should be consistent")
+	@Test
+	void shouldIntroduceSplitChainDuringIndexingAndThenCorrectIt() {
+		// fill the index initially with the expected chain
+		for (int pk : EXPECTED_CHAIN) {
+			index.upsertPredecessor(pk, PREDECESSOR_MAP.get(pk));
+		}
+		// now reorder randomly
+		index.upsertPredecessor(6, new Predecessor(3));
+		index.upsertPredecessor(4, new Predecessor(6));
+
+		assertTrue(index.isConsistent(), "Index is inconsistent.");
+		assertArrayEquals(new int[] {1, 2, 3, 6, 4, 5}, index.getChainFormula().compute().getArray());
 	}
 
 	/**
@@ -115,7 +130,7 @@ class ChainElementIndexTest {
 	 */
 	@Nonnull
 	static Stream<Arguments> createPermutationsForPredecessors() {
-		List<int[]> result = new LinkedList<>();
+		final List<int[]> result = new LinkedList<>();
 		permute(Arrays.copyOf(EXPECTED_CHAIN, EXPECTED_CHAIN.length), 0, result);
 
 		return result.stream()
