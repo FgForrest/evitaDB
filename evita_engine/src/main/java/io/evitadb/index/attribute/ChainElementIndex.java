@@ -46,6 +46,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.core.Transaction.isTransactionAvailable;
@@ -287,7 +288,7 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 			this.chains.put(primaryKey, new TransactionalUnorderedIntArray(subChain));
 			reclassifyChain(primaryKey, subChain);
 			// we need to re-check whether the original chain has still circular dependency when this chain was split
-			verifyIfCircularDependencyExistsAndIsBroken(primaryKey, existingStateHeadState);
+			verifyIfCircularDependencyExistsAndIsBroken(existingStateHeadState);
 		} else {
 			// we just need to change the state, since the chain is already present
 		}
@@ -383,7 +384,7 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 			collapseChainsIfPossible(movedChainHeadPk);
 
 			// verify whether the head of chain was not in circular conflict and if so
-			verifyIfCircularDependencyExistsAndIsBroken(primaryKey, existingStateHeadState);
+			verifyIfCircularDependencyExistsAndIsBroken(existingStateHeadState);
 		}
 	}
 
@@ -416,7 +417,7 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 			this.chains.put(primaryKey, new TransactionalUnorderedIntArray(subChain));
 			reclassifyChain(primaryKey, subChain);
 			// we need to re-check whether the original chain has still circular dependency when this chain was split
-			verifyIfCircularDependencyExistsAndIsBroken(primaryKey, existingStateHeadState);
+			verifyIfCircularDependencyExistsAndIsBroken(existingStateHeadState);
 		}
 	}
 
@@ -425,11 +426,9 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 	 * If so, the method checks whether the circular dependency still exists for the current state of the chain and
 	 * if not, it is resolved.
 	 *
-	 * @param newChainHeadPrimaryKey the chain that triggered the circular dependency check
 	 * @param originalChainHeadState the state of the original chain head before the change
 	 */
 	private void verifyIfCircularDependencyExistsAndIsBroken(
-		int newChainHeadPrimaryKey,
 		@Nonnull ChainElementState originalChainHeadState
 	) {
 		// if original chain head is in circular dependency
@@ -438,28 +437,10 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 			// verify it is still in circular dependency
 			if (originalHeadChain.indexOf(originalChainHeadState.predecessorPrimaryKey()) < 0) {
 				// the circular dependency was broken
-
-				// if the last record of the chain equals to predecessor, we may switch the state to successor, or append it
-				if (originalHeadChain.getLastRecordId() == originalChainHeadState.predecessorPrimaryKey()) {
-					// the last record of the chain is the predecessor, we may remove it entirely
-					this.chains.remove(originalChainHeadState.inChainOfHeadWithPrimaryKey());
-					// and append the chain to the predecessor chain
-					originalHeadChain.appendAll(originalHeadChain.getArray());
-					// change the circular state to successor
-					this.elementStates.put(
-						originalChainHeadState.inChainOfHeadWithPrimaryKey(),
-						new ChainElementState(originalChainHeadState, ElementState.SUCCESSOR)
-					);
-					// and reclassify chain head of all moved elements
-					reclassifyChain(newChainHeadPrimaryKey, originalHeadChain.getArray());
-				} else {
-					// the last record of the chain is not the predecessor, we have to leave the chain,
-					// but we can change the state of the element
-					this.elementStates.put(
-						originalChainHeadState.inChainOfHeadWithPrimaryKey(),
-						new ChainElementState(originalChainHeadState, ElementState.SUCCESSOR)
-					);
-				}
+				this.elementStates.put(
+					originalChainHeadState.inChainOfHeadWithPrimaryKey(),
+					new ChainElementState(originalChainHeadState, ElementState.SUCCESSOR)
+				);
 			}
 		}
 	}
@@ -603,6 +584,13 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 			offset += chain.length;
 		}
 		return new ConstantFormula(new ArrayBitmap(result));
+	}
+
+	@Override
+	public String toString() {
+		return "ChainElementIndex:\n" +
+			"   - chains:\n" + chains.values().stream().map(it -> "      - " + it.toString()).collect(Collectors.joining("\n")) + "\n" +
+			"   - elementStates:\n" + elementStates.entrySet().stream().map(it -> "      - " + it.getKey() + ": " + it.getValue()).collect(Collectors.joining("\n"));
 	}
 
 	/**

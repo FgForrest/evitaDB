@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -104,6 +105,24 @@ class ChainElementIndexTest {
 		index.upsertPredecessor(2, new Predecessor(4));
 		index.upsertPredecessor(5, new Predecessor(2));
 		index.upsertPredecessor(4, new Predecessor(1));
+
+		assertFalse(index.isConsistent(), "Index is inconsistent.");
+		assertArrayEquals(new int[] {5, 2, 3, 1, 4}, index.getChainFormula().compute().getArray());
+		assertEquals(
+			"""
+			ChainElementIndex:
+			   - chains:
+			      - [2, 3, 1, 4]
+			      - [5]
+			   - elementStates:
+			      - 1: SUCCESSOR of 3 🔗 2
+			      - 2: CIRCULAR of 4 🔗 2
+			      - 3: SUCCESSOR of 2 🔗 2
+			      - 4: SUCCESSOR of 1 🔗 2
+			      - 5: SUCCESSOR of 2 🔗 5""",
+			index.toString()
+		);
+
 		index.upsertPredecessor(3, new Predecessor());
 
 		assertTrue(index.isConsistent(), "Index is inconsistent.");
@@ -123,6 +142,20 @@ class ChainElementIndexTest {
 
 		assertTrue(index.isConsistent(), "Index is inconsistent.");
 		assertArrayEquals(new int[] {1, 2, 3, 6, 4, 5}, index.getChainFormula().compute().getArray());
+		assertEquals(
+			"""
+			ChainElementIndex:
+			   - chains:
+			      - [1, 2, 3, 6, 4, 5]
+			   - elementStates:
+			      - 1: HEAD 🔗 1
+			      - 2: SUCCESSOR of 1 🔗 1
+			      - 3: SUCCESSOR of 2 🔗 1
+			      - 4: SUCCESSOR of 6 🔗 1
+			      - 5: SUCCESSOR of 4 🔗 1
+			      - 6: SUCCESSOR of 3 🔗 1""",
+			index.toString()
+		);
 	}
 
 	@DisplayName("When introducing a split chain, the longer chains should be favoured")
@@ -140,6 +173,24 @@ class ChainElementIndexTest {
 
 		assertFalse(index.isConsistent(), "Index is inconsistent.");
 		assertArrayEquals(new int[] {1, 2, 3, 4, 5, 7, 8, 6}, index.getChainFormula().compute().getArray());
+		assertEquals(
+			"""
+			ChainElementIndex:
+			   - chains:
+			      - [1, 2, 3, 4, 5]
+			      - [6]
+			      - [7, 8]
+			   - elementStates:
+			      - 1: HEAD 🔗 1
+			      - 2: SUCCESSOR of 1 🔗 1
+			      - 3: SUCCESSOR of 2 🔗 1
+			      - 4: SUCCESSOR of 3 🔗 1
+			      - 5: SUCCESSOR of 4 🔗 1
+			      - 6: SUCCESSOR of 3 🔗 6
+			      - 7: SUCCESSOR of 3 🔗 7
+			      - 8: SUCCESSOR of 7 🔗 7""",
+			index.toString()
+		);
 	}
 
 	/**
