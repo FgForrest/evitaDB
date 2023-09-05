@@ -284,6 +284,14 @@ class ArrayUtilsTest {
 		assertArrayEquals(new int[] {8, 5, 2, 4, 10}, converter.apply(new int[] {2, 4, 5, 8, 10}));
 	}
 
+	@Test
+	void shouldRemoveRangeFromArray() {
+		final int[] someArray = new int[] {8, 5, 6, 2, 9, 7, 1, 3};
+		assertArrayEquals(new int[] {2, 9, 7, 1, 3}, ArrayUtils.removeRangeFromArray(someArray, 0, 3));
+		assertArrayEquals(new int[] {8, 2, 9, 7, 1, 3}, ArrayUtils.removeRangeFromArray(someArray, 1, 3));
+		assertArrayEquals(new int[] {8, 5, 6, 2, 7, 1, 3}, ArrayUtils.removeRangeFromArray(someArray, 4, 5));
+		assertArrayEquals(new int[] {8, 5, 6, 2, 9, 7}, ArrayUtils.removeRangeFromArray(someArray, 6, 8));
+	}
 
 	private void assertInsertPosition(InsertionPosition insertionPosition, boolean found, int index) {
 		if (found) {

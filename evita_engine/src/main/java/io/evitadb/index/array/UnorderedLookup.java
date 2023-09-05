@@ -273,6 +273,40 @@ public class UnorderedLookup implements Serializable {
 	}
 
 	/**
+	 * Method removes all records between two indexes.
+	 *
+	 * @param startIndex inclusive
+	 * @param endIndex exclusive
+	 * @return removed records
+	 */
+	public int[] removeRange(int startIndex, int endIndex) {
+		final int[] unorderedArray = getArray();
+		final int[] removedRecordIds = new int[endIndex - startIndex];
+		System.arraycopy(unorderedArray, startIndex, removedRecordIds, 0, removedRecordIds.length);
+
+		final int[] newPositions = new int[unorderedArray.length - removedRecordIds.length];
+		// init record ids in ascending order
+		final int[] newRecordIds = new int[unorderedArray.length - removedRecordIds.length];
+		// both arrays fill with recordId and associated position in original array
+		for (int i = 0; i < unorderedArray.length - removedRecordIds.length; i++) {
+			final int recordId = unorderedArray[i < startIndex ? i : i + removedRecordIds.length];
+			newPositions[i] = i;
+			newRecordIds[i] = recordId;
+		}
+		Arrays.sort(newRecordIds);
+		// now sort positions according to recordId value - this will change ordered positions to unordered ones
+		new IntArrayWrapper(newPositions).sort(Comparator.comparing(o -> unorderedArray[o < startIndex ? o : o + removedRecordIds.length]));
+
+		// replace the internal arrays
+		this.recordIds = newRecordIds;
+		this.positions = newPositions;
+
+		// we have to reset memoized result - modification has occurred
+		this.memoizedUnorderedArray = null;
+		return removedRecordIds;
+	}
+
+	/**
 	 * Returns record id, that is on the passed position (or index if you want). Equivalent to `unorderedArray[position]`.
 	 * This method is not fast because goes through unordered array of positions and has O(N) complexity.
 	 */
@@ -284,6 +318,27 @@ public class UnorderedLookup implements Serializable {
 			}
 		}
 		throw new IllegalArgumentException("Position " + position + " not found!");
+	}
+
+	/**
+	 * Method returns last record in the array.
+	 *
+	 * @return record id
+	 * @throws ArrayIndexOutOfBoundsException when array is empty
+	 */
+	public int getLastRecordId() throws ArrayIndexOutOfBoundsException {
+		if (memoizedUnorderedArray != null) {
+			return memoizedUnorderedArray[memoizedUnorderedArray.length - 1];
+		} else {
+			final int lastPosition = recordIds.length - 1;
+			for (int i = 0; i < positions.length; i++) {
+				int position = positions[i];
+				if (position == lastPosition) {
+					return recordIds[i];
+				}
+			}
+			throw new ArrayIndexOutOfBoundsException("Array is empty!");
+		}
 	}
 
 	/**

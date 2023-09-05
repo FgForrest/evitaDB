@@ -29,6 +29,7 @@ import io.evitadb.index.transactionalMemory.TransactionalLayerCreator;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -38,6 +39,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.*;
+import java.util.function.Function;
 
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
@@ -64,9 +66,34 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	@Serial private static final long serialVersionUID = 1111377458028103813L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	private final Map<K, V> mapDelegate;
+	private final Class<?> valueType;
+	private final Function<Object, V> transactionalLayerWrapper;
 
+	/**
+	 * Don't use this constructor if V implements {@link TransactionalLayerProducer}.
+	 * @param mapDelegate original map
+	 */
 	public TransactionalMap(@Nonnull Map<K, V> mapDelegate) {
 		this.mapDelegate = mapDelegate;
+		this.valueType = null;
+		this.transactionalLayerWrapper = null;
+	}
+
+	/**
+	 * Use this constructor if V implements TransactionalLayerProducer itself.
+	 * @param mapDelegate original map
+	 * @param transactionalLayerWrapper the function that wraps result of {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer, Transaction)} into a V type
+	 */
+	public <S, T extends TransactionalLayerProducer<?, S>> TransactionalMap(
+		@Nonnull Map<K, V> mapDelegate,
+		@Nonnull Class<T> valueType,
+		@Nonnull Function<S, V> transactionalLayerWrapper
+	) {
+		Assert.isTrue(TransactionalLayerProducer.class.isAssignableFrom(valueType), "Value type is expected to implement TransactionalLayerProducer!");
+		this.valueType = valueType;
+		this.mapDelegate = mapDelegate;
+		//noinspection unchecked
+		this.transactionalLayerWrapper = (Function<Object, V>) transactionalLayerWrapper;
 	}
 
 	/*
@@ -75,11 +102,13 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 
 	@Override
 	public MapChanges<K, V> createLayer() {
-		return new MapChanges<>(mapDelegate);
+		//noinspection unchecked,rawtypes
+		return this.valueType == null ?
+			new MapChanges<>(mapDelegate) :
+			new MapChanges<K, V>(mapDelegate, (Class)valueType, transactionalLayerWrapper);
 	}
 
 	@Nonnull
-	@SuppressWarnings("unchecked")
 	@Override
 	public Map<K, V> createCopyWithMergedTransactionalMemory(MapChanges<K, V> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
 		// iterate over inserted or updated keys
@@ -93,11 +122,13 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 				// we need to always create copy - something in the referenced object might have changed
 				// even the removed values need to be evaluated (in order to discard them from transactional memory set)
 				if (key instanceof TransactionalLayerProducer) {
-					key = (K) transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer<?, ?>) key, transaction);
+					throw new IllegalStateException("Transactional layer producer is not expected to be used as a key!");
 				}
 				V value = entry.getValue();
 				if (value instanceof TransactionalLayerProducer) {
-					value = (V) transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer<?, ?>) value, transaction);
+					value = transactionalLayerWrapper.apply(
+						transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer<?, ?>) value, transaction)
+					);
 				}
 
 				if (key != entry.getKey() || value != entry.getValue()) {
@@ -222,33 +253,36 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		}
 	}
 
+	@Nonnull
 	@Override
 	public Set<K> keySet() {
 		final MapChanges<K, V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return this.mapDelegate.keySet();
 		} else {
-			return new TransactionalMemoryKeySet(layer, getTransactionalMemoryLayer());
+			return new TransactionalMemoryKeySet<>(layer, getTransactionalMemoryLayer());
 		}
 	}
 
+	@Nonnull
 	@Override
 	public Collection<V> values() {
 		final MapChanges<K, V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return this.mapDelegate.values();
 		} else {
-			return new TransactionalMemoryValues(layer, getTransactionalMemoryLayer());
+			return new TransactionalMemoryValues<>(layer, getTransactionalMemoryLayer());
 		}
 	}
 
+	@Nonnull
 	@Override
 	public Set<Entry<K, V>> entrySet() {
 		final MapChanges<K, V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return this.mapDelegate.entrySet();
 		} else {
-			return new TransactionalMemoryEntrySet(layer);
+			return new TransactionalMemoryEntrySet<>(layer);
 		}
 	}
 
@@ -306,7 +340,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		if (!i.hasNext())
 			return "{}";
 
-		StringBuilder sb = new StringBuilder();
+		StringBuilder sb = new StringBuilder(128);
 		sb.append('{');
 		for (; ; ) {
 			Entry<K, V> e = i.next();
@@ -585,7 +619,8 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 			if (this == o) return true;
 			if (o == null || getClass() != o.getClass()) return false;
 			if (!super.equals(o)) return false;
-			@SuppressWarnings("unchecked") TransactionalMemoryEntrySet that = (TransactionalMemoryEntrySet) o;
+			@SuppressWarnings("unchecked")
+			TransactionalMemoryEntrySet<K, V> that = (TransactionalMemoryEntrySet<K, V>) o;
 			return layer.equals(that.layer);
 		}
 

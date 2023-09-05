@@ -372,6 +372,19 @@ public class ArrayUtils {
 	}
 
 	/**
+	 * Removes integer from array on specified index and shrinks it.
+	 */
+	@Nonnull
+	public static int[] removeRangeFromArray(@Nonnull int[] recordIds, int startIndex, int endIndex) {
+		int len = recordIds.length;
+		final int targetSize = len - (endIndex - startIndex);
+		int[] newElements = new int[targetSize];
+		System.arraycopy(recordIds, 0, newElements, 0, startIndex);
+		System.arraycopy(recordIds, endIndex, newElements, startIndex, recordIds.length - endIndex);
+		return newElements;
+	}
+
+	/**
 	 * Inserts new long to the sorted array on proper place and returns new expanded array.
 	 * Long is inserted only when array doesn't yet contain the record.
 	 */

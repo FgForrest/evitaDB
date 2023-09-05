@@ -42,6 +42,7 @@ import java.util.stream.Collectors;
 import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 import static io.evitadb.utils.ArrayUtils.insertIntIntoArrayOnIndex;
 import static io.evitadb.utils.ArrayUtils.removeIntFromArrayOnIndex;
+import static io.evitadb.utils.ArrayUtils.removeRangeFromArray;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static java.util.Optional.ofNullable;
@@ -157,6 +158,15 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 	}
 
 	@Test
+	void shouldCorrectlyAddItemsOnFirstLastAndMiddlePositions() {
+		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {7, 3, 5});
+		array.add(3, 6);
+		array.add(Integer.MIN_VALUE, 9);
+		array.add(5, 8);
+		assertTransactionalArrayIs(new int[]{9, 7, 3, 6, 5, 8}, array);
+	}
+
+	@Test
 	void shouldCorrectlyAddItemsOnFirstLastAndMiddlePositionsAndCommit() {
 		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {7, 3, 5});
 
@@ -173,6 +183,15 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 				assertArrayEquals(new int[]{9, 7, 3, 6, 5, 8}, committed);
 			}
 		);
+	}
+
+	@Test
+	void shouldCorrectlyAddItemsOnFirstLastAndMiddleIndexes() {
+		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{7, 3, 5});
+		array.addOnIndex(2, 6);
+		array.addOnIndex(0, 9);
+		array.addOnIndex(5, 8);
+		assertTransactionalArrayIs(new int[]{9, 7, 3, 6, 5, 8}, array);
 	}
 
 	@Test
@@ -195,6 +214,17 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 	}
 
 	@Test
+	void shouldCorrectlyRemoveItemsFromFirstLastAndMiddlePositions() {
+		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{6, 8, 2, 4, 5});
+
+		array.removeAll(4, 5, 6);
+		assertTransactionalArrayIs(new int[]{8, 2}, array);
+		assertFalse(array.contains(11));
+		assertFalse(array.contains(1));
+		assertFalse(array.contains(5));
+	}
+
+	@Test
 	void shouldCorrectlyRemoveItemsFromFirstLastAndMiddlePositionsAndCommit() {
 		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{6, 8, 2, 4, 5});
 
@@ -202,14 +232,32 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 			array,
 			original -> {
 				original.removeAll(4, 5, 6);
-				assertTransactionalArrayIs(new int[]{8, 2}, array);
-				assertFalse(array.contains(11));
-				assertFalse(array.contains(1));
-				assertFalse(array.contains(5));
+				assertTransactionalArrayIs(new int[]{8, 2}, original);
+				assertFalse(original.contains(11));
+				assertFalse(original.contains(1));
+				assertFalse(original.contains(5));
 			},
 			(original, committed) -> {
 				assertTransactionalArrayIs(new int[] {6, 8, 2, 4, 5}, original);
 				assertArrayEquals(new int[] {8, 2}, committed);
+			}
+		);
+	}
+
+	@Test
+	void shouldCorrectlyRemoveMultipleItemsInARow() {
+		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {7, 8, 2, 6, 5, 4});
+
+		assertStateAfterCommit(
+			array,
+			original -> {
+				original.removeAll(6, 5, 2);
+
+				assertTransactionalArrayIs(new int[] {7, 8, 4}, original);
+			},
+			(original, committed) -> {
+				assertTransactionalArrayIs(new int[] {7, 8, 2, 6, 5, 4}, original);
+				assertArrayEquals(new int[] {7, 8, 4}, committed);
 			}
 		);
 	}
@@ -233,6 +281,14 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 	}
 
 	@Test
+	void shouldCorrectlyRemoveMultipleItemsInARowTillTheEnd() {
+		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {7, 2, 4, 9, 8, 3});
+		array.removeAll(8, 9, 3, 4);
+
+		assertTransactionalArrayIs(new int[] {7, 2}, array);
+	}
+
+	@Test
 	void shouldCorrectlyRemoveMultipleItemsInARowTillTheEndAndCommit() {
 		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {7, 2, 4, 9, 8, 3});
 
@@ -249,6 +305,14 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 			}
 		);
 
+	}
+
+	@Test
+	void shouldCorrectlyRemoveMultipleItemsInARowFromTheBeginning() {
+		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {7, 2, 4, 9, 8, 3});
+		array.removeAll(9, 7, 2, 4);
+
+		assertTransactionalArrayIs(new int[] {8, 3}, array);
 	}
 
 	@Test
@@ -286,6 +350,19 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 	}
 
 	@Test
+	void shouldDoReversibleRemoveAndAddActions() {
+		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {7, 8, 1});
+
+		array.remove(8);
+		array.add(7, 8);
+		array.remove(7);
+		array.add(Integer.MIN_VALUE, 7);
+		array.remove(1);
+		array.add(8, 1);
+		assertTransactionalArrayIs(new int[] {7, 8, 1}, array);
+	}
+
+	@Test
 	void shouldDoReversibleRemoveAndAddActionsAndCommit() {
 		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {7, 8, 1});
 
@@ -305,6 +382,19 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 				assertArrayEquals(new int[] {7, 8, 1}, committed);
 			}
 		);
+	}
+
+	@Test
+	void shouldDoReversibleAddAndRemoveActions() {
+		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {7, 8, 1});
+		
+		array.add(7, 9);
+		array.remove(9);
+		array.add(Integer.MIN_VALUE, 6);
+		array.remove(6);
+		array.add(1, 6);
+		array.remove(6);
+		assertTransactionalArrayIs(new int[] {7, 8, 1}, array);
 	}
 
 	@Test
@@ -330,6 +420,18 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 	}
 
 	@Test
+	void shouldAddAndRemoveEverything() {
+		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[0]);
+
+		array.add(Integer.MIN_VALUE, 1);
+		array.add(1, 5);
+		array.remove(1);
+		array.remove(5);
+			
+		assertTransactionalArrayIs(new int[0], array);
+	}
+
+	@Test
 	void shouldAddAndRemoveEverythingAndCommit() {
 		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[0]);
 
@@ -349,6 +451,15 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 	}
 
 	@Test
+	void shouldCorrectlyAddMultipleItemsOnSamePositions() {
+		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {2, 7, 3});
+
+		array.addAll(Integer.MIN_VALUE, 0, 1);
+		array.addAll(2, 4, 5, 6);
+		assertTransactionalArrayIs(new int[]{0, 1, 2, 4, 5, 6, 7, 3}, array);
+	}
+
+	@Test
 	void shouldCorrectlyAddMultipleItemsOnSamePositionsAndCommit() {
 		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {2, 7, 3});
 
@@ -364,6 +475,21 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 				assertArrayEquals(new int[]{0, 1, 2, 4, 5, 6, 7, 3}, committed);
 			}
 		);
+	}
+
+	@Test
+	void shouldCorrectlyAddAndRemoveOnNonOverlappingPositions() {
+		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {5, 1, 6, 10, 2, 11});
+		
+		array.add(5, 4);
+		array.add(6, 3);
+		array.remove(10);
+		array.remove(6);
+		array.add(Integer.MIN_VALUE, 15);
+
+		assertTransactionalArrayIs(new int[] {15, 5, 4, 1, 3, 2, 11}, array);
+		assertFalse(array.contains(10));
+		assertFalse(array.contains(6));
 	}
 
 	@Test
@@ -392,6 +518,18 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 	}
 
 	@Test
+	void shouldCorrectlyAddAndRemoveOnOverlappingBoundaryPositions() {
+		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {2, 1, 10, 6, 11, 5});
+		
+		array.remove(2);
+		array.remove(5);
+		array.add(11, 0);
+		array.add(Integer.MIN_VALUE, 12);
+
+		assertTransactionalArrayIs(new int[] {12, 1, 10, 6, 11, 0}, array);
+	}
+	
+	@Test
 	void shouldCorrectlyAddAndRemoveOnOverlappingBoundaryPositionsAndCommit() {
 		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {2, 1, 10, 6, 11, 5});
 
@@ -410,6 +548,21 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 				assertArrayEquals(new int[] {12, 1, 10, 6, 11, 0}, committed);
 			}
 		);
+	}
+
+	@Test
+	void shouldCorrectlyAddAndRemoveOnOverlappingMiddlePositions() {
+		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {1, 5, 8, 11});
+		
+		array.remove(5);
+		array.remove(8);
+		array.add(1, 6);
+		array.add(6, 7);
+		array.add(7, 8);
+		array.add(8, 9);
+		array.add(9, 10);
+
+		assertTransactionalArrayIs(new int[] {1, 6, 7, 8, 9, 10, 11}, array);
 	}
 
 	@Test
@@ -440,6 +593,20 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 	void shouldProperlyHandleChangesOnSinglePosition() {
 		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {1, 2});
 
+		array.remove(1);
+		array.remove(2);
+		array.add(Integer.MIN_VALUE,2);
+		array.add(2, 4);
+		array.remove(2);
+		array.add(4, 5);
+
+		assertTransactionalArrayIs(new int[] {4, 5}, array);
+	}
+
+	@Test
+	void shouldProperlyHandleChangesOnSinglePositionAndCommit() {
+		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {1, 2});
+
 		assertStateAfterCommit(
 			array,
 			original -> {
@@ -455,6 +622,126 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 			(original, committed) -> {
 				assertTransactionalArrayIs(new int[] {1, 2}, original);
 				assertArrayEquals(new int[] {4, 5}, committed);
+			}
+		);
+	}
+
+	@Test
+	void shouldRemoveRangeLesserThanTail() {
+		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {2, 4, 3, 1, 5});
+		assertArrayEquals(new int[] {3, 1}, array.removeRange(2, 4));
+		assertTransactionalArrayIs(new int[] {2, 4, 5}, array);
+	}
+
+	@Test
+	void shouldRemoveRangeLesserThanTailAndCommit() {
+		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {2, 4, 3, 1, 5});
+
+		assertStateAfterCommit(
+			array,
+			original -> {
+				assertArrayEquals(new int[] {3, 1}, array.removeRange(2, 4));
+				assertTransactionalArrayIs(new int[] {2, 4, 5}, original);
+			},
+			(original, committed) -> {
+				assertTransactionalArrayIs(new int[] {2, 4, 5}, original);
+				assertArrayEquals(new int[] {2, 4, 5}, committed);
+			}
+		);
+	}
+
+	@Test
+	void shouldRemoveRangeHigherThanTail() {
+		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {4, 3, 1, 5, 2});
+		assertArrayEquals(new int[] {1, 5}, array.removeRange(2, 4));
+		assertTransactionalArrayIs(new int[] {4, 3, 2}, array);
+	}
+
+	@Test
+	void shouldRemoveRangeHigherThanAndCommit() {
+		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {4, 3, 1, 5, 2});
+
+		assertStateAfterCommit(
+			array,
+			original -> {
+				assertArrayEquals(new int[] {1, 5}, original.removeRange(2, 4));
+				assertTransactionalArrayIs(new int[] {4, 3, 2}, original);
+			},
+			(original, committed) -> {
+				assertTransactionalArrayIs(new int[] {4, 3, 2}, original);
+				assertArrayEquals(new int[] {4, 3, 2}, committed);
+			}
+		);
+	}
+
+	@Test
+	void shouldRemoveTail() {
+		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {2, 4, 3, 1, 5});
+		assertArrayEquals(new int[] {1, 5}, array.removeRange(3, 5));
+		assertTransactionalArrayIs(new int[] {2, 4, 3}, array);
+	}
+
+	@Test
+	void shouldRemoveTailAndCommit() {
+		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {2, 4, 3, 1, 5});
+
+		assertStateAfterCommit(
+			array,
+			original -> {
+				assertArrayEquals(new int[] {1, 5}, array.removeRange(3, 5));
+				assertTransactionalArrayIs(new int[] {2, 4, 3}, original);
+			},
+			(original, committed) -> {
+				assertTransactionalArrayIs(new int[] {2, 4, 3}, original);
+				assertArrayEquals(new int[] {2, 4, 3}, committed);
+			}
+		);
+	}
+
+	@Test
+	void shouldRemoveHead() {
+		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {2, 4, 3, 1, 5});
+		assertArrayEquals(new int[] {2, 4}, array.removeRange(0, 2));
+		assertTransactionalArrayIs(new int[] {3, 1, 5}, array);
+	}
+
+	@Test
+	void shouldRemoveHeadAndCommit() {
+		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {2, 4, 3, 1, 5});
+
+		assertStateAfterCommit(
+			array,
+			original -> {
+				assertArrayEquals(new int[] {2, 4}, original.removeRange(0, 2));
+				assertTransactionalArrayIs(new int[] {3, 1, 5}, original);
+			},
+			(original, committed) -> {
+				assertTransactionalArrayIs(new int[] {3, 1, 5}, original);
+				assertArrayEquals(new int[] {3, 1, 5}, committed);
+			}
+		);
+	}
+
+	@Test
+	void shouldAppendTail() {
+		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {2, 4, 3, 1, 5});
+		array.appendAll(8, 6);
+		assertTransactionalArrayIs(new int[] {2, 4, 3, 1, 5, 8, 6}, array);
+	}
+
+	@Test
+	void shouldAppendTailAndCommit() {
+		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[] {2, 4, 3, 1, 5});
+
+		assertStateAfterCommit(
+			array,
+			original -> {
+				original.appendAll(8, 6);
+				assertTransactionalArrayIs(new int[] {2, 4, 3, 1, 5, 8, 6}, original);
+			},
+			(original, committed) -> {
+				assertTransactionalArrayIs(new int[] {2, 4, 3, 1, 5}, original);
+				assertArrayEquals(new int[] {2, 4, 3, 1, 5, 8, 6}, committed);
 			}
 		);
 	}
@@ -720,34 +1007,67 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 							final int randomIndex = random.nextInt(comparedArray.length);
 							final int recOnRandomIndex = comparedArray[randomIndex];
 							if ((random.nextBoolean() || length < initialCount * 0.3) && length < initialCount * 1.6) {
-								// insert new item
-								int newRecId;
-								do {
-									newRecId = random.nextInt(initialCount * 2);
-								} while (transactionalArray.contains(newRecId));
-
-								try {
-									if (random.nextBoolean()) {
-										codeBuffer.append("\noriginal.add(").append(recOnRandomIndex).append(", ").append(newRecId).append(");");
-										nextArrayToCompare.set(insertIntIntoArrayOnIndex(newRecId, comparedArray, randomIndex + 1));
-										transactionalArray.add(recOnRandomIndex, newRecId);
-									} else {
-										codeBuffer.append("\noriginal.addOnIndex(").append(randomIndex).append(", ").append(newRecId).append(");");
-										nextArrayToCompare.set(insertIntIntoArrayOnIndex(newRecId, comparedArray, randomIndex));
-										transactionalArray.addOnIndex(randomIndex, newRecId);
+								if (length < initialCount * 0.5) {
+									// append multiple at the end
+									int[] newRecId = new int[random.nextInt(2) + 1];
+									Set<Integer> assignedSet = new HashSet<>();
+									for(int j = 0; j < newRecId.length; j++) {
+										do {
+											newRecId[j] = random.nextInt(initialCount * 2);
+										} while (transactionalArray.contains(newRecId[j]) || assignedSet.contains(newRecId[j]));
+										assignedSet.add(newRecId[j]);
 									}
-								} catch (IllegalArgumentException ex) {
-									assertTransactionalArrayIs(
-										nextArrayToCompare.get(), transactionalArray,
-										"\n Cannot insert " + newRecId + " due to: " + ex.getMessage()
-									);
-									throw ex;
+
+									try {
+										codeBuffer.append("\noriginal.appendAll(").append(Arrays.stream(newRecId).mapToObj(String::valueOf).collect(Collectors.joining(", "))).append(");");
+										nextArrayToCompare.set(io.evitadb.utils.ArrayUtils.mergeArrays(comparedArray, newRecId));
+										transactionalArray.appendAll(newRecId);
+									} catch (IllegalArgumentException ex) {
+										assertTransactionalArrayIs(
+											nextArrayToCompare.get(), transactionalArray,
+											"\n Cannot insert " + Arrays.toString(newRecId) + " due to: " + ex.getMessage()
+										);
+										throw ex;
+									}
+								} else {
+									// insert new item
+									int newRecId;
+									do {
+										newRecId = random.nextInt(initialCount * 2);
+									} while (transactionalArray.contains(newRecId));
+
+									try {
+										if (random.nextBoolean()) {
+											codeBuffer.append("\noriginal.add(").append(recOnRandomIndex).append(", ").append(newRecId).append(");");
+											nextArrayToCompare.set(insertIntIntoArrayOnIndex(newRecId, comparedArray, randomIndex + 1));
+											transactionalArray.add(recOnRandomIndex, newRecId);
+										} else {
+											codeBuffer.append("\noriginal.addOnIndex(").append(randomIndex).append(", ").append(newRecId).append(");");
+											nextArrayToCompare.set(insertIntIntoArrayOnIndex(newRecId, comparedArray, randomIndex));
+											transactionalArray.addOnIndex(randomIndex, newRecId);
+										}
+									} catch (IllegalArgumentException ex) {
+										assertTransactionalArrayIs(
+											nextArrayToCompare.get(), transactionalArray,
+											"\n Cannot insert " + newRecId + " due to: " + ex.getMessage()
+										);
+										throw ex;
+									}
 								}
 							} else {
-								// remove existing item
-								codeBuffer.append("\noriginal.remove(").append(recOnRandomIndex).append(");");
-								transactionalArray.remove(recOnRandomIndex);
-								nextArrayToCompare.set(removeIntFromArrayOnIndex(comparedArray, randomIndex));
+								if (length > initialCount * 1.4) {
+									final int removedLength = random.nextInt(8) + 1;
+									// remove range
+									final int endIndex = Math.min(randomIndex + removedLength, length);
+									codeBuffer.append("\noriginal.removeRange(").append(randomIndex).append(", ").append(endIndex).append(");");
+									transactionalArray.removeRange(randomIndex, endIndex);
+									nextArrayToCompare.set(removeRangeFromArray(comparedArray, randomIndex, endIndex));
+								} else {
+									// remove existing item
+									codeBuffer.append("\noriginal.remove(").append(recOnRandomIndex).append(");");
+									transactionalArray.remove(recOnRandomIndex);
+									nextArrayToCompare.set(removeIntFromArrayOnIndex(comparedArray, randomIndex));
+								}
 							}
 
 							try {
@@ -795,8 +1115,10 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 	private static void assertTransactionalArrayIs(int[] expectedResult, TransactionalUnorderedIntArray array, String additionalMessage) {
 		if (ArrayUtils.isEmpty(expectedResult)) {
 			assertTrue(array.isEmpty());
+			assertThrows(ArrayIndexOutOfBoundsException.class, array::getLastRecordId);
 		} else {
 			assertFalse(array.isEmpty());
+			assertEquals(expectedResult[expectedResult.length - 1], array.getLastRecordId());
 		}
 
 		assertArrayEquals(
@@ -815,7 +1137,6 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 		);
 
 		assertEquals(expectedResult.length, array.getLength());
-
 		for (int recordId : expectedResult) {
 			assertTrue(array.contains(recordId), "Array doesn't contain " + recordId);
 		}

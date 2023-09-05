@@ -27,6 +27,7 @@ import io.evitadb.core.Transaction;
 import io.evitadb.index.transactionalMemory.TransactionalLayerCreator;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -36,11 +37,13 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
@@ -61,7 +64,7 @@ public class MapChanges<K, V> implements Serializable {
 	/**
 	 * Contains set of removed keys.
 	 */
-	private final Set<K> removedKeys = Collections.newSetFromMap(new HashMap<>(8));
+	private final Set<K> removedKeys = new HashSet<>(8);
 	/**
 	 * Contains map of inserted or updated keys.
 	 */
@@ -70,9 +73,31 @@ public class MapChanges<K, V> implements Serializable {
 	 * Contains count of inserted keys that were not present in original map.
 	 */
 	private int createdKeyCount;
+	/**
+	 * Function used to wrap result of {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer, Transaction)}
+	 * to a {@link TransactionalLayerProducer} instance.
+	 */
+	private final Function<Object, V> transactionalLayerWrapper;
 
 	public MapChanges(@Nonnull Map<K, V> mapDelegate) {
 		this.mapDelegate = mapDelegate;
+		this.transactionalLayerWrapper = null;
+	}
+
+	/**
+	 * Use this constructor if V implements TransactionalLayerProducer itself.
+	 * @param mapDelegate original map
+	 * @param transactionalLayerWrapper the function that wraps result of {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer, Transaction)} into a V type
+	 */
+	public <S, T extends TransactionalLayerProducer<?, S>> MapChanges(
+		@Nonnull Map<K, V> mapDelegate,
+		@Nonnull Class<T> valueType,
+		@Nonnull Function<S, V> transactionalLayerWrapper
+	) {
+		Assert.isTrue(TransactionalLayerProducer.class.isAssignableFrom(valueType), "Value type is expected to implement TransactionalLayerProducer!");
+		this.mapDelegate = mapDelegate;
+		//noinspection unchecked
+		this.transactionalLayerWrapper = (Function<Object, V>) transactionalLayerWrapper;
 	}
 
 	/**
@@ -218,41 +243,43 @@ public class MapChanges<K, V> implements Serializable {
 		final HashMap<K, V> copy = createHashMap(mapDelegate.size());
 		// iterate original map and copy all values from it
 		for (Entry<K, V> entry : mapDelegate.entrySet()) {
-			K key = entry.getKey();
-			final boolean wasRemoved = containsRemoved(key);
-			// we need to always create copy - something in the referenced object might have changed
-			// even the removed values need to be evaluated (in order to discard them from transactional memory set)
-			if (key instanceof TransactionalLayerProducer) {
-				if (wasRemoved) {
-					((TransactionalLayerProducer<?, ?>) key).removeLayer(transactionalLayer);
-				} else {
-					key = (K) transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer<?, ?>) key, transaction);
+			final K key = entry.getKey();
+			if (!modifiedKeys.containsKey(key)) {
+				final boolean wasRemoved = containsRemoved(key);
+				// we need to always create copy - something in the referenced object might have changed
+				// even the removed values need to be evaluated (in order to discard them from transactional memory set)
+				if (key instanceof TransactionalLayerProducer) {
+					throw new IllegalStateException("Transactional layer producer is not expected to be used as a key!");
 				}
-			}
-			V value = entry.getValue();
-			final boolean wasValueRemoved = wasRemoved && !containsValue(value);
-			if (value instanceof TransactionalLayerProducer) {
-				if (wasValueRemoved) {
-					((TransactionalLayerProducer<?, ?>) value).removeLayer(transactionalLayer);
-				} else if (!wasRemoved) {
-					value = (V) transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer<?, ?>) value, transaction);
+				V value = entry.getValue();
+				final boolean wasValueRemoved = wasRemoved && !containsValue(value);
+				if (value instanceof TransactionalLayerProducer) {
+					if (wasValueRemoved) {
+						((TransactionalLayerProducer<?, ?>) value).removeLayer(transactionalLayer);
+					} else if (!wasRemoved) {
+						value = transactionalLayerWrapper.apply(
+							transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer<?, ?>) value, transaction)
+						);
+					}
 				}
-			}
-			// except those that were removed
-			if (!wasRemoved) {
-				copy.put(key, value);
+				// except those that were removed
+				if (!wasRemoved) {
+					copy.put(key, value);
+				}
 			}
 		}
 
 		for (Entry<K, V> entry : modifiedKeys.entrySet()) {
-			K key = entry.getKey();
+			final K key = entry.getKey();
 			// we need to always create copy - something in the referenced object might have changed
 			if (key instanceof TransactionalLayerProducer) {
-				key = (K) transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer<?, ?>) key, transaction);
+				throw new IllegalStateException("Transactional layer producer is not expected to be used as a key!");
 			}
 			V value = entry.getValue();
 			if (value instanceof TransactionalLayerProducer) {
-				value = (V) transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer<?, ?>) value, transaction);
+				value = transactionalLayerWrapper.apply(
+					transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer<?, ?>) value, transaction)
+				);
 			}
 			// update the value
 			copy.put(key, value);

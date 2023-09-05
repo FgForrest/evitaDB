@@ -27,6 +27,7 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Data;
 
+import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.util.Arrays;
 
@@ -39,6 +40,10 @@ import java.util.Arrays;
  */
 @NotThreadSafe
 public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
+	/**
+	 * The lookup from {@link TransactionalUnorderedIntArray}.
+	 */
+	private final UnorderedLookup delegate;
 	/**
 	 * Array of positions (indexes) in delegate array where insertions are expected to occur.
 	 */
@@ -53,7 +58,7 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 	 */
 	private int[] removals = new int[0];
 	/**
-	 * Temporary intermediate result of the last {@link #getMergedArray(UnorderedLookup)} operation. Nullified
+	 * Temporary intermediate result of the last {@link #getMergedArray()} operation. Nullified
 	 * immediately with next change.
 	 */
 	private int[] memoizedMergedArray;
@@ -80,17 +85,24 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 		}
 	}
 
+	public UnorderedIntArrayChanges(@Nonnull UnorderedLookup delegate) {
+		this.delegate = delegate;
+	}
+
 	/**
 	 * Returns true if passed recordId is part of the modified delegate array. I.e. whether it was newly inserted or
 	 * contained in original array and not removed so far.
 	 */
-	public boolean contains(UnorderedLookup delegate, int recordId) {
+	public boolean contains(int recordId) {
 		final int delegateIndex = delegate.findPosition(recordId);
 		boolean result = delegateIndex >= 0 && Arrays.binarySearch(removals, delegateIndex) < 0;
 
 		if (!result) {
 			for (UnorderedLookup insertedValue : insertedValues) {
-				result |= insertedValue.findPosition(recordId) >= 0;
+				result = insertedValue.findPosition(recordId) >= 0;
+				if (result) {
+					break;
+				}
 			}
 		}
 
@@ -102,7 +114,7 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 	 *
 	 * @return -1 if record id was not found (or was removed)
 	 */
-	public int indexOf(UnorderedLookup delegate, int recordId) {
+	public int indexOf(int recordId) {
 		final int delegateIndex = delegate.findPosition(recordId);
 		int result = -1;
 
@@ -121,6 +133,34 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 		}
 
 		return result;
+	}
+
+	/**
+	 * Method returns last record in the array.
+	 *
+	 * @return record id
+	 * @throws ArrayIndexOutOfBoundsException when array is empty
+	 */
+	public int getLastRecordId() throws ArrayIndexOutOfBoundsException {
+		if (memoizedMergedArray != null) {
+			return memoizedMergedArray[memoizedMergedArray.length - 1];
+		} else {
+			final int[] recordIds = delegate.getRecordIds();
+			// find out the last non-removed element from the original array
+			int lastRealElement = recordIds.length - 1;
+			while (Arrays.binarySearch(this.removals, lastRealElement) >= 0) {
+				lastRealElement--;
+			}
+			// if anything was appended at the end of the array
+			final int insertionsOnLastPositionAndFurther = Arrays.binarySearch(this.insertions, lastRealElement + 1);
+			if (insertionsOnLastPositionAndFurther >= 0) {
+				// return the last record id from the diff
+				return insertedValues[insertions.length - 1].getLastRecordId();
+			} else {
+				// else return the last record of the underlying array
+				return delegate.getRecordAt(lastRealElement);
+			}
+		}
 	}
 
 	/**
@@ -144,7 +184,7 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 	 * Adds new recordId to the array (only when not already present) on the position just after the `previousRecordId`.
 	 * This operation also nullifies previous record id removal (if any).
 	 */
-	void addIntAfterRecord(UnorderedLookup delegate, int previousRecordId, int recordId) {
+	void addIntAfterRecord(int previousRecordId, int recordId) {
 		final PositionLookup prevRecLookup = new PositionLookup(delegate, removals, insertions, insertedValues, previousRecordId);
 		final PositionLookup recLookup = new PositionLookup(delegate, removals, insertions, insertedValues, recordId);
 
@@ -207,7 +247,7 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 	 * Adds new recordId to the array (only when not already present) on the specified index.
 	 * This operation also nullifies previous record id removal (if any).
 	 */
-	void addIntOnIndex(UnorderedLookup delegate, int index, int recordId) {
+	void addIntOnIndex(int index, int recordId) {
 		final PositionLookup recLookup = new PositionLookup(delegate, removals, insertions, insertedValues, recordId);
 
 		int len = insertions.length;
@@ -235,11 +275,10 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 				removalIndex++;
 			}
 			if (relativeIndex == 0) {
-				final int startIndex = insertionIndex;
 				final int targetSize = len + 1;
-				final int suffixLength = insertions.length - startIndex;
+				final int suffixLength = insertions.length - insertionIndex;
 
-				setupInsertionArraysForRecord(recordId, i, startIndex, targetSize, suffixLength);
+				setupInsertionArraysForRecord(recordId, i, insertionIndex, targetSize, suffixLength);
 
 				this.memoizedMergedArray = null;
 				return;
@@ -249,10 +288,33 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 	}
 
 	/**
+	 * Appends record ids at the end of the array
+	 * @param recordIds unsorted array of record ids
+	 */
+	public void appendRecords(int[] recordIds) {
+		final int lastPositionInsertion = Arrays.binarySearch(this.insertions, this.delegate.getRecordIds().length);
+		if (lastPositionInsertion >= 0) {
+			this.insertedValues[lastPositionInsertion].appendRecords(recordIds);
+		} else {
+			final int[] newInsertions = new int[this.insertions.length + 1];
+			System.arraycopy(this.insertions, 0, newInsertions, 0, this.insertions.length);
+			newInsertions[this.insertions.length] = this.delegate.getRecordIds().length;
+
+			final UnorderedLookup[] newInsertedValues = new UnorderedLookup[this.insertedValues.length + 1];
+			System.arraycopy(this.insertedValues, 0, newInsertedValues, 0, this.insertedValues.length);
+			newInsertedValues[this.insertedValues.length] = new UnorderedLookup(recordIds);
+
+			this.insertions = newInsertions;
+			this.insertedValues = newInsertedValues;
+		}
+		this.memoizedMergedArray = null;
+	}
+
+	/**
 	 * Removes recordId from the array on the specified position.
 	 * This operation also nullifies previous record id insertion (if any).
 	 */
-	void removeIntOnPosition(UnorderedLookup delegate, int recordId) {
+	void removeRecord(int recordId) {
 		final PositionLookup recLookup = new PositionLookup(delegate, removals, insertions, insertedValues, recordId);
 		if (recLookup.isPresentInDiff()) {
 			// record was added / moved in the same transaction, just remove it from diff
@@ -268,18 +330,33 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 	}
 
 	/**
+	 * Method removes all records between two indexes.
+	 *
+	 * @param startIndex inclusive
+	 * @param endIndex exclusive
+	 * @return removed records
+	 */
+	public int[] removeRange(int startIndex, int endIndex) {
+		final int[] mergedArray = getMergedArray();
+		for (int i = startIndex; i < endIndex; i++) {
+			removeRecord(mergedArray[i]);
+		}
+		return Arrays.copyOfRange(mergedArray, startIndex, endIndex);
+	}
+
+	/**
 	 * This method computes new array from the immutable original array and the set of insertions / removals made upon
 	 * it.
 	 */
-	int[] getMergedArray(UnorderedLookup original) {
+	int[] getMergedArray() {
 		if (insertions.length == 0 && removals.length == 0) {
 			// if there are no insertions / removals - return the original
-			return original.getArray();
+			return delegate.getArray();
 		} else {
 			// compute results only when we can't reuse previous computation
 			if (memoizedMergedArray == null) {
 				// create new array that will be filled with updated data
-				final int[] computedArray = new int[getMergedLength(original)];
+				final int[] computedArray = new int[getMergedLength()];
 				int lastPosition = 0;
 				int lastComputedPosition = 0;
 
@@ -303,7 +380,7 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 						// insert requested records in to the target array and skip removed record from original array
 						final UnorderedLookup insertedRecords = insertedValues[insPositionIndex];
 						final int originalCopyLength = position - lastPosition;
-						System.arraycopy(original.getArray(), lastPosition, computedArray, lastComputedPosition, originalCopyLength);
+						System.arraycopy(delegate.getArray(), lastPosition, computedArray, lastComputedPosition, originalCopyLength);
 						final int insertedLength = insertedRecords.size();
 						System.arraycopy(insertedRecords.getArray(), 0, computedArray, lastComputedPosition + originalCopyLength, insertedLength);
 						lastPosition = position + 1;
@@ -317,7 +394,7 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 							// insert requested records in to the target array and after the existing record in original array
 							final UnorderedLookup insertedRecords = insertedValues[insPositionIndex];
 							final int originalCopyLength = position - lastPosition;
-							System.arraycopy(original.getArray(), lastPosition, computedArray, lastComputedPosition, originalCopyLength);
+							System.arraycopy(delegate.getArray(), lastPosition, computedArray, lastComputedPosition, originalCopyLength);
 							final int insertedLength = insertedRecords.size();
 							System.arraycopy(insertedRecords.getArray(), 0, computedArray, lastComputedPosition + originalCopyLength, insertedLength);
 							lastPosition = position;
@@ -328,7 +405,7 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 
 							// copy contents of the original array skipping removed record
 							final int originalCopyLength = position - lastPosition;
-							System.arraycopy(original.getArray(), lastPosition, computedArray, lastComputedPosition, originalCopyLength);
+							System.arraycopy(delegate.getArray(), lastPosition, computedArray, lastComputedPosition, originalCopyLength);
 							lastPosition = position + 1;
 							lastComputedPosition = lastComputedPosition + originalCopyLength;
 						}
@@ -343,8 +420,8 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 				}
 
 				// copy rest of the original array into the result (no operations were planned for this part)
-				if (lastPosition < original.size()) {
-					System.arraycopy(original.getArray(), lastPosition, computedArray, lastComputedPosition, original.size() - lastPosition);
+				if (lastPosition < delegate.size()) {
+					System.arraycopy(delegate.getArray(), lastPosition, computedArray, lastComputedPosition, delegate.size() - lastPosition);
 				}
 
 				// memoize costly computation and return
@@ -360,8 +437,8 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 	/**
 	 * Computes length of the array with all requested changes applied.
 	 */
-	int getMergedLength(UnorderedLookup original) {
-		int result = original.size() - removals.length;
+	int getMergedLength() {
+		int result = delegate.size() - removals.length;
 		for (UnorderedLookup insertedValue : insertedValues) {
 			result += insertedValue.size();
 		}
@@ -424,7 +501,7 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 		 */
 		private final int diffPosition;
 
-		public PositionLookup(UnorderedLookup delegate, int[] removals, int[] insertions, UnorderedLookup[] insertedValues, int recordId) {
+		public PositionLookup(@Nonnull UnorderedLookup delegate, @Nonnull int[] removals, @Nonnull int[] insertions, @Nonnull UnorderedLookup[] insertedValues, int recordId) {
 			int theExistingPosition = delegate.findPosition(recordId);
 			if (theExistingPosition >= 0 && Arrays.binarySearch(removals, theExistingPosition) >= 0) {
 				theExistingPosition = Integer.MIN_VALUE;
