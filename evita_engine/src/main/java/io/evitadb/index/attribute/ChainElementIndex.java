@@ -357,33 +357,10 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 					movedChain = existingChain.removeRange(index, existingChain.getLength());
 					movedChainHeadPk = primaryKey;
 					this.chains.put(primaryKey, new TransactionalUnorderedIntArray(movedChain));
-				} else if (existingState.inChainOfHeadWithPrimaryKey() == predecessorState.inChainOfHeadWithPrimaryKey()) {
-					// the element is the head of the chain
-					// we just need to change the state and predecessor, since the chain is already correct
-					movedChainHeadPk = existingState.inChainOfHeadWithPrimaryKey();
-					movedChain = null;
 				} else {
-					// we need to append the sub-chain to the predecessor chain which is already occupied by other chain
-					// we need to promote the longer chain and register the conflicting successor chain
-					final int existingChainSplitIndex = existingChain.indexOf(predecessor.predecessorId());
-					final int existingChainSplitLength = existingChain.getLength() - existingChainSplitIndex;
-					final int predecessorSplitIndex = predecessorChain.indexOf(predecessor.predecessorId());
-					final int predecessorChainSplitLength = predecessorChain.getLength() - predecessorSplitIndex;
-					// if existing chain is longer than the predecessor one
-					if (existingChainSplitLength > predecessorChainSplitLength) {
-						// split the predecessor chain and append the current chain to it
-						final int[] splitPks = predecessorChain.removeRange(predecessorSplitIndex, predecessorChain.getLength());
-						movedChain = existingChain.getArray();
-						movedChainHeadPk = predecessorState.inChainOfHeadWithPrimaryKey();
-						predecessorChain.appendAll(movedChain);
-						// setup the new head of the chain for the tail part of split chain
-						this.chains.put(splitPks[0], new TransactionalUnorderedIntArray(splitPks));
-						reclassifyChain(splitPks[0], splitPks);
-					} else {
-						// leave the current chain be - we need to switch the state to SUCCESSOR only
-						movedChain = null;
-						movedChainHeadPk = existingState.inChainOfHeadWithPrimaryKey();
-					}
+					// leave the current chain be - we need to switch the state to SUCCESSOR only
+					movedChain = null;
+					movedChainHeadPk = existingState.inChainOfHeadWithPrimaryKey();
 				}
 			}
 

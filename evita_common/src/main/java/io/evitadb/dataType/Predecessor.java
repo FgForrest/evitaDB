@@ -32,6 +32,7 @@ package io.evitadb.dataType;
 public record Predecessor(
 	int predecessorId
 ) {
+	public static final Predecessor HEAD = new Predecessor();
 
 	/**
 	 * Head entity constructor.

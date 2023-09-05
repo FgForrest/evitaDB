@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -122,6 +123,23 @@ class ChainElementIndexTest {
 
 		assertTrue(index.isConsistent(), "Index is inconsistent.");
 		assertArrayEquals(new int[] {1, 2, 3, 6, 4, 5}, index.getChainFormula().compute().getArray());
+	}
+
+	@DisplayName("When introducing a split chain, the longer chains should be favoured")
+	@Test
+	void shouldIntroduceReconnectSplitChainsFavouringLongerOne() {
+		// fill the index initially with the expected chain
+		for (int pk : EXPECTED_CHAIN) {
+			index.upsertPredecessor(pk, PREDECESSOR_MAP.get(pk));
+		}
+
+		// now reorder randomly
+		index.upsertPredecessor(6, new Predecessor(3));
+		index.upsertPredecessor(7, new Predecessor(3));
+		index.upsertPredecessor(8, new Predecessor(7));
+
+		assertFalse(index.isConsistent(), "Index is inconsistent.");
+		assertArrayEquals(new int[] {1, 2, 3, 4, 5, 7, 8, 6}, index.getChainFormula().compute().getArray());
 	}
 
 	/**
