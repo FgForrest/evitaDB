@@ -992,6 +992,8 @@ public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctio
 	) {
 		final ProductInterface product = evitaSession.getEntity(ProductInterface.class, 1).orElse(null);
 		assertTrue(product.getOptionallyAvailable().isEmpty());
+		assertTrue(product.getMarketsIfAvailable().isEmpty());
+		assertTrue(product.getMarketsAssociatedDataIfAvailable().isEmpty());
 		assertTrue(product.getReferencedFileSetIfPresent().isEmpty());
 		assertTrue(product.getCategoriesIfFetched().isEmpty());
 		assertTrue(product.getPriceForSaleIfPresent().isEmpty());
