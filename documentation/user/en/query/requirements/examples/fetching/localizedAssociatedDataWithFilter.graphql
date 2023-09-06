@@ -19,6 +19,9 @@
         associatedDataEn: associatedData(locale: en) {
           localization
         }
+        associatedDataDe: associatedData(locale: de) {
+          localization
+        }
       }
     }
   }
