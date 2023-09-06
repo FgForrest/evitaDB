@@ -5,163 +5,163 @@
       "recordPage" : {
         "data" : [
           {
-            "primaryKey" : 105777,
+            "primaryKey" : 109034,
             "attributes" : {
-              "code" : "apple-ipad-pro-11-4th-generation-2022-19",
-              "ean" : "19997832",
-              "catalogNumber" : "4999458"
+              "code" : "asus-chromebook-flip-cx5-6",
+              "ean" : "10000494",
+              "catalogNumber" : "2500123"
             }
           },
           {
-            "primaryKey" : 110064,
+            "primaryKey" : 110704,
             "attributes" : {
-              "code" : "lenovo-thinkpad-t495",
-              "ean" : "19996913",
-              "catalogNumber" : "4999228"
+              "code" : "msi-gf66-11uc-katana-5",
+              "ean" : "10001700",
+              "catalogNumber" : "2500425"
             }
           },
           {
-            "primaryKey" : 107394,
+            "primaryKey" : 113360,
             "attributes" : {
-              "code" : "oppo-reno4-1",
-              "ean" : "19993333",
-              "catalogNumber" : "4998333"
+              "code" : "27b2am",
+              "ean" : "10006607",
+              "catalogNumber" : "2501651"
             }
           },
           {
-            "primaryKey" : 107327,
+            "primaryKey" : 106033,
             "attributes" : {
-              "code" : "oppo-realme-gt2-pro-1",
-              "ean" : "19992965",
-              "catalogNumber" : "4998241"
+              "code" : "samsung-galaxy-tab-s8-12-4-2022-9",
+              "ean" : "10008764",
+              "catalogNumber" : "2502191"
             }
           },
           {
-            "primaryKey" : 109040,
+            "primaryKey" : 111400,
             "attributes" : {
-              "code" : "asus-chromebook-flip-cx5-8",
-              "ean" : "19987988",
-              "catalogNumber" : "4996997"
+              "code" : "msi-summit-e13-flip-evo-a12mt-3",
+              "ean" : "10011729",
+              "catalogNumber" : "2502932"
             }
           },
           {
-            "primaryKey" : 109013,
+            "primaryKey" : 107187,
             "attributes" : {
-              "code" : "asus-chromebook-flip-2",
-              "ean" : "19987731",
-              "catalogNumber" : "4996932"
+              "code" : "oppo-a73-2",
+              "ean" : "10013365",
+              "catalogNumber" : "2503341"
             }
           },
           {
-            "primaryKey" : 107355,
+            "primaryKey" : 106804,
             "attributes" : {
-              "code" : "oppo-realme-narzo-30-2",
-              "ean" : "19986132",
-              "catalogNumber" : "4996533"
+              "code" : "huawei-p50-pro",
+              "ean" : "10019551",
+              "catalogNumber" : "2504887"
             }
           },
           {
-            "primaryKey" : 108017,
+            "primaryKey" : 110908,
             "attributes" : {
-              "code" : "amazfit-gts",
-              "ean" : "19984440",
-              "catalogNumber" : "4996110"
+              "code" : "msi-gl75-9sdk-3",
+              "ean" : "10020345",
+              "catalogNumber" : "2505086"
             }
           },
           {
-            "primaryKey" : 109842,
+            "primaryKey" : 110127,
             "attributes" : {
-              "code" : "lenovo-ideapad-c-c340-5",
-              "ean" : "19984044",
-              "catalogNumber" : "4996011"
+              "code" : "lenovo-thinkpad-11e-yoga",
+              "ean" : "10020587",
+              "catalogNumber" : "2505146"
             }
           },
           {
-            "primaryKey" : 108209,
+            "primaryKey" : 107848,
             "attributes" : {
-              "code" : "apple-watch-series-6-44mm-cellular-2",
-              "ean" : "19978013",
-              "catalogNumber" : "4994503"
+              "code" : "zte-axon-40-pro-1",
+              "ean" : "10021410",
+              "catalogNumber" : "2505352"
             }
           },
           {
-            "primaryKey" : 106750,
+            "primaryKey" : 110938,
             "attributes" : {
-              "code" : "huawei-nova-9",
-              "ean" : "19975512",
-              "catalogNumber" : "4993878"
+              "code" : "msi-gp65-10sfk-leopard-4",
+              "ean" : "10021789",
+              "catalogNumber" : "2505447"
             }
           },
           {
-            "primaryKey" : 109192,
+            "primaryKey" : 109149,
             "attributes" : {
-              "code" : "asus-tuf-gaming-a15-5",
-              "ean" : "19975323",
-              "catalogNumber" : "4993830"
+              "code" : "asus-rog-zephyrus-g14-5",
+              "ean" : "10023435",
+              "catalogNumber" : "2505858"
             }
           },
           {
-            "primaryKey" : 111493,
+            "primaryKey" : 109159,
             "attributes" : {
-              "code" : "msi-workstation-ws65-9tm-2",
-              "ean" : "19972328",
-              "catalogNumber" : "4993082"
+              "code" : "asus-rog-zephyrus-g15-4",
+              "ean" : "10023687",
+              "catalogNumber" : "2505921"
             }
           },
           {
-            "primaryKey" : 109860,
+            "primaryKey" : 109575,
             "attributes" : {
-              "code" : "lenovo-ideapad-l340-1",
-              "ean" : "19969408",
-              "catalogNumber" : "4992352"
+              "code" : "hp-elitebook-850-g6-4",
+              "ean" : "10024829",
+              "catalogNumber" : "2506207"
             }
           },
           {
-            "primaryKey" : 110386,
+            "primaryKey" : 108187,
             "attributes" : {
-              "code" : "msi-creator-z16-a12uet-2",
-              "ean" : "19968896",
-              "catalogNumber" : "4992224"
+              "code" : "apple-watch-series-5-44mm-3",
+              "ean" : "10025075",
+              "catalogNumber" : "2506268"
             }
           },
           {
-            "primaryKey" : 110023,
+            "primaryKey" : 109404,
             "attributes" : {
-              "code" : "lenovo-thinkpad-p53s-2",
-              "ean" : "19968773",
-              "catalogNumber" : "4992193"
+              "code" : "fujitsu-celsius-h7510-3",
+              "ean" : "10029603",
+              "catalogNumber" : "2507400"
             }
           },
           {
-            "primaryKey" : 109439,
+            "primaryKey" : 109474,
             "attributes" : {
-              "code" : "fujitsu-lifebook-e5411-5",
-              "ean" : "19968588",
-              "catalogNumber" : "4992147"
+              "code" : "fujitsu-lifebook-u7411-2",
+              "ean" : "10043198",
+              "catalogNumber" : "2510799"
             }
           },
           {
-            "primaryKey" : 113035,
+            "primaryKey" : 110968,
             "attributes" : {
-              "code" : "sony-inzone-h3",
-              "ean" : "19964750",
-              "catalogNumber" : "4991187"
+              "code" : "msi-gp76-10ue-leopard-5",
+              "ean" : "10043718",
+              "catalogNumber" : "2510929"
             }
           },
           {
-            "primaryKey" : 106022,
+            "primaryKey" : 107183,
             "attributes" : {
-              "code" : "samsung-galaxy-tab-s8-ultra-14-6-2022-5",
-              "ean" : "19964450",
-              "catalogNumber" : "4991112"
+              "code" : "oppo-a73",
+              "ean" : "10043989",
+              "catalogNumber" : "2510997"
             }
           },
           {
-            "primaryKey" : 110200,
+            "primaryKey" : 111247,
             "attributes" : {
-              "code" : "microsoft-surface-laptop-4-2",
-              "ean" : "19958447",
-              "catalogNumber" : "4989611"
+              "code" : "msi-modern-15-a10ras-1",
+              "ean" : "10044055",
+              "catalogNumber" : "2511013"
             }
           }
         ]

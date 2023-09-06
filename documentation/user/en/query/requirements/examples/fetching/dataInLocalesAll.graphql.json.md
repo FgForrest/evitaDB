@@ -6,9 +6,7 @@
       "attributesGlobal" : {
         "code" : "samsung"
       },
-      "attributesDe" : {
-        "name" : "Samsung"
-      },
+      "attributesDe" : null,
       "attributesEn" : {
         "name" : "Samsung"
       },

@@ -6,12 +6,10 @@
       "type" : "Brand",
       "version" : 1,
       "locales" : [
-        "de",
         "en",
         "cs"
       ],
       "allLocales" : [
-        "de",
         "en",
         "cs"
       ],
@@ -21,9 +19,6 @@
         },
         "localized" : {
           "cs" : {
-            "name" : "Samsung"
-          },
-          "de" : {
             "name" : "Samsung"
           },
           "en" : {

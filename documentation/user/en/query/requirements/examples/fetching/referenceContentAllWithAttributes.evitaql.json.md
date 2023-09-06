@@ -17,9 +17,7 @@
               }
             },
             "attributes": {
-              "orderInCategory": -2147483648,
-              "relatedBreadCrumbOrder": 2,
-              "relatedBreadCrumbPath": "Portables/Tablets"
+              "orderInCategory": -2147483648
             }
           }
         ],
@@ -33,8 +31,22 @@
               }
             },
             "attributes": {
-              "orderInBrand": 0,
-              "relatedBreadCrumbOrder": 1
+              "orderInBrand": 0
+            }
+          }
+        ],
+        "stocks": [
+          {
+            "group": 0,
+            "referencedKey": 119334,
+            "referencedEntity": {
+              "primaryKey": 119334,
+              "attributes": {
+                "code": "evita"
+              }
+            },
+            "attributes": {
+              "quantityOnStock": 4.00000
             }
           }
         ],
