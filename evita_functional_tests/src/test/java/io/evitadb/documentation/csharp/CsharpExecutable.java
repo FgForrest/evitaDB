@@ -89,6 +89,11 @@ public class CsharpExecutable implements Executable, EvitaTestSupport {
 	 * Method executes the list of {@link Snippet} in passed {@link CShell} instance a verifies that the execution
 	 * finished without an error.
 	 */
+
+	static {
+		CShell.clearDownloadedValidator();
+	}
+
 	void executeCShellCommands(@Nonnull CShell cShell, @Nonnull List<String> snippets, @Nullable OutputSnippet outputSnippet) {
 		final List<RuntimeException> exceptions = new LinkedList<>();
 
@@ -103,14 +108,10 @@ public class CsharpExecutable implements Executable, EvitaTestSupport {
 				final String relativePath = assertSource.toString().substring(rootDirectory.normalize().toString().length());
 				final String sourceVariable = outputSnippet == null || outputSnippet.sourceVariable() == null ? null : outputSnippet.sourceVariable();
 				final String output = cShell.evaluate(snippet, outputFormat, sourceVariable);
-
-				if (outputFormat.equals("md")) {
-					Assertions.assertEquals("", output);
-					System.out.println("Query is valid. \uD83D\uDE0A");
-				} else {
+				if (outputSnippet != null) {
 					final String expectedOutput = UserDocumentationTest.readFileOrThrowException(outputSnippet.path());
 					Assertions.assertEquals(expectedOutput, output);
-					System.out.println("Markdown snippet `" + relativePath + "` contents verified OK. \uD83D\uDE0A");
+					System.out.println("Markdown snippet `" + relativePath + "` contents verified OK (C#). \uD83D\uDE0A");
 				}
 			} catch (RuntimeException e) {
 				exceptions.add(e);

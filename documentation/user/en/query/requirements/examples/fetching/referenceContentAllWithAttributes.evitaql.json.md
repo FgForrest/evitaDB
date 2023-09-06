@@ -7,20 +7,6 @@
         "code": "apple-ipad-10-2-10th-generation-2022-6"
       },
       "references": {
-        "categories": [
-          {
-            "referencedKey": 66472,
-            "referencedEntity": {
-              "primaryKey": 66472,
-              "attributes": {
-                "code": "tablets"
-              }
-            },
-            "attributes": {
-              "orderInCategory": -2147483648
-            }
-          }
-        ],
         "brand": [
           {
             "referencedKey": 66465,
@@ -35,29 +21,27 @@
             }
           }
         ],
-        "stocks": [
+        "categories": [
           {
-            "group": 0,
-            "referencedKey": 119334,
+            "referencedKey": 66472,
             "referencedEntity": {
-              "primaryKey": 119334,
+              "primaryKey": 66472,
               "attributes": {
-                "code": "evita"
+                "code": "tablets"
               }
             },
             "attributes": {
-              "quantityOnStock": 4.00000
+              "orderInCategory": -2147483648
             }
           }
         ],
-        "tags": [
+        "master": [
           {
-            "group": 0,
-            "referencedKey": 10,
+            "referencedKey": 103911,
             "referencedEntity": {
-              "primaryKey": 10,
+              "primaryKey": 103911,
               "attributes": {
-                "code": "new"
+                "code": "apple-ipad-10-2-10th-generation-2022"
               }
             }
           }
@@ -634,13 +618,29 @@
             }
           }
         ],
-        "master": [
+        "stocks": [
           {
-            "referencedKey": 103911,
+            "group": 0,
+            "referencedKey": 119334,
             "referencedEntity": {
-              "primaryKey": 103911,
+              "primaryKey": 119334,
               "attributes": {
-                "code": "apple-ipad-10-2-10th-generation-2022"
+                "code": "evita"
+              }
+            },
+            "attributes": {
+              "quantityOnStock": 4.00000
+            }
+          }
+        ],
+        "tags": [
+          {
+            "group": 0,
+            "referencedKey": 10,
+            "referencedEntity": {
+              "primaryKey": 10,
+              "attributes": {
+                "code": "new"
               }
             }
           }

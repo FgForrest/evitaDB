@@ -11,7 +11,8 @@
       },
       "attributesEn": {
         "name": "Samsung"
-      }
+      },
+      "attributesDe": null
     }
   ]
 }

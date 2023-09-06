@@ -428,10 +428,11 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 							.filter(it -> !ENTITY_PRIMARY_KEY.equals(it) && !it.startsWith(REF_LINK) && !it.startsWith(PRICE_LINK))
 							.map(EvitaQLExecutable::toAttributeKey)
 							.map(sealedEntity::getAttributeValue)
-							.filter(Optional::isPresent)
-							.map(Optional::get)
-							.map(AttributeValue::value)
-							.map(EvitaDataTypes::formatValue),
+							//.filter(Optional::isPresent)
+							.map(it -> it.map(attributeValue -> EvitaDataTypes.formatValue(attributeValue.value())).orElse(null)),
+							//.map(Optional::get)
+							//.map(AttributeValue::value)
+							//.map(EvitaDataTypes::formatValue),
 						Arrays.stream(headers)
 							.filter(it -> it.startsWith(REF_LINK))
 							.map(it -> {

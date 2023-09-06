@@ -166,10 +166,10 @@ public class CShell {
             processBuilder = new ProcessBuilder(VALIDATOR_PATH, commandToSend, outputFormat, sourceVariable);
         }
 
-		/*System.out.println(commandToSend + "\n");
-		System.out.println(outputFormat + "\n");
+		/*System.out.println("\""+commandToSend+"\"" + "\n");
+		System.out.println("\""+outputFormat+"\"" + "\n");
 		if (sourceVariable != null) {
-			System.out.println(sourceVariable + "\n");
+			System.out.println("\""+sourceVariable+"\"" + "\n");
 		}*/
 
         // Redirect the standard output to be read by the Java application
@@ -178,12 +178,15 @@ public class CShell {
     }
 
     public void close() {
-        //TODO tpo: Should we delete this after we're done?
-		/*try {
-			Files.deleteIfExists(Paths.get(VALIDATOR_PATH));
-		} catch (IOException e) {
-			throw new IllegalStateException(e);
-		}*/
+        // do nothing, we clear the downloaded query validator in CsharpExecutable static constructor
+    }
+
+    public static void clearDownloadedValidator() {
+        try {
+            Files.deleteIfExists(Paths.get(VALIDATOR_PATH));
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private static boolean isWindows() {

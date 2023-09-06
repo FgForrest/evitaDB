@@ -12,7 +12,6 @@ import "GrpcExtraResults.proto";
 import "GrpcEnums.proto";
 import "GrpcCatalogSchema.proto";
 import "GrpcEntitySchema.proto";
-import "GrpcLocalMutation.proto";
 import "GrpcEntityMutation.proto";
 import "GrpcCatalogSchemaMutation.proto";
 import "GrpcCatalogSchemaMutations.proto";

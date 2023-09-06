@@ -26,6 +26,7 @@ package io.evitadb.utils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Comparator;
+import java.util.Currency;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.IntSupplier;
@@ -59,6 +60,35 @@ public class ComparatorUtils {
 		} else {
 			return localeResult;
 		}
+	}
+
+	public static Comparator<Locale> localeComparator() {
+		return (l1, l2) -> compareLocale(l1, l2, () -> 0);
+	}
+
+	/**
+	 * Compares two optional currencies and when result is a tie, uses additional logic to break the tie.
+	 */
+	public static int compareCurrency(@Nullable Currency currency, @Nullable Currency otherCurrency, @Nonnull IntSupplier tieBreakingResult) {
+		final int currencyResult;
+		if (currency == null && otherCurrency == null) {
+			currencyResult = 0;
+		} else if (currency != null && otherCurrency == null) {
+			currencyResult = -1;
+		} else if (currency == null) {
+			currencyResult = 1;
+		} else {
+			currencyResult = Objects.compare(currency, otherCurrency, Comparator.comparing(Currency::toString));
+		}
+		if (currencyResult == 0) {
+			return tieBreakingResult.getAsInt();
+		} else {
+			return currencyResult;
+		}
+	}
+
+	public static Comparator<Currency> currencyComparator() {
+		return (l1, l2) -> compareCurrency(l1, l2, () -> 0);
 	}
 
 }
