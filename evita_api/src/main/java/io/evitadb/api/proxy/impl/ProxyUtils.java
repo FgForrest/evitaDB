@@ -31,6 +31,7 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -142,7 +143,13 @@ public class ProxyUtils {
 		public static final OptionalUnaryOperator INSTANCE = new OptionalUnaryOperator();
 		@Override
 		public Object apply(Object value) {
-			return Optional.ofNullable(value);
+			// collections are not allowed in the evitaDB values, but may be present on proxied interfaces
+			// when empty collection is returned, the value is null and we need to return Optional.empty()
+			if (value instanceof Collection<?> collection) {
+				return collection.isEmpty() ? Optional.empty() : Optional.of(collection);
+			} else {
+				return Optional.ofNullable(value);
+			}
 		}
 	}
 

@@ -9,7 +9,6 @@
         "en"
       ],
       "allLocales" : [
-        "de",
         "en",
         "cs"
       ],
@@ -31,9 +30,7 @@
               "en"
             ],
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "localized" : {
@@ -58,9 +55,7 @@
               "en"
             ],
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "localized" : {
@@ -85,9 +80,7 @@
               "en"
             ],
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "localized" : {
@@ -112,9 +105,7 @@
               "en"
             ],
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "localized" : {
@@ -139,9 +130,7 @@
               "en"
             ],
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "localized" : {
@@ -166,9 +155,7 @@
               "en"
             ],
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "localized" : {
@@ -193,9 +180,7 @@
               "en"
             ],
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "localized" : {
@@ -220,9 +205,7 @@
               "en"
             ],
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "localized" : {
@@ -247,9 +230,7 @@
               "en"
             ],
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "localized" : {
@@ -274,9 +255,7 @@
               "en"
             ],
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "localized" : {
@@ -301,9 +280,7 @@
               "en"
             ],
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "localized" : {
@@ -328,9 +305,7 @@
               "en"
             ],
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "localized" : {
@@ -355,9 +330,7 @@
               "en"
             ],
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "localized" : {
@@ -382,9 +355,7 @@
               "en"
             ],
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "localized" : {
@@ -409,9 +380,7 @@
               "en"
             ],
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "localized" : {
@@ -436,9 +405,7 @@
               "en"
             ],
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "localized" : {
@@ -463,9 +430,7 @@
               "en"
             ],
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "localized" : {

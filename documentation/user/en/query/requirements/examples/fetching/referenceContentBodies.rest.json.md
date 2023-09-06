@@ -6,7 +6,6 @@
       "type" : "Product",
       "version" : 1,
       "allLocales" : [
-        "de",
         "en",
         "cs"
       ],
@@ -23,9 +22,7 @@
             "type" : "ParameterValue",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -38,9 +35,7 @@
             "type" : "Parameter",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -56,9 +51,7 @@
             "type" : "ParameterValue",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -71,9 +64,7 @@
             "type" : "Parameter",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -89,9 +80,7 @@
             "type" : "ParameterValue",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -104,9 +93,7 @@
             "type" : "Parameter",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -122,9 +109,7 @@
             "type" : "ParameterValue",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -137,9 +122,7 @@
             "type" : "Parameter",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -155,9 +138,7 @@
             "type" : "ParameterValue",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -170,9 +151,7 @@
             "type" : "Parameter",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -188,9 +167,7 @@
             "type" : "ParameterValue",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -203,9 +180,7 @@
             "type" : "Parameter",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -221,9 +196,7 @@
             "type" : "ParameterValue",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -236,9 +209,7 @@
             "type" : "Parameter",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -254,9 +225,7 @@
             "type" : "ParameterValue",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -269,9 +238,7 @@
             "type" : "Parameter",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -287,9 +254,7 @@
             "type" : "ParameterValue",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -302,9 +267,7 @@
             "type" : "Parameter",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -320,9 +283,7 @@
             "type" : "ParameterValue",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -335,9 +296,7 @@
             "type" : "Parameter",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -353,9 +312,7 @@
             "type" : "ParameterValue",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -368,9 +325,7 @@
             "type" : "Parameter",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -386,9 +341,7 @@
             "type" : "ParameterValue",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -401,9 +354,7 @@
             "type" : "Parameter",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -419,9 +370,7 @@
             "type" : "ParameterValue",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -434,9 +383,7 @@
             "type" : "Parameter",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -452,9 +399,7 @@
             "type" : "ParameterValue",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -467,9 +412,7 @@
             "type" : "Parameter",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -485,9 +428,7 @@
             "type" : "ParameterValue",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -500,9 +441,7 @@
             "type" : "Parameter",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -518,9 +457,7 @@
             "type" : "ParameterValue",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -533,9 +470,7 @@
             "type" : "Parameter",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -551,9 +486,7 @@
             "type" : "ParameterValue",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
@@ -566,9 +499,7 @@
             "type" : "Parameter",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {

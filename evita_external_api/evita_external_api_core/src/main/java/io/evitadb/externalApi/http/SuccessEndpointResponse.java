@@ -39,13 +39,13 @@ public class SuccessEndpointResponse<R> implements EndpointResponse<R> {
 
 	@Nullable
 	@Getter
-	private final R body;
+	private final R result;
 
 	public SuccessEndpointResponse() {
-		this.body = null;
+		this.result = null;
 	}
 
-	public SuccessEndpointResponse(@Nonnull R body) {
-		this.body = body;
+	public SuccessEndpointResponse(@Nonnull R result) {
+		this.result = result;
 	}
 }

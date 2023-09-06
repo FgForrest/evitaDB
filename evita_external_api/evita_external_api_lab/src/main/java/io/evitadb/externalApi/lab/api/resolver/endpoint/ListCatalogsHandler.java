@@ -73,7 +73,7 @@ public class ListCatalogsHandler extends JsonRestHandler<Collection<CatalogContr
 
 	@Nonnull
 	@Override
-	protected JsonNode convertResultIntoJson(@Nonnull RestEndpointExchange exchange, @Nonnull Collection<CatalogContract> catalogs) {
+	protected JsonNode convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull Collection<CatalogContract> catalogs) {
 		return catalogJsonSerializer.serialize(catalogs);
 	}
 }

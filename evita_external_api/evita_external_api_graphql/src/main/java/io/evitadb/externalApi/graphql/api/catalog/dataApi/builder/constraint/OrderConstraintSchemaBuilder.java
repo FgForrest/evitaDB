@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint;
 
 import graphql.schema.GraphQLInputType;
-import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;

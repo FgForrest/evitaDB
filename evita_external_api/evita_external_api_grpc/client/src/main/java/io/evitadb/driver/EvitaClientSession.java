@@ -270,6 +270,37 @@ public class EvitaClientSession implements EvitaSessionContract {
 		);
 	}
 
+	/**
+	 * This method is internal and is a special form of {@link #getCatalogSchema()} that can handle the situation when
+	 * this particular session is already closed and opens a new temporary one for accessing the schemas on the server
+	 * side when necessary.
+	 *
+	 * @param evita - reference to the {@link EvitaClient} instance that is used to open a new temporary session when necessary
+	 * @return {@link SealedCatalogSchema} of the catalog targeted by this session
+	 */
+	@Nonnull
+	public SealedCatalogSchema getCatalogSchema(@Nonnull EvitaClient evita) {
+		assertActive();
+		return schemaCache.getLatestCatalogSchema(
+			() -> isActive() ?
+				this.fetchCatalogSchema() :
+				evita.queryCatalog(
+					catalogName,
+					session -> {
+						return ((EvitaClientSession)session).fetchCatalogSchema();
+					}
+				),
+			entityType -> isActive() ?
+				this.getEntitySchema(entityType).orElse(null) :
+				evita.queryCatalog(
+					catalogName,
+					session -> {
+						return session.getEntitySchema(entityType).orElse(null);
+					}
+				)
+		);
+	}
+
 	@Nonnull
 	@Override
 	public String getCatalogName() {

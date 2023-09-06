@@ -12,14 +12,14 @@
         }
         parameterValues(
           orderBy: [
-            {
-              entityProperty: [
-                {
-                  attributeCodeNatural: DESC
-                }
-              ]
-            }
-          ]
+          {
+            entityProperty: [
+              {
+                attributeCodeNatural: DESC
+              }
+            ]
+          }
+        ]
         ) {
           referencedPrimaryKey
           referencedEntity {

@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
 
 import graphql.execution.DataFetcherResult;
+import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import graphql.schema.DataFetchingFieldSelectionSet;
 import graphql.schema.SelectedField;
@@ -52,7 +53,6 @@ import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryEntitiesHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.*;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
-import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidResponseUsageException;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
@@ -67,7 +67,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.Query.query;
@@ -83,7 +82,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class QueryEntitiesDataFetcher extends ReadDataFetcher<DataFetcherResult<EvitaResponse<EntityClassifier>>> {
+public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<EvitaResponse<EntityClassifier>>> {
 
 	/**
 	 * Schema of collection to which this fetcher is mapped to.
@@ -113,10 +112,8 @@ public class QueryEntitiesDataFetcher extends ReadDataFetcher<DataFetcherResult<
 			.orElse(null);
 	}
 
-	public QueryEntitiesDataFetcher(@Nullable Executor executor,
-                                    @Nonnull CatalogSchemaContract catalogSchema,
+	public QueryEntitiesDataFetcher(@Nonnull CatalogSchemaContract catalogSchema,
 	                                @Nonnull EntitySchemaContract entitySchema) {
-        super(executor);
 		this.entitySchema = entitySchema;
 		this.referencedEntitySchemas = createHashMap(entitySchema.getReferences().size());
 		entitySchema.getReferences()
@@ -162,7 +159,7 @@ public class QueryEntitiesDataFetcher extends ReadDataFetcher<DataFetcherResult<
 
     @Nonnull
     @Override
-    public DataFetcherResult<EvitaResponse<EntityClassifier>> doGet(@Nonnull DataFetchingEnvironment environment) {
+    public DataFetcherResult<EvitaResponse<EntityClassifier>> get(@Nonnull DataFetchingEnvironment environment) {
         final Arguments arguments = Arguments.from(environment);
 
 		final FilterBy filterBy = buildFilterBy(arguments);

@@ -27,7 +27,6 @@ import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiWriter;
-import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import io.evitadb.externalApi.rest.io.RestEndpointHandler;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
@@ -35,6 +34,8 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -72,16 +73,19 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 		return mediaTypes;
 	}
 
-	@Nonnull
 	@Override
-	protected String serializeResult(@Nonnull RestEndpointExchange exchange, @Nonnull OpenAPI openApiSpecification) {
+	protected void writeResult(@Nonnull RestEndpointExchange exchange, @Nonnull OutputStream outputStream, @Nonnull OpenAPI openApiSpecification) {
 		final String preferredResponseMediaType = exchange.preferredResponseContentType();
-		if (preferredResponseMediaType.equals(MimeTypes.APPLICATION_YAML)) {
-			return OpenApiWriter.toYaml(openApiSpecification);
-		} else if (preferredResponseMediaType.equals(MimeTypes.APPLICATION_JSON)) {
-			return OpenApiWriter.toJson(openApiSpecification);
-		} else {
-			throw new RestInternalError("Should never happen!");
+		try {
+			if (preferredResponseMediaType.equals(MimeTypes.APPLICATION_YAML)) {
+				OpenApiWriter.toYaml(openApiSpecification, outputStream);
+			} else if (preferredResponseMediaType.equals(MimeTypes.APPLICATION_JSON)) {
+				OpenApiWriter.toJson(openApiSpecification, outputStream);
+			} else {
+				throw createInternalError("Should never happen!");
+			}
+		} catch (IOException e) {
+			throw createInternalError("Could not serialize OpenAPI specification: " + e.getMessage());
 		}
 	}
 }

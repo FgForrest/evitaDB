@@ -9,9 +9,7 @@
         "en"
       ],
       "allLocales" : [
-        "de",
-        "en",
-        "cs"
+        "en"
       ],
       "categories" : [
         {
@@ -32,9 +30,7 @@
                   "en"
                 ],
                 "allLocales" : [
-                  "de",
-                  "en",
-                  "cs"
+                  "en"
                 ],
                 "attributes" : {
                   "global" : {
@@ -51,9 +47,7 @@
                 "en"
               ],
               "allLocales" : [
-                "de",
-                "en",
-                "cs"
+                "en"
               ],
               "attributes" : {
                 "global" : {
@@ -70,9 +64,7 @@
               "en"
             ],
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {
