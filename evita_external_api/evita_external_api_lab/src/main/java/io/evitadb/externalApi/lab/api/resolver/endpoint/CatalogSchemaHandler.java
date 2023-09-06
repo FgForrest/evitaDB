@@ -82,7 +82,7 @@ public abstract class CatalogSchemaHandler extends JsonRestHandler<CatalogSchema
 
 	@Nonnull
 	@Override
-	protected JsonNode convertResultIntoJson(@Nonnull RestEndpointExchange exchange, @Nonnull CatalogSchemaContract catalogSchema) {
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull CatalogSchemaContract catalogSchema) {
 		return catalogSchemaJsonSerializer.serialize(
 			catalogSchema,
 			exchange.session()::getEntitySchemaOrThrow,

@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.externalApi.rest.api.system.resolver.serializer.CatalogJsonSerializer;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
@@ -55,7 +54,7 @@ public abstract class CatalogHandler extends JsonRestHandler<CatalogContract, Sy
 
 	@Nonnull
 	@Override
-	protected JsonNode convertResultIntoJson(@Nonnull RestEndpointExchange exchange, @Nonnull CatalogContract catalog) {
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull CatalogContract catalog) {
 		return catalogJsonSerializer.serialize(catalog);
 	}
 }

@@ -45,8 +45,8 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.DeleteE
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.GetEntityHandler;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.GetUnknownEntityHandler;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.ListEntitiesHandler;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.QueryEntitiesHandler;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.ListUnknownEntitiesHandler;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.QueryEntitiesHandler;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.UpsertEntityHandler;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiOperationPathParameterTransformer;
