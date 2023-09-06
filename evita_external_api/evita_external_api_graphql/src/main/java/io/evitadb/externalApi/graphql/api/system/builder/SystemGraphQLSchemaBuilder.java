@@ -41,6 +41,7 @@ import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.FinalGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.NameVariantDataFetcher;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.model.CatalogQueryHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.system.model.CreateCatalogMutationHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.system.model.DeleteCatalogIfExistsMutationHeaderDescriptor;
@@ -214,7 +215,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 		return new BuiltFieldDescriptor(
 			catalogField,
-			new CatalogDataFetcher(buildingContext.getEvitaExecutor().orElse(null), evita)
+			new ReadDataFetcher(new CatalogDataFetcher(evita), buildingContext.getEvitaExecutor().orElse(null))
 		);
 	}
 
@@ -222,7 +223,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 	private BuiltFieldDescriptor buildCatalogsField() {
 		return new BuiltFieldDescriptor(
 			SystemRootDescriptor.CATALOGS.to(staticEndpointBuilderTransformer).build(),
-			new CatalogsDataFetcher(buildingContext.getEvitaExecutor().orElse(null), evita)
+			new ReadDataFetcher(new CatalogsDataFetcher(evita), buildingContext.getEvitaExecutor().orElse(null))
 		);
 	}
 
@@ -241,13 +242,13 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 	@Nonnull
 	private BuiltFieldDescriptor buildSwitchCatalogToAliveStateField() {
-		final GraphQLFieldDefinition swithcCatalogToAliveStateField = SystemRootDescriptor.SWITCH_CATALOG_TO_ALIVE_STATE
+		final GraphQLFieldDefinition switchCatalogToAliveStateField = SystemRootDescriptor.SWITCH_CATALOG_TO_ALIVE_STATE
 			.to(staticEndpointBuilderTransformer)
 			.argument(SwitchCatalogToAliveStateMutationHeaderDescriptor.NAME.to(argumentBuilderTransformer))
 			.build();
 
 		return new BuiltFieldDescriptor(
-			swithcCatalogToAliveStateField,
+			switchCatalogToAliveStateField,
 			new SwitchCatalogToAliveStateMutatingDataFetcher(evita)
 		);
 	}

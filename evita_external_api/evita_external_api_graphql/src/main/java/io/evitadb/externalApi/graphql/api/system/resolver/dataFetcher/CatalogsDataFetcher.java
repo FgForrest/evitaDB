@@ -23,33 +23,28 @@
 
 package io.evitadb.externalApi.graphql.api.system.resolver.dataFetcher;
 
+import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Collection;
-import java.util.concurrent.Executor;
 
 /**
  * Returns all catalog DTOs.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class CatalogsDataFetcher extends ReadDataFetcher<Collection<CatalogContract>> {
+@RequiredArgsConstructor
+public class CatalogsDataFetcher implements DataFetcher<Collection<CatalogContract>> {
 
     @Nonnull private final Evita evita;
 
-    public CatalogsDataFetcher(@Nullable Executor executor, @Nonnull Evita evita) {
-        super(executor);
-        this.evita = evita;
-    }
-
     @Override
     @Nonnull
-    public Collection<CatalogContract> doGet(@Nonnull DataFetchingEnvironment environment) {
+    public Collection<CatalogContract> get(@Nonnull DataFetchingEnvironment environment) {
         return evita.getCatalogs();
     }
 }

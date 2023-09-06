@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.rest.io;
 
 import io.evitadb.externalApi.configuration.ApiWithOriginControl;
-import io.evitadb.externalApi.http.CorsFilter;
 import io.evitadb.externalApi.http.CorsPreflightHandler;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.BlockingHandler;
