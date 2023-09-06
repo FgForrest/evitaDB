@@ -42,6 +42,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -50,6 +51,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.core.Transaction.isTransactionAvailable;
+import static io.evitadb.utils.Assert.isPremiseValid;
+import static io.evitadb.utils.Assert.isTrue;
 
 /**
  * This is a special index for data type of {@link io.evitadb.dataType.Predecessor}.
@@ -149,6 +152,26 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 	}
 
 	/**
+	 * Method removes existing `predecessor` information for the `primaryKey` element in the index.
+	 *
+	 * @param primaryKey primary key of the element
+	 */
+	public void removePredecessor(int primaryKey) {
+		final ChainElementState existingState = this.elementStates.remove(primaryKey);
+		isTrue(
+			existingState != null,
+			"Value `" + primaryKey + "` is not present in the chain element index!"
+		);
+		// if existing state is not found - we need to insert new one
+		removePredecessorFromChain(primaryKey, existingState);
+
+		if (!isTransactionAvailable()) {
+			this.memoizedAllRecordsFormula = null;
+		}
+		this.dirty.setToTrue();
+	}
+
+	/**
 	 * Method adds or updates existing `predecessor` information for the `primaryKey` element in the index.
 	 *
 	 * @param primaryKey  primary key of the element
@@ -190,6 +213,85 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 			transactionalLayer.getStateCopyWithCommittedChanges(this.chains, transaction),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.elementStates, transaction)
 		);
+	}
+
+	@Override
+	public String toString() {
+		return "ChainElementIndex:\n" +
+			"   - chains:\n" + chains.values().stream().map(it -> "      - " + it.toString()).collect(Collectors.joining("\n")) + "\n" +
+			"   - elementStates:\n" + elementStates.entrySet().stream().map(it -> "      - " + it.getKey() + ": " + it.getValue()).collect(Collectors.joining("\n"));
+	}
+
+	/**
+	 * Method removes existing `predecessor` information for the `primaryKey` element in the index.
+	 *
+	 * @param primaryKey    primary key of the element
+	 * @param existingState existing state of the primary key element
+	 */
+	private void removePredecessorFromChain(int primaryKey, @Nonnull ChainElementState existingState) {
+		// and then remove it from the chain
+		switch (existingState.state()) {
+			case HEAD -> removeHeadElement(primaryKey);
+			case SUCCESSOR, CIRCULAR -> removeSuccessorElement(primaryKey, existingState.inChainOfHeadWithPrimaryKey());
+			default -> throw new IllegalStateException("Unexpected value: " + existingState.state());
+		}
+	}
+
+	/**
+	 * Method removes head element of the existing chain. The chain is removed completely if the head is the only
+	 * element in the chain.
+	 *
+	 * @param primaryKey primary key of the element
+	 */
+	private void removeHeadElement(int primaryKey) {
+		// if the primary key is head of its chain
+		final TransactionalUnorderedIntArray chain = this.chains.remove(primaryKey);
+		final int[] head = chain.removeRange(0, 1);
+		isPremiseValid(
+			head.length == 1 && head[0] == primaryKey,
+			"The head of the chain is expected to be single element with primary key `" + primaryKey + "`!"
+		);
+		// if the chain is not empty
+		if (chain.getLength() > 0) {
+			this.chains.put(chain.get(0), chain);
+			// we need to reclassify the chain
+			reclassifyChain(chain.get(0), chain.getArray());
+		}
+	}
+
+	/**
+	 * Method removes successor element of the existing chain. The chain is removed completely if the successor is the
+	 * only element in the chain. If the element is in the middle of the chain, the chain is split into two chains.
+	 *
+	 * @param primaryKey primary key of the element
+	 * @param chainHeadPk primary key of the chain head to which the element belongs
+	 */
+	private void removeSuccessorElement(int primaryKey, int chainHeadPk) {
+		// if the primary key is successor of its chain
+		final TransactionalUnorderedIntArray chain = this.chains.get(chainHeadPk);
+		final int index = chain.indexOf(primaryKey);
+		// sanity check - the primary key must be present in the chain according to the state information
+		Assert.isPremiseValid(
+			index >= 0,
+			"Index damaged! The primary key `" + primaryKey + "` must be present in the chain according to the state information!"
+		);
+		// if the primary key is not located at the head of the chain
+		if (index > 0) {
+			// and there are more elements in the chain tail after it
+			if (index < chain.getLength() - 1) {
+				// we need to split the chain to two chains
+				final int[] subChain = chain.removeRange(index, chain.getLength());
+				final int[] subChainWithoutRemovedElement = Arrays.copyOfRange(subChain, 1, subChain.length);
+				this.chains.put(subChainWithoutRemovedElement[0], new TransactionalUnorderedIntArray(subChainWithoutRemovedElement));
+				reclassifyChain(subChainWithoutRemovedElement[0], subChainWithoutRemovedElement);
+			} else {
+				// just remove it from the chain
+				chain.removeRange(index, chain.getLength());
+			}
+		} else {
+			// remove the head element of the chain
+			removeHeadElement(primaryKey);
+		}
 	}
 
 	/**
@@ -584,13 +686,6 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 			offset += chain.length;
 		}
 		return new ConstantFormula(new ArrayBitmap(result));
-	}
-
-	@Override
-	public String toString() {
-		return "ChainElementIndex:\n" +
-			"   - chains:\n" + chains.values().stream().map(it -> "      - " + it.toString()).collect(Collectors.joining("\n")) + "\n" +
-			"   - elementStates:\n" + elementStates.entrySet().stream().map(it -> "      - " + it.getKey() + ": " + it.getValue()).collect(Collectors.joining("\n"));
 	}
 
 	/**

@@ -93,6 +93,31 @@ class ChainElementIndexTest {
 		assertArrayEquals(order, index.getChainFormula().compute().getArray());
 	}
 
+	@DisplayName("Create consistent chain when randomly removing elements and returning back")
+	@ParameterizedTest
+	@MethodSource("createPermutationsForPredecessors")
+	void shouldTryRemovingSingleElementsAndReturnItBack(int[] order) {
+		// fill the index initially with the expected chain
+		for (int pk : EXPECTED_CHAIN) {
+			index.upsertPredecessor(pk, PREDECESSOR_MAP.get(pk));
+		}
+		for (int count = 1; count <= order.length; count++) {
+			// remove the first count elements
+			for (int i = 0; i < count; i++) {
+				System.out.println("Removing " + order[i] + ".");
+				index.removePredecessor(order[i]);
+			}
+			// now return them back in
+			for (int i = 0; i < count; i++) {
+				System.out.println("Adding " + order[i] + " with predecessor " + PREDECESSOR_MAP.get(order[i]) + ".");
+				index.upsertPredecessor(order[i], PREDECESSOR_MAP.get(order[i]));
+			}
+
+			assertTrue(index.isConsistent(), "Index is inconsistent.");
+			assertArrayEquals(EXPECTED_CHAIN, index.getChainFormula().compute().getArray());
+		}
+	}
+
 	@DisplayName("Create consistent chain when circular dependency is introduced and broken")
 	@Test
 	void shouldBreakCircularDependency() {
