@@ -310,7 +310,11 @@ public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctio
 		assertEquals(referenceFileSetOptional, product.getReferencedFileSetIfPresent());
 
 		assertCategoryParents(product.getCategories(), originalCategories, locale);
-		assertTrue(product.getCategoriesIfFetched().isPresent());
+		if (product.getCategories().isEmpty()) {
+			assertTrue(product.getCategoriesIfFetched().isEmpty());
+		} else {
+			assertTrue(product.getCategoriesIfFetched().isPresent());
+		}
 
 		final int[] expectedCategoryIds = originalProduct.getReferences(Entities.CATEGORY)
 			.stream()
@@ -992,6 +996,8 @@ public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctio
 	) {
 		final ProductInterface product = evitaSession.getEntity(ProductInterface.class, 1).orElse(null);
 		assertTrue(product.getOptionallyAvailable().isEmpty());
+		assertTrue(product.getMarketsIfAvailable().isEmpty());
+		assertTrue(product.getMarketsAssociatedDataIfAvailable().isEmpty());
 		assertTrue(product.getReferencedFileSetIfPresent().isEmpty());
 		assertTrue(product.getCategoriesIfFetched().isEmpty());
 		assertTrue(product.getPriceForSaleIfPresent().isEmpty());
