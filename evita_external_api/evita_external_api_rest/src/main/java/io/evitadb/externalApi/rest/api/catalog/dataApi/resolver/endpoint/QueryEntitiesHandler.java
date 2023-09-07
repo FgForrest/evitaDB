@@ -97,7 +97,6 @@ public class QueryEntitiesHandler extends QueryOrientedEntitiesHandler<EvitaResp
 				.extraResults(extraResultsJsonSerializer.serialize(response.getExtraResults()));
 		}
 
-//		return restApiHandlingContext.getObjectMapper().valueToTree(queryResponseBuilder.build());
 		return queryResponseBuilder.build();
 	}
 

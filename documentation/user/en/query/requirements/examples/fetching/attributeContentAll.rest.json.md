@@ -6,7 +6,6 @@
       "type" : "Brand",
       "version" : 1,
       "allLocales" : [
-        "de",
         "en",
         "cs"
       ],

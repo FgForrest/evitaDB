@@ -6,7 +6,6 @@
       "type" : "Product",
       "version" : 1,
       "allLocales" : [
-        "de",
         "en",
         "cs"
       ],
@@ -19,8 +18,7 @@
         "referencedPrimaryKey" : 103887,
         "attributes" : {
           "global" : {
-            "orderInBrand" : 0,
-            "relatedBreadCrumbOrder" : 1
+            "orderInBrand" : 0
           }
         }
       },
@@ -29,8 +27,6 @@
           "referencedPrimaryKey" : 66472,
           "attributes" : {
             "global" : {
-              "relatedBreadCrumbOrder" : 2,
-              "relatedBreadCrumbPath" : "Portables/Tablets",
               "orderInCategory" : -2147483648
             }
           }
@@ -238,6 +234,20 @@
           "attributes" : {
             "global" : {
               "variant" : false
+            }
+          }
+        }
+      ],
+      "stocks" : [
+        {
+          "referencedPrimaryKey" : 119334,
+          "groupEntity" : {
+            "primaryKey" : 0,
+            "type" : "stockGroup"
+          },
+          "attributes" : {
+            "global" : {
+              "quantityOnStock" : "544.00000"
             }
           }
         }

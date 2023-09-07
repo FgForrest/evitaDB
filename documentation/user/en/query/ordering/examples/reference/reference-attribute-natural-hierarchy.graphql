@@ -7,11 +7,15 @@
         }
       }
     },
-    orderBy: {
-      referenceCategoriesProperty: {
-        attributeOrderInCategoryNatural: ASC
+    orderBy: [
+      {
+        referenceCategoriesProperty: [
+          {
+            attributeOrderInCategoryNatural: ASC
+          }
+        ]
       }
-    }
+    ]
   ) {
     recordPage {
       data {
