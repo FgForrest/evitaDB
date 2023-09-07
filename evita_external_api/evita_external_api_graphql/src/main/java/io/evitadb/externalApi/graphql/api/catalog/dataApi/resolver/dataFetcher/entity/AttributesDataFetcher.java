@@ -52,7 +52,7 @@ public class AttributesDataFetcher implements DataFetcher<DataFetcherResult<Attr
         final EntityQueryContext context = environment.getLocalContext();
         final AttributesContract attributes = environment.getSource(); // because entity implements AttributesContract
 
-        final Locale customLocale = environment.getArgumentOrDefault(AttributesFieldHeaderDescriptor.LOCALE.name(), context.getDesiredLocale());
+        final Locale customLocale = environment.getArgument(AttributesFieldHeaderDescriptor.LOCALE.name());
         if (customLocale != null && !attributes.getAttributeLocales().contains(customLocale)) {
             // This entity doesn't have attributes for given custom locale, so we don't want to try to fetch individual
             // attributes. It would be pointless as there are no attributes and would result in GQL error because some attributes
@@ -60,7 +60,7 @@ public class AttributesDataFetcher implements DataFetcher<DataFetcherResult<Attr
             return DataFetcherResult.<AttributesContract>newResult().build();
         }
 
-        Locale desiredLocale = customLocale;
+        Locale desiredLocale = environment.getArgumentOrDefault(AttributesFieldHeaderDescriptor.LOCALE.name(), context.getDesiredLocale());
         if (desiredLocale == null) {
             // try implicit locale if no explicit locale was set
             if (attributes instanceof final EntityDecorator entity) {
