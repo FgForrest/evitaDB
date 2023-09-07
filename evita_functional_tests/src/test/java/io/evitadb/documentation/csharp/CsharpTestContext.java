@@ -24,10 +24,22 @@
 package io.evitadb.documentation.csharp;
 
 import io.evitadb.documentation.TestContext;
+import jdk.jshell.JShell;
 import lombok.Getter;
 
+/**
+ * Context creates new {@link CShell} instance and initializes it. In this process, C# query validator is downloaded
+ * and necessary file permissions are set, so this process could be time-consuming.
+ *
+ * Because of that, the {@link CShell} instance is reused between tests to speed them up.
+ *
+ * @author Tomáš Pozler, 2023
+ */
+@Getter
 public class CsharpTestContext implements TestContext {
-	@Getter
+	/**
+	 * CShell instance used for C# code validation and fetching results.
+	 */
 	private final CShell cshell;
 	public CsharpTestContext() {
 		this.cshell = new CShell();

@@ -25,6 +25,9 @@ package io.evitadb.documentation.markdown;
 
 import net.steppschuh.markdowngenerator.text.code.CodeBlock;
 
+/**
+ * Custom markdown code block with LF line breaks.
+ */
 public class CustomCodeBlock extends CodeBlock {
     public CustomCodeBlock(Object value, String language) {
         super(value, language);

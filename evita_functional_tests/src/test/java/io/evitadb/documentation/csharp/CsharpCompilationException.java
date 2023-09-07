@@ -29,7 +29,7 @@ import java.io.Serial;
 /**
  * Exception is thrown when the C# code fails to compile.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * @author Tomáš Pozler, 2023
  */
 public class CsharpCompilationException extends IllegalStateException {
 	@Serial private static final long serialVersionUID = 8996957999294166978L;

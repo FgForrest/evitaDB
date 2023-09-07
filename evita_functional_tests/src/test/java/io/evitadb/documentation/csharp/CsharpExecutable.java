@@ -30,7 +30,6 @@ import io.evitadb.documentation.java.JavaExecutable;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
-import jdk.jshell.JShell;
 import jdk.jshell.Snippet;
 import lombok.RequiredArgsConstructor;
 import org.junit.jupiter.api.Assertions;
@@ -48,6 +47,13 @@ import java.util.stream.Stream;
 import static io.evitadb.documentation.UserDocumentationTest.resolveSiblingWithDifferentExtension;
 import static java.util.Optional.ofNullable;
 
+/**
+ * The implementation of the C# source code dynamic test verifying single C# example from the documentation.
+ * C# code needs to be compilable and executable without trowing an exception. Results of the code are verified against
+ * expected `evitaql` result snippets.
+ *
+ * @author Tomáš Pozler, 2023
+ */
 @RequiredArgsConstructor
 public class CsharpExecutable implements Executable, EvitaTestSupport {
 	/**
@@ -86,14 +92,18 @@ public class CsharpExecutable implements Executable, EvitaTestSupport {
 	private final @Nullable OutputSnippet outputSnippet;
 
 	/**
-	 * Method executes the list of {@link Snippet} in passed {@link CShell} instance a verifies that the execution
-	 * finished without an error.
+	 * Static initializer that removes any existing C# query validator, if it exists. It's necessary to ensure that
+	 * the tests are using the latest version of the validator. Since it's the static initializer, it's executed only
+	 * once per JVM run.
 	 */
-
 	static {
 		CShell.clearDownloadedValidator();
 	}
 
+	/**
+	 * Method executes the list of {@link Snippet} in passed {@link CShell} instance a verifies that the execution
+	 * finished without an error.
+	 */
 	void executeCShellCommands(@Nonnull CShell cShell, @Nonnull List<String> snippets, @Nullable OutputSnippet outputSnippet) {
 		final List<RuntimeException> exceptions = new LinkedList<>();
 
@@ -124,6 +134,10 @@ public class CsharpExecutable implements Executable, EvitaTestSupport {
 		}
 	}
 
+	/**
+	 * Method executes the collected code snippets via the {@link CShell} instance.
+	 * @throws Throwable any exceptions thrown during the execution of the C# caused by query validator
+	 */
 	@Override
 	public void execute() throws Throwable {
 		final CShell cShell = testContextAccessor.get().getCshell();
@@ -131,7 +145,7 @@ public class CsharpExecutable implements Executable, EvitaTestSupport {
 	}
 
 	/**
-	 * Parses the {@link #sourceContent} to a list of {@link JShell} commands to execute.
+	 * Parses the {@link #sourceContent} to a list of {@link CShell} commands to execute.
 	 */
 	@Nonnull
 	public List<String> getSnippets() {
@@ -144,10 +158,12 @@ public class CsharpExecutable implements Executable, EvitaTestSupport {
 	}
 
 	/**
-	 * Method creates list of source code snippets that could be passed to {@link JShell} instance for compilation and
+	 * Method creates list of source code snippets that could be passed to {@link CShell} instance for compilation and
 	 * execution. If the code snippet declares another code snippet via {@link #requires} as predecessor,
 	 * the executable of such predecessor code snippet is prepended to the list of snippets. If such block is not found
-	 * within the same documentation file, it's read from the file system directly.
+	 * within the same documentation file, it's read from the file system directly. Since evitaDB instance may be required
+	 * for some tests, it's allowed to require Java code snippets for starting it up. Also, since the required blocks are
+	 * executed here in Java code, it's the only allowed language for the required blocks.
 	 */
 	@Nonnull
 	private List<String> composeCodeBlockWithRequiredBlocks(
@@ -166,7 +182,7 @@ public class CsharpExecutable implements Executable, EvitaTestSupport {
 					requiredSnippet.add(UserDocumentationTest.readFileOrThrowException(getRootDirectory().resolve(require)));
 				} else {
 					final Executable executable = requiredScript.executableLambda();
-					Assert.isTrue(executable instanceof JavaExecutable, "Java example may require only Java executables!");
+					Assert.isTrue(executable instanceof JavaExecutable, "C# example may require only Java executables!");
 					requiredSnippet.addAll(
 						((JavaExecutable) executable).getSnippets()
 					);

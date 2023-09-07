@@ -33,8 +33,15 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.DynamicTest.dynamicTest;
 
+/**
+ * Factory for {@link CsharpTestContext}.
+ *
+ * @author Tomáš Pozler, 2023
+ */
 public class CsharpTestContextFactory implements TestContextFactory<CsharpTestContext> {
-
+	/**
+	 * Memorized reference to the {@link CsharpTestContext} that is shared for all C# dynamic tests in the same document.
+	 */
 	private final AtomicReference<CsharpTestContext> testContextRef = new AtomicReference<>();
 	@Nullable
 	@Override
