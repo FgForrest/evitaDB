@@ -65,4 +65,4 @@ api:
       gui:
         enabled: ${api.endpoints.lab.gui.enabled:true}
         readOnly: ${api.endpoints.lab.gui.readOnly:false}
-        preconfiguredConnections: ${api.endpoints.lab.gui.preconfiguredConnections:null}
+        preconfiguredConnections: !include ${api.endpoints.lab.gui.preconfiguredConnections:null}
