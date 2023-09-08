@@ -6,7 +6,6 @@
       "type" : "Product",
       "version" : 1,
       "allLocales" : [
-        "de",
         "en",
         "cs"
       ],

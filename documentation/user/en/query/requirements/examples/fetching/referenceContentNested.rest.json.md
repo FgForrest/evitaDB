@@ -6,9 +6,7 @@
       "type" : "Product",
       "version" : 1,
       "allLocales" : [
-        "de",
-        "en",
-        "cs"
+        "en"
       ],
       "attributes" : {
         "global" : {
@@ -23,9 +21,7 @@
             "type" : "Group",
             "version" : 1,
             "allLocales" : [
-              "de",
-              "en",
-              "cs"
+              "en"
             ],
             "attributes" : {
               "global" : {

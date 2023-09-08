@@ -11,8 +11,8 @@
       data {
         primaryKey
         associatedData {
-          localization
           allActiveUrls
+          localization
         }
       }
     }

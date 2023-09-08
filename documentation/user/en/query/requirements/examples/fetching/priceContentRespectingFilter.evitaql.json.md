@@ -10,8 +10,8 @@
       "priceForSale": {
         "currency": "EUR",
         "priceList": "employee-basic-price",
-        "priceWithoutTax": 88.43,
-        "priceWithTax": 107.0
+        "priceWithoutTax": 88.86,
+        "priceWithTax": 107.52
       },
       "prices": [
         {
@@ -23,8 +23,8 @@
         {
           "currency": "EUR",
           "priceList": "employee-basic-price",
-          "priceWithoutTax": 88.43,
-          "priceWithTax": 107.0
+          "priceWithoutTax": 88.86,
+          "priceWithTax": 107.52
         }
       ]
     }
