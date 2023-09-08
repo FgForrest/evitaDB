@@ -38,6 +38,7 @@ module evita.server {
 	requires static lombok;
 	requires static jsr305;
 	requires com.fasterxml.jackson.databind;
+	requires org.yaml.snakeyaml;
 	requires org.apache.commons.text;
 	requires com.fasterxml.jackson.dataformat.yaml;
 	requires com.fasterxml.jackson.module.paramnames;
