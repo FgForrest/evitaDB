@@ -222,7 +222,6 @@ public class ProxycianFactory implements ProxyFactory {
 	 * type. It tries to find a constructor with most of the arguments matching the schema fields.
 	 *
 	 * TODO JNO - write some test!
-	 * TODO JNO - provide support for optional method return types
 	 */
 	private static <T> BestMatchingConstructorWithExtractionLambda<T> findBestMatchingConstructor(
 		@Nonnull Class<T> expectedType,
