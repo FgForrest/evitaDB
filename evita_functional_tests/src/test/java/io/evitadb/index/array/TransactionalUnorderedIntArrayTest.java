@@ -1137,8 +1137,10 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 		);
 
 		assertEquals(expectedResult.length, array.getLength());
-		for (int recordId : expectedResult) {
+		for (int i = 0; i < expectedResult.length; i++) {
+			final int recordId = expectedResult[i];
 			assertTrue(array.contains(recordId), "Array doesn't contain " + recordId);
+			assertEquals(i, array.indexOf(recordId), "Index of " + recordId + " is not " + i + ", but " + array.indexOf(recordId));
 		}
 	}
 

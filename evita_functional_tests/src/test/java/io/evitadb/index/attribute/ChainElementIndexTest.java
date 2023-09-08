@@ -24,19 +24,32 @@
 package io.evitadb.index.attribute;
 
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.test.duration.TimeArgumentProvider;
+import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
+import io.evitadb.test.duration.TimeBoundedTestSupport;
+import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
+import java.util.Deque;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
+import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -47,7 +60,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-class ChainElementIndexTest {
+class ChainElementIndexTest implements TimeBoundedTestSupport {
 	private static final int[] EXPECTED_CHAIN = {1, 2, 3, 4, 5};
 	private static final Map<Integer, Predecessor> PREDECESSOR_MAP = Map.of(
 		1, new Predecessor(),
@@ -216,6 +229,178 @@ class ChainElementIndexTest {
 			      - 8: SUCCESSOR of 7 🔗 7""",
 			index.toString()
 		);
+	}
+
+	@Test
+	void shouldPassGenerationalScenario1() {
+		int[] initialState = {12, 7, 6, 2, 13, 5, 17, 1, 9};
+		for (int i = 0; i < initialState.length; i++) {
+			int pk = initialState[i];
+			final Predecessor predecessor = i == 0 ? new Predecessor() : new Predecessor(initialState[i - 1]);
+			index.upsertPredecessor(pk, predecessor);
+		}
+
+		assertTrue(index.isConsistent());
+
+		index.upsertPredecessor(6, new Predecessor(12));
+		index.upsertPredecessor(5, new Predecessor(6));
+		index.removePredecessor(1);
+		index.upsertPredecessor(13, new Predecessor(5));
+		index.upsertPredecessor(7, new Predecessor(13));
+		index.removePredecessor(17);
+		index.upsertPredecessor(9, new Predecessor(7));
+		index.upsertPredecessor(19, new Predecessor(9));
+		index.upsertPredecessor(3, new Predecessor(19));
+		index.upsertPredecessor(21, new Predecessor(3));
+		index.removePredecessor(2);
+
+		assertTrue(index.isConsistent());
+	}
+
+	@ParameterizedTest(name = "ChainElementIndex should survive generational randomized test applying modifications on it")
+	@Tag(LONG_RUNNING_TEST)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	void generationalProofTest(GenerationalTestInput input) {
+		final int initialCount = 10;
+		final int randomSeed = 42;
+		final Random theRandom = new Random(randomSeed);
+		final int[] initialState = generateInitialChain(theRandom, initialCount);
+		final AtomicReference<int[]> originalOrder = new AtomicReference<>(new int[0]);
+		final AtomicReference<int[]> desiredOrder = new AtomicReference<>(initialState);
+		final AtomicReference<ChainElementIndex> transactionalIndex = new AtomicReference<>(this.index);
+
+		runFor(
+			new GenerationalTestInput(input.intervalInMinutes(), randomSeed),
+			10_000,
+			new StringBuilder(),
+			(random, codeBuffer) -> {
+				final int[] originalState = originalOrder.get();
+
+				final ChainElementIndex index = transactionalIndex.get();
+				codeBuffer.append("\nSTART: ")
+					.append(
+						"int[] initialState = {" + Arrays.stream(index.getChainFormula().compute().getArray()).mapToObj(String::valueOf).collect(Collectors.joining(", ")) + "};\n" +
+						"\t\tfor (int i = 0; i < initialState.length; i++) {\n" +
+						"\t\t\tint pk = initialState[i];\n" +
+						"\t\t\tfinal Predecessor predecessor = i == 0 ? new Predecessor() : new Predecessor(initialState[i - 1]);\n" +
+						"\t\t\tindex.upsertPredecessor(pk, predecessor);\n" +
+						"\t\t}"
+					)
+					.append("\n");
+
+				assertStateAfterCommit(
+					index,
+					original -> {
+						final int[] targetState = desiredOrder.get();
+
+						final Deque<Integer> removedPrimaryKeys = new LinkedList<>();
+						for (int pk : originalState) {
+							if (ArrayUtils.indexOf(pk, targetState) < 0) {
+								removedPrimaryKeys.push(pk);
+							}
+						}
+
+						for (int i = 0; i < targetState.length; i++) {
+							final int pk = targetState[i];
+							final Predecessor predecessor = i <= 0 ? Predecessor.HEAD : new Predecessor(targetState[i - 1]);
+
+							final int originalStatePkIndex = ArrayUtils.indexOf(pk, originalState);
+							final Predecessor originalPredecessor;
+							if (originalStatePkIndex >= 0) {
+								originalPredecessor = originalStatePkIndex == 0 ? Predecessor.HEAD : new Predecessor(originalState[originalStatePkIndex - 1]);
+							} else {
+								originalPredecessor = null;
+							}
+
+							if (predecessor != originalPredecessor) {
+								// change order
+								original.upsertPredecessor(pk, predecessor);
+								codeBuffer.append("index.upsertPredecessor(")
+									.append(pk).append(", ")
+									.append("new Predecessor(").append(predecessor.predecessorId()).append(")")
+									.append(");\n");
+							}
+
+							// remove the element randomly
+							if (!removedPrimaryKeys.isEmpty() && random.nextInt(5) == 0) {
+								final Integer pkToRemove = removedPrimaryKeys.pop();
+								original.removePredecessor(pkToRemove);
+								codeBuffer.append("index.removePredecessor(")
+									.append(pkToRemove).append(");\n");
+							}
+						}
+
+						while (!removedPrimaryKeys.isEmpty()) {
+							final Integer pkToRemove = removedPrimaryKeys.pop();
+							original.removePredecessor(pkToRemove);
+							codeBuffer.append("index.removePredecessor(")
+								.append(pkToRemove).append(");\n");
+						}
+
+						codeBuffer.append("\n");
+
+						final int[] finalArray = original.getChainFormula().compute().getArray();
+						try {
+							assertArrayEquals(targetState, finalArray);
+						} catch (Throwable ex) {
+							System.out.println(codeBuffer);
+							throw ex;
+						}
+					},
+					(original, committed) -> {
+						try {
+							final int[] originalArray = original.getChainFormula().compute().getArray();
+							assertArrayEquals(originalOrder.get(), originalArray);
+							final int[] finalArray = committed.getChainFormula().compute().getArray();
+							assertArrayEquals(desiredOrder.get(), finalArray);
+							assertTrue(original.isConsistent());
+							assertTrue(committed.isConsistent());
+
+							originalOrder.set(finalArray);
+							transactionalIndex.set(committed);
+
+							defineTargetState(random, finalArray, initialCount, desiredOrder);
+						} catch (Throwable ex) {
+							System.out.println(codeBuffer);
+							throw ex;
+						}
+					}
+				);
+
+				return new StringBuilder();
+			}
+		);
+	}
+
+	private static void defineTargetState(@Nonnull Random random, @Nonnull int[] originalState, int initialCount, @Nonnull AtomicReference<int[]> desiredOrder) {
+		// collect the pks to next generation - leave out some of existing and add some new
+		final int[] targetState = IntStream.concat(
+			Arrays.stream(originalState).filter(it -> random.nextInt(10) != 0),
+			// add a few new primary keys
+			IntStream.generate(() -> random.nextInt(initialCount * 3)).limit((long)(initialCount * 0.3))
+		)
+			.distinct()
+			.limit((long)(initialCount * 1.2))
+			.toArray();
+
+		// randomize one third of the elements
+		ArrayUtils.shuffleArray(random, targetState, initialCount / 3);
+		desiredOrder.set(targetState);
+	}
+
+	/**
+	 * Generates initial chain of the given length with primary keys from 1 to initialCount in random order.
+	 * @param random random generator to use
+	 * @param initialCount number of elements in the chain
+	 * @return array of primary keys
+	 */
+	private int[] generateInitialChain(@Nonnull Random random, int initialCount) {
+		final int[] initialState = new int[initialCount];
+		for (int i = 0; i < initialCount; i++) {
+			initialState[i] = i + 1;
+		}
+		ArrayUtils.shuffleArray(random, initialState, initialCount);
+		return initialState;
 	}
 
 	/**

@@ -115,24 +115,64 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 	 * @return -1 if record id was not found (or was removed)
 	 */
 	public int indexOf(int recordId) {
-		final int delegateIndex = delegate.findPosition(recordId);
-		int result = -1;
+		int delegateIndex = delegate.findPosition(recordId);
 
-		if (delegateIndex >= 0 && Arrays.binarySearch(removals, delegateIndex) < 0) {
-			result = delegateIndex;
-		}
-
-		if (result == -1) {
-			for (UnorderedLookup insertedValue : insertedValues) {
+		int removalsCount = 0;
+		int insertsCount = 0;
+		if (delegateIndex < 0) {
+			// record was not present in the delegate array - check insertions
+			int insertPosition = -1;
+			for (int i = 0; i < insertedValues.length; i++) {
+				final UnorderedLookup insertedValue = insertedValues[i];
 				final int position = insertedValue.findPosition(recordId);
 				if (position >= 0) {
-					result = position;
+					insertPosition = position;
+					delegateIndex = insertions[i];
+					break;
+				}
+			}
+			for (int removal : removals) {
+				if (removal < delegateIndex) {
+					removalsCount++;
+				} else {
+					break;
+				}
+			}
+			for (int insertion : insertions) {
+				if (insertion < delegateIndex) {
+					insertsCount += insertedValues[insertion].size();
+				} else if (insertion == delegateIndex) {
+					insertsCount += insertPosition;
+				} else {
+					break;
+				}
+			}
+		} else {
+			// record was present in the delegate array - count for removals and insertions
+			for (int removal : removals) {
+				if (removal < delegateIndex) {
+					removalsCount++;
+				} else {
+					break;
+				}
+			}
+			// count insertions
+			for (int i = 0; i < insertions.length; i++) {
+				final int insertion = insertions[i];
+				if (insertion <= delegateIndex) {
+					final UnorderedLookup insertedValue = insertedValues[i];
+					final int position = insertedValue.findPosition(recordId);
+					if (position < 0) {
+						insertsCount += insertedValue.size();
+					} else {
+						insertsCount += position;
+					}
+				} else {
 					break;
 				}
 			}
 		}
-
-		return result;
+		return Math.max(delegateIndex, 0) + insertsCount - removalsCount;
 	}
 
 	/**

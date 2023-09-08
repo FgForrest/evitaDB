@@ -26,6 +26,7 @@ package io.evitadb.index.attribute;
 import io.evitadb.core.Transaction;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
@@ -35,6 +36,7 @@ import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
@@ -112,7 +114,7 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 
 	public ChainElementIndex() {
 		this.dirty = new TransactionalBoolean();
-		this.chains = new TransactionalMap<>(new HashMap<>());
+		this.chains = new TransactionalMap<>(new HashMap<>(), TransactionalUnorderedIntArray.class, TransactionalUnorderedIntArray::new);
 		this.elementStates = new TransactionalMap<>(new HashMap<>());
 	}
 
@@ -121,7 +123,7 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 		@Nonnull Map<Integer, ChainElementState> elementStates
 	) {
 		this.dirty = new TransactionalBoolean();
-		this.chains = new TransactionalMap<>(chains);
+		this.chains = new TransactionalMap<>(chains, TransactionalUnorderedIntArray.class, TransactionalUnorderedIntArray::new);
 		this.elementStates = new TransactionalMap<>(elementStates);
 	}
 
@@ -209,6 +211,7 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 		@Nonnull TransactionalLayerMaintainer transactionalLayer,
 		@Nullable Transaction transaction
 	) {
+		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty, transaction);
 		return new ChainElementIndex(
 			transactionalLayer.getStateCopyWithCommittedChanges(this.chains, transaction),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.elementStates, transaction)
@@ -245,18 +248,20 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 	 */
 	private void removeHeadElement(int primaryKey) {
 		// if the primary key is head of its chain
-		final TransactionalUnorderedIntArray chain = this.chains.remove(primaryKey);
-		final int[] head = chain.removeRange(0, 1);
+		final TransactionalUnorderedIntArray removedChain = this.chains.remove(primaryKey);
+		final int[] head = removedChain.removeRange(0, 1);
 		isPremiseValid(
 			head.length == 1 && head[0] == primaryKey,
 			"The head of the chain is expected to be single element with primary key `" + primaryKey + "`!"
 		);
 		// if the chain is not empty
-		if (chain.getLength() > 0) {
-			this.chains.put(chain.get(0), chain);
+		if (removedChain.getLength() > 0) {
+			this.chains.put(removedChain.get(0), removedChain);
 			// we need to reclassify the chain
-			reclassifyChain(chain.get(0), chain.getArray());
+			reclassifyChain(removedChain.get(0), removedChain.getArray());
 		}
+		// if there was transactional memory associated with the chain, discard it
+		removedChain.removeLayer();
 	}
 
 	/**
@@ -292,6 +297,8 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 			// remove the head element of the chain
 			removeHeadElement(primaryKey);
 		}
+		// collapse the chains that refer to the last element the original chain
+		collapseChainsIfPossible(chainHeadPk);
 	}
 
 	/**
@@ -444,10 +451,12 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 					predecessorChain.appendAll(movedChain);
 				} else {
 					// the element is the head of the chain, discard the chain completely
-					this.chains.remove(existingState.inChainOfHeadWithPrimaryKey());
+					final TransactionalUnorderedIntArray removedChain = this.chains.remove(existingState.inChainOfHeadWithPrimaryKey());
 					// and fully merge with predecessor chain
 					movedChain = existingChain.getArray();
 					predecessorChain.appendAll(movedChain);
+					// if there was transactional memory associated with the chain, discard it
+					removedChain.removeLayer();
 				}
 			} else {
 				// if the element is in the body of the chain and is already successor of the predecessor
@@ -484,6 +493,9 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 
 			// collapse the chains that refer to the last element of any other chain
 			collapseChainsIfPossible(movedChainHeadPk);
+			if (movedChainHeadPk != existingState.inChainOfHeadWithPrimaryKey()) {
+				collapseChainsIfPossible(existingState.inChainOfHeadWithPrimaryKey());
+			}
 
 			// verify whether the head of chain was not in circular conflict and if so
 			verifyIfCircularDependencyExistsAndIsBroken(existingStateHeadState);
@@ -612,7 +624,10 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 			final TransactionalUnorderedIntArray predecessorChain = this.chains.get(predecessorState.inChainOfHeadWithPrimaryKey());
 			if (chainHeadState.predecessorPrimaryKey() == predecessorChain.getLastRecordId()) {
 				// we may append the chain to the predecessor chain
-				final int[] movedChain = this.chains.remove(chainHeadState.inChainOfHeadWithPrimaryKey()).getArray();
+				final TransactionalUnorderedIntArray removedChain = this.chains.remove(chainHeadState.inChainOfHeadWithPrimaryKey());
+				final int[] movedChain = removedChain.getArray();
+				// if there was transactional memory associated with the chain, discard it
+				removedChain.removeLayer();
 				predecessorChain.appendAll(movedChain);
 				reclassifyChain(predecessorState.inChainOfHeadWithPrimaryKey(), movedChain);
 				return predecessorState.inChainOfHeadWithPrimaryKey();
@@ -646,7 +661,10 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 			.findFirst();
 		if (collapsableChain.isPresent()) {
 			// we may append the chain to the predecessor chain
-			final int[] movedChain = this.chains.remove(collapsableChain.get()).getArray();
+			final TransactionalUnorderedIntArray removedChain = this.chains.remove(collapsableChain.get());
+			final int[] movedChain = removedChain.getArray();
+			// if there was transactional memory associated with the chain, discard it
+			removedChain.removeLayer();
 			chain.appendAll(movedChain);
 			reclassifyChain(chainHeadElement, movedChain);
 			return collapsableChain.get();
@@ -685,13 +703,13 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 			System.arraycopy(chain, 0, result, offset, chain.length);
 			offset += chain.length;
 		}
-		return new ConstantFormula(new ArrayBitmap(result));
+		return ArrayUtils.isEmpty(result) ? EmptyFormula.INSTANCE : new ConstantFormula(new ArrayBitmap(result));
 	}
 
 	/**
 	 * Enum represents the state of the element in the index.
 	 */
-	private enum ElementState {
+	enum ElementState {
 		/**
 		 * Element is the head of one of the {@link #chains} and have no predecessor.
 		 */
@@ -714,7 +732,7 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 	 * @param predecessorPrimaryKey       primary key of the predecessor of this element
 	 * @param state                       state of the element
 	 */
-	private record ChainElementState(
+	record ChainElementState(
 		int inChainOfHeadWithPrimaryKey,
 		int predecessorPrimaryKey,
 		@Nonnull ElementState state

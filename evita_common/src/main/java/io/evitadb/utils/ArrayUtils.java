@@ -834,6 +834,24 @@ public class ArrayUtils {
 	}
 
 	/**
+	 * This method will shuffle elements in array in random order. The passed array gets modified.
+	 */
+	public static void shuffleArray(@Nonnull Random rnd, @Nonnull int[] array, int maximalCountOfShuffledElements) {
+		int shuffled = 0;
+		for (int i = 0; i < array.length && shuffled < maximalCountOfShuffledElements; i++) {
+			int sourceIndex = rnd.nextInt(array.length);
+			int targetIndex = i + rnd.nextInt(array.length / maximalCountOfShuffledElements);
+			if (sourceIndex != targetIndex && targetIndex < array.length) {
+				int a = array[targetIndex];
+				array[targetIndex] = array[sourceIndex];
+				array[sourceIndex] = a;
+				i = targetIndex;
+				shuffled++;
+			}
+		}
+	}
+
+	/**
 	 * Extracts sub-array of `items` array starting on `startIndex` (incluting), up to `endIndex` (exclusive) and
 	 * returns it as an {@link ArrayList}.
 	 */
