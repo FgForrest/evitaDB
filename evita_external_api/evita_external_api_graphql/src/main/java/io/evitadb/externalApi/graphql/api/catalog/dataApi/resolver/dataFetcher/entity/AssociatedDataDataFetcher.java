@@ -51,7 +51,7 @@ public class AssociatedDataDataFetcher implements DataFetcher<DataFetcherResult<
         final EntityQueryContext context = environment.getLocalContext();
         final AssociatedDataContract associatedData = environment.getSource(); // because entity implements AssociatedDataContract
 
-        final Locale customLocale = environment.getArgumentOrDefault(AssociatedDataFieldHeaderDescriptor.LOCALE.name(), context.getDesiredLocale());
+        final Locale customLocale = environment.getArgument(AssociatedDataFieldHeaderDescriptor.LOCALE.name());
         if (customLocale != null && !associatedData.getAssociatedDataLocales().contains(customLocale)) {
             // This entity doesn't have associated data for given custom locale, so we don't want to try to fetch individual
             // associated data. It would be pointless as there are no associated data and would result in GQL error because
@@ -59,7 +59,7 @@ public class AssociatedDataDataFetcher implements DataFetcher<DataFetcherResult<
             return DataFetcherResult.<AssociatedDataContract>newResult().build();
         }
 
-        Locale desiredLocale = customLocale;
+        Locale desiredLocale = environment.getArgumentOrDefault(AssociatedDataFieldHeaderDescriptor.LOCALE.name(), context.getDesiredLocale());
         if (desiredLocale == null) {
             // try implicit locale if no explicit locale was set
             if (associatedData instanceof final EntityDecorator entity) {
