@@ -1621,7 +1621,7 @@ referenceContentAllWithAttributes(
 The `referenceContentAllWithAttributes` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceContent.java</SourceClass>)
 is a variation of the [`referenceContent`](#reference-content) requirement that allows you to access the information
 about the references the entity has towards other entities (either managed by evitaDB itself or by any other external
-system) and the attributes set on those references. The `referenceContentWithAttributes` allows you to specify the list
+system) and the attributes set on those references. The `referenceContentAllWithAttributes` allows you to specify the list
 of attributes to fetch, but by default it fetches all attributes on the reference. It doesn't allow you to specify 
 the reference names - because it targets all of them, and so you can specify the constraints and the attributes that are
 shared by all of the references. This constraint is only useful in exploration scenarios.
