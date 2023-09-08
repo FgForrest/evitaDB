@@ -231,8 +231,9 @@ class ChainElementIndexTest implements TimeBoundedTestSupport {
 		);
 	}
 
+	@DisplayName("When elements are removed the chains are properly collapsed")
 	@Test
-	void shouldPassGenerationalScenario1() {
+	void shouldCollapseChainsOnElementRemoval() {
 		int[] initialState = {12, 7, 6, 2, 13, 5, 17, 1, 9};
 		for (int i = 0; i < initialState.length; i++) {
 			int pk = initialState[i];
@@ -261,17 +262,16 @@ class ChainElementIndexTest implements TimeBoundedTestSupport {
 	@Tag(LONG_RUNNING_TEST)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
-		final int initialCount = 10;
-		final int randomSeed = 42;
-		final Random theRandom = new Random(randomSeed);
+		final int initialCount = 100;
+		final Random theRandom = new Random(input.randomSeed());
 		final int[] initialState = generateInitialChain(theRandom, initialCount);
 		final AtomicReference<int[]> originalOrder = new AtomicReference<>(new int[0]);
 		final AtomicReference<int[]> desiredOrder = new AtomicReference<>(initialState);
 		final AtomicReference<ChainElementIndex> transactionalIndex = new AtomicReference<>(this.index);
 
 		runFor(
-			new GenerationalTestInput(input.intervalInMinutes(), randomSeed),
-			10_000,
+			input,
+			100,
 			new StringBuilder(),
 			(random, codeBuffer) -> {
 				final int[] originalState = originalOrder.get();
