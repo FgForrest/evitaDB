@@ -984,18 +984,22 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 */
 	public static class ProcessingScope<T extends Index<?>> {
 		/**
-		 * TODO JNO - document me
+		 * Contains the type of {@link Index} that is being used in the current scope in {@link #indexes} list.
+		 * All indexes must be assignable to this type
 		 */
 		@Nonnull @Getter
 		private final Class<T> indexType;
 		/**
+		 * Allows to lazily compute and access the list of {@link #indexes} and avoid paying a performance penalty if
+		 * the list is not necessary.
+		 * Might be null if the list of {@link #indexes} is known since the start.
+		 */
+		@Nullable
+		private final Supplier<List<T>> indexSupplier;
+		/**
 		 * Contains set of indexes, that should be used for accessing final indexes.
 		 */
 		private List<T> indexes;
-		/**
-		 * TODO JNO - document me
-		 */
-		private Supplier<List<T>> indexSupplier;
 		/**
 		 * Suppressed constraints contains set of {@link FilterConstraint} that will not be evaluated by this visitor
 		 * in current scope.
