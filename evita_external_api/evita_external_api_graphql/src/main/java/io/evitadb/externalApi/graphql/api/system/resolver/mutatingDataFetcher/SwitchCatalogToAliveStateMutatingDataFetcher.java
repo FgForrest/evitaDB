@@ -27,7 +27,6 @@ import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.graphql.api.system.model.CreateCatalogMutationHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.system.model.SwitchCatalogToAliveStateMutationHeaderDescriptor;
 import lombok.RequiredArgsConstructor;
 

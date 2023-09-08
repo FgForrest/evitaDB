@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
@@ -58,7 +57,7 @@ public abstract class EntityHandler<R extends EntityClassifier, CTX extends Cata
 
 	@Nonnull
 	@Override
-	protected JsonNode convertResultIntoJson(@Nonnull RestEndpointExchange exchange, @Nonnull R deletedEntity) {
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull R deletedEntity) {
 		return entityJsonSerializer.serialize(deletedEntity);
 	}
 }

@@ -10,8 +10,8 @@
       "priceForSale": {
         "currency": "EUR",
         "priceList": "employee-basic-price",
-        "priceWithoutTax": 88.43,
-        "priceWithTax": 107.0
+        "priceWithoutTax": 88.86,
+        "priceWithTax": 107.52
       },
       "prices": [
         {
@@ -35,8 +35,8 @@
         {
           "currency": "EUR",
           "priceList": "b2b-basic-price",
-          "priceWithoutTax": 89.0,
-          "priceWithTax": 107.69
+          "priceWithoutTax": 89.78,
+          "priceWithTax": 108.63
         },
         {
           "currency": "CZK",
@@ -47,8 +47,8 @@
         {
           "currency": "EUR",
           "priceList": "employee-basic-price",
-          "priceWithoutTax": 88.43,
-          "priceWithTax": 107.0
+          "priceWithoutTax": 88.86,
+          "priceWithTax": 107.52
         },
         {
           "currency": "CZK",
@@ -59,8 +59,8 @@
         {
           "currency": "EUR",
           "priceList": "shareholders-basic-price",
-          "priceWithoutTax": 85.95,
-          "priceWithTax": 104.0
+          "priceWithoutTax": 86.08,
+          "priceWithTax": 104.16
         },
         {
           "currency": "CZK",

@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.externalApi.http.EndpointResponse;
@@ -75,7 +74,7 @@ public class DeleteEntitiesByQueryHandler extends QueryOrientedEntitiesHandler<S
 
 	@Nonnull
 	@Override
-	protected JsonNode convertResultIntoJson(@Nonnull RestEndpointExchange exchange, @Nonnull SealedEntity[] deletedEntities) {
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull SealedEntity[] deletedEntities) {
 		return entityJsonSerializer.serialize(deletedEntities);
 	}
 }

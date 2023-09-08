@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.rest.io;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.rest.exception.OpenApiInternalError;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
@@ -32,6 +31,8 @@ import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.LinkedHashSet;
 import java.util.List;
 
@@ -66,13 +67,12 @@ public abstract class JsonRestHandler<R, CTX extends RestHandlingContext> extend
 		}
 	}
 
-	@Nonnull
 	@Override
-	protected String serializeResult(@Nonnull RestEndpointExchange exchange, @Nonnull R responseData) {
+	protected void writeResult(@Nonnull RestEndpointExchange exchange, @Nonnull OutputStream outputStream, @Nonnull R result) {
 		try {
-			final JsonNode jsonNode = convertResultIntoJson(exchange, responseData);
-			return restApiHandlingContext.getObjectMapper().writeValueAsString(jsonNode);
-		} catch (JsonProcessingException e) {
+			final Object serializableResult = convertResultIntoSerializableObject(exchange, result);
+			restApiHandlingContext.getObjectMapper().writeValue(outputStream, serializableResult);
+		} catch (IOException e) {
 			throw new OpenApiInternalError(
 				"Could not serialize Java object response to JSON: " + e.getMessage(),
 				"Could not provide response data.", e
@@ -80,8 +80,16 @@ public abstract class JsonRestHandler<R, CTX extends RestHandlingContext> extend
 		}
 	}
 
+	/**
+	 * Converts result into an object that can be safely serialized by {@link com.fasterxml.jackson.databind.ObjectMapper}.
+	 * By default, this method returns the result as-is.
+	 *
+	 * @param exchange endpoint exchange
+	 * @param result original result to convert
+	 * @return result object read to be serialized
+	 */
 	@Nonnull
-	protected JsonNode convertResultIntoJson(@Nonnull RestEndpointExchange exchange, @Nonnull R responseData) {
-		return restApiHandlingContext.getObjectMapper().valueToTree(responseData);
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull R result) {
+		return result;
 	}
 }

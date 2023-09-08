@@ -36,7 +36,6 @@ import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Locale;
 
@@ -59,9 +58,9 @@ public class AssociatedDataValueDataFetcher<T extends Serializable> implements D
     @Nonnull
     private final AssociatedDataSchemaContract associatedDataSchema;
 
-    @Nullable
+    @Nonnull
     @Override
-    public T get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+    public T get(@Nonnull DataFetchingEnvironment environment) {
         final AssociatedDataContract associatedData = environment.getSource();
         final Locale locale = ((EntityQueryContext) environment.getLocalContext()).getDesiredLocale();
 

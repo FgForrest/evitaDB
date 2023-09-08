@@ -13,10 +13,9 @@
           relatedFiles
           code
           visibility
-          breadCrumb
           validity
-          changed
           status
+          changed
           order
         }
       }

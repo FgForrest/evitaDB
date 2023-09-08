@@ -23,18 +23,16 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher;
 
+import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
-import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Map;
-import java.util.concurrent.Executor;
 import java.util.function.Function;
 
 /**
@@ -42,21 +40,16 @@ import java.util.function.Function;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class ReferenceSchemaEntityTypeNameVariantsDataFetcher extends ReadDataFetcher<Map<NamingConvention, String>> {
-
-	public ReferenceSchemaEntityTypeNameVariantsDataFetcher(@Nullable Executor executor) {
-		super(executor);
-	}
+public class ReferenceSchemaEntityTypeNameVariantsDataFetcher implements DataFetcher<Map<NamingConvention, String>> {
 
 	@Nonnull
 	@Override
-	public Map<NamingConvention, String> doGet(@Nonnull DataFetchingEnvironment environment) {
+	public Map<NamingConvention, String> get(@Nonnull DataFetchingEnvironment environment) {
 		final ReferenceSchemaContract referenceSchema = environment.getSource();
-		final Map<NamingConvention, String> nameVariants = referenceSchema.getEntityTypeNameVariants(entityType -> {
+
+		return referenceSchema.getEntityTypeNameVariants(entityType -> {
 			final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
 			return evitaSession.getEntitySchemaOrThrow(entityType);
 		});
-
-		return nameVariants;
 	}
 }

@@ -29,6 +29,8 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.io.IOException;
+import java.io.OutputStream;
 
 /**
  * Writes object representation of OpenAPI schema as YAML string.
@@ -38,11 +40,11 @@ import javax.annotation.Nonnull;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class OpenApiWriter {
 
-	public static String toYaml(@Nonnull Object openApi) {
-		return Yaml31.pretty(openApi);
+	public static void toYaml(@Nonnull Object openApi, @Nonnull OutputStream outputStream) throws IOException {
+		Yaml31.pretty().writeValue(outputStream, openApi);
 	}
 
-	public static String toJson(@Nonnull Object openApi) {
-		return Json31.pretty(openApi);
+	public static void toJson(@Nonnull Object openApi, @Nonnull OutputStream outputStream) throws IOException {
+		Json31.pretty().writeValue(outputStream, openApi);
 	}
 }

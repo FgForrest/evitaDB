@@ -273,9 +273,7 @@ The query returns the following localized attributes of the `Brand` entity:
 
 <MDInclude sourceVariable="data.queryBrand.recordPage">[The result of an entity fetch with localized attributes in multiple locales](/documentation/user/en/query/requirements/examples/fetching/localizedAttributesWithFilter.graphql.json.md)</MDInclude>
 
-[//]: # (todo lho: GQL currently returns error for the missing german locale)
-
-As you can see the localized attributes are available for the Czech and English locales but not for the German locale.
+As you can see, the localized attributes are available for the Czech and English locales but not for the German locale.
 The entity is still present in the result, because the filter constraint enforces the Czech locale context, which is
 satisfied by the entity.
 
@@ -314,11 +312,6 @@ The query returns the following attributes of the `Brand` entity:
 <LanguageSpecific to="evitaql,java">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetch with all attributes](/documentation/user/en/query/requirements/examples/fetching/attributeContentAll.evitaql.md)</MDInclude>
-
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
-
-<MDInclude sourceVariable="data.queryBrand.recordPage">[The result of an entity fetch with all attributes](/documentation/user/en/query/requirements/examples/fetching/attributeContentAll.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 <LanguageSpecific to="rest">
@@ -375,11 +368,6 @@ The query returns the following associated data of the `Brand` entity:
 <LanguageSpecific to="evitaql,java">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetch with named associated data](/documentation/user/en/query/requirements/examples/fetching/associatedDataContent.evitaql.json.md)</MDInclude>
-
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
-
-<MDInclude sourceVariable="data.queryBrand.recordPage">[The result of an entity fetch with named associated data](/documentation/user/en/query/requirements/examples/fetching/associatedDataContent.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 <LanguageSpecific to="rest">
@@ -469,8 +457,6 @@ get Czech, German, and English *localization* associated data values. The follow
 The query returns the following localized associated data of the `Brand` entity:
 
 <MDInclude sourceVariable="data.queryBrand.recordPage">[The result of an entity fetch with localized attributes in multiple locales](/documentation/user/en/query/requirements/examples/fetching/localizedAssociatedDataWithFilter.graphql.json.md)</MDInclude>
-
-[//]: # (todo LHO GQL currently returns error for the missing german locale)
 
 As you can see the localized associated data are available for the Czech and English locales but not for the German locale.
 The entity is still present in the result, because the filter constraint enforces the Czech locale context, which is
@@ -628,7 +614,7 @@ The query returns the following localized attributes of the `Brand` entity:
 
 </LanguageSpecific>
 
-As you can see the localized attributes are available both for the Czech and English locales.
+As you can see, the localized attributes are available both for the Czech and English locales.
 The entity is still present in the result, because the filter constraint enforces the Czech locale context, which is
 satisfied by the entity.
 
