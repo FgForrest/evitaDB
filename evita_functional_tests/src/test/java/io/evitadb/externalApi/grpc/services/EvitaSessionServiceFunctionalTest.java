@@ -2345,7 +2345,7 @@ class EvitaSessionServiceFunctionalTest {
 		assertEquals(referenceGroupPrimaryKey, referenceParameterAfterInsert.getGroupReferencedEntityReference().getPrimaryKey());
 		assertEquals(referenceGroupEntityType, referenceParameterAfterInsert.getGroupReferencedEntityReference().getEntityType());
 
-		final int removeReferenceId = 1;
+		final int removeReferenceId = 2;
 		final SealedEntity existingEntity = entities.stream().filter(entity ->
 				entity.getReferences().stream().anyMatch(reference ->
 					reference.getReferenceName().equals(referenceEntityType) &&
