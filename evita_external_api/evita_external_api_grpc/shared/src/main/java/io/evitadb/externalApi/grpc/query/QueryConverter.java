@@ -48,9 +48,9 @@ import io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray;
 import io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray;
 import io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray;
 import io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray;
-import io.evitadb.externalApi.grpc.generated.QueryParam;
-import io.evitadb.externalApi.grpc.generated.QueryParam.Builder;
-import io.evitadb.externalApi.grpc.generated.QueryParam.QueryParamCase;
+import io.evitadb.externalApi.grpc.generated.GrpcQueryParam;
+import io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder;
+import io.evitadb.externalApi.grpc.generated.GrpcQueryParam.QueryParamCase;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.utils.CollectionUtils;
 import lombok.AccessLevel;
@@ -83,170 +83,170 @@ import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.*;
 public final class QueryConverter {
 
 	/**
-	 * This method is used to convert a list of positional parameters of type {@link QueryParam} to a list
+	 * This method is used to convert a list of positional parameters of type {@link GrpcQueryParam} to a list
 	 * of {@link Object} accepted by {@link QueryParser}.
 	 *
-	 * @param queryParams list of gRPC positional parameters
+	 * @param GrpcQueryParams list of gRPC positional parameters
 	 * @return list of object corresponding Evita recognised parameters
 	 */
 	@Nonnull
-	public static List<Object> convertQueryParamsList(@Nonnull List<QueryParam> queryParams) {
-		final List<Object> queryParamObject = new ArrayList<>(queryParams.size());
-		for (QueryParam queryParam : queryParams) {
-			queryParamObject.add(convertQueryParam(queryParam));
+	public static List<Object> convertQueryParamsList(@Nonnull List<GrpcQueryParam> GrpcQueryParams) {
+		final List<Object> GrpcQueryParamObject = new ArrayList<>(GrpcQueryParams.size());
+		for (GrpcQueryParam GrpcQueryParam : GrpcQueryParams) {
+			GrpcQueryParamObject.add(convertQueryParam(GrpcQueryParam));
 		}
-		return queryParamObject;
+		return GrpcQueryParamObject;
 	}
 
 	/**
-	 * This method is used to convert map of named parameters of type {@link QueryParam} specified by parameter name
+	 * This method is used to convert map of named parameters of type {@link GrpcQueryParam} specified by parameter name
 	 * to a form that is accepted by {@link QueryParser}.
 	 *
-	 * @param queryParams map of gRPC named parameters
+	 * @param GrpcQueryParams map of gRPC named parameters
 	 * @return map of object corresponding Evita recognised parameters
 	 */
 	@Nonnull
-	public static Map<String, Object> convertQueryParamsMap(@Nonnull Map<String, QueryParam> queryParams) {
-		final Map<String, Object> queryParamObject = CollectionUtils.createHashMap(queryParams.size());
-		for (Entry<String, QueryParam> queryEntry : queryParams.entrySet()) {
-			queryParamObject.put(queryEntry.getKey(), convertQueryParam(queryEntry.getValue()));
+	public static Map<String, Object> convertQueryParamsMap(@Nonnull Map<String, GrpcQueryParam> GrpcQueryParams) {
+		final Map<String, Object> GrpcQueryParamObject = CollectionUtils.createHashMap(GrpcQueryParams.size());
+		for (Entry<String, GrpcQueryParam> queryEntry : GrpcQueryParams.entrySet()) {
+			GrpcQueryParamObject.put(queryEntry.getKey(), convertQueryParam(queryEntry.getValue()));
 		}
-		return queryParamObject;
+		return GrpcQueryParamObject;
 	}
 
 	/**
-	 * This method is used to convert {@link QueryParam} to Evita query data types ({@link EvitaDataTypes}).
+	 * This method is used to convert {@link GrpcQueryParam} to Evita query data types ({@link EvitaDataTypes}).
 	 *
-	 * @param queryParam query parameter to be converted
-	 * @return object which represents value contained in {@code queryParam}
+	 * @param GrpcQueryParam query parameter to be converted
+	 * @return object which represents value contained in {@code GrpcQueryParam}
 	 */
 	@Nonnull
-	public static Object convertQueryParam(@Nonnull QueryParam queryParam) {
-		if (queryParam.getQueryParamCase() == QueryParamCase.STRINGVALUE) {
-			return queryParam.getStringValue();
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.INTEGERVALUE) {
-			return queryParam.getIntegerValue();
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.LONGVALUE) {
-			return queryParam.getLongValue();
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.BOOLEANVALUE) {
-			return queryParam.getBooleanValue();
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.BIGDECIMALVALUE) {
-			return toBigDecimal(queryParam.getBigDecimalValue());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.DATETIMERANGEVALUE) {
-			return toDateTimeRange(queryParam.getDateTimeRangeValue());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.INTEGERNUMBERRANGEVALUE) {
-			return toIntegerNumberRange(queryParam.getIntegerNumberRangeValue());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.LONGNUMBERRANGEVALUE) {
-			return toLongNumberRange(queryParam.getLongNumberRangeValue());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.BIGDECIMALNUMBERRANGEVALUE) {
-			return toBigDecimalNumberRange(queryParam.getBigDecimalNumberRangeValue());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.OFFSETDATETIMEVALUE) {
-			return toOffsetDateTime(queryParam.getOffsetDateTimeValue());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.LOCALEVALUE) {
-			return toLocale(queryParam.getLocaleValue());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.CURRENCYVALUE) {
-			return toCurrency(queryParam.getCurrencyValue());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.FACETSTATISTICSDEPTHVALUE) {
-			return EvitaEnumConverter.toFacetStatisticsDepth(queryParam.getFacetStatisticsDepthValue());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.QUERYPRICEMODELVALUE) {
-			return EvitaEnumConverter.toQueryPriceMode(queryParam.getQueryPriceModelValue());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.PRICECONTENTMODEVALUE) {
-			return EvitaEnumConverter.toPriceContentMode(queryParam.getPriceContentModeValue());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.ATTRIBUTESPECIALVALUE) {
-			return EvitaEnumConverter.toAttributeSpecialValue(queryParam.getAttributeSpecialValue());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.ORDERDIRECTIONVALUE) {
-			return EvitaEnumConverter.toOrderDirection(queryParam.getOrderDirectionValue());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.EMPTYHIERARCHICALENTITYBEHAVIOUR) {
-			return EvitaEnumConverter.toEmptyHierarchicalEntityBehaviour(queryParam.getEmptyHierarchicalEntityBehaviour());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.STATISTICSBASE) {
-			return EvitaEnumConverter.toStatisticsBase(queryParam.getStatisticsBase());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.STATISTICSTYPE) {
-			return EvitaEnumConverter.toStatisticsType(queryParam.getStatisticsType());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.STRINGARRAYVALUE) {
-			return toStringArray(queryParam.getStringArrayValue());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.INTEGERARRAYVALUE) {
-			return toIntegerArray(queryParam.getIntegerArrayValue());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.LONGARRAYVALUE) {
-			return toLongArray(queryParam.getLongArrayValue());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.BOOLEANARRAYVALUE) {
-			return toBooleanArray(queryParam.getBooleanArrayValue());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.BIGDECIMALARRAYVALUE) {
-			return toBigDecimalArray(queryParam.getBigDecimalArrayValue());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.DATETIMERANGEARRAYVALUE) {
-			return toDateTimeRangeArray(queryParam.getDateTimeRangeArrayValue());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.INTEGERNUMBERRANGEARRAYVALUE) {
-			return toIntegerNumberRangeArray(queryParam.getIntegerNumberRangeArrayValue());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.LONGNUMBERRANGEARRAYVALUE) {
-			return toLongNumberRangeArray(queryParam.getLongNumberRangeArrayValue());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.BIGDECIMALNUMBERRANGEARRAYVALUE) {
-			return toBigDecimalNumberRangeArray(queryParam.getBigDecimalNumberRangeArrayValue());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.OFFSETDATETIMEARRAYVALUE) {
-			return toOffsetDateTimeArray(queryParam.getOffsetDateTimeArrayValue());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.LOCALEARRAYVALUE) {
-			return toLocaleArray(queryParam.getLocaleArrayValue());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.CURRENCYARRAYVALUE) {
-			return toCurrencyArray(queryParam.getCurrencyArrayValue());
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.FACETSTATISTICSDEPTHARRAYVALUE) {
-			return queryParam.getFacetStatisticsDepthArrayValue()
+	public static Object convertQueryParam(@Nonnull GrpcQueryParam GrpcQueryParam) {
+		if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.STRINGVALUE) {
+			return GrpcQueryParam.getStringValue();
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.INTEGERVALUE) {
+			return GrpcQueryParam.getIntegerValue();
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.LONGVALUE) {
+			return GrpcQueryParam.getLongValue();
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.BOOLEANVALUE) {
+			return GrpcQueryParam.getBooleanValue();
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.BIGDECIMALVALUE) {
+			return toBigDecimal(GrpcQueryParam.getBigDecimalValue());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.DATETIMERANGEVALUE) {
+			return toDateTimeRange(GrpcQueryParam.getDateTimeRangeValue());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.INTEGERNUMBERRANGEVALUE) {
+			return toIntegerNumberRange(GrpcQueryParam.getIntegerNumberRangeValue());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.LONGNUMBERRANGEVALUE) {
+			return toLongNumberRange(GrpcQueryParam.getLongNumberRangeValue());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.BIGDECIMALNUMBERRANGEVALUE) {
+			return toBigDecimalNumberRange(GrpcQueryParam.getBigDecimalNumberRangeValue());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.OFFSETDATETIMEVALUE) {
+			return toOffsetDateTime(GrpcQueryParam.getOffsetDateTimeValue());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.LOCALEVALUE) {
+			return toLocale(GrpcQueryParam.getLocaleValue());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.CURRENCYVALUE) {
+			return toCurrency(GrpcQueryParam.getCurrencyValue());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.FACETSTATISTICSDEPTHVALUE) {
+			return EvitaEnumConverter.toFacetStatisticsDepth(GrpcQueryParam.getFacetStatisticsDepthValue());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.QUERYPRICEMODELVALUE) {
+			return EvitaEnumConverter.toQueryPriceMode(GrpcQueryParam.getQueryPriceModelValue());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.PRICECONTENTMODEVALUE) {
+			return EvitaEnumConverter.toPriceContentMode(GrpcQueryParam.getPriceContentModeValue());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.ATTRIBUTESPECIALVALUE) {
+			return EvitaEnumConverter.toAttributeSpecialValue(GrpcQueryParam.getAttributeSpecialValue());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.ORDERDIRECTIONVALUE) {
+			return EvitaEnumConverter.toOrderDirection(GrpcQueryParam.getOrderDirectionValue());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.EMPTYHIERARCHICALENTITYBEHAVIOUR) {
+			return EvitaEnumConverter.toEmptyHierarchicalEntityBehaviour(GrpcQueryParam.getEmptyHierarchicalEntityBehaviour());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.STATISTICSBASE) {
+			return EvitaEnumConverter.toStatisticsBase(GrpcQueryParam.getStatisticsBase());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.STATISTICSTYPE) {
+			return EvitaEnumConverter.toStatisticsType(GrpcQueryParam.getStatisticsType());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.STRINGARRAYVALUE) {
+			return toStringArray(GrpcQueryParam.getStringArrayValue());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.INTEGERARRAYVALUE) {
+			return toIntegerArray(GrpcQueryParam.getIntegerArrayValue());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.LONGARRAYVALUE) {
+			return toLongArray(GrpcQueryParam.getLongArrayValue());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.BOOLEANARRAYVALUE) {
+			return toBooleanArray(GrpcQueryParam.getBooleanArrayValue());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.BIGDECIMALARRAYVALUE) {
+			return toBigDecimalArray(GrpcQueryParam.getBigDecimalArrayValue());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.DATETIMERANGEARRAYVALUE) {
+			return toDateTimeRangeArray(GrpcQueryParam.getDateTimeRangeArrayValue());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.INTEGERNUMBERRANGEARRAYVALUE) {
+			return toIntegerNumberRangeArray(GrpcQueryParam.getIntegerNumberRangeArrayValue());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.LONGNUMBERRANGEARRAYVALUE) {
+			return toLongNumberRangeArray(GrpcQueryParam.getLongNumberRangeArrayValue());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.BIGDECIMALNUMBERRANGEARRAYVALUE) {
+			return toBigDecimalNumberRangeArray(GrpcQueryParam.getBigDecimalNumberRangeArrayValue());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.OFFSETDATETIMEARRAYVALUE) {
+			return toOffsetDateTimeArray(GrpcQueryParam.getOffsetDateTimeArrayValue());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.LOCALEARRAYVALUE) {
+			return toLocaleArray(GrpcQueryParam.getLocaleArrayValue());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.CURRENCYARRAYVALUE) {
+			return toCurrencyArray(GrpcQueryParam.getCurrencyArrayValue());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.FACETSTATISTICSDEPTHARRAYVALUE) {
+			return GrpcQueryParam.getFacetStatisticsDepthArrayValue()
 				.getValueList()
 				.stream()
 				.map(EvitaEnumConverter::toFacetStatisticsDepth)
 				.toArray(FacetStatisticsDepth[]::new);
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.QUERYPRICEMODELARRAYVALUE) {
-			return queryParam.getQueryPriceModelArrayValue()
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.QUERYPRICEMODELARRAYVALUE) {
+			return GrpcQueryParam.getQueryPriceModelArrayValue()
 				.getValueList()
 				.stream()
 				.map(EvitaEnumConverter::toQueryPriceMode)
 				.toArray(QueryPriceMode[]::new);
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.PRICECONTENTMODEARRAYVALUE) {
-			return queryParam.getPriceContentModeArrayValue()
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.PRICECONTENTMODEARRAYVALUE) {
+			return GrpcQueryParam.getPriceContentModeArrayValue()
 				.getValueList()
 				.stream()
 				.map(EvitaEnumConverter::toPriceContentMode)
 				.toArray(PriceContentMode[]::new);
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.ATTRIBUTESPECIALARRAYVALUE) {
-			return queryParam.getAttributeSpecialArrayValue()
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.ATTRIBUTESPECIALARRAYVALUE) {
+			return GrpcQueryParam.getAttributeSpecialArrayValue()
 				.getValueList()
 				.stream()
 				.map(EvitaEnumConverter::toAttributeSpecialValue)
 				.toArray(AttributeSpecialValue[]::new);
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.ORDERDIRECTIONARRAYVALUE) {
-			return queryParam.getOrderDirectionArrayValue()
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.ORDERDIRECTIONARRAYVALUE) {
+			return GrpcQueryParam.getOrderDirectionArrayValue()
 				.getValueList()
 				.stream()
 				.map(EvitaEnumConverter::toOrderDirection)
 				.toArray(OrderDirection[]::new);
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.EMPTYHIERARCHICALENTITYBEHAVIOURARRAYVALUE) {
-			return queryParam.getEmptyHierarchicalEntityBehaviourArrayValue()
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.EMPTYHIERARCHICALENTITYBEHAVIOURARRAYVALUE) {
+			return GrpcQueryParam.getEmptyHierarchicalEntityBehaviourArrayValue()
 				.getValueList()
 				.stream()
 				.map(EvitaEnumConverter::toEmptyHierarchicalEntityBehaviour)
 				.toArray(EmptyHierarchicalEntityBehaviour[]::new);
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.STATISTICSBASEARRAYVALUE) {
-			return queryParam.getStatisticsBaseArrayValue()
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.STATISTICSBASEARRAYVALUE) {
+			return GrpcQueryParam.getStatisticsBaseArrayValue()
 				.getValueList()
 				.stream()
 				.map(EvitaEnumConverter::toStatisticsBase)
 				.toArray(StatisticsBase[]::new);
-		} else if (queryParam.getQueryParamCase() == QueryParamCase.STATISTICSTYPEARRAYVALUE) {
-			return queryParam.getStatisticsTypeArrayValue()
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.STATISTICSTYPEARRAYVALUE) {
+			return GrpcQueryParam.getStatisticsTypeArrayValue()
 				.getValueList()
 				.stream()
 				.map(EvitaEnumConverter::toStatisticsType)
 				.toArray(StatisticsType[]::new);
 		}
-		throw new EvitaInvalidUsageException("Unsupported Evita data type `" + queryParam + "` in gRPC API.");
+		throw new EvitaInvalidUsageException("Unsupported Evita data type `" + GrpcQueryParam + "` in gRPC API.");
 	}
 
 	/**
-	 * This method is used to convert Evita query data types ({@link EvitaDataTypes}) to {@link QueryParam}.
+	 * This method is used to convert Evita query data types ({@link EvitaDataTypes}) to {@link GrpcQueryParam}.
 	 *
 	 * @param parameter query parameter to be converted
-	 * @return gRPC variant which represents value contained in {@code queryParam}
+	 * @return gRPC variant which represents value contained in {@code GrpcQueryParam}
 	 */
 	@Nonnull
-	public static <T extends Serializable> QueryParam convertQueryParam(@Nonnull T parameter) {
-		final Builder builder = QueryParam.newBuilder();
+	public static <T extends Serializable> GrpcQueryParam convertQueryParam(@Nonnull T parameter) {
+		final Builder builder = GrpcQueryParam.newBuilder();
 		if (parameter instanceof String stringValue) {
 			builder.setStringValue(stringValue);
 		} else if (parameter instanceof final Integer integerValue) {

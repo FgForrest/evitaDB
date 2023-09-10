@@ -140,7 +140,7 @@ public class Table extends MarkdownElement {
 		String headerSeparator = generateHeaderSeparator(columnWidths, alignments);
 		boolean headerSeperatorAdded = !firstRowIsHeader;
 		if (!firstRowIsHeader) {
-			sb.append(headerSeparator).append(System.lineSeparator());
+			sb.append(headerSeparator).append("\n");
 		}
 
 		for (TableRow row : rows) {
@@ -172,11 +172,11 @@ public class Table extends MarkdownElement {
 			}
 
 			if (rows.indexOf(row) < rows.size() - 1 || rows.size() == 1) {
-				sb.append(System.lineSeparator());
+				sb.append("\n");
 			}
 
 			if (!headerSeperatorAdded) {
-				sb.append(headerSeparator).append(System.lineSeparator());
+				sb.append(headerSeparator).append("\n");
 				headerSeperatorAdded = true;
 			}
 		}

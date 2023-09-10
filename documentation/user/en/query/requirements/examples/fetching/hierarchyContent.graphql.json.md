@@ -1,15 +1,15 @@
 ```json
 {
-  "data" : [
+  "data": [
     {
-      "primaryKey" : 66486,
-      "parentPrimaryKey" : 66481,
-      "parents" : [
+      "primaryKey": 66486,
+      "parentPrimaryKey": 66481,
+      "parents": [
         {
-          "primaryKey" : 66468
+          "primaryKey": 66468
         },
         {
-          "primaryKey" : 66481
+          "primaryKey": 66481
         }
       ]
     }

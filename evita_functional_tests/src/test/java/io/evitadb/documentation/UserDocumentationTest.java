@@ -23,6 +23,8 @@
 
 package io.evitadb.documentation;
 
+import io.evitadb.documentation.csharp.CsharpExecutable;
+import io.evitadb.documentation.csharp.CsharpTestContextFactory;
 import io.evitadb.documentation.evitaql.EvitaQLExecutable;
 import io.evitadb.documentation.evitaql.EvitaTestContextFactory;
 import io.evitadb.documentation.graphql.GraphQLExecutable;
@@ -78,7 +80,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * Pattern for searching for ``` java ``` blocks.
 	 */
 	private static final Pattern SOURCE_CODE_PATTERN = Pattern.compile(
-		"```\\s*(\\S+)?\\s*\n(.+?)```",
+		"```\\s*(\\S+)?\\s*\n(.+?)\\s*```",
 		Pattern.DOTALL | Pattern.MULTILINE
 	);
 	/**
@@ -114,6 +116,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		NOT_TESTED_LANGUAGES.add("json");
 		NOT_TESTED_LANGUAGES.add("yaml");
 		NOT_TESTED_LANGUAGES.add("plain");
+		NOT_TESTED_LANGUAGES.add("protobuf");
 	}
 
 	/**
@@ -256,6 +259,17 @@ public class UserDocumentationTest implements EvitaTestSupport {
 					createSnippets
 				);
 			}
+			case "cs" -> {
+				return new CsharpExecutable(
+					contextAccessor.get(CsharpTestContextFactory.class),
+					sourceContent,
+					rootPath,
+					resource,
+					Arrays.stream(requiredResources).filter(it -> it.endsWith(".cs")).toArray(Path[]::new),
+					codeSnippetIndex,
+					outputSnippet
+				);
+			}
 			default -> {
 				throw new UnsupportedOperationException("Unsupported file format: " + sourceFormat);
 			}
@@ -345,7 +359,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
 		return this.createTests(
 			getRootDirectory().resolve("documentation/user/en/query/requirements/fetching.md"),
-			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.GRAPHQL, CreateSnippets.REST
+			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.GRAPHQL, CreateSnippets.REST, CreateSnippets.CSHARP
 		).stream();
 	}
 
@@ -448,7 +462,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 									requiredScripts,
 									contextAccessor,
 									codeSnippetIndex,
-									outputSnippetIndex.get(relatedFile),
+									relatedFileExtension.equals("cs") ? outputSnippetIndex.get(Path.of(relatedFile.toString().replace(".cs", ".evitaql"))) : outputSnippetIndex.get(relatedFile),
 									createSnippets
 								)
 							);
@@ -516,7 +530,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 */
 	public enum CreateSnippets {
 
-		JAVA, MARKDOWN, GRAPHQL, REST
+		JAVA, MARKDOWN, GRAPHQL, REST, CSHARP
 
 	}
 

@@ -23,31 +23,18 @@
 
 package io.evitadb.documentation.graphql;
 
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.util.DefaultIndenter;
-import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
-import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
-import io.evitadb.api.requestResponse.data.EntityContract;
-import io.evitadb.api.requestResponse.extraResult.Hierarchy;
+import io.evitadb.documentation.JsonExecutable;
 import io.evitadb.documentation.UserDocumentationTest.CreateSnippets;
 import io.evitadb.documentation.UserDocumentationTest.OutputSnippet;
-import io.evitadb.documentation.evitaql.CustomJsonVisibilityChecker;
-import io.evitadb.documentation.evitaql.EntityDocumentationJsonSerializer;
-import io.evitadb.driver.EvitaClient;
+import io.evitadb.documentation.markdown.CustomCodeBlock;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.client.GraphQLClient;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 import net.steppschuh.markdowngenerator.MarkdownSerializationException;
-import net.steppschuh.markdowngenerator.text.code.CodeBlock;
 import org.junit.jupiter.api.function.Executable;
 
 import javax.annotation.Nonnull;
@@ -60,11 +47,9 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
 
 import static io.evitadb.documentation.UserDocumentationTest.readFile;
 import static io.evitadb.documentation.UserDocumentationTest.resolveSiblingWithDifferentExtension;
-import static io.evitadb.documentation.evitaql.CustomJsonVisibilityChecker.allow;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -80,44 +65,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class GraphQLExecutable implements Executable, EvitaTestSupport {
-	/**
-	 * Object mapper used to serialize unknown objects to JSON output.
-	 */
-	private final static ObjectMapper OBJECT_MAPPER;
-	/**
-	 * Pretty printer used to format JSON output.
-	 */
-	private final static DefaultPrettyPrinter DEFAULT_PRETTY_PRINTER;
-
-	/*
-	  Initializes the Java code template to be used when {@link CreateSnippets#JAVA} is requested.
-	 */
-	static {
-		OBJECT_MAPPER = new ObjectMapper();
-		OBJECT_MAPPER.setVisibility(
-			new CustomJsonVisibilityChecker(
-				allow(EntityClassifier.class),
-				allow(EntityClassifierWithParent.class),
-				allow(Hierarchy.class),
-				allow(Hierarchy.LevelInfo.class)
-			)
-		);
-		OBJECT_MAPPER.registerModule(new Jdk8Module());
-		OBJECT_MAPPER.registerModule(
-			new SimpleModule()
-				.addSerializer(EntityContract.class, new EntityDocumentationJsonSerializer()));
-
-		OBJECT_MAPPER.setSerializationInclusion(Include.NON_DEFAULT);
-		OBJECT_MAPPER.enable(SerializationFeature.INDENT_OUTPUT);
-		OBJECT_MAPPER.enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
-		OBJECT_MAPPER.enable(SerializationFeature.WRITE_DATE_KEYS_AS_TIMESTAMPS);
-
-		DEFAULT_PRETTY_PRINTER = new DefaultPrettyPrinter();
-		DEFAULT_PRETTY_PRINTER.indentArraysWith(DefaultIndenter.SYSTEM_LINEFEED_INSTANCE);
-		DEFAULT_PRETTY_PRINTER.indentObjectsWith(DefaultIndenter.SYSTEM_LINEFEED_INSTANCE);
-	}
-
+public class GraphQLExecutable extends JsonExecutable implements Executable, EvitaTestSupport {
 	/**
 	 * Provides access to the {@link GraphQLTestContext} instance.
 	 */
@@ -222,7 +170,7 @@ public class GraphQLExecutable implements Executable, EvitaTestSupport {
 			.orElse("");
 
 		try {
-			return new CodeBlock(json, "json").serialize();
+			return new CustomCodeBlock(json, "json").serialize();
 		} catch (MarkdownSerializationException e) {
 			fail(e);
 			return "";

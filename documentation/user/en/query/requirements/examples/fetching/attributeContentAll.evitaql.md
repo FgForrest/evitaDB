@@ -1,5 +1,5 @@
-| entityPrimaryKey | code      | visibility | status   | changed                   | order |
-| ---------------- | --------- | ---------- | -------- | ------------------------- | ----- |
-| 64703            | 'samsung' | 'VISIBLE'  | 'ACTIVE' | 2023-06-25T21:36:22+02:00 | 0     |
+| entityPrimaryKey | changed                   | code      | order | status   | visibility |
+| ---------------- | ------------------------- | --------- | ----- | -------- | ---------- |
+| 64703            | 2023-06-25T21:36:22+02:00 | 'samsung' | 0     | 'ACTIVE' | 'VISIBLE'  |
 
 ###### **Page** 1/1 **(Total number of results: 1)**

@@ -7,20 +7,6 @@
         "code": "alcatel-3t-10-2020"
       },
       "references": {
-        "categories": [
-          {
-            "referencedKey": 66472,
-            "referencedEntity": {
-              "primaryKey": 66472,
-              "attributes": {
-                "code": "tablets"
-              }
-            },
-            "attributes": {
-              "orderInCategory": -2147483648
-            }
-          }
-        ],
         "brand": [
           {
             "referencedKey": 103887,
@@ -35,30 +21,17 @@
             }
           }
         ],
-        "stocks": [
+        "categories": [
           {
-            "group": 0,
-            "referencedKey": 119334,
+            "referencedKey": 66472,
             "referencedEntity": {
-              "primaryKey": 119334,
+              "primaryKey": 66472,
               "attributes": {
-                "code": "evita"
+                "code": "tablets"
               }
             },
             "attributes": {
-              "quantityOnStock": 544.00000
-            }
-          }
-        ],
-        "tags": [
-          {
-            "group": 0,
-            "referencedKey": 15,
-            "referencedEntity": {
-              "primaryKey": 15,
-              "attributes": {
-                "code": "gift"
-              }
+              "orderInCategory": -2147483648
             }
           }
         ],
@@ -282,6 +255,33 @@
             },
             "attributes": {
               "variant": false
+            }
+          }
+        ],
+        "stocks": [
+          {
+            "group": 0,
+            "referencedKey": 119334,
+            "referencedEntity": {
+              "primaryKey": 119334,
+              "attributes": {
+                "code": "evita"
+              }
+            },
+            "attributes": {
+              "quantityOnStock": 544.00000
+            }
+          }
+        ],
+        "tags": [
+          {
+            "group": 0,
+            "referencedKey": 15,
+            "referencedEntity": {
+              "primaryKey": 15,
+              "attributes": {
+                "code": "gift"
+              }
             }
           }
         ]

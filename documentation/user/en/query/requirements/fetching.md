@@ -173,7 +173,7 @@ The query returns the following attributes of the `Brand` entity:
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="recordPage">[The result of an entity fetch with named attributes](/documentation/user/en/query/requirements/examples/fetching/attributeContent.evitaql.md)</MDInclude>
+<MDInclude>[The result of an entity fetch with named attributes](/documentation/user/en/query/requirements/examples/fetching/attributeContent.evitaql.md)</MDInclude>
 
 </LanguageSpecific>
 <LanguageSpecific to="rest">
@@ -311,7 +311,7 @@ The query returns the following attributes of the `Brand` entity:
 
 <LanguageSpecific to="evitaql,java">
 
-<MDInclude sourceVariable="recordPage">[The result of an entity fetch with all attributes](/documentation/user/en/query/requirements/examples/fetching/attributeContentAll.evitaql.md)</MDInclude>
+<MDInclude>[The result of an entity fetch with all attributes](/documentation/user/en/query/requirements/examples/fetching/attributeContentAll.evitaql.md)</MDInclude>
 
 </LanguageSpecific>
 <LanguageSpecific to="rest">

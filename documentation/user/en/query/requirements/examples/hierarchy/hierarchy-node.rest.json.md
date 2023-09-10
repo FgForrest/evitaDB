@@ -1,91 +1,91 @@
 ```json
 [
   {
-    "entity" : {
-      "primaryKey" : 66468,
-      "type" : "Category",
-      "version" : 1,
-      "allLocales" : [
+    "entity": {
+      "primaryKey": 66468,
+      "type": "Category",
+      "version": 1,
+      "allLocales": [
         "en"
       ],
-      "attributes" : {
-        "global" : {
-          "code" : "accessories"
+      "attributes": {
+        "global": {
+          "code": "accessories"
         }
       }
     },
-    "children" : [
+    "children": [
       {
-        "entity" : {
-          "primaryKey" : 66480,
-          "type" : "Category",
-          "version" : 1,
-          "allLocales" : [
+        "entity": {
+          "primaryKey": 66480,
+          "type": "Category",
+          "version": 1,
+          "allLocales": [
             "en"
           ],
-          "attributes" : {
-            "global" : {
-              "code" : "christmas-electronics"
+          "attributes": {
+            "global": {
+              "code": "christmas-electronics"
             }
           }
         }
       },
       {
-        "entity" : {
-          "primaryKey" : 66481,
-          "type" : "Category",
-          "version" : 1,
-          "allLocales" : [
+        "entity": {
+          "primaryKey": 66481,
+          "type": "Category",
+          "version": 1,
+          "allLocales": [
             "en"
           ],
-          "attributes" : {
-            "global" : {
-              "code" : "smart-wearable"
+          "attributes": {
+            "global": {
+              "code": "smart-wearable"
             }
           }
         },
-        "children" : [
+        "children": [
           {
-            "entity" : {
-              "primaryKey" : 66486,
-              "type" : "Category",
-              "version" : 1,
-              "allLocales" : [
+            "entity": {
+              "primaryKey": 66486,
+              "type": "Category",
+              "version": 1,
+              "allLocales": [
                 "en"
               ],
-              "attributes" : {
-                "global" : {
-                  "code" : "smartwatches"
+              "attributes": {
+                "global": {
+                  "code": "smartwatches"
                 }
               }
             }
           },
           {
-            "entity" : {
-              "primaryKey" : 66487,
-              "type" : "Category",
-              "version" : 1,
-              "allLocales" : [
+            "entity": {
+              "primaryKey": 66487,
+              "type": "Category",
+              "version": 1,
+              "allLocales": [
                 "en"
               ],
-              "attributes" : {
-                "global" : {
-                  "code" : "smartglasses"
+              "attributes": {
+                "global": {
+                  "code": "smartglasses"
                 }
               }
             }
           },
           {
-            "entity" : {
-              "primaryKey" : 108126,
-              "type" : "Category",
-              "version" : 1,
-              "allLocales" : [
+            "entity": {
+              "primaryKey": 108126,
+              "type": "Category",
+              "version": 1,
+              "allLocales": [
                 "en"
               ],
-              "attributes" : {
-                "global" : {
-                  "code" : "bands"
+              "attributes": {
+                "global": {
+                  "code": "bands"
                 }
               }
             }
@@ -93,76 +93,76 @@
         ]
       },
       {
-        "entity" : {
-          "primaryKey" : 66482,
-          "type" : "Category",
-          "version" : 1,
-          "allLocales" : [
+        "entity": {
+          "primaryKey": 66482,
+          "type": "Category",
+          "version": 1,
+          "allLocales": [
             "en"
           ],
-          "attributes" : {
-            "global" : {
-              "code" : "audio"
+          "attributes": {
+            "global": {
+              "code": "audio"
             }
           }
         },
-        "children" : [
+        "children": [
           {
-            "entity" : {
-              "primaryKey" : 66488,
-              "type" : "Category",
-              "version" : 1,
-              "allLocales" : [
+            "entity": {
+              "primaryKey": 66488,
+              "type": "Category",
+              "version": 1,
+              "allLocales": [
                 "en"
               ],
-              "attributes" : {
-                "global" : {
-                  "code" : "wireless-headphones"
+              "attributes": {
+                "global": {
+                  "code": "wireless-headphones"
                 }
               }
             }
           },
           {
-            "entity" : {
-              "primaryKey" : 66489,
-              "type" : "Category",
-              "version" : 1,
-              "allLocales" : [
+            "entity": {
+              "primaryKey": 66489,
+              "type": "Category",
+              "version": 1,
+              "allLocales": [
                 "en"
               ],
-              "attributes" : {
-                "global" : {
-                  "code" : "wired-heaphones"
+              "attributes": {
+                "global": {
+                  "code": "wired-heaphones"
                 }
               }
             }
           },
           {
-            "entity" : {
-              "primaryKey" : 66490,
-              "type" : "Category",
-              "version" : 1,
-              "allLocales" : [
+            "entity": {
+              "primaryKey": 66490,
+              "type": "Category",
+              "version": 1,
+              "allLocales": [
                 "en"
               ],
-              "attributes" : {
-                "global" : {
-                  "code" : "microphones"
+              "attributes": {
+                "global": {
+                  "code": "microphones"
                 }
               }
             }
           },
           {
-            "entity" : {
-              "primaryKey" : 66491,
-              "type" : "Category",
-              "version" : 1,
-              "allLocales" : [
+            "entity": {
+              "primaryKey": 66491,
+              "type": "Category",
+              "version": 1,
+              "allLocales": [
                 "en"
               ],
-              "attributes" : {
-                "global" : {
-                  "code" : "repro"
+              "attributes": {
+                "global": {
+                  "code": "repro"
                 }
               }
             }
@@ -170,46 +170,46 @@
         ]
       },
       {
-        "entity" : {
-          "primaryKey" : 66483,
-          "type" : "Category",
-          "version" : 1,
-          "allLocales" : [
+        "entity": {
+          "primaryKey": 66483,
+          "type": "Category",
+          "version": 1,
+          "allLocales": [
             "en"
           ],
-          "attributes" : {
-            "global" : {
-              "code" : "monitors"
+          "attributes": {
+            "global": {
+              "code": "monitors"
             }
           }
         }
       },
       {
-        "entity" : {
-          "primaryKey" : 66484,
-          "type" : "Category",
-          "version" : 1,
-          "allLocales" : [
+        "entity": {
+          "primaryKey": 66484,
+          "type": "Category",
+          "version": 1,
+          "allLocales": [
             "en"
           ],
-          "attributes" : {
-            "global" : {
-              "code" : "keyboards"
+          "attributes": {
+            "global": {
+              "code": "keyboards"
             }
           }
         },
-        "children" : [
+        "children": [
           {
-            "entity" : {
-              "primaryKey" : 66492,
-              "type" : "Category",
-              "version" : 1,
-              "allLocales" : [
+            "entity": {
+              "primaryKey": 66492,
+              "type": "Category",
+              "version": 1,
+              "allLocales": [
                 "en"
               ],
-              "attributes" : {
-                "global" : {
-                  "code" : "cz-keyboards"
+              "attributes": {
+                "global": {
+                  "code": "cz-keyboards"
                 }
               }
             }
@@ -217,16 +217,16 @@
         ]
       },
       {
-        "entity" : {
-          "primaryKey" : 66537,
-          "type" : "Category",
-          "version" : 1,
-          "allLocales" : [
+        "entity": {
+          "primaryKey": 66537,
+          "type": "Category",
+          "version": 1,
+          "allLocales": [
             "en"
           ],
-          "attributes" : {
-            "global" : {
-              "code" : "mouses"
+          "attributes": {
+            "global": {
+              "code": "mouses"
             }
           }
         }
