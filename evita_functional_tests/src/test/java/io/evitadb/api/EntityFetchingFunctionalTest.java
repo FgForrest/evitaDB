@@ -1078,6 +1078,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 							)
 						),
 						require(
+							page(1, Integer.MAX_VALUE),
 							entityFetch(
 								associatedDataContent(ASSOCIATED_DATA_LABELS)
 							)
@@ -1120,6 +1121,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 							entityPrimaryKeyInSet(entitiesMatchingTheRequirements)
 						),
 						require(
+							page(1, Integer.MAX_VALUE),
 							entityFetch(
 								priceContentAll()
 							)
@@ -3612,7 +3614,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				final SealedEntity referencedCategory = categoryReference.getReferencedEntity().orElseThrow();
 				assertEquals(theParentPk, referencedCategory.getParentEntity().orElseThrow().getPrimaryKey());
 				assertEquals(
-					createParentChain(categoryHierarchy, theChildPk, 2, null),
+					createParentChain(categoryHierarchy, theChildPk, 4, null),
 					referencedCategory.getParentEntity().orElseThrow()
 				);
 				return null;
