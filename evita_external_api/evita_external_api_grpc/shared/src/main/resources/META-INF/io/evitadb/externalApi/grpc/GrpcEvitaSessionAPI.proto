@@ -235,7 +235,6 @@ message GrpcQueryResponse {
   GrpcDataChunk recordPage = 1;
   // The computed extra results.
   GrpcExtraResults extraResults = 2;
-  requestMetadata
 }
 
 // Response for query request executed when searched for exactly one entity. The used field is decided by the require block in the query.
