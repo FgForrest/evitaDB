@@ -2583,18 +2583,6 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitUuidValueToken(EvitaQLParser.UuidValueTokenContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code predecessorValueToken}
-	 * labeled alternative in {@link EvitaQLParser#valueToken}.
-	 * @param ctx the parse tree
-	 */
-	void enterPredecessorValueToken(EvitaQLParser.PredecessorValueTokenContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code predecessorValueToken}
-	 * labeled alternative in {@link EvitaQLParser#valueToken}.
-	 * @param ctx the parse tree
-	 */
-	void exitPredecessorValueToken(EvitaQLParser.PredecessorValueTokenContext ctx);
-	/**
 	 * Enter a parse tree produced by the {@code enumValueToken}
 	 * labeled alternative in {@link EvitaQLParser#valueToken}.
 	 * @param ctx the parse tree

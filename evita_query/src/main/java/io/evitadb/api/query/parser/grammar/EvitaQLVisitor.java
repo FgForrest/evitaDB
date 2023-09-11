@@ -1537,13 +1537,6 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitUuidValueToken(EvitaQLParser.UuidValueTokenContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code predecessorValueToken}
-	 * labeled alternative in {@link EvitaQLParser#valueToken}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitPredecessorValueToken(EvitaQLParser.PredecessorValueTokenContext ctx);
-	/**
 	 * Visit a parse tree produced by the {@code enumValueToken}
 	 * labeled alternative in {@link EvitaQLParser#valueToken}.
 	 * @param ctx the parse tree

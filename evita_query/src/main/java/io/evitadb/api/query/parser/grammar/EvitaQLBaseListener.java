@@ -2753,18 +2753,6 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterPredecessorValueToken(EvitaQLParser.PredecessorValueTokenContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitPredecessorValueToken(EvitaQLParser.PredecessorValueTokenContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
 	@Override public void enterEnumValueToken(EvitaQLParser.EnumValueTokenContext ctx) { }
 	/**
 	 * {@inheritDoc}
