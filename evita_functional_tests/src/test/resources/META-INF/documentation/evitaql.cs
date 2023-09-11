@@ -1,4 +1,4 @@
-EvitaResponse<SealedEntity> entities = evita.QueryCatalog(
+EvitaResponse<ISealedEntity> entities = evita.QueryCatalog(
 	"evita",
 	session => session.QuerySealedEntity(
         #QUERY#
