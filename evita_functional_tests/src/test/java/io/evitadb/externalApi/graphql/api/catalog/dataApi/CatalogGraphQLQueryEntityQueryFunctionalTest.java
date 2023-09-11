@@ -79,6 +79,7 @@ import javax.annotation.Nonnull;
 import java.text.Collator;
 import java.text.NumberFormat;
 import java.util.*;
+import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -362,16 +363,34 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by range attribute from variables")
-	void shouldReturnProductsByRangeAttributeFromVariables(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
-		final var entities = findEntities(
-			originalProductEntities,
-			it -> it.getAttribute(ATTRIBUTE_SIZE) != null,
-			1
+	void shouldReturnProductsByRangeAttributeFromVariables(GraphQLTester tester, Evita evita, List<SealedEntity> originalProductEntities) {
+		final List<IntegerNumberRange> uniqueRanges = originalProductEntities.stream()
+			.flatMap(entity -> Arrays.stream(entity.getAttribute(ATTRIBUTE_SIZE, IntegerNumberRange[].class)))
+			.collect(Collectors.groupingBy(Function.identity(), Collectors.counting()))
+			.entrySet()
+			.stream()
+			.filter(it -> it.getValue() == 1)
+			.map(Entry::getKey)
+			.toList();
+		assertFalse(uniqueRanges.isEmpty());
+		final IntegerNumberRange uniqueRange = uniqueRanges.get(0);
+
+		final EvitaResponse<SealedEntity> entities = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					attributeEquals(ATTRIBUTE_SIZE, uniqueRange)
+				),
+				require(
+					entityFetch()
+				)
+			),
+			SealedEntity.class
 		);
-		final var sizeAttributeToCompare = entities.get(0).getAttribute(ATTRIBUTE_SIZE, IntegerNumberRange[].class)[0];
 
 		final var expectedBody = createBasicPageResponse(
-			entities,
+			entities.getRecordData(),
 			entity ->
 				map()
 					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
@@ -400,7 +419,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			)
 			.variable(
 				"size",
-				new int[]{sizeAttributeToCompare.getPreciseFrom(), sizeAttributeToCompare.getPreciseTo()}
+				new int[]{uniqueRange.getPreciseFrom(), uniqueRange.getPreciseTo()}
 			)
 			.executeAndThen()
 			.statusCode(200)
