@@ -34,7 +34,6 @@ import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.facet.FacetIndex.FacetIndexChanges;
 import io.evitadb.index.facet.FacetReferenceIndex.FacetEntityTypeIndexChanges;
-import io.evitadb.index.facet.FacetReferenceIndex.NonTransactionalCopy;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.set.TransactionalSet;
 import io.evitadb.index.transactionalMemory.TransactionalContainerChanges;
@@ -58,6 +57,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
@@ -90,7 +90,7 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 	private final TransactionalSet<Serializable> dirtyIndexes;
 
 	public FacetIndex() {
-		this.facetingEntities = new TransactionalMap<>(new HashMap<>());
+		this.facetingEntities = new TransactionalMap<>(new HashMap<>(), FacetReferenceIndex.class, Function.identity());
 		this.dirtyIndexes = new TransactionalSet<>(new HashSet<>());
 	}
 
@@ -130,24 +130,12 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 			baseIndex.put(referenceName, facetEntityTypeIndex);
 		}
 
-		this.facetingEntities = new TransactionalMap<>(baseIndex);
+		this.facetingEntities = new TransactionalMap<>(baseIndex, FacetReferenceIndex.class, Function.identity());
 		this.dirtyIndexes = new TransactionalSet<>(new HashSet<>());
 	}
 
-	private FacetIndex(@Nonnull Map<String, NonTransactionalCopy> sourceFacetingEntities) {
-		final HashMap<String, FacetReferenceIndex> theFacetingEntities = createHashMap(sourceFacetingEntities.size());
-		for (Entry<String, NonTransactionalCopy> facetingEntitiesIndexEntry : sourceFacetingEntities.entrySet()) {
-			final NonTransactionalCopy nonTransactionalCopy = facetingEntitiesIndexEntry.getValue();
-			final Map<Integer, Bitmap> noGroup = nonTransactionalCopy.getNoGroup();
-			final Map<Integer, Map<Integer, Bitmap>> groups = nonTransactionalCopy.getGroups();
-			final Map<Integer, int[]> facetToGroupIndex = nonTransactionalCopy.getFacetToGroupIndex();
-			final String referenceName = facetingEntitiesIndexEntry.getKey();
-			theFacetingEntities.put(
-				referenceName,
-				new FacetReferenceIndex(referenceName, noGroup, groups, facetToGroupIndex)
-			);
-		}
-		this.facetingEntities = new TransactionalMap<>(theFacetingEntities);
+	private FacetIndex(@Nonnull Map<String, FacetReferenceIndex> sourceFacetingEntities) {
+		this.facetingEntities = new TransactionalMap<>(sourceFacetingEntities, FacetReferenceIndex.class, Function.identity());
 		this.dirtyIndexes = new TransactionalSet<>(new HashSet<>());
 	}
 
@@ -255,7 +243,7 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 				.append(":\n")
 				.append(this.facetingEntities.get(it).toString())
 		);
-		if (sb.length() > 0) {
+		if (!sb.isEmpty()) {
 			while (sb.charAt(sb.length() - 1) == '\n') {
 				sb.deleteCharAt(sb.length() - 1);
 			}
@@ -303,7 +291,7 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 	 * This class collects changes in {@link #facetingEntities} transactional map and its sub structure.
 	 */
 	public static class FacetIndexChanges {
-		private final TransactionalContainerChanges<FacetEntityTypeIndexChanges, NonTransactionalCopy, FacetReferenceIndex> facetGroupIndexChanges = new TransactionalContainerChanges<>();
+		private final TransactionalContainerChanges<FacetEntityTypeIndexChanges, FacetReferenceIndex, FacetReferenceIndex> facetGroupIndexChanges = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(@Nonnull FacetReferenceIndex index) {
 			facetGroupIndexChanges.addCreatedItem(index);

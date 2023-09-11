@@ -175,6 +175,13 @@ public class GraphQLScalars {
         .coercing(UUID_COERCING)
         .build();
 
+    public static final Coercing<?, ?> PREDECESSOR_COERCING = new PredecessorCoercing();
+    public static final GraphQLScalarType PREDECESSOR = newScalar()
+        .name("Predecessor")
+        .description("Predecessor in number format.")
+        .coercing(PREDECESSOR_COERCING)
+        .build();
+
     public static final Coercing<?, ?> OBJECT_COERCING = new ObjectCoercing();
     public static final GraphQLScalarType COMPLEX_DATA_OBJECT = newScalar()
         .name("ComplexDataObject")

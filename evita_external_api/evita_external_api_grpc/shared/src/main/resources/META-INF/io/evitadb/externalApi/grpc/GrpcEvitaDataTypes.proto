@@ -73,6 +73,12 @@ message GrpcUuid {
   int64 leastSignificantBits = 2;
 }
 
+// Structure for representing Predecessor objects.
+message GrpcPredecessor {
+  // Value that supports storing a Predecessor.
+  int32 predecessorId = 1;
+}
+
 // Structure for universal representation of DateTime objects with an offset.
 message GrpcOffsetDateTime {
   // The date and time of the object internally represented by unix timestamp.
@@ -249,6 +255,8 @@ message GrpcEvitaValue {
     GrpcCurrency currencyValue = 12;
     // UUID value.
     GrpcUuid uuidValue = 13;
+    // Predecessor value.
+    GrpcPredecessor predecessorValue = 14;
 
     // Array of string values.
     GrpcStringArray stringArrayValue = 50;

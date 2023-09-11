@@ -28,15 +28,7 @@ import com.google.protobuf.Int32Value;
 import com.google.protobuf.Int64Value;
 import com.google.protobuf.Timestamp;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
-import io.evitadb.dataType.BigDecimalNumberRange;
-import io.evitadb.dataType.ByteNumberRange;
-import io.evitadb.dataType.ComplexDataObject;
-import io.evitadb.dataType.DateTimeRange;
-import io.evitadb.dataType.EvitaDataTypes;
-import io.evitadb.dataType.IntegerNumberRange;
-import io.evitadb.dataType.LongNumberRange;
-import io.evitadb.dataType.NumberRange;
-import io.evitadb.dataType.ShortNumberRange;
+import io.evitadb.dataType.*;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.generated.*;
@@ -230,6 +222,8 @@ public class EvitaDataTypesConverter {
 			builder.setCurrencyValue(toGrpcCurrency(currencyValue));
 		} else if (value instanceof UUID uuidValue) {
 			builder.setUuidValue(toGrpcUuid(uuidValue));
+		} else if (value instanceof Predecessor predecessorValue) {
+			builder.setPredecessorValue(toGrpcPredecessor(predecessorValue));
 		} else if (value instanceof byte[] byteArrayValues) {
 			builder.setIntegerArrayValue(toGrpcByteArray(byteArrayValues));
 		} else if (value instanceof short[] shortArrayValues) {
@@ -361,6 +355,7 @@ public class EvitaDataTypesConverter {
 			case LOCALE -> Locale.class;
 			case CURRENCY -> Currency.class;
 			case UUID -> UUID.class;
+			case PREDECESSOR -> Predecessor.class;
 			case STRING_ARRAY -> String[].class;
 			case BYTE_ARRAY -> Byte[].class;
 			case SHORT_ARRAY -> Short[].class;
@@ -462,6 +457,8 @@ public class EvitaDataTypesConverter {
 			return GrpcEvitaDataType.CURRENCY;
 		} else if (dataType.equals(UUID.class)) {
 			return GrpcEvitaDataType.UUID;
+		} else if (dataType.equals(Predecessor.class)) {
+			return GrpcEvitaDataType.PREDECESSOR;
 		} else if (dataType.equals(String[].class)) {
 			return GrpcEvitaDataType.STRING_ARRAY;
 		} else if (dataType.equals(Character[].class)) {
@@ -1292,6 +1289,19 @@ public class EvitaDataTypesConverter {
 		final GrpcUuidArray.Builder valueBuilder = GrpcUuidArray.newBuilder();
 		Arrays.stream(uuidArrayValues).map(EvitaDataTypesConverter::toGrpcUuid).forEach(valueBuilder::addValue);
 		return valueBuilder.build();
+	}
+
+	/**
+	 * This method is used to convert a {@link Predecessor} to {@link GrpcPredecessor}.
+	 *
+	 * @param predecessor value to be converted
+	 * @return {@link GrpcPredecessor} value
+	 */
+	@Nonnull
+	public static GrpcPredecessor toGrpcPredecessor(@Nonnull Predecessor predecessor) {
+		return GrpcPredecessor.newBuilder()
+			.setPredecessorId(predecessor.predecessorId())
+			.build();
 	}
 	
 }

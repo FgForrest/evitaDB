@@ -96,6 +96,21 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		this.transactionalLayerWrapper = (Function<Object, V>) transactionalLayerWrapper;
 	}
 
+	/**
+	 * Use this constructor if V implements TransactionalLayerProducer itself.
+	 * @param mapDelegate original map
+	 * @param transactionalLayerWrapper the function that wraps result of {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer, Transaction)} into a V type
+	 */
+	public <S, T extends TransactionalMap<?, S>> TransactionalMap(
+		@Nonnull Map<K, V> mapDelegate,
+		@Nonnull Function<Map<K, V>, T> transactionalLayerWrapper
+	) {
+		this.valueType = TransactionalMap.class;
+		this.mapDelegate = mapDelegate;
+		//noinspection unchecked
+		this.transactionalLayerWrapper = (o) -> (V) transactionalLayerWrapper.apply((Map<K, V>) o);
+	}
+
 	/*
 		TransactionalLayerCreator IMPLEMENTATION
 	 */
@@ -125,9 +140,9 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 					throw new IllegalStateException("Transactional layer producer is not expected to be used as a key!");
 				}
 				V value = entry.getValue();
-				if (value instanceof TransactionalLayerProducer) {
+				if (value instanceof TransactionalLayerProducer<?,?> transactionalLayerProducer) {
 					value = transactionalLayerWrapper.apply(
-						transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer<?, ?>) value, transaction)
+						transactionalLayer.getStateCopyWithCommittedChanges(transactionalLayerProducer, transaction)
 					);
 				}
 

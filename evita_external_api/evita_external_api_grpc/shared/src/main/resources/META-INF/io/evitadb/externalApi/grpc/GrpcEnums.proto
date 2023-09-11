@@ -229,6 +229,8 @@ enum GrpcEvitaDataType {
   CURRENCY = 19;
   // Represents UUID data type.
   UUID = 20;
+  // Represents Predecessor data type.
+  PREDECESSOR = 21;
 
   // Represents string array data type.
   STRING_ARRAY = 50;

@@ -144,16 +144,16 @@ public class AttributeIndex implements AttributeIndexContract, TransactionalLaye
 
 	public AttributeIndex(@Nonnull String entityType) {
 		this.entityType = entityType;
-		this.uniqueIndex = new TransactionalMap<>(new HashMap<>());
-		this.filterIndex = new TransactionalMap<>(new HashMap<>());
-		this.sortIndex = new TransactionalMap<>(new HashMap<>());
+		this.uniqueIndex = new TransactionalMap<>(new HashMap<>(), UniqueIndex.class, Function.identity());
+		this.filterIndex = new TransactionalMap<>(new HashMap<>(), FilterIndex.class, Function.identity());
+		this.sortIndex = new TransactionalMap<>(new HashMap<>(), SortIndex.class, Function.identity());
 	}
 
 	public AttributeIndex(@Nonnull String entityType, @Nonnull Map<AttributeKey, UniqueIndex> uniqueIndex, @Nonnull Map<AttributeKey, FilterIndex> filterIndex, @Nonnull Map<AttributeKey, SortIndex> sortIndex) {
 		this.entityType = entityType;
-		this.uniqueIndex = new TransactionalMap<>(uniqueIndex);
-		this.filterIndex = new TransactionalMap<>(filterIndex);
-		this.sortIndex = new TransactionalMap<>(sortIndex);
+		this.uniqueIndex = new TransactionalMap<>(uniqueIndex, UniqueIndex.class, Function.identity());
+		this.filterIndex = new TransactionalMap<>(filterIndex, FilterIndex.class, Function.identity());
+		this.sortIndex = new TransactionalMap<>(sortIndex, SortIndex.class, Function.identity());
 	}
 
 	@Override

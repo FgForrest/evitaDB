@@ -45,6 +45,7 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
+import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.dataType.data.DataItemArray;
 import io.evitadb.dataType.data.DataItemMap;
@@ -192,6 +193,7 @@ public class KryoFactory {
 		kryoInstance.register(Collections.unmodifiableMap(Collections.EMPTY_MAP).getClass(), new MapSerializer<>(count -> Collections.unmodifiableMap(new HashMap<>((int) Math.ceil(count / .75f), .75f))), index++);
 		kryoInstance.register(Collections.emptySet().getClass(), new CollectionsEmptySetSerializer(), index++);
 		kryoInstance.register(Collections.unmodifiableSet(Collections.EMPTY_SET).getClass(), new SetSerializer<>(count -> Collections.unmodifiableSet(new HashSet<>((int) Math.ceil(count / .75f), .75f))), index++);
+		kryoInstance.register(Predecessor.class, new PredecessorSerializer(), index++);
 		Assert.isPremiseValid(index < 200, "Index count overflow.");
 		return kryoInstance;
 	}

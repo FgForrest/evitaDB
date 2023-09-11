@@ -33,7 +33,6 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.facet.FacetGroupIndex.FacetGroupIndexChanges;
 import io.evitadb.index.facet.FacetReferenceIndex.FacetEntityTypeIndexChanges;
-import io.evitadb.index.facet.FacetReferenceIndex.NonTransactionalCopy;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.index.transactionalMemory.TransactionalContainerChanges;
@@ -42,7 +41,6 @@ import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
-import lombok.Data;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -70,7 +68,7 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEntityTypeIndexChanges, NonTransactionalCopy>, IndexDataStructure {
+public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEntityTypeIndexChanges, FacetReferenceIndex>, IndexDataStructure {
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * Contains {@link ReferenceSchema#getName()} of the facets in this index.
@@ -93,7 +91,7 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	public FacetReferenceIndex(@Nonnull String referenceName) {
 		this.referenceName = referenceName;
 		this.notGroupedFacets = new TransactionalReference<>(null);
-		this.groupedFacets = new TransactionalMap<>(new HashMap<>());
+		this.groupedFacets = new TransactionalMap<>(new HashMap<>(), FacetGroupIndex.class, Function.identity());
 		this.facetToGroupIndex = new TransactionalMap<>(new HashMap<>());
 	}
 
@@ -120,34 +118,14 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 
 		this.referenceName = referenceName;
 		this.notGroupedFacets = new TransactionalReference<>(noGroup);
-		this.groupedFacets = new TransactionalMap<>(internalMap);
+		this.groupedFacets = new TransactionalMap<>(internalMap, FacetGroupIndex.class, Function.identity());
 		this.facetToGroupIndex = new TransactionalMap<>(facetToGroup);
 	}
 
-	FacetReferenceIndex(@Nonnull String referenceName, @Nullable Map<Integer, Bitmap> noGroup, @Nonnull Map<Integer, Map<Integer, Bitmap>> groups, Map<Integer, int[]> facetToGroupIndex) {
+	FacetReferenceIndex(@Nonnull String referenceName, @Nullable FacetGroupIndex noGroup, @Nonnull Map<Integer, FacetGroupIndex> groups, Map<Integer, int[]> facetToGroupIndex) {
 		this.referenceName = referenceName;
-		final Function<Map<Integer, Bitmap>, Map<Integer, FacetIdIndex>> facetIdIndexFct = map -> map.entrySet()
-			.stream()
-			.map(it -> new FacetIdIndex(it.getKey(), it.getValue()))
-			.collect(
-				Collectors.toMap(FacetIdIndex::getFacetId, Function.identity())
-			);
-
-		final Map<Integer, FacetGroupIndex> baseGroupMap = new HashMap<>();
-		for (Entry<Integer, Map<Integer, Bitmap>> entry : groups.entrySet()) {
-			final Map<Integer, FacetIdIndex> facetIndexes = facetIdIndexFct.apply(entry.getValue());
-			baseGroupMap.put(
-				entry.getKey(),
-				new FacetGroupIndex(entry.getKey(), facetIndexes)
-			);
-		}
-
-		this.notGroupedFacets = new TransactionalReference<>(
-			ofNullable(noGroup)
-				.map(it -> new FacetGroupIndex(null, facetIdIndexFct.apply(it)))
-				.orElse(null)
-		);
-		this.groupedFacets = new TransactionalMap<>(baseGroupMap);
+		this.notGroupedFacets = new TransactionalReference<>(noGroup);
+		this.groupedFacets = new TransactionalMap<>(groups, FacetGroupIndex.class, Function.identity());
 		this.facetToGroupIndex = new TransactionalMap<>(facetToGroupIndex);
 	}
 
@@ -395,17 +373,15 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	}
 
 	@Nonnull
-	@SuppressWarnings({"unchecked", "rawtypes"})
 	@Override
-	public NonTransactionalCopy createCopyWithMergedTransactionalMemory(@Nullable FacetEntityTypeIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
-		final Map<Integer, Bitmap> noGroupCopy = transactionalLayer.getStateCopyWithCommittedChanges(this.notGroupedFacets, transaction)
+	public FacetReferenceIndex createCopyWithMergedTransactionalMemory(@Nullable FacetEntityTypeIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+		final FacetGroupIndex noGroupCopy = transactionalLayer.getStateCopyWithCommittedChanges(this.notGroupedFacets, transaction)
 			.map(it -> transactionalLayer.getStateCopyWithCommittedChanges(it, transaction))
 			.orElse(null);
-		// this is a HACK - facet id indexes produce IntegerBitmap instead of type than generics would suggest
-		final Map<Integer, Map<Integer, Bitmap>> groupCopy = (Map) transactionalLayer.getStateCopyWithCommittedChanges(this.groupedFacets, transaction);
+		final Map<Integer, FacetGroupIndex> groupCopy = transactionalLayer.getStateCopyWithCommittedChanges(this.groupedFacets, transaction);
 		final Map<Integer, int[]> facetToGroupCopy = transactionalLayer.getStateCopyWithCommittedChanges(this.facetToGroupIndex, transaction);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
-		return new NonTransactionalCopy(noGroupCopy, groupCopy, facetToGroupCopy);
+		return new FacetReferenceIndex(referenceName, noGroupCopy, groupCopy, facetToGroupCopy);
 	}
 
 	@Override
@@ -417,25 +393,11 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 		ofNullable(changes).ifPresent(it -> it.cleanAll(transactionalLayer));
 	}
 
-	@Data
-	public static class NonTransactionalCopy {
-		private Map<Integer, Bitmap> noGroup;
-		private Map<Integer, Map<Integer, Bitmap>> groups;
-		private Map<Integer, int[]> facetToGroupIndex;
-
-		public NonTransactionalCopy(@Nullable Map<Integer, Bitmap> noGroupCopy, @Nonnull Map<Integer, Map<Integer, Bitmap>> groupCopy, Map<Integer, int[]> facetToGroupCopy) {
-			this.noGroup = noGroupCopy;
-			this.groups = groupCopy;
-			this.facetToGroupIndex = facetToGroupCopy;
-		}
-
-	}
-
 	/**
 	 * This class collects changes in {@link #groupedFacets} transactional map and its sub structure.
 	 */
 	public static class FacetEntityTypeIndexChanges {
-		private final TransactionalContainerChanges<FacetGroupIndexChanges, Map<Integer, Bitmap>, FacetGroupIndex> items = new TransactionalContainerChanges<>();
+		private final TransactionalContainerChanges<FacetGroupIndexChanges, FacetGroupIndex, FacetGroupIndex> items = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(FacetGroupIndex baseIndex) {
 			items.addCreatedItem(baseIndex);

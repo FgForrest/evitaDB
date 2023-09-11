@@ -34,6 +34,7 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
+import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.externalApi.dataType.Any;
 import io.evitadb.externalApi.dataType.GenericObject;
@@ -94,6 +95,7 @@ public class DataTypesConverter {
         SCALAR_MAPPINGS.put(Locale.class, LOCALE);
         SCALAR_MAPPINGS.put(Currency.class, CURRENCY);
         SCALAR_MAPPINGS.put(UUID.class, UUID);
+        SCALAR_MAPPINGS.put(Predecessor.class, PREDECESSOR);
         SCALAR_MAPPINGS.put(Any.class, ANY);
         SCALAR_MAPPINGS.put(GenericObject.class, OBJECT);
     }

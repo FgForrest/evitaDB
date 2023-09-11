@@ -21,40 +21,41 @@
  *   limitations under the License.
  */
 
-package io.evitadb.dataType;
+package io.evitadb.store.dataType.serializer;
 
-import java.io.Serializable;
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.Serializer;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
+import com.esotericsoftware.kryo.serializers.ImmutableSerializer;
+import io.evitadb.dataType.Predecessor;
 
 /**
- * Predecessor is a special data type allowing to create consistent or semi-consistent linked lists in evitaDB and sort
- * by the order of the elements in the list.
+ * This {@link Serializer} implementation reads/writes Predecessor type.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public record Predecessor(
-	int predecessorId
-) implements Serializable {
-	public static final Predecessor HEAD = new Predecessor();
-
-	/**
-	 * Head entity constructor.
-	 */
-	public Predecessor() {
-		this(-1);
+public class PredecessorSerializer extends ImmutableSerializer<Predecessor> {
+	{
+		setAcceptsNull(true);
 	}
 
-	/**
-	 * Constructor for successor entity.
-	 *
-	 * @param predecessorId id of the predecessor
-	 */
-	public Predecessor {}
+	@Override
+	public void write (Kryo kryo, Output output, Predecessor object) {
+		if (object == null) {
+			output.writeBoolean(false);
+		} else {
+			output.writeBoolean(true);
+			output.writeInt(object.predecessorId());
+		}
+	}
 
-	/**
-	 * Returns true if this is the head of the list.
-	 * @return true if this is the head of the list
-	 */
-	public boolean isHead() {
-		return predecessorId == -1;
+	@Override
+	public Predecessor read (Kryo kryo, Input input, Class<? extends Predecessor> type) {
+		if (input.readBoolean()) {
+			return new Predecessor(input.readInt());
+		} else {
+			return null;
+		}
 	}
 }

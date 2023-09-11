@@ -195,7 +195,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 
 	@Nullable
 	@Override
-	public Entity readEntity(int entityPrimaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EntitySchema entitySchema, @Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer) {
+	public Entity readEntity(int entityPrimaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EntitySchema entitySchema, @Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer) {
 		if (memTable.isOperative()) {
 			// provide passed schema during deserialization from binary form
 			return EntitySchemaContext.executeWithSchemaContext(entitySchema, () -> {
@@ -222,7 +222,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Function<String, EntityCollection> entityCollectionFetcher,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer
 	) {
 		if (memTable.isOperative()) {
 			// provide passed schema during deserialization from binary form
@@ -257,7 +257,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull AssociatedDataValueSerializablePredicate newAssociatedDataPredicate,
 		@Nonnull ReferenceContractSerializablePredicate newReferenceContractPredicate,
 		@Nonnull PriceContractSerializablePredicate newPricePredicate,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer
 	) {
 		if (memTable.isOperative()) {
 			// provide passed schema during deserialization from binary form
@@ -339,13 +339,13 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 
 	@Nonnull
 	@Override
-	public BinaryEntity enrichEntity(@Nonnull EntitySchema entitySchema, @Nonnull BinaryEntity entity, @Nonnull EvitaRequest evitaRequest, @Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer) throws EntityAlreadyRemovedException {
+	public BinaryEntity enrichEntity(@Nonnull EntitySchema entitySchema, @Nonnull BinaryEntity entity, @Nonnull EvitaRequest evitaRequest, @Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer) throws EntityAlreadyRemovedException {
 		/* TOBEDONE https://github.com/FgForrest/evitaDB/issues/13 */
 		return entity;
 	}
 
 	@Override
-	public EntityIndex readEntityIndex(int entityIndexId, @Nonnull Supplier<EntitySchema> schemaSupplier, @Nonnull Supplier<PriceSuperIndex> temporalIndexAccessor, @Nonnull Supplier<PriceSuperIndex> superIndexAccessor) {
+	public EntityIndex<?> readEntityIndex(int entityIndexId, @Nonnull Supplier<EntitySchema> schemaSupplier, @Nonnull Supplier<PriceSuperIndex> temporalIndexAccessor, @Nonnull Supplier<PriceSuperIndex> superIndexAccessor) {
 		if (memTable.isOperative()) {
 			final EntityIndexStoragePart entityIndexCnt = memTable.get(entityIndexId, EntityIndexStoragePart.class);
 			isPremiseValid(
@@ -451,7 +451,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 * {@link MemTable} and doesn't take transactional memory into an account.
 	 */
 	@Override
-	public @Nonnull Iterator<Entity> entityIterator(@Nonnull EntitySchema entitySchema, @Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer) {
+	public @Nonnull Iterator<Entity> entityIterator(@Nonnull EntitySchema entitySchema, @Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer) {
 		if (memTable.isOperative()) {
 			final EvitaRequest evitaRequest = new EvitaRequest(
 				Query.query(
@@ -495,7 +495,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	@Override
-	public void flushTrappedUpdates(@Nonnull BufferedChangeSet<EntityIndexKey, EntityIndex> bufferedChangeSet) {
+	public void flushTrappedUpdates(@Nonnull BufferedChangeSet<EntityIndexKey, EntityIndex<?>> bufferedChangeSet) {
 		if (memTable.isOperative()) {
 			// now store all entity trapped updates
 			bufferedChangeSet.getTrappedMemTableUpdates()
@@ -607,11 +607,11 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 */
 
 	@Nonnull
-	private Entity toEntity(
+	private static Entity toEntity(
 		@Nonnull EntityBodyStoragePart entityStorageContainer,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer
 	) {
 		final int entityPrimaryKey = entityStorageContainer.getPrimaryKey();
 		// load additional containers only when requested
@@ -652,7 +652,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Function<String, EntityCollection> entityCollectionFetcher,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer
 	) {
 		final EntitySchema entitySchema = EntitySchemaContext.getEntitySchema();
 		final EntityBodyStoragePart deserializedEntityBody = deserialize(
@@ -796,7 +796,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 * Fetches {@link io.evitadb.index.facet.FacetIndex} from the {@link MemTable} and returns it.
 	 */
 	@Nonnull
-	private FacetIndex fetchFacetIndex(int entityIndexId, @Nonnull MemTable memTable, @Nonnull EntityIndexStoragePart entityIndexCnt) {
+	private static FacetIndex fetchFacetIndex(int entityIndexId, @Nonnull MemTable memTable, @Nonnull EntityIndexStoragePart entityIndexCnt) {
 		final FacetIndex facetIndex;
 		final Set<String> facetIndexes = entityIndexCnt.getFacetIndexes();
 		if (facetIndexes.isEmpty()) {
@@ -821,7 +821,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 * Fetches {@link HierarchyIndex} from the {@link MemTable} and returns it.
 	 */
 	@Nonnull
-	private HierarchyIndex fetchHierarchyIndex(int entityIndexId, @Nonnull MemTable memTable, @Nonnull EntityIndexStoragePart entityIndexCnt) {
+	private static HierarchyIndex fetchHierarchyIndex(int entityIndexId, @Nonnull MemTable memTable, @Nonnull EntityIndexStoragePart entityIndexCnt) {
 		final HierarchyIndex hierarchyIndex;
 		if (entityIndexCnt.isHierarchyIndex()) {
 			final HierarchyIndexStoragePart hierarchyIndexStoragePart = memTable.get(entityIndexId, HierarchyIndexStoragePart.class);
@@ -844,7 +844,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	/**
 	 * Fetches {@link SortIndex} from the {@link MemTable} and puts it into the `sortIndexes` key-value index.
 	 */
-	private void fetchSortIndex(int entityIndexId, @Nonnull MemTable memTable, @Nonnull Map<AttributeKey, SortIndex> sortIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
+	private static void fetchSortIndex(int entityIndexId, @Nonnull MemTable memTable, @Nonnull Map<AttributeKey, SortIndex> sortIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
 		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.SORT, attributeIndexKey.attribute(), memTable.getReadOnlyKeyCompressor());
 		final SortIndexStoragePart sortIndexCnt = memTable.get(primaryKey, SortIndexStoragePart.class);
 		isPremiseValid(
@@ -867,7 +867,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	/**
 	 * Fetches {@link FilterIndex} from the {@link MemTable} and puts it into the `filterIndexes` key-value index.
 	 */
-	private void fetchFilterIndex(int entityIndexId, @Nonnull MemTable memTable, @Nonnull Map<AttributeKey, FilterIndex> filterIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
+	private static void fetchFilterIndex(int entityIndexId, @Nonnull MemTable memTable, @Nonnull Map<AttributeKey, FilterIndex> filterIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
 		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.FILTER, attributeIndexKey.attribute(), memTable.getReadOnlyKeyCompressor());
 		final FilterIndexStoragePart filterIndexCnt = memTable.get(primaryKey, FilterIndexStoragePart.class);
 		isPremiseValid(
@@ -887,7 +887,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	/**
 	 * Fetches {@link UniqueIndex} from the {@link MemTable} and puts it into the `uniqueIndexes` key-value index.
 	 */
-	private void fetchUniqueIndex(@Nonnull String entityType, int entityIndexId, @Nonnull MemTable memTable, @Nonnull Map<AttributeKey, UniqueIndex> uniqueIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
+	private static void fetchUniqueIndex(@Nonnull String entityType, int entityIndexId, @Nonnull MemTable memTable, @Nonnull Map<AttributeKey, UniqueIndex> uniqueIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
 		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.UNIQUE, attributeIndexKey.attribute(), memTable.getReadOnlyKeyCompressor());
 		final UniqueIndexStoragePart uniqueIndexCnt = memTable.get(primaryKey, UniqueIndexStoragePart.class);
 		isPremiseValid(
@@ -910,7 +910,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 * Fetches {@link PriceListAndCurrencyPriceSuperIndex price indexes} from the {@link MemTable} and returns key-value
 	 * index of them.
 	 */
-	private Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> fetchPriceSuperIndexes(int entityIndexId, @Nonnull Set<PriceIndexKey> priceIndexes, @Nonnull MemTable memTable) {
+	private static Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> fetchPriceSuperIndexes(int entityIndexId, @Nonnull Set<PriceIndexKey> priceIndexes, @Nonnull MemTable memTable) {
 		final Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> priceSuperIndexes = CollectionUtils.createHashMap(priceIndexes.size());
 		for (PriceIndexKey priceIndexKey : priceIndexes) {
 			final long primaryKey = computeUniquePartId(entityIndexId, priceIndexKey, memTable.getReadOnlyKeyCompressor());
@@ -935,7 +935,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 * Fetches {@link PriceListAndCurrencyPriceRefIndex price indexes} from the {@link MemTable} and returns key-value
 	 * index of them.
 	 */
-	private Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> fetchPriceRefIndexes(int entityIndexId, @Nonnull Set<PriceIndexKey> priceIndexes, @Nonnull MemTable memTable, @Nonnull Supplier<PriceSuperIndex> superIndexAccessor) {
+	private static Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> fetchPriceRefIndexes(int entityIndexId, @Nonnull Set<PriceIndexKey> priceIndexes, @Nonnull MemTable memTable, @Nonnull Supplier<PriceSuperIndex> superIndexAccessor) {
 		final Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceRefIndexes = CollectionUtils.createHashMap(priceIndexes.size());
 		for (PriceIndexKey priceIndexKey : priceIndexes) {
 			final long primaryKey = computeUniquePartId(entityIndexId, priceIndexKey, memTable.getReadOnlyKeyCompressor());
@@ -961,7 +961,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 * Fetches reference container from MemTable if it hasn't been already loaded before.
 	 */
 	@Nullable
-	private <T> T fetchReferences(
+	private static <T> T fetchReferences(
 		@Nullable ReferenceContractSerializablePredicate previousReferenceContractPredicate,
 		@Nonnull ReferenceContractSerializablePredicate newReferenceContractPredicate,
 		@Nonnull Supplier<T> fetcher
@@ -979,7 +979,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 * Fetches prices container from MemTable if it hasn't been already loaded before.
 	 */
 	@Nullable
-	private <T> T fetchPrices(
+	private static <T> T fetchPrices(
 		@Nullable PriceContractSerializablePredicate previousPricePredicate,
 		@Nonnull PriceContractSerializablePredicate newPricePredicate,
 		@Nonnull Supplier<T> fetcher
@@ -996,7 +996,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 * Fetches attributes container from MemTable if it hasn't been already loaded before.
 	 */
 	@Nonnull
-	private <T> List<T> fetchAttributes(
+	private static <T> List<T> fetchAttributes(
 		int entityPrimaryKey,
 		@Nullable AttributeValueSerializablePredicate previousAttributePredicate,
 		@Nonnull AttributeValueSerializablePredicate newAttributePredicate,
@@ -1041,7 +1041,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 * Fetches associated data container(s) from MemTable if it hasn't (they haven't) been already loaded before.
 	 */
 	@Nonnull
-	private <T> List<T> fetchAssociatedData(
+	private static <T> List<T> fetchAssociatedData(
 		int entityPrimaryKey,
 		@Nullable AssociatedDataValueSerializablePredicate previousAssociatedDataValuePredicate,
 		@Nonnull AssociatedDataValueSerializablePredicate newAssociatedDataValuePredicate,

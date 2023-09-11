@@ -49,6 +49,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -234,8 +235,10 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 	private void removePredecessorFromChain(int primaryKey, @Nonnull ChainElementState existingState) {
 		// and then remove it from the chain
 		switch (existingState.state()) {
-			case HEAD -> removeHeadElement(primaryKey);
-			case SUCCESSOR, CIRCULAR -> removeSuccessorElement(primaryKey, existingState.inChainOfHeadWithPrimaryKey());
+			case HEAD -> removeHeadElement(primaryKey)
+				.ifPresent(this::collapseChainsIfPossible);
+			case SUCCESSOR, CIRCULAR -> removeSuccessorElement(primaryKey, existingState.inChainOfHeadWithPrimaryKey())
+				.ifPresent(this::collapseChainsIfPossible);
 			default -> throw new IllegalStateException("Unexpected value: " + existingState.state());
 		}
 	}
@@ -246,7 +249,8 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 	 *
 	 * @param primaryKey primary key of the element
 	 */
-	private void removeHeadElement(int primaryKey) {
+	@Nonnull
+	private OptionalInt removeHeadElement(int primaryKey) {
 		// if the primary key is head of its chain
 		final TransactionalUnorderedIntArray removedChain = this.chains.remove(primaryKey);
 		final int[] head = removedChain.removeRange(0, 1);
@@ -255,13 +259,19 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 			"The head of the chain is expected to be single element with primary key `" + primaryKey + "`!"
 		);
 		// if the chain is not empty
+		final OptionalInt newHead;
 		if (removedChain.getLength() > 0) {
-			this.chains.put(removedChain.get(0), removedChain);
+			newHead = OptionalInt.of(removedChain.get(0));
+			this.chains.put(newHead.getAsInt(), removedChain);
 			// we need to reclassify the chain
-			reclassifyChain(removedChain.get(0), removedChain.getArray());
+			reclassifyChain(newHead.getAsInt(), removedChain.getArray());
+		} else {
+			newHead = OptionalInt.empty();
 		}
 		// if there was transactional memory associated with the chain, discard it
 		removedChain.removeLayer();
+		// return the primary key of a new head
+		return newHead;
 	}
 
 	/**
@@ -271,7 +281,8 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 	 * @param primaryKey primary key of the element
 	 * @param chainHeadPk primary key of the chain head to which the element belongs
 	 */
-	private void removeSuccessorElement(int primaryKey, int chainHeadPk) {
+	@Nonnull
+	private OptionalInt removeSuccessorElement(int primaryKey, int chainHeadPk) {
 		// if the primary key is successor of its chain
 		final TransactionalUnorderedIntArray chain = this.chains.get(chainHeadPk);
 		final int index = chain.indexOf(primaryKey);
@@ -293,12 +304,11 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 				// just remove it from the chain
 				chain.removeRange(index, chain.getLength());
 			}
+			return OptionalInt.of(chainHeadPk);
 		} else {
 			// remove the head element of the chain
-			removeHeadElement(primaryKey);
+			return removeHeadElement(primaryKey);
 		}
-		// collapse the chains that refer to the last element the original chain
-		collapseChainsIfPossible(chainHeadPk);
 	}
 
 	/**

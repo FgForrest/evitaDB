@@ -172,7 +172,11 @@ public class MapChanges<K, V> implements Serializable {
 				registerCreatedKey(key, value);
 			}
 		}
-		removedKeys.remove(key);
+		if (removedKeys.remove(key)) {
+			if (originalValue instanceof TransactionalLayerProducer<?, ?> transactionalLayerProducer) {
+				transactionalLayerProducer.removeLayer();
+			}
+		}
 		return originalValue;
 	}
 
@@ -253,12 +257,12 @@ public class MapChanges<K, V> implements Serializable {
 				}
 				V value = entry.getValue();
 				final boolean wasValueRemoved = wasRemoved && !containsValue(value);
-				if (value instanceof TransactionalLayerProducer) {
+				if (value instanceof TransactionalLayerProducer<?, ?> transactionalLayerProducer) {
 					if (wasValueRemoved) {
-						((TransactionalLayerProducer<?, ?>) value).removeLayer(transactionalLayer);
+						transactionalLayerProducer.removeLayer(transactionalLayer);
 					} else if (!wasRemoved) {
 						value = transactionalLayerWrapper.apply(
-							transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer<?, ?>) value, transaction)
+							transactionalLayer.getStateCopyWithCommittedChanges(transactionalLayerProducer, transaction)
 						);
 					}
 				}

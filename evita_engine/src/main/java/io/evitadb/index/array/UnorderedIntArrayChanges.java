@@ -131,6 +131,9 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 					break;
 				}
 			}
+			if (insertPosition < 0) {
+				return -1;
+			}
 			for (int removal : removals) {
 				if (removal < delegateIndex) {
 					removalsCount++;
@@ -149,27 +152,36 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 			}
 		} else {
 			// record was present in the delegate array - count for removals and insertions
+			boolean wasRemoved = false;
 			for (int removal : removals) {
 				if (removal < delegateIndex) {
 					removalsCount++;
+				} else if (removal == delegateIndex) {
+					wasRemoved = true;
 				} else {
 					break;
 				}
 			}
 			// count insertions
+			boolean wasAdded = false;
 			for (int i = 0; i < insertions.length; i++) {
 				final int insertion = insertions[i];
-				if (insertion <= delegateIndex) {
+				if (insertion <= delegateIndex || wasRemoved) {
 					final UnorderedLookup insertedValue = insertedValues[i];
 					final int position = insertedValue.findPosition(recordId);
 					if (position < 0) {
 						insertsCount += insertedValue.size();
 					} else {
 						insertsCount += position;
+						wasAdded = true;
 					}
 				} else {
 					break;
 				}
+			}
+
+			if (wasRemoved && !wasAdded) {
+				return -1;
 			}
 		}
 		return Math.max(delegateIndex, 0) + insertsCount - removalsCount;

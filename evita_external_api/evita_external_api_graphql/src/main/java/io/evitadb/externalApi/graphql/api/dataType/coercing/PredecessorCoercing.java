@@ -23,38 +23,38 @@
 
 package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
-import graphql.language.StringValue;
+import graphql.language.IntValue;
 import graphql.schema.Coercing;
 import graphql.schema.CoercingParseLiteralException;
 import graphql.schema.CoercingParseValueException;
 import graphql.schema.CoercingSerializeException;
+import io.evitadb.dataType.Predecessor;
 
 import javax.annotation.Nonnull;
-import java.util.UUID;
 
 /**
- * {@link Coercing} for converting between Java's side {@link UUID} and client string.
+ * {@link Coercing} for converting between Java's side {@link Predecessor} and client integer.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class UuidCoercing implements Coercing<UUID, String> {
+public class PredecessorCoercing implements Coercing<Predecessor, Integer> {
 
     @Override
-    public String serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
-        if (!(dataFetcherResult instanceof UUID)) {
-            throw new CoercingSerializeException("UUID data fetcher result is not a UUID.");
+    public Integer serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
+        if (!(dataFetcherResult instanceof Predecessor)) {
+            throw new CoercingSerializeException("Predecessor data fetcher result is not a Predecessor.");
         }
-        return dataFetcherResult.toString();
+        return ((Predecessor)dataFetcherResult).predecessorId();
     }
 
     @Nonnull
     @Override
-    public UUID parseValue(@Nonnull Object input) throws CoercingParseValueException {
-        if (!(input instanceof String)) {
-            throw new CoercingParseValueException("UUID input value is not a string.");
+    public Predecessor parseValue(@Nonnull Object input) throws CoercingParseValueException {
+        if (!(input instanceof Integer)) {
+            throw new CoercingParseValueException("Predecessor input value is not an integer.");
         }
         try {
-            return UUID.fromString((String) input);
+            return new Predecessor((Integer) input);
         } catch (IllegalArgumentException ex) {
             throw new CoercingParseValueException(ex.getMessage(), ex);
         }
@@ -62,12 +62,12 @@ public class UuidCoercing implements Coercing<UUID, String> {
 
     @Nonnull
     @Override
-    public UUID parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
-        if (!(input instanceof StringValue)) {
-            throw new CoercingParseValueException("UUID input value is not a string.");
+    public Predecessor parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
+        if (!(input instanceof IntValue)) {
+            throw new CoercingParseValueException("Predecessor input value is not an integer.");
         }
         try {
-            return UUID.fromString(((StringValue) input).getValue());
+            return new Predecessor(((IntValue) input).getValue().intValueExact());
         } catch (IllegalArgumentException ex) {
             throw new CoercingParseLiteralException(ex.getMessage(), ex);
         }

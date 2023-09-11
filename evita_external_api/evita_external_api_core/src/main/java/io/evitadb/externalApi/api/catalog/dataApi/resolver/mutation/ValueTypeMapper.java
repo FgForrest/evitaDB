@@ -29,6 +29,7 @@ import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
+import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -103,6 +104,7 @@ public class ValueTypeMapper implements Function<Object, Class<? extends Seriali
 		registerTypeMapping(mappings, Currency[].class);
 		registerTypeMapping(mappings, UUID.class);
 		registerTypeMapping(mappings, UUID[].class);
+		registerTypeMapping(mappings, Predecessor.class);
 		registerTypeMapping(mappings, ComplexDataObject.class);
 		VALUE_TYPE_MAPPINGS = Collections.unmodifiableMap(mappings);
 	}
