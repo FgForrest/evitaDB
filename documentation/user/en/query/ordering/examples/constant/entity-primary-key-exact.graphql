@@ -3,13 +3,15 @@
     filterBy: {
       attributeCodeStartsWith: "lenovo"
     },
-    orderBy: {
-      entityPrimaryKeyExact: [
-        104732,
-        104718,
-        105929
-      ]
-    }
+    orderBy: [
+      {
+        entityPrimaryKeyExact: [
+          104732,
+          104718,
+          105929
+        ]
+      }
+    ]
   ) {
     recordPage {
       data {

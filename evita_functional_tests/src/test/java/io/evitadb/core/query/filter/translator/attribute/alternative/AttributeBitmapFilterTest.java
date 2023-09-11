@@ -121,25 +121,30 @@ class AttributeBitmapFilterTest {
 
 	@Test
 	void shouldFilterByNumberBetween() {
+		final long from = 20000L;
+		final long to = 80000L;
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			DataGenerator.ATTRIBUTE_PRIORITY,
 			AttributeContent.ALL_ATTRIBUTES,
 			(entitySchema, attributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
-			attributeSchema -> AttributeBetweenTranslator.getComparablePredicate(25000L, 30000L)
+			attributeSchema -> AttributeBetweenTranslator.getComparablePredicate(from, to)
 		);
 
 		final Bitmap result = filter.filter(
-			createTestFilterByVisitor(filterBy(
-				attributeBetween(DataGenerator.ATTRIBUTE_PRIORITY, 25000, 30000)
-			), filter)
+			createTestFilterByVisitor(
+				filterBy(
+					attributeBetween(DataGenerator.ATTRIBUTE_PRIORITY, from, to)
+				),
+				filter
+			)
 		);
 
 		assertFalse(result.isEmpty());
 		for (int ePK : result.getArray()) {
 			final Long priority = entities.get(ePK).getAttribute(DataGenerator.ATTRIBUTE_PRIORITY);
 			assertNotNull(priority);
-			assertTrue(priority >= 25000L && priority <= 30000L);
+			assertTrue(priority >= from && priority <= to);
 		}
 	}
 

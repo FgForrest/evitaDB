@@ -347,4 +347,5 @@ public abstract class OpenApiConstraintSchemaBuilder
 		//noinspection unchecked
 		return (T) new OpenApiBuildingError(message);
 	}
+
 }

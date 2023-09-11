@@ -87,7 +87,7 @@ public class AbstractHundredProductsFunctionalTest {
 					randomEntityPicker,
 					SEED
 				)
-				.limit(10)
+				.limit(20)
 				.map(session::upsertEntity)
 				.toList();
 

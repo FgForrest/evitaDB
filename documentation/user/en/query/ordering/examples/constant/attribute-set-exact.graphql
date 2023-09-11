@@ -3,13 +3,15 @@
     filterBy: {
       attributeCodeStartsWith: "lenovo"
     },
-    orderBy: {
-      attributeCodeSetExact: [
-        "lenovo-tab-m8-3rd-generation",
-        "lenovo-yoga-tab-13",
-        "lenovo-tab-m10-fhd-plus-3rd-generation-1"
-      ]
-    }
+    orderBy: [
+      {
+        attributeCodeSetExact: [
+          "lenovo-tab-m8-3rd-generation",
+          "lenovo-yoga-tab-13",
+          "lenovo-tab-m10-fhd-plus-3rd-generation-1"
+        ]
+      }
+    ]
   ) {
     recordPage {
       data {

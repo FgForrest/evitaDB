@@ -6,9 +6,11 @@
       ],
       priceInCurrency: EUR
     },
-    orderBy: {
-      priceNatural: DESC
-    }
+    orderBy: [
+      {
+        priceNatural: DESC
+      }
+    ]
   ) {
     recordPage {
       data {

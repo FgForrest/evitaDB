@@ -906,7 +906,7 @@ public class Entity implements SealedEntity {
 						(o, o2) -> {
 							throw new EvitaInvalidUsageException("Sanity check: " + o + ", " + o2);
 						},
-						LinkedHashMap::new
+						TreeMap::new
 					)
 				)
 		);

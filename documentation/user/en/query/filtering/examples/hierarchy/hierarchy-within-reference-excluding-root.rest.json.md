@@ -1,73 +1,73 @@
 ```json
 {
-  "recordPage" : {
-    "data" : [
+  "recordPage": {
+    "data": [
       {
-        "primaryKey" : 113775,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 113775,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "logitech-signature-k650"
+        "attributes": {
+          "global": {
+            "code": "logitech-signature-k650"
           }
         }
       },
       {
-        "primaryKey" : 113781,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 113781,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "logitech-mx-mechanical"
+        "attributes": {
+          "global": {
+            "code": "logitech-mx-mechanical"
           }
         }
       },
       {
-        "primaryKey" : 113805,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 113805,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "logitech-ergo-k860"
+        "attributes": {
+          "global": {
+            "code": "logitech-ergo-k860"
           }
         }
       },
       {
-        "primaryKey" : 113811,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 113811,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "logitech-mx-mechanical-mini-for-mac"
+        "attributes": {
+          "global": {
+            "code": "logitech-mx-mechanical-mini-for-mac"
           }
         }
       }
     ],
-    "type" : "PAGE",
-    "totalRecordCount" : 4,
-    "first" : true,
-    "last" : true,
-    "hasPrevious" : false,
-    "hasNext" : false,
-    "singlePage" : true,
-    "empty" : false,
-    "pageSize" : 20,
-    "pageNumber" : 1,
-    "lastPageNumber" : 1,
-    "firstPageItemNumber" : 0,
-    "lastPageItemNumber" : 4
+    "type": "PAGE",
+    "totalRecordCount": 4,
+    "first": true,
+    "last": true,
+    "hasPrevious": false,
+    "hasNext": false,
+    "singlePage": true,
+    "empty": false,
+    "pageSize": 20,
+    "pageNumber": 1,
+    "lastPageNumber": 1,
+    "firstPageItemNumber": 0,
+    "lastPageItemNumber": 4
   }
 }
 ```

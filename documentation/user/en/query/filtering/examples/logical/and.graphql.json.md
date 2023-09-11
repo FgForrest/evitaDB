@@ -1,11 +1,11 @@
 ```json
 {
-  "data" : {
-    "queryProduct" : {
-      "recordPage" : {
-        "data" : [
+  "data": {
+    "queryProduct": {
+      "recordPage": {
+        "data": [
           {
-            "primaryKey" : 106742
+            "primaryKey": 106742
           }
         ]
       }

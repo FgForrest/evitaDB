@@ -40,6 +40,7 @@ import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.server.configuration.EvitaServerConfiguration;
 import io.evitadb.server.exception.ConfigurationParseException;
 import io.evitadb.server.yaml.AbstractClassDeserializer;
+import io.evitadb.server.yaml.EvitaConstructor;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
@@ -51,6 +52,7 @@ import org.apache.commons.text.io.StringSubstitutorReader;
 import org.apache.commons.text.lookup.StringLookupFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.yaml.snakeyaml.Yaml;
 
 import javax.annotation.Nonnull;
 import java.io.BufferedInputStream;
@@ -65,6 +67,7 @@ import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -290,11 +293,16 @@ public class EvitaServer {
 	 */
 	@Nonnull
 	private EvitaServerConfiguration parseConfiguration(@Nonnull Path configFileLocation, @Nonnull Map<String, String> arguments) throws ConfigurationParseException {
-		final ObjectMapper yaml = new ObjectMapper(new YAMLFactory());
-		yaml.registerModule(createAbstractApiConfigModule());
-		yaml.registerModule(new ParameterNamesModule());
-		yaml.addHandler(new SpecialConfigInputFormatsHandler());
 		final StringSubstitutor stringSubstitutor = createStringSubstitutor(arguments);
+
+		final AtomicReference<Yaml> yamlParser = new AtomicReference<>();
+		yamlParser.set(new Yaml(new EvitaConstructor(yamlParser, stringSubstitutor, configFileLocation)));
+
+		final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+		yamlMapper.registerModule(createAbstractApiConfigModule());
+		yamlMapper.registerModule(new ParameterNamesModule());
+		yamlMapper.addHandler(new SpecialConfigInputFormatsHandler());
+
 		final EvitaServerConfiguration evitaServerConfig;
 		try (
 			final Reader reader = new StringSubstitutorReader(
@@ -308,7 +316,8 @@ public class EvitaServer {
 				stringSubstitutor
 			)
 		) {
-			evitaServerConfig = yaml.readValue(reader, EvitaServerConfiguration.class);
+			final Map<String, Object> parsedYaml = yamlParser.get().load(reader);
+			evitaServerConfig = yamlMapper.convertValue(parsedYaml, EvitaServerConfiguration.class);
 		} catch (IOException e) {
 			throw new ConfigurationParseException(
 				"Failed to parse configuration file `" + configFileLocation + "` due to: " + e.getMessage() + ".",
