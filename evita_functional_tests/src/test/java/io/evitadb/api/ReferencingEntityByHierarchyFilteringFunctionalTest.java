@@ -60,6 +60,7 @@ import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
+import java.text.Collator;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.function.BiFunction;
@@ -501,10 +502,11 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
+				final int selectedCategoryId = 5;
 				final EvitaResponse<EntityReference> result = session.query(
 					query(
 						collection(Entities.PRODUCT),
-						filterBy(hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(7), excludingRoot())),
+						filterBy(hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(selectedCategoryId), excludingRoot())),
 						require(
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
@@ -520,12 +522,12 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						.stream()
 						.anyMatch(category -> {
 							final String categoryId = String.valueOf(category.getReferenceKey().primaryKey());
-							// is not exactly category 7
-							return !Objects.equals(categoryId, String.valueOf(7)) &&
-								// but has parent category 7
+							// is not exactly category 5
+							return !Objects.equals(categoryId, String.valueOf(selectedCategoryId)) &&
+								// but has parent category 5
 								categoryHierarchy.getParentItems(categoryId)
 									.stream()
-									.anyMatch(it -> Objects.equals(it.getCode(), String.valueOf(7)));
+									.anyMatch(it -> Objects.equals(it.getCode(), String.valueOf(selectedCategoryId)));
 						}),
 					result.getRecordData()
 				);
@@ -701,10 +703,14 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
+				final int selectedCategoryId = 1;
 				final EvitaResponse<EntityReference> result = session.query(
 					query(
 						collection(Entities.PRODUCT),
-						filterBy(hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(1))),
+						filterBy(
+							hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(selectedCategoryId)),
+							entityLocaleEquals(CZECH_LOCALE)
+						),
 						require(
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
@@ -1929,7 +1935,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		);
 	}
 
-	@DisplayName("Should return children categories with all statistics except shortcut categories for siblings of category 6")
+	@DisplayName("Should return children categories with all statistics except shortcut categories for siblings of category 16")
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@ParameterizedTest
 	@MethodSource("statisticTypeVariants")
@@ -1979,11 +1985,8 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 					(sealedEntity, parentItems) -> sealedEntity.getLocales().contains(CZECH_LOCALE) &&
 						!sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
 				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
-					final boolean withinCategory1 = Objects.equals(1, sealedEntity.getPrimaryKey()) ||
-						parentItems
-							.stream()
-							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
-					return languagePredicate.test(sealedEntity, parentItems) && withinCategory1;
+					final boolean childOfCategory1 = parentItems.size() == 1 && Objects.equals(1, Integer.parseInt(parentItems.get(0).getCode()));
+					return languagePredicate.test(sealedEntity, parentItems) && childOfCategory1;
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
@@ -2367,6 +2370,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 					return languagePredicate.test(sealedEntity, parentItems) && level <= 2;
 				};
 
+				final Collator collator = Collator.getInstance(CZECH_LOCALE);
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
 					categoryHierarchy, originalProductEntities, originalCategoryIndex,
 					product -> product.getLocales().contains(CZECH_LOCALE),
@@ -2378,7 +2382,11 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							categoryCardinalities, false,
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
 							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
-							Comparator.comparing(o -> o.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE, String.class))
+							(o1, o2) -> {
+								final String name1 = o1.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE, String.class);
+								final String name2 = o2.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE, String.class);
+								return collator.compare(name1, name2);
+							}
 						)
 					)
 				);
