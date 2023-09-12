@@ -30,9 +30,11 @@ import io.evitadb.api.query.descriptor.ConstraintCreator.ClassifierParameterDesc
 import io.evitadb.api.query.descriptor.ConstraintCreator.ParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ValueParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
+import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintKeyBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintProcessingUtils;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintValueStructure;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
@@ -53,6 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
@@ -98,6 +101,7 @@ import java.util.stream.Stream;
 public abstract class ConstraintResolver<C extends Constraint<?>> {
 
 	@Nonnull protected final CatalogSchemaContract catalogSchema;
+	@Nonnull private final ConstraintKeyBuilder keyBuilder;
 	@Nonnull private final ConstraintDescriptorResolver keyParser;
 	@Nonnull private final DataLocatorResolver dataLocatorResolver;
 	/**
@@ -115,6 +119,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 		);
 
 		this.catalogSchema = catalogSchema;
+		this.keyBuilder = new ConstraintKeyBuilder();
 		this.keyParser = new ConstraintDescriptorResolver(catalogSchema, getConstraintType());
 		this.dataLocatorResolver = new DataLocatorResolver(catalogSchema);
 		this.additionalResolvers = additionalResolvers;
@@ -481,15 +486,16 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	                                     @Nonnull ConstraintValueStructure constraintValueStructure,
 	                                     @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
 	                                     @Nullable Object value) {
-		final Object argument = extractChildParameterFromValue(
+		final DataLocator childDataLocator = resolveChildDataLocator(resolveContext, parsedConstraintDescriptor, childParameterDescriptor.domain());
+		final ConstraintResolveContext childResolveContext = resolveContext.switchToChildContext(childDataLocator);
+
+		final ResolvedChildParameterArgument argument = extractChildParameterFromValue(
+			childResolveContext,
 			parsedConstraintDescriptor,
 			value,
 			constraintValueStructure,
 			childParameterDescriptor
 		);
-
-		final DataLocator childDataLocator = resolveChildDataLocator(resolveContext, parsedConstraintDescriptor, childParameterDescriptor.domain());
-		final ConstraintResolveContext childResolveContext = resolveContext.switchToChildContext(childDataLocator);
 		return convertChildParameterArgumentToInstantiationArg(childResolveContext, argument, parsedConstraintDescriptor, childParameterDescriptor);
 	}
 
@@ -497,15 +503,35 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	 * Tries to extract raw argument for children descriptor from client value
 	 */
 	@Nullable
-	private Object extractChildParameterFromValue(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
-                                                  @Nullable Object value,
-                                                  @Nonnull ConstraintValueStructure constraintValueStructure,
-                                                  @Nonnull ChildParameterDescriptor parameterDescriptor) {
-		Object argument;
+	private ResolvedChildParameterArgument extractChildParameterFromValue(@Nonnull ConstraintResolveContext resolveContext,
+	                                                                      @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
+	                                                                      @Nullable Object value,
+	                                                                      @Nonnull ConstraintValueStructure constraintValueStructure,
+	                                                                      @Nonnull ChildParameterDescriptor parameterDescriptor) {
+		String argumentName = parameterDescriptor.name();
+		Object argument = null;
+
 		if (constraintValueStructure == ConstraintValueStructure.WRAPPER_OBJECT) {
-			argument = extractChildArgumentFromWrapperObject(parsedConstraintDescriptor, value, parameterDescriptor);
+			final Class<?> childParameterType = parameterDescriptor.type();
+
+			if (!childParameterType.isArray() && !ClassUtils.isAbstract(childParameterType) && Constraint.class.isAssignableFrom(childParameterType)) {
+				//noinspection unchecked
+				final Set<ConstraintDescriptor> constraints = ConstraintDescriptorProvider.getConstraints((Class<Constraint<?>>) childParameterType);
+				for (ConstraintDescriptor constraint : constraints) {
+					final String expectedConstraintKey = keyBuilder.build(resolveContext, constraint, null);
+					final Object possibleValue = extractChildArgumentFromWrapperObject(parsedConstraintDescriptor, value, expectedConstraintKey);
+					if (possibleValue != null) {
+						argumentName = expectedConstraintKey;
+						argument = possibleValue;
+						break;
+					}
+				}
+			} else {
+				argument = extractChildArgumentFromWrapperObject(parsedConstraintDescriptor, value, parameterDescriptor.name());
+			}
+
 			// we want treat missing arrays as empty arrays for more client convenience
-			if (argument == null && parameterDescriptor.type().isArray()) {
+			if (argument == null && childParameterType.isArray()) {
 				argument = parameterDescriptor.uniqueChildren() ? createEmptyWrapperObject() : createEmptyListObject();
 			}
 
@@ -527,7 +553,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 				"Constraint `" + parsedConstraintDescriptor.originalKey() + "` requires child parameter but value isn't object nor child."
 			);
 		}
-		return argument;
+		return new ResolvedChildParameterArgument(argumentName, argument);
 	}
 
 	/**
@@ -536,8 +562,8 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	@Nullable
 	private Object extractChildArgumentFromWrapperObject(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
                                                          @Nullable Object value,
-                                                         @Nonnull ChildParameterDescriptor parameterDescriptor) {
-		return extractArgumentFromWrapperObject(parsedConstraintDescriptor, value, parameterDescriptor.name());
+                                                         @Nonnull String parameterName) {
+		return extractArgumentFromWrapperObject(parsedConstraintDescriptor, value, parameterName);
 	}
 
 	/**
@@ -547,12 +573,12 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	@SuppressWarnings("unchecked")
 	@Nullable
 	private Object convertChildParameterArgumentToInstantiationArg(@Nonnull ConstraintResolveContext resolveContext,
-	                                                               @Nullable Object argument,
+	                                                               @Nullable ResolvedChildParameterArgument argument,
 	                                                               @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
 	                                                               @Nonnull ChildParameterDescriptor parameterDescriptor) {
+		final Object argumentValue = argument.argument();
 
-
-		if (argument == null) {
+		if (argumentValue == null) {
 			// we can return null if parameter isn't required
 			return null;
 		}
@@ -562,15 +588,15 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 		if (!childParameterType.isArray() && !ClassUtils.isAbstract(childParameterType)) {
 			return resolve(
 				resolveContext,
-				parameterDescriptor.name(),
-				argument
+				argument.name(),
+				argumentValue
 			);
 		}
 
-		if (parameterDescriptor.type().isArray()) {
-			if (argument instanceof Boolean) {
+		if (childParameterType.isArray()) {
+			if (argumentValue instanceof Boolean) {
 				// child containers doesn't have any usable children, therefore placeholder value is used
-				return convertConstraintStreamToSpecificArray((Class<C>) parameterDescriptor.type().getComponentType(), Stream.of());
+				return convertConstraintStreamToSpecificArray((Class<C>) childParameterType.getComponentType(), Stream.of());
 			}
 
 			if (isChildrenUnique(parameterDescriptor)) {
@@ -578,22 +604,22 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 				// inside. But in a constraint constructor, we expect array of concrete unique child constraints without
 				// any wrapping container, thus we need to extract child constraints from the wrapping container
 				return convertConstraintStreamToSpecificArray(
-					(Class<C>) parameterDescriptor.type().getComponentType(),
-					resolveContainerInnerConstraints(resolveContext, parsedConstraintDescriptor, argument)
+					(Class<C>) childParameterType.getComponentType(),
+					resolveContainerInnerConstraints(resolveContext, parsedConstraintDescriptor, argumentValue)
 				);
 			} else {
-				final List<Object> children = convertInputListToJavaList(argument, parsedConstraintDescriptor);
+				final List<Object> children = convertInputListToJavaList(argumentValue, parsedConstraintDescriptor);
 				if (getWrapperContainer().isEmpty()) {
 					// we want to flatten the wrapper container because there is no equivalent constraint to represent
 					// the wrapper container
 					return convertConstraintStreamToSpecificArray(
-						(Class<C>) parameterDescriptor.type().getComponentType(),
+						(Class<C>) childParameterType.getComponentType(),
 						children.stream()
 							.flatMap(ch -> resolveContainerInnerConstraints(resolveContext, parsedConstraintDescriptor, ch))
 					);
 				} else {
 					return convertConstraintStreamToSpecificArray(
-						(Class<C>) parameterDescriptor.type().getComponentType(),
+						(Class<C>) childParameterType.getComponentType(),
 						children.stream()
 							// there is additional wrapper object to be able to handle all constraints inside the container,
 							// but this object is implicit "and" container, therefore we need to resolve it manually to "and"
@@ -603,7 +629,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 				}
 			}
 		} else {
-			if (argument instanceof Boolean) {
+			if (argumentValue instanceof Boolean) {
 				// child container doesn't have any usable children, therefore placeholder value is used
 				Assert.isPremiseValid(
 					!parameterDescriptor.required(),
@@ -617,7 +643,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 			if (isChildrenUnique(parameterDescriptor)) {
 				// if unique children are needed we can't return wrapping container because single concrete container is
 				// expected in constructor args. We need to extract the container from the wrapping container.
-				final List<C> children = resolveContainerInnerConstraints(resolveContext, parsedConstraintDescriptor, argument).toList();
+				final List<C> children = resolveContainerInnerConstraints(resolveContext, parsedConstraintDescriptor, argumentValue).toList();
 				if (children.isEmpty() && parameterDescriptor.required()) {
 					throw createInvalidArgumentException(
 						"Constraint `" + parsedConstraintDescriptor.originalKey() + "` requires parameter `" + parameterDescriptor.name() + "` to be non-empty."
@@ -635,7 +661,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 					getWrapperContainer().isPresent(),
 					() -> createQueryResolvingInternalError("Child is not array but no wrapper container is configured.")
 				);
-				return resolveWrapperContainer(resolveContext, parsedConstraintDescriptor, argument);
+				return resolveWrapperContainer(resolveContext, parsedConstraintDescriptor, argumentValue);
 			}
 		}
 	}
@@ -841,5 +867,15 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 
 	@Nonnull
 	protected abstract <T extends ExternalApiInvalidUsageException>  T createInvalidArgumentException(@Nonnull String message);
+
+	/**
+	 * Holds resolved child argument for conversion to instantiation arg.
+	 * @param name name of child argument, usually parameter name, but can be constraint key with constraint suffix if
+	 *             child constraint has multiple variants
+	 * @param argument actual child argument value to be converted
+	 */
+	private record ResolvedChildParameterArgument(@Nonnull String name,
+	                                              @Nullable Object argument) {
+	}
 
 }

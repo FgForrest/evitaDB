@@ -7,14 +7,14 @@
         "code": "alcatel-3t-10-2020"
       },
       "references": {
-        "categories": [
-          {
-            "referencedKey": 66472
-          }
-        ],
         "brand": [
           {
             "referencedKey": 103887
+          }
+        ],
+        "categories": [
+          {
+            "referencedKey": 66472
           }
         ]
       }

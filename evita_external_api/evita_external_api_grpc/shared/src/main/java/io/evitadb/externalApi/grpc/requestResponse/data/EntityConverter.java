@@ -569,12 +569,6 @@ public class EntityConverter {
 		@Nonnull Map<String, GrpcLocalizedAttribute> localizedAttributesMap
 	) {
 		final List<AttributeValue> result = new ArrayList<>(globalAttributesMap.size() + localizedAttributesMap.size());
-		for (Entry<String, GrpcEvitaValue> entry : globalAttributesMap.entrySet()) {
-			final String attributeName = entry.getKey();
-			result.add(
-				toAttributeValue(new AttributeKey(attributeName), entry.getValue())
-			);
-		}
 		for (Entry<String, GrpcLocalizedAttribute> entry : localizedAttributesMap.entrySet()) {
 			final Locale locale = Locale.forLanguageTag(entry.getKey());
 			final GrpcLocalizedAttribute localizedAttributeSet = entry.getValue();
@@ -586,6 +580,12 @@ public class EntityConverter {
 					)
 				);
 			}
+		}
+		for (Entry<String, GrpcEvitaValue> entry : globalAttributesMap.entrySet()) {
+			final String attributeName = entry.getKey();
+			result.add(
+					toAttributeValue(new AttributeKey(attributeName), entry.getValue())
+			);
 		}
 		return result;
 	}
@@ -614,15 +614,6 @@ public class EntityConverter {
 		@Nonnull Map<String, GrpcLocalizedAssociatedData> localizedAssociatedDataMap
 	) {
 		final List<AssociatedDataValue> result = new ArrayList<>(globalAssociatedDataMap.size() + localizedAssociatedDataMap.size());
-		for (Entry<String, GrpcEvitaAssociatedDataValue> entry : globalAssociatedDataMap.entrySet()) {
-			final String associatedDataName = entry.getKey();
-			result.add(
-				toAssociatedDataValue(
-					new AssociatedDataKey(associatedDataName),
-					entry.getValue()
-				)
-			);
-		}
 		for (Entry<String, GrpcLocalizedAssociatedData> entry : localizedAssociatedDataMap.entrySet()) {
 			final Locale locale = Locale.forLanguageTag(entry.getKey());
 			final GrpcLocalizedAssociatedData localizedAssociatedDataSet = entry.getValue();
@@ -634,6 +625,15 @@ public class EntityConverter {
 					)
 				);
 			}
+		}
+		for (Entry<String, GrpcEvitaAssociatedDataValue> entry : globalAssociatedDataMap.entrySet()) {
+			final String associatedDataName = entry.getKey();
+			result.add(
+					toAssociatedDataValue(
+							new AssociatedDataKey(associatedDataName),
+							entry.getValue()
+					)
+			);
 		}
 		return result;
 	}

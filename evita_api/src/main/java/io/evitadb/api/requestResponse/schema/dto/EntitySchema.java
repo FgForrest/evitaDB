@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.ComparatorUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -379,15 +380,19 @@ public final class EntitySchema implements EntitySchemaContract {
 		this.withHierarchy = withHierarchy;
 		this.withPrice = withPrice;
 		this.indexedPricePlaces = indexedPricePlaces;
-		this.locales = Collections.unmodifiableSet(locales);
-		this.currencies = Collections.unmodifiableSet(currencies);
+		this.locales = Collections.unmodifiableSet(locales.stream().collect(Collectors.toCollection(() -> new TreeSet<>(ComparatorUtils.localeComparator()))));
+		this.currencies = Collections.unmodifiableSet(currencies.stream().collect(Collectors.toCollection(() -> new TreeSet<>(ComparatorUtils.currencyComparator()))));
 		this.attributes = Collections.unmodifiableMap(
 			attributes.entrySet()
 				.stream()
 				.collect(
 					Collectors.toMap(
 						Entry::getKey,
-						it -> toAttributeSchema(it.getValue())
+						it -> toAttributeSchema(it.getValue()),
+						(a, b) -> {
+							throw new IllegalStateException("Duplicate key " + a);
+						},
+						TreeMap::new
 					)
 				)
 		);
@@ -398,7 +403,11 @@ public final class EntitySchema implements EntitySchemaContract {
 				.collect(
 					Collectors.toMap(
 						Entry::getKey,
-						it -> toAssociatedDataSchema(it.getValue())
+						it -> toAssociatedDataSchema(it.getValue()),
+						(a, b) -> {
+							throw new IllegalStateException("Duplicate key " + a);
+						},
+						TreeMap::new
 					)
 				)
 		);
@@ -409,7 +418,11 @@ public final class EntitySchema implements EntitySchemaContract {
 				.collect(
 					Collectors.toMap(
 						Entry::getKey,
-						it -> toReferenceSchema(it.getValue())
+						it -> toReferenceSchema(it.getValue()),
+						(a, b) -> {
+							throw new IllegalStateException("Duplicate key " + a);
+						},
+						TreeMap::new
 					)
 				)
 		);
@@ -522,7 +535,7 @@ public final class EntitySchema implements EntitySchemaContract {
 	@Override
 	public ReferenceSchema getReferenceOrThrowException(@Nonnull String referenceName) {
 		return getReference(referenceName)
-			.map(it -> (ReferenceSchema)it)
+			.map(it -> (ReferenceSchema) it)
 			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, this));
 	}
 
@@ -636,7 +649,7 @@ public final class EntitySchema implements EntitySchemaContract {
 	/**
 	 * Helper DTO to envelope relation between {@link AttributeElement} and {@link SortableAttributeCompoundSchemaContract}.
 	 *
-	 * @param attribute {@link SortableAttributeCompoundSchemaContract#getAttributeElements()} item
+	 * @param attribute      {@link SortableAttributeCompoundSchemaContract#getAttributeElements()} item
 	 * @param compoundSchema {@link SortableAttributeCompoundSchemaContract} enveloping compound
 	 */
 	private record AttributeToCompound(

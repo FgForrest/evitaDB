@@ -1,0 +1,16 @@
+EvitaResponse<ISealedEntity> entities = evita.QueryCatalog(
+	"evita",
+	session => session.QuerySealedEntity(
+        Query(
+        	Collection("Category"),
+        	FilterBy(
+        		AttributeEquals("code", "smartwatches")
+        	),
+        	Require(
+        		EntityFetch(
+        			HierarchyContent()
+        		)
+        	)
+        )
+	)
+);

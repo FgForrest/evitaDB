@@ -46,7 +46,7 @@ To sort products by the number of their sales (the best-selling products first),
 ##### List of products sorted by number attribute
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[List of products sorted by number attribute](/documentation/user/en/query/ordering/examples/natural/attribute-natural-non-localized.evitaql.md)</MDInclude>
 
@@ -84,7 +84,7 @@ order the localized attribute string, so that the order is consistent with the n
 ##### List of products sorted by localized attribute
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[List of products sorted by localized attribute](/documentation/user/en/query/ordering/examples/natural/attribute-natural-localized.evitaql.md)</MDInclude>
 
@@ -121,7 +121,7 @@ attribute, they are not sorted by the second attribute, but by the primary key (
 ##### List of products sorted by multiple attributes
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[List of products sorted by multiple attributes](/documentation/user/en/query/ordering/examples/natural/attribute-natural-multiple.evitaql.md)</MDInclude>
 

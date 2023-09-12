@@ -7,9 +7,11 @@
         "lenovo-thinkpad-p14s-5"
       ]
     },
-    orderBy: {
-      attributeCodeSetInFilter: true
-    }
+    orderBy: [
+      {
+        attributeCodeSetInFilter: true
+      }
+    ]
   ) {
     recordPage {
       data {

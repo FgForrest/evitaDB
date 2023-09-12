@@ -1,9 +1,9 @@
 ```json
 {
-  "data" : {
-    "queryProduct" : {
-      "recordPage" : {
-        "data" : [ ]
+  "data": {
+    "queryProduct": {
+      "recordPage": {
+        "data": [ ]
       }
     }
   }

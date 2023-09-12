@@ -4,8 +4,6 @@ package io.evitadb.externalApi.grpc.generated;
 option java_multiple_files = true;
 option csharp_namespace = "EvitaDB";
 
-import "google/protobuf/wrappers.proto";
-
 // This mutation allows to set `parent` in the `entity`.
 message GrpcSetParentMutation {
   // Optional new primary key of parent entity. If null, this entity is at the root of hierarchy.
