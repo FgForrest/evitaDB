@@ -10,15 +10,7 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 				require(
 					entityFetch(
 						attributeContent("code"),
-						referenceContentAllWithAttributes(
-							attributeContentAll(),
-							entityFetch(
-								attributeContent("code")
-							),
-							entityGroupFetch(
-								attributeContent("code")
-							)
-						)
+						referenceContentAllWithAttributes()
 					)
 				)
 			)

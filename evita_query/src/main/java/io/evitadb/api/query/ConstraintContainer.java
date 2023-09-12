@@ -108,6 +108,17 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 	}
 
 	/**
+	 * Returns array of query children without implicit children.
+	 */
+	@Nonnull
+	public T[] getExplicitChildren() {
+		//noinspection unchecked
+		return Arrays.stream(getChildren())
+			.filter(it -> !(this instanceof ConstraintContainerWithSuffix ccws) || !ccws.isChildImplicitForSuffix(it))
+			.toArray(size -> (T[]) Array.newInstance(getType(), size));
+	}
+
+	/**
 	 * Returns count of query children.
 	 */
 	public int getChildrenCount() {
@@ -133,6 +144,16 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 	@Nonnull
 	public Constraint<?>[] getAdditionalChildren() {
 		return additionalChildren;
+	}
+
+	/**
+	 * Returns array of query children, possibly without implicit children.
+	 */
+	@Nonnull
+	public Constraint<?>[] getExplicitAdditionalChildren() {
+		return Arrays.stream(getAdditionalChildren())
+			.filter(it -> !(this instanceof ConstraintContainerWithSuffix ccws) || !ccws.isAdditionalChildImplicitForSuffix(it))
+			.toArray(Constraint[]::new);
 	}
 
 	/**
@@ -178,7 +199,7 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 						.filter(it -> !(this instanceof ConstraintContainerWithSuffix ccws) || !ccws.isChildImplicitForSuffix(it))
 						.map(Constraint::toString),
 					Arrays.stream(children)
-						.filter(it -> !(this instanceof ConstraintContainerWithSuffix ccws) || !ccws.isChildImplicitForSuffix(it))
+						.filter(it -> !(this instanceof ConstraintContainerWithSuffix ccws) || !ccws.isAdditionalChildImplicitForSuffix(it))
 						.map(Constraint::toString)
 				)
 				.flatMap(it -> it)

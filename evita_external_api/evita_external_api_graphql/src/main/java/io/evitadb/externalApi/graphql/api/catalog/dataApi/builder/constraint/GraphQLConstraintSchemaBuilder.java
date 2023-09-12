@@ -68,6 +68,7 @@ import static graphql.schema.GraphQLNonNull.nonNull;
 import static graphql.schema.GraphQLTypeReference.typeRef;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.CURRENCY_ENUM;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.LOCALE_ENUM;
+import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 
 /**
  * Implementation of {@link ConstraintSchemaBuilder} for GraphQL API.
@@ -204,43 +205,47 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 
 	@Nonnull
 	@Override
-	protected GraphQLInputType buildChildConstraintValue(@Nonnull ConstraintBuildContext buildContext,
-	                                                     @Nonnull ChildParameterDescriptor childParameter) {
+	protected Map<String, GraphQLInputType> buildChildConstraintValue(@Nonnull ConstraintBuildContext buildContext,
+	                                                                  @Nonnull ChildParameterDescriptor childParameter) {
 		final DataLocator childDataLocator = resolveChildDataLocator(buildContext, childParameter.domain());
 		final ConstraintBuildContext childBuildContext = buildContext.switchToChildContext(childDataLocator);
-		final GraphQLInputType childType;
+		final Map<String, GraphQLInputType> childTypes = createLinkedHashMap(1);
 
 		final Class<?> childParameterType = childParameter.type();
 		if (!childParameterType.isArray() && !ClassUtils.isAbstract(childParameterType)) {
 			//noinspection unchecked
-			final ConstraintDescriptor childConstraintDescriptor = ConstraintDescriptorProvider.getConstraints(
-				(Class<? extends Constraint<?>>) childParameterType
-			).iterator().next(); // todo lho https://github.com/FgForrest/evitaDB/issues/158
+			ConstraintDescriptorProvider.getConstraints((Class<? extends Constraint<?>>) childParameterType)
+				.forEach(childConstraintDescriptor -> {
+					final String key = keyBuilder.build(buildContext, childConstraintDescriptor, null);
 
-			// we need switch child domain again manually based on property type of the child constraint because there
-			// is no intermediate wrapper container that would do it for us (while generating all possible constraint for that container)
-			final DataLocator childConstraintDataLocator = resolveChildDataLocator(
-				buildContext,
-				ConstraintProcessingUtils.getDomainForPropertyType(childConstraintDescriptor.propertyType())
-			);
-			childType = build(
-				childBuildContext.switchToChildContext(childConstraintDataLocator),
-				childConstraintDescriptor
-			);
+					// we need switch child domain again manually based on property type of the child constraint because there
+					// is no intermediate wrapper container that would do it for us (while generating all possible constraint for that container)
+					final DataLocator childConstraintDataLocator = resolveChildDataLocator(
+						buildContext,
+						ConstraintProcessingUtils.getDomainForPropertyType(childConstraintDescriptor.propertyType())
+					);
+					childTypes.put(
+						key,
+						build(
+							childBuildContext.switchToChildContext(childConstraintDataLocator),
+							childConstraintDescriptor
+						)
+					);
+				});
 		} else {
-			childType = obtainContainer(childBuildContext, childParameter);
-		}
-
-		if (childType.equals(GraphQLScalars.BOOLEAN)) {
-			// child container didn't have any usable children, but we want to have at least marker constraint, thus boolean value was used instead
-			return childType;
-		} else {
-			if (childParameter.type().isArray() && !childParameter.uniqueChildren()) {
-				return list(nonNull(childType));
+			final GraphQLInputType childType = obtainContainer(childBuildContext, childParameter);
+			if (childType.equals(GraphQLScalars.BOOLEAN)) {
+				// child container didn't have any usable children, but we want to have at least marker constraint, thus boolean value was used instead
+				childTypes.put(SINGLE_CHILD_CONSTRAINT_KEY, childType);
 			} else {
-				return childType;
+				if (childParameter.type().isArray() && !childParameter.uniqueChildren()) {
+					childTypes.put(SINGLE_CHILD_CONSTRAINT_KEY, list(nonNull(childType)));
+				} else {
+					childTypes.put(SINGLE_CHILD_CONSTRAINT_KEY, childType);
+				}
 			}
 		}
+		return childTypes;
 	}
 
 	@Nonnull
@@ -272,16 +277,38 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 
 		// build children values
 		childParameters.forEach(childParameter -> {
-			GraphQLInputType nestedChildConstraintValue = buildChildConstraintValue(buildContext, childParameter);
-			if (childParameter.required() &&
-				!childParameter.type().isArray() // we want treat missing arrays as empty arrays for more client convenience
-			) {
-				nestedChildConstraintValue = nonNull(nestedChildConstraintValue);
-			}
+			final Map<String, GraphQLInputType> nestedChildConstraints = buildChildConstraintValue(buildContext, childParameter);
+			if (nestedChildConstraints.size() == 1) {
+				GraphQLInputType nestedChildConstraintValue = nestedChildConstraints.values().iterator().next();
+				if (childParameter.required() &&
+					!childParameter.type().isArray() // we want treat missing arrays as empty arrays for more client convenience
+				) {
+					nestedChildConstraintValue = nonNull(nestedChildConstraintValue);
+				}
 
-			wrapperObjectBuilder.field(newInputObjectField()
-				.name(childParameter.name())
-				.type(nestedChildConstraintValue));
+				wrapperObjectBuilder.field(newInputObjectField()
+					.name(childParameter.name())
+					.type(nestedChildConstraintValue));
+			} else {
+				nestedChildConstraints
+					.entrySet()
+					.forEach(nestedChildConstraint -> {
+						final String key = nestedChildConstraint.getKey();
+						Assert.isPremiseValid(
+							!key.equals(SINGLE_CHILD_CONSTRAINT_KEY),
+							() -> createSchemaBuildingError("Multiple nested child constraint variants but missing proper key.")
+						);
+
+						if (childParameter.required() &&
+							!childParameter.type().isArray() // we want treat missing arrays as empty arrays for more client convenience
+						) {
+							nestedChildConstraint.setValue(nonNull(nestedChildConstraint.getValue()));
+						}
+						wrapperObjectBuilder.field(newInputObjectField()
+							.name(key)
+							.type(nestedChildConstraint.getValue()));
+					});
+			}
 		});
 
 		// build additional child value

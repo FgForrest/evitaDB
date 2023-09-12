@@ -25,6 +25,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.BeforeEach;
@@ -87,6 +88,50 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 					.e("node", map()
 						.e("filterBy", map()
 							.e("entityPrimaryKeyInSet", List.of(1))))
+					.build()
+			)
+		);
+	}
+
+	@Test
+	void shouldResolveRequireConstraintWithSuffixedConstraintCreator() {
+		assertEquals(
+			require(
+				entityFetch(
+					referenceContentAllWithAttributes(
+						attributeContent("NAME")
+					)
+				)
+			),
+			resolver.resolve(
+				null,
+				new GenericDataLocator(Entities.PRODUCT),
+				"require",
+				map()
+					.e("entityFetch", map()
+						.e("referenceContentAllWithAttributes", map()
+							.e("attributeContent", List.of("NAME"))))
+					.build()
+			)
+		);
+
+		assertEquals(
+			require(
+				entityFetch(
+					referenceContentWithAttributes(
+						"CATEGORY",
+						attributeContentAll()
+					)
+				)
+			),
+			resolver.resolve(
+				null,
+				new GenericDataLocator(Entities.PRODUCT),
+				"require",
+				map()
+					.e("entityFetch", map()
+						.e("referenceCategoryContentWithAttributes", map()
+							.e("attributeContentAll", true)))
 					.build()
 			)
 		);

@@ -6,14 +6,7 @@ query(
     require(
         entityFetch(
             attributeContent('code'),
-            referenceContentAllWithAttributes(
-                entityFetch(
-                    attributeContent('code')
-                ),
-                entityGroupFetch(
-                    attributeContent('code')
-                )
-            )
+            referenceContentAllWithAttributes()
         )
     )
 )
