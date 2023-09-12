@@ -66,7 +66,7 @@ Returns exactly one product with *code* equal to *apple-iphone-13-pro-3*.
 ##### Product found by a `code` attribute
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Product with `code` attribute equal to `apple-iphone-13-pro-3`](/documentation/user/en/query/filtering/examples/comparable/attribute-equals.evitaql.md)</MDInclude>
 
@@ -125,7 +125,7 @@ Returns exactly several products with *battery-life* greater than *40* hours.
 ##### Products with `battery-life` attribute greater than 40 hours
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Products with `battery-life` attribute greater than 40 hours](/documentation/user/en/query/filtering/examples/comparable/attribute-greater-than.evitaql.md)</MDInclude>
 
@@ -185,7 +185,7 @@ Returns exactly several products with *battery-life* greater than or equal to *4
 ##### Products with `battery-life` attribute greater than or equal to 40 hours
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Products with `battery-life` attribute greater than or equal to 40 hours](/documentation/user/en/query/filtering/examples/comparable/attribute-greater-than-equals.evitaql.md)</MDInclude>
 
@@ -244,7 +244,7 @@ Returns exactly several products with *battery-capacity* less than *125* mWH.
 ##### Products with `battery-capacity` attribute less than 125 mWH
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Products with `battery-life` attribute less than 125 mWH](/documentation/user/en/query/filtering/examples/comparable/attribute-less-than.evitaql.md)</MDInclude>
 
@@ -303,7 +303,7 @@ Returns exactly several products with *battery-capacity* less than or equal to *
 ##### Products with `battery-capacity` attribute less than or equal to 125 mWH
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Products with `battery-life` attribute less than or equal to 125 mWH](/documentation/user/en/query/filtering/examples/comparable/attribute-less-than-equals.evitaql.md)</MDInclude>
 
@@ -369,7 +369,7 @@ Returns exactly several products with *battery-capacity* between *125* and *160*
 ##### Products with `battery-capacity` attribute is between 125 mWH and 160 mWH
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Products with `battery-life` attribute less than or equal to 125 mWH](/documentation/user/en/query/filtering/examples/comparable/attribute-between.evitaql.md)</MDInclude>
 
@@ -428,7 +428,7 @@ in the database and is missing in the result.
 ##### Product found by a `code` attribute in given set
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Product found by a `code` attribute in given set](/documentation/user/en/query/filtering/examples/comparable/attribute-in-set.evitaql.md)</MDInclude>
 
@@ -482,7 +482,7 @@ Returns hundreds of products with the *catalogNumber* attribute set.
 ##### Products with `catalogNumber` present
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Product with `catalogNumber` attribute present](/documentation/user/en/query/filtering/examples/comparable/attribute-is-not-null.evitaql.md)</MDInclude>
 
@@ -518,7 +518,7 @@ When you try to list products without such attribute:
 ##### Products with `catalog-number` missing
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Product with `catalog-number` attribute missing](/documentation/user/en/query/filtering/examples/comparable/attribute-is-null.evitaql.md)</MDInclude>
 

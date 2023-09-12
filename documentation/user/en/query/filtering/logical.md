@@ -72,7 +72,7 @@ The following query:
 ##### List of all products matching conjunction filter
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Logical conjunction example result](/documentation/user/en/query/filtering/examples/logical/and.evitaql.md)</MDInclude>
 
@@ -133,7 +133,7 @@ The following query:
 ##### List of all products matching disjunction filter
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Logical disjunction example result](/documentation/user/en/query/filtering/examples/logical/or.evitaql.md)</MDInclude>
 
@@ -192,7 +192,7 @@ The following query:
 ##### List of all products matching negation filter
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Logical negation example result](/documentation/user/en/query/filtering/examples/logical/not.evitaql.md)</MDInclude>
 
@@ -228,7 +228,7 @@ Because this situation is hard to visualize - let's narrow our super set to only
 ##### List of all products matching negation filter (narrowed)
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Logical negation example result (narrowed)](/documentation/user/en/query/filtering/examples/logical/not-narrowed.evitaql.md)</MDInclude>
 
