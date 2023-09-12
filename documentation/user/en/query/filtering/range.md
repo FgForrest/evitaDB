@@ -53,7 +53,7 @@ products that have no date/time range attribute at all.
 ##### Products valid for December '23
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Products valid for December '23](/documentation/user/en/query/filtering/examples/range/attribute-in-range.evitaql.md)</MDInclude>
 
