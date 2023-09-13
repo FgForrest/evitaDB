@@ -52,9 +52,11 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.core.query.algebra.prefetch.SelectionFormula.doWithCustomPrefetchCostEstimator;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
@@ -70,10 +72,8 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
 public class EntityByChainOrderingFunctionalTest {
-	private static final String CHAINED_ELEMENTS = "chained-elements";
-
 	public static final String ATTRIBUTE_ORDER = "order";
-
+	private static final String CHAINED_ELEMENTS = "chained-elements";
 	private static final int SEED = 40;
 
 	private final static int PRODUCT_COUNT = 30;
@@ -126,7 +126,9 @@ public class EntityByChainOrderingFunctionalTest {
 							}
 						}
 					),
-					(s, faker) -> { throw new UnsupportedOperationException(); },
+					(s, faker) -> {
+						throw new UnsupportedOperationException();
+					},
 					SEED
 				)
 				.limit(PRODUCT_COUNT)
@@ -198,6 +200,82 @@ public class EntityByChainOrderingFunctionalTest {
 					Arrays.stream(ArrayUtils.reverse(PRODUCT_ORDER)).skip(10).limit(10).toArray()
 				);
 				return null;
+			}
+		);
+	}
+
+	@DisplayName("The prefetched product should be returned in ascending order")
+	@UseDataSet(CHAINED_ELEMENTS)
+	@Test
+	void shouldSortPrefetchedProductsByPredecessorAttributeInAscendingOrder(Evita evita) {
+		final AtomicInteger counter = new AtomicInteger();
+		final int[] prefetchedProducts = IntStream.generate(counter::incrementAndGet).limit(10).toArray();
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return doWithCustomPrefetchCostEstimator(() -> {
+						final EvitaResponse<EntityReference> result = session.query(
+							query(
+								collection(Entities.PRODUCT),
+								filterBy(
+									entityPrimaryKeyInSet(prefetchedProducts)
+								),
+								orderBy(
+									attributeNatural(ATTRIBUTE_ORDER, OrderDirection.ASC)
+								),
+								require(
+									page(2, 10),
+									debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+								)
+							),
+							EntityReference.class
+						);
+						AssertionUtils.assertSortedResultEquals(
+							result.getRecordData().stream().map(EntityReference::getPrimaryKey).toList(),
+							Arrays.stream(PRODUCT_ORDER).filter(it -> Arrays.stream(prefetchedProducts).anyMatch(pid -> pid == it)).toArray()
+						);
+						return null;
+					},
+					(prefetchedEntityCount, requirementCount) -> Long.MIN_VALUE
+				);
+			}
+		);
+	}
+
+	@DisplayName("The prefetched product should be returned in descending order")
+	@UseDataSet(CHAINED_ELEMENTS)
+	@Test
+	void shouldSortPrefetchedProductsByPredecessorAttributeInDescendingOrder(Evita evita) {
+		final AtomicInteger counter = new AtomicInteger();
+		final int[] prefetchedProducts = IntStream.generate(counter::incrementAndGet).limit(10).toArray();
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return doWithCustomPrefetchCostEstimator(() -> {
+						final EvitaResponse<EntityReference> result = session.query(
+							query(
+								collection(Entities.PRODUCT),
+								filterBy(
+									entityPrimaryKeyInSet(prefetchedProducts)
+								),
+								orderBy(
+									attributeNatural(ATTRIBUTE_ORDER, OrderDirection.DESC)
+								),
+								require(
+									page(2, 10),
+									debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+								)
+							),
+							EntityReference.class
+						);
+						AssertionUtils.assertSortedResultEquals(
+							result.getRecordData().stream().map(EntityReference::getPrimaryKey).toList(),
+							Arrays.stream(ArrayUtils.reverse(PRODUCT_ORDER)).filter(it -> Arrays.stream(prefetchedProducts).anyMatch(pid -> pid == it)).toArray()
+						);
+						return null;
+					},
+					(prefetchedEntityCount, requirementCount) -> Long.MIN_VALUE
+				);
 			}
 		);
 	}

@@ -75,8 +75,10 @@ public class AttributeNaturalTranslator
 		final EntityIndex<?>[] indexesForSort = orderByVisitor.getIndexesForSort();
 		final NamedSchemaContract attributeOrCompoundSchema = processingScope.getAttributeSchemaOrSortableAttributeCompound(attributeName);
 
+		final Function<ChainIndex, SortedRecordsProvider> chainIndexSupplier;
 		final Comparator<Comparable<?>> comparator;
 		if (orderDirection == ASC) {
+			chainIndexSupplier = ChainIndex::getAscendingOrderRecordsSupplier;
 			sortedRecordsSupplier = new AttributeSortedRecordsProviderSupplier(
 				SortIndex::getAscendingOrderRecordsSupplier,
 				ChainIndex::getAscendingOrderRecordsSupplier,
@@ -87,6 +89,7 @@ public class AttributeNaturalTranslator
 			//noinspection unchecked,rawtypes
 			comparator = (o1, o2) -> ((Comparable) o1).compareTo(o2);
 		} else {
+			chainIndexSupplier = ChainIndex::getDescendingOrderRecordsSupplier;
 			sortedRecordsSupplier = new AttributeSortedRecordsProviderSupplier(
 				SortIndex::getDescendingOrderRecordsSupplier,
 				ChainIndex::getDescendingOrderRecordsSupplier,
@@ -102,11 +105,10 @@ public class AttributeNaturalTranslator
 		if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema &&
 			Predecessor.class.equals(attributeSchema.getPlainType())) {
 			// we cannot use attribute comparator for predecessor attributes, we always need index here
-			entityComparator = null;
+			entityComparator = new PredecessorAttributeComparator(sortedRecordsSupplier);
 		} else {
 			entityComparator = new AttributeComparator(
-				attributeName, locale, attributeSchemaEntityAccessor,
-				comparator
+				attributeName, locale, attributeSchemaEntityAccessor, comparator
 			);
 		}
 
@@ -117,9 +119,7 @@ public class AttributeNaturalTranslator
 			processingScope.entityType(), sortedRecordsSupplier
 		);
 
-		return entityComparator == null ?
-			Stream.of(preSortedRecordsSorter) :
-			Stream.of(
+		return Stream.of(
 				new PrefetchedRecordsSorter(entityComparator),
 				preSortedRecordsSorter
 			);
