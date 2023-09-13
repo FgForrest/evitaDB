@@ -201,6 +201,27 @@ public interface AttributeIndexContract {
 	SortIndex getSortIndex(@Nonnull String attributeName, @Nullable Locale locale);
 
 	/**
+	 * Returns collection of all chain indexes in this {@link AttributeIndex} instance.
+	 */
+	@Nonnull
+	Set<AttributeKey> getChainIndexes();
+
+	/**
+	 * Returns {@link ChainIndex} for passed lookup key.
+	 */
+	@Nullable
+	ChainIndex getChainIndex(@Nonnull AttributeKey lookupKey);
+
+	/**
+	 * Returns index that maintains chainable attributes for records in the index.
+	 *
+	 * @param locale might not be passed for language agnostic attributes
+	 * @return NULL value when there is no chain index associated with this `attributeName`
+	 */
+	@Nullable
+	ChainIndex getChainIndex(@Nonnull String attributeName, @Nullable Locale locale);
+
+	/**
 	 * Returns true when this index contains no data and may be safely purged.
 	 */
 	boolean isAttributeIndexEmpty();

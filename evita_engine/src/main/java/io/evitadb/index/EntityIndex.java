@@ -527,7 +527,8 @@ public abstract class EntityIndex<T extends EntityIndex<T>> implements
 		return Stream.of(
 				attributeIndex.getUniqueIndexes().stream().map(it -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.UNIQUE, it)),
 				attributeIndex.getFilterIndexes().stream().map(it -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.FILTER, it)),
-				attributeIndex.getSortIndexes().stream().map(it -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.SORT, it))
+				attributeIndex.getSortIndexes().stream().map(it -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.SORT, it)),
+				attributeIndex.getChainIndexes().stream().map(it -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.CHAIN, it))
 			)
 			.flatMap(it -> it)
 			.collect(Collectors.toSet());

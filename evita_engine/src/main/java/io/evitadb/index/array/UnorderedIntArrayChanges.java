@@ -141,9 +141,10 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 					break;
 				}
 			}
-			for (int insertion : insertions) {
+			for (int i = 0; i < insertions.length; i++) {
+				final int insertion = insertions[i];
 				if (insertion < delegateIndex) {
-					insertsCount += insertedValues[insertion].size();
+					insertsCount += insertedValues[i].size();
 				} else if (insertion == delegateIndex) {
 					insertsCount += insertPosition;
 				} else {
@@ -194,9 +195,10 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 	 * @throws ArrayIndexOutOfBoundsException when array is empty
 	 */
 	public int getLastRecordId() throws ArrayIndexOutOfBoundsException {
-		if (memoizedMergedArray != null) {
+		/* TODO JNO - bring back optimization */
+		/*if (memoizedMergedArray != null) {
 			return memoizedMergedArray[memoizedMergedArray.length - 1];
-		} else {
+		} else {*/
 			final int[] recordIds = delegate.getRecordIds();
 			// find out the last non-removed element from the original array
 			int lastRealElement = recordIds.length - 1;
@@ -204,15 +206,17 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 				lastRealElement--;
 			}
 			// if anything was appended at the end of the array
-			final int insertionsOnLastPositionAndFurther = Arrays.binarySearch(this.insertions, lastRealElement + 1);
-			if (insertionsOnLastPositionAndFurther >= 0) {
-				// return the last record id from the diff
-				return insertedValues[insertions.length - 1].getLastRecordId();
-			} else {
-				// else return the last record of the underlying array
-				return delegate.getRecordAt(lastRealElement);
+			for (int i = insertions.length - 1; i >= 0; i--) {
+				if (insertions[i] > lastRealElement) {
+					return insertedValues[i].getLastRecordId();
+				} else if (insertions[i] < lastRealElement) {
+					break;
+				}
 			}
-		}
+
+			// else return the last record of the underlying array
+			return delegate.getRecordAt(lastRealElement);
+		/*}*/
 	}
 
 	/**

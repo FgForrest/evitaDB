@@ -40,6 +40,8 @@ import static java.util.Optional.ofNullable;
  * Attribute comparator sorts entities according to a specified attribute value. It needs to provide a function for
  * accessing the entity attribute value and the simple {@link Comparable} comparator implementation.
  *
+ * TODO JNO - toto nezvládne attribute compoundy, a navíc ani predecessory
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @SuppressWarnings("ComparatorNotSerializable")

@@ -60,6 +60,7 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.AttributeIndex;
+import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.UniqueIndex;
@@ -356,11 +357,13 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			final Map<AttributeKey, UniqueIndex> uniqueIndexes = new HashMap<>();
 			final Map<AttributeKey, FilterIndex> filterIndexes = new HashMap<>();
 			final Map<AttributeKey, SortIndex> sortIndexes = new HashMap<>();
+			final Map<AttributeKey, ChainIndex> chainIndexes = new HashMap<>();
 			for (AttributeIndexStorageKey attributeIndexKey : entityIndexCnt.getAttributeIndexes()) {
 				switch (attributeIndexKey.indexType()) {
 					case UNIQUE -> fetchUniqueIndex(schemaSupplier.get().getName(), entityIndexId, memTable, uniqueIndexes, attributeIndexKey);
 					case FILTER -> fetchFilterIndex(entityIndexId, memTable, filterIndexes, attributeIndexKey);
 					case SORT -> fetchSortIndex(entityIndexId, memTable, sortIndexes, attributeIndexKey);
+					case CHAIN -> fetchChainIndex(entityIndexId, memTable, chainIndexes, attributeIndexKey);
 					default -> throw new EvitaInternalError("Unknown attribute index type: " + attributeIndexKey.indexType());
 				}
 			}
@@ -382,7 +385,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 					entityIndexCnt.getEntityIds(),
 					entityIndexCnt.getEntityIdsByLanguage(),
 					new AttributeIndex(
-						schemaSupplier.get().getName(), uniqueIndexes, filterIndexes, sortIndexes
+						schemaSupplier.get().getName(), 
+						uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
 					),
 					new PriceSuperIndex(
 						Objects.requireNonNull(entityIndexCnt.getInternalPriceIdSequence()),
@@ -400,7 +404,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 					entityIndexCnt.getEntityIds(),
 					entityIndexCnt.getEntityIdsByLanguage(),
 					new AttributeIndex(
-						schemaSupplier.get().getName(), uniqueIndexes, filterIndexes, sortIndexes
+						schemaSupplier.get().getName(), 
+						uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
 					),
 					hierarchyIndex,
 					facetIndex
@@ -417,7 +422,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 					entityIndexCnt.getEntityIds(),
 					entityIndexCnt.getEntityIdsByLanguage(),
 					new AttributeIndex(
-						schemaSupplier.get().getName(), uniqueIndexes, filterIndexes, sortIndexes
+						schemaSupplier.get().getName(), uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
 					),
 					new PriceRefIndex(priceIndexes, superIndexAccessor),
 					hierarchyIndex,
@@ -860,6 +865,26 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				sortIndexCnt.getSortedRecords(),
 				sortIndexCnt.getSortedRecordsValues(),
 				sortIndexCnt.getValueCardinalities()
+			)
+		);
+	}
+
+	/**
+	 * Fetches {@link ChainIndex} from the {@link MemTable} and puts it into the `chainIndexes` key-value index.
+	 */
+	private static void fetchChainIndex(int entityIndexId, @Nonnull MemTable memTable, @Nonnull Map<AttributeKey, ChainIndex> chainIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
+		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.CHAIN, attributeIndexKey.attribute(), memTable.getReadOnlyKeyCompressor());
+		final ChainIndexStoragePart chainIndexCnt = memTable.get(primaryKey, ChainIndexStoragePart.class);
+		isPremiseValid(
+			chainIndexCnt != null,
+			"Chain index with id " + entityIndexId + " with key " + attributeIndexKey.attribute() + " was not found in mem table!"
+		);
+		final AttributeKey attributeKey = chainIndexCnt.getAttributeKey();
+		chainIndexes.put(
+			attributeKey,
+			new ChainIndex(
+				chainIndexCnt.getChains(),
+				chainIndexCnt.getElementStates()
 			)
 		);
 	}

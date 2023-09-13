@@ -106,7 +106,7 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 				original.add(6, 11);
 				original.add(8, 12);
 				original.add(9, 10);
-				assertTransactionalArrayIs(new int[]{9, 10, 7, 3, 6, 11, 8, 12, 5}, array);
+				assertTransactionalArrayIs(new int[]{9, 10, 7, 3, 6, 11, 8, 12, 5}, original);
 			},
 			(original, committed) -> {
 				assertNull(committed);
@@ -128,7 +128,7 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 				original.addOnIndex(4, 11);
 				original.addOnIndex(6, 12);
 				original.addOnIndex(1, 10);
-				assertTransactionalArrayIs(new int[]{9, 10, 7, 3, 6, 11, 8, 12, 5}, array);
+				assertTransactionalArrayIs(new int[]{9, 10, 7, 3, 6, 11, 8, 12, 5}, original);
 			},
 			(original, committed) -> {
 				assertNull(committed);
@@ -644,7 +644,7 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 				assertTransactionalArrayIs(new int[] {2, 4, 5}, original);
 			},
 			(original, committed) -> {
-				assertTransactionalArrayIs(new int[] {2, 4, 5}, original);
+				assertTransactionalArrayIs(new int[] {2, 4, 3, 1, 5}, original);
 				assertArrayEquals(new int[] {2, 4, 5}, committed);
 			}
 		);
@@ -668,7 +668,7 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 				assertTransactionalArrayIs(new int[] {4, 3, 2}, original);
 			},
 			(original, committed) -> {
-				assertTransactionalArrayIs(new int[] {4, 3, 2}, original);
+				assertTransactionalArrayIs(new int[] {4, 3, 1, 5, 2}, original);
 				assertArrayEquals(new int[] {4, 3, 2}, committed);
 			}
 		);
@@ -692,7 +692,7 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 				assertTransactionalArrayIs(new int[] {2, 4, 3}, original);
 			},
 			(original, committed) -> {
-				assertTransactionalArrayIs(new int[] {2, 4, 3}, original);
+				assertTransactionalArrayIs(new int[] {2, 4, 3, 1, 5}, original);
 				assertArrayEquals(new int[] {2, 4, 3}, committed);
 			}
 		);
@@ -716,7 +716,7 @@ class TransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 				assertTransactionalArrayIs(new int[] {3, 1, 5}, original);
 			},
 			(original, committed) -> {
-				assertTransactionalArrayIs(new int[] {3, 1, 5}, original);
+				assertTransactionalArrayIs(new int[] {2, 4, 3, 1, 5}, original);
 				assertArrayEquals(new int[] {3, 1, 5}, committed);
 			}
 		);

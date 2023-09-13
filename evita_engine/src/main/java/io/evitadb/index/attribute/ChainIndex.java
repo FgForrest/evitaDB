@@ -23,20 +23,21 @@
 
 package io.evitadb.index.attribute;
 
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.core.Catalog;
 import io.evitadb.core.Transaction;
-import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
-import io.evitadb.index.bitmap.ArrayBitmap;
+import io.evitadb.index.array.UnorderedLookup;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
+import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
-import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
-import io.evitadb.utils.ArrayUtils;
+import io.evitadb.store.model.StoragePart;
+import io.evitadb.store.spi.model.storageParts.index.ChainIndexStoragePart;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
@@ -50,12 +51,14 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.evitadb.core.Transaction.isTransactionAvailable;
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static io.evitadb.utils.Assert.isTrue;
+import static java.util.Optional.ofNullable;
 
 /**
  * This is a special index for data type of {@link io.evitadb.dataType.Predecessor}.
@@ -74,7 +77,7 @@ import static io.evitadb.utils.Assert.isTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainElementIndex>, IndexDataStructure, Serializable {
+public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLayerProducer<ChainIndexChanges, ChainIndex>, IndexDataStructure, Serializable {
 	@Serial private static final long serialVersionUID = 6633952268102524794L;
 
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
@@ -82,11 +85,6 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
 	 */
 	@Nonnull private final TransactionalBoolean dirty;
-	/**
-	 * Index contains information about non-interrupted chains of predecessors for an entity which is not a head entity
-	 * but is part of different chain (inconsistent state).
-	 */
-	private final TransactionalMap<Integer, TransactionalUnorderedIntArray> chains;
 	/**
 	 * Index contains tuples of entity primary key and its predecessor primary key. The conflicting primary key is
 	 * a value and the predecessor primary key is a key.
@@ -98,28 +96,45 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 	 *
 	 * The key is the conflicting primary key and the value is the predecessor primary key.
 	 */
-	private final TransactionalMap<Integer, ChainElementState> elementStates;
+	final TransactionalMap<Integer, ChainElementState> elementStates;
 	/**
-	 * Intermediate result that combines the data from {@link #chains} into single
-	 * array of primary keys. The array equals to a value of single {@link #chains} element in case the index is
-	 * in consistent state, otherwise it contains record ordered as follows:
-	 *
-	 * - the longest chain of elements starting with the head element
-	 * - others chains of elements starting with the head element (in order of their length)
-	 * - the chains that are not starting with the head element (in order of their length) - i.e. the chains that start
-	 * with element pointing to the predecessor that is part of the chain starting with the head element
-	 * - the chains with circular reference (in order of their length) - i.e. where the head has predecessor that is
-	 * part of its chain
+	 * Index contains information about non-interrupted chains of predecessors for an entity which is not a head entity
+	 * but is part of different chain (inconsistent state).
 	 */
-	@Nullable private transient Formula memoizedAllRecordsFormula;
+	final TransactionalMap<Integer, TransactionalUnorderedIntArray> chains;
+	/**
+	 * Temporary data structure that should be NULL and should exist only when {@link Catalog} is in
+	 * bulk insertion or read only state where transactions are not used.
+	 */
+	private ChainIndexChanges chainIndexChanges;
 
-	public ChainElementIndex() {
+	public ChainIndex() {
 		this.dirty = new TransactionalBoolean();
 		this.chains = new TransactionalMap<>(new HashMap<>(), TransactionalUnorderedIntArray.class, TransactionalUnorderedIntArray::new);
 		this.elementStates = new TransactionalMap<>(new HashMap<>());
 	}
 
-	public ChainElementIndex(
+	public ChainIndex(
+		@Nonnull int[][] chains,
+		@Nonnull Map<Integer, ChainElementState> elementStates
+	) {
+		this.dirty = new TransactionalBoolean();
+		this.chains = new TransactionalMap<>(
+			Arrays.stream(chains)
+				.map(TransactionalUnorderedIntArray::new)
+				.collect(
+					Collectors.toMap(
+						it -> it.get(0),
+						Function.identity()
+					)
+				),
+			TransactionalUnorderedIntArray.class,
+			TransactionalUnorderedIntArray::new
+		);
+		this.elementStates = new TransactionalMap<>(elementStates);
+	}
+
+	private ChainIndex(
 		@Nonnull Map<Integer, TransactionalUnorderedIntArray> chains,
 		@Nonnull Map<Integer, ChainElementState> elementStates
 	) {
@@ -139,19 +154,67 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 	}
 
 	/**
-	 * Returns formula that returns a single chain representing the most consistent view of the index.
+	 * Intermediate result that combines the data from {@link #chains} into single
+	 * array of primary keys. The array equals to a value of single {@link #chains} element in case the index is
+	 * in consistent state, otherwise it contains record ordered as follows:
+	 *
+	 * - the longest chain of elements starting with the head element
+	 * - others chains of elements starting with the head element (in order of their length)
+	 * - the chains that are not starting with the head element (in order of their length) - i.e. the chains that start
+	 * with element pointing to the predecessor that is part of the chain starting with the head element
+	 * - the chains with circular reference (in order of their length) - i.e. where the head has predecessor that is
+	 * part of its chain
 	 */
 	@Nonnull
-	public Formula getChainFormula() {
-		// if there is transaction open, there might be changes in the histogram data, and we can't easily use cache
-		if (isTransactionAvailable() && this.dirty.isTrue()) {
-			return createConsistentChainFormula();
-		} else {
-			if (this.memoizedAllRecordsFormula == null) {
-				this.memoizedAllRecordsFormula = createConsistentChainFormula();
-			}
-			return this.memoizedAllRecordsFormula;
+	public UnorderedLookup getUnorderedLookup() {
+		final int[][] orderedChains = this.chains
+			.entrySet()
+			.stream()
+			.sorted((o1, o2) -> {
+				final ChainElementState state1 = this.elementStates.get(o1.getKey());
+				final ChainElementState state2 = this.elementStates.get(o2.getKey());
+				if (state1.state() == state2.state()) {
+					// the longest chains come first
+					return Integer.compare(o2.getValue().getLength(), o1.getValue().getLength());
+				} else {
+					// this will sort heads first, then successors, then circulars
+					return Integer.compare(state1.state().ordinal(), state2.state().ordinal());
+				}
+			})
+			.map(Entry::getValue)
+			.map(TransactionalUnorderedIntArray::getArray)
+			.toArray(int[][]::new);
+
+		final int[] result = new int[Stream.of(orderedChains).mapToInt(arr -> arr.length).sum()];
+		int offset = 0;
+		for (int[] chain : orderedChains) {
+			System.arraycopy(chain, 0, result, offset, chain.length);
+			offset += chain.length;
 		}
+
+		return new UnorderedLookup(result);
+	}
+
+	/**
+	 * Method adds or updates existing `predecessor` information for the `primaryKey` element in the index.
+	 *
+	 * @param predecessor pointer record to a predecessor element of the `primaryKey` element
+	 * @param primaryKey  primary key of the element
+	 */
+	public void upsertPredecessor(@Nonnull Predecessor predecessor, int primaryKey) {
+		Assert.isTrue(
+			primaryKey != predecessor.predecessorId(),
+			"An entity that is its own predecessor doesn't have sense!"
+		);
+		final ChainElementState existingState = this.elementStates.get(primaryKey);
+		// if existing state is not found - we need to insert new one
+		if (existingState == null) {
+			insertPredecessor(primaryKey, predecessor);
+		} else {
+			updatePredecessor(primaryKey, predecessor, existingState);
+		}
+		this.dirty.setToTrue();
+		getOrCreateChainIndexChanges().reset();
 	}
 
 	/**
@@ -167,31 +230,36 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 		);
 		// if existing state is not found - we need to insert new one
 		removePredecessorFromChain(primaryKey, existingState);
-
-		if (!isTransactionAvailable()) {
-			this.memoizedAllRecordsFormula = null;
-		}
 		this.dirty.setToTrue();
+		getOrCreateChainIndexChanges().reset();
 	}
 
 	/**
-	 * Method adds or updates existing `predecessor` information for the `primaryKey` element in the index.
-	 *
-	 * @param primaryKey  primary key of the element
-	 * @param predecessor pointer record to a predecessor element of the `primaryKey` element
+	 * Returns true if {@link SortIndex} contains no data.
 	 */
-	public void upsertPredecessor(int primaryKey, @Nonnull Predecessor predecessor) {
-		final ChainElementState existingState = this.elementStates.get(primaryKey);
-		// if existing state is not found - we need to insert new one
-		if (existingState == null) {
-			insertPredecessor(primaryKey, predecessor);
+	public boolean isEmpty() {
+		return this.elementStates.isEmpty();
+	}
+
+	/**
+	 * Method creates container for storing chain index from memory to the persistent storage.
+	 */
+	@Nullable
+	public StoragePart createStoragePart(int entityIndexPrimaryKey, AttributeKey attribute) {
+		if (this.dirty.isTrue()) {
+			// all data are persisted to disk - we may get rid of temporary, modification only helper container
+			this.chainIndexChanges = null;
+			return new ChainIndexStoragePart(
+				entityIndexPrimaryKey, attribute,
+				this.elementStates,
+				this.chains.values()
+					.stream()
+					.map(TransactionalUnorderedIntArray::getArray)
+					.toArray(int[][]::new)
+			);
 		} else {
-			updatePredecessor(primaryKey, predecessor, existingState);
+			return null;
 		}
-		if (!isTransactionAvailable()) {
-			this.memoizedAllRecordsFormula = null;
-		}
-		this.dirty.setToTrue();
 	}
 
 	@Override
@@ -199,21 +267,33 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 		this.dirty.reset();
 	}
 
+
+	/*
+		Implementation of TransactionalLayerProducer
+	 */
+
+	@Override
+	public ChainIndexChanges createLayer() {
+		return new ChainIndexChanges(this);
+	}
+
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		this.dirty.removeLayer(transactionalLayer);
+		this.elementStates.removeLayer(transactionalLayer);
+		this.chains.removeLayer(transactionalLayer);
 	}
 
 	@Nonnull
 	@Override
-	public ChainElementIndex createCopyWithMergedTransactionalMemory(
-		@Nullable Void layer,
+	public ChainIndex createCopyWithMergedTransactionalMemory(
+		@Nullable ChainIndexChanges layer,
 		@Nonnull TransactionalLayerMaintainer transactionalLayer,
 		@Nullable Transaction transaction
 	) {
 		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty, transaction);
-		return new ChainElementIndex(
+		return new ChainIndex(
 			transactionalLayer.getStateCopyWithCommittedChanges(this.chains, transaction),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.elementStates, transaction)
 		);
@@ -221,9 +301,26 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 
 	@Override
 	public String toString() {
-		return "ChainElementIndex:\n" +
+		return "ChainIndex:\n" +
 			"   - chains:\n" + chains.values().stream().map(it -> "      - " + it.toString()).collect(Collectors.joining("\n")) + "\n" +
 			"   - elementStates:\n" + elementStates.entrySet().stream().map(it -> "      - " + it.getKey() + ": " + it.getValue()).collect(Collectors.joining("\n"));
+	}
+
+	/**
+	 * Retrieves or creates temporary data structure. When transaction exists it's created in the transactional memory
+	 * space so that other threads are not affected by the changes in the {@link SortIndex}.
+	 */
+	@Nonnull
+	private ChainIndexChanges getOrCreateChainIndexChanges() {
+		final ChainIndexChanges layer = getTransactionalMemoryLayer(this);
+		if (layer == null) {
+			return ofNullable(this.chainIndexChanges).orElseGet(() -> {
+				this.chainIndexChanges = new ChainIndexChanges(this);
+				return this.chainIndexChanges;
+			});
+		} else {
+			return layer;
+		}
 	}
 
 	/**
@@ -262,9 +359,10 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 		final OptionalInt newHead;
 		if (removedChain.getLength() > 0) {
 			newHead = OptionalInt.of(removedChain.get(0));
-			this.chains.put(newHead.getAsInt(), removedChain);
+			final int[] removedChainArray = removedChain.getArray();
+			this.chains.put(newHead.getAsInt(), new TransactionalUnorderedIntArray(removedChainArray));
 			// we need to reclassify the chain
-			reclassifyChain(newHead.getAsInt(), removedChain.getArray());
+			reclassifyChain(newHead.getAsInt(), removedChainArray);
 		} else {
 			newHead = OptionalInt.empty();
 		}
@@ -345,6 +443,18 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 		}
 		// collapse the chains that refer to the last element of created chain
 		collapseChainsIfPossible(primaryKey);
+	}
+
+	@Nonnull
+	@Override
+	public SortedRecordsSupplier getAscendingOrderRecordsSupplier() {
+		return getOrCreateChainIndexChanges().getAscendingOrderRecordsSupplier();
+	}
+
+	@Nonnull
+	@Override
+	public SortedRecordsSupplier getDescendingOrderRecordsSupplier() {
+		return getOrCreateChainIndexChanges().getDescendingOrderRecordsSupplier();
 	}
 
 	/**
@@ -641,12 +751,9 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 				predecessorChain.appendAll(movedChain);
 				reclassifyChain(predecessorState.inChainOfHeadWithPrimaryKey(), movedChain);
 				return predecessorState.inChainOfHeadWithPrimaryKey();
-			} else {
-				return findFirstSuccessorChainAndMergeToElementChain(chainHeadState);
 			}
-		} else {
-			return null;
 		}
+		return findFirstSuccessorChainAndMergeToElementChain(chainHeadState);
 	}
 
 	/**
@@ -670,56 +777,33 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 			})
 			.findFirst();
 		if (collapsableChain.isPresent()) {
-			// we may append the chain to the predecessor chain
-			final TransactionalUnorderedIntArray removedChain = this.chains.remove(collapsableChain.get());
-			final int[] movedChain = removedChain.getArray();
-			// if there was transactional memory associated with the chain, discard it
-			removedChain.removeLayer();
-			chain.appendAll(movedChain);
-			reclassifyChain(chainHeadElement, movedChain);
-			return collapsableChain.get();
-		} else {
-			return null;
+			final ChainElementState headChainState = this.elementStates.get(collapsableChain.get());
+			final TransactionalUnorderedIntArray chainToBeCollapsed = this.chains.get(collapsableChain.get());
+			if (chainToBeCollapsed.indexOf(headChainState.predecessorPrimaryKey()) >= 0) {
+				// we have circular dependency - we can't collapse the chain
+				this.elementStates.put(
+					collapsableChain.get(),
+					new ChainElementState(headChainState, ElementState.CIRCULAR)
+				);
+				return null;
+			} else {
+				// we may append the chain to the predecessor chain
+				final TransactionalUnorderedIntArray removedChain = this.chains.remove(collapsableChain.get());
+				final int[] movedChain = removedChain.getArray();
+				// if there was transactional memory associated with the chain, discard it
+				removedChain.removeLayer();
+				chain.appendAll(movedChain);
+				reclassifyChain(chainHeadElement, movedChain);
+				return collapsableChain.get();
+			}
 		}
-	}
-
-	/**
-	 * Creates formula that returns a single chain representing the most consistent view of the index.
-	 * It combines all known chains into a single one.
-	 */
-	@Nonnull
-	private Formula createConsistentChainFormula() {
-		final int[][] orderedChains = this.chains
-			.entrySet()
-			.stream()
-			.sorted((o1, o2) -> {
-				final ChainElementState state1 = this.elementStates.get(o1.getKey());
-				final ChainElementState state2 = this.elementStates.get(o2.getKey());
-				if (state1.state() == state2.state()) {
-					// the longest chains come first
-					return Integer.compare(o2.getValue().getLength(), o1.getValue().getLength());
-				} else {
-					// this will sort heads first, then successors, then circulars
-					return Integer.compare(state1.state().ordinal(), state2.state().ordinal());
-				}
-			})
-			.map(Entry::getValue)
-			.map(TransactionalUnorderedIntArray::getArray)
-			.toArray(int[][]::new);
-
-		final int[] result = new int[Stream.of(orderedChains).mapToInt(arr -> arr.length).sum()];
-		int offset = 0;
-		for (int[] chain : orderedChains) {
-			System.arraycopy(chain, 0, result, offset, chain.length);
-			offset += chain.length;
-		}
-		return ArrayUtils.isEmpty(result) ? EmptyFormula.INSTANCE : new ConstantFormula(new ArrayBitmap(result));
+		return null;
 	}
 
 	/**
 	 * Enum represents the state of the element in the index.
 	 */
-	enum ElementState {
+	public enum ElementState {
 		/**
 		 * Element is the head of one of the {@link #chains} and have no predecessor.
 		 */
@@ -742,7 +826,7 @@ public class ChainElementIndex implements VoidTransactionMemoryProducer<ChainEle
 	 * @param predecessorPrimaryKey       primary key of the predecessor of this element
 	 * @param state                       state of the element
 	 */
-	record ChainElementState(
+	public record ChainElementState(
 		int inChainOfHeadWithPrimaryKey,
 		int predecessorPrimaryKey,
 		@Nonnull ElementState state

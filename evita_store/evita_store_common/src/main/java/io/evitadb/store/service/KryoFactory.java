@@ -173,6 +173,7 @@ public class KryoFactory {
 		kryoInstance.register(Currency[].class, new GenericArraySerializer<>(Currency.class), index++);
 		kryoInstance.register(UUID.class, new UuidSerializer(), index++);
 		kryoInstance.register(UUID[].class, new GenericArraySerializer<>(UUID.class), index++);
+		kryoInstance.register(Predecessor.class, new PredecessorSerializer(), index++);
 		kryoInstance.register(ComplexDataObject.class, new ComplexDataObjectSerializer(), index++);
 		kryoInstance.register(ComplexDataObject[].class, new GenericArraySerializer<>(ComplexDataObject.class), index++);
 		kryoInstance.register(Set.class, new SetSerializer<>(count -> new HashSet<>((int) Math.ceil(count / .75f), .75f)), index++);
@@ -193,7 +194,6 @@ public class KryoFactory {
 		kryoInstance.register(Collections.unmodifiableMap(Collections.EMPTY_MAP).getClass(), new MapSerializer<>(count -> Collections.unmodifiableMap(new HashMap<>((int) Math.ceil(count / .75f), .75f))), index++);
 		kryoInstance.register(Collections.emptySet().getClass(), new CollectionsEmptySetSerializer(), index++);
 		kryoInstance.register(Collections.unmodifiableSet(Collections.EMPTY_SET).getClass(), new SetSerializer<>(count -> Collections.unmodifiableSet(new HashSet<>((int) Math.ceil(count / .75f), .75f))), index++);
-		kryoInstance.register(Predecessor.class, new PredecessorSerializer(), index++);
 		Assert.isPremiseValid(index < 200, "Index count overflow.");
 		return kryoInstance;
 	}

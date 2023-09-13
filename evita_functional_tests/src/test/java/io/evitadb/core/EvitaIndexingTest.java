@@ -83,6 +83,8 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * This test contains various integration tests for {@link Evita}.
  *
+ * TODO JNO - napsat test, kdy predecessor se označí jako filterable
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class EvitaIndexingTest implements EvitaTestSupport {

@@ -105,11 +105,13 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 	 */
 	public int getLastRecordId() throws ArrayIndexOutOfBoundsException {
 		final UnorderedIntArrayChanges layer = getTransactionalMemoryLayerIfExists(this);
+		final int result;
 		if (layer == null) {
-			return this.lookup.getLastRecordId();
+			result = this.lookup.getLastRecordId();
 		} else {
-			return layer.getLastRecordId();
+			result = layer.getLastRecordId();
 		}
+		return result;
 	}
 
 	/**
@@ -233,7 +235,7 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 	 * @return removed records
 	 */
 	public int[] removeRange(int startIndex, int endIndex) {
-		final UnorderedIntArrayChanges layer = getTransactionalMemoryLayerIfExists(this);
+		final UnorderedIntArrayChanges layer = getTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.lookup.removeRange(startIndex, endIndex);
 		} else {
