@@ -45,6 +45,7 @@ import io.evitadb.index.attribute.SortIndex;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Function;
@@ -71,46 +72,57 @@ public class AttributeNaturalTranslator
 		final AttributeExtractor attributeSchemaEntityAccessor = processingScope.attributeEntityAccessor();
 
 		final Supplier<SortedRecordsProvider[]> sortedRecordsSupplier;
-		final EntityComparator comparator;
 		final EntityIndex<?>[] indexesForSort = orderByVisitor.getIndexesForSort();
+		final NamedSchemaContract attributeOrCompoundSchema = processingScope.getAttributeSchemaOrSortableAttributeCompound(attributeName);
 
+		final Comparator<Comparable<?>> comparator;
 		if (orderDirection == ASC) {
 			sortedRecordsSupplier = new AttributeSortedRecordsProviderSupplier(
 				SortIndex::getAscendingOrderRecordsSupplier,
 				ChainIndex::getAscendingOrderRecordsSupplier,
-				() -> processingScope.getAttributeSchemaOrSortableAttributeCompound(attributeName),
+				attributeOrCompoundSchema,
 				indexesForSort,
 				orderByVisitor, locale
 			);
 			//noinspection unchecked,rawtypes
-			comparator = new AttributeComparator(
-				attributeName, locale, attributeSchemaEntityAccessor,
-				(o1, o2) -> ((Comparable) o1).compareTo(o2)
-			);
+			comparator = (o1, o2) -> ((Comparable) o1).compareTo(o2);
 		} else {
 			sortedRecordsSupplier = new AttributeSortedRecordsProviderSupplier(
 				SortIndex::getDescendingOrderRecordsSupplier,
 				ChainIndex::getDescendingOrderRecordsSupplier,
-				() -> processingScope.getAttributeSchemaOrSortableAttributeCompound(attributeName),
+				attributeOrCompoundSchema,
 				indexesForSort,
 				orderByVisitor, locale
 			);
 			//noinspection unchecked,rawtypes
-			comparator = new AttributeComparator(
+			comparator = (o1, o2) -> ((Comparable) o2).compareTo(o1);
+		}
+
+		final EntityComparator entityComparator;
+		if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema &&
+			Predecessor.class.equals(attributeSchema.getPlainType())) {
+			// we cannot use attribute comparator for predecessor attributes, we always need index here
+			entityComparator = null;
+		} else {
+			entityComparator = new AttributeComparator(
 				attributeName, locale, attributeSchemaEntityAccessor,
-				(o1, o2) -> ((Comparable) o2).compareTo(o1)
+				comparator
 			);
 		}
 
 		// if prefetch happens we need to prefetch attributes so that the attribute comparator can work
 		orderByVisitor.addRequirementToPrefetch(attributeSchemaEntityAccessor.getRequirements());
 
-		return Stream.of(
-			new PrefetchedRecordsSorter(comparator),
-			new PreSortedRecordsSorter(
-				processingScope.entityType(), sortedRecordsSupplier
-			)
+		final PreSortedRecordsSorter preSortedRecordsSorter = new PreSortedRecordsSorter(
+			processingScope.entityType(), sortedRecordsSupplier
 		);
+
+		return entityComparator == null ?
+			Stream.of(preSortedRecordsSorter) :
+			Stream.of(
+				new PrefetchedRecordsSorter(entityComparator),
+				preSortedRecordsSorter
+			);
 	}
 
 	@Nonnull
@@ -144,7 +156,7 @@ public class AttributeNaturalTranslator
 	private record AttributeSortedRecordsProviderSupplier(
 		@Nonnull Function<SortIndex, SortedRecordsProvider> sortIndexExtractor,
 		@Nonnull Function<ChainIndex, SortedRecordsProvider> chainIndexExtractor,
-		@Nonnull Supplier<NamedSchemaContract> attributeOrCompoundSchemaSupplier,
+		@Nonnull NamedSchemaContract attributeOrCompoundSchema,
 		@Nonnull EntityIndex<?>[] targetIndex,
 		@Nonnull OrderByVisitor orderByVisitor,
 		@Nonnull Locale locale
@@ -153,17 +165,16 @@ public class AttributeNaturalTranslator
 
 		@Override
 		public SortedRecordsProvider[] get() {
-			final NamedSchemaContract attributeSchema = attributeOrCompoundSchemaSupplier.get();
 			final SortedRecordsProvider[] sortedRecordsProvider;
-			if (attributeSchema instanceof AttributeSchemaContract attributeSchemaContract && Predecessor.class.equals(attributeSchemaContract.getPlainType())) {
+			if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchemaContract && Predecessor.class.equals(attributeSchemaContract.getPlainType())) {
 				sortedRecordsProvider = Arrays.stream(targetIndex)
-					.map(it -> it.getChainIndex(attributeSchema.getName(), locale))
+					.map(it -> it.getChainIndex(attributeOrCompoundSchema.getName(), locale))
 					.filter(Objects::nonNull)
 					.map(chainIndexExtractor)
 					.toArray(SortedRecordsProvider[]::new);
 			} else {
 				sortedRecordsProvider = Arrays.stream(targetIndex)
-					.map(it -> it.getSortIndex(attributeSchema.getName(), locale))
+					.map(it -> it.getSortIndex(attributeOrCompoundSchema.getName(), locale))
 					.filter(Objects::nonNull)
 					.map(sortIndexExtractor)
 					.toArray(SortedRecordsProvider[]::new);
