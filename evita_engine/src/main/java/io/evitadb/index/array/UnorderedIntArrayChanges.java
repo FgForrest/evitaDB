@@ -195,10 +195,9 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 	 * @throws ArrayIndexOutOfBoundsException when array is empty
 	 */
 	public int getLastRecordId() throws ArrayIndexOutOfBoundsException {
-		/* TODO JNO - bring back optimization */
-		/*if (memoizedMergedArray != null) {
+		if (memoizedMergedArray != null) {
 			return memoizedMergedArray[memoizedMergedArray.length - 1];
-		} else {*/
+		} else {
 			final int[] recordIds = delegate.getRecordIds();
 			// find out the last non-removed element from the original array
 			int lastRealElement = recordIds.length - 1;
@@ -216,7 +215,7 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 
 			// else return the last record of the underlying array
 			return delegate.getRecordAt(lastRealElement);
-		/*}*/
+		}
 	}
 
 	/**

@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.builder;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
@@ -334,7 +335,11 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 				plainType.isPrimitive() ||
 				Comparable.class.isAssignableFrom(plainType) ||
 				Predecessor.class.isAssignableFrom(plainType),
-			"Data type `" + currentSchema.getType() + "` in attribute schema `" + currentSchema.getName() + "` must implement Comparable (or must be Predecessor) in order to be usable for sort index!"
+			() -> new InvalidSchemaMutationException("Data type `" + currentSchema.getType() + "` in attribute schema `" + currentSchema.getName() + "` must implement Comparable (or must be Predecessor) in order to be usable for sort index!")
+		);
+		Assert.isTrue(
+			!(currentSchema.isSortable() && currentSchema.getType().isArray()),
+			() -> new InvalidSchemaMutationException("Attribute `" + currentSchema.getName() + "` is sortable but also an array. Arrays cannot be handled by sorting algorithm!")
 		);
 		Assert.isTrue(
 			!(currentSchema.isFilterable() || currentSchema.isUnique()) ||
@@ -342,15 +347,11 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 				Comparable.class.isAssignableFrom(plainType) ||
 				Currency.class.isAssignableFrom(plainType) ||
 				Locale.class.isAssignableFrom(plainType),
-			"Data type `" + currentSchema.getType() + "` in attribute schema `" + currentSchema.getName() + "` must implement Comparable in order to be usable for filter / unique index!"
+			() -> new InvalidSchemaMutationException("Data type `" + currentSchema.getType() + "` in attribute schema `" + currentSchema.getName() + "` must implement Comparable in order to be usable for filter / unique index!")
 		);
 		Assert.isTrue(
 			!(currentSchema.isFilterable() && currentSchema.isUnique()),
-			"Attribute `" + currentSchema.getName() + "` cannot be both unique and filterable. Unique attributes are implicitly filterable!"
-		);
-		Assert.isTrue(
-			!(currentSchema.isSortable() && currentSchema.getType().isArray()),
-			"Attribute `" + currentSchema.getName() + "` is sortable but also an array. Arrays cannot be handled by sorting algorithm!"
+			() -> new InvalidSchemaMutationException("Attribute `" + currentSchema.getName() + "` cannot be both unique and filterable. Unique attributes are implicitly filterable!")
 		);
 	}
 
