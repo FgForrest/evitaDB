@@ -377,6 +377,7 @@ Order constraints allow you to define a rule that controls the order of entities
 - [price natural](ordering/price.md#price-natural)
 - [reference property](ordering/reference.md#reference-property)
 - [entity property](ordering/reference.md#entity-property)
+- [entity group property](ordering/reference.md#entity-group-property)
 - [random](ordering/random.md#random)
 
 ## Require
