@@ -23,7 +23,7 @@
 
 package io.evitadb.core.query.sort.attribute.translator;
 
-import io.evitadb.api.query.order.EntityProperty;
+import io.evitadb.api.query.order.EntityGroupProperty;
 import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
@@ -38,16 +38,16 @@ import javax.annotation.Nonnull;
  * used when nested query targeting the referenced entity is constructed during reference fetch and thus be initialized
  * in an optimal way.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  * @see EntityNestedQueryComparator
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class EntityPropertyTranslator
-	implements ReferenceOrderingConstraintTranslator<EntityProperty>, SelfTraversingTranslator {
+public class EntityGroupPropertyTranslator
+	implements ReferenceOrderingConstraintTranslator<EntityGroupProperty>, SelfTraversingTranslator {
 
 	@Override
-	public void createComparator(@Nonnull EntityProperty entityProperty, @Nonnull ReferenceOrderByVisitor orderByVisitor) {
+	public void createComparator(@Nonnull EntityGroupProperty entityGroupProperty, @Nonnull ReferenceOrderByVisitor orderByVisitor) {
 		final EntityNestedQueryComparator existingNestedComparator = orderByVisitor.getOrCreateNestedQueryComparator();
-		existingNestedComparator.setOrderBy(entityProperty);
+		existingNestedComparator.setGroupOrderBy(entityGroupProperty);
 	}
 
 }

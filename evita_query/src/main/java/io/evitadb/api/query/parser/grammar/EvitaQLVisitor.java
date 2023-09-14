@@ -461,6 +461,13 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitEntityPropertyConstraint(EvitaQLParser.EntityPropertyConstraintContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code entityGroupPropertyConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitEntityGroupPropertyConstraint(EvitaQLParser.EntityGroupPropertyConstraintContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code requireContainerConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree

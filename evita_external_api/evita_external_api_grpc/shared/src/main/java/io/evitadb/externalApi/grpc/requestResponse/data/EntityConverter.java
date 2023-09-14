@@ -67,7 +67,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -810,7 +809,7 @@ public class EntityConverter {
 
 		@Nullable
 		@Override
-		public Comparator<ReferenceContract> getEntityComparator(@Nonnull ReferenceSchemaContract referenceSchema) {
+		public ReferenceComparator getEntityComparator(@Nonnull ReferenceSchemaContract referenceSchema) {
 			return null;
 		}
 

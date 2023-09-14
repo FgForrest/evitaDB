@@ -79,8 +79,8 @@ import java.io.Serializable;
  *
  * In the `orderBy` clause within the {@link io.evitadb.api.query.require.ReferenceContent} requirement,
  * the `referenceProperty` constraint is implicit and must not be repeated. All attribute order constraints
- * in `referenceContent` automatically refer to the reference attributes, unless the {@link EntityProperty}
- * container is used there.
+ * in `referenceContent` automatically refer to the reference attributes, unless the {@link EntityProperty} or
+ * {@link EntityGroupProperty} container is used there.
  *
  * The example is based on a simple one-to-zero-or-one reference (a product can have at most one reference to a brand
  * entity). The response will only return the products that have a reference to the "Sony" brand, all of which contain the

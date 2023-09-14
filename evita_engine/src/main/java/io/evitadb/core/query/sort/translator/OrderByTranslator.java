@@ -28,6 +28,7 @@ import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.sort.OrderByVisitor;
+import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
 
 import javax.annotation.Nonnull;
@@ -38,7 +39,7 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class OrderByTranslator implements OrderingConstraintTranslator<OrderBy> {
+public class OrderByTranslator implements OrderingConstraintTranslator<OrderBy>, ReferenceOrderingConstraintTranslator<OrderBy> {
 
 	@Nonnull
 	@Override
@@ -46,4 +47,8 @@ public class OrderByTranslator implements OrderingConstraintTranslator<OrderBy> 
 		return Stream.empty();
 	}
 
+	@Override
+	public void createComparator(@Nonnull OrderBy orderConstraints, @Nonnull ReferenceOrderByVisitor orderByVisitor) {
+		// no implementation here - we just need to traverse the contents
+	}
 }

@@ -31,7 +31,6 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Comparator;
 import java.util.List;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
@@ -77,7 +76,7 @@ public interface ReferenceFetcher {
 
 		@Nonnull
 		@Override
-		public Comparator<ReferenceContract> getEntityComparator(@Nonnull ReferenceSchemaContract referenceSchema) {
+		public ReferenceComparator getEntityComparator(@Nonnull ReferenceSchemaContract referenceSchema) {
 			return ReferenceComparator.DEFAULT;
 		}
 
@@ -161,7 +160,7 @@ public interface ReferenceFetcher {
 	 * @return null if the references should remain in the order they were fetched
 	 */
 	@Nullable
-	Comparator<ReferenceContract> getEntityComparator(@Nonnull ReferenceSchemaContract referenceSchema);
+	ReferenceComparator getEntityComparator(@Nonnull ReferenceSchemaContract referenceSchema);
 
 	/**
 	 * Returns FALSE if the entity should contain references with empty {@link ReferenceDecorator#getReferencedEntity()}.

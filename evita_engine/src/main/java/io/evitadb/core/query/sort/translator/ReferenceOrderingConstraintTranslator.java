@@ -43,7 +43,6 @@ public interface ReferenceOrderingConstraintTranslator<T extends OrderConstraint
 	/**
 	 * Method creates the appropriate {@link ReferenceComparator} implementation for passed constraint.
 	 */
-	@Nonnull
-	ReferenceComparator createComparator(@Nonnull T t, @Nonnull ReferenceOrderByVisitor orderByVisitor);
+	void createComparator(@Nonnull T t, @Nonnull ReferenceOrderByVisitor orderByVisitor);
 
 }

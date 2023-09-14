@@ -125,12 +125,10 @@ public class AttributeNaturalTranslator
 			);
 	}
 
-	@Nonnull
 	@Override
-	public ReferenceComparator createComparator(@Nonnull AttributeNatural attributeNatural, @Nonnull ReferenceOrderByVisitor orderByVisitor) {
+	public void createComparator(@Nonnull AttributeNatural attributeNatural, @Nonnull ReferenceOrderByVisitor orderByVisitor) {
 		final String attributeName = attributeNatural.getAttributeName();
 		final OrderDirection orderDirection = attributeNatural.getOrderDirection();
-		final ReferenceComparator lastUsedComparator = orderByVisitor.getLastUsedComparator();
 		final Locale locale = orderByVisitor.getLocale();
 
 		final ReferenceComparator comparator;
@@ -146,11 +144,7 @@ public class AttributeNaturalTranslator
 			);
 		}
 
-		if (lastUsedComparator == null) {
-			return comparator;
-		} else {
-			return lastUsedComparator.andThen(comparator);
-		}
+		orderByVisitor.addComparator(comparator);
 	}
 
 	private record AttributeSortedRecordsProviderSupplier(
