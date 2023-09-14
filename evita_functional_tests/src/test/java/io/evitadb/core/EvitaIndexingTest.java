@@ -1147,6 +1147,25 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	}
 
 	@Test
+	void shouldFailToSetUpPredecessorAsAssociatedData() {
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getCatalogSchema()
+						.openForWrite()
+						.withEntitySchema(
+							"whatever",
+							whichIs -> whichIs.withAssociatedData("whatever", Predecessor.class)
+						)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
 	void shouldMarkCurrencyAsFilterable() {
 		evita.updateCatalog(
 			TEST_CATALOG,
