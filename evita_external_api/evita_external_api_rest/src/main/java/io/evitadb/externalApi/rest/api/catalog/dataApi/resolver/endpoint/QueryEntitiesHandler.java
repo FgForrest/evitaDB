@@ -72,7 +72,7 @@ public class QueryEntitiesHandler extends QueryOrientedEntitiesHandler<EvitaResp
 		this.extraResultsJsonSerializer = new ExtraResultsJsonSerializer(
 			restApiHandlingContext,
 			this.entityJsonSerializer,
-			referenceNameToFieldName
+			referenceNameToFieldName::get
 		);
 	}
 

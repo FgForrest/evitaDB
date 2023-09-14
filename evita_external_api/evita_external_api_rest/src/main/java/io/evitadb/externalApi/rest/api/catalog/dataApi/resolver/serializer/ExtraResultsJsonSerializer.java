@@ -46,7 +46,9 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
+import io.evitadb.externalApi.rest.exception.RestQueryResolvingInternalError;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -59,6 +61,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * Handles serializing of Evita extra results into JSON structure
@@ -71,11 +74,11 @@ public class ExtraResultsJsonSerializer {
 	private final EntityJsonSerializer entityJsonSerializer;
 	private final ObjectJsonSerializer objectJsonSerializer;
 
-	private final Map<String, String> referenceNameToFieldName;
+	private final Function<String, String> referenceNameToFieldName;
 
 	public ExtraResultsJsonSerializer(@Nonnull RestHandlingContext restHandlingContext,
 	                                  @Nonnull EntityJsonSerializer entityJsonSerializer,
-	                                  @Nonnull Map<String, String> referenceNameToFieldName) {
+	                                  @Nonnull Function<String, String> referenceNameToFieldName) {
 		this.entityJsonSerializer = entityJsonSerializer;
 		this.referenceNameToFieldName = referenceNameToFieldName;
 		this.objectJsonSerializer = new ObjectJsonSerializer(restHandlingContext.getObjectMapper());
@@ -174,9 +177,14 @@ public class ExtraResultsJsonSerializer {
 			hierarchyNode.putIfAbsent(HierarchyDescriptor.SELF.name(), serializeHierarchyOf(selfHierarchy));
 		}
 
-		hierarchy.getReferenceHierarchies().forEach((referenceName, hierarchyOfReference) ->
-			hierarchyNode.putIfAbsent(referenceNameToFieldName.get(referenceName), serializeHierarchyOf(hierarchyOfReference))
-		);
+		hierarchy.getReferenceHierarchies().forEach((referenceName, hierarchyOfReference) -> {
+			final String fieldName = referenceNameToFieldName.apply(referenceName);
+			Assert.isPremiseValid(
+				fieldName != null,
+				() -> new RestQueryResolvingInternalError("Reference name `" + referenceName + "` is not mapped to any field name.")
+			);
+			hierarchyNode.putIfAbsent(fieldName, serializeHierarchyOf(hierarchyOfReference));
+		});
 
 		return hierarchyNode;
 	}

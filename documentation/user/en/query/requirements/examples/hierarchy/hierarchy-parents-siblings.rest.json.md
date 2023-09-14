@@ -53,6 +53,40 @@
     "children": [
       {
         "entity": {
+          "primaryKey": 66480,
+          "type": "Category",
+          "version": 1,
+          "allLocales": [
+            "en"
+          ],
+          "attributes": {
+            "global": {
+              "code": "christmas-electronics"
+            }
+          }
+        },
+        "queriedEntityCount": 10,
+        "childrenCount": 0
+      },
+      {
+        "entity": {
+          "primaryKey": 66481,
+          "type": "Category",
+          "version": 1,
+          "allLocales": [
+            "en"
+          ],
+          "attributes": {
+            "global": {
+              "code": "smart-wearable"
+            }
+          }
+        },
+        "queriedEntityCount": 285,
+        "childrenCount": 3
+      },
+      {
+        "entity": {
           "primaryKey": 66482,
           "type": "Category",
           "version": 1,
@@ -207,40 +241,6 @@
             "childrenCount": 0
           }
         ]
-      },
-      {
-        "entity": {
-          "primaryKey": 66480,
-          "type": "Category",
-          "version": 1,
-          "allLocales": [
-            "en"
-          ],
-          "attributes": {
-            "global": {
-              "code": "christmas-electronics"
-            }
-          }
-        },
-        "queriedEntityCount": 10,
-        "childrenCount": 0
-      },
-      {
-        "entity": {
-          "primaryKey": 66481,
-          "type": "Category",
-          "version": 1,
-          "allLocales": [
-            "en"
-          ],
-          "attributes": {
-            "global": {
-              "code": "smart-wearable"
-            }
-          }
-        },
-        "queriedEntityCount": 285,
-        "childrenCount": 3
       },
       {
         "entity": {
