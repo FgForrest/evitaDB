@@ -81,7 +81,7 @@ and keep the reference around so that your application can call it when needed.
 The <SourceClass>evita_engine/src/main/java/io/evitadb/core/Evita.java</SourceClass> is expensive because it loads all
 the indexes into memory when it starts.
 
-<SourceCodeTabs>
+<SourceCodeTabs local>
 [Example of web API enabling in Java](/documentation/user/en/get-started/example/server-startup.java)
 </SourceCodeTabs>
 
@@ -165,7 +165,7 @@ The evitaDB web APIs are maintained by a separate class <SourceClass>evita_exter
 You must instantiate and configure this class and pass it a reference to the
 <SourceClass>evita_engine/src/main/java/io/evitadb/core/Evita.java</SourceClass> instance:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/server-startup.java">    
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/server-startup.java" local>    
 [Example of web API startup in Java](/documentation/user/en/get-started/example/api-startup.java)
 </SourceCodeTabs>
 
@@ -174,7 +174,7 @@ Don't forget to close the APIs when your application ends by calling the `close`
 the <SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/ExternalApiServer.java</SourceClass>
 instance. One of the options is to listen to Java process termination:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/api-startup.java">    
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/api-startup.java" local>    
 [Example of web API teardown in Java](/documentation/user/en/get-started/example/server-teardown.java)
 </SourceCodeTabs>
 
